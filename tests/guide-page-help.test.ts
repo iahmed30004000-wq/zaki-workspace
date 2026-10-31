@@ -46,6 +46,8 @@ const PAGES: [string, string][] = [
   ["/teams", "teams"],
   ["/members", "members"],
   ["/files", "files"],
+  ["/documents", "documents"],
+  ["/documents/ckabc123", "document"],
   ["/crm", "crm"],
   ["/time", "time"],
   ["/checkins", "checkins"],
@@ -90,8 +92,6 @@ describe("matchHelp: the page the person is on → its help", () => {
     expect(matchHelp("/login")).toBeNull();
     expect(matchHelp("/onboarding")).toBeNull();
     expect(matchHelp("/api/health")).toBeNull();
-    // /documents only redirects to /files: it has no page of its own to explain
-    expect(matchHelp("/documents")).toBeNull();
   });
 
   it("paths are case-sensitive, like the routes", () => {

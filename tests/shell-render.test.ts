@@ -325,17 +325,20 @@ describe("the frame for a plain member", () => {
     expect(linkTo(bottomBar(settings), "/members")).toContain('aria-current="true"');
   });
 
-  it("the library's single tab shows no strip either", () => {
-    expect(shell("MEMBER", "/files")).not.toContain('data-tour="tabs"');
+  it("the library has two tabs now (الملفات and المستندات), so it shows its strip", () => {
+    const html = shell("MEMBER", "/files");
+    expect(html).toContain('data-tour="tabs"');
+    expect(hrefs(tabStrip(html))).toEqual(["/files", "/documents"]);
   });
 });
 
 describe("the frame for an external partner (guest)", () => {
   const html = shell("GUEST", "/my-work");
 
-  it("Today, Chat and Work are visible to a guest; company-only areas stay hidden", () => {
-    expect(hrefs(bottomBar(html))).toEqual(["/", "/chat", "/my-work"]);
-    expect(hrefs(sidebarPlaces(html))).toEqual(["/", "/chat", "/my-work"]);
+  it("Today, Chat, Work and the library (its documents tab alone) are visible to a guest; company-only areas stay hidden", () => {
+    // the library opens on «المستندات» for a partner: the files tab is for staff
+    expect(hrefs(bottomBar(html))).toEqual(["/", "/chat", "/my-work", "/documents"]);
+    expect(hrefs(sidebarPlaces(html))).toEqual(["/", "/chat", "/my-work", "/documents"]);
     for (const href of ["/files", "/members", "/crm", "/departments", "/production", "/settings", "/analytics", "/goals", "/ideas"]) {
       expect(hrefs(html), href).not.toContain(href);
     }

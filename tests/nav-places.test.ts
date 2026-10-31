@@ -129,21 +129,31 @@ describe("the five places, for each kind of person", () => {
     expect(tabs(nav, "work")).toEqual(WORK_ALL.filter((t) => t !== "crm"));
   });
 
-  it("GUEST (external partner): Today, Chat and Work only — no library/admin — and four work tabs", () => {
+  it("GUEST (external partner): Today, Chat, Work and the library (documents only) — no admin — and four work tabs", () => {
     const nav = buildNav(who("GUEST"));
-    expect(keys(nav)).toEqual(["today", "chat", "work"]);
+    expect(keys(nav)).toEqual(["today", "chat", "work", "library"]);
     expect(tabs(nav, "work")).toEqual(WORK_GUEST);
+    // «المستندات»: a partner reads only the documents shared with them (the service decides); never the files
+    expect(tabs(nav, "library")).toEqual(["documents"]);
+    expect(place(nav, "library")).toMatchObject({ href: "/documents" });
+  });
+
+  it("GUEST: with «المستندات» switched off the library is gone for them, as before", () => {
+    expect(keys(buildNav({ ...who("GUEST"), off: ["spaceDocs"] }))).toEqual(["today", "chat", "work"]);
+    // a member keeps the files tab when only the documents are off
+    expect(tabs(buildNav({ ...who("MEMBER"), off: ["spaceDocs"] }), "library")).toEqual(["files"]);
   });
 
   it("GUEST: a capability somebody stored for them changes nothing (a guest holds none)", () => {
     const nav = buildNav({ role: "GUEST", caps: ["crm.view", "directory.view", "users.manage", "integrations.manage"] });
-    expect(keys(nav)).toEqual(["today", "chat", "work"]);
+    expect(keys(nav)).toEqual(["today", "chat", "work", "library"]);
+    expect(tabs(nav, "library")).toEqual(["documents"]);
     expect(tabs(nav, "work")).toEqual(WORK_GUEST);
   });
 
   it("an unknown rank is treated like an outsider, never like staff", () => {
     const nav = buildNav({ role: "SUPERUSER" as unknown as NavSubject["role"], caps: ["crm.view", "directory.view", "users.manage"] });
-    expect(keys(nav)).toEqual(["today", "chat", "work"]);
+    expect(keys(nav)).toEqual(["today", "chat", "work", "library"]);
   });
 
   it("every place lands on a page: Today on /, chat on /chat, work on /my-work, the library on /files", () => {
@@ -162,7 +172,7 @@ describe("the five places, for each kind of person", () => {
 
   it("the single-tab name rule is the admin place's alone: the library keeps «المكتبة» with its one tab", () => {
     const nav = buildNav(who("MEMBER"));
-    expect(tabs(nav, "library")).toEqual(["files"]);
+    expect(tabs(nav, "library")).toEqual(["files", "documents"]);
     expect(place(nav, "library").labelKey).toBe("nav.place.library");
   });
 
@@ -214,7 +224,7 @@ describe("«الإدارة» is the last place, and «المساحة» is its ta
     expect(canOpenTab({ role: "GUEST", caps: [...CAPABILITIES], spaceManager: true }, "space")).toBe(false);
     expect(canOpenTab({ role: "SUPERUSER" as unknown as NavSubject["role"], caps: [...CAPABILITIES], spaceManager: true }, "space")).toBe(false);
     expect(offeredToGuests("space")).toBe(false);
-    expect(keys(buildNav({ role: "GUEST", caps: [], spaceManager: true }))).toEqual(["today", "chat", "work"]);
+    expect(keys(buildNav({ role: "GUEST", caps: [], spaceManager: true }))).toEqual(["today", "chat", "work", "library"]);
   });
 
   it("a space manager whose directory switch is off still gets the admin place, called by its one tab", () => {
@@ -258,9 +268,9 @@ describe("canOpenTab / offeredToGuests: the one rule behind «is this tab offere
     ["an unknown rank with every capability", { role: "SUPERUSER" as unknown as NavSubject["role"], caps: [...CAPABILITIES] }],
   ];
 
-  it("the tabs are the twenty-five of the map, each once", () => {
-    expect(ALL_TABS).toHaveLength(25);
-    expect(new Set(ALL_TABS).size).toBe(25);
+  it("the tabs are the twenty-six of the map, each once", () => {
+    expect(ALL_TABS).toHaveLength(26);
+    expect(new Set(ALL_TABS).size).toBe(26);
   });
 
   it("agrees with buildNav for every tab and every kind of person: a tab is open exactly when the map draws it", () => {
@@ -280,8 +290,8 @@ describe("canOpenTab / offeredToGuests: the one rule behind «is this tab offere
     for (const [label, subject] of SUBJECTS) expect(canOpenTab(subject, "nowhere" as unknown as TabKey), label).toBe(false);
   });
 
-  it("offeredToGuests: exactly my work, projects, list and calendar", () => {
-    expect(ALL_TABS.filter((key) => offeredToGuests(key))).toEqual(WORK_GUEST);
+  it("offeredToGuests: exactly my work, projects, list, calendar and the documents shared with partners", () => {
+    expect(ALL_TABS.filter((key) => offeredToGuests(key))).toEqual([...WORK_GUEST, "documents"]);
     expect(ALL_TABS.filter((key) => !offeredToGuests(key))).toEqual(
       ["goals", "ideas", "production", "departments", "tickets", "campaigns", "crm", "approvals", "checkins", "files", "team", "space", "board", "assistant", "structure", "development", "reports", "automation", "telegram", "settings", "archive"],
     );
@@ -318,7 +328,7 @@ const WHERE: Record<(typeof LEGACY_ROUTES)[number], [PlaceKey | null, TabKey | n
   "/teams": ["admin", "team"],
   "/members": ["admin", "team"],
   "/files": ["library", "files"],
-  "/documents": ["library", "files"],
+  "/documents": ["library", "documents"],
   "/crm": ["work", "crm"],
   "/analytics": ["admin", "reports"],
   "/automation": ["admin", "automation"],
@@ -413,6 +423,7 @@ describe("the words", () => {
       checkins: "التسجيل اليومي",
       approvals: "الموافقات",
       files: "الملفات",
+      documents: "المستندات",
       team: "الفريق",
       space: "المساحة",
       board: "لوحة المالك",
