@@ -736,3 +736,52 @@ export async function waitingCount(actor: Who): Promise<number> {
     WHERE r."orgId" = ${actor.orgId} AND r."status" = 'PENDING' AND s."approverId" = ${actor.userId} AND s."status" = 'PENDING'`;
   return Number(rows[0]?.n ?? 0);
 }
+
+// ───────────────────────────────────────────────────── on a task or a card ─────────────────────────────────────────────────────
+
+export interface LinkedApprovals {
+  /** The person may ask for an approval about this thing (works in its space, not a guest, the space is not archived). */
+  canAsk: boolean;
+  /** The requests about it that THIS person may read (same rule as `getApproval`), newest first. No amount, no details. */
+  items: ListItem[];
+}
+
+const LINKED_LIMIT = 20;
+
+/**
+ * «طلب موافقة» on a task or a card: the requests whose link points at it, each shown only to a person who may read THAT request
+ * (the requester, somebody named in its chain, the space's managers, the owner: the same `mayRead` as the request's own page), and
+ * whether this person may open a new one. `null` while the `approvals` switch is off or for an external partner: the section does not
+ * exist for them. The amount is cut from the list on purpose: a task's page is read by many people, the request's page by few.
+ *
+ * ⚠️ The caller has already checked that the viewer may open the task / card itself. 🔧 This function re-checks each request.
+ */
+export async function approvalsLinkedTo(actor: Who, kind: "TASK" | "CARD", id: string, workspaceId: string): Promise<LinkedApprovals | null> {
+  if (actor.role === "GUEST" || actor.isExternal) return null;
+  try {
+    await approvalsGate(actor);
+  } catch {
+    return null;
+  }
+  const viewerHere = await spaceViewer(actor, workspaceId);
+  const rows = await db.approvalRequest.findMany({
+    where: { orgId: actor.orgId, linkKind: kind, linkId: id },
+    include: { steps: true },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: LINKED_LIMIT * 3,
+  });
+  const viewers = new Map<string, SpaceViewer>([[workspaceId, viewerHere]]);
+  const readable: ListRow[] = [];
+  for (const r of rows) {
+    let viewer = viewers.get(r.workspaceId);
+    if (!viewer) {
+      viewer = await spaceViewer(actor, r.workspaceId);
+      viewers.set(r.workspaceId, viewer);
+    }
+    if (mayRead(viewer, actor.userId, r, r.steps.map((s) => s.approverId))) readable.push(r);
+    if (readable.length >= LINKED_LIMIT) break;
+  }
+  const spaces = await db.workspace.findMany({ where: { id: { in: [...new Set(readable.map((r) => r.workspaceId))] } }, select: { id: true, name: true } });
+  const items = (await toListItems(readable, actor, new Map(spaces.map((s) => [s.id, s.name] as const)))).map((i) => ({ ...i, amount: null }));
+  return { canAsk: viewerHere.sees && !viewerHere.archived, items };
+}

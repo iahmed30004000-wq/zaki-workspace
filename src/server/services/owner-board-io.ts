@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { enumLabel } from "@/lib/i18n/enums";
 import type { ServerT } from "@/lib/i18n/server";
-import { buildCsv, dayKeyOf, formatRate, timeOfDay } from "@/lib/owner-board";
+import { buildCsv, dayKeyOf, formatRate, sectionText, timeOfDay } from "@/lib/owner-board";
 import type { BoardQuery, Overview } from "@/server/services/owner-board";
 
 /**
@@ -67,7 +67,11 @@ export function peopleCsv(o: Overview, t: ServerT): string {
     p.steps,
     p.messages,
     p.lastActivity ? `${dayKeyOf(new Date(p.lastActivity), tz)} ${timeOfDay(new Date(p.lastActivity), tz)}` : "—",
-    ...o.sections.map((c) => o.sectionValues[p.userId]?.[c.key] ?? "—"),
+    // a count stays a plain number in the file (no thousands commas); a duration is written «س:دق» like on the screen
+    ...o.sections.map((c) => {
+      const v = o.sectionValues[p.userId]?.[c.key];
+      return c.kind === "count" ? (v ?? "—") : sectionText(c.kind, v);
+    }),
   ]);
   return buildCsv([head, ...rows]);
 }
