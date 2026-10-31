@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "spaceDocs"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "spaceDocs"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -114,6 +114,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // development plans. Off, the tabs are not drawn and every page and route under /structure, /development and /api/team-development
   // answers «not found» for everybody, the owner included; nothing it stores is touched and everything is back with the switch.
   teamDevelopment: true,
+  // «الأهداف والنتائج» (src/server/services/okr.ts, src/lib/okr.ts): an objective of «الأهداف» gets up to five measurable key results, an owner,
+  // a quarter, check-ins and a status light the person sets. Off, the goals page is as it was (weekly and monthly, one hand-moved number),
+  // the routes under /api/key-results and /api/goals/[id]/key-results answer «not found», and a new goal cannot use any of it; the
+  // owners, lights, key results and check-ins already stored stay and come back with the switch.
+  okr: true,
   // «المستندات» (src/server/services/documents.ts): the text documents of a space, with their version history, and the PDF viewer of the
   // library. Off: the «المستندات» tab is not drawn and every page and route under /documents and /api/documents answers «not found» for
   // everybody, the owner included; the documents and their history stay and come back with the switch. (The PDF viewer is part of the
