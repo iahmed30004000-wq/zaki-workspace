@@ -1,5 +1,5 @@
 import type { ServerT } from "@/lib/i18n/server";
-import { fmtNumber, monthName } from "@/lib/format";
+import { fmtMinutes, fmtNumber, monthName } from "@/lib/format";
 import { BAND_EXCELLENT, BAND_GOOD, LIGHT_AMBER, LIGHT_GREEN, MIN_TEAM_FOR_MEDIAN, type IndicatorKey, type Period, type PeriodKind } from "@/lib/team-score";
 import type { ScoreDetail, ScoreTable } from "@/server/services/team-score";
 import { BandBadge, LightBadge } from "./badges";
@@ -157,9 +157,16 @@ export function ScoreView({ score, t }: { score: ScoreDetail; t: ServerT }) {
           <Cell label={t("teamdev.score.open_now")}>{fmtNumber(score.extras.openNow)}</Cell>
           <Cell label={t("teamdev.score.overdue_now")}>{fmtNumber(score.extras.overdueNow)}</Cell>
           <Cell label={t("teamdev.score.messages")}>{fmtNumber(score.extras.messages)}</Cell>
-          <Cell label={t("teamdev.score.time")}>{score.extras.trackedMinutes === null ? "—" : `${fmtNumber(Math.floor(score.extras.trackedMinutes / 60))}:${String(score.extras.trackedMinutes % 60).padStart(2, "0")}`}</Cell>
+          <Cell label={t("teamdev.score.time")}>{score.extras.trackedMinutes === null ? "—" : fmtMinutes(score.extras.trackedMinutes)}</Cell>
+          {score.extras.checkins ? (
+            <>
+              <Cell label={t("teamdev.score.checkins")}>{fmtNumber(score.extras.checkins.answered)}</Cell>
+              <Cell label={t("teamdev.score.checkins_streak")}>{fmtNumber(score.extras.checkins.streak)}</Cell>
+            </>
+          ) : null}
         </div>
         <p className="mt-2 text-xs leading-5 text-fg-muted">{t("teamdev.score.extras_note")}</p>
+        {score.extras.checkins ? <p className="mt-1 text-xs leading-5 text-fg-muted">{t("teamdev.score.checkins_note")}</p> : null}
       </section>
 
       <ScoreFormula t={t} weights={score.weights} />

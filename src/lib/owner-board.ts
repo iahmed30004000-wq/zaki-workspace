@@ -11,6 +11,7 @@
  */
 
 import { zonedParts, zonedWallTime } from "./zoned-time";
+import { fmtMinutes, fmtNumber } from "./format";
 
 /** The longest window the board answers, in days (the owner's rule: bounded, so the page stays cheap). */
 export const MAX_WINDOW_DAYS = 92;
@@ -159,6 +160,15 @@ export function timeOfDay(instant: Date | null | undefined, timeZone: string): s
   if (!instant) return "—";
   const p = zonedParts(instant, timeZone);
   return `${pad2(p.hour)}:${pad2(p.minute)}`;
+}
+
+// ───────────────────────────────────────── a section's cell ─────────────────────────────────────────
+
+/** How a section's value is written on screen: a duration as «س:دق», a count with thousands commas, text as it is, nothing as «—». */
+export function sectionText(kind: "count" | "minutes" | "text", value: number | string | null | undefined): string {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "string") return value;
+  return kind === "minutes" ? fmtMinutes(value) : fmtNumber(value);
 }
 
 // ───────────────────────────────────────── CSV ─────────────────────────────────────────

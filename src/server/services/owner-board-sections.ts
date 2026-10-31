@@ -1,5 +1,6 @@
 import type { BoardScope } from "@/server/policy/board";
 import type { BoardWindow } from "@/lib/owner-board";
+import { timeTrackedSection } from "@/server/services/time-section";
 
 /**
  * «لوحة المالك» — THE EXTENSION POINT.  ⚠️ Marked on purpose: this is where a later feature adds its own columns.
@@ -9,10 +10,9 @@ import type { BoardWindow } from "@/lib/owner-board";
  * and, for the people on the page, loads their values. The board calls every registered section and renders whatever it
  * returns; an empty registry (today) draws nothing extra and breaks nothing.
  *
- * 🔧 To add «الوقت المسجّل» (the time-tracking feature, a separate PR that owns its own table): create a file next to this one
- *    that exports a `BoardSection`, import it below and add it to `BOARD_SECTIONS`. Nothing else of the board changes:
- *    no table of the board depends on a table that may not exist. A section must read ONLY the people it is asked for
- *    (`ctx.userIds`) and ONLY what falls in `ctx.window` and `ctx.scope`, and must return numbers, never customer data.
+ * 🔧 To add a column: create a file next to this one that exports a `BoardSection`, import it below and add it to `BOARD_SECTIONS`.
+ *    Nothing else of the board changes. A section must read ONLY the people it is asked for (`ctx.userIds`) and ONLY what falls in
+ *    `ctx.window` and `ctx.scope`, and must return numbers, never customer data. Today: «الوقت المسجّل» (`time-section.ts`).
  */
 
 export interface SectionColumn {
@@ -40,12 +40,14 @@ export type SectionCell = number | string | null;
 export interface BoardSection {
   id: string;
   columns: readonly SectionColumn[];
+  /** The feature switch of the section, when it has one: off, the section is skipped (no column at all, not a column of dashes). */
+  enabled?(orgId: string): Promise<boolean>;
   /** Per person: one value per column key. A person missing from the map has no value (shown as «—»). */
   load(ctx: SectionContext): Promise<Map<string, Record<string, SectionCell>>>;
 }
 
-/** ⚠️ Empty today. 🔧 A later PR registers «الوقت المسجّل» here. */
-export const BOARD_SECTIONS: readonly BoardSection[] = [];
+/** ⚠️ Registered here: «الوقت المسجّل». 🔧 It follows the board's own gate (the owner, or a `board.team` holder for their scope). */
+export const BOARD_SECTIONS: readonly BoardSection[] = [timeTrackedSection];
 
 export interface LoadedSections {
   columns: SectionColumn[];
@@ -64,6 +66,7 @@ export async function loadSections(ctx: SectionContext, sections: readonly Board
   for (const section of sections) {
     let loaded: Map<string, Record<string, SectionCell>>;
     try {
+      if (section.enabled && !(await section.enabled(ctx.orgId))) continue;
       loaded = await section.load(ctx);
     } catch {
       continue;
