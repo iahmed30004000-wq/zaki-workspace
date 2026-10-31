@@ -24,6 +24,7 @@ export type PrismaEnumName =
   | "TicketStatus"
   | "CampaignStatus"
   | "GoalPeriod"
+  | "GoalLight"
   | "MemberStatus"
   | "OrgRole"
   | "WorkspaceRole"
@@ -76,7 +77,8 @@ export const ENUM_KEYS: Record<EnumName, Readonly<Record<string, string>>> = {
     DONE: "camp.status_done",
     CANCELLED: "camp.status_cancelled",
   },
-  GoalPeriod: { WEEKLY: "goal.weekly", MONTHLY: "goal.monthly" },
+  GoalPeriod: { WEEKLY: "goal.weekly", MONTHLY: "goal.monthly", QUARTERLY: "okr.quarterly" },
+  GoalLight: { ON_TRACK: "okr.light.ON_TRACK", BEHIND: "okr.light.BEHIND", AT_RISK: "okr.light.AT_RISK" },
   MemberStatus: {
     ACTIVE: "members.status_active",
     SUSPENDED: "members.status_suspended",
