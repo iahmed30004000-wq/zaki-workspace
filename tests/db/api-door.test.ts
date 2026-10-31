@@ -95,9 +95,49 @@ describe("the switch «باب الربط الخارجي»", () => {
     expect(await db.idea.count({ where: { orgId: w.org.id } })).toBe(0);
     expect(await db.task.count({ where: { orgId: w.org.id } })).toBe(0);
 
+    // making a token needs the switch; seeing the tokens does not (see the next test)
     await loginAs(w.owner.id);
-    expect((await call(tokensRoute.GET, { url: "http://localhost/api/integrations/api-tokens" })).status).toBe(404);
     expect((await call(tokensRoute.POST, { url: "http://localhost/api/integrations/api-tokens", body: { name: "x1", permissions: ["ideas.read"], workspaceId: w.space.id } })).status).toBe(404);
+    expect(await db.apiToken.count({ where: { organizationId: w.org.id } })).toBe(1);
+  });
+
+  it("the owner can list and revoke tokens while the door is shut; making one stays 404; the revoked token stays dead when the door opens again", async () => {
+    const w = await world();
+    const { token, id } = await mint(w, w.admin);
+    await setFeature(w.org.id, false);
+
+    for (const who of [w.owner, w.admin]) {
+      await loginAs(who.id);
+      const list = await call(tokensRoute.GET, { url: "http://localhost/api/integrations/api-tokens" });
+      expect(list.status, "list").toBe(200);
+      expect(list.json?.["switchOn"]).toBe(false);
+      expect((list.json?.["tokens"] as { id: string; status: string }[]).find((t) => t.id === id)?.status).toBe("active");
+      expect(list.text).not.toContain(token);
+    }
+    // somebody without the capability still cannot
+    await loginAs(w.member.id);
+    expect((await call(tokensRoute.GET, { url: "http://localhost/api/integrations/api-tokens" })).status).toBe(403);
+    expect((await call(tokenRoute.DELETE, { method: "DELETE", params: { id } })).status).toBe(403);
+    expect((await db.apiToken.findUniqueOrThrow({ where: { id } })).revokedAt).toBeNull();
+
+    await loginAs(w.owner.id);
+    const killed = await call(tokenRoute.DELETE, { method: "DELETE", params: { id } });
+    expect(killed.status, JSON.stringify(killed.json)).toBe(200);
+    expect((killed.json?.["item"] as { status: string }).status).toBe("revoked");
+    const row = await db.apiToken.findUniqueOrThrow({ where: { id } });
+    expect(row.revokedReason).toBe("manual");
+    expect(row.revokedById).toBe(w.owner.id);
+    expect(await db.auditLog.count({ where: { action: "door.token.revoked", target: id, actorId: w.owner.id } })).toBe(1);
+    // revoking again is the same answer, still with the door shut
+    expect((await call(tokenRoute.DELETE, { method: "DELETE", params: { id } })).status).toBe(200);
+    // creating is still refused while it is off
+    const create = await call(tokensRoute.POST, { url: "http://localhost/api/integrations/api-tokens", body: { name: "again", permissions: ["ideas.read"], workspaceId: w.space.id } });
+    expect(create.status).toBe(404);
+    expect(await db.apiToken.count({ where: { organizationId: w.org.id } })).toBe(1);
+    logout();
+
+    await setFeature(w.org.id, true);
+    expect((await ideasApi({ token, body: { title: "فكرة جديدة" } })).status).toBe(401);
   });
 
   it("switched back on, the same token works again (nothing was lost)", async () => {
@@ -239,12 +279,56 @@ describe("the token: who is let in", () => {
     const { token } = await mint(w);
     const from = (ip: string) => ({ "x-forwarded-for": ip });
     for (let i = 0; i < 20; i++) expect((await ideasApi({ headers: { ...from("203.0.113.9"), authorization: "Bearer nope" }, body: { title: "فكرة جديدة" } })).status).toBe(401);
-    const blocked = await ideasApi({ token, headers: from("203.0.113.9"), body: { title: "فكرة جديدة" } });
+    // a token that is not a live one (here: well-formed, unknown) is what the lock refuses
+    const unknown = `zws_${"1".repeat(12)}.${"B".repeat(43)}`;
+    const blocked = await ideasApi({ token: unknown, headers: from("203.0.113.9"), body: { title: "فكرة جديدة" } });
     expect(blocked.status).toBe(429);
     expect(Number(blocked.headers.get("retry-after"))).toBeGreaterThan(0);
     expect(errorOf(blocked)?.code).toBe("door.rate_limited");
     expect((await ideasApi({ token, headers: from("203.0.113.10"), body: { title: "فكرة جديدة" } })).status).toBe(201);
     failureLimiter.reset("203.0.113.9");
+  });
+
+  it("a request with a LIVE token is never locked out by the failures of its address, nor counted; unknown, revoked and expired tokens still are", async () => {
+    const w = await world();
+    const live = await mint(w);
+    const revoked = await mint(w);
+    const expired = await mint(w, w.owner, { expiresInDays: 30 });
+    await db.apiToken.update({ where: { id: revoked.id }, data: { revokedAt: new Date(), revokedReason: "manual" } });
+    await db.apiToken.update({ where: { id: expired.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    const ip = "203.0.113.50";
+    const from = { "x-forwarded-for": ip };
+    try {
+      for (let i = 0; i < 20; i++) expect((await ideasApi({ headers: { ...from, authorization: "Bearer nope" }, body: { title: "فكرة جديدة" } })).status).toBe(401);
+      expect(failureLimiter.check(ip).ok).toBe(false);
+
+      // the address is locked for what is refused ...
+      const wrongSecret = live.token.slice(0, -1) + (live.token.endsWith("A") ? "B" : "A");
+      for (const bad of [null, "Bearer nope", `Bearer ${wrongSecret}`, `Bearer ${revoked.token}`, `Bearer ${expired.token}`]) {
+        const res = await ideasApi({ headers: { ...from, ...(bad ? { authorization: bad } : {}) }, body: { title: "فكرة جديدة" } });
+        expect(res.status, String(bad)).toBe(429);
+        expect(errorOf(res)?.code).toBe("door.rate_limited");
+      }
+      // ... and not for a good token: it works, reads and writes
+      expect((await ideasApi({ token: live.token, headers: from, body: { title: "فكرة جديدة" } })).status).toBe(201);
+      expect((await ideasApi({ token: live.token, headers: from, method: "GET" })).status).toBe(200);
+      expect((await tasksApi({ token: live.token, headers: from, method: "GET" })).status).toBe(200);
+    } finally {
+      failureLimiter.reset(ip);
+    }
+  });
+
+  it("a live token whose switch is off still answers 404 from a blocked address (the lock spares it; the switch decides)", async () => {
+    const w = await world();
+    const { token } = await mint(w);
+    const ip = "203.0.113.51";
+    try {
+      for (let i = 0; i < 20; i++) await ideasApi({ headers: { "x-forwarded-for": ip, authorization: "Bearer nope" }, body: { title: "فكرة جديدة" } });
+      await setFeature(w.org.id, false);
+      expect((await ideasApi({ token, headers: { "x-forwarded-for": ip }, body: { title: "فكرة جديدة" } })).status).toBe(404);
+    } finally {
+      failureLimiter.reset(ip);
+    }
   });
 
   it("a token over its allowance (60 a minute) is answered 429 with Retry-After", async () => {
@@ -293,6 +377,57 @@ describe("the permissions", () => {
 // ---------------------------------------------------------------------------------------------
 // ideas
 // ---------------------------------------------------------------------------------------------
+
+describe("hardening: input that used to be a 500", () => {
+  const NUL = String.fromCharCode(0);
+
+  it("a dueDate outside the years 2000 to 2100 is 422 (not 500) and creates nothing; inside it, the task is made", async () => {
+    const w = await world();
+    const { token } = await mint(w);
+    for (const dueDate of ["0001-01-01", "9999-12-31", "1999-12-31", "2101-01-01", "9999-12-31T23:59:59Z", "0000-01-01T00:00:00Z"]) {
+      const res = await tasksApi({ token, body: { title: "مهمة", boardId: w.board.id, dueDate } });
+      expect(res.status, `${dueDate}: ${JSON.stringify(res.json)}`).toBe(422);
+      expect(errorOf(res)?.code).toBe("door.validation_failed");
+    }
+    expect(await db.task.count({ where: { orgId: w.org.id } })).toBe(0);
+    expect((await tasksApi({ token, body: { title: "مهمة", boardId: w.board.id, dueDate: "2100-12-31" } })).status).toBe(201);
+    expect((await tasksApi({ token, body: { title: "مهمة 2", boardId: w.board.id, dueDate: "2000-01-01T08:00:00+03:00" } })).status).toBe(201);
+  });
+
+  it("a NUL character in a title, description, boardId, externalRef or tag is 422 (not 500), and nothing is stored", async () => {
+    const w = await world();
+    const { token } = await mint(w);
+    const bad = `abc${NUL}def`;
+    const cases: [string, () => Promise<{ status: number; json: Record<string, unknown> | null }>][] = [
+      ["idea title", () => ideasApi({ token, body: { title: `فكرة ${bad}` } })],
+      ["idea description", () => ideasApi({ token, body: { title: "فكرة جديدة", description: bad } })],
+      ["idea externalRef", () => ideasApi({ token, body: { title: "فكرة جديدة", externalRef: `s7:${bad}` } })],
+      ["idea tag", () => ideasApi({ token, body: { title: "فكرة جديدة", tags: [bad] } })],
+      ["task title", () => tasksApi({ token, body: { title: `مهمة ${bad}`, boardId: w.board.id } })],
+      ["task description", () => tasksApi({ token, body: { title: "مهمة", description: bad, boardId: w.board.id } })],
+      ["task boardId", () => tasksApi({ token, body: { title: "مهمة", boardId: `${w.board.id}${NUL}` } })],
+      ["task externalRef", () => tasksApi({ token, body: { title: "مهمة", boardId: w.board.id, externalRef: `s7:${bad}` } })],
+    ];
+    for (const [what, run] of cases) {
+      const res = await run();
+      expect(res.status, `${what}: ${JSON.stringify(res.json)}`).toBe(422);
+      expect(errorOf(res)?.code, what).toBe("door.validation_failed");
+    }
+    expect(await db.idea.count({ where: { orgId: w.org.id } })).toBe(0);
+    expect(await db.task.count({ where: { orgId: w.org.id } })).toBe(0);
+    expect(await db.idempotencyRecord.count({ where: { key: { startsWith: `${w.org.id}:` } } })).toBe(0);
+  });
+
+  it("a NUL character in a cursor is 422 and in a task id is 404 (not 500)", async () => {
+    const w = await world();
+    const { token } = await mint(w);
+    expect((await ideasApi({ token, method: "GET", query: "?cursor=ab%00cd" })).status).toBe(422);
+    expect((await tasksApi({ token, method: "GET", query: "?cursor=ab%00cd" })).status).toBe(422);
+    const res = await taskApi(`ab${NUL}cd`, { token });
+    expect(res.status).toBe(404);
+    expect(errorOf(res)?.code).toBe("door.not_found");
+  });
+});
 
 describe("POST /api/v1/ideas", () => {
   it("creates the idea in the token's space, in the name of the person who made it, marked with its source; and audits it", async () => {

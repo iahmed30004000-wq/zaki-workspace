@@ -7,8 +7,8 @@ import { createApiToken, listApiTokens, TOKEN_EXPIRY_DAYS } from "@/server/servi
 import { DOOR_PERMISSIONS } from "@/server/door/tokens";
 
 /**
- * «الباب»: the tokens of the company (docs/contracts/workspace-door.v1.md). For whoever holds «integrations.manage», while the
- * switch «باب الربط» is on (404 while it is off). The whole token is in the answer of the POST and nowhere else, ever.
+ * «الباب»: the tokens of the company (docs/contracts/workspace-door.v1.md). For whoever holds «integrations.manage». Making a token needs the
+ * switch «باب الربط» on (404 while it is off); the list and the revoke work while it is off too. The whole token is in the answer of the POST and nowhere else, ever.
  */
 export const dynamic = "force-dynamic";
 

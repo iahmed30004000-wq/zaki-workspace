@@ -3,6 +3,7 @@ import {
   DOOR_MAX_BODY_BYTES,
   IDEMPOTENCY_KEY,
   findCustomerDataKeys,
+  hasNul,
   ideaBodySchema,
   isCustomerDataKey,
   parseDoorBody,
@@ -93,6 +94,36 @@ describe("the task body", () => {
 
   it("refuses customer data by key name here too", () => {
     expect(parseDoorBody(taskBodySchema, { title: "t", boardId: "b1", customerName: "x" })).toMatchObject({ ok: false, code: "door.customer_data_rejected" });
+  });
+});
+
+describe("hardening: values that used to reach the database as a 500", () => {
+  const NUL = String.fromCharCode(0);
+  const task = (over: Record<string, unknown>) => parseDoorBody(taskBodySchema, { title: "t", boardId: "b1", ...over });
+
+  it("a dueDate outside the years 2000 to 2100 is a validation failure, inside it is fine", () => {
+    for (const dueDate of ["0001-01-01", "1999-12-31", "2101-01-01", "9999-12-31", "0000-01-01T00:00:00Z", "9999-12-31T23:59:59Z", "2100-12-31T23:59:59-05:00", "1999-12-31T23:00:00-05:00"]) {
+      const out = task({ dueDate });
+      expect(out.ok, dueDate).toBe(false);
+      if (!out.ok) expect(out.code).toBe("door.validation_failed");
+    }
+    for (const dueDate of ["2000-01-01", "2026-11-20", "2100-12-31", "2000-01-01T00:00:00Z", "2100-12-31T12:00:00+02:00", null]) expect(task({ dueDate }).ok, String(dueDate)).toBe(true);
+  });
+
+  it("a NUL character is refused in every free-text field", () => {
+    for (const bad of [`a${NUL}bc`, NUL, `abc${NUL}`]) {
+      expect(parseDoorBody(ideaBodySchema, { title: `idea ${bad}` }).ok, "idea title").toBe(false);
+      expect(parseDoorBody(ideaBodySchema, { title: "idea one", description: bad }).ok, "idea description").toBe(false);
+      expect(parseDoorBody(ideaBodySchema, { title: "idea one", externalRef: `s7${bad}` }).ok, "idea externalRef").toBe(false);
+      expect(parseDoorBody(ideaBodySchema, { title: "idea one", tags: [`t${bad}`] }).ok, "idea tag").toBe(false);
+      expect(task({ title: `task ${bad}` }).ok, "task title").toBe(false);
+      expect(task({ description: bad }).ok, "task description").toBe(false);
+      expect(task({ boardId: `b${bad}` }).ok, "task boardId").toBe(false);
+      expect(task({ externalRef: `s7${bad}` }).ok, "task externalRef").toBe(false);
+    }
+    expect(hasNul(`a${NUL}`)).toBe(true);
+    expect(hasNul("abc")).toBe(false);
+    expect(parseDoorBody(ideaBodySchema, { title: "فكرة جديدة", description: ["line one", "line two"].join(String.fromCharCode(10)) }).ok).toBe(true);
   });
 });
 

@@ -13,7 +13,7 @@ import { orgTimeZone } from "@/server/services/org-day";
 import { dispatchEvent } from "@/server/services/n8n";
 import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 import { bearerOf, parseToken, permits, tokenMatches, type DoorPermission } from "@/server/door/tokens";
-import { DoorError } from "@/server/door/http";
+import { DoorError, safeErrorFacts } from "@/server/door/http";
 import { failureLimiter, tokenLimiter } from "@/server/door/limits";
 import {
   IDEMPOTENCY_KEY,
@@ -53,7 +53,8 @@ const TOUCH_EVERY_MS = 60_000;
 
 /**
  * The whole front gate, in the order that leaks least:
- *  1. an address that keeps presenting refused tokens is answered 429 before anything is looked up;
+ *  1. an address that keeps presenting refused tokens is answered 429 (unless the token it presents is a live one: shape OK, row found,
+ *     hash equal, not revoked, not expired: such a request is never counted nor refused for its neighbours' sins);
  *  2. the token: shape, then the row by its public prefix, then a CONSTANT-TIME comparison of the hash (an unknown prefix is
  *     compared against a decoy so it costs the same); revoked / expired / issuer no longer allowed / space no longer reachable
  *     are ALL the same 401: the sender learns nothing about which;
@@ -63,11 +64,14 @@ const TOUCH_EVERY_MS = 60_000;
  */
 export async function authenticateDoor(req: Request, requestId: string, needed: DoorPermission): Promise<DoorPrincipal> {
   const ip = clientIp(req);
+  // An address that keeps presenting refused tokens is not served: but only a token that is NOT a live one is refused for that
+  // (a sender with a good token must not be locked out by a neighbour behind the same address).
   const blocked = failureLimiter.check(ip);
-  if (!blocked.ok) {
-    throw new DoorError(429, "door.rate_limited", "Too many refused requests from this address.", undefined, { "retry-after": String(Math.max(1, blocked.retryAfterSec)) });
-  }
+  const tooMany = () =>
+    new DoorError(429, "door.rate_limited", "Too many refused requests from this address.", undefined, { "retry-after": String(Math.max(1, blocked.retryAfterSec)) });
   const refuse = (reason: string, tokenId?: string): never => {
+    // a blocked address is answered 429 and adds nothing to its count
+    if (!blocked.ok) throw tooMany();
     failureLimiter.hit(ip);
     log.warn("door.refused", { requestId, reason, tokenId });
     throw UNAUTHORIZED();
@@ -125,7 +129,7 @@ export async function authenticateDoor(req: Request, requestId: string, needed: 
     // best effort: a failed bookkeeping write never refuses a request that was allowed
     await db.apiToken
       .updateMany({ where: { id: row.id, revokedAt: null }, data: { lastUsedAt: now } })
-      .catch((err: unknown) => log.warn("door.touch_failed", { requestId, message: err instanceof Error ? err.message : String(err) }));
+      .catch((err: unknown) => log.warn("door.touch_failed", { requestId, ...safeErrorFacts(err) }));
   }
 
   return {
@@ -438,6 +442,6 @@ async function afterCommit(fn: () => Promise<void>): Promise<void> {
   try {
     await fn();
   } catch (err) {
-    log.warn("door.after_commit_failed", { message: err instanceof Error ? err.message : String(err) });
+    log.warn("door.after_commit_failed", safeErrorFacts(err));
   }
 }

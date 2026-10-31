@@ -34,6 +34,7 @@ interface TokenItem {
 interface TokensAnswer {
   tokens: TokenItem[];
   spaces: { id: string; name: string }[];
+  switchOn: boolean;
 }
 
 type TFn = (key: string, vars?: Record<string, string | number>) => string;
@@ -83,6 +84,7 @@ export function ApiDoorCard() {
 
   const tokens = list.data?.tokens ?? [];
   const spaces = list.data?.spaces ?? [];
+  const switchOn = list.data?.switchOn ?? true;
   const origin = typeof window === "undefined" ? "" : window.location.origin;
 
   return (
@@ -140,6 +142,12 @@ Content-Type: application/json`}
         </div>
       ) : null}
 
+      {!switchOn ? (
+        <div className="space-y-1 rounded-lg border border-warn/40 bg-warn/10 p-3 text-xs leading-6">
+          <p className="text-warn">{t("door.off.warn")}</p>
+          <p>{t("door.off.fix")}</p>
+        </div>
+      ) : (
       <form
         className="space-y-3 rounded-lg border border-border bg-surface-2/40 p-3"
         onSubmit={(e) => {
@@ -203,6 +211,7 @@ Content-Type: application/json`}
           {t("door.new.create")}
         </Button>
       </form>
+      )}
 
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full min-w-[40rem] text-right text-xs">

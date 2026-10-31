@@ -4,7 +4,6 @@ import { GuestNotice, refusedToGuest } from "@/app/(app)/_guest";
 import { AutomationView } from "@/components/automation-view";
 import { ApiDoorCard } from "@/components/api-door-card";
 import { actorCan } from "@/server/policy/actor";
-import { isFeatureOn } from "@/server/services/features";
 
 export default async function AutomationPage() {
   const { actor } = await pageActor();
@@ -13,8 +12,9 @@ export default async function AutomationPage() {
 
   // The view shows its management controls to an OWNER or an ADMIN: here that is whoever holds the
   // `integrations.manage` switch (the server decides again on every request).
-  // «باب الربط الخارجي»: the tokens card, only for whoever holds the switch, and only while the owner's «الميزات» switch is on
-  const showDoor = actorCan(actor, "integrations.manage") && (await isFeatureOn(actor.orgId, "apiDoor"));
+  // «باب الربط الخارجي»: the tokens card, for whoever holds the switch. While the owner's «الميزات» switch is off the card only lists
+  // and revokes (the list answer says `switchOn`): a leaked token must stay killable.
+  const showDoor = actorCan(actor, "integrations.manage");
 
   return (
     <Suspense fallback={null}>
