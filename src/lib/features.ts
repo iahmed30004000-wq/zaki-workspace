@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "apiDoor"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -114,6 +114,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // development plans. Off, the tabs are not drawn and every page and route under /structure, /development and /api/team-development
   // answers «not found» for everybody, the owner included; nothing it stores is touched and everything is back with the switch.
   teamDevelopment: true,
+  // «الباب» (src/server/services/api-door.ts, docs/contracts/workspace-door.v1.md): the door another Zaki system (System 7) uses to send ideas and
+  // tasks to ONE space through /api/v1 with a token the owner makes. OFF until the owner turns it on: off, every /api/v1 route answers «not found»
+  // for every token, the tokens card in «الأتمتة» is not drawn and its routes answer «not found»; the tokens, the records and what was sent in stay
+  // and come back with the switch. ⚠️ An outside system writes into the company: 🔧 each token holds named permissions and one space, and is revoked in one click.
+  apiDoor: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
