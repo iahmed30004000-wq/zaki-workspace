@@ -69,6 +69,7 @@ export function TaskDetail({
   time = null,
   recurrence = null,
   customFieldsSlot = null,
+  approvalsSlot = null,
 }: {
   task: TaskDetailData;
   /** Whether the API would let this person change the task (see canWriteInWorkspace). */
@@ -99,6 +100,8 @@ export function TaskDetail({
   recurrence?: { initial: RecurrenceDto | null; timeZone: string; canEdit: boolean } | null;
   /** «حقول مخصصة»: the card of the project's fields (the page draws it only while the switch is on, never for a partner). */
   customFieldsSlot?: ReactNode;
+  /** «طلب موافقة»: the button and the linked requests (the page draws it only while the switch is on, never for a partner). */
+  approvalsSlot?: ReactNode;
 }) {
   // «مهمة بمكافأة»: what the person may still change on a reward task is who holds it and the comments
   const fieldsEdit = canEdit && !lockedFields;
@@ -432,6 +435,8 @@ export function TaskDetail({
       {time ? <TaskTimeCard taskId={task.id} initial={time} viewerId={currentUserId} /> : null}
 
       {links ? <TaskLinks taskId={task.id} canEdit={canEdit} candidates={links.candidates} /> : null}
+
+      {approvalsSlot}
 
       <Card>
         <CardHeader>

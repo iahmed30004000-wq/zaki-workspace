@@ -19,9 +19,11 @@ import {
   questionsOf,
   roundIsOpen,
   statsOfRounds,
+  summarizeDays,
   weekdaysOf,
   DEFAULT_WEEKDAYS,
   type ParticipantsMode,
+  type PersonCheckinSummary,
   type PersonDayCount,
   type PersonTotals,
   type StatsRound,
@@ -584,4 +586,39 @@ export async function checkinStats(spaceId: string, range: StatsRange, now: Date
   });
   const input: StatsRound[] = rounds.map((r) => ({ day: keyOfDay(r.day), closedAt: r.closedAt, participantIds: idsOf(r.participantIds), answers: r.answers }));
   return statsOfRounds(input, now);
+}
+
+/**
+ * «التسجيل اليومي» in a person's file: for each of these people, the days they answered, missed and were excused, and the run of
+ * answered days, over `[from, to]` across EVERY space of the company (one number per person, not per space).
+ *
+ * ⚠️ NUMBERS ONLY. The query selects who answered and whether they were excused, never `answers` (the texts) or `taskIds`, so a
+ * text cannot leak through this door by a later edit of the caller. It decides NOTHING about who may ask: the caller is the score,
+ * which has already checked that the viewer may open this person's file. 🔧 Off, the switch returns an empty map.
+ */
+export async function checkinSummaryFor(
+  orgId: string,
+  userIds: readonly string[],
+  range: StatsRange,
+  now: Date = new Date(),
+): Promise<Map<string, PersonCheckinSummary>> {
+  const out = new Map<string, PersonCheckinSummary>();
+  if (userIds.length === 0 || !(await isFeatureOn(orgId, "checkins"))) return out;
+  if (!parseDayKey(range.from) || !parseDayKey(range.to)) throw new ValidationError([{ path: "range", message: "checkins.e.bad_date" }]);
+  const rounds = await db.checkinRound.findMany({
+    where: { workspace: { organizationId: orgId }, day: { gte: dayDate(range.from), lte: dayDate(range.to) } },
+    select: { workspaceId: true, day: true, closedAt: true, participantIds: true, answers: { select: { userId: true, excused: true } } },
+  });
+  const perSpace = new Map<string, StatsRound[]>();
+  for (const r of rounds) {
+    const list = perSpace.get(r.workspaceId) ?? [];
+    list.push({ day: keyOfDay(r.day), closedAt: r.closedAt, participantIds: idsOf(r.participantIds), answers: r.answers });
+    perSpace.set(r.workspaceId, list);
+  }
+  const days: PersonDayCount[] = [];
+  const wanted = new Set(userIds);
+  for (const list of perSpace.values()) for (const d of statsOfRounds(list, now).days) if (wanted.has(d.userId)) days.push(d);
+  const summaries = summarizeDays(days);
+  for (const id of userIds) out.set(id, summaries.get(id) ?? { answered: 0, missed: 0, excused: 0, streak: 0 });
+  return out;
 }
