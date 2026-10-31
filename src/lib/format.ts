@@ -93,6 +93,13 @@ export function fmtNumber(n: number | null | undefined): string {
   return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 }
 
+/** A duration in whole minutes as «س:دق» with Western digits («90» → «1:30»); a missing or negative value is empty. */
+export function fmtMinutes(minutes: number | null | undefined): string {
+  if (minutes == null || !Number.isFinite(minutes) || minutes < 0) return "";
+  const whole = Math.round(minutes);
+  return `${fmtNumber(Math.floor(whole / 60))}:${String(whole % 60).padStart(2, "0")}`;
+}
+
 /** A file size in Arabic units: "512 بايت" / "340 كيلوبايت" / "1.5 ميغابايت". */
 export function fmtSize(bytes: number | null | undefined): string {
   if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return "";

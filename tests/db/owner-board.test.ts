@@ -606,7 +606,7 @@ describe("the CSV", () => {
     expect(res.headers.get("content-type")).toContain("text/csv; charset=utf-8");
     expect(await csvBytes()).toEqual([0xef, 0xbb, 0xbf]);
     const lines = res.text.trim().split("\r\n");
-    expect(lines[0]!.split(",")).toHaveLength(10); // name, rank, status, 6 numbers, last activity
+    expect(lines[0]!.split(",")).toHaveLength(11); // name, rank, status, 6 numbers, last activity, then the registered section «الوقت المسجّل»
     expect(res.text).toContain("\"'=HYPERLINK(\"\"http://x\"\")\"");
     expect(res.text).toContain("'+1 يوسف");
     expect(res.text).not.toMatch(/(^|,)=HYPERLINK/m);
@@ -622,10 +622,11 @@ describe("the extension point: sections add columns without touching the board",
     load: async (ctx) => new Map(ctx.userIds.map((id) => [id, { "fake.minutes": 90 }])),
   };
 
-  it("an empty registry changes nothing; a registered section adds its columns and values; a failing one is skipped", async () => {
+  it("the registry holds only «الوقت المسجّل»; a registered section adds its columns and values; a failing one is skipped; an empty list changes nothing", async () => {
     const w = await world();
     const access = await accessAs(w.owner.id);
-    expect((await loadOverview(access, q(), { now: NOW })).sections).toEqual([]);
+    expect((await loadOverview(access, q(), { now: NOW })).sections.map((c) => c.key)).toEqual(["time.minutes"]);
+    expect((await loadOverview(access, q(), { now: NOW, sections: [] })).sections).toEqual([]);
     const broken: BoardSection = { id: "broken", columns: [{ key: "broken.x", labelKey: "a", formulaKey: "b", kind: "count" }], load: async () => Promise.reject(new Error("no table")) };
     const o = await loadOverview(access, q(), { now: NOW, sections: [fake, broken] });
     expect(o.sections.map((c) => c.key)).toEqual(["fake.minutes"]);

@@ -67,7 +67,7 @@ interface Conflict {
  * which opens «اللوحة تغيّرت» (the difference, a choice per field); nothing is overwritten silently. What a person types
  * is kept on this device as they go, so a closed tab or a lost network does not lose it.
  */
-export function CardPage({ initial, userId }: { initial: CardPageData; userId: string }) {
+export function CardPage({ initial, userId, approvalsSlot = null }: { initial: CardPageData; userId: string; approvalsSlot?: React.ReactNode }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -327,6 +327,9 @@ export function CardPage({ initial, userId }: { initial: CardPageData; userId: s
       </section>
 
       {abilities.internal ? <LinksSection cardId={cardId} version={card.version} /> : null}
+
+      {/* «طلب موافقة»: the button and the requests about this card (drawn by the page only while the switch is on) */}
+      {approvalsSlot}
 
       {abilities.internal ? (
         <section className="flex flex-col gap-3">
