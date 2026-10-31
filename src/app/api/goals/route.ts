@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
-import { assertCan, requireActor } from "@/server/policy/actor";
+import { actorCan, assertCan, requireActor } from "@/server/policy/actor";
 import { withApi } from "@/server/api";
 import { parseJson } from "@/server/validation";
 import { assertNotGuest } from "@/server/services/guest-guard";
 import { createGoal, goalSchema, listGoals } from "@/server/services/goals";
 import { placeOf } from "@/server/services/space-place";
+import { isFeatureOn } from "@/server/services/features";
 
 /**
  * Goals are the company's own plans (titles, descriptions, departments, who set them): staff only. An
@@ -18,8 +19,10 @@ export async function GET() {
 		const actor = await requireActor();
 		assertNotGuest({ orgRole: actor.role });
 		assertCan(actor, "goals.view", "section.view_denied");
-		const goals = await listGoals({ orgId: actor.orgId, orgRole: actor.role }, await placeOf(actor));
-		return NextResponse.json({ goals });
+		const place = await placeOf(actor);
+		const goals = await listGoals({ orgId: actor.orgId, orgRole: actor.role, userId: actor.userId, mayEdit: actorCan(actor, "goals.edit") }, place);
+		// `spaceId`: where the editor looks for people and projects; `okr`: the «الأهداف والنتائج» switch
+		return NextResponse.json({ goals, spaceId: place.spaceId, okr: await isFeatureOn(actor.orgId, "okr") });
 	});
 }
 
