@@ -9,6 +9,7 @@ import { resolveTimeZone } from "@/lib/zoned-time";
 import { ruleOccurrenceAfter } from "@/lib/reminders/recurrence";
 import { parseStoredRule, type RecurrenceRule, type StopReason } from "@/lib/task-recurrence";
 import { createTaskInTx, notifyCreatedRequests, type Tx } from "./tasks";
+import { afterTaskEvents } from "./task-rules-hook";
 
 /**
  * «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the
@@ -135,6 +136,8 @@ export async function spawnOccurrence(tx: Tx, rec: SeriesRow, dueDate: Date | nu
           await notifyAssignment({ assigneeId, taskNumber: made.number, orgPrefix: org?.keyPrefix ?? "", taskId: made.id, title: made.title, workspaceId: rec.workspaceId });
         }
         await dispatchEvent(rec.orgId, "task.created", { taskId: made.id, number: made.number, title: made.title });
+        // «القواعد التلقائية»: an occurrence is a task born like any other («لما تنعمل مهمة»)
+        await afterTaskEvents([{ trigger: "CREATED", taskId: made.id }]);
       } catch (err) {
         log.warn("recurrence.after_failed", { taskId: made.id, message: err instanceof Error ? err.message : String(err) });
       }

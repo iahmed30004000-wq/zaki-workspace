@@ -71,6 +71,14 @@ export async function listSteps(taskId: string): Promise<{ steps: StepDto[]; pro
 
 export async function addStep(taskId: string, rawTitle: string): Promise<StepDto> {
   const access = await writeAccess(taskId);
+  return insertStep(access.orgId, taskId, rawTitle);
+}
+
+/**
+ * The write of `addStep` for a caller that has already passed its own guard (a session in `addStep`; the task rules' run-time
+ * re-check in src/server/services/task-rules-run.ts). It does not look at the session or the switch: the caller must.
+ */
+export async function insertStep(orgId: string, taskId: string, rawTitle: string): Promise<StepDto> {
   const title = cleanTitle(rawTitle);
   const [count, last] = await Promise.all([
     db.taskStep.count({ where: { taskId } }),
@@ -78,7 +86,7 @@ export async function addStep(taskId: string, rawTitle: string): Promise<StepDto
   ]);
   if (count >= MAX_STEPS) throw new ForbiddenError("step.too_many");
   const row = await db.taskStep.create({
-    data: { orgId: access.orgId, taskId, title, position: positionBetween(last ? Number(last.position.toString()) : null, null) },
+    data: { orgId, taskId, title, position: positionBetween(last ? Number(last.position.toString()) : null, null) },
     select: SELECT,
   });
   return dto(row);
