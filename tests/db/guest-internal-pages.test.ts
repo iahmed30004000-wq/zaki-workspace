@@ -39,6 +39,7 @@ import ArchivePage from "@/app/(app)/archive/page";
 import OwnerBoardPage from "@/app/(app)/owner/page";
 import OwnerAssistantPage from "@/app/(app)/owner/assistant/page";
 import CheckinsPage from "@/app/(app)/checkins/page";
+import DocumentsPage from "@/app/(app)/documents/page";
 import ApprovalsPage from "@/app/(app)/approvals/page";
 import StructurePage from "@/app/(app)/structure/page";
 import DevelopmentPage from "@/app/(app)/development/page";
@@ -393,6 +394,7 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   campaigns: () => CampaignsPage(),
   crm: () => CrmPage(),
   files: () => FilesPage(),
+  documents: () => DocumentsPage(),
   team: () => MembersPage(),
   space: () => CurrentSpacePage(),
   reports: () => AnalyticsPage(),
@@ -528,6 +530,8 @@ describe("every tab of PLACES × the five ranks: a tab not offered to a guest re
       "/projects",
       "/list",
       "/calendar",
+      // «المستندات»: offered to a partner (they read only what is shared with them: the service decides)
+      "/documents",
     ]);
   });
 

@@ -138,7 +138,8 @@ describe("a saved order is applied on the first paint, everywhere", () => {
       tabs: { work: ["crm", "goals", "calendar", "list", "projects", "my-work"] },
     });
     for (const part of [bottomBar(guest), sidebarPlaces(guest)]) {
-      expect(hrefs(part)).toEqual(["/my-work", "/chat", "/"]);
+      // the library (its «المستندات» tab, the only one a partner is offered) is theirs too, so it follows the saved order
+      expect(hrefs(part)).toEqual(["/documents", "/my-work", "/chat", "/"]);
     }
     expect(hrefs(tabStrip(guest))).toEqual(["/calendar", "/list", "/projects", "/my-work"]);
   });

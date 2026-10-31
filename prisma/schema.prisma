@@ -57,6 +57,9 @@ model User {
   ideaVotes       IdeaVote[]           @relation("IdeaVoter")
   cards           Card[]               @relation("CardCreator")
   cardRevisions   CardRevision[]       @relation("CardRevisionEditor")
+  documents       Document[]           @relation("DocumentCreator")
+  documentsEdited Document[]           @relation("DocumentLastEditor")
+  documentRevisions DocumentRevision[] @relation("DocumentRevisionEditor")
   cardNotes       CardNote[]           @relation("CardNoteAuthor")
   cardRatings     CardRating[]         @relation("CardRater")
   cardAttachments CardAttachment[]     @relation("CardAttachmentAdder")
@@ -779,6 +782,7 @@ model Organization {
   ideas            Idea[]
   ideaVotes        IdeaVote[]
   cards            Card[]
+  documents        Document[]
   integrations     Integration[]
   conversations    Conversation[]
   IntegrationEvent IntegrationEvent[]
@@ -903,6 +907,7 @@ model Workspace {
   calls         Call[]
   watchSessions WatchSession[]
   cards         Card[]
+  documents     Document[]
   checkinConfig CheckinConfig?
   checkinRounds CheckinRound[]
   apiTokens     ApiToken[]
@@ -2341,6 +2346,56 @@ model ReviewNote {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, userId, createdAt])
+}
+
+/// A text document of a space («المستندات»): a title and simple text (a small markup of headings, bullets, bold, links and
+/// @names, see src/lib/docs/markup.ts: stored as text and drawn by our own renderer, never as HTML). Every saved edit
+/// adds one to `version`; the editor sends the version it started from and a document that moved on answers 409.
+/// Never hard-deleted: «حذف» sets `archivedAt`. `sharedWithPartners`: an external partner (a guest of the space) reads
+/// the document only while this is true. `mentions`: the people the text names (so a later save tells only the new ones).
+model Document {
+  id                 String    @id @default(cuid())
+  orgId              String
+  workspaceId        String
+  createdById        String
+  lastEditorId       String?
+  title              String
+  content            String    @default("")
+  version            Int       @default(1)
+  sharedWithPartners Boolean   @default(false)
+  mentions           String[]
+  archivedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("DocumentCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  lastEditor   User?              @relation("DocumentLastEditor", fields: [lastEditorId], references: [id], onDelete: SetNull)
+  revisions    DocumentRevision[]
+
+  @@index([workspaceId, archivedAt, updatedAt])
+  @@index([orgId, workspaceId])
+}
+
+/// What a document was BEFORE a save replaced it, one row per saved version worth keeping (a run of quick autosaves by the same
+/// person is one row), never changed or removed (a trigger refuses an UPDATE). `version` is the number the snapshot had.
+/// `cause`: EDIT, or RESTORE when the save that replaced it was a restore of an older version.
+model DocumentRevision {
+  id         String   @id @default(cuid())
+  documentId String
+  version    Int
+  title      String
+  content    String
+  editorId   String // who wrote the text this snapshot keeps
+  cause      String   @default("EDIT")
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  editor   User     @relation("DocumentRevisionEditor", fields: [editorId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@index([documentId, createdAt])
 }
 
 /// «الأهداف والنتائج»: one measurable key result of an objective (`Goal`), at most five per objective (checked in the service,

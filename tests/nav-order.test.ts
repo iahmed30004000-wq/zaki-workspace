@@ -171,7 +171,6 @@ describe("applyNavOrder: over what the person may see", () => {
     const out = applyNavOrder(guest, { places: ["admin", "watch", "library", "work"], tabs: { work: ["crm", "calendar", "goals", "list", "projects", "my-work"], admin: ["settings"] } });
     expect(placeKeys(out)).not.toContain("admin");
     expect(placeKeys(out)).not.toContain("watch");
-    expect(placeKeys(out)).not.toContain("library");
     expect(tabKeys(out, "work")).not.toContain("crm");
     expect(tabKeys(out, "work")).not.toContain("goals");
     expect(tabKeys(out, "work")).toEqual(["calendar", "list", "projects", "my-work"]);

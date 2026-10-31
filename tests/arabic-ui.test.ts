@@ -30,7 +30,6 @@ import { CrmView, CustomersTab, OpportunitiesTab } from "@/components/crm-view";
 import { ideaError } from "@/components/ideas-view";
 import { ApiError } from "@/lib/api-client";
 import { Logo } from "@/components/logo";
-import DocumentsPage from "@/app/(app)/documents/page";
 import {
   arabicPlural,
   fmtAgo,
@@ -629,10 +628,6 @@ describe("the name on screen", () => {
     const markup = renderToStaticMarkup(createElement(Logo));
     expect(markup).toContain("Zaki Workspace");
     expect(markup).not.toMatch(/Zakai|Intelligent|\.io/);
-  });
-
-  it("/documents is an empty 'coming soon' page, so it sends the visitor to the library (the old link keeps working)", () => {
-    expect(() => DocumentsPage()).toThrow("NEXT_REDIRECT:/files");
   });
 });
 

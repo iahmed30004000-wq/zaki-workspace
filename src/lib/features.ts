@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -129,6 +129,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // for every token, the tokens card in «الأتمتة» is not drawn and its routes answer «not found»; the tokens, the records and what was sent in stay
   // and come back with the switch. ⚠️ An outside system writes into the company: 🔧 each token holds named permissions and one space, and is revoked in one click.
   apiDoor: false,
+  // «المستندات» (src/server/services/documents.ts): the text documents of a space, with their version history, and the PDF viewer of the
+  // library. Off: the «المستندات» tab is not drawn and every page and route under /documents and /api/documents answers «not found» for
+  // everybody, the owner included; the documents and their history stay and come back with the switch. (The PDF viewer is part of the
+  // library and stays: a file is a file.)
+  spaceDocs: true,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
