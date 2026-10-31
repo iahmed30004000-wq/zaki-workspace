@@ -30,7 +30,7 @@ describe("«الميزات»: the owner's switches", () => {
     expect(FEATURE_DEFAULTS.customFields).toBe(true);
     expect(featureOn({}, "customFields")).toBe(true);
     expect(featureOn({ features: { customFields: false } }, "customFields")).toBe(false);
-    expect(featuresOff({ features: { customFields: false } })).toEqual(["ownerHiddenOnline", "ownerAssistant", "customFields"]);
+    expect(featuresOff({ features: { customFields: false } })).toEqual(["ownerHiddenOnline", "ownerAssistant", "customFields", "apiDoor"]);
   });
 
   it("a broken stored value is ignored, never read as off", () => {
@@ -46,9 +46,9 @@ describe("«الميزات»: the owner's switches", () => {
     expect(Object.keys(all).sort()).toEqual([...FEATURES].sort());
     for (const key of FEATURES) expect(all[key], key).toBe(key === "watch" ? false : FEATURE_DEFAULTS[key]);
     // «إخفاء المالك من متصل» and «مساعد المالك» are OFF until the owner turns them on, so they are always in the list of the ones that are off
-    expect(featuresOff({ features: { watch: false } })).toEqual(["watch", "ownerHiddenOnline", "ownerAssistant"]);
-    expect(featuresOff({})).toEqual(["ownerHiddenOnline", "ownerAssistant"]);
-    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true } })).toEqual([]);
+    expect(featuresOff({ features: { watch: false } })).toEqual(["watch", "ownerHiddenOnline", "ownerAssistant", "apiDoor"]);
+    expect(featuresOff({})).toEqual(["ownerHiddenOnline", "ownerAssistant", "apiDoor"]);
+    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, apiDoor: true } })).toEqual([]);
     expect(FEATURE_DEFAULTS.ownerAssistant).toBe(false);
     // «الرسائل بدون نت» is ON until the owner turns it off (so it is never in the list of the ones that are off)
     expect(FEATURE_DEFAULTS.chatOutbox).toBe(true);
@@ -65,6 +65,16 @@ describe("«الميزات»: the owner's switches", () => {
     expect(buildNav(owner).places.flatMap((p) => p.tabs.map((t) => t.key))).toContain("approvals");
   });
 
+  it("«باب الربط الخارجي» (`apiDoor`) is OFF until the owner turns it on, named in Arabic, and is only that key", () => {
+    expect(FEATURES).toContain("apiDoor");
+    expect(FEATURE_DEFAULTS.apiDoor).toBe(false);
+    expect(featureOn({}, "apiDoor")).toBe(false);
+    expect(featureOn({ features: { apiDoor: true } }, "apiDoor")).toBe(true);
+    expect(featuresOff({})).toContain("apiDoor");
+    expect(featuresOff({ features: { apiDoor: true } })).not.toContain("apiDoor");
+    expect(AR["features.apiDoor.name"]).toBe("باب الربط الخارجي");
+  });
+
   it("setting one switch keeps every other key of the company's settings", () => {
     const before = { transparencyVersion: 3, features: { other: true }, somethingElse: { a: 1 } };
     expect(withFeature(before, "watch", false)).toEqual({ transparencyVersion: 3, features: { other: true, watch: false }, somethingElse: { a: 1 } });
@@ -75,7 +85,7 @@ describe("«الميزات»: the owner's switches", () => {
     expect(FEATURES).toContain("lastSeen");
     expect(FEATURE_DEFAULTS.lastSeen).toBe(true);
     expect(featureOn({}, "lastSeen")).toBe(true);
-    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, lastSeen: false } })).toEqual(["lastSeen"]);
+    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, apiDoor: true, lastSeen: false } })).toEqual(["lastSeen"]);
     expect(AR["features.lastSeen.name"]).toBe("آخر ظهور");
   });
 

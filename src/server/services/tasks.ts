@@ -45,6 +45,8 @@ export interface CreateTaskInput {
    * date and an amount (src/server/services/rewards.ts `prepareReward`). Every way a task is born comes through here.
    */
   reward?: RewardRequest;
+  /** «الباب»: a task sent in through /api/v1: the token that made it and the sender's own opaque reference (src/server/services/api-door.ts). */
+  door?: { apiTokenId: string; externalRef: string | null };
 }
 
 export interface MoveTaskInput {
@@ -299,6 +301,7 @@ export async function createTaskInTx(tx: Tx, actor: ActorContext, input: CreateT
       // born in a done column is finished: the same rule as `moveTask`, or no counter would see it
       completedAt: column.done ? new Date() : null,
       ...(rewardData ?? {}),
+      ...(input.door ? { apiTokenId: input.door.apiTokenId, externalRef: input.door.externalRef } : {}),
       coAssignees: coIds.length
         ? { create: coIds.map((userId) => ({ userId })) }
         : undefined,

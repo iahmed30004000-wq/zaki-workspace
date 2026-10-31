@@ -23,6 +23,7 @@ import { addPersonToHq, removePersonAudit, removePersonFromHq } from "@/server/c
 import { ROLE_KEYS } from "@/lib/i18n/roles";
 import { MAX_LINE_DEPTH, depthAbove, exceedsLineDepth } from "@/lib/team-development";
 import { generateTemporaryPassword, passwordSchema, usernameSchema } from "@/server/services/credentials";
+import { revokeTokensOfPerson } from "@/server/services/api-tokens";
 import {
   STATUS_TRANSITIONS,
   activeRoutineWhere,
@@ -577,6 +578,8 @@ async function suspendAccount(actor: Actor, target: Target): Promise<void> {
   await db.$transaction(async (tx) => {
     await flipStatus(tx, actor, target, "suspend", "SUSPENDED");
     await endSessions(tx, target.userId);
+    // «الباب»: the tokens this person made die with their access (reactivating them does not bring them back)
+    await revokeTokensOfPerson(tx, { orgId: actor.orgId, userId: target.userId, byUserId: actor.userId, reason: "person_suspended" });
   });
   await audit("org.member_suspended", { actorId: actor.userId, orgId: actor.orgId, target: target.userId, meta: { from: target.status } });
 }
@@ -665,6 +668,8 @@ async function offboardAccount(actor: Actor, target: Target, transferToUserId: s
     await removePersonAudit(actor.orgId, actor.userId, target.userId, tx);
     const reports = await repointReports(tx, actor.orgId, target);
     await endSessions(tx, target.userId);
+    // «الباب»: the tokens this person made die with their access, in the same commit
+    await revokeTokensOfPerson(tx, { orgId: actor.orgId, userId: target.userId, byUserId: actor.userId, reason: "person_offboarded" });
     return {
       tasks: work.tasks.length,
       tickets: work.tickets.length,
