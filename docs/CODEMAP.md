@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 249 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 252 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 28 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 29 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 249 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 252 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 100 services — the business rules (§6) |
+| `src/server/services/` | 104 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 89 · `activeOrgCtx` 74 · `(none)` 26 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 89 · `activeOrgCtx` 74 · `(none)` 29 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -261,6 +261,9 @@ Doors in use: `requireActor` 89 · `activeOrgCtx` 74 · `(none)` 26 · `requireT
 | GET, POST | `/api/projects/[id]/fields` | **none** (public by design) | `custom-fields`: createField, listProjectFields |
 | PATCH | `/api/projects/[id]/fields/[fieldId]` | **none** (public by design) | `custom-fields`: updateField |
 | GET, POST | `/api/projects/[id]/milestones` | requireTeamWork | `features`: assertFeatureOn<br>`org-day`: orgTimeZone<br>`milestones`: createMilestone, listMilestones, milestoneInput |
+| GET, POST | `/api/projects/[id]/rules` | **none** (public by design) | `task-rules`: createRule, listRules, ruleOptions |
+| PATCH, DELETE | `/api/projects/[id]/rules/[ruleId]` | **none** (public by design) | `task-rules`: deleteRule, setRuleActive, updateRule |
+| GET | `/api/projects/[id]/rules/log` | **none** (public by design) | `task-rules`: readLog |
 | GET | `/api/projects/[id]/timeline` | requireTeamWork | `timeline`: getProjectTimeline |
 | GET | `/api/push/key` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST, DELETE | `/api/push/subscribe` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -343,7 +346,7 @@ Doors in use: `requireActor` 89 · `activeOrgCtx` 74 · `(none)` 26 · `requireT
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 249. Each one is a door that cannot have a session, or one that is closed.
+Six of 252. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -366,11 +369,11 @@ high count is a wide surface: changing its signature reaches all of them.
 |---|---|---|---|
 | `integrations` | 180 | 82 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 128 | 52 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
-| `features` | 48 | 49 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 48 | 50 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `guest-guard` | 30 | 38 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
-| `team-scope` | 149 | 25 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
+| `team-scope` | 149 | 26 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `org-day` | 26 | 22 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
-| `tasks` | 636 | 19 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
+| `tasks` | 649 | 19 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `cards` | 614 | 17 | «اللوحات» — the cards of a space. |
 | `rewards` | 351 | 16 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
 | `time-tracking` | 662 | 16 | «حساب وقت الشغل» — the time people log on tasks (the owner, 2026-10-30: «حساب وقت الشغل: نعم»). |
@@ -410,7 +413,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-board-io` | 74 | 5 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
 | `production` | 262 | 5 | Daily production. |
 | `reminders` | 169 | 5 | «ذكّرني» — a person's reminder for THEMSELVES (never for somebody else), on a task, on a chat message, or on its own. |
-| `task-steps` | 152 | 5 | «خطوات» — the short checklist inside a task. |
+| `task-steps` | 160 | 5 | «خطوات» — the short checklist inside a task. |
 | `team-reviews` | 209 | 5 | «التقييمات» — what the owner and the supervisors write about a person for a period. |
 | `teams` | 228 | 5 | TEAMS INSIDE A SPACE — who is in which team, and which project belongs to which (the reading rule is in team-scope.ts). |
 | `telegram` | 299 | 5 | Validates a bot token by calling getMe. |
@@ -420,6 +423,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `crm` | 228 | 4 | no header comment — exports `OPPORTUNITY_STAGES`, `createCustomerSchema`, `updateCustomerSchema`, `createOpportunitySchema`, `updateOpportunitySchema`, … |
 | `departments` | 240 | 4 | The departments area is the company's staff directory (who works where, with which job title), so org GUESTs get 403 on every function here, read or write. |
 | `reward-input` | 30 | 4 | What a request body says about a reward: the amount as the person typed it (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency (optiona… |
+| `task-assign` | 265 | 4 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
+| `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `milestones` | 173 | 3 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
 | `owner-board-sections` | 82 | 3 | «لوحة المالك» — THE EXTENSION POINT. |
@@ -428,7 +433,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `reward-guard` | 39 | 3 | «مهمة بمكافأة» — the guard every writer of a task goes through (tasks.ts `updateTask` / `deleteTask` / `createTask`, the reward routes). |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
 | `spaces-overview` | 73 | 3 | «كل المساحات» — the owner's and the admins' one look over every space they can open (the owner's decision, 2026-10-25): each space stays a separate site, and this page only coun… |
-| `task-assign` | 265 | 3 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
 | `team-score-io` | 28 | 3 | `?kind=` as a period kind (anything else: the month). |
 | `avatars` | 118 | 2 | A PERSON'S PICTURE (the owner's ask, 2026-10-29: «خيار إن المستخدم يحط صورة بروفايل»). |
 | `card-notes` | 113 | 2 | «الملاحظات» (the card's thread). |
@@ -458,12 +462,15 @@ high count is a wide surface: changing its signature reaches all of them.
 | `my-work` | 168 | 1 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
 | `owner-assistant-data` | 120 | 1 | «مساعد المالك» — WHAT THE MODEL MAY LEARN FROM, as raw material for `buildContext` (src/server/ai/redact.ts). |
 | `presence-roster` | 96 | 1 | THE PEOPLE DOCK — who works here and who is at their screen right now (the owner's ask, 2026-10-29: «المستخدمين ظاهرين على زاوية الموقع تحت وكل واحد جنبه علامة خضراء أونلاين»). |
-| `recurrence-spawn` | 218 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |
+| `recurrence-spawn` | 221 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |
 | `space-delete` | 93 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
+| `task-rules-run` | 293 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
 | `team-score-sections` | 40 | 1 | «السكور» — THE EXTENSION POINT. |
 | `today` | 298 | 1 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
 | `today-dashboard` | 113 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
 | `approval-notify` | 65 | 0 | The bell of «طلبات الموافقة». |
+| `task-rules-guards` | 57 | 0 | THE QUESTIONS A RULE ASKS ABOUT PEOPLE AND PLACES («القواعد التلقائية») — one place, asked twice: when a rule is SAVED (the admin's screen) and again every time it RUNS (what wa… |
+| `task-rules-hook` | 43 | 0 | THE DOOR BETWEEN A TASK EVENT AND THE PROJECT'S RULES («القواعد التلقائية»). |
 
 ## 7. Models → who writes them
 
@@ -485,7 +492,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `Goal` | 5 | `server/services/goals.ts`: 3<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 11 | `server/services/files.ts`: 7<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>`server/services/move-to-space.ts`: 1<br>+1 more |
-| `Conversation` | 17 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/messages.ts`: 2<br>`server/chat/hq.ts`: 1<br>+5 more |
+| `Conversation` | 18 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/messages.ts`: 2<br>`server/chat/hq.ts`: 1<br>+6 more |
 | `ConversationMember` | 18 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 3<br>`server/services/workspaces.ts`: 2<br>+3 more |
 | `ChatMessage` | 6 | `server/chat/messages.ts`: 5<br>`server/chat/system.ts`: 1 |
 | `ChatReaction` | 2 | `server/chat/messages.ts`: 2 |
@@ -560,6 +567,8 @@ to be added to, and the places a bug can leave the row half-written.
 | `Review` | 4 | `server/services/team-reviews.ts`: 4 |
 | `DevGoal` | 4 | `server/services/team-plans.ts`: 4 |
 | `ReviewNote` | 2 | `server/services/team-plans.ts`: 2 |
+| `TaskRule` | 4 | `server/services/task-rules.ts`: 4 |
+| `TaskRuleRun` | 1 | `server/services/task-rules-run.ts`: 1 |
 
 `PollOption` has no direct write of its own: it is filled only through a nested write on `Poll.options` in `server/chat/poll-shared.ts` — counted here so a change there is read as a change here.
 `TaskLabel` has no direct write of its own: it is filled only through a nested write on `Task.labels` in `server/services/tasks.ts` — counted here so a change there is read as a change here.
@@ -586,7 +595,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `milestones` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts` |
 | `ownerHiddenOnline` | 4 — `app/api/presence/route.ts`, `server/chat/directory.ts`, `server/chat/topics.ts`, `server/services/last-seen.ts` |
 | `quickChat` | 0 —  |
-| `taskSteps` | 4 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/task-steps.ts` |
+| `taskSteps` | 5 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/task-rules-run.ts`, `server/services/task-steps.ts` |
 | `reminders` | 6 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/calendar-feed.ts`, `server/services/reminders.ts` |
 | `timeTracking` | 5 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `server/services/team-score-sections.ts`, `server/services/time-tracking.ts` |
 | `recurringTasks` | 4 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/task-recurrence.ts` |
@@ -600,12 +609,13 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `lastSeen` | 4 — `app/(app)/profile/page.tsx`, `app/api/me/last-seen/route.ts`, `server/realtime/presence.ts`, `server/services/last-seen.ts` |
 | `approvals` | 6 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts` |
 | `teamDevelopment` | 4 — `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/policy/team-development.ts`, `server/services/team-score.ts` |
+| `taskRules` | 4 — `app/(app)/projects/[id]/page.tsx`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
 
 ## 9. What this map noticed
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 243 of 249 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Every guarded route asks a guard — none compares a role name.** 246 of 252 routes open with a function from §3; the other 6 are the doors listed in §5.
 - **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 163 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **16 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 4 write neither (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 4 of those are one person's own preference (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **15 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.

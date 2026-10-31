@@ -6,7 +6,7 @@ import { actorCanWork, requireActor } from "@/server/policy/actor";
 import { SectionOffNotice } from "@/app/(app)/_access";
 import { keepInSpace } from "@/server/services/current-space";
 import { loadWorkScope, projectVisibleWhere } from "@/server/services/team-scope";
-import { canWriteInWorkspace } from "@/server/workspace-role";
+import { canWriteInWorkspace, isSpaceManager } from "@/server/workspace-role";
 import { Card, CardBody, CardHeader, Badge } from "@/components/ui/card";
 import { BoardCreateButton } from "@/components/board-create-button";
 import { MilestonesCard } from "@/components/milestones-card";
@@ -22,6 +22,8 @@ import { pinnedTasks } from "@/server/services/pinned";
 import { PinnedStrip } from "@/components/rewards/pinned-strip";
 import { fieldDefsOf, isPartnerIn } from "@/server/services/custom-fields";
 import { ManageFields } from "@/components/custom-fields/manage-fields";
+import { listRulesOf, ruleOptionsOf } from "@/server/services/task-rules";
+import { RulesCard } from "@/components/task-rules/rules-card";
 
 export default async function ProjectPage({ params }: { params: { id: string } }) {
   const { t } = getServerT();
@@ -73,6 +75,17 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     (membership.role === "OWNER" || (membership.role !== "GUEST" && (spaceRow?.role === "ADMIN" || (membership.role === "ADMIN" && spaceRow != null)))) &&
     actorCanWork(actor, "projects.edit");
   const customFields = fieldsOn ? await fieldDefsOf(project.id, { archived: canManageFields }) : [];
+
+  // «القواعد التلقائية»: the «القواعد» section is drawn while the company's switch is on and only for the people who define rules (the
+  // space's ADMIN and the owner, and never an external partner); everybody else never gets a line of it, and the server decides again
+  const rulesOn =
+    (await actorFeatureOn(actor, "taskRules")) &&
+    membership != null &&
+    membership.role !== "GUEST" &&
+    isSpaceManager(membership.role, spaceRow?.role) &&
+    actorCanWork(actor, "projects.edit");
+  const rules = rulesOn ? await listRulesOf(project.id) : [];
+  const ruleOptions = rulesOn ? await ruleOptionsOf({ id: project.id, workspaceId: project.workspace.id, teamId: project.teamId }, actor.orgId) : null;
 
   // «مثبّتة»: the tasks pinned in this project, first thing on the page (while the company's switch is on)
   const lens = await rewardLensFor(actor, project.workspace.id);
@@ -143,6 +156,8 @@ export default async function ProjectPage({ params }: { params: { id: string } }
       </section>
 
       {fieldsOn ? <ManageFields projectId={project.id} initial={customFields} canEdit={canManageFields} /> : null}
+
+      {rulesOn && ruleOptions ? <RulesCard projectId={project.id} initialRules={rules} options={ruleOptions} /> : null}
 
       {milestonesOn ? (
         <MilestonesCard
