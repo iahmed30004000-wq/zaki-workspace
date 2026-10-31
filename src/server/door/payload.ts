@@ -57,9 +57,31 @@ export function findCustomerDataKeys(value: unknown, prefix = "", depth = 0): st
 
 // ---------- fields ----------
 
+/** PostgreSQL text cannot hold a NUL character: it must be refused as a 422 here, never reach the database as a 500. */
+export const hasNul = (value: string): boolean => value.includes(String.fromCharCode(0));
+const NO_NUL = "door.field.nul";
+
+/** A free-text field: no NUL character. */
+const text = () => z.string().refine((v) => !hasNul(v), NO_NUL);
+
+/** The years a due date may name: a sane range, so a year 0001 or 9999 is a 422 and not a database error. */
+export const DUE_YEAR_MIN = 2000;
+export const DUE_YEAR_MAX = 2100;
+
+/** `YYYY-MM-DD` or an ISO instant (both start with a four-digit year): the year is in range and the instant is a real one. */
+export function dueDateInRange(value: string): boolean {
+  const year = Number(value.slice(0, 4));
+  if (!Number.isInteger(year) || year < DUE_YEAR_MIN || year > DUE_YEAR_MAX) return false;
+  const at = new Date(value);
+  if (Number.isNaN(at.getTime())) return false;
+  // an offset can move the instant across New Year: it must still be inside the range
+  const utcYear = at.getUTCFullYear();
+  return utcYear >= DUE_YEAR_MIN && utcYear <= DUE_YEAR_MAX;
+}
+
 /** The sender's own opaque reference: letters, digits and `. _ : - /` (no spaces, no `@`), so a name or an e-mail cannot ride in it. */
 export const EXTERNAL_REF = /^[A-Za-z0-9][A-Za-z0-9_.:\-/]{0,127}$/;
-const externalRef = z.string().regex(EXTERNAL_REF, "door.field.external_ref");
+const externalRef = text().pipe(z.string().regex(EXTERNAL_REF, "door.field.external_ref"));
 
 const tag = z.string().regex(/^[\p{L}\p{N}][\p{L}\p{N}_-]{0,31}$/u, "door.field.tag");
 const tags = z
@@ -69,8 +91,8 @@ const tags = z
 
 export const ideaBodySchema = z
   .object({
-    title: z.string().trim().min(3).max(140),
-    description: z.string().max(2000).nullable().optional(),
+    title: text().pipe(z.string().trim().min(3).max(140)),
+    description: text().pipe(z.string().max(2000)).nullable().optional(),
     tags: tags.optional(),
     externalRef: externalRef.optional(),
   })
@@ -79,13 +101,19 @@ export type IdeaBody = z.infer<typeof ideaBodySchema>;
 
 export const taskBodySchema = z
   .object({
-    title: z.string().trim().min(1).max(280),
-    description: z.string().max(10_000).nullable().optional(),
+    title: text().pipe(z.string().trim().min(1).max(280)),
+    description: text().pipe(z.string().max(10_000)).nullable().optional(),
     /** The board of the token's space the task goes to (an opaque id; it is read back from the answer of a list of boards, or given by the owner). */
-    boardId: z.string().min(1).max(64),
+    boardId: text().pipe(z.string().min(1).max(64)),
     priority: z.enum(priorities).optional(),
-    /** `YYYY-MM-DD` (noon in the company's zone) or a full ISO instant with an offset. */
-    dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
+    /** `YYYY-MM-DD` (noon in the company's zone) or a full ISO instant with an offset; the year is 2000 to 2100. */
+    dueDate: z
+      .string()
+      .datetime({ offset: true })
+      .or(z.string().date())
+      .refine(dueDateInRange, "door.field.due_date_range")
+      .nullable()
+      .optional(),
     externalRef: externalRef.optional(),
   })
   .strict();

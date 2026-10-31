@@ -26,7 +26,8 @@ This follows the repository rule «no customer data crosses a contract».
 - **Identifiers are opaque.** `externalRef` is the sender's own reference (an order id, a conversation id, a uuid) — letters, digits and `. _ : - /`, at most 128 characters, **no spaces, no `@`**, so a name or an e-mail cannot ride in it.
 - **A field whose NAME says customer data is refused** with its own code, `422 door.customer_data_rejected`, **before anything else is looked at and before anything is stored**, at any depth of the body. A key is customer data when one of its words (split at camelCase, `_`, `-`, `.`) is one of: `name`, `fullName`, `firstName`, `lastName`, `phone`, `mobile`, `whatsapp`, `tel`, `address`, `street`, `city`, `email`, `customer`, `client`, `buyer`, `recipient`, `price`, `amount`, `total`, `cost`, `balance`, `iban`, `cod` … or when a one-word key contains `customer`, `phone`, `address`, `email`, `price`, … (`customername`). The answer lists the offending key paths and never their values.
 - **The body is strict.** A field this contract does not declare is `422 door.validation_failed` — never ignored, never stored.
-- **`title` and `description` are free text. The SENDER is responsible for what it writes there**; the door does not read them for names or numbers. Do not put a customer in them.
+- **`title`, `description`, `externalRef` and `tags` are free text the SENDER is responsible for.** The door checks their shape, never their meaning: it does not read them for names or numbers. ⚠️ An `externalRef` of `0791234567` (a phone number is only digits) or a tag made of letters is accepted, and the **spaces-and-`@` rule above does not exclude it**. 🔧 Send opaque references only (an order id, a uuid, a conversation id), never a person's name, phone, address or e-mail in any of these four fields, and review what your system puts there. Nothing in the door can tell a reference from a phone number.
+- **A NUL character (`U+0000`) in any text field is refused** (`422 door.validation_failed`), as is a `dueDate` outside the years 2000 to 2100.
 - **Prices:** the door neither takes nor returns a price, an amount, a reward or a CRM value. A task made through it is a plain task (no reward, no assignee).
 - **What a token can read back is only what that token sent**: its own ideas, its own tasks. Never another token's, a person's, or another company's — those answer `404`, identical to "does not exist".
 - **What the answers never contain:** the author's name or id, the company id, the space id, the token id, any other person. (`source` is the token's own name, chosen by the owner.)
@@ -51,9 +52,12 @@ Authorization: Bearer <token>
   A token with no permission can read nothing and write nothing. A missing permission is `403 door.forbidden`.
 - **A token dies immediately** (`401 door.unauthorized`, the same answer as for an unknown token — the sender learns nothing about why) when:
   - it is **revoked** on the screen (one click, for good);
-  - it **expires** (the owner picks 30 / 90 / 365 days, or "never");
+  - it **expires** (the owner picks 30 / 90 / 365 days, or "never"; the default is **no expiry**, see below);
   - the person who made it is **suspended or offboarded** — their tokens are revoked in the same commit, and reactivating the person does **not** bring them back;
   - the person who made it is no longer an ACTIVE member, was made an external partner, no longer holds «الربط والأتمتة», or is no longer in the token's space (all read from the database on every request).
+- **A token survives a password reset of the person who made it.** A reset (or the person changing their own password, or «log out everywhere») ends their sign-in sessions, but a token is a separate credential and keeps working. It dies on **suspend / offboard**, on losing the «الربط والأتمتة» capability, or on losing the space, as listed above. ⚠️ If the account behind a token may have been compromised, resetting its password does not stop the token. 🔧 Revoke the token on the screen.
+- **Default expiry: none.** A token made without choosing a period never expires. ⚠️ A token that lives forever is a secret that must never leak, for ever. 🔧 We recommend **90 days** (the screen preselects it) and a new token made before the old one runs out.
+- **The owner can always kill a token.** The screen lists the tokens and revokes any of them **even while the switch `apiDoor` is off**; only making a new token needs the switch on.
 - ⚠️ A token writes into the company from outside. 🔧 Make it from an account that stays at work, give it only the permissions it needs, set an expiry, and revoke it the moment it leaks.
 
 ## 4. Envelope
@@ -118,7 +122,7 @@ Every `POST` **requires** `Idempotency-Key: <8–128 characters: letters, digits
 | | |
 |---|---|
 | Requests per token | **60 per minute**, reads and writes together → `429` + `Retry-After` |
-| Refused tokens per address | **20 per 10 minutes** → that address gets `429` for the rest of the window (a revoked token still looping counts) |
+| Refused tokens per address | **20 per 10 minutes** → that address gets `429` for the rest of the window (a revoked token still looping counts). A request carrying a live token (well-formed, known, not revoked, not expired) is not refused for this and is not counted: a good sender is never locked out by somebody else behind the same address |
 | Body | 32 KiB |
 | `title` | idea 3–140 characters · task 1–280 |
 | `description` | idea ≤ 2000 · task ≤ 10 000 |
@@ -188,7 +192,7 @@ Request:
 }
 ```
 
-`title` and `boardId` required. `priority`: `URGENT | HIGH | NORMAL | LOW | NONE` (default `NORMAL`). `dueDate`: `YYYY-MM-DD` (noon in the company's time zone) or a full ISO instant with an offset. **No assignee, space, project, column or reward is accepted**: the token decides the space; the task lands in the **first column** of the named board, unassigned. Find the `boardId` with `GET /api/v1/boards`.
+`title` and `boardId` required. `priority`: `URGENT | HIGH | NORMAL | LOW | NONE` (default `NORMAL`). `dueDate`: `YYYY-MM-DD` (noon in the company's time zone) or a full ISO instant with an offset, in the years **2000 to 2100** (outside it: `422`). **No assignee, space, project, column or reward is accepted**: the token decides the space; the task lands in the **first column** of the named board, unassigned. Find the `boardId` with `GET /api/v1/boards`.
 
 `201`:
 

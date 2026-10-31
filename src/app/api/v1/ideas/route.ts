@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { doorJson, doorRoute, readDoorJson, DoorError } from "@/server/door/http";
-import { ideaBodySchema, parseDoorBody } from "@/server/door/payload";
+import { hasNul, ideaBodySchema, parseDoorBody } from "@/server/door/payload";
 import { authenticateDoor, doorCreateIdea, doorListIdeas, idempotencyKeyOf } from "@/server/services/api-door";
 
 /**
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const listQuery = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(50),
-  cursor: z.string().min(1).max(64).optional(),
+  cursor: z.string().min(1).max(64).refine((v) => !hasNul(v), "door.field.nul").optional(),
 });
 
 export async function POST(req: Request) {

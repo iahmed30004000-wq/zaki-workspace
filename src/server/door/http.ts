@@ -42,6 +42,16 @@ export function doorErrorResponse(err: DoorError, requestId: string): NextRespon
   );
 }
 
+/** What may be written to the log about an unexpected error: its class and its machine code, never its message. */
+export function safeErrorFacts(err: unknown): { name: string; code?: string } {
+  if (typeof err !== "object" || err === null) return { name: typeof err };
+  const code = (err as { code?: unknown }).code;
+  return {
+    name: err instanceof Error ? err.name : "NonError",
+    ...(typeof code === "string" && /^[A-Za-z0-9_.-]{1,40}$/.test(code) ? { code } : {}),
+  };
+}
+
 /** The one place a route handler of the door runs: whatever happens inside, the sender gets the envelope, never a stack trace. */
 export async function doorRoute(fn: (requestId: string) => Promise<NextResponse>): Promise<NextResponse> {
   const requestId = randomUUID();
@@ -57,12 +67,8 @@ export async function doorRoute(fn: (requestId: string) => Promise<NextResponse>
     if (err instanceof ValidationError) {
       return doorErrorResponse(new DoorError(422, "door.validation_failed", "The request body is not valid.", err.issues), requestId);
     }
-    log.error("door.unhandled", {
-      requestId,
-      name: err instanceof Error ? err.name : String(err),
-      message: err instanceof Error ? err.message : String(err),
-      stack: err instanceof Error ? err.stack?.split("\n").slice(0, 4).join("\n") : undefined,
-    });
+    // never err.message nor the stack: they may quote the sender's free text (a database error repeats the value it refused)
+    log.error("door.unhandled", { requestId, ...safeErrorFacts(err) });
     return doorErrorResponse(new DoorError(500, "door.internal", "Something went wrong on our side."), requestId);
   }
 }

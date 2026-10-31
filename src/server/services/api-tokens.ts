@@ -3,12 +3,13 @@ import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import { assertCan, type Actor } from "@/server/policy/actor";
 import { accessibleWorkspaceIds } from "@/server/services/access";
-import { assertFeatureOn } from "@/server/services/features";
+import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { DOOR_PERMISSIONS, generateToken, isDoorPermission, type DoorPermission } from "@/server/door/tokens";
 
 /**
  * «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). Whoever holds
- * «integrations.manage» makes, lists and revokes the company's tokens, while the switch «باب الربط» is on.
+ * «integrations.manage» makes the company's tokens while the switch «باب الربط» is on, and lists and revokes them ALWAYS: the owner
+ * must be able to kill a leaked token even while the door is shut.
  *
  * A token is made for ONE space the maker reaches, with named permissions (reads by default), an optional expiry; the whole token
  * is returned ONCE, here, and only its hash is kept. It acts in the name of the maker (see api-door.ts).
@@ -67,21 +68,27 @@ function toDTO(row: Prisma.ApiTokenGetPayload<{ select: typeof TOKEN_SELECT }>, 
   };
 }
 
-/** Whoever holds «integrations.manage», while the switch is on (404 `features.off` when it is off). */
-async function manager(actor: Actor): Promise<void> {
+/** Whoever holds «integrations.manage». Used by what must work while the switch is OFF too: seeing the tokens and revoking one (the owner kills a leaked token even with the door shut). */
+function manager(actor: Actor): void {
   assertCan(actor, "integrations.manage");
+}
+
+/** Making a token: whoever holds «integrations.manage», while the switch is on (404 `features.off` when it is off). */
+async function maker(actor: Actor): Promise<void> {
+  manager(actor);
   await assertFeatureOn(actor.orgId, "apiDoor");
 }
 
-export async function listApiTokens(actor: Actor): Promise<{ tokens: ApiTokenDTO[]; spaces: { id: string; name: string }[] }> {
-  await manager(actor);
+export async function listApiTokens(actor: Actor): Promise<{ tokens: ApiTokenDTO[]; spaces: { id: string; name: string }[]; switchOn: boolean }> {
+  manager(actor);
   const reach = await accessibleWorkspaceIds(actor.userId);
-  const [rows, spaces] = await Promise.all([
+  const [rows, spaces, switchOn] = await Promise.all([
     db.apiToken.findMany({ where: { organizationId: actor.orgId }, orderBy: { createdAt: "desc" }, take: 200, select: TOKEN_SELECT }),
     db.workspace.findMany({ where: { organizationId: actor.orgId, id: { in: reach } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
+    isFeatureOn(actor.orgId, "apiDoor"),
   ]);
   const now = new Date();
-  return { tokens: rows.map((r) => toDTO(r, now)), spaces };
+  return { tokens: rows.map((r) => toDTO(r, now)), spaces, switchOn };
 }
 
 export interface CreateApiTokenInput {
@@ -93,7 +100,7 @@ export interface CreateApiTokenInput {
 }
 
 export async function createApiToken(actor: Actor, input: CreateApiTokenInput): Promise<{ token: string; item: ApiTokenDTO }> {
-  await manager(actor);
+  await maker(actor);
   // a partner outside the company never makes a door into it, whatever switch somebody gave them
   if (actor.isExternal) throw new ForbiddenError("insufficient_role");
   const permissions = [...new Set(input.permissions)].filter(isDoorPermission);
@@ -139,7 +146,7 @@ export async function createApiToken(actor: Actor, input: CreateApiTokenInput): 
 
 /** Revokes one token of the company, for good (a revoked token is never brought back: make a new one). Revoking twice is the same answer. */
 export async function revokeApiToken(actor: Actor, tokenId: string): Promise<ApiTokenDTO> {
-  await manager(actor);
+  manager(actor);
   const found = await db.apiToken.findFirst({ where: { id: tokenId, organizationId: actor.orgId }, select: { id: true, workspaceId: true, revokedAt: true } });
   if (!found) throw new NotFoundError("door.err.not_found");
   if (!found.revokedAt) {
