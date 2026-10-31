@@ -46,9 +46,11 @@ import outbox from "./ar.outbox.json";
 import checkins from "./ar.checkins.json";
 import lastSeen from "./ar.last-seen.json";
 import approvals from "./ar.approvals.json";
+import taskRules from "./ar.task-rules.json";
 import teamDevelopment from "./ar.team-development.json";
 import documents from "./ar.documents.json";
 import okr from "./ar.okr.json";
+import apiDoor from "./ar.api-door.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -106,7 +108,9 @@ export const AR: Record<string, string> = {
   ...checkins,
   ...lastSeen,
   ...approvals,
+  ...taskRules,
   ...teamDevelopment,
   ...documents,
   ...okr,
+  ...apiDoor,
 };

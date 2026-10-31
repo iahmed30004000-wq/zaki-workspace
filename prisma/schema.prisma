@@ -89,6 +89,7 @@ model User {
   startedWatches  WatchSession[]       @relation("WatchStarter")
   callSeats       CallPerson[]
   pushDevices     PushSubscription[]
+  issuedApiTokens ApiToken[]           @relation("ApiTokenIssuer")
 }
 
 // ---------- departments (the company's pools: design / dev / IT / sales) ----------
@@ -805,6 +806,8 @@ model Organization {
   reviews          Review[]
   devGoals         DevGoal[]
   reviewNotes      ReviewNote[]
+  apiTokens        ApiToken[]
+  idempotencyRecords IdempotencyRecord[]
 
   @@index([slug])
 }
@@ -907,6 +910,7 @@ model Workspace {
   documents     Document[]
   checkinConfig CheckinConfig?
   checkinRounds CheckinRound[]
+  apiTokens     ApiToken[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, systemKey])
@@ -1016,6 +1020,8 @@ model Project {
   taskRecurrences TaskRecurrence[]
   // «حقول مخصصة»: the project's own schema of task fields (they die with the project)
   customFields ProjectField[]
+  // «القواعد التلقائية»: the if-then rules of the project and (through them) their log (both die with the project)
+  taskRules TaskRule[]
 
   @@unique([workspaceId, systemKey])
   @@index([workspaceId])
@@ -1183,9 +1189,15 @@ model Task {
   pinnedAt           DateTime?
   pinnedById         String?
 
+  // «الباب»: a task sent in through /api/v1: the token that made it and the sender's own opaque reference.
+  apiTokenId         String?
+  apiToken           ApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
+  externalRef        String?
+
   @@unique([orgId, number])
   @@index([orgId, rewardStatus])
   @@index([workspaceId, pinnedAt])
+  @@index([apiTokenId, createdAt])
   @@index([workspaceId, createdAt])
   @@index([projectId, archived])
   @@index([sourceMessageId])
@@ -1535,17 +1547,25 @@ model Idea {
   workspaceId String?
   // Shared with the company («شارك مع الشركة»): read in «الشركة» too.
   sharedAt    DateTime?
+  // «الباب» (an idea sent in by another Zaki system through /api/v1): where it came from (the sending token's name at that
+  // moment), the sender's own opaque reference, free tags, and the token (the foreign key keeps the idea when a token goes).
+  source      String?
+  externalRef String?
+  tags        String[]   @default([])
+  apiTokenId  String?
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   creator      User         @relation("IdeaCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   workspace    Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  apiToken     ApiToken?    @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
   votes        IdeaVote[]
 
   @@index([orgId, status])
   @@index([orgId, createdAt])
   @@index([orgId, workspaceId])
+  @@index([apiTokenId, createdAt])
 }
 
 model IdeaVote {
@@ -2431,4 +2451,136 @@ model KeyResultUpdate {
   keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
 
   @@index([keyResultId, createdAt])
+}
+
+/// «الباب» (src/server/services/api-door.ts, docs/contracts/workspace-door.v1.md): a token another Zaki system (System 7) uses to send
+/// ideas and tasks to ONE space of ONE company through /api/v1. The token itself is shown once at creation and is never stored:
+/// `prefix` finds the row, `tokenHash` (SHA-256 of the whole token) is compared in constant time. It acts in the name of `createdBy`
+/// and dies the moment that person is no longer an ACTIVE member holding «integrations.manage», or when it is revoked or expired.
+model ApiToken {
+  id             String    @id @default(cuid())
+  organizationId String
+  name           String
+  prefix         String    @unique
+  tokenHash      String
+  /// Named permissions: ideas.read, ideas.write, tasks.read, tasks.write. None = it can read nothing and write nothing.
+  permissions    String[]  @default([])
+  /// The one space the token writes to.
+  workspaceId    String
+  createdById    String
+  expiresAt      DateTime?
+  lastUsedAt     DateTime?
+  revokedAt      DateTime?
+  revokedById    String?
+  /// manual | person_suspended | person_offboarded
+  revokedReason  String?
+  createdAt      DateTime  @default(now())
+
+  organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User                @relation("ApiTokenIssuer", fields: [createdById], references: [id], onDelete: Cascade)
+  records      IdempotencyRecord[]
+  ideas        Idea[]
+  tasks        Task[]
+
+  @@index([organizationId, createdAt])
+  @@index([createdById])
+}
+
+/// What the door answered for an `Idempotency-Key`, so the same request sent again returns the same answer and creates nothing twice.
+/// `key` always starts with the company (`<organizationId>:<tokenId>:<type>:<the sender's key>`): one company's retry can never
+/// replace another's. A record is kept for 48 hours.
+model IdempotencyRecord {
+  id             String   @id @default(cuid())
+  organizationId String
+  tokenId        String
+  key            String   @unique
+  requestHash    String
+  responseStatus Int
+  responseBody   Json
+  resourceType   String
+  resourceId     String
+  createdAt      DateTime @default(now())
+  expiresAt      DateTime
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  token        ApiToken     @relation(fields: [tokenId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
+  @@index([tokenId, createdAt])
+}
+
+// ---------- «القواعد التلقائية» ----------
+
+enum TaskRuleTrigger {
+  MOVED_TO_COLUMN
+  COMPLETED
+  OVERDUE
+  CREATED
+}
+
+enum TaskRuleRunStatus {
+  APPLIED
+  PARTIAL
+  SKIPPED
+  FAILED
+}
+
+// A simple if-then rule of a project: ONE trigger and one or two actions (src/lib/task-rules.ts holds their shapes). The space's
+// ADMIN and the owner define it; it acts as the system with the rights of the person who last saved it (`runAsId`), re-checked on
+// every run. A rule is paused (`active` false), never edited in the log and never really deleted: `deletedAt` hides it and the
+// log of what it did stays. `boardId` and the column ids are plain ids on purpose (no foreign key): a board or a column that
+// goes makes the rule inert («عمود محذوف»), it never turns a board's rule into a rule of the whole project.
+model TaskRule {
+  id              String          @id @default(cuid())
+  orgId           String
+  projectId       String
+  // null: every board of the project (only for a rule that names no column)
+  boardId         String?
+  name            String
+  trigger         TaskRuleTrigger
+  // MOVED_TO_COLUMN: the column the task has to land in
+  triggerColumnId String?
+  // 1-2 actions, validated by src/lib/task-rules.ts: [{ type, ... }]
+  actions         Json
+  active          Boolean         @default(true)
+  // OVERDUE looks only at tasks that fell due after this moment (created, or resumed after a pause): never a flood of old tasks
+  armedAt         DateTime        @default(now())
+  runAsId         String
+  createdById     String
+  deletedAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs    TaskRuleRun[]
+
+  @@index([projectId, active, trigger])
+  @@index([orgId])
+}
+
+// The append-only log: one row per (rule, task), written when the rule has acted on the task. The unique pair is the
+// once-guard: a rule never acts twice on the same task. Nothing in the app updates or deletes a row. The names are snapshots
+// (a renamed rule, a renamed or deleted task do not rewrite history) and `taskId` has no foreign key on purpose.
+model TaskRuleRun {
+  id        String            @id @default(cuid())
+  orgId     String
+  projectId String
+  ruleId    String
+  ruleName  String
+  trigger   TaskRuleTrigger
+  taskId    String
+  taskKey   String
+  taskTitle String
+  runAsId   String
+  status    TaskRuleRunStatus
+  // [{ type, status: APPLIED | SKIPPED | FAILED, reason? }] in the order of the rule's actions
+  results   Json
+  createdAt DateTime          @default(now())
+
+  rule TaskRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, taskId])
+  @@index([projectId, createdAt])
+  @@index([orgId])
 }

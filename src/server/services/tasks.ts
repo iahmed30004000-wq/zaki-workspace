@@ -18,6 +18,7 @@ import {
 } from "./task-assign";
 import { onTaskCompleted } from "./recurrence-spawn";
 import { assertRequiredFilled } from "./custom-fields";
+import { afterTaskEvents, type TaskRuleEvent } from "./task-rules-hook";
 
 export interface ActorContext {
   userId: string;
@@ -44,6 +45,8 @@ export interface CreateTaskInput {
    * date and an amount (src/server/services/rewards.ts `prepareReward`). Every way a task is born comes through here.
    */
   reward?: RewardRequest;
+  /** «الباب»: a task sent in through /api/v1: the token that made it and the sender's own opaque reference (src/server/services/api-door.ts). */
+  door?: { apiTokenId: string; externalRef: string | null };
 }
 
 export interface MoveTaskInput {
@@ -198,6 +201,8 @@ export async function createTask(actor: ActorContext, input: CreateTaskInput): P
   await assertMemberCan(actor, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
   const made = await db.$transaction((tx) => createTaskInTx(tx, actor, input));
   await notifyCreatedRequests(made, actor);
+  // «القواعد التلقائية»: «لما تنعمل مهمة»: after the commit, never in the way (a rule's own task creation never starts a rule)
+  await afterTaskEvents([{ trigger: "CREATED", taskId: made.id }]);
   return made;
 }
 
@@ -296,6 +301,7 @@ export async function createTaskInTx(tx: Tx, actor: ActorContext, input: CreateT
       // born in a done column is finished: the same rule as `moveTask`, or no counter would see it
       completedAt: column.done ? new Date() : null,
       ...(rewardData ?? {}),
+      ...(input.door ? { apiTokenId: input.door.apiTokenId, externalRef: input.door.externalRef } : {}),
       coAssignees: coIds.length
         ? { create: coIds.map((userId) => ({ userId })) }
         : undefined,
@@ -339,6 +345,7 @@ export async function moveTask(
 ): Promise<TaskDTO> {
   await assertMemberCan(actor, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
   let afterCommit: (() => Promise<void>) | null = null;
+  const ruleEvents: TaskRuleEvent[] = [];
   const moved = await db.$transaction(async (tx) => {
     // one completion at a time per task: a second move into the done column waits here, then finds it already done
     await lockTask(tx, taskId);
@@ -372,12 +379,16 @@ export async function moveTask(
           meta: { from: task.columnId, to: column.id },
         },
       });
+      ruleEvents.push({ trigger: "MOVED_TO_COLUMN", taskId, columnId: column.id });
     }
+    if (column.done && task.completedAt == null) ruleEvents.push({ trigger: "COMPLETED", taskId });
     // «مهمة متكررة» (عند الإنجاز): finishing an occurrence makes the next one, in this same commit (only on the transition)
     if (column.done && task.completedAt == null) afterCommit = await onTaskCompleted(tx, { id: taskId, recurrenceId: updated.recurrenceId, dueDate: updated.dueDate });
     return updated;
   });
   await (afterCommit as (() => Promise<void>) | null)?.();
+  // «القواعد التلقائية»: the project's rules, once the move is committed
+  await afterTaskEvents(ruleEvents);
   return moved;
 }
 
@@ -547,6 +558,7 @@ export async function setTaskCompletion(
 ): Promise<TaskDTO> {
   await assertMemberCan(actor, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
   let afterCommit: (() => Promise<void>) | null = null;
+  const ruleEvents: TaskRuleEvent[] = [];
   const result = await db.$transaction(async (tx) => {
     // one completion at a time per task: a second click waits here, then finds the task already done and does nothing
     await lockTask(tx, taskId);
@@ -579,11 +591,15 @@ export async function setTaskCompletion(
         meta: { columnId: target.id },
       },
     });
+    if (task.columnId !== target.id) ruleEvents.push({ trigger: "MOVED_TO_COLUMN", taskId, columnId: target.id });
+    if (complete) ruleEvents.push({ trigger: "COMPLETED", taskId });
     // «مهمة متكررة» (عند الإنجاز): finishing an occurrence makes the next one, in this same commit
     if (complete) afterCommit = await onTaskCompleted(tx, { id: taskId, recurrenceId: updated.recurrenceId, dueDate: updated.dueDate });
     return updated;
   });
   await (afterCommit as (() => Promise<void>) | null)?.();
+  // «القواعد التلقائية»: the project's rules, once the change is committed
+  await afterTaskEvents(ruleEvents);
   return result;
 }
 

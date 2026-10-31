@@ -126,6 +126,8 @@ export interface IdeaDTO {
   spaceName: string | null;
   /** Shared with the company («شارك مع الشركة»). */
   shared: boolean;
+  /** «الباب»: set when another system sent it in through /api/v1 (the sending token's name); null for an idea a person wrote. */
+  source: string | null;
 }
 
 interface Row {
@@ -143,6 +145,7 @@ interface Row {
   workspaceId: string | null;
   sharedAt: Date | null;
   workspace: { name: string } | null;
+  source: string | null;
 }
 
 function toDTO(row: Row, viewerId: string, external = false): IdeaDTO {
@@ -164,6 +167,7 @@ function toDTO(row: Row, viewerId: string, external = false): IdeaDTO {
     workspaceId: row.workspaceId,
     spaceName: row.workspace?.name ?? null,
     shared: row.sharedAt !== null,
+    source: row.source,
   };
 }
 
@@ -201,16 +205,34 @@ export interface CreateIdeaInput {
   description?: string | null;
 }
 
-/** An idea is born in the space the person is in. */
-export async function createIdea(orgId: string, actor: ActorContext, input: CreateIdeaInput, spaceId: string | null = null): Promise<IdeaDTO> {
+/** What an idea sent in through «الباب» (/api/v1) carries beside the text: where it came from and the sender's own reference. */
+export interface IdeaDoorExtra {
+  source: string;
+  externalRef: string | null;
+  tags: string[];
+  apiTokenId: string;
+}
+
+/**
+ * An idea is born in the space the person is in. `opts.client`: a transaction the CALLER holds, so the idea is born in the
+ * same commit as something else (the door's idempotency record); `opts.extra`: the columns of an idea sent in by another system.
+ */
+export async function createIdea(
+  orgId: string,
+  actor: ActorContext,
+  input: CreateIdeaInput,
+  spaceId: string | null = null,
+  opts: { client?: DbClient; extra?: IdeaDoorExtra } = {},
+): Promise<IdeaDTO> {
   await assertMemberCan({ orgId, userId: actor.userId }, "ideas.edit", "section.edit_denied");
-  const row = await db.idea.create({
+  const row = await (opts.client ?? db).idea.create({
     data: {
       orgId,
       workspaceId: spaceId,
       creatorId: actor.userId,
       title: input.title,
       description: input.description ?? null,
+      ...(opts.extra ? { source: opts.extra.source, externalRef: opts.extra.externalRef, tags: opts.extra.tags, apiTokenId: opts.extra.apiTokenId } : {}),
     },
     include: { ...IDEA_INCLUDE, organization: { select: { keyPrefix: true } } },
   });

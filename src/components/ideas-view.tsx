@@ -32,6 +32,8 @@ export interface IdeaItem {
   spaceName?: string | null;
   /** Shared with the company («شارك مع الشركة»). */
   shared?: boolean;
+  /** «الباب»: set when another system sent it in (the name of the token); the author line then says so. */
+  source?: string | null;
 }
 
 export interface IdeasCtx {
@@ -271,6 +273,9 @@ export function IdeasView({ initial, ctx }: { initial: IdeaItem[]; ctx: IdeasCtx
                     {/* in «الشركة», a shared idea says which space it comes from */}
                     {ctx.isHq && idea.shared && idea.spaceName && idea.workspaceId !== ctx.spaceId ? (
                       <span className="ms-1">· <bdi>{t("ideas.from_space", { space: idea.spaceName })}</bdi></span>
+                    ) : null}
+                    {idea.source ? (
+                      <span className="ms-1 rounded-full bg-cat-3/10 px-1.5 py-0.5 text-cat-3"><bdi>{t("door.idea_source", { name: idea.source })}</bdi></span>
                     ) : null}
                     {idea.shared && !ctx.isHq ? (
                       <span className="ms-1 rounded-full bg-accent/10 px-1.5 py-0.5 text-accent">{t("ideas.shared")}</span>

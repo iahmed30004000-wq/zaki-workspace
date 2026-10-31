@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
@@ -56,7 +56,7 @@ interface DriveFile {
   link: string | null;
 }
 
-export function AutomationView({ ctx }: { ctx: { orgRole: string } }) {
+export function AutomationView({ ctx, doorCard = null }: { ctx: { orgRole: string }; doorCard?: ReactNode }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -407,6 +407,9 @@ x-zaki-signature: sha256=HMAC_SHA256(secret, "{timestamp}.{raw body}")`}
           </details>
         ) : null}
       </section>
+
+      {/* ---------------- «باب الربط الخارجي»: drawn only while the owner's switch is on, for whoever holds «integrations.manage» ---------------- */}
+      {doorCard}
     </div>
   );
 }
