@@ -17,16 +17,9 @@ export default async function AutomationPage() {
   const showDoor = actorCan(actor, "integrations.manage") && (await isFeatureOn(actor.orgId, "apiDoor"));
 
   return (
-    <>
-      <Suspense fallback={null}>
-        <AutomationView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} />
-      </Suspense>
-      {showDoor ? (
-        <div className="mx-auto max-w-5xl px-6 pb-6">
-          <ApiDoorCard />
-        </div>
-      ) : null}
-    </>
+    <Suspense fallback={null}>
+      <AutomationView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} doorCard={showDoor ? <ApiDoorCard /> : null} />
+    </Suspense>
   );
 }
 
