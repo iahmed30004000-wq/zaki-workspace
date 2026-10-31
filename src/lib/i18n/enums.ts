@@ -42,6 +42,8 @@ export type PrismaEnumName =
   | "ReviewLight"
   | "DevGoalStatus"
   | "RecurrenceMode"
+  | "TaskRuleTrigger"
+  | "TaskRuleRunStatus"
   | "IdeaStatus"
   | "IntegrationType"
   | "OpportunityStage";
@@ -124,6 +126,19 @@ export const ENUM_KEYS: Record<EnumName, Readonly<Record<string, string>>> = {
   ReviewLight: { GREEN: "teamdev.light.GREEN", AMBER: "teamdev.light.AMBER", RED: "teamdev.light.RED" },
   DevGoalStatus: { OPEN: "teamdev.plan.status.OPEN", DONE: "teamdev.plan.status.DONE", CANCELLED: "teamdev.plan.status.CANCELLED" },
   RecurrenceMode: own("RecurrenceMode", ["ON_COMPLETE", "SCHEDULE"]),
+  // «القواعد التلقائية»: the words of the rule's trigger and of a run's result live with the rest of the feature's words
+  TaskRuleTrigger: {
+    MOVED_TO_COLUMN: "taskrules.trigger.MOVED_TO_COLUMN",
+    COMPLETED: "taskrules.trigger.COMPLETED",
+    OVERDUE: "taskrules.trigger.OVERDUE",
+    CREATED: "taskrules.trigger.CREATED",
+  },
+  TaskRuleRunStatus: {
+    APPLIED: "taskrules.status.APPLIED",
+    PARTIAL: "taskrules.status.PARTIAL",
+    SKIPPED: "taskrules.status.SKIPPED",
+    FAILED: "taskrules.status.FAILED",
+  },
   IdeaStatus: {
     NEW: "ideas.status.NEW",
     UNDER_REVIEW: "ideas.status.UNDER_REVIEW",

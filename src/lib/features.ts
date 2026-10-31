@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "taskRules"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -114,6 +114,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // development plans. Off, the tabs are not drawn and every page and route under /structure, /development and /api/team-development
   // answers «not found» for everybody, the owner included; nothing it stores is touched and everything is back with the switch.
   teamDevelopment: true,
+  // «القواعد التلقائية» (src/server/services/task-rules*.ts): simple if-then rules per project (a task moved, completed, created or overdue
+  // -> assign, set the priority, move, add a step, notify, post a line). Off: the «القواعد» section of the project page is not drawn, the
+  // routes under /api/projects/[id]/rules answer «not found», no rule runs (a task event and the job runner skip them); the rules and
+  // the log already stored stay and everything is back with the switch.
+  taskRules: true,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {

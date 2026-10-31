@@ -46,6 +46,7 @@ import outbox from "./ar.outbox.json";
 import checkins from "./ar.checkins.json";
 import lastSeen from "./ar.last-seen.json";
 import approvals from "./ar.approvals.json";
+import taskRules from "./ar.task-rules.json";
 import teamDevelopment from "./ar.team-development.json";
 
 /**
@@ -104,5 +105,6 @@ export const AR: Record<string, string> = {
   ...checkins,
   ...lastSeen,
   ...approvals,
+  ...taskRules,
   ...teamDevelopment,
 };
