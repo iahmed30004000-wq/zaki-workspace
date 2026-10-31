@@ -121,6 +121,11 @@ export default async function ProjectPage({ params }: { params: { id: string } }
                 {t("fields.list.open")}
               </Link>
             ) : null}
+            {fieldsOn ? (
+              <a href={`/api/projects/${project.id}/fields/csv`} download title={t("fields.export_hint")} data-fields-export className="text-xs text-accent hover:underline">
+                {t("fields.export")}
+              </a>
+            ) : null}
             <BoardCreateButton projectId={project.id} />
           </div>
         </div>

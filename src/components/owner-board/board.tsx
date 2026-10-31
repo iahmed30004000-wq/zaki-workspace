@@ -2,7 +2,7 @@ import Link from "next/link";
 import type { ServerT } from "@/lib/i18n/server";
 import { enumLabel } from "@/lib/i18n/enums";
 import { fmtNumber } from "@/lib/format";
-import { formatDays, formatRate } from "@/lib/owner-board";
+import { formatDays, formatRate, sectionText } from "@/lib/owner-board";
 import type { Cards, Overview, PersonRow, PersonView, SortKey } from "@/server/services/owner-board";
 import { boardHref, fmtClock, fmtDayKey, fmtDueDay, fmtMoment } from "./format";
 import { Sparkline } from "./sparkline";
@@ -293,10 +293,7 @@ export function PeopleTable({ t, o, personHref, sortHref }: { t: ServerT; o: Ove
   );
 }
 
-function sectionCell(value: number | string | null | undefined): string {
-  if (value === null || value === undefined) return "—";
-  return typeof value === "number" ? fmtNumber(value) : value;
-}
+const sectionCell = sectionText;
 
 function PersonTr({ t, p, tz, href, o }: { t: ServerT; p: PersonRow; tz: string; href: string; o: Overview }) {
   const total = p.spark.reduce((a, b) => a + b, 0);
@@ -325,7 +322,7 @@ function PersonTr({ t, p, tz, href, o }: { t: ServerT; p: PersonRow; tz: string;
       <td className="px-3 py-2 tabular-nums">{fmtMoment(p.lastActivity, tz)}</td>
       {o.sections.map((c) => (
         <td key={c.key} className="px-3 py-2 tabular-nums">
-          {sectionCell(o.sectionValues[p.userId]?.[c.key])}
+          {sectionCell(c.kind, o.sectionValues[p.userId]?.[c.key])}
         </td>
       ))}
     </tr>
@@ -395,8 +392,8 @@ export function PersonPage({ t, v, taskHref }: { t: ServerT; v: PersonView; task
           {v.sections.map((c) => (
             <li key={c.key} className="rounded-xl border border-border bg-surface p-3 shadow-card" data-card={c.key}>
               <div className="text-xs text-muted">{t(c.labelKey)}</div>
-              <div className="mt-1 text-2xl font-semibold tabular-nums" data-value={sectionCell(v.sectionValues[c.key])}>
-                {sectionCell(v.sectionValues[c.key])}
+              <div className="mt-1 text-2xl font-semibold tabular-nums" data-value={sectionCell(c.kind, v.sectionValues[c.key])}>
+                {sectionCell(c.kind, v.sectionValues[c.key])}
               </div>
               <p className="mt-1 text-xs leading-5 text-muted">{t(c.formulaKey)}</p>
             </li>

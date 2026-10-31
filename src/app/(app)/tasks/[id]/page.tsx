@@ -20,6 +20,8 @@ import { buildTaskTimeCard } from "@/server/services/time-tracking";
 import { recurrenceOfTask } from "@/server/services/task-recurrence";
 import { taskFieldsCard } from "@/server/services/custom-fields";
 import { TaskFieldsCard } from "@/components/custom-fields/task-fields-card";
+import { approvalsLinkedTo } from "@/server/services/approvals";
+import { LinkedApprovals } from "@/components/approvals/linked-approvals";
 
 export default async function TaskPage({ params }: { params: { id: string } }) {
   const user = await pageUser();
@@ -106,6 +108,10 @@ export default async function TaskPage({ params }: { params: { id: string } }) {
   // (no field, no money). Editable by whoever may edit the task, except the owner reading a space he is not in, and a reward
   // task stays the owner's (`lockedFields`: the server refuses the others anyway)
   const fieldsCard = await taskFieldsCard({ orgId: task.orgId, userId: user.id, orgRole: membership?.role ?? actor.role }, { id: task.id, projectId: task.projectId, workspaceId: task.workspaceId });
+
+  // «طلب موافقة»: the requests about this task that the person may read, and the button to ask a new one. `null` (nothing drawn) while
+  // the switch is off or for an external partner
+  const linkedApprovals = await approvalsLinkedTo(actor, "TASK", task.id, task.workspaceId);
 
   // a request to give this task to somebody of a higher rank, and what the viewer may do with it
   // (a task may hold several: the main one and one per higher person beside the first; each is read for the viewer)
@@ -248,6 +254,9 @@ export default async function TaskPage({ params }: { params: { id: string } }) {
       }
       pinSlot={lens.canPin ? <PinButton taskId={task.id} pinned={task.pinnedAt != null} /> : null}
       time={timeCard}
+      approvalsSlot={
+        linkedApprovals ? <LinkedApprovals kind="TASK" id={task.id} workspaceId={task.workspaceId} canAsk={linkedApprovals.canAsk} items={linkedApprovals.items} /> : null
+      }
       customFieldsSlot={
         fieldsCard && fieldsCard.fields.length > 0 ? (
           <TaskFieldsCard

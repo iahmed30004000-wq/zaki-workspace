@@ -111,7 +111,14 @@ export interface ScoreDetail {
   onTime: IndicatorDetail & { onTime: number; withDue: number; rate: number | null };
   steps: IndicatorDetail & { count: number; baseline: Baseline | null };
   /** Shown beside the score, never in it. */
-  extras: { openNow: number; overdueNow: number; messages: number; trackedMinutes: number | null };
+  extras: {
+    openNow: number;
+    overdueNow: number;
+    messages: number;
+    trackedMinutes: number | null;
+    /** «التسجيل اليومي»: days answered and the run of them. Numbers only, never an answer; null while the switch is off. */
+    checkins: { answered: number; streak: number } | null;
+  };
 }
 
 interface Computed {
@@ -174,6 +181,8 @@ async function computeScores(
     };
     const light = headlineLight(mine.map((r) => r.light as ReviewLight | null)) as Light | null;
     const timeCell = sections.values.get(id)?.["time.minutes"];
+    const answeredCell = sections.values.get(id)?.["checkins.answered"];
+    const streakCell = sections.values.get(id)?.["checkins.streak"];
     details.set(id, {
       userId: id,
       period: { key: period.key, kind: period.kind, from: period.from, to: period.to, partial: period.to >= today },
@@ -188,7 +197,9 @@ async function computeScores(
       completed: { ...line("completed"), count: completed, baseline: completedBase },
       onTime: { ...line("onTime"), onTime: row?.onTime ?? 0, withDue: row?.withDue ?? 0, rate: row?.onTimeRate ?? null },
       steps: { ...line("steps"), count: steps, baseline: stepsBase },
-      extras: { openNow: row?.openTasks ?? 0, overdueNow: row?.overdue ?? 0, messages: row?.messages ?? 0, trackedMinutes: typeof timeCell === "number" ? timeCell : null },
+      extras: { openNow: row?.openTasks ?? 0, overdueNow: row?.overdue ?? 0, messages: row?.messages ?? 0, trackedMinutes: typeof timeCell === "number" ? timeCell : null,
+        checkins: typeof answeredCell === "number" ? { answered: answeredCell, streak: typeof streakCell === "number" ? streakCell : 0 } : null,
+      },
     });
   }
   return { details };
