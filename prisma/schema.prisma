@@ -78,6 +78,8 @@ model User {
   ownedOpportunities Opportunity[]    @relation("OpportunityOwner")
   routines        Routine[]            @relation("RoutineAssignee")
   goals           Goal[]               @relation("GoalCreator")
+  // «الأهداف والنتائج»: the objectives this person is the owner of
+  ownedGoals      Goal[]               @relation("GoalOwner")
   campaigns       Campaign[]           @relation("CampaignOwner")
   startedCalls    Call[]               @relation("CallStarter")
   hostedWatches   WatchSession[]       @relation("WatchHost")
@@ -272,6 +274,15 @@ model RoutineLog {
 enum GoalPeriod {
   WEEKLY
   MONTHLY
+  // «الأهداف والنتائج»: a calendar quarter (added by its own migration, 20261103170000)
+  QUARTERLY
+}
+
+/// «الأهداف والنتائج»: the status light a PERSON sets on an objective. The system only suggests one (src/lib/okr.ts).
+enum GoalLight {
+  ON_TRACK
+  BEHIND
+  AT_RISK
 }
 
 model Goal {
@@ -290,11 +301,18 @@ model Goal {
   // The space it belongs to (the owner's decision, 2026-10-25: each space is like a separate site). None: from
   // before spaces had their own, read in «الشركة».
   workspaceId String?
+  // «الأهداف والنتائج»: the person who answers for the objective (none: its creator), and the light that person set
+  // (none: nobody set one yet). `light` is never computed here: the screen only suggests one.
+  ownerId     String?
+  light       GoalLight?
+  lightSetAt  DateTime?
 
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
   department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
   creator      User         @relation("GoalCreator", fields: [creatorId], references: [id])
   workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  owner       User?        @relation("GoalOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  keyResults  KeyResult[]
 
   @@index([orgId, period])
   @@index([departmentId])
@@ -992,6 +1010,8 @@ model Project {
   boards     Board[]
   tasks      Task[]
   milestones Milestone[]
+  // «الأهداف والنتائج»: the key results whose value follows this project's finished tasks
+  keyResults KeyResult[]
   taskRecurrences TaskRecurrence[]
   // «حقول مخصصة»: the project's own schema of task fields (they die with the project)
   customFields ProjectField[]
@@ -1134,6 +1154,8 @@ model Task {
   reminders      Reminder[]
   // «حقول مخصصة»: the values of the project's custom fields on this task (they die with the task)
   fieldValues    TaskFieldValue[]
+  // «الأهداف والنتائج»: the key results this task is linked to (the link dies with the task)
+  keyResultLinks KeyResultTask[]
   // «حساب وقت الشغل»: the time people logged on it. An entry OUTLIVES the task (the foreign key sets taskId to null).
   timeEntries    TimeEntry[]
   // «مهمة متكررة»: the series this task belongs to (every occurrence points at it), and the series it is the template of
@@ -2317,6 +2339,61 @@ model ReviewNote {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, userId, createdAt])
+}
+
+/// «الأهداف والنتائج»: one measurable key result of an objective (`Goal`), at most five per objective (checked in the service,
+/// under a lock on the objective). Progress is `(current - start) / (target - start)`, cut to 0..100 and never stored. The value
+/// is `currentValue` (moved by append-only check-ins) UNLESS the key result is linked to a project or to tasks: then it is the
+/// number of their finished tasks, counted when read, and check-ins are refused. `unit` is free Arabic text («عميل», «ألف دينار»).
+model KeyResult {
+  id              String   @id @default(cuid())
+  goalId          String
+  title           String
+  startValue      Float    @default(0)
+  targetValue     Float
+  currentValue    Float    @default(0)
+  unit            String   @default("")
+  position        Int      @default(0)
+  linkedProjectId String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  goal          Goal              @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  linkedProject Project?          @relation(fields: [linkedProjectId], references: [id], onDelete: SetNull)
+  tasks         KeyResultTask[]
+  updates       KeyResultUpdate[]
+
+  @@index([goalId, position])
+  @@index([linkedProjectId])
+}
+
+/// The tasks a key result follows (instead of a whole project). A task of another space is refused by the service.
+model KeyResultTask {
+  keyResultId String
+  taskId      String
+  createdAt   DateTime @default(now())
+
+  keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+  task      Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@id([keyResultId, taskId])
+  @@index([taskId])
+}
+
+/// One check-in on a key result: the value that day and a short note. APPEND-ONLY (no route edits or deletes a row; the rows
+/// only go when their objective is deleted). `authorId` has no foreign key on purpose: a person is never deleted.
+model KeyResultUpdate {
+  id            String   @id @default(cuid())
+  keyResultId   String
+  value         Float
+  previousValue Float
+  note          String   @default("")
+  authorId      String
+  createdAt     DateTime @default(now())
+
+  keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
+
+  @@index([keyResultId, createdAt])
 }
 
 /// «الباب» (src/server/services/api-door.ts, docs/contracts/workspace-door.v1.md): a token another Zaki system (System 7) uses to send
