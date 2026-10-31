@@ -15,6 +15,7 @@ import { MAX_FILE_BYTES, canManageFile, checksumHex, safeStoredName, sniffMimeTy
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { libraryOnDrive } from "@/server/services/google";
 import { mayReadApprovalFile } from "@/server/services/approval-access";
+import { MAX_PAGE_SCAN_BYTES, countPdfPages } from "@/server/files/pdf-pages";
 import {
   DriveStoreError,
   type DriveSpace,
@@ -236,6 +237,17 @@ export async function readStored(orgId: string, id: string): Promise<{ buffer: B
     throw driveReadError(err);
   }
   return { buffer, mimeType: f.mimeType, name: f.name };
+}
+
+/**
+ * The page count of a PDF (`assertMayReadFile` first), or null when the file is not a PDF, is too big to be worth scanning or
+ * keeps its pages where this cheap reading cannot see them (src/server/files/pdf-pages.ts).
+ */
+export async function pdfPageCount(orgId: string, id: string): Promise<number | null> {
+  const f = await db.storedFile.findFirst({ where: { id, orgId, deletedAt: null, ...STORED }, select: { mimeType: true, size: true } });
+  if (!f) throw new NotFoundError("files.not_found");
+  if (f.mimeType !== "application/pdf" || f.size > MAX_PAGE_SCAN_BYTES) return null;
+  return countPdfPages((await readStored(orgId, id)).buffer);
 }
 
 /** Drive gone for a moment is not «the file is gone». */
