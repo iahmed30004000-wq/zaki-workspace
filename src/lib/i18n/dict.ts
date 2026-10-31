@@ -48,6 +48,7 @@ import lastSeen from "./ar.last-seen.json";
 import approvals from "./ar.approvals.json";
 import taskRules from "./ar.task-rules.json";
 import teamDevelopment from "./ar.team-development.json";
+import documents from "./ar.documents.json";
 import okr from "./ar.okr.json";
 import apiDoor from "./ar.api-door.json";
 
@@ -109,6 +110,7 @@ export const AR: Record<string, string> = {
   ...approvals,
   ...taskRules,
   ...teamDevelopment,
+  ...documents,
   ...okr,
   ...apiDoor,
 };

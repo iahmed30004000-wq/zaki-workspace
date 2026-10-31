@@ -83,6 +83,7 @@ export type TabKey =
   | "crm"
   | "checkins"
   | "files"
+  | "documents"
   | "team"
   | "space"
   | "reports"
@@ -193,9 +194,15 @@ export const PLACES: readonly PlaceDef[] = [
     href: "/files",
     labelKey: "nav.place.library",
     icon: "library",
-    requires: { capability: "files.view" },
-    // /documents was an empty "coming soon" page: it is a redirect to /files now
-    tabs: [{ key: "files", href: "/files", labelKey: "nav.files", requires: { capability: "files.view" }, also: ["/documents"] }],
+    // «المستندات» is offered to everybody the space lets in, an external partner included (they read only what is shared with
+    // them), so the place is too; the files tab keeps its own box, and a guest's place opens on «المستندات» (the first tab they may use)
+    requires: "everyone",
+    tabs: [
+      { key: "files", href: "/files", labelKey: "nav.files", requires: { capability: "files.view" } },
+      // «المستندات» (the owner's backlog, 2026-11-01): the text documents of the space. Behind its switch in «الميزات»; the page and
+      // /api/documents decide again on the server (a person outside the space, or a document not shared with a partner: not found).
+      { key: "documents", href: "/documents", labelKey: "nav.tab.documents", requires: "everyone", feature: "spaceDocs" },
+    ],
   },
   // «نتفرّج سوا» (the owner's ask, 2026-10-26: «الشغل، تحتها المكتبة، الإدارة، ثم نتفرّج سوا»; «الإدارة» was moved after it on 2026-10-30): a place of its own,
   // one page, before «الإدارة». People of a space watch one link together; the sessions are the team's own talk,

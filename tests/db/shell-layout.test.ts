@@ -107,13 +107,14 @@ describe("the layout draws each person's own places", () => {
     expect(shell.props).toMatchObject({ rank: "MEMBER", isGuest: false, audience: "staff" });
   });
 
-  it("a guest (external partner): Today, Chat and Work, four work tabs (no goals, no ideas), no space creation; the guide for everyone", async () => {
+  it("a guest (external partner): Today, Chat, Work (four work tabs) and the library (documents only) (no goals, no ideas), no space creation; the guide for everyone", async () => {
     const { guest } = await makeTeam();
     await loginAs(guest.id);
     const shell = await frame();
     // Phase 3: a guest reads the topics of the spaces they are in (the policy decides what), so «الدردشة» is theirs too
-    expect(places(shell)).toEqual(["today", "chat", "work"]);
+    expect(places(shell)).toEqual(["today", "chat", "work", "library"]);
     expect(tabs(shell, "work")).toEqual(WORK_GUEST);
+    expect(tabs(shell, "library")).toEqual(["documents"]);
     expect(shell.props).toMatchObject({ rank: "GUEST", isGuest: true, audience: "everyone" });
   });
 

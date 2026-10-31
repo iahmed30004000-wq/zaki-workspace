@@ -132,7 +132,7 @@ describe("it only orders what the caller may see", () => {
     for (const body of [
       { places: ["admin"] },
       { places: ["chat", "watch"] },
-      { places: ["library"] },
+      { tabs: { library: ["files"] } },
       { tabs: { work: ["projects", "crm"] } },
       { tabs: { work: ["goals"] } },
       { tabs: { admin: ["team"] } },
@@ -228,12 +228,12 @@ describe("what the layout draws from it", () => {
   it("the saved order, read the way the layout reads it, orders the person's own map — and never adds to it", async () => {
     const { guest } = await makeTeam();
     await loginAs(guest.id);
-    await put({ places: ["work", "chat", "today"], tabs: { work: ["calendar", "list", "projects", "my-work"] } });
+    await put({ places: ["work", "chat", "today", "library"], tabs: { work: ["calendar", "list", "projects", "my-work"] } });
     const actor = await requireActor();
     const nav = buildNav(navSubjectOf(actor, null, null));
     const row = await db.user.findUniqueOrThrow({ where: { id: guest.id }, select: { navOrder: true } });
     const shown = applyNavOrder(nav, readNavOrder(row.navOrder));
-    expect(shown.places.map((p) => p.key)).toEqual(["work", "chat", "today"]);
+    expect(shown.places.map((p) => p.key)).toEqual(["work", "chat", "today", "library"]);
     expect(shown.places[0]?.tabs.map((t) => t.key)).toEqual(["calendar", "list", "projects", "my-work"]);
     // and the places stay the same set
     expect(shown.places.map((p) => p.key).sort()).toEqual(nav.places.map((p) => p.key).sort());

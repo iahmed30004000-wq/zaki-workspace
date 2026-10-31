@@ -11,6 +11,7 @@ import { fmtShort, fmtSize } from "@/lib/format";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { useNewIntent } from "@/lib/nav/use-new-intent";
+import { PdfViewer } from "@/components/files/pdf-viewer";
 
 interface FileRow {
   id: string;
@@ -223,7 +224,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
         </ul>
       )}
 
-      {preview && <PreviewModal file={preview} onClose={() => setPreview(null)} />}
+      {preview && (preview.mimeType === "application/pdf" ? <PdfViewer file={preview} onClose={() => setPreview(null)} /> : <PreviewModal file={preview} onClose={() => setPreview(null)} />)}
 
       {versioning && (
         <VersionModal
@@ -258,7 +259,6 @@ function PreviewModal({ file, onClose }: { file: FileRow; onClose: () => void })
         )}
         {file.mimeType.startsWith("video/") && <video src={src} controls className="mx-auto max-h-[60vh] rounded-lg" />}
         {file.mimeType.startsWith("audio/") && <audio src={src} controls className="w-full px-4 py-8" />}
-        {file.mimeType === "application/pdf" && <iframe src={src} title={file.name} className="h-[60vh] w-full rounded-lg" />}
         {file.mimeType === "text/plain" && <TextPreview src={src} />}
       </div>
     </Modal>
