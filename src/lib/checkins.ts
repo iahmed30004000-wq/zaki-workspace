@@ -196,3 +196,50 @@ export function statsOfRounds(rounds: readonly StatsRound[], now: Date): { days:
   }
   return { days, people: [...totals.values()].sort((a, b) => (a.userId < b.userId ? -1 : 1)) };
 }
+
+// ───────────────────────────────────────── a person's answered days, across spaces ─────────────────────────────────────────
+
+/** What a person's file shows of the check-in: how many days they answered, and the run of answered days that is still alive. */
+export interface PersonCheckinSummary {
+  answered: number;
+  missed: number;
+  excused: number;
+  /** Answered round days in a row, counted back from the latest one. An excused day is skipped, a missed day ends the run. */
+  streak: number;
+}
+
+const DAY_RANK = { answered: 4, missed: 3, pending: 2, excused: 1 } as const;
+const stateOf = (d: PersonDayCount): keyof typeof DAY_RANK => (d.answered ? "answered" : d.missed ? "missed" : d.pending ? "pending" : "excused");
+
+/**
+ * The per-person summary of the per-day counts of ANY number of spaces (`statsOfRounds` is per space). A day on which the person
+ * answered in at least one space counts as answered; else a missed one; else still-open; else excused. It carries numbers only:
+ * the texts of an answer never reach this function. A pending day (today's round, still open) neither counts nor breaks the run.
+ */
+export function summarizeDays(days: readonly PersonDayCount[]): Map<string, PersonCheckinSummary> {
+  const byPerson = new Map<string, Map<string, keyof typeof DAY_RANK>>();
+  for (const d of days) {
+    const mine = byPerson.get(d.userId) ?? new Map<string, keyof typeof DAY_RANK>();
+    const state = stateOf(d);
+    const before = mine.get(d.day);
+    if (before === undefined || DAY_RANK[state] > DAY_RANK[before]) mine.set(d.day, state);
+    byPerson.set(d.userId, mine);
+  }
+  const out = new Map<string, PersonCheckinSummary>();
+  for (const [userId, perDay] of byPerson) {
+    const ordered = [...perDay.entries()].sort((a, b) => (a[0] < b[0] ? 1 : a[0] > b[0] ? -1 : 0)); // newest first
+    const summary: PersonCheckinSummary = { answered: 0, missed: 0, excused: 0, streak: 0 };
+    let alive = true;
+    for (const [, state] of ordered) {
+      if (state === "answered") {
+        summary.answered += 1;
+        if (alive) summary.streak += 1;
+      } else if (state === "missed") {
+        summary.missed += 1;
+        alive = false;
+      } else if (state === "excused") summary.excused += 1;
+    }
+    out.set(userId, summary);
+  }
+  return out;
+}
