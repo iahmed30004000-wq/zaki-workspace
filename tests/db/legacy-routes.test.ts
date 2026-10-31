@@ -56,6 +56,7 @@ import TeamsPage from "@/app/(app)/teams/page";
 import MembersPage from "@/app/(app)/members/page";
 import FilesPage from "@/app/(app)/files/page";
 import DocumentsPage from "@/app/(app)/documents/page";
+import DocumentRoute from "@/app/(app)/documents/[id]/page";
 import CrmPage from "@/app/(app)/crm/page";
 import AnalyticsPage from "@/app/(app)/analytics/page";
 import AutomationPage from "@/app/(app)/automation/page";
@@ -113,7 +114,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/documents/[id]"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -198,6 +199,7 @@ const PAGES: Record<string, PageCall> = {
   "/members": () => MembersPage(),
   "/files": () => FilesPage(),
   "/documents": () => DocumentsPage(),
+  "/documents/[id]": (args) => DocumentRoute({ params: idOf(args) }),
   "/crm": () => CrmPage(),
   "/analytics": () => AnalyticsPage(),
   "/automation": () => AutomationPage(),
@@ -343,7 +345,8 @@ async function linkWorld() {
       title: `${name} task`,
     });
     const card = await db.card.create({ data: { orgId, workspaceId: space.id, createdById: team.owner.id, kind: "NOTE", title: `${name} card`, body: "text" } });
-    return { space, project: work.project, board: work.board, task, card };
+    const doc = await db.document.create({ data: { orgId, workspaceId: space.id, createdById: team.owner.id, title: `${name} doc`, content: "text", sharedWithPartners: name === "Shared" } });
+    return { space, project: work.project, board: work.board, task, card, doc };
   }
 
   const teamSpace = await spaceWithWork([team.admin, lead, team.member].map((person) => ({ userId: person.id })), "Team", team.member.id);
@@ -394,6 +397,9 @@ function addressesOf(route: string, w: World): string[] {
     case "/cards/[id]":
       // a card of the team's space, one of the space shared with the partner, one of the space nobody is in, and one that is gone
       return [...spaces.map((s) => s.card.id), GONE].map((id) => `/cards/${id}`);
+    case "/documents/[id]":
+      // a document of the team's space, one of the space shared with the partner (shared with partners, so the partner opens it), one of the space nobody is in, and one that is gone
+      return [...spaces.map((s) => s.doc.id), GONE].map((id) => `/documents/${id}`);
     case "/approvals/[id]":
       // a request the owner and the people of the space open, and one that is gone
       return [w.approval.id, GONE].map((id) => `/approvals/${id}`);
