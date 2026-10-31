@@ -1011,6 +1011,8 @@ model Project {
   taskRecurrences TaskRecurrence[]
   // «حقول مخصصة»: the project's own schema of task fields (they die with the project)
   customFields ProjectField[]
+  // «القواعد التلقائية»: the if-then rules of the project and (through them) their log (both die with the project)
+  taskRules TaskRule[]
 
   @@unique([workspaceId, systemKey])
   @@index([workspaceId])
@@ -2376,4 +2378,79 @@ model KeyResultUpdate {
   keyResult KeyResult @relation(fields: [keyResultId], references: [id], onDelete: Cascade)
 
   @@index([keyResultId, createdAt])
+}
+
+// ---------- «القواعد التلقائية» ----------
+
+enum TaskRuleTrigger {
+  MOVED_TO_COLUMN
+  COMPLETED
+  OVERDUE
+  CREATED
+}
+
+enum TaskRuleRunStatus {
+  APPLIED
+  PARTIAL
+  SKIPPED
+  FAILED
+}
+
+// A simple if-then rule of a project: ONE trigger and one or two actions (src/lib/task-rules.ts holds their shapes). The space's
+// ADMIN and the owner define it; it acts as the system with the rights of the person who last saved it (`runAsId`), re-checked on
+// every run. A rule is paused (`active` false), never edited in the log and never really deleted: `deletedAt` hides it and the
+// log of what it did stays. `boardId` and the column ids are plain ids on purpose (no foreign key): a board or a column that
+// goes makes the rule inert («عمود محذوف»), it never turns a board's rule into a rule of the whole project.
+model TaskRule {
+  id              String          @id @default(cuid())
+  orgId           String
+  projectId       String
+  // null: every board of the project (only for a rule that names no column)
+  boardId         String?
+  name            String
+  trigger         TaskRuleTrigger
+  // MOVED_TO_COLUMN: the column the task has to land in
+  triggerColumnId String?
+  // 1-2 actions, validated by src/lib/task-rules.ts: [{ type, ... }]
+  actions         Json
+  active          Boolean         @default(true)
+  // OVERDUE looks only at tasks that fell due after this moment (created, or resumed after a pause): never a flood of old tasks
+  armedAt         DateTime        @default(now())
+  runAsId         String
+  createdById     String
+  deletedAt       DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  project Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  runs    TaskRuleRun[]
+
+  @@index([projectId, active, trigger])
+  @@index([orgId])
+}
+
+// The append-only log: one row per (rule, task), written when the rule has acted on the task. The unique pair is the
+// once-guard: a rule never acts twice on the same task. Nothing in the app updates or deletes a row. The names are snapshots
+// (a renamed rule, a renamed or deleted task do not rewrite history) and `taskId` has no foreign key on purpose.
+model TaskRuleRun {
+  id        String            @id @default(cuid())
+  orgId     String
+  projectId String
+  ruleId    String
+  ruleName  String
+  trigger   TaskRuleTrigger
+  taskId    String
+  taskKey   String
+  taskTitle String
+  runAsId   String
+  status    TaskRuleRunStatus
+  // [{ type, status: APPLIED | SKIPPED | FAILED, reason? }] in the order of the rule's actions
+  results   Json
+  createdAt DateTime          @default(now())
+
+  rule TaskRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@unique([ruleId, taskId])
+  @@index([projectId, createdAt])
+  @@index([orgId])
 }
