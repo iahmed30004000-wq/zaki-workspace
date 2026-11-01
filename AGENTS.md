@@ -69,8 +69,8 @@ model · money logic changed without the owner · a feature removed instead of m
 | System | Repository | Role |
 |---|---|---|
 | **Zaki Workspace** (this repo) | `iahmed30004000-wq/zaki-workspace` | **source of truth** for the work OS — branches and PRs happen here. Next 14 · Prisma 5 · Node 22 |
-| OMS / CRM (salesflow) | `MKory18/Zaki-ai-CRM` | **the only source of truth for the OMS** (orders, inventory, wallets). Next 16 · Prisma 6 · Node 24. Work happens there, never from this repo |
-| OMS mirrors | `MKory18/zaki-ai-OSM-1` · `iahmed30004000-wq/zaki-ai-OSM` | ⚠️ identical copies of the OMS. 🔧 Fast-forwarded **by the owner only**, after a merge; nobody commits on them |
+| OMS / CRM (salesflow) | `iahmed30004000-wq/zaki-ai-OSM` | **the only source of truth for the OMS** (orders, inventory, wallets), confirmed by the OMS session on 2026-11-01. Next 16 · Prisma 6 · Node 24. Work happens there, never from this repo |
+| OMS older copies | `MKory18/Zaki-ai-CRM` · `MKory18/zaki-ai-OSM-1` | ⚠️ older copies of the OMS. 🔧 Fast-forwarded **by the owner only**, when he says so; nobody commits on them |
 | System 7 — replies and sales | `MKory18/AIresponse` | consumes OMS order events; will consume this repo's `/api/v1` door (ideas, tasks) once it is built |
 
 - **Work only in the repository of the system you were asked to change.** A change that
