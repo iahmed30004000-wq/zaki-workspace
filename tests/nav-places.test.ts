@@ -422,7 +422,7 @@ describe("the words", () => {
       crm: "العملاء",
       checkins: "التسجيل اليومي",
       approvals: "الموافقات",
-      files: "الملفات",
+      files: "مكتبة مساحة العمل",
       documents: "المستندات",
       team: "الفريق",
       space: "المساحة",

@@ -18,6 +18,7 @@ const UPLOAD_URL = "https://www.googleapis.com/upload/drive/v3/files";
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 export const ROOT_FOLDER_NAME = "Zaki Workspace";
 export const OLD_VERSIONS_FOLDER_NAME = "نسخ قديمة";
+export const CHAT_FOLDER_NAME = "مرفقات الدردشة";
 
 export class DriveStoreError extends Error {
   constructor(public readonly step: string, public readonly status?: number) {
@@ -195,6 +196,34 @@ export async function readFromDrive(orgId: string, driveId: string, range: { sta
   // the route has already promised exactly this range (206 + Content-Range): the whole file instead would break it
   if (range && res.status !== 206) throw new DriveStoreError("read_range", res.status);
   return res.body;
+}
+
+/**
+ * The folder of the chat's files («مرفقات الدردشة»): a chat attachment has no space of its own (it goes with its
+ * conversation), so it gets one folder per company beside the spaces' folders. The id carries the company, so two
+ * companies on one Drive never share a folder.
+ */
+export function chatDriveSpace(orgId: string): DriveSpace {
+  return { id: `_chat:${orgId}`, name: CHAT_FOLDER_NAME };
+}
+
+/**
+ * What Drive holds for one file, read back as a stream and counted (size + SHA-256). The owner's «delete the server
+ * copies» step compares this with what the server's copy was when it was moved: the server copy is removed only on a
+ * perfect match.
+ */
+export async function digestDriveFile(orgId: string, driveId: string): Promise<{ size: number; sha256: string }> {
+  const stream = await readFromDrive(orgId, driveId, null);
+  const hash = createHash("sha256");
+  let size = 0;
+  const reader = stream.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    hash.update(value);
+    size += value.byteLength;
+  }
+  return { size, sha256: hash.digest("hex") };
 }
 
 /** The whole file in memory (a caller that needs a buffer; the download route streams instead). */

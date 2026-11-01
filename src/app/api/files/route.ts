@@ -5,7 +5,7 @@ import { assertMemberCan } from "@/server/policy/actor";
 import { assertNotGuest } from "@/server/services/guest-guard";
 import { ingest, listFiles } from "@/server/services/files";
 import { currentSpace } from "@/server/services/current-space";
-import { libraryOnDrive } from "@/server/services/google";
+import { storageTarget } from "@/server/files/storage-policy";
 import { parseMultipartUpload } from "@/server/files/multipart";
 import { uploadTempDir, UploadStreamError } from "@/server/files/upload-stream";
 import { MAX_FILE_BYTES } from "@/server/files/sniff";
@@ -43,7 +43,11 @@ export async function POST(req: Request) {
   });
 }
 
-/** GET: the library of the space the person is in — heads only (latest version of every family); `onDrive`: new files go to Drive. */
+/**
+ * GET: the library of the space the person is in — heads only (latest version of every family). `storage` says where a new
+ * file goes right now (Drive first; the server only when Drive is not connected or not answering) and `onDrive` is the same
+ * in the old shape.
+ */
 export async function GET() {
   return withApi(async () => {
     const ctx = await activeOrgCtx();
@@ -51,7 +55,7 @@ export async function GET() {
     // the library row of the person's grid («يشوف»); uploading is checked by `ingest` («يضيف ويعدّل»)
     await assertMemberCan(ctx, "files.view", "section.view_denied");
     const space = await currentSpace({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole });
-    const [files, onDrive] = await Promise.all([listFiles(ctx.orgId, { spaceId: space?.id ?? null, isHq: space?.kind === "HQ" }), libraryOnDrive(ctx.orgId)]);
-    return NextResponse.json({ files, onDrive });
+    const [files, storage] = await Promise.all([listFiles(ctx.orgId, { spaceId: space?.id ?? null, isHq: space?.kind === "HQ" }), storageTarget(ctx.orgId)]);
+    return NextResponse.json({ files, onDrive: storage.target === "drive", storage, space: space ? { id: space.id, name: space.name } : null });
   });
 }
