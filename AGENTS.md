@@ -214,6 +214,11 @@ other way is a bug.
   deleted, no price in them); a production order (`ProductionOrder`: DRAFT → ISSUED → COMPLETED, CANCELLED before the issue, RETURNED after it) issues
   its materials FIFO by lot in one transaction under row locks as ordinary linked ISSUE movements, and its cost is READ from what it took (exact
   fractions, rounded once), never stored; the reports are read-only and built so that without `.cost` no money field exists in the answer or the CSV.
+  Slice 3 closes four limits without a second stock: a wrong late price is CORRECTED by a holder of `.cost` as a numbered `MaterialPriceCorrection` row with a mandatory written
+  reason (the first price in `MaterialCosting` stays; the price of a lot is its latest correction; the audit log carries no price); the cost of a COMPLETED order is FROZEN (`ProductionOrderCostLine`, one row per
+  issue movement, the rounding split by the largest-remainder method so the pieces add up to the cost to the minor unit), so a correction never re-prices the past; a DRAFT order is edited while it is a
+  draft and only then (the database refuses a changed plan afterwards); and a recipe that keeps its finished item in stock (`Recipe.outputMaterialId`, a Material) receives the real output of a
+  completed order as one lot carrying the order's whole cost (received «بدون سعر» when the cost is incomplete). Reversing a completed order is not built.
 - **A request is only as good as the database says it is.** Rank, status and capabilities are read
   on every request, never from the cookie. The cookie carries `tv` (the user's `tokenVersion`):
   suspending, offboarding, resetting a password, changing one's own password and "log out
