@@ -3,7 +3,7 @@ import { AppShell } from "@/components/app-shell";
 import { audienceOf } from "@/lib/guide/audience";
 import { buildNav } from "@/lib/nav/places";
 import { newActionsFor } from "@/lib/nav/new-actions";
-import { featuresOf } from "@/lib/features";
+import { economyOn, featuresOf } from "@/lib/features";
 import { readNavOrder } from "@/lib/nav/order";
 import { db } from "@/server/db";
 import { cookies } from "next/headers";
@@ -61,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       defaultCollapsed={sidebarCollapsed}
       peopleDock={on.peopleDock}
       quickChat={on.quickChat}
+      economy={economyOn(org?.settings)}
     >
       {/* a call goes on while the person moves between pages; an incoming call rings on every page */}
       <CallProvider>

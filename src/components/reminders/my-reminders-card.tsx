@@ -7,6 +7,7 @@ import { errorKeyOf, rt, whenLabel } from "@/lib/reminders/client";
 import type { ReminderDto } from "@/server/services/reminders";
 import { Button } from "@/components/ui/button";
 import { ReminderForm } from "./reminder-form";
+import { pollMs } from "@/lib/economy";
 
 /** How often the card asks again, so a reminder that just fired shows up without a reload. */
 const REFRESH_MS = 60_000;
@@ -95,7 +96,7 @@ export function MyRemindersCard() {
 
   React.useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), REFRESH_MS);
+    const timer = setInterval(() => void load(), pollMs(REFRESH_MS));
     return () => clearInterval(timer);
   }, [load]);
 

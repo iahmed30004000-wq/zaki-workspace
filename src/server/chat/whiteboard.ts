@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError, ValidationError } from "@/server/auth";
 import { db } from "@/server/db";
 import { emitRealtime } from "@/server/realtime/emit";
 import { canPost, canRead, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
+import { assertFeatureOn } from "@/server/services/features";
 
 /**
  * THE WHITEBOARD OF A CONVERSATION («الصبورة», the owner's ask of 2026-10-25). Excalidraw (MIT) draws in the browser;
@@ -91,6 +92,8 @@ async function audience(ctx: OrgAccessContext, conversationId: string) {
 
 /** The board of a conversation (an empty one before anybody drew). Its readers. */
 export async function whiteboardOf(ctx: OrgAccessContext, conversationId: string): Promise<WhiteboardDto> {
+  // «السبورة» off (or «وضع التوفير»): there is no board to read, and the stored one stays untouched
+  await assertFeatureOn(ctx.orgId, "whiteboard");
   const { canDraw } = await audience(ctx, conversationId);
   const row = await db.whiteboard.findUnique({ where: { conversationId }, select: { elements: true, version: true } });
   return { conversationId, elements: (row?.elements as BoardElement[] | undefined) ?? [], version: row?.version ?? 0, canDraw };
@@ -98,6 +101,7 @@ export async function whiteboardOf(ctx: OrgAccessContext, conversationId: string
 
 /** Saves what one screen changed on the board, merged with what the others drew. Whoever may write in the conversation. */
 export async function saveWhiteboard(ctx: OrgAccessContext, conversationId: string, input: unknown): Promise<{ version: number }> {
+  await assertFeatureOn(ctx.orgId, "whiteboard");
   const { facts, canDraw } = await audience(ctx, conversationId);
   if (!canDraw) throw new ForbiddenError("whiteboard.e.cannot_draw");
   const incoming = cleanElements(input);

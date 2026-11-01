@@ -264,7 +264,10 @@ export async function fireOverdueRules(now: Date): Promise<TaskRulesRun> {
   });
   if (rules.length === 0) return run;
   const off = new Set<string>();
-  for (const orgId of new Set(rules.map((r) => r.orgId))) if (!(await isFeatureOn(orgId, "taskRules"))) off.add(orgId);
+  // the scan is the cost; a company with «القواعد التلقائية» or «تنبيهات الخلفية» off (economy mode included) is left out of it
+  for (const orgId of new Set(rules.map((r) => r.orgId))) {
+    if (!(await isFeatureOn(orgId, "taskRules")) || !(await isFeatureOn(orgId, "backgroundNudges"))) off.add(orgId);
+  }
 
   for (const rule of rules) {
     if (off.has(rule.orgId)) continue;

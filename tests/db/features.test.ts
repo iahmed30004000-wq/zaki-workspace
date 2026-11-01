@@ -47,12 +47,12 @@ async function as(userId: string, spaceId: string) {
 const flip = (key: string, on: boolean) => call(featuresRoute.PATCH, { method: "PATCH", body: { key, on } });
 
 describe("«الميزات»: who switches", () => {
-  it("every switch is listed for the company's staff at its default (all on, except «إخفاء المالك من متصل», «مساعد المالك», «قراءة الدردشات للمساعد» and «باب الربط الخارجي»: off until the owner turns them on)", async () => {
+  it("every switch is listed for the company's staff at its default (all on, except «إخفاء المالك من متصل», «مساعد المالك», «قراءة الدردشات للمساعد», «باب الربط الخارجي» and «وضع التوفير»: off until the owner turns them on)", async () => {
     const w = await world();
     await as(w.member.id, w.ws.id);
     const res = await call(featuresRoute.GET);
     expect(res.status).toBe(200);
-    expect(res.json?.["features"]).toEqual(FEATURES.map((key) => ({ key, on: key !== "ownerHiddenOnline" && key !== "ownerAssistant" && key !== "chatAssistant" && key !== "apiDoor" })));
+    expect(res.json?.["features"]).toEqual(FEATURES.map((key) => ({ key, on: key !== "ownerHiddenOnline" && key !== "ownerAssistant" && key !== "chatAssistant" && key !== "apiDoor" && key !== "economyMode" })));
     expect(await isFeatureOn(w.org.id, "watch")).toBe(true);
     // «حقول مخصصة» is listed and on by default (its doors are pinned in custom-fields.test.ts)
     expect(await isFeatureOn(w.org.id, "customFields")).toBe(true);

@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -146,6 +146,30 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // /api/manufacturing answers «not found» for everybody, the owner included; everything stored stays and comes back with the switch.
   // ⚠️ It records stock and cost only: not accounting, no payment, nothing linked to the OMS. 🔧 Costs are shown only to «الكلفة» holders.
   mfgLedger: true,
+  // «المكالمات» (src/server/calls/calls.ts): voice and video on the company's own calls server (LiveKit). Off: «مكالمة» is not drawn,
+  // no call or meeting starts, no token is made and the room is not asked for its people (the routes and the call page answer «not
+  // found»); somebody still in a call can leave or end it; the call rows already stored stay and come back with the switch.
+  calls: true,
+  // «السبورة» (src/server/chat/whiteboard.ts): the drawing board of a conversation. Off: the link is not drawn, the page and the two
+  // routes answer «not found», nothing is saved (a save can be up to 4 MB) and no live event is sent; the drawings stored stay.
+  whiteboard: true,
+  // «الرسائل الصوتية» (src/server/chat/messages.ts): record and send a voice note. Off: the microphone button is not drawn and a
+  // voice message is refused; the notes already sent stay and still play.
+  voiceNotes: true,
+  // «عدّ صفحات الـPDF» (src/server/services/files.ts): the viewer shows «12 صفحة». Off: the file is not even read for it (the count
+  // reads the whole file into memory, up to 15 MB) and the viewer shows no count; the file itself opens as before.
+  pdfPageCount: true,
+  // «البحث الشامل» (src/app/api/search/route.ts, src/server/chat/search.ts): the search box over tasks, projects, chat, people and
+  // the library. Off: it answers an empty result at once with no database query at all.
+  search: true,
+  // «تنبيهات الخلفية»: the jobs that only nudge or scan, never act for a person (the check-in reminder three hours after a round opens,
+  // the «لما تتأخر» rules' scan of overdue tasks). Off: the job runner skips them; the rounds, rules and everything stored stay, and a
+  // nudge or rule not yet fired is fired once the switch is back on. The checks that open rounds, fire reminders, recurrences and close timers are not this.
+  backgroundNudges: true,
+  // «وضع التوفير» (src/lib/features.ts `ECONOMY_FORCED_OFF`): ONE master switch for a server that is not strong enough. ON, the heavy switches
+  // listed in `ECONOMY_FORCED_OFF` behave as OFF and the screen's repeated refreshes are 4 times slower; the owner's own switches are NOT
+  // overwritten (an overlay in `featureOn`), so turning this off gives back exactly what he had. OFF until the owner turns it on.
+  economyMode: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
@@ -165,21 +189,58 @@ function storedOf(orgSettings: unknown): Partial<Record<FeatureKey, boolean>> {
   return out;
 }
 
-/** Is this feature on for the company whose settings these are? Unset: its default. */
-export function featureOn(orgSettings: unknown, key: FeatureKey): boolean {
+/**
+ * «وضع التوفير»: while it is ON, every key of this list behaves as OFF (an OVERLAY: the stored value of the key is never changed, so
+ * switching economy off gives back exactly the owner's own choices). The list is what the screen prints; keep it to what costs CPU,
+ * memory, disk, bandwidth or DB writes and is not what the company works through: the calls server, the drawing board, watch-together,
+ * the microphone filter of a call, the floating chat, the «آخر ظهور» database writes, the nudge/scan jobs and the PDF page count.
+ * Chat, tasks, boards, files, voice notes and search stay.
+ */
+export const ECONOMY_FORCED_OFF = ["calls", "whiteboard", "watch", "callNoiseFilter", "quickChat", "lastSeen", "backgroundNudges", "pdfPageCount"] as const satisfies readonly FeatureKey[];
+/** The screen's repeated refreshes (the bell, the cards of «اليوم», the realtime fallback) wait this many times longer in economy mode. */
+export const ECONOMY_POLL_FACTOR = 4;
+
+const ECONOMY_SET: ReadonlySet<FeatureKey> = new Set<FeatureKey>(ECONOMY_FORCED_OFF);
+
+/** What the owner set for one key (or its default), whatever economy mode says. */
+function ownChoice(orgSettings: unknown, key: FeatureKey): boolean {
   return storedOf(orgSettings)[key] ?? FEATURE_DEFAULTS[key];
 }
 
-/** Every switch of the company, each with its default filled in. */
-export function featuresOf(orgSettings: unknown): Record<FeatureKey, boolean> {
-  const stored = storedOf(orgSettings);
-  return Object.fromEntries(FEATURES.map((key) => [key, stored[key] ?? FEATURE_DEFAULTS[key]])) as Record<FeatureKey, boolean>;
+/** Is «وضع التوفير» on for this company? */
+export function economyOn(orgSettings: unknown): boolean {
+  return ownChoice(orgSettings, "economyMode");
 }
 
-/** The keys that are off (what the map of places is told to hide). */
+/** Is this feature on for the company whose settings these are? Unset: its default; economy mode switches the heavy ones off. */
+export function featureOn(orgSettings: unknown, key: FeatureKey): boolean {
+  if (!ownChoice(orgSettings, key)) return false;
+  return !(ECONOMY_SET.has(key) && economyOn(orgSettings));
+}
+
+/** Every switch of the company as it is IN FORCE (economy mode applied), each with its default filled in. */
+export function featuresOf(orgSettings: unknown): Record<FeatureKey, boolean> {
+  return Object.fromEntries(FEATURES.map((key) => [key, featureOn(orgSettings, key)])) as Record<FeatureKey, boolean>;
+}
+
+/** Every switch as the OWNER set it (economy mode NOT applied): what «الميزات» shows on each toggle. */
+export function ownChoicesOf(orgSettings: unknown): Record<FeatureKey, boolean> {
+  return Object.fromEntries(FEATURES.map((key) => [key, ownChoice(orgSettings, key)])) as Record<FeatureKey, boolean>;
+}
+
+/** The keys the owner left on that economy mode is holding off right now (empty when economy mode is off). */
+export function economyHeldOff(orgSettings: unknown): FeatureKey[] {
+  if (!economyOn(orgSettings)) return [];
+  return ECONOMY_FORCED_OFF.filter((key) => ownChoice(orgSettings, key));
+}
+
+/**
+ * The keys that are off (what the map of places is told to hide). «وضع التوفير» itself is not a place and is never listed here
+ * (it is off by default, and listing it would change what every company's map is told).
+ */
 export function featuresOff(orgSettings: unknown): FeatureKey[] {
   const all = featuresOf(orgSettings);
-  return FEATURES.filter((key) => !all[key]);
+  return FEATURES.filter((key) => key !== "economyMode" && !all[key]);
 }
 
 /** `Organization.settings` with one switch set, every other key of the settings kept as it was. */

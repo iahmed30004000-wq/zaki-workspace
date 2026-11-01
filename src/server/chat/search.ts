@@ -5,6 +5,7 @@ import { rankedSearch } from "@/server/search/ranked";
 import { NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { canRead, loadConversationFacts, loadOrgFacts, type OrgFacts } from "@/server/policy/conversation";
 import type { MessageHitDto, TopicHitDto } from "@/server/chat/dto";
+import { isFeatureOn } from "@/server/services/features";
 
 /**
  * SEARCH IN THE CHAT (the owner's ask, 2026-10-25): inside one conversation, and across the topics and messages of
@@ -40,6 +41,8 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
   const q = searchText(raw);
   const search = arabicSearch(q);
   if (!search || search.text.length < 2) return [];
+  // «البحث الشامل» off (or economy mode with it held off): no hits, and no query over the messages
+  if (!(await isFeatureOn(ctx.orgId, "search"))) return [];
   const rows = await rankedSearch({
     query: {
       table: "ChatMessage",
@@ -88,7 +91,7 @@ export async function searchChat(
 ): Promise<{ topics: TopicHitDto[]; messages: MessageHitDto[] }> {
   const q = searchText(raw);
   const search = arabicSearch(q);
-  if (!search || search.text.length < 2) return { topics: [], messages: [] };
+  if (!search || search.text.length < 2 || !(await isFeatureOn(ctx.orgId, "search"))) return { topics: [], messages: [] };
   const org = await loadOrgFacts(ctx.userId, ctx.orgId);
   const reads = readerOf(ctx.userId, org);
   const here = space.isHq

@@ -7,6 +7,7 @@ import type { TaskChip, TodayView } from "@/server/services/checkins";
 import { CheckinForm, RosterSummary, TeamAnswers, type FormValues } from "./checkin-parts";
 import { HistoryPanel } from "./history-panel";
 import { SettingsDialog } from "./settings-dialog";
+import { pollMs } from "@/lib/economy";
 
 /** How often the page asks again, so a teammate's answer and the roster stay current without a reload. */
 const REFRESH_MS = 60_000;
@@ -121,7 +122,7 @@ export function CheckinsView({ initial, workspaceId, spaceName }: { initial: Tod
   }, [workspaceId]);
 
   React.useEffect(() => {
-    const timer = setInterval(() => void load(), REFRESH_MS);
+    const timer = setInterval(() => void load(), pollMs(REFRESH_MS));
     return () => clearInterval(timer);
   }, [load]);
 

@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
+import { featureOnSql } from "@/server/features-sql";
 
 /**
  * Presence is in-memory per server process in Phase 3: a single Next.js instance serves
@@ -31,7 +32,7 @@ const ONLINE_WINDOW_MS = 30_000;
  * The write is THROTTLED to one per minute per person and company (`lastWrites`, in memory, on `globalThis` like the
  * map above) and costs nothing in between: a heartbeat every 25 s is one UPDATE every ~75 s. It is fire-and-forget:
  * a failing database is logged and swallowed, because presence must never fail a request. The UPDATE is conditional
- * (not older than a minute, ACTIVE member, the company's «آخر ظهور» switch on) and takes the time from the caller
+ * (not older than a minute, ACTIVE member, the company's «آخر ظهور» switch on and «وضع التوفير» off: `featureOnSql`) and takes the time from the caller
  * rather than from the database clock, so tests with an injected clock and a process restart behave the same way.
  * The last stream closing writes ONCE MORE, unthrottled: «آخر ظهور» is the real end of the session, not up to a
  * minute before it.
@@ -55,7 +56,7 @@ async function writeLastSeen(userId: string, orgId: string, at: Date, final: boo
         AND m."userId" = ${userId}
         AND m.status = 'ACTIVE'
         AND o.id = m."organizationId"
-        AND COALESCE(CASE WHEN jsonb_typeof(o.settings -> 'features' -> 'lastSeen') = 'boolean' THEN (o.settings -> 'features' ->> 'lastSeen')::boolean END, true)
+        AND ${featureOnSql("lastSeen")}
         ${throttle}`;
   } catch (err) {
     // never the person's request: the next heartbeat tries again
