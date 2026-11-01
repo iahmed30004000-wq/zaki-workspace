@@ -30,7 +30,7 @@ describe("«الميزات»: the owner's switches", () => {
     expect(FEATURE_DEFAULTS.customFields).toBe(true);
     expect(featureOn({}, "customFields")).toBe(true);
     expect(featureOn({ features: { customFields: false } }, "customFields")).toBe(false);
-    expect(featuresOff({ features: { customFields: false } })).toEqual(["ownerHiddenOnline", "ownerAssistant", "customFields", "apiDoor"]);
+    expect(featuresOff({ features: { customFields: false } })).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "customFields", "apiDoor"]);
   });
 
   it("a broken stored value is ignored, never read as off", () => {
@@ -46,9 +46,9 @@ describe("«الميزات»: the owner's switches", () => {
     expect(Object.keys(all).sort()).toEqual([...FEATURES].sort());
     for (const key of FEATURES) expect(all[key], key).toBe(key === "watch" ? false : FEATURE_DEFAULTS[key]);
     // «إخفاء المالك من متصل» and «مساعد المالك» are OFF until the owner turns them on, so they are always in the list of the ones that are off
-    expect(featuresOff({ features: { watch: false } })).toEqual(["watch", "ownerHiddenOnline", "ownerAssistant", "apiDoor"]);
-    expect(featuresOff({})).toEqual(["ownerHiddenOnline", "ownerAssistant", "apiDoor"]);
-    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, apiDoor: true } })).toEqual([]);
+    expect(featuresOff({ features: { watch: false } })).toEqual(["watch", "ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor"]);
+    expect(featuresOff({})).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor"]);
+    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true } })).toEqual([]);
     expect(FEATURE_DEFAULTS.ownerAssistant).toBe(false);
     // «الرسائل بدون نت» is ON until the owner turns it off (so it is never in the list of the ones that are off)
     expect(FEATURE_DEFAULTS.chatOutbox).toBe(true);
@@ -85,7 +85,7 @@ describe("«الميزات»: the owner's switches", () => {
     expect(FEATURES).toContain("lastSeen");
     expect(FEATURE_DEFAULTS.lastSeen).toBe(true);
     expect(featureOn({}, "lastSeen")).toBe(true);
-    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, apiDoor: true, lastSeen: false } })).toEqual(["lastSeen"]);
+    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true, lastSeen: false } })).toEqual(["lastSeen"]);
     expect(AR["features.lastSeen.name"]).toBe("آخر ظهور");
   });
 

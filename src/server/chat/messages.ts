@@ -17,7 +17,8 @@ import { claimUploads, MAX_ATTACHMENTS_PER_MESSAGE } from "@/server/chat/attachm
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "@/server/chat/poll-shared";
 import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, DELETED_PREVIEW } from "@/server/chat/notify";
-import { MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
+import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
+import { afterMessageSent } from "@/server/services/chat-assistant";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
 import type { Prisma } from "@prisma/client";
 import type { MessageDto } from "@/server/chat/dto";
@@ -137,7 +138,8 @@ export async function sendMessage(
 
   // mentions must be people who may read the conversation (the policy decides, not a member row:
   // an open topic's audience is its whole space, and a row left behind by a removal counts for nothing)
-  const mentionIds = await readersAmong(conversationId, [...new Set(input.mentions ?? [])]);
+  // («@المساعد» is not a person: it is found in the body after the send, never stored among the mentions)
+  const mentionIds = await readersAmong(conversationId, [...new Set(input.mentions ?? [])].filter((id) => id !== ASSISTANT_MENTION_ID));
   // «@الكل»: everybody the topic reaches (a guest may not, and it means nothing in a DM or a group)
   const wantsAll = input.mentionAll === true && facts.kind === "TOPIC" && mentionsAll(body);
   if (wantsAll && org.role === "GUEST") throw new ForbiddenError("chat.e.mention_all_denied");
@@ -196,6 +198,8 @@ export async function sendMessage(
   // my own fresh DM message starts at ✓ (sent): the screen shows it from this answer before any refetch
   const dto = presentMessage(created, withViewer(viewerOf(facts, org), ctx.userId), facts.kind === "DM" ? "sent" : undefined);
   await notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, dto);
+  // «@المساعد»: one answer in this conversation, written when the model has answered (never delays this reply)
+  if (kind === "TEXT") afterMessageSent({ orgId: ctx.orgId, conversationId, messageId: created.id, body });
   return dto;
 }
 

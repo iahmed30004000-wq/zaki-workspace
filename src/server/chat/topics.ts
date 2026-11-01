@@ -10,6 +10,8 @@ import type { ConversationDto, MemberDto, MessageDto, ReaderDto } from "@/server
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { isFeatureOn } from "@/server/services/features";
+import { chatAssistantOffered } from "@/server/services/chat-assistant";
+import { ASSISTANT_MENTION_ID, ASSISTANT_MENTION_NAME } from "@/lib/chat/conversation/mentions";
 import { lastSeenReader } from "@/server/services/last-seen";
 import type { Prisma } from "@prisma/client";
 
@@ -424,7 +426,14 @@ export async function conversationDetail(
       })
     ).map((m) => ({ id: m.id, authorName: m.author.name, preview: previewOf(m.body, m.deletedAt) })),
     members,
-    mentionables: org!.role === "GUEST" ? members : await mentionablesOf(ctx.orgId, facts, conv.spaceId ?? null, members, online),
+    mentionables:
+      org!.role === "GUEST"
+        ? members
+        : [
+            ...(await mentionablesOf(ctx.orgId, facts, conv.spaceId ?? null, members, online)),
+            // «@المساعد»: only where the company's switch is on and the owner's key is saved (src/server/services/chat-assistant.ts); never for a guest
+            ...((await chatAssistantOffered(ctx.orgId)) ? [{ id: ASSISTANT_MENTION_ID, name: ASSISTANT_MENTION_NAME, online: false, role: "AI" }] : []),
+          ],
     messages: messages.reverse(), // oldest first in the payload
     // topics and groups: each person's avatar sits under the last message they read (DMs have ticks)
     readers:

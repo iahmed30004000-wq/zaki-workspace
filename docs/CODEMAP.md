@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 270 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 32 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 33 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -51,7 +51,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 112 services — the business rules (§6) |
+| `src/server/services/` | 113 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -386,11 +386,11 @@ high count is a wide surface: changing its signature reaches all of them.
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
 | `integrations` | 180 | 86 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `features` | 48 | 59 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 48 | 60 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `current-space` | 128 | 53 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 42 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `team-scope` | 149 | 27 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
-| `org-day` | 26 | 23 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
+| `org-day` | 26 | 24 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
 | `tasks` | 652 | 20 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `cards` | 614 | 17 | «اللوحات» — the cards of a space. |
 | `rewards` | 351 | 16 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
@@ -409,6 +409,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
 | `documents` | 394 | 8 | «المستندات» — the text documents of a space. |
 | `ideas` | 417 | 8 | Membership context resolved from the idea's own org (shared by API routes). |
+| `owner-assistant-settings` | 169 | 8 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
 | `tickets` | 501 | 8 | IT tickets live inside a department. |
 | `workspaces` | 331 | 8 | Spaces (workspaces): who is in one, who may change it. |
@@ -419,7 +420,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-guards` | 45 | 7 | The questions the page inside a card asks about its viewer, answered in one place. |
 | `google` | 355 | 7 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `last-seen` | 122 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
-| `owner-assistant-settings` | 169 | 7 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `task-recurrence` | 205 | 7 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-criteria` | 109 | 7 | «معايير التقييم» — the criteria a reviewer rates 1-5: the five the owner named (جودة الشغل، الالتزام بالمواعيد، التعاون، المبادرة، التواصل), which the owner may rename, add to (… |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
@@ -461,6 +461,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-page` | 47 | 2 | The page inside a card, as ONE read: the card, what the viewer may do on it, the stars, the gallery. |
 | `card-ratings` | 58 | 2 | «التقييم» (the first of the two systems): stars 1 to 5 from the people of the space, one per person per card, changeable. |
 | `card-revisions` | 91 | 2 | «الإصدارات»: the snapshots every saved edit left behind (written by `saveCardEdit`, never changed or removed: the table refuses an UPDATE). |
+| `chat-assistant` | 347 | 2 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `goals` | 307 | 2 | no header comment — exports `periodWindow`, `goalSchema`, `goalStatus`, `listGoals`, `createGoal`, … |
 | `member-rules` | 184 | 2 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
 | `move-to-space` | 106 | 2 | «انقل لمساحة» (the plan, 2026-10-25: each space is like a separate site). |
@@ -518,9 +519,9 @@ to be added to, and the places a bug can leave the row half-written.
 | `Goal` | 6 | `server/services/goals.ts`: 3<br>`server/services/move-to-space.ts`: 1<br>`server/services/okr.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 11 | `server/services/files.ts`: 7<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>`server/services/move-to-space.ts`: 1<br>+1 more |
-| `Conversation` | 18 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/messages.ts`: 2<br>`server/chat/hq.ts`: 1<br>+6 more |
+| `Conversation` | 19 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/messages.ts`: 2<br>`server/chat/hq.ts`: 1<br>+7 more |
 | `ConversationMember` | 18 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 3<br>`server/services/workspaces.ts`: 2<br>+3 more |
-| `ChatMessage` | 6 | `server/chat/messages.ts`: 5<br>`server/chat/system.ts`: 1 |
+| `ChatMessage` | 7 | `server/chat/messages.ts`: 5<br>`server/chat/system.ts`: 1<br>`server/services/chat-assistant.ts`: 1 |
 | `ChatReaction` | 2 | `server/chat/messages.ts`: 2 |
 | `Poll` | 2 | `components/chat/composer/poll-dialog.tsx`: 1<br>`server/chat/polls.ts`: 1 |
 | `PollVote` | 2 | `server/chat/polls.ts`: 2 |
@@ -558,7 +559,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `TaskComment` | 3 | `app/api/tasks/[id]/comments/[commentId]/route.ts`: 2<br>`app/api/tasks/[id]/comments/route.ts`: 1 |
 | `TaskActivity` | 10 | `server/services/tasks.ts`: 4<br>`server/services/task-assign.ts`: 3<br>`app/api/tasks/[id]/comments/route.ts`: 1<br>`server/activity.ts`: 1<br>+1 more |
 | `Notification` | 8 | `server/notify.ts`: 3<br>`app/api/notifications/[id]/route.ts`: 1<br>`app/api/notifications/read/route.ts`: 1<br>`server/chat/notify.ts`: 1<br>+2 more |
-| `AuditLog` | 37 | `server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/rewards.ts`: 4<br>`server/services/api-tokens.ts`: 3<br>+13 more |
+| `AuditLog` | 38 | `server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/rewards.ts`: 4<br>`server/services/api-tokens.ts`: 3<br>+14 more |
 | `Idea` | 6 | `server/services/ideas.ts`: 4<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `IdeaVote` | 2 | `server/services/ideas.ts`: 2 |
 | `Integration` | 4 | `server/services/integrations.ts`: 2<br>`server/services/google.ts`: 1<br>`server/services/telegram.ts`: 1 |
@@ -574,7 +575,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `CardRating` | 1 | `server/services/card-ratings.ts`: 1 |
 | `CardAttachment` | 4 | `server/services/card-attachments.ts`: 4 |
 | `AiSettings` | 3 | `server/services/owner-assistant-settings.ts`: 3 |
-| `AiUsage` | 1 | `server/services/owner-assistant-settings.ts`: 1 |
+| `AiUsage` | 2 | `server/services/chat-assistant.ts`: 1<br>`server/services/owner-assistant-settings.ts`: 1 |
 | `AiConversation` | 3 | `server/services/owner-assistant-chat.ts`: 3 |
 | `AiMessage` | 2 | `server/services/owner-assistant-chat.ts`: 2 |
 | `AiProposal` | 8 | `server/services/owner-assistant-proposals.ts`: 8 |
@@ -635,7 +636,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `calendarFeed` | 2 — `app/(app)/calendar/page.tsx`, `server/services/calendar-feed.ts` |
 | `ownerBoard` | 2 — `lib/nav/places.ts`, `server/policy/board.ts` |
 | `taskRewards` | 4 — `app/api/instant/route.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
-| `ownerAssistant` | 2 — `lib/nav/places.ts`, `server/services/owner-assistant-access.ts` |
+| `ownerAssistant` | 3 — `lib/nav/places.ts`, `server/services/chat-assistant.ts`, `server/services/owner-assistant-access.ts` |
+| `chatAssistant` | 1 — `server/services/chat-assistant.ts` |
 | `chatOutbox` | 1 — `server/chat/topics.ts` |
 | `customFields` | 3 — `app/(app)/projects/[id]/page.tsx`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
 | `checkins` | 7 — `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
