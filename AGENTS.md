@@ -256,6 +256,16 @@ other way is a bug.
   once its bytes are on disk: a failed upload removes its row (`ingest`), and a row still being
   written has `path = PENDING_PATH` — anything that reads `StoredFile` outside the files service
   must skip those.
+- **Where a new file is written: Google Drive first, the server's disk only as the fallback, never
+  both** (the owner, 2026-11-01: the server's disk must not fill up). Every new upload of the company
+  (library, chat attachments, voice notes — an approval's files are chat uploads) goes through `ingest`,
+  which asks `storageTarget()` (`src/server/files/storage-policy.ts`); profile pictures stay on the
+  server by design. A Drive download is always proxied through the app after the same permission check
+  (`openStored`), never a Drive link. ⚠️ While Drive is not connected the server fills up. 🔧 The library
+  says so on screen with the fix, and the owner's storage panel (`/api/library-storage`, owner rank only) moves
+  the old files: a copy step that deletes nothing, and a separate explicit step that removes a server
+  copy only after Drive reads back the exact size and SHA-256 recorded at the move
+  (`src/server/services/storage.ts`).
 - Secrets stored in the database (Telegram, n8n, Google) are encrypted at rest with
   `ENCRYPTION_KEY` (derived from `AUTH_SECRET` while it is unset).
 - **«مساعد المالك» (the owner's AI analyst, `src/server/ai/`)** keeps these rules, pinned by `tests/db/owner-assistant.test.ts`

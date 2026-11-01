@@ -2,16 +2,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Cloud, Download, Eye, FileArchive, FileAudio, FileImage, FileText, FileVideo, FolderUp, History, Trash2, UploadCloud } from "lucide-react";
+import { Cloud, Download, Eye, FileArchive, FileAudio, FileImage, FileText, FileVideo, FolderUp, History, Search, Trash2, UploadCloud } from "lucide-react";
 import { apiDelete, apiGet, ApiError, apiUpload } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useI18n } from "@/lib/i18n";
 import { fmtShort, fmtSize } from "@/lib/format";
+import { foldedIncludes } from "@/lib/search/arabic";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { useNewIntent } from "@/lib/nav/use-new-intent";
 import { PdfViewer } from "@/components/files/pdf-viewer";
+import { StoragePanel } from "@/components/files/storage-panel";
+import { StorageWarning, type StorageState } from "@/components/files/storage-warning";
+import { Input } from "@/components/ui/input";
 
 interface FileRow {
   id: string;
@@ -58,7 +62,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
 
   const list = useQuery({
     queryKey: ["files", "list"],
-    queryFn: () => apiGet<{ files: FileRow[]; onDrive?: boolean }>("/api/files"),
+    queryFn: () => apiGet<{ files: FileRow[]; onDrive?: boolean; storage?: StorageState; space?: { id: string; name: string } | null }>("/api/files"),
   });
 
   // a search hit (`/files#file-<id>`): once the list is here, bring that file into view (the browser's own jump ran
@@ -119,14 +123,18 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
 
   const canManage = (f: FileRow) => may.delete && (f.uploaderId === me.id || me.role === "OWNER" || me.role === "ADMIN");
   const canUpload = me.role !== "GUEST" && may.edit;
-  const files = list.data?.files ?? [];
+  const all = list.data?.files ?? [];
+  // the search box filters the space's files by name, spelled the way people spell (أ/ا, ة/ه, ى/ي, no tashkeel)
+  const [q, setQ] = useState("");
+  const files = q.trim() ? all.filter((f) => foldedIncludes(f.name, q)) : all;
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">{t("files.title")}</h1>
-          <p className="text-xs text-muted">{t("files.empty_desktop")}</p>
+          <p className="text-xs font-medium">{list.data?.space ? t("spacelib.of_space", { name: list.data.space.name }) : t("spacelib.of_company")}</p>
+          <p className="text-xs text-muted">{t("spacelib.hint")}</p>
           {list.data?.onDrive && (
             <p className="mt-1 flex items-center gap-1 text-xs text-ok">
               <Cloud className="size-3.5" />
@@ -147,6 +155,16 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
           onChange={(e) => e.target.files && Array.from(e.target.files).forEach((f) => upload.mutate(f))}
         />
       </header>
+
+      {list.data?.storage && <StorageWarning state={list.data.storage} />}
+      {me.role === "OWNER" && <StoragePanel />}
+
+      {all.length > 0 && (
+        <label className="relative block">
+          <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
+          <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("spacelib.search")} aria-label={t("spacelib.search")} className="ps-9" />
+        </label>
+      )}
 
       {canUpload && (
         <div
@@ -173,7 +191,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
       )}
 
       {files.length === 0 ? (
-        <p className="rounded-lg bg-surface-2 px-4 py-3 text-sm text-muted">{t("files.empty")}</p>
+        <p className="rounded-lg bg-surface-2 px-4 py-3 text-sm text-muted">{all.length > 0 ? t("spacelib.no_match") : t("files.empty")}</p>
       ) : (
         <ul className="grid gap-2 sm:grid-cols-2">
           {files.map((f) => (

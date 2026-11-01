@@ -27,9 +27,8 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       if (!(err instanceof NotFoundError)) throw err;
       const unclaimed = await findUnclaimedUpload(actor.orgId, params.id, actor.userId);
       if (!unclaimed) return notFound();
-      const { readStored } = await import("@/server/services/files");
-      const stored = await readStored(actor.orgId, unclaimed.id);
-      return bytesResponse(req, stored.buffer, stored.mimeType, stored.name);
+      const { openStored } = await import("@/server/services/files");
+      return bytesResponse(req, await openStored(actor.orgId, unclaimed.id));
     }
 
     const claimed = Boolean(att.attachment.messageId);
@@ -40,29 +39,33 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     // the file of a deleted message is gone for everybody but the OWNER (redact.ts drops it from the DTO too)
     if (att.attachment.message?.deletedAt && !actor.isOwner) return notFound();
 
-    return bytesResponse(req, att.buffer, att.mimeType, att.file.name);
+    return bytesResponse(req, att);
   });
 }
 
-function bytesResponse(req: Request, buffer: Buffer, mime: string, name: string): NextResponse {
+/** The bytes as a stream (the server's disk, or proxied from Drive: only the asked range is fetched). Never a Drive link. */
+async function bytesResponse(
+  req: Request,
+  file: { mimeType: string; name: string; size: number; stream: (range: { start: number; end: number } | null) => Promise<ReadableStream<Uint8Array>> },
+): Promise<NextResponse> {
+  const mime = file.mimeType;
   const inline = mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/");
   const base: Record<string, string> = {
     "content-type": mime,
-    "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(name).replace(/['()]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase())}`,
+    "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase())}`,
     "x-content-type-options": "nosniff",
     "cache-control": "private, max-age=3600",
     "accept-ranges": "bytes",
   };
-  const range = parseByteRange(req.headers.get("range"), buffer.byteLength);
+  const range = parseByteRange(req.headers.get("range"), file.size);
   if (range.kind === "unsatisfiable") {
-    return new NextResponse(null, { status: 416, headers: { ...base, "content-range": `bytes */${buffer.byteLength}` } });
+    return new NextResponse(null, { status: 416, headers: { ...base, "content-range": `bytes */${file.size}` } });
   }
   if (range.kind === "partial") {
-    const slice = buffer.subarray(range.start, range.end + 1);
-    return new NextResponse(new Uint8Array(slice), {
+    return new NextResponse(await file.stream(range), {
       status: 206,
-      headers: { ...base, "content-length": String(slice.byteLength), "content-range": `bytes ${range.start}-${range.end}/${buffer.byteLength}` },
+      headers: { ...base, "content-length": String(range.end - range.start + 1), "content-range": `bytes ${range.start}-${range.end}/${file.size}` },
     });
   }
-  return new NextResponse(new Uint8Array(buffer), { status: 200, headers: { ...base, "content-length": String(buffer.byteLength) } });
+  return new NextResponse(await file.stream(null), { status: 200, headers: { ...base, "content-length": String(file.size) } });
 }

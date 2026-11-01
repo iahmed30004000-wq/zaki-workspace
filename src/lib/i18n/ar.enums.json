@@ -84,6 +84,9 @@
   "event.file.uploaded": "رفع ملف",
   "event.file.deleted": "حذف ملف",
   "event.file.drive_failed": "تعذّر الحفظ على Google Drive فحُفظ الملف على الخادم",
+  "event.storage.moved": "نقل المالك دفعة ملفات قديمة من الخادم إلى Google Drive",
+  "event.storage.move_failed": "تعذّر نقل ملف إلى Google Drive فبقي على الخادم",
+  "event.storage.copies_deleted": "حذف المالك نسخ الخادم لملفات تحقّق منها على Google Drive",
 
   "detail.missing_task_fields": "حقول المهمة ناقصة",
   "detail.invalid": "بيانات غير صالحة",
