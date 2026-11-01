@@ -89,11 +89,10 @@ const RULES: readonly Rule[] = [
 
 const emptyMasked = (): Record<MaskKind, number> => ({ phone: 0, email: 0, url: 0, handle: 0, id: 0, secret: 0 });
 
-/** Replaces every phone number, e-mail, link, handle, identifier and secret-looking token by its marker. */
-export function redactText(input: string): Redacted {
+function applyRules(input: string, rules: readonly Rule[]): Redacted {
   let text = typeof input === "string" ? input : "";
   const masked = emptyMasked();
-  for (const rule of RULES) {
+  for (const rule of rules) {
     const norm = normalizeDigits(text);
     let out = "";
     let last = 0;
@@ -106,6 +105,27 @@ export function redactText(input: string): Redacted {
     text = last === 0 && out === "" ? text : out + text.slice(last);
   }
   return { text, masked, count: MASK_KINDS.reduce((n, k) => n + masked[k], 0) };
+}
+
+/** Replaces every phone number, e-mail, link, handle, identifier and secret-looking token by its marker. */
+export function redactText(input: string): Redacted {
+  return applyRules(input, RULES);
+}
+
+/**
+ * THE RELAXED FILTER, for a model that runs on the owner's own machine and ONLY when the owner turned the switch on («نموذج محلي»,
+ * src/server/ai/local-provider.ts): phone numbers, e-mails, links and @handles pass. Secrets and identifiers are STILL masked, with
+ * two extra rules (an ad / access token «EAA…», and any run of 32+ letters, digits, dashes or underscores): an ad token reaches no
+ * model at all, local or not. The Claude path never calls this function.
+ */
+const RELAXED_RULES: readonly Rule[] = [
+  ...RULES.filter((r) => r.kind === "secret" || r.kind === "id"),
+  { kind: "secret", pattern: /EAA[A-Za-z0-9]{16,}/g },
+  { kind: "secret", pattern: /(?<![\w-])[A-Za-z0-9_-]{32,}(?![\w-])/g },
+];
+
+export function redactTextRelaxed(input: string): Redacted {
+  return applyRules(input, RELAXED_RULES);
 }
 
 /** The first `max` characters (code points), with «…» when something was cut. */

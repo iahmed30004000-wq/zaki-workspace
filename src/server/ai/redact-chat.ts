@@ -1,5 +1,5 @@
 import { ASSISTANT_MENTION_NAME, splitMentions } from "@/lib/chat/conversation/mentions";
-import { MASK_KINDS, MASK_MARKER, capText, maskKnownNames, normalizeDigits, redactText, type KnownName, type MaskKind } from "@/server/ai/redact";
+import { MASK_KINDS, MASK_MARKER, capText, maskKnownNames, normalizeDigits, redactText, redactTextRelaxed, type KnownName, type MaskKind } from "@/server/ai/redact";
 
 /**
  * «المساعد» في الدردشة — THE PRIVACY FILTER FOR CHAT TEXT. Pure: no database, no network, no clock.
@@ -99,8 +99,14 @@ export interface ChatRedacted {
  * The one door for a piece of chat text: the owner assistant's filter first (so a phone number written next to an address is counted
  * as a phone number and ends the address), then the address rules.
  */
-export function redactChatText(input: string): ChatRedacted {
-  const rest = redactText(typeof input === "string" ? input : "");
+export function redactChatText(input: string, relaxed = false): ChatRedacted {
+  const safe = typeof input === "string" ? input : "";
+  if (relaxed) {
+    // a local model, the owner's explicit switch: only secrets and identifiers are masked (src/server/ai/redact.ts, `redactTextRelaxed`)
+    const loose = redactTextRelaxed(safe);
+    return { text: loose.text, masked: { ...loose.masked, address: 0 }, count: loose.count };
+  }
+  const rest = redactText(safe);
   const addr = maskAddresses(rest.text);
   const masked: Record<ChatMaskKind, number> = { ...rest.masked, address: addr.count };
   return { text: addr.text, masked, count: rest.count + addr.count };
@@ -126,6 +132,11 @@ export interface ChatPromptOptions {
   askingMessageId: string;
   /** Every person's name found in a text must be replaced when names are not allowed. */
   companyNames: readonly string[];
+  /** A local model and the owner's explicit switch: the relaxed filter (secrets and identifiers only). Never set for the external model. */
+  relax?: boolean;
+  /** A smaller window for a small local model (default: `WINDOW_MESSAGES` / `WINDOW_CHARS`). */
+  windowMessages?: number;
+  windowChars?: number;
 }
 
 export interface ChatPrompt {
@@ -186,7 +197,7 @@ export function buildChatPrompt(rows: readonly ChatRow[], options: ChatPromptOpt
       text = hidden.text;
     }
     // an earlier answer of the assistant goes through the same filter: nothing is trusted because it came from the model
-    const r = redactChatText(text);
+    const r = redactChatText(text, options.relax === true);
     for (const k of CHAT_MASK_KINDS) masked[k] += r.masked[k];
     text = r.text;
     text = capText(text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), asking ? ASKING_MESSAGE_CHARS : MESSAGE_CHARS);
@@ -194,11 +205,13 @@ export function buildChatPrompt(rows: readonly ChatRow[], options: ChatPromptOpt
   });
 
   // newest first until the limit; the asking message is always in
+  const maxMessages = options.windowMessages ?? WINDOW_MESSAGES;
+  const maxChars = options.windowChars ?? WINDOW_CHARS;
   const kept: typeof cleaned = [];
   let chars = 0;
   for (const item of [...cleaned].reverse()) {
-    if (kept.length >= WINDOW_MESSAGES) break;
-    if (!item.asking && chars + item.line.length > WINDOW_CHARS) break;
+    if (kept.length >= maxMessages) break;
+    if (!item.asking && chars + item.line.length > maxChars) break;
     kept.unshift(item);
     chars += item.line.length;
   }
