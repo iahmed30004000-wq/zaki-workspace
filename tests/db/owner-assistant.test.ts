@@ -292,14 +292,16 @@ describe("the key is write-only and encrypted at rest", () => {
     const w = await ready();
     const cipher = (await db.aiSettings.findUniqueOrThrow({ where: { orgId: w.org.id } })).keyCipher as string;
     const settings = await api(settingsRoute.GET);
-    expect(settings.json?.["settings"]).toEqual({ hasKey: true, keyLast4: KEY_LAST4, model: "claude-sonnet-5-5", dailyLimit: 50, monthlyTokenBudget: 2_000_000, allowNames: false, allowTitles: false });
+    expect(settings.json?.["settings"]).toMatchObject({ hasKey: true, keyLast4: KEY_LAST4, model: "claude-sonnet-5-5", dailyLimit: 50, monthlyTokenBudget: 2_000_000, allowNames: false, allowTitles: false, ownerProvider: "claude", chatProvider: "claude", localRelaxRedaction: false });
     expect(settings.text).not.toContain("keyCipher");
     // the pages' markup
     const page = render(await OwnerAssistantSettingsPage());
     expect(page).toContain("مفتاح محفوظ ••••WXYZ");
     expect(page).not.toContain(KEY);
     expect(page).not.toContain(cipher);
-    expect(page).not.toContain('type="password"');
+    // the Claude key has no field once saved; the only password field is the gateway's own optional key («نموذج محلي»)
+    expect(page).not.toContain('data-testid="ai-key-input"');
+    expect(page.match(/type="password"/g) ?? []).toHaveLength(1);
     expect(render(await OwnerAssistantPage({ searchParams: {} }))).not.toContain(KEY);
     // a refused key does not echo what was sent
     for (const bad of ["short", "has a space in it 12345678901234567890", "عربي-مفتاح-12345678901234567890", `${KEY}\n`, "x".repeat(401)]) {
@@ -397,7 +399,7 @@ describe("the settings", () => {
     const w = await world();
     await loginAs(w.owner.id);
     const res = await api(settingsRoute.GET);
-    expect(res.json?.["settings"]).toEqual({ hasKey: false, keyLast4: null, model: "claude-sonnet-5-5", dailyLimit: 50, monthlyTokenBudget: 2_000_000, allowNames: false, allowTitles: false });
+    expect(res.json?.["settings"]).toMatchObject({ hasKey: false, keyLast4: null, model: "claude-sonnet-5-5", dailyLimit: 50, monthlyTokenBudget: 2_000_000, allowNames: false, allowTitles: false, ownerProvider: "claude", chatProvider: "claude", localRelaxRedaction: false });
     expect(res.json?.["models"]).toEqual(["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"]);
     expect(res.json?.["usage"]).toMatchObject({ requestsToday: 0, dailyLimit: 50, tokensThisMonth: 0, monthlyTokenBudget: 2_000_000 });
   });

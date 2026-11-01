@@ -6,6 +6,7 @@ import { db } from "@/server/db";
 import { ValidationError } from "@/server/auth";
 import { log } from "@/server/log";
 import { PROPOSE_TOOL } from "@/server/ai/actions";
+import { LOCAL_CONTEXT_LIMITS, LOCAL_HISTORY, LOCAL_MAX_OUTPUT_TOKENS } from "@/server/ai/local-transport";
 import { AssistantError } from "@/server/ai/api";
 import { HISTORY_CHARS, HISTORY_TURNS, MAX_OUTPUT_TOKENS, QUESTION_MAX_CHARS, SYSTEM_PROMPT, composeUserMessage } from "@/server/ai/prompt";
 import { makeProvider } from "@/server/ai/registry";
@@ -17,6 +18,7 @@ import {
   labelOf,
   maskKnownNames,
   redactText,
+  redactTextRelaxed,
   type KnownName,
   type MaskKind,
   type RefTable,
@@ -28,7 +30,8 @@ import type { AssistantAccess } from "@/server/services/owner-assistant-access";
 import { loadScope } from "@/server/services/owner-assistant-data";
 import { restorerFor } from "@/server/services/owner-assistant-names";
 import { expireStale, prepareProposals, proposalViews, saveProposals, type ProposalView } from "@/server/services/owner-assistant-proposals";
-import { assertWithinQuota, getSettings, readKey, recordUsage, usageSummary, type UsageSummary } from "@/server/services/owner-assistant-settings";
+import { isLocalKind, resolveProvider } from "@/server/services/assistant-provider";
+import { assertWithinQuota, getSettings, recordUsage, usageSummary, type UsageSummary } from "@/server/services/owner-assistant-settings";
 import type { BoardQuery } from "@/server/services/owner-board";
 
 /**
@@ -110,12 +113,12 @@ const refsOf = (value: Prisma.JsonValue | null | undefined): RefTable => {
 const sentOf = (value: Prisma.JsonValue | null): string | null => (typeof value === "string" ? value : null);
 
 /** The earlier turns of a conversation as they were sent: the newest that fit in `HISTORY_CHARS`, oldest first. */
-function historyOf(rows: readonly { role: string; content: string }[]): AiChatMessage[] {
+function historyOf(rows: readonly { role: string; content: string }[], limits: { turns: number; chars: number } = { turns: HISTORY_TURNS, chars: HISTORY_CHARS }): AiChatMessage[] {
   const out: AiChatMessage[] = [];
   let size = 0;
-  for (const row of [...rows].reverse().slice(0, HISTORY_TURNS)) {
+  for (const row of [...rows].reverse().slice(0, limits.turns)) {
     size += row.content.length;
-    if (size > HISTORY_CHARS) break;
+    if (size > limits.chars) break;
     out.unshift({ role: row.role === "ASSISTANT" ? "assistant" : "user", content: row.content });
   }
   // a conversation sent to the model must open with a user turn
@@ -151,8 +154,10 @@ export async function sendMessage(access: AssistantAccess, body: unknown, now: D
   const input = parseChatInput(body);
   const { orgId, userId } = access;
   const settings = await getSettings(orgId);
-  const apiKey = settings.hasKey ? await readKey(orgId) : null;
-  if (!apiKey) throw new AssistantError("assistant.no_key", "conflict");
+  // which model answers: Claude (the owner's key), or a local one (src/server/services/assistant-provider.ts)
+  const choice = await resolveProvider(orgId, settings, "owner");
+  if (!choice) throw new AssistantError(settings.ownerProvider === "claude" ? "assistant.no_key" : "assistant.no_local", "conflict");
+  const local = isLocalKind(choice.kind);
   const tz = await orgTimeZone(orgId);
   const day = dayKeyOf(now, tz);
   assertWithinQuota(await usageSummary(orgId, settings, now));
@@ -170,7 +175,8 @@ export async function sendMessage(access: AssistantAccess, body: unknown, now: D
   const raw = await loadScope(access.board, query, now);
   let built;
   try {
-    built = buildContext(raw, { allowNames: settings.allowNames, allowTitles: settings.allowTitles, refs: refsOf(conversation?.refs) });
+    // a small local model gets a smaller context (its window is 4096 tokens); the filter below it is the same
+    built = buildContext(raw, { allowNames: settings.allowNames, allowTitles: settings.allowTitles, refs: refsOf(conversation?.refs), ...(local ? LOCAL_CONTEXT_LIMITS : {}) });
   } catch (err) {
     if (err instanceof ContextLeakError) {
       // fail closed: nothing is sent; only the place in the object is logged, never a value
@@ -181,24 +187,26 @@ export async function sendMessage(access: AssistantAccess, body: unknown, now: D
   }
 
   // 3. the question
-  const redacted = redactText(input.message);
+  // the relaxed filter only for a local model and only with the owner's switch (`choice.relax`); the external model never gets it
+  const redacted = choice.relax ? redactTextRelaxed(input.message) : redactText(input.message);
   const hidden = maskKnownNames(redacted.text, knownNames(raw, built.refs, { staff: !settings.allowNames, titles: !settings.allowTitles }));
   const question = hidden.text;
 
   // 4. the call
-  const history = historyOf(earlier.map((m) => ({ role: m.role, content: m.content })).reverse());
+  const history = historyOf(earlier.map((m) => ({ role: m.role, content: m.content })).reverse(), local ? LOCAL_HISTORY : undefined);
+  const maxTokens = local ? Math.min(MAX_OUTPUT_TOKENS, LOCAL_MAX_OUTPUT_TOKENS) : MAX_OUTPUT_TOKENS;
   const messages: AiChatMessage[] = [...history, { role: "user", content: composeUserMessage(built.context, question) }];
   const view: SentView = {
-    model: settings.model,
-    maxTokens: MAX_OUTPUT_TOKENS,
+    model: choice.model,
+    maxTokens,
     system: SYSTEM_PROMPT,
     tools: [PROPOSE_TOOL.name],
     history,
     data: built.context,
     question,
   };
-  const provider = makeProvider({ apiKey, model: settings.model });
-  const completion = await provider.complete({ system: SYSTEM_PROMPT, messages, tools: [{ name: PROPOSE_TOOL.name, description: PROPOSE_TOOL.description, inputSchema: PROPOSE_TOOL.inputSchema as unknown as Record<string, unknown> }], maxTokens: MAX_OUTPUT_TOKENS });
+  const provider = makeProvider(choice.config);
+  const completion = await provider.complete({ system: SYSTEM_PROMPT, messages, tools: [{ name: PROPOSE_TOOL.name, description: PROPOSE_TOOL.description, inputSchema: PROPOSE_TOOL.inputSchema as unknown as Record<string, unknown> }], maxTokens });
 
   // 5. what is kept
   const prepared = await prepareProposals(orgId, built.refs, completion.toolCalls);

@@ -24,8 +24,11 @@ export interface ChatScreenProps {
   messages: MessageView[];
   conversations: ConversationItem[];
   spaces: { id: string; name: string }[];
+  /** The chosen model is ready (Claude: a key is saved; a local one: its address and name are). */
   hasKey: boolean;
   usage: UsageSummary;
+  /** A local model answers this assistant (`model` is its name, `relaxed` says the filter is loosened for it). */
+  local?: { model: string; relaxed: boolean } | null;
 }
 
 const QUICK = ["assistant.quick.week", "assistant.quick.late", "assistant.quick.redistribute", "assistant.quick.risks"] as const;
@@ -153,10 +156,17 @@ export function ChatScreen(props: ChatScreenProps) {
 
       {!props.hasKey ? (
         <p className="rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn" role="status" data-testid="ai-no-key">
-          {t("assistant.no_key_notice")}{" "}
+          {t(props.local ? "assistant.no_local_notice" : "assistant.no_key_notice")}{" "}
           <Link href="/owner/assistant/settings" className="underline">
             {t("assistant.settings_link")}
           </Link>
+        </p>
+      ) : null}
+
+      {props.local ? (
+        <p className="rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-sm leading-7 text-warn" role="note" data-testid="ai-local-note">
+          {t("localai.chat_note", { model: props.local.model })}
+          {props.local.relaxed ? ` ${t("localai.chat_note_relaxed")}` : ""}
         </p>
       ) : null}
 

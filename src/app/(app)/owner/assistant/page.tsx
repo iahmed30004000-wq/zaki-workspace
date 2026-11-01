@@ -6,6 +6,7 @@ import { AssistantError } from "@/server/ai/api";
 import { db } from "@/server/db";
 import { assistantAccess } from "@/server/services/owner-assistant-access";
 import { getConversation, listConversations } from "@/server/services/owner-assistant-chat";
+import { providerReady, relaxApplies } from "@/server/services/assistant-provider";
 import { getSettings, usageSummary } from "@/server/services/owner-assistant-settings";
 
 /**
@@ -27,7 +28,14 @@ export default async function OwnerAssistantPage({ searchParams }: { searchParam
     wanted ? getConversation(access, wanted).catch((err: unknown) => (err instanceof AssistantError ? null : Promise.reject(err))) : Promise.resolve(null),
   ]);
   const usage = await usageSummary(access.orgId, settings);
-  return <ChatScreen conversationId={opened?.id ?? null} title={opened?.title ?? ""} messages={opened?.messages ?? []} conversations={conversations} spaces={spaces} hasKey={settings.hasKey} usage={usage} />;
+  return <ChatScreen conversationId={opened?.id ?? null} title={opened?.title ?? ""} messages={opened?.messages ?? []} conversations={conversations} spaces={spaces} hasKey={providerReady(settings, "owner")} usage={usage} local={localOf(settings)} />;
+}
+
+/** What the screen needs to know when a local model answers («محلي» or the gateway): its name and whether the filter is loosened. */
+function localOf(settings: Awaited<ReturnType<typeof getSettings>>): { model: string; relaxed: boolean } | null {
+  if (settings.ownerProvider === "ollama") return { model: settings.localModel ?? "", relaxed: relaxApplies(settings, "ollama") };
+  if (settings.ownerProvider === "openai") return { model: settings.gatewayModel ?? "", relaxed: relaxApplies(settings, "openai") };
+  return null;
 }
 
 export const dynamic = "force-dynamic";
