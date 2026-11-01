@@ -14,8 +14,20 @@ import * as decideRoute from "@/app/api/manufacturing/counts/[id]/decide/route";
 import * as suppliersRoute from "@/app/api/manufacturing/suppliers/route";
 import * as supplierRoute from "@/app/api/manufacturing/suppliers/[id]/route";
 import * as csvRoute from "@/app/api/manufacturing/csv/route";
+import * as costLotRoute from "@/app/api/manufacturing/lots/[id]/cost/route";
+import * as recipesRoute from "@/app/api/manufacturing/recipes/route";
+import * as recipeRoute from "@/app/api/manufacturing/recipes/[id]/route";
+import * as recipeVersionsRoute from "@/app/api/manufacturing/recipes/[id]/versions/route";
+import * as ordersRoute from "@/app/api/manufacturing/orders/route";
+import * as orderIssueRoute from "@/app/api/manufacturing/orders/[id]/issue/route";
+import * as orderCompleteRoute from "@/app/api/manufacturing/orders/[id]/complete/route";
+import * as orderCancelRoute from "@/app/api/manufacturing/orders/[id]/cancel/route";
+import * as orderReturnRoute from "@/app/api/manufacturing/orders/[id]/return/route";
+import * as reportsRoute from "@/app/api/manufacturing/reports/route";
+import * as reportCsvRoute from "@/app/api/manufacturing/reports/csv/route";
 import { withFeature } from "@/lib/features";
 import type { MaterialDetail, MfgOverview } from "@/lib/manufacturing/view";
+import type { OrderItem, OrdersView, RecipesView } from "@/lib/manufacturing/production-view";
 import { call, db, makeTeam, makeUser, makeWorkspace, uid } from "./helpers";
 
 /**
@@ -119,3 +131,68 @@ export async function featureOff(orgId: string, on = false) {
 }
 
 export const micro = (units: number) => units * 1_000_000;
+
+// ───────────────────────────────────────── slice 2: a receipt without a price, recipes, production orders, reports ─────────────────────────────────────────
+
+/** «استلام بدون سعر»: the quantity enters the ledger, the price is filled once later. No price and no currency in the body. */
+export async function receiveUnpriced(materialId: string, over: Record<string, unknown> = {}) {
+  return call(receiveRoute.POST, { ...idOf(materialId), body: { qty: "10", receivedOn: day(), proofNote: "ما في صورة بهالمرة", ...over, unpriced: true } });
+}
+
+export const costLot = (lotId: string, over: Record<string, unknown> = {}) => call(costLotRoute.POST, { ...idOf(lotId), body: { unitCost: "2", currency: "JOD", ...over } });
+
+/** A priced receipt that must succeed (a buyer is logged in); returns the lot and the movement. */
+export async function receiveOk(materialId: string, over: Record<string, unknown> = {}) {
+  const res = await receive(materialId, over);
+  expect(res.status, JSON.stringify(res.json)).toBe(201);
+  return res.json as unknown as { lotId: string; movementId: string };
+}
+
+export async function receiveUnpricedOk(materialId: string, over: Record<string, unknown> = {}) {
+  const res = await receiveUnpriced(materialId, over);
+  expect(res.status, JSON.stringify(res.json)).toBe(201);
+  return res.json as unknown as { lotId: string; movementId: string };
+}
+
+export const recipesOf = async (spaceId: string) => (await call(recipesRoute.GET, { url: `http://localhost/api/manufacturing/recipes?spaceId=${spaceId}` })).json as unknown as RecipesView;
+export const ordersOf = async (spaceId: string) => (await call(ordersRoute.GET, { url: `http://localhost/api/manufacturing/orders?spaceId=${spaceId}` })).json as unknown as OrdersView;
+export const reportsOf = (spaceId: string, query = "") => call(reportsRoute.GET, { url: `http://localhost/api/manufacturing/reports?spaceId=${spaceId}${query}` });
+export const reportCsvOf = (spaceId: string, report: string, query = "") => call(reportCsvRoute.GET, { url: `http://localhost/api/manufacturing/reports/csv?spaceId=${spaceId}&report=${report}${query}` });
+
+export const recipeBody = (lines: Array<{ materialId: string; qty: string; unitId?: string | null }>, over: Record<string, unknown> = {}) => ({
+  name: `منتج ${uid()}`,
+  outputUnit: "علبة",
+  lines,
+  ...over,
+});
+
+export const createRecipe = (spaceId: string, lines: Array<{ materialId: string; qty: string; unitId?: string | null }>, over: Record<string, unknown> = {}) =>
+  call(recipesRoute.POST, { body: { spaceId, ...recipeBody(lines, over) } });
+
+export async function recipeOk(spaceId: string, lines: Array<{ materialId: string; qty: string; unitId?: string | null }>, over: Record<string, unknown> = {}) {
+  const res = await createRecipe(spaceId, lines, over);
+  expect(res.status, JSON.stringify(res.json)).toBe(201);
+  return res.json as unknown as { id: string; versionId: string };
+}
+
+export const newVersion = (recipeId: string, lines: Array<{ materialId: string; qty: string; unitId?: string | null }>, over: Record<string, unknown> = {}) =>
+  call(recipeVersionsRoute.POST, { ...idOf(recipeId), body: recipeBody(lines, over) });
+export const archiveRecipe = (recipeId: string, archived: boolean) => call(recipeRoute.PATCH, { method: "PATCH", ...idOf(recipeId), body: { archived } });
+
+export const createOrder = (spaceId: string, recipeId: string, qty: string, over: Record<string, unknown> = {}) => call(ordersRoute.POST, { body: { spaceId, recipeId, qty, ...over } });
+export async function orderOk(spaceId: string, recipeId: string, qty: string, over: Record<string, unknown> = {}) {
+  const res = await createOrder(spaceId, recipeId, qty, over);
+  expect(res.status, JSON.stringify(res.json)).toBe(201);
+  return res.json as unknown as OrderItem;
+}
+export const issueOrder = (orderId: string) => call(orderIssueRoute.POST, { ...idOf(orderId), body: {} });
+export const completeOrder = (orderId: string, body: Record<string, unknown> = { actualQty: "10" }) => call(orderCompleteRoute.POST, { ...idOf(orderId), body });
+export const cancelOrder = (orderId: string, reason = "ما بدنا ياه") => call(orderCancelRoute.POST, { ...idOf(orderId), body: { reason } });
+export const returnOrder = (orderId: string, reason = "غلط بالكمية") => call(orderReturnRoute.POST, { ...idOf(orderId), body: { reason } });
+
+/** The order as the orders screen reads it (by id). */
+export async function orderView(spaceId: string, orderId: string): Promise<OrderItem> {
+  const found = (await ordersOf(spaceId)).orders.find((o) => o.id === orderId);
+  if (!found) throw new Error("order not listed");
+  return found;
+}
