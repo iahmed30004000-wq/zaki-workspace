@@ -231,7 +231,7 @@ export function offeredActions(actor: ActorInfo, target: ContractMember): Offere
 
 // ---------------------------------------------------------------------------------- capabilities
 
-export type CapabilityGroupId = "people" | "customers" | "money" | "admin" | "board" | "development";
+export type CapabilityGroupId = "people" | "customers" | "money" | "admin" | "board" | "development" | "manufacturing";
 
 /**
  * The whole catalogue, grouped by the area of the product it touches (`archive.view` is owner-only and
@@ -249,6 +249,8 @@ export const CAPABILITY_GROUPS: readonly { id: CapabilityGroupId; capabilities: 
   { id: "board", capabilities: ["board.self", "board.team"] },
   // «الأداء والتطوير»: who sets the reporting lines and the skills checklist, and who enters skills, reviews and plans (both off for every rank)
   { id: "development", capabilities: ["people.manage_lines", "people.review"] },
+  // «مخزون التصنيع»: read the quantities, record movements and stocktakes, and (the owner's alone to hand out) see the costs
+  { id: "manufacturing", capabilities: ["manufacturing.view", "manufacturing.edit", "manufacturing.cost"] },
 ];
 
 /**
@@ -257,7 +259,7 @@ export const CAPABILITY_GROUPS: readonly { id: CapabilityGroupId; capabilities: 
  * give it to. Only switches that are offered: each later phase adds its own when it wires the
  * capability (cash and penalties come with the phases that use them).
  */
-export const SENSITIVE_CAPABILITIES: readonly Capability[] = ["users.manage", "integrations.manage", "prices.view", "board.team", "people.manage_lines", "people.review"];
+export const SENSITIVE_CAPABILITIES: readonly Capability[] = ["users.manage", "integrations.manage", "prices.view", "board.team", "people.manage_lines", "people.review", "manufacturing.cost"];
 
 /** Is this capability a switch the screen offers today? */
 export function isOffered(capability: Capability): boolean {

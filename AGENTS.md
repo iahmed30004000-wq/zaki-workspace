@@ -202,6 +202,12 @@ other way is a bug.
   gives the defaults, the owner switches single ones on or off (`OrganizationMember.capabilities`
   / `revokedCapabilities`). A guest holds none; `archive.view` is the owner's alone. Check with
   `requireActor()` + `assertCan(actor, "…")`, never by comparing a role name.
+- **The manufacturing stock ledger** («مخزون التصنيع», `src/server/services/manufacturing*.ts`) lives in a space of layout
+  `MANUFACTURING` and is gated by `manufacturing.view` / `.edit` / `.cost` plus a row in that space (the owner reads silently). It
+  records stock and cost only, never money movement, and nothing in it is linked to the OMS. A partner gets 404 for all of it. Any unit
+  cost, total, value or average is cut on the server unless the person holds `.cost` (the owner's alone to hand out). Quantities are
+  integer micro-units and money is integer minor units plus a currency code; the balance is the SUM of an append-only movement ledger
+  (a mistake is a reversing movement), and a stocktake difference needs a second person.
 - **A request is only as good as the database says it is.** Rank, status and capabilities are read
   on every request, never from the cookie. The cookie carries `tv` (the user's `tokenVersion`):
   suspending, offboarding, resetting a password, changing one's own password and "log out

@@ -287,7 +287,16 @@ export const PLACES: readonly PlaceDef[] = [
  * the person is in is a cards space (see `CARDS_SPACE_PLACES`). It is one page (/cards, and /cards/[id] belongs to it),
  * offered to everybody the space lets in: the cards service decides again, on the server, what each person reads.
  */
-export const CARDS_PLACE: PlaceDef = { key: "cards", href: "/cards", labelKey: "nav.place.cards", icon: "cards", requires: "everyone", tabs: [] };
+export const CARDS_PLACE: PlaceDef = {
+  key: "cards",
+  href: "/cards",
+  labelKey: "nav.place.cards",
+  icon: "cards",
+  requires: "everyone",
+  tabs: [],
+  // «مخزون التصنيع» is a tab INSIDE a manufacturing space (drawn by the cards page and its own pages), not a place of the menu
+  owns: ["/manufacturing"],
+};
 
 /**
  * What a cards space offers, after «اللوحات»: «الإدارة» only, with its own rules (a plain member sees «الفريق», a manager

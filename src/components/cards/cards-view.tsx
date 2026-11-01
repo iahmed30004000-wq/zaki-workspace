@@ -34,6 +34,7 @@ import { CardEditor, type CardPayload } from "./card-editor";
 import { CardToTaskDialog, SendCardDialog } from "./card-dialogs";
 import { cardErrorKey } from "./errors";
 import type { TileActions } from "./card-tile";
+import { MfgTabs } from "@/components/manufacturing/ui";
 
 interface CardList {
   cards: CardItem[];
@@ -52,6 +53,8 @@ export interface CardsViewProps {
   owner: boolean;
   /** The space's layout: «تصنيع» adds the line about the official ledger. */
   layout?: SpaceLayout;
+  /** A manufacturing space the person may also open «مخزون التصنيع» in: the two tabs are drawn above the cards. */
+  stockTab?: boolean;
 }
 
 /**
@@ -60,7 +63,7 @@ export interface CardsViewProps {
  * their menus. The cards are refetched when the window gets focus again, so a colleague's change shows up without a
  * live connection.
  */
-export function CardsView({ spaceId, spaceName, userId, initial, canWrite, owner, layout = "CARDS" }: CardsViewProps) {
+export function CardsView({ spaceId, spaceName, userId, initial, canWrite, owner, layout = "CARDS", stockTab = false }: CardsViewProps) {
   const ledgerNotice = layout === "MANUFACTURING";
   const { t } = useI18n();
   const { toast } = useToast();
@@ -214,6 +217,7 @@ export function CardsView({ spaceId, spaceName, userId, initial, canWrite, owner
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 px-4 py-4 md:px-6 md:py-6">
+      {stockTab ? <MfgTabs current="cards" /> : null}
       <header className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <h1 className="text-xl font-bold text-fg">{archivedView ? t("cards.archive_title") : t("cards.title")}</h1>
