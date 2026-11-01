@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "dbBackup"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -146,6 +146,12 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // /api/manufacturing answers «not found» for everybody, the owner included; everything stored stays and comes back with the switch.
   // ⚠️ It records stock and cost only: not accounting, no payment, nothing linked to the OMS. 🔧 Costs are shown only to «الكلفة» holders.
   mfgLedger: true,
+  // «نسخ احتياطي لقاعدة البيانات» (src/server/services/db-backup.ts): a daily copy of the WHOLE database, compressed and encrypted with
+  // ENCRYPTION_KEY, uploaded to the OWNER's Google Drive (folder «نسخ احتياطي»), the last 14 days and 4 older weeks kept. OFF until the owner
+  // turns it on. Off: the job runner makes no copy, the button, the settings and «تحقّق» answer «not found», and the card in «الأتمتة» only
+  // shows the history; the copies already on Drive stay. ⚠️ The copy holds customer data and every password hash. 🔧 Encrypted before it
+  // leaves the server, only on the owner's Drive, never without ENCRYPTION_KEY, and restoring is a manual act into a NEW database.
+  dbBackup: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {

@@ -305,7 +305,7 @@ other way is a bug.
   its webhook is enabled), production keeps deploying the way it did — check Coolify → Git
   Source before assuming which one is live. 🔧 The switch is the owner's, not a merge's.
 - The container runs `prisma migrate deploy` when it starts, then serves on port 3000.
-- Required environment: `DATABASE_URL`, `AUTH_SECRET`, `APP_URL`. Optional: `ENCRYPTION_KEY`,
+- Required environment: `DATABASE_URL`, `AUTH_SECRET`, `APP_URL`. Optional: `ENCRYPTION_KEY` (the ONLY key of the encrypted database backup to the owner's Drive, `dbBackup`: without it the backup refuses to run, a key derived from `AUTH_SECRET` is never used; keep a copy off the server),
   `UPLOAD_DIR` (the image sets it to `/app/storage/uploads`, which must be a persistent
   volume), `TRUSTED_PROXY_HOPS` (how many reverse proxies sit in front of the app, default 1;
   set it to 2 when a CDN sits in front of Traefik, never above the real number — the sign-in

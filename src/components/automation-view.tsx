@@ -56,7 +56,7 @@ interface DriveFile {
   link: string | null;
 }
 
-export function AutomationView({ ctx, doorCard = null }: { ctx: { orgRole: string }; doorCard?: ReactNode }) {
+export function AutomationView({ ctx, doorCard = null, backupCard = null }: { ctx: { orgRole: string }; doorCard?: ReactNode; backupCard?: ReactNode }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -410,6 +410,9 @@ x-zaki-signature: sha256=HMAC_SHA256(secret, "{timestamp}.{raw body}")`}
 
       {/* ---------------- «باب الربط الخارجي»: drawn only while the owner's switch is on, for whoever holds «integrations.manage» ---------------- */}
       {doorCard}
+
+      {/* ---------------- «نسخ احتياطي لقاعدة البيانات»: the OWNER's card alone (the server refuses everybody else) ---------------- */}
+      {backupCard}
     </div>
   );
 }

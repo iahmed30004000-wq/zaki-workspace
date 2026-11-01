@@ -5,6 +5,7 @@ import { autoStopTimers, type TimeEntriesRun } from "./time-entries";
 import { expireAiProposals, type AiProposalsRun } from "./ai-proposals";
 import { runCheckins, type CheckinsRun } from "./checkins";
 import { runTaskRules, type TaskRulesRun } from "./task-rules";
+import { runDueBackups, type BackupsRun } from "./db-backup";
 
 /**
  * Every background job of the app, in one place: `runDueJobs(now)` runs whatever is due at `now`.
@@ -25,12 +26,14 @@ export interface JobsRun {
   checkins: CheckinsRun | null;
   /** «القواعد التلقائية»: the «لما تتأخر» rules that acted on the tasks that fell due. */
   taskRules: TaskRulesRun | null;
+  /** «نسخ احتياطي لقاعدة البيانات»: the daily encrypted copy to the owner's Drive, started when its hour has come (it finishes in the background). */
+  backups: BackupsRun | null;
   /** The names of the jobs that threw. */
   failed: string[];
 }
 
 export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
-  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, failed: [] };
+  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, failed: [] };
   try {
     result.reminders = await fireDueReminders(now);
   } catch (err) {
@@ -66,6 +69,12 @@ export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
   } catch (err) {
     result.failed.push("taskRules");
     log.error("jobs.failed", { job: "taskRules", message: err instanceof Error ? err.message : String(err) });
+  }
+  try {
+    result.backups = await runDueBackups(now);
+  } catch (err) {
+    result.failed.push("backups");
+    log.error("jobs.failed", { job: "backups", message: err instanceof Error ? err.message : String(err) });
   }
   return result;
 }
