@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { CountCard } from "./mfg-view";
-import { EditMaterial, MoveForm, ReceiveForm, UnitsEditor } from "./stock-forms";
+import { CostLotForm, EditMaterial, MoveForm, ReceiveForm, UnitsEditor } from "./stock-forms";
 import { MfgTabs, Money, NotAccountingNote, Qty, SectionTitle, mfgErrorText, useCurrencyName } from "./ui";
 
 type Panel = "receive" | "issue" | "count" | "adjust" | "edit" | null;
@@ -42,7 +42,7 @@ export function MaterialPage({ initial }: { initial: MaterialDetail }) {
 
   return (
     <div className="mx-auto max-w-4xl space-y-5 p-4">
-      <MfgTabs current="stock" />
+      <MfgTabs current="stock" sub="materials" />
       <Link href="/manufacturing" className="inline-flex items-center gap-1 text-xs text-accent hover:underline">
         <ArrowRight className="size-3.5" aria-hidden />
         {t("mfg.back")}
@@ -81,6 +81,14 @@ export function MaterialPage({ initial }: { initial: MaterialDetail }) {
           </div>
         ) : null}
         {pending ? <p className="text-xs text-warn">⚠️ {t("mfg.pending_material")}</p> : null}
+        {detail.unpricedMicro > 0 ? (
+          <div role="note" className="rounded-lg border border-warn/40 bg-warn/10 p-2 text-sm">
+            <p className="font-medium text-fg">
+              ⚠️ {t("mfg.unpriced_stock", { qty: formatQty(detail.unpricedMicro), unit: detail.baseUnit })}
+            </p>
+            <p className="mt-1 text-fg-muted">🔧 {detail.canCost ? t("mfg.unpriced_stock_fix_cost") : t("mfg.unpriced_stock_fix")}</p>
+          </div>
+        ) : null}
       </section>
 
       {detail.canCost ? <AverageBox detail={detail} /> : <p className="text-xs text-fg-muted">{t("mfg.no_cost_note")}</p>}
@@ -90,11 +98,9 @@ export function MaterialPage({ initial }: { initial: MaterialDetail }) {
       {!detail.canEdit ? <p className="text-xs text-fg-muted">{t("mfg.read_only")}</p> : null}
       {detail.canEdit && !detail.archived ? (
         <div className="flex flex-wrap gap-2" role="group" aria-label={t("mfg.actions")}>
-          {detail.canCost ? (
-            <Button size="sm" variant={panel === "receive" ? "primary" : "secondary"} onClick={() => toggle("receive")} aria-expanded={panel === "receive"}>
-              {t("mfg.receive")}
-            </Button>
-          ) : null}
+          <Button size="sm" variant={panel === "receive" ? "primary" : "secondary"} onClick={() => toggle("receive")} aria-expanded={panel === "receive"}>
+            {detail.canCost ? t("mfg.receive") : t("mfg.receive_unpriced")}
+          </Button>
           <Button size="sm" variant={panel === "issue" ? "primary" : "secondary"} onClick={() => toggle("issue")} aria-expanded={panel === "issue"}>
             {t("mfg.issue")}
           </Button>
@@ -116,7 +122,7 @@ export function MaterialPage({ initial }: { initial: MaterialDetail }) {
         </Button>
       ) : null}
 
-      {panel === "receive" && detail.canCost ? <ReceiveForm detail={detail} onDone={done} /> : null}
+      {panel === "receive" ? <ReceiveForm detail={detail} onDone={done} /> : null}
       {panel === "issue" ? <MoveForm kind="issue" detail={detail} onDone={done} /> : null}
       {panel === "count" ? <MoveForm kind="count" detail={detail} onDone={done} /> : null}
       {panel === "adjust" ? <MoveForm kind="adjust" detail={detail} onDone={done} /> : null}
@@ -151,7 +157,7 @@ export function MaterialPage({ initial }: { initial: MaterialDetail }) {
         >
           {t("mfg.lots")}
         </SectionTitle>
-        {detail.lots.length === 0 ? <p className="text-sm text-fg-muted">{t("mfg.lots_none")}</p> : <ul className="grid gap-2">{detail.lots.map((l) => <LotRow key={l.id} lot={l} baseUnit={detail.baseUnit} />)}</ul>}
+        {detail.lots.length === 0 ? <p className="text-sm text-fg-muted">{t("mfg.lots_none")}</p> : <ul className="grid gap-2">{detail.lots.map((l) => <LotRow key={l.id} lot={l} baseUnit={detail.baseUnit} currency={detail.cost?.currency ?? null} onDone={() => router.refresh()} />)}</ul>}
       </section>
 
       <section className="space-y-2">
@@ -201,6 +207,11 @@ function AverageBox({ detail }: { detail: MaterialDetail }) {
           <p className="text-xs text-fg-muted">
             {t("mfg.value")}: <Money minor={cost.valueMinor} currency={cost.currency} />
           </p>
+          {detail.unpricedMicro > 0 ? (
+            <p className="text-xs text-warn">
+              ⚠️ {t("mfg.average_excludes", { qty: formatQty(detail.unpricedMicro), unit: detail.baseUnit })} · 🔧 {t("mfg.unpriced_stock_fix_cost")}
+            </p>
+          ) : null}
         </>
       ) : (
         <p className="text-xs text-fg-muted">{t("mfg.average_none")}</p>
@@ -209,8 +220,9 @@ function AverageBox({ detail }: { detail: MaterialDetail }) {
   );
 }
 
-function LotRow({ lot, baseUnit }: { lot: LotItem; baseUnit: string }) {
+function LotRow({ lot, baseUnit, currency, onDone }: { lot: LotItem; baseUnit: string; currency: string | null; onDone: () => void }) {
   const { t } = useI18n();
+  const [filling, setFilling] = React.useState(false);
   return (
     <li className="rounded-xl border border-border bg-surface-1 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -228,6 +240,22 @@ function LotRow({ lot, baseUnit }: { lot: LotItem; baseUnit: string }) {
         {lot.expiresOn ? <span className="text-xs text-fg-muted">{t("mfg.expires", { date: fmtDMY(lot.expiresOn) })}</span> : null}
         {lot.reversed ? <Badge className="border-danger/40 bg-danger/10 text-fg">{t("mfg.reversed")}</Badge> : null}
       </div>
+      {lot.costPending ? (
+        <div role="note" className="mt-1 rounded-lg border border-warn/40 bg-warn/10 p-2 text-xs">
+          <p className="font-medium text-fg">⚠️ {t("mfg.lot_unpriced")}</p>
+          <p className="mt-1 text-fg-muted">🔧 {lot.canFillCost ? t("mfg.lot_unpriced_fix_cost") : t("mfg.lot_unpriced_fix")}</p>
+          {lot.canFillCost ? (
+            filling ? (
+              <CostLotForm lotId={lot.id} unitLabel={lot.enteredUnitLabel} enteredQtyMicro={lot.enteredQtyMicro} fixedCurrency={currency} onDone={onDone} />
+            ) : (
+              <Button size="sm" variant="secondary" className="mt-2" onClick={() => setFilling(true)}>
+                {t("mfg.cost_fill")}
+              </Button>
+            )
+          ) : null}
+        </div>
+      ) : null}
+      {lot.costedLater ? <p className="mt-1 text-xs text-fg-muted">{t("mfg.costed_by", { who: lot.costedLater.by, when: fmtAgo(lot.costedLater.at) })}</p> : null}
       {lot.cost ? (
         <p className="mt-1 text-xs text-fg-muted">
           {t("mfg.lot_price", { unit: lot.enteredUnitLabel })}: <Money minor={lot.cost.unitCostMinor} currency={lot.cost.currency} /> · {t("mfg.lot_total")}: <Money minor={lot.cost.totalCostMinor} currency={lot.cost.currency} />

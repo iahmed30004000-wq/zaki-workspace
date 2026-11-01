@@ -59,6 +59,9 @@ import DocumentsPage from "@/app/(app)/documents/page";
 import DocumentRoute from "@/app/(app)/documents/[id]/page";
 import ManufacturingPage from "@/app/(app)/manufacturing/page";
 import MaterialRoute from "@/app/(app)/manufacturing/materials/[id]/page";
+import MfgRecipesRoute from "@/app/(app)/manufacturing/recipes/page";
+import MfgOrdersRoute from "@/app/(app)/manufacturing/orders/page";
+import MfgReportsRoute from "@/app/(app)/manufacturing/reports/page";
 import CrmPage from "@/app/(app)/crm/page";
 import AnalyticsPage from "@/app/(app)/analytics/page";
 import AutomationPage from "@/app/(app)/automation/page";
@@ -116,7 +119,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -204,6 +207,9 @@ const PAGES: Record<string, PageCall> = {
   "/documents/[id]": (args) => DocumentRoute({ params: idOf(args) }),
   "/manufacturing": () => ManufacturingPage(),
   "/manufacturing/materials/[id]": (args) => MaterialRoute({ params: idOf(args) }),
+  "/manufacturing/recipes": () => MfgRecipesRoute(),
+  "/manufacturing/orders": () => MfgOrdersRoute(),
+  "/manufacturing/reports": () => MfgReportsRoute({ searchParams: {} }),
   "/crm": () => CrmPage(),
   "/analytics": () => AnalyticsPage(),
   "/automation": () => AutomationPage(),

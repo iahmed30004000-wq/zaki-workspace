@@ -74,6 +74,8 @@ export function ReceiveForm({ detail, onDone }: { detail: MaterialDetail; onDone
   const [receivedOn, setReceivedOn] = React.useState("");
   const [expiresOn, setExpiresOn] = React.useState("");
   const [note, setNote] = React.useState("");
+  // «بدون سعر»: whoever holds no cost can only receive without one; a cost holder may choose to
+  const [unpriced, setUnpriced] = React.useState(!detail.canCost);
   const [proof, setProof] = React.useState<{ id: string; name: string } | null>(null);
   const [noProof, setNoProof] = React.useState(false);
   const [proofNote, setProofNote] = React.useState("");
@@ -94,7 +96,7 @@ export function ReceiveForm({ detail, onDone }: { detail: MaterialDetail; onDone
   const total = entered !== null && entered > 0n && unitCost !== null ? lineTotalMinor(entered, unitCost) : null;
   const qtyProblem = qty.trim() !== "" && (entered === null || entered <= 0n || base === null);
   const proofOk = proof !== null || (noProof && proofNote.trim().length >= 2);
-  const ready = base !== null && unitCost !== null && receivedOn !== "" && proofOk;
+  const ready = base !== null && (unpriced || unitCost !== null) && receivedOn !== "" && proofOk;
 
   async function pick(file: File | null | undefined) {
     if (!file) return;
@@ -122,8 +124,7 @@ export function ReceiveForm({ detail, onDone }: { detail: MaterialDetail; onDone
       await apiPost(`/api/manufacturing/materials/${detail.id}/receive`, {
         unitId: unitId || null,
         qty,
-        unitCost: price,
-        currency,
+        ...(unpriced ? { unpriced: true } : { unitCost: price, currency }),
         supplierId: supplierId || null,
         receivedOn,
         expiresOn: expiresOn || null,
@@ -131,7 +132,7 @@ export function ReceiveForm({ detail, onDone }: { detail: MaterialDetail; onDone
         proofFileId: proof?.id ?? null,
         proofNote: proof ? null : proofNote,
       });
-      toast(t("mfg.received"), "success");
+      toast(t(unpriced ? "mfg.received_unpriced" : "mfg.received"), "success");
       setQty("");
       setPrice("");
       setNote("");
@@ -153,19 +154,34 @@ export function ReceiveForm({ detail, onDone }: { detail: MaterialDetail; onDone
       <Field label={t("mfg.f.qty")}>
         <Input value={qty} inputMode="decimal" dir="ltr" onChange={(e) => setQty(e.target.value)} aria-invalid={qtyProblem} />
       </Field>
-      <Field label={t("mfg.f.price_per", { unit: unitLabel })}>
-        <Input value={price} inputMode="decimal" dir="ltr" onChange={(e) => setPrice(e.target.value)} aria-invalid={price.trim() !== "" && unitCost === null} />
-      </Field>
-      <Field label={t("mfg.f.currency")}>
-        <Select value={currency} disabled={fixedCurrency !== null} onChange={(e) => setCurrency(e.target.value)}>
-          {CURRENCY_CODES.map((code) => (
-            <option key={code} value={code}>
-              {currencyName(code)}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      {fixedCurrency ? <p className="text-xs text-fg-muted sm:col-span-2">{t("mfg.currency_fixed", { currency: currencyName(fixedCurrency) })}</p> : null}
+      {detail.canCost ? (
+        <label className="flex items-center gap-1.5 text-xs text-fg-muted sm:col-span-2">
+          <input type="checkbox" checked={unpriced} onChange={(e) => setUnpriced(e.target.checked)} />
+          {t("mfg.unpriced_choose")}
+        </label>
+      ) : null}
+      {unpriced ? (
+        <div role="note" className="rounded-lg border border-warn/40 bg-warn/10 p-2 text-sm text-fg sm:col-span-2">
+          <p className="font-medium">⚠️ {t("mfg.unpriced_warn")}</p>
+          <p className="mt-1 text-fg-muted">🔧 {t("mfg.unpriced_fix")}</p>
+        </div>
+      ) : (
+        <>
+          <Field label={t("mfg.f.price_per", { unit: unitLabel })}>
+            <Input value={price} inputMode="decimal" dir="ltr" onChange={(e) => setPrice(e.target.value)} aria-invalid={price.trim() !== "" && unitCost === null} />
+          </Field>
+          <Field label={t("mfg.f.currency")}>
+            <Select value={currency} disabled={fixedCurrency !== null} onChange={(e) => setCurrency(e.target.value)}>
+              {CURRENCY_CODES.map((code) => (
+                <option key={code} value={code}>
+                  {currencyName(code)}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          {fixedCurrency ? <p className="text-xs text-fg-muted sm:col-span-2">{t("mfg.currency_fixed", { currency: currencyName(fixedCurrency) })}</p> : null}
+        </>
+      )}
 
       <div aria-live="polite" className="rounded-lg border border-border bg-surface p-2 text-xs text-fg sm:col-span-2">
         {qtyProblem ? (
@@ -175,7 +191,7 @@ export function ReceiveForm({ detail, onDone }: { detail: MaterialDetail; onDone
             <p>
               {t("mfg.preview_base")}: <span dir="ltr">{formatQty(entered)}</span> {unitLabel} = <span dir="ltr">{formatQty(base)}</span> {detail.baseUnit}
             </p>
-            {total !== null && unitCost !== null ? (
+            {!unpriced && total !== null && unitCost !== null ? (
               <p>
                 {t("mfg.preview_total")}: <span dir="ltr">{formatQty(entered)}</span> × <span dir="ltr">{formatMinor(unitCost, currency)}</span> = <span dir="ltr">{formatMinor(total, currency)}</span> {currencyName(currency)}
               </p>
@@ -234,9 +250,73 @@ export function ReceiveForm({ detail, onDone }: { detail: MaterialDetail; onDone
 
       <div className="sm:col-span-2">
         <Button type="submit" disabled={busy || uploading || !ready}>
-          {t("mfg.receive_save")}
+          {t(unpriced ? "mfg.receive_unpriced_save" : "mfg.receive_save")}
         </Button>
       </div>
+    </form>
+  );
+}
+
+// ───────────────────────────────────────── the late price of a lot ─────────────────────────────────────────
+
+/**
+ * «حط السعر»: the price of a lot that was received without one, typed ONCE by a holder of the cost, for ONE of the lot's own unit. It is added as a
+ * new record: the lot itself is never changed, and the price cannot be edited afterwards (⚠️ shown with its 🔧).
+ */
+export function CostLotForm({ lotId, unitLabel, enteredQtyMicro, fixedCurrency, onDone }: { lotId: string; unitLabel: string; enteredQtyMicro: number; fixedCurrency: string | null; onDone: () => void }) {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const currencyName = useCurrencyName();
+  const [price, setPrice] = React.useState("");
+  const [currency, setCurrency] = React.useState(fixedCurrency ?? DEFAULT_CURRENCY);
+  const [busy, setBusy] = React.useState(false);
+  const unitCost = parseMinor(price, currency);
+  const total = unitCost !== null ? lineTotalMinor(BigInt(enteredQtyMicro), unitCost) : null;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || unitCost === null) return;
+    setBusy(true);
+    try {
+      await apiPost(`/api/manufacturing/lots/${lotId}/cost`, { unitCost: price, currency });
+      toast(t("mfg.costed"), "success");
+      onDone();
+    } catch (err) {
+      toast(mfgErrorText(t, err), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-2 grid gap-2 rounded-lg border border-border bg-surface p-2 sm:grid-cols-3" aria-label={t("mfg.cost_fill")}>
+      <Field label={t("mfg.f.price_per", { unit: unitLabel })}>
+        <Input value={price} inputMode="decimal" dir="ltr" onChange={(e) => setPrice(e.target.value)} aria-invalid={price.trim() !== "" && unitCost === null} />
+      </Field>
+      <Field label={t("mfg.f.currency")}>
+        <Select value={currency} disabled={fixedCurrency !== null} onChange={(e) => setCurrency(e.target.value)}>
+          {CURRENCY_CODES.map((code) => (
+            <option key={code} value={code}>
+              {currencyName(code)}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <div className="flex items-end">
+        <Button type="submit" size="sm" disabled={busy || unitCost === null}>
+          {t("mfg.cost_save")}
+        </Button>
+      </div>
+      <p aria-live="polite" className="text-xs text-fg-muted sm:col-span-3">
+        {total !== null && unitCost !== null ? (
+          <>
+            {t("mfg.preview_total")}: <span dir="ltr">{formatQty(enteredQtyMicro)}</span> × <span dir="ltr">{formatMinor(unitCost, currency)}</span> = <span dir="ltr">{formatMinor(total, currency)}</span> {currencyName(currency)}
+          </>
+        ) : (
+          t("mfg.cost_hint")
+        )}
+      </p>
+      <p className="text-xs text-warn sm:col-span-3">⚠️ {t("mfg.cost_once_warn")} · 🔧 {t("mfg.cost_once_fix")}</p>
     </form>
   );
 }

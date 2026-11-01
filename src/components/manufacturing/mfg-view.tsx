@@ -34,7 +34,7 @@ export function MfgView({ initial }: { initial: MfgOverview }) {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4">
-      <MfgTabs current="stock" />
+      <MfgTabs current="stock" sub="materials" />
       <header className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <h1 className="text-lg font-semibold">{t("mfg.title")}</h1>
@@ -109,6 +109,7 @@ function MaterialRow({ m }: { m: MaterialListItem }) {
             {m.code ? <span className="text-xs text-fg-muted">{m.code}</span> : null}
             {m.archived ? <Badge>{t("mfg.archived")}</Badge> : null}
             {m.pendingCount ? <Badge className="border-warn/40 bg-warn/10 text-fg">{t("mfg.count_waiting")}</Badge> : null}
+            {m.unpricedMicro > 0 ? <Badge className="border-warn/40 bg-warn/10 text-fg">⚠️ {t("mfg.unpriced_badge")}</Badge> : null}
           </span>
           {m.low ? (
             <span className="mt-1 block text-xs text-danger">

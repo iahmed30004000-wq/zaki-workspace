@@ -26,6 +26,8 @@ import type {
   SupplierItem,
 } from "@/lib/manufacturing/view";
 import { assertEdit, mfgScope, notFound, recordMfg, type MfgScope } from "./manufacturing-access";
+import { EMPTY_POSITION, effectiveCost, loadPosition, loadSpacePositions } from "./manufacturing-costing";
+import type { Position } from "@/lib/manufacturing/costing";
 
 /**
  * «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. The movements themselves (receive, issue,
@@ -105,26 +107,26 @@ export async function loadMaterial(actor: Actor, materialId: string) {
 
 type MaterialRow = Prisma.MaterialGetPayload<object>;
 
-/** Quantity and value of what is in stock for each material of a space: the SUM of the movements, nothing else. */
-async function balances(orgId: string, spaceId: string): Promise<Map<string, { qty: bigint; value: bigint }>> {
-  const groups = await db.materialMovement.groupBy({ by: ["materialId"], where: { orgId, workspaceId: spaceId }, _sum: { qtyMicro: true, valueMinor: true } });
-  return new Map(groups.map((g) => [g.materialId, { qty: g._sum.qtyMicro ?? 0n, value: g._sum.valueMinor ?? 0n }] as const));
-}
+/**
+ * The position of each material of a space: the balance is the SUM of the movements, the value is the movements' values plus the lots
+ * priced later, and the average is taken over the stock that has a price (a lot received without one is outside it until it is priced).
+ */
+const balances = loadSpacePositions;
 
-function costOf(scope: MfgScope, material: Pick<MaterialRow, "currency">, qty: bigint, value: bigint): MaterialCost | null {
+function costOf(scope: MfgScope, material: Pick<MaterialRow, "currency">, pos: Position): MaterialCost | null {
   if (!scope.canCost) return null;
   const currency = material.currency;
   return {
     currency,
-    valueMinor: num(value),
-    averageText: currency ? averageText(value, qty, currency) : null,
-    formula: currency ? averageFormula(value, qty, currency) : null,
+    valueMinor: num(pos.valueMinor),
+    averageText: currency ? averageText(pos.valueMinor, pos.pricedQtyMicro, currency) : null,
+    formula: currency ? averageFormula(pos.valueMinor, pos.pricedQtyMicro, currency) : null,
   };
 }
 
-function listItemOf(scope: MfgScope, m: MaterialRow, bal: { qty: bigint; value: bigint } | undefined, pending: ReadonlySet<string>): MaterialListItem {
-  const qty = bal?.qty ?? 0n;
-  const value = bal?.value ?? 0n;
+function listItemOf(scope: MfgScope, m: MaterialRow, bal: Position | undefined, pending: ReadonlySet<string>): MaterialListItem {
+  const pos = bal ?? EMPTY_POSITION;
+  const qty = pos.qtyMicro;
   return {
     id: m.id,
     name: m.name,
@@ -135,8 +137,15 @@ function listItemOf(scope: MfgScope, m: MaterialRow, bal: { qty: bigint; value: 
     low: m.archivedAt === null && isLow(qty, m.lowStockMicro),
     archived: m.archivedAt !== null,
     pendingCount: pending.has(m.id),
-    cost: costOf(scope, m, qty, value),
+    unpricedMicro: num(pos.unpricedQtyMicro),
+    cost: costOf(scope, m, pos),
   };
+}
+
+/** The price of a lot as the cost holder reads it: the one written with the receipt, or the one filled in later; none while the lot is pending. */
+function lotCost(l: Parameters<typeof effectiveCost>[0]): { currency: string; unitCostMinor: number; totalCostMinor: number } | null {
+  const cost = effectiveCost(l);
+  return cost ? { currency: cost.currency, unitCostMinor: num(cost.unitMinor), totalCostMinor: num(cost.totalMinor) } : null;
 }
 
 const supplierOf = (s: { id: string; name: string; note: string | null; archivedAt: Date | null }): SupplierItem => ({ id: s.id, name: s.name, note: s.note, archived: s.archivedAt !== null });
@@ -198,14 +207,14 @@ export async function readOverview(actor: Actor, spaceId: string): Promise<MfgOv
 /** One material with everything on its page: conversions, lots (with the proof), movements, stocktakes and the average with its formula. */
 export async function readMaterial(actor: Actor, materialId: string): Promise<MaterialDetail> {
   const { scope, row } = await loadMaterial(actor, materialId);
-  const [units, suppliers, lots, movements, counts, sums] = await Promise.all([
+  const [units, suppliers, lots, movements, counts, book] = await Promise.all([
     db.materialUnit.findMany({ where: { materialId }, orderBy: [{ archivedAt: { sort: "asc", nulls: "first" } }, { createdAt: "asc" }, { id: "asc" }] }),
     db.supplier.findMany({ where: { orgId: actor.orgId, workspaceId: row.workspaceId }, orderBy: [{ archivedAt: { sort: "asc", nulls: "first" } }, { name: "asc" }, { id: "asc" }], take: LIMITS.list }),
     db.materialLot.findMany({
       where: { materialId },
       orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }, { id: "asc" }],
       take: LIMITS.movements,
-      include: { supplier: { select: { id: true, name: true } }, createdBy: { select: { name: true } } },
+      include: { supplier: { select: { id: true, name: true } }, createdBy: { select: { name: true } }, costing: { include: { createdBy: { select: { name: true } } } } },
     }),
     db.materialMovement.findMany({
       where: { materialId },
@@ -214,10 +223,10 @@ export async function readMaterial(actor: Actor, materialId: string): Promise<Ma
       include: { createdBy: { select: { name: true } } },
     }),
     db.materialCount.findMany({ where: { materialId }, orderBy: { createdAt: "desc" }, take: 20, include: COUNT_INCLUDE }),
-    db.materialMovement.aggregate({ where: { materialId }, _sum: { qtyMicro: true, valueMinor: true } }),
+    loadPosition(db, materialId),
   ]);
-  const qty = sums._sum.qtyMicro ?? 0n;
-  const value = sums._sum.valueMinor ?? 0n;
+  const pos = book.position;
+  const qty = pos.qtyMicro;
   // which movements were reversed (by whom): the reversal points at its original
   const reversals = await db.materialMovement.findMany({ where: { materialId, reversesId: { not: null } }, select: { id: true, reversesId: true } });
   const reversedBy = new Map(reversals.map((r) => [r.reversesId as string, r.id] as const));
@@ -246,8 +255,11 @@ export async function readMaterial(actor: Actor, materialId: string): Promise<Ma
     proofNote: l.proofNote,
     createdBy: l.createdBy.name,
     createdAt: l.createdAt.toISOString(),
-    cost: scope.canCost ? { currency: l.currency, unitCostMinor: num(l.unitCostMinor), totalCostMinor: num(l.totalCostMinor) } : null,
+    cost: scope.canCost ? lotCost(l) : null,
     reversed: reversedLots.has(l.id),
+    costPending: l.costPending && !l.costing,
+    costedLater: l.costPending && l.costing ? { by: l.costing.createdBy.name, at: l.costing.createdAt.toISOString() } : null,
+    canFillCost: scope.canCost && l.costPending && !l.costing && !reversedLots.has(l.id),
   }));
 
   const movementItems: MovementItem[] = movements.map((m) => {
@@ -278,11 +290,12 @@ export async function readMaterial(actor: Actor, materialId: string): Promise<Ma
     low: row.archivedAt === null && isLow(qty, row.lowStockMicro),
     archived: row.archivedAt !== null,
     balanceMicro: num(qty),
+    unpricedMicro: num(pos.unpricedQtyMicro),
     units: units.map(unitOf),
     suppliers: suppliers.map(supplierOf),
     canEdit: scope.canEdit,
     canCost: scope.canCost,
-    cost: costOf(scope, row, qty, value),
+    cost: costOf(scope, row, pos),
     lots: lotItems,
     movements: movementItems,
     counts: counts.map((c) => countItemOf(scope, c)),

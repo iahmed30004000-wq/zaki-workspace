@@ -26,22 +26,55 @@ export function mfgErrorText(t: (key: string) => string, err: unknown): string {
  * The two tabs of a manufacturing space: «اللوحات» and «مخزون التصنيع». It is drawn only for a person who may open both (the page decides:
  * the viewer holds `manufacturing.view`, the feature is on, and it is a manufacturing space). It is not a place of the menu.
  */
-export function MfgTabs({ current }: { current: "cards" | "stock" }) {
+export function MfgTabs({ current, sub }: { current: "cards" | "stock"; sub?: MfgSub }) {
   const { t } = useI18n();
   const items = [
     { key: "cards", href: "/cards", label: t("nav.place.cards") },
     { key: "stock", href: "/manufacturing", label: t("nav.tab.mfg") },
   ] as const;
   return (
-    <nav aria-label={t("mfg.tabs_label")} className="flex shrink-0 gap-1 border-b border-border">
+    <div className="space-y-1">
+      <nav aria-label={t("mfg.tabs_label")} className="flex shrink-0 gap-1 border-b border-border">
+        {items.map((item) => (
+          <Link
+            key={item.key}
+            href={item.href}
+            aria-current={item.key === current ? "page" : undefined}
+            className={cn(
+              "inline-flex h-11 items-center whitespace-nowrap rounded-t-lg px-3 text-sm transition-colors",
+              item.key === current ? "border-b-2 border-accent font-semibold text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+            )}
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
+      {sub ? <MfgSubTabs current={sub} /> : null}
+    </div>
+  );
+}
+
+export type MfgSub = "materials" | "recipes" | "orders" | "reports";
+
+/** Inside «مخزون التصنيع»: المواد · وصفات · أوامر التصنيع · تقارير. Not places of the menu: tabs of this one area. */
+export function MfgSubTabs({ current }: { current: MfgSub }) {
+  const { t } = useI18n();
+  const items = [
+    { key: "materials", href: "/manufacturing", label: t("mfg.sub.materials") },
+    { key: "recipes", href: "/manufacturing/recipes", label: t("mfg.sub.recipes") },
+    { key: "orders", href: "/manufacturing/orders", label: t("mfg.sub.orders") },
+    { key: "reports", href: "/manufacturing/reports", label: t("mfg.sub.reports") },
+  ] as const;
+  return (
+    <nav aria-label={t("mfg.sub_label")} className="flex gap-1 overflow-x-auto">
       {items.map((item) => (
         <Link
           key={item.key}
           href={item.href}
           aria-current={item.key === current ? "page" : undefined}
           className={cn(
-            "inline-flex h-11 items-center whitespace-nowrap rounded-t-lg px-3 text-sm transition-colors",
-            item.key === current ? "border-b-2 border-accent font-semibold text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+            "inline-flex h-9 items-center whitespace-nowrap rounded-full px-3 text-sm transition-colors",
+            item.key === current ? "bg-accent/15 font-semibold text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
           )}
         >
           {item.label}

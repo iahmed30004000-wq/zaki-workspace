@@ -14,9 +14,9 @@ export interface MfgPerson {
 
 export interface MaterialCost {
   currency: string | null;
-  /** The value of what is in stock (the sum of the value of the movements), minor units. */
+  /** The value of what is in stock that HAS a price (the sum of the value of the movements, plus the lots priced later), minor units. */
   valueMinor: number;
-  /** The weighted average of one base unit, as the text to show (null while nothing is in stock). */
+  /** The weighted average of one base unit over the stock that has a price, as the text to show (null while nothing priced is in stock). */
   averageText: string | null;
   /** The formula box's three numbers, as texts to show (null while nothing is in stock). */
   formula: { value: string; qty: string; average: string } | null;
@@ -32,6 +32,8 @@ export interface MaterialListItem {
   low: boolean;
   archived: boolean;
   pendingCount: boolean;
+  /** Stock of lots received «بدون سعر» that still have no price (outside the average): a quantity, so everybody who reads sees it. */
+  unpricedMicro: number;
   cost: MaterialCost | null;
 }
 
@@ -100,9 +102,15 @@ export interface LotItem {
   proofNote: string | null;
   createdBy: string;
   createdAt: string;
-  /** Costs: null without `manufacturing.cost`. */
+  /** Costs: null without `manufacturing.cost`, and null while the lot is received without a price and still has none. */
   cost: { currency: string; unitCostMinor: number; totalCostMinor: number } | null;
   reversed: boolean;
+  /** Received «بدون سعر» and no price has been filled in yet: outside the average, and any cost that uses it is incomplete. */
+  costPending: boolean;
+  /** The price was filled in later (by whom and when; never the price itself). */
+  costedLater: { by: string; at: string } | null;
+  /** This viewer may fill the price now: holds `manufacturing.cost`, and the lot is still pending and not taken back. */
+  canFillCost: boolean;
 }
 
 export interface MovementItem {
@@ -132,6 +140,7 @@ export interface MaterialDetail {
   low: boolean;
   archived: boolean;
   balanceMicro: number;
+  unpricedMicro: number;
   units: MfgUnit[];
   suppliers: SupplierItem[];
   canEdit: boolean;

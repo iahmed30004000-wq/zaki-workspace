@@ -22,6 +22,7 @@ import {
 import type { CountItem } from "@/lib/manufacturing/view";
 import { assertCost, assertEdit, mfgScope, notFound, recordMfg, type MfgScope } from "./manufacturing-access";
 import { COUNT_INCLUDE, countItemOf, loadMaterial } from "./manufacturing";
+import { loadPosition } from "./manufacturing-costing";
 
 /**
  * «مخزون التصنيع» — the movements. One rule runs through all of them:
@@ -53,9 +54,11 @@ const unitId = z.string().min(1).max(64).nullable().optional();
 export const receiveSchema = z.object({
   unitId,
   qty: qtyText,
-  /** The price of ONE of the chosen unit, in major units of the currency, as typed. */
-  unitCost: z.string().trim().min(1, "mfg.e.cost").max(24, "mfg.e.cost"),
-  currency: z.string().trim().toUpperCase().refine(isCurrency, "mfg.e.currency"),
+  /** The price of ONE of the chosen unit, in major units of the currency, as typed. Absent only for a receipt «بدون سعر». */
+  unitCost: z.string().trim().min(1, "mfg.e.cost").max(24, "mfg.e.cost").nullable().optional(),
+  currency: z.string().trim().toUpperCase().refine(isCurrency, "mfg.e.currency").nullable().optional(),
+  /** «استلام بدون سعر»: the quantity enters the ledger now, the price is filled once later by a holder of `manufacturing.cost`. */
+  unpriced: z.boolean().optional(),
   supplierId: z.string().min(1).max(64).nullable().optional(),
   receivedOn: day,
   expiresOn: day.nullable().optional(),
@@ -68,6 +71,12 @@ export const receiveSchema = z.object({
 
 export const issueSchema = z.object({ unitId, qty: qtyText, reason });
 export const adjustSchema = z.object({ unitId, qty: qtyText, reason });
+/** The late price of a lot received without one: the price of ONE of the lot's own entered unit, and the currency. */
+export const costLotSchema = z.object({
+  unitCost: z.string().trim().min(1, "mfg.e.cost").max(24, "mfg.e.cost"),
+  currency: z.string().trim().toUpperCase().refine(isCurrency, "mfg.e.currency"),
+  note: z.string().trim().max(LIMITS.note, "mfg.e.note").nullable().optional(),
+});
 export const reverseSchema = z.object({ reason });
 export const countSchema = z.object({ unitId, qty: qtyText, note: z.string().trim().max(LIMITS.note, "mfg.e.note").nullable().optional() });
 export const decideSchema = z.object({ decision: z.enum(["approve", "reject"]), note: z.string().trim().max(LIMITS.reason, "mfg.e.reason").nullable().optional() });
@@ -80,9 +89,14 @@ async function lockMaterial(tx: Tx, materialId: string) {
   return tx.material.findUniqueOrThrow({ where: { id: materialId } });
 }
 
-async function balanceIn(tx: Tx, materialId: string): Promise<{ qty: bigint; value: bigint }> {
-  const sum = await tx.materialMovement.aggregate({ where: { materialId }, _sum: { qtyMicro: true, valueMinor: true } });
-  return { qty: sum._sum.qtyMicro ?? 0n, value: sum._sum.valueMinor ?? 0n };
+/**
+ * The book of a material at this moment, read under its row lock. `qty` is the balance (every movement); `value` is the value of the stock
+ * that HAS a price (the movements' values plus the lots priced later); `pricedQty` is what the average is taken over, the balance less the
+ * stock of lots received without a price. With no such lot, `pricedQty` equals `qty` and `value` is the plain sum, as in slice 1.
+ */
+async function balanceIn(tx: Tx, materialId: string): Promise<{ qty: bigint; value: bigint; pricedQty: bigint; lastPriced: { qtyMicro: bigint; totalCostMinor: bigint } | null }> {
+  const { position, lastPriced } = await loadPosition(tx, materialId);
+  return { qty: position.qtyMicro, value: position.valueMinor, pricedQty: position.pricedQtyMicro, lastPriced };
 }
 
 /** The unit a quantity was typed in: the base unit (null) or one of the material's active conversions. */
@@ -107,10 +121,6 @@ function assertOpen(material: { archivedAt: Date | null }): void {
   if (material.archivedAt) throw invalid("materialId", "mfg.e.archived");
 }
 
-async function lastLot(tx: Tx, materialId: string) {
-  return tx.materialLot.findFirst({ where: { materialId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { qtyMicro: true, totalCostMinor: true } });
-}
-
 /** A day typed in the form (a date, no time) as the UTC midnight the `@db.Date` column keeps. */
 const dayDate = (text: string): Date => new Date(`${text}T00:00:00.000Z`);
 
@@ -130,20 +140,34 @@ async function assertProofFile(tx: Tx, actor: Actor, fileId: string): Promise<vo
 /**
  * A stock receipt: one LOT and one RECEIVE movement, in one transaction. The quantity is typed in the base unit or one of the material's
  * conversions and is stored exactly in base units; the price is the price of ONE typed unit, and the total is rounded half-up once. The
- * proof (a photo, or the reason there is none) is required. Needs `manufacturing.edit` AND `manufacturing.cost` (it records a price).
+ * proof (a photo, or the reason there is none) is required. A PRICED receipt needs `manufacturing.edit` AND `manufacturing.cost` (it records a price).
+ *
+ * «استلام بدون سعر» (`unpriced`): the storekeeper who holds no cost receives anyway. The lot is written with its price UNSET (a flagged lot:
+ * both amounts 0 and `costPending`), the quantity enters the ledger at value 0, and a holder of `manufacturing.cost` fills the price once
+ * later (`costLot`, an appended row: the lot is never updated). Until then the lot is outside the weighted average and any cost that uses it is incomplete.
  */
 export async function receiveStock(actor: Actor, materialId: string, input: z.infer<typeof receiveSchema>): Promise<{ lotId: string; movementId: string }> {
   const { scope, row } = await loadMaterial(actor, materialId);
   assertEdit(scope);
-  assertCost(scope);
+  const unpriced = input.unpriced === true;
+  if (unpriced && (input.unitCost || input.currency)) throw invalid("unitCost", "mfg.e.unpriced_has_cost");
+  if (!unpriced) assertCost(scope);
   assertOpen(row);
   const conversion = await unitFor(materialId, row.baseUnit, input.unitId);
   const { entered, base } = baseQty(input.qty, conversion);
   if (base < 0n) throw invalid("qty", "mfg.e.qty");
-  const unitCost = parseMinor(input.unitCost, input.currency);
-  if (unitCost === null) throw invalid("unitCost", "mfg.e.cost");
-  const total = lineTotalMinor(entered, unitCost);
-  if (total > MAX_TOTAL_MINOR) throw invalid("unitCost", "mfg.e.cost_big");
+  let unitCost = 0n;
+  let total = 0n;
+  let currency: string | null = null;
+  if (!unpriced) {
+    if (!input.currency) throw invalid("currency", "mfg.e.currency");
+    currency = input.currency;
+    const parsed = input.unitCost ? parseMinor(input.unitCost, currency) : null;
+    if (parsed === null) throw invalid("unitCost", "mfg.e.cost");
+    unitCost = parsed;
+    total = lineTotalMinor(entered, unitCost);
+    if (total > MAX_TOTAL_MINOR) throw invalid("unitCost", "mfg.e.cost_big");
+  }
   const todayPlusOne = new Date(Date.now() + 24 * 3600 * 1000).toISOString().slice(0, 10);
   if (input.receivedOn > todayPlusOne) throw invalid("receivedOn", "mfg.e.date_future");
   if (input.expiresOn && input.expiresOn < input.receivedOn) throw invalid("expiresOn", "mfg.e.expiry");
@@ -157,12 +181,12 @@ export async function receiveStock(actor: Actor, materialId: string, input: z.in
   const made = await db.$transaction(async (tx) => {
     const material = await lockMaterial(tx, materialId);
     assertOpen(material);
-    // one currency per material: the first receipt fixes it, so the weighted average is of one kind of money
-    if (material.currency && material.currency !== input.currency) throw invalid("currency", "mfg.e.currency_mismatch");
+    // one currency per material: the first PRICED receipt (or the first late price) fixes it, so the weighted average is of one kind of money
+    if (currency && material.currency && material.currency !== currency) throw invalid("currency", "mfg.e.currency_mismatch");
     const bal = await balanceIn(tx, materialId);
     if (bal.qty + base > MAX_BALANCE_MICRO) throw invalid("qty", "mfg.e.qty_big");
     if (input.proofFileId) await assertProofFile(tx, actor, input.proofFileId);
-    if (!material.currency) await tx.material.update({ where: { id: materialId }, data: { currency: input.currency } });
+    if (currency && !material.currency) await tx.material.update({ where: { id: materialId }, data: { currency } });
     const lot = await tx.materialLot.create({
       data: {
         orgId: actor.orgId,
@@ -176,7 +200,9 @@ export async function receiveStock(actor: Actor, materialId: string, input: z.in
         enteredUnitLabel: conversion.label,
         unitCostMinor: unitCost,
         totalCostMinor: total,
-        currency: input.currency,
+        // an unpriced lot carries the material's currency, or the placeholder XXX («no currency») while the material has none yet
+        currency: currency ?? material.currency ?? "XXX",
+        costPending: unpriced,
         proofFileId: input.proofFileId ?? null,
         proofNote,
         note: input.note && input.note.length > 0 ? input.note : null,
@@ -190,8 +216,52 @@ export async function receiveStock(actor: Actor, materialId: string, input: z.in
     });
     return { lotId: lot.id, movementId: movement.id };
   });
-  await recordMfg(actor, row.workspaceId, "received", made.movementId, { material: row.name, qtyMicro: num(base), proof: input.proofFileId ? "photo" : "note" });
+  await recordMfg(actor, row.workspaceId, unpriced ? "received_unpriced" : "received", made.movementId, { material: row.name, qtyMicro: num(base), proof: input.proofFileId ? "photo" : "note" });
   return made;
+}
+
+/**
+ * «تسعير دفعة»: the price of a lot that was received without one, filled ONCE by a holder of `manufacturing.cost`. It is a new
+ * MaterialCosting row (unique per lot, written once, never changed): the lot stays exactly as it was. The price is of ONE of the lot's own
+ * entered unit; the total is rounded half-up once. From then on the lot is inside the weighted average, and every order cost that used it is complete.
+ * ⚠️ It cannot be undone or edited. 🔧 A wrong price is a reason to ask the owner: the row is history like the lot.
+ */
+export async function costLot(actor: Actor, lotId: string, input: z.infer<typeof costLotSchema>): Promise<{ costingId: string }> {
+  const lot = await db.materialLot.findFirst({ where: { id: lotId, orgId: actor.orgId }, select: { id: true, materialId: true, workspaceId: true, enteredQtyMicro: true, costPending: true } });
+  if (!lot) throw notFound();
+  const scope = await mfgScope(actor, lot.workspaceId);
+  assertCost(scope);
+  const unitCost = parseMinor(input.unitCost, input.currency);
+  if (unitCost === null) throw invalid("unitCost", "mfg.e.cost");
+  const total = lineTotalMinor(lot.enteredQtyMicro, unitCost);
+  if (total > MAX_TOTAL_MINOR) throw invalid("unitCost", "mfg.e.cost_big");
+  const made = await db.$transaction(async (tx) => {
+    const material = await lockMaterial(tx, lot.materialId);
+    assertOpen(material);
+    const fresh = await tx.materialLot.findUniqueOrThrow({ where: { id: lot.id }, select: { costPending: true, costing: { select: { id: true } } } });
+    if (!fresh.costPending || fresh.costing) throw invalid("lotId", "mfg.e.costing_not_pending");
+    const receipt = await tx.materialMovement.findFirst({ where: { lotId: lot.id, kind: "RECEIVE" }, select: { id: true } });
+    if (receipt && (await tx.materialMovement.findFirst({ where: { reversesId: receipt.id }, select: { id: true } }))) throw invalid("lotId", "mfg.e.costing_reversed");
+    if (material.currency && material.currency !== input.currency) throw invalid("currency", "mfg.e.currency_mismatch");
+    if (!material.currency) await tx.material.update({ where: { id: material.id }, data: { currency: input.currency } });
+    return tx.materialCosting.create({
+      data: {
+        orgId: actor.orgId,
+        workspaceId: lot.workspaceId,
+        materialId: lot.materialId,
+        lotId: lot.id,
+        unitCostMinor: unitCost,
+        totalCostMinor: total,
+        currency: input.currency,
+        note: input.note && input.note.length > 0 ? input.note : null,
+        createdById: actor.userId,
+      },
+      select: { id: true },
+    });
+  });
+  // the log says which lot, never the price (the log is read by people who may not hold the cost)
+  await recordMfg(actor, lot.workspaceId, "lot_costed", lot.id, { materialId: lot.materialId });
+  return { costingId: made.id };
 }
 
 // ───────────────────────────────────────── issue and adjust ─────────────────────────────────────────
@@ -200,7 +270,9 @@ export async function receiveStock(actor: Actor, materialId: string, input: z.in
 async function writeOut(tx: Tx, scope: MfgScope, materialId: string, kind: "ISSUE" | "ADJUST", out: bigint, why: string) {
   const bal = await balanceIn(tx, materialId);
   if (out > bal.qty) throw invalid("qty", "mfg.e.insufficient");
-  const value = valueOfOut(out, bal.qty, bal.value);
+  // a plain issue is valued at the average of the PRICED stock, so it comes out of priced stock only (a lot without a price is used by an order, which says so)
+  if (out > bal.pricedQty) throw invalid("qty", "mfg.e.insufficient_priced");
+  const value = valueOfOut(out, bal.pricedQty, bal.value);
   return tx.materialMovement.create({
     data: { orgId: scope.actor.orgId, workspaceId: scope.spaceId, materialId, kind, qtyMicro: -out, valueMinor: -value, reason: why, createdById: scope.actor.userId },
     select: { id: true },
@@ -239,7 +311,7 @@ export async function adjustStock(actor: Actor, materialId: string, input: z.inf
     if (base < 0n) return writeOut(tx, scope, materialId, "ADJUST", -base, input.reason);
     const bal = await balanceIn(tx, materialId);
     if (bal.qty + base > MAX_BALANCE_MICRO) throw invalid("qty", "mfg.e.qty_big");
-    const value = valueOfIn(base, bal.qty, bal.value, await lastLot(tx, materialId));
+    const value = valueOfIn(base, bal.pricedQty, bal.value, bal.lastPriced);
     return tx.materialMovement.create({
       data: { orgId: actor.orgId, workspaceId: row.workspaceId, materialId, kind: "ADJUST", qtyMicro: base, valueMinor: value, reason: input.reason, createdById: actor.userId },
       select: { id: true },
@@ -265,8 +337,15 @@ export async function reverseMovement(actor: Actor, movementId: string, input: z
   const made = await db.$transaction(async (tx) => {
     await lockMaterial(tx, original.materialId);
     if (await tx.materialMovement.findFirst({ where: { reversesId: original.id }, select: { id: true } })) throw invalid("movementId", "mfg.e.already_reversed");
+    // what a production order took (or returned) goes back through the order, which keeps its own books
+    if (await tx.productionOrderMovement.findFirst({ where: { movementId: original.id }, select: { id: true } })) throw invalid("movementId", "mfg.e.reverse_order");
     const bal = await balanceIn(tx, original.materialId);
     if (bal.qty - original.qtyMicro < 0n) throw invalid("movementId", "mfg.e.reverse_negative");
+    // taking a receipt back must not leave its LOT short (an order may have used some of it, even when other lots keep the balance up)
+    if (original.kind === "RECEIVE" && original.lotId) {
+      const lotSum = await tx.materialMovement.aggregate({ where: { lotId: original.lotId }, _sum: { qtyMicro: true } });
+      if ((lotSum._sum.qtyMicro ?? 0n) - original.qtyMicro < 0n) throw invalid("movementId", "mfg.e.reverse_negative");
+    }
     return tx.materialMovement.create({
       data: {
         orgId: actor.orgId,
@@ -351,7 +430,8 @@ export async function decideCount(actor: Actor, countId: string, input: z.infer<
       const bal = await balanceIn(tx, count.materialId);
       if (bal.qty !== fresh.expectedQtyMicro) throw invalid("countId", "mfg.e.count_stale");
       const diff = fresh.countedQtyMicro - bal.qty;
-      const value = diff < 0n ? valueOfOut(-diff, bal.qty, bal.value) : valueOfIn(diff, bal.qty, bal.value, await lastLot(tx, count.materialId));
+      if (diff < 0n && -diff > bal.pricedQty) throw invalid("countId", "mfg.e.insufficient_priced");
+      const value = diff < 0n ? valueOfOut(-diff, bal.pricedQty, bal.value) : valueOfIn(diff, bal.pricedQty, bal.value, bal.lastPriced);
       await tx.materialMovement.create({
         data: {
           orgId: actor.orgId,
