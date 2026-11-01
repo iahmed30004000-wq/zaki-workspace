@@ -224,6 +224,11 @@ function grantsLibrary(row: { connected: boolean; config: unknown } | null, conf
   return typeof scope === "string" && scope.split(" ").includes(DRIVE_FILE_SCOPE);
 }
 
+/** Drive can take a file from the app now: connected, configured and the grant includes `drive.file` (the database backup needs this, not the library's switch). */
+export async function driveCanStore(orgId: string): Promise<boolean> {
+  return grantsLibrary(await getIntegration(orgId, "GOOGLE_DRIVE"), Boolean(await googleApp(orgId)));
+}
+
 /** New library files go to Drive: the grant allows it and «الميزات» → «المكتبة على Google Drive» is on. */
 export async function libraryOnDrive(orgId: string): Promise<boolean> {
   return grantsLibrary(await getIntegration(orgId, "GOOGLE_DRIVE"), Boolean(await googleApp(orgId))) && (await isFeatureOn(orgId, "libraryDrive"));
