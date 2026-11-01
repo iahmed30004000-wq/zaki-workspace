@@ -39,6 +39,8 @@ const PAGES: [string, string][] = [
   ["/ideas", "ideas"],
   ["/cards", "cards"],
   ["/cards/ckabc123", "card"],
+  ["/manufacturing", "manufacturing"],
+  ["/manufacturing/materials/ckabc123", "manufacturing-material"],
   ["/production", "production"],
   ["/departments", "departments"],
   ["/tickets", "tickets"],
