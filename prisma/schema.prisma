@@ -1904,6 +1904,21 @@ model AiSettings {
   allowNames         Boolean  @default(false)
   // «اسمح بعناوين المهام بعد التنقية»: off, no task or space title ever leaves the server
   allowTitles        Boolean  @default(false)
+  // «نموذج محلي»: which model each assistant talks to - "claude" (the owner's key, above), "ollama" (a service on his own server) or
+  // "openai" (an OpenAI-compatible gateway at an internal address). The addresses are judged by src/server/ai/local-host.ts when saved
+  // AND on every call. `gatewayKeyCipher` is the gateway's optional Bearer key, encrypted and write-only like `keyCipher`.
+  // `gatewayConfirmedLocal` is the owner's confirmation that the model behind the gateway is local (reset when the address changes);
+  // `localRelaxRedaction` relaxes the privacy filter for a local provider only (and for the gateway only with the confirmation).
+  ownerProvider         String   @default("claude")
+  chatProvider          String   @default("claude")
+  localBaseUrl          String?
+  localModel            String?
+  gatewayBaseUrl        String?
+  gatewayModel          String?
+  gatewayKeyCipher      String?
+  gatewayKeyLast4       String?
+  gatewayConfirmedLocal Boolean  @default(false)
+  localRelaxRedaction   Boolean  @default(false)
   updatedAt          DateTime @updatedAt
 }
 

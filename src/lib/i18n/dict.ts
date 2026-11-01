@@ -54,6 +54,7 @@ import okr from "./ar.okr.json";
 import apiDoor from "./ar.api-door.json";
 import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
+import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
 
 /**
@@ -121,4 +122,5 @@ export const AR: Record<string, string> = {
   ...apiDoor,
   ...spaceLibrary,
   ...manufacturing,
+  ...localModel,
 };

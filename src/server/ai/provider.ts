@@ -26,6 +26,14 @@ export function isValidModelId(id: unknown): id is string {
   return typeof id === "string" && /^[A-Za-z0-9][A-Za-z0-9._:-]{2,79}$/.test(id);
 }
 
+/**
+ * A LOCAL model's name (Ollama): the same token, plus «/» for a registry path (`hf.co/user/model:Q4_K_M`). It goes into the JSON body of
+ * a POST and never into a URL; «..», a leading dot or slash and an empty segment are refused anyway.
+ */
+export function isValidLocalModelId(id: unknown): id is string {
+  return typeof id === "string" && /^[A-Za-z0-9][A-Za-z0-9._:/-]{2,119}$/.test(id) && !id.includes("..") && !id.includes("//") && !id.endsWith("/");
+}
+
 export type AiRole = "user" | "assistant";
 
 export interface AiChatMessage {
@@ -73,7 +81,13 @@ export type AiErrorKey =
   | "assistant.err_timeout"
   | "assistant.err_network"
   | "assistant.err_aborted"
-  | "assistant.err_bad_answer";
+  | "assistant.err_bad_answer"
+  // the local model (src/server/ai/local-provider.ts)
+  | "assistant.err_local_busy"
+  | "assistant.err_local_down"
+  | "assistant.err_local_missing"
+  | "assistant.err_local_timeout"
+  | "assistant.err_local_host";
 
 export class AiProviderError extends Error {
   constructor(readonly key: AiErrorKey) {

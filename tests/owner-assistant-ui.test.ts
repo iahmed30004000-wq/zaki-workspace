@@ -23,6 +23,7 @@ import { ProposalCard } from "@/components/owner-assistant/proposal-card";
 import { SettingsForm } from "@/components/owner-assistant/settings-form";
 import type { ProposalView } from "@/server/services/owner-assistant-proposals";
 import type { MessageView } from "@/server/services/owner-assistant-chat";
+import type { PublicSettings } from "@/server/services/owner-assistant-settings";
 import { PALETTE_COLOUR, PHYSICAL_UTILITY, classTokens, render, textOf } from "./ui-render";
 
 const ROOT = path.resolve(__dirname, "..");
@@ -188,7 +189,25 @@ describe("the proposal card", () => {
 });
 
 describe("the settings screen", () => {
-  const settings = { hasKey: false, keyLast4: null as string | null, model: "claude-sonnet-5-5", dailyLimit: 50, monthlyTokenBudget: 2_000_000, allowNames: false, allowTitles: false };
+  const settings: PublicSettings = {
+    hasKey: false,
+    keyLast4: null,
+    model: "claude-sonnet-5-5",
+    dailyLimit: 50,
+    monthlyTokenBudget: 2_000_000,
+    allowNames: false,
+    allowTitles: false,
+    ownerProvider: "claude",
+    chatProvider: "claude",
+    localBaseUrl: null,
+    localModel: null,
+    gatewayBaseUrl: null,
+    gatewayModel: null,
+    hasGatewayKey: false,
+    gatewayKeyLast4: null,
+    gatewayConfirmedLocal: false,
+    localRelaxRedaction: false,
+  };
   const form = (over: Partial<typeof settings> = {}) => render(createElement(SettingsForm, { settings: { ...settings, ...over }, usage, models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"] }));
 
   it("no key yet: a masked, empty field and «ما في مفتاح محفوظ»", () => {
@@ -206,8 +225,10 @@ describe("the settings screen", () => {
     expect(textOf(markup)).toContain("مفتاح محفوظ ••••4321");
     expect(textOf(markup)).toContain("تغيير المفتاح");
     expect(textOf(markup)).toContain("احذف المفتاح");
-    expect(markup).not.toContain('type="password"');
+    // the Claude key has no field once it is saved; the ONLY password field left is the gateway's own optional key («نموذج محلي»)
     expect(markup).not.toContain('data-testid="ai-key-input"');
+    expect(markup.match(/type="password"/g) ?? []).toHaveLength(1);
+    expect(markup).toContain('data-testid="ai-gateway-key-input"');
   });
 
   it("the defaults: sonnet, 50 messages a day, 2,000,000 tokens a month, both privacy switches off with the ⚠️ + 🔧 pair on titles", () => {
@@ -277,7 +298,7 @@ describe("the gates, pinned in the source (where a database test cannot see them
   const pages = filesUnder(path.join(ROOT, "src/app/(app)/owner/assistant"), (n) => n === "page.tsx");
 
   it("every route and page decides access through assistantAccess and nothing else, and every route answers through withAssistantApi", () => {
-    expect(routes.length).toBe(7);
+    expect(routes.length).toBe(9); // the seven of the assistant + the local model's «اختبر الاتصال» and the gateway's key
     expect(pages.length).toBe(2);
     for (const file of [...routes, ...pages]) {
       const src = read(path.relative(ROOT, file));
@@ -289,14 +310,16 @@ describe("the gates, pinned in the source (where a database test cannot see them
 
   it("the cipher is read in ONE place (the settings service): not by a route, a page, a component or any other service", () => {
     const offenders = filesUnder(path.join(ROOT, "src"), (n) => /\.(ts|tsx)$/.test(n))
-      .filter((f) => /keyCipher/.test(code(f)))
+      .filter((f) => /keyCipher/i.test(code(f)))
       .map((f) => path.relative(ROOT, f).replace(/\\/g, "/"));
     expect(offenders).toEqual(["src/server/services/owner-assistant-settings.ts"]);
     // and that service selects it only in `readKey` (never in a public read)
     const settings = code(path.join(ROOT, "src/server/services/owner-assistant-settings.ts"));
-    expect(settings).toMatch(/PUBLIC_COLUMNS = \{ keyLast4: true/);
-    expect(settings).not.toMatch(/PUBLIC_COLUMNS[^;]*keyCipher/);
-    expect(settings.match(/keyCipher: true/g) ?? []).toHaveLength(1);
+    expect(settings).toMatch(/PUBLIC_COLUMNS = \{\s*keyLast4: true/);
+    expect(settings).not.toMatch(/PUBLIC_COLUMNS[^;]*keyCipher/i);
+    expect(settings.match(/(?<![A-Za-z])keyCipher: true/g) ?? []).toHaveLength(1);
+    // the gateway's key is held the same way: selected once, in `readGatewayKey`, never in a public read
+    expect(settings.match(/gatewayKeyCipher: true/g) ?? []).toHaveLength(1);
   });
 
   it("the key reaches no log line, no audit row and no error: nothing of the assistant logs or audits a value", () => {
