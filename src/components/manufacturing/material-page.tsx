@@ -7,14 +7,14 @@ import { ArrowRight, Download, FileText } from "lucide-react";
 import { apiPost } from "@/lib/api-client";
 import { fmtAgo, fmtDMY } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { LIMITS, displayIn, formatQty } from "@/lib/manufacturing/shared";
+import { LIMITS, displayIn, formatMinor, formatQty } from "@/lib/manufacturing/shared";
 import type { LotItem, MaterialDetail, MovementItem } from "@/lib/manufacturing/view";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { CountCard } from "./mfg-view";
-import { CostLotForm, EditMaterial, MoveForm, ReceiveForm, UnitsEditor } from "./stock-forms";
+import { CorrectPriceForm, CostLotForm, EditMaterial, MoveForm, ReceiveForm, UnitsEditor } from "./stock-forms";
 import { MfgTabs, Money, NotAccountingNote, Qty, SectionTitle, mfgErrorText, useCurrencyName } from "./ui";
 
 type Panel = "receive" | "issue" | "count" | "adjust" | "edit" | null;
@@ -223,6 +223,7 @@ function AverageBox({ detail }: { detail: MaterialDetail }) {
 function LotRow({ lot, baseUnit, currency, onDone }: { lot: LotItem; baseUnit: string; currency: string | null; onDone: () => void }) {
   const { t } = useI18n();
   const [filling, setFilling] = React.useState(false);
+  const [correcting, setCorrecting] = React.useState(false);
   return (
     <li className="rounded-xl border border-border bg-surface-1 p-3 text-sm">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -256,10 +257,49 @@ function LotRow({ lot, baseUnit, currency, onDone }: { lot: LotItem; baseUnit: s
         </div>
       ) : null}
       {lot.costedLater ? <p className="mt-1 text-xs text-fg-muted">{t("mfg.costed_by", { who: lot.costedLater.by, when: fmtAgo(lot.costedLater.at) })}</p> : null}
+      {lot.correctionCount > 0 ? <p className="mt-1 text-xs text-warn">⚠️ {t("mfg.price_corrections_count", { n: lot.correctionCount })}</p> : null}
       {lot.cost ? (
         <p className="mt-1 text-xs text-fg-muted">
           {t("mfg.lot_price", { unit: lot.enteredUnitLabel })}: <Money minor={lot.cost.unitCostMinor} currency={lot.cost.currency} /> · {t("mfg.lot_total")}: <Money minor={lot.cost.totalCostMinor} currency={lot.cost.currency} />
         </p>
+      ) : null}
+      {lot.canCorrectPrice && lot.cost ? (
+        <div className="mt-1">
+          {correcting ? (
+            <CorrectPriceForm lotId={lot.id} unitLabel={lot.enteredUnitLabel} enteredQtyMicro={lot.enteredQtyMicro} currency={lot.cost.currency} onDone={onDone} />
+          ) : (
+            <Button size="sm" variant="secondary" onClick={() => setCorrecting(true)}>
+              {t("mfg.price_correct")}
+            </Button>
+          )}
+        </div>
+      ) : null}
+      {lot.priceHistory.length > 1 ? (
+        <details className="mt-2 text-xs">
+          <summary className="cursor-pointer text-accent">{t("mfg.price_history")}</summary>
+          <ul className="mt-2 grid gap-1">
+            {lot.priceHistory.map((step) => (
+              <li key={step.seq} className="rounded-lg border border-border bg-surface p-2">
+                <p className="flex flex-wrap items-center gap-x-2">
+                  <span className="font-medium text-fg">{step.seq === 0 ? t("mfg.price_first") : t("mfg.price_correction_n", { n: step.seq })}</span>
+                  {step.current ? <Badge>{t("mfg.price_current")}</Badge> : null}
+                  <span dir="ltr">{formatMinor(step.unitCostMinor, step.currency)}</span>
+                  <span className="text-fg-muted">
+                    {t("mfg.lot_total")}: <span dir="ltr">{formatMinor(step.totalCostMinor, step.currency)}</span>
+                  </span>
+                </p>
+                {step.reason ? (
+                  <p className="mt-1 text-fg-muted">
+                    {t("mfg.price_reason")}: {step.reason}
+                  </p>
+                ) : null}
+                <p className="mt-1 text-fg-muted">
+                  {t("mfg.by", { who: step.by })} · {fmtAgo(step.at)}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </details>
       ) : null}
       {lot.note ? <p className="mt-1 text-xs text-fg-muted">{lot.note}</p> : null}
       <div className="mt-2 text-xs">

@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plus, Trash2 } from "lucide-react";
 import { apiPatch, apiPost } from "@/lib/api-client";
@@ -98,6 +99,20 @@ function RecipeCard({ recipe, canEdit, editing, view, onEdit, onDone }: { recipe
   const [busy, setBusy] = React.useState(false);
   const cur = recipe.current;
 
+  async function stock() {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await apiPost(`/api/manufacturing/recipes/${recipe.id}/finished-stock`, {});
+      toast(t("mfg.finished_done"), "success");
+      onDone();
+    } catch (err) {
+      toast(mfgErrorText(t, err), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function archive() {
     if (busy) return;
     setBusy(true);
@@ -132,6 +147,21 @@ function RecipeCard({ recipe, canEdit, editing, view, onEdit, onDone }: { recipe
         ) : null}
       </div>
       <VersionLines version={cur} />
+      {recipe.finished ? (
+        <p className="mt-2 text-xs text-fg-muted">
+          {t("mfg.finished_linked", { name: recipe.finished.name })}{" "}
+          <Link href={`/manufacturing/materials/${recipe.finished.materialId}`} className="text-accent hover:underline">
+            {t("mfg.finished_open")}
+          </Link>
+        </p>
+      ) : recipe.canStock ? (
+        <div className="mt-2 space-y-1">
+          <Button size="sm" variant="secondary" disabled={busy} onClick={() => void stock()}>
+            {t("mfg.finished_on")}
+          </Button>
+          <p className="text-xs text-fg-muted">{t("mfg.finished_on_hint")}</p>
+        </div>
+      ) : null}
       {cur.note ? <p className="mt-1 text-xs text-fg-muted">{cur.note}</p> : null}
       <p className="mt-1 text-xs text-fg-muted">
         {t("mfg.by", { who: cur.createdBy })} · {fmtAgo(cur.createdAt)}

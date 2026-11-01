@@ -46,6 +46,10 @@ export interface RecipeItem {
   current: RecipeVersionItem;
   /** Every version, newest first (the older ones stay readable; an order keeps the version it was made from). */
   versions: RecipeVersionItem[];
+  /** The finished item this recipe keeps in stock (a material of the space), or null while it keeps none. */
+  finished: { materialId: string; name: string } | null;
+  /** This viewer may start keeping the finished item in stock: holds `manufacturing.edit`, the recipe is open and keeps none yet. */
+  canStock: boolean;
 }
 
 /** A material as the recipe form offers it: its units, to type a line in any of them. */
@@ -114,6 +118,17 @@ export interface OrderCostTotal {
 export interface OrderCost {
   totals: OrderCostTotal[];
   lines: OrderCostLine[];
+  /** The order is COMPLETED and its cost was frozen: it is exactly what it was at completion, whatever happens to the lots' prices afterwards. */
+  frozen: boolean;
+}
+
+/** What a completed order put into stock as finished goods: a quantity and whether its price is still missing (never the price itself). */
+export interface OrderFinished {
+  materialId: string;
+  materialName: string;
+  qtyMicro: number;
+  /** Received «بدون سعر» because the order's cost was not complete: a holder of the cost prices the lot from the material's page. */
+  costPending: boolean;
 }
 
 export interface OrderItem {
@@ -144,6 +159,12 @@ export interface OrderItem {
   canComplete: boolean;
   canCancel: boolean;
   canReturn: boolean;
+  /** Slice 3: the plan of a DRAFT (quantity, recipe, note) may still change, by a holder of `manufacturing.edit`. */
+  canEditDraft: boolean;
+  /** The order's recipe keeps its finished item in stock: completing the order puts the real output there. */
+  recipeStocked: boolean;
+  /** The finished goods the order put into stock (a completed order of a recipe that keeps stock); null otherwise. */
+  finished: OrderFinished | null;
 }
 
 export interface OrdersView {
@@ -153,7 +174,7 @@ export interface OrdersView {
   canCost: boolean;
   orders: OrderItem[];
   /** The recipes a new order can be made from (not archived), with their newest version. */
-  recipes: { id: string; name: string; outputUnit: string; version: number }[];
+  recipes: { id: string; name: string; outputUnit: string; version: number; stocked: boolean }[];
 }
 
 // ───────────────────────────────────────── reports ─────────────────────────────────────────

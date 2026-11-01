@@ -241,6 +241,87 @@ export function costOfPieces(pieces: readonly CostPiece[]): OrderCost {
   return { complete, byCurrency };
 }
 
+// ───────────────────────────────────────── shares of the cost: the largest-remainder method ─────────────────────────────────────────
+
+/**
+ * Splits `total` (a whole number of minor units) over pieces whose exact amounts are `exacts`, so that the shares ARE whole numbers and ADD UP TO
+ * `total` to the last minor unit. Every piece first gets its exact amount rounded DOWN; the units still missing (`total` less the sum of those)
+ * go one each to the pieces with the LARGEST fractional remainders. Ties are broken by position (the earlier piece first), so the same input
+ * always gives the same shares. The caller passes the pieces in a fixed order. `total` must be the exact sum rounded to a whole number: it can then
+ * be missing at most one unit per piece that has a remainder.
+ */
+export function largestRemainder(exacts: readonly Frac[], total: bigint): bigint[] {
+  const floors = exacts.map((f) => f.n / f.d);
+  const rems = exacts.map((f) => f.n % f.d);
+  let missing = total - floors.reduce((sum, v) => sum + v, 0n);
+  const withRemainder = rems.filter((r) => r > 0n).length;
+  if (missing < 0n || missing > BigInt(withRemainder)) throw new RangeError("mfg.shares_total");
+  const order = exacts
+    .map((f, i) => ({ i, rem: rems[i] ?? 0n, d: f.d }))
+    .filter((x) => x.rem > 0n)
+    // the larger remainder (rem / d) first: compare by cross-multiplying, ties by position
+    .sort((a, b) => {
+      const left = a.rem * b.d;
+      const right = b.rem * a.d;
+      return left === right ? a.i - b.i : left > right ? -1 : 1;
+    });
+  const shares = [...floors];
+  for (const x of order) {
+    if (missing === 0n) break;
+    shares[x.i] = (shares[x.i] ?? 0n) + 1n;
+    missing -= 1n;
+  }
+  return shares;
+}
+
+/** What one piece of an order carries once the cost is split: its share of the total in minor units, or nothing when it has no price. */
+export interface PieceShare {
+  priced: boolean;
+  currency: string | null;
+  shareMinor: bigint;
+}
+
+/**
+ * The cost of an order AND each piece's share of it, in the order the pieces are given. The total per currency is exactly what `costOfPieces` says
+ * (the exact sum rounded half-up ONCE); the shares of the priced pieces of a currency add up to that total exactly (largest remainder), so a screen
+ * that lists the pieces never disagrees with the total by a minor unit. A piece without a price has no share and makes the cost incomplete.
+ */
+export function costWithShares(pieces: readonly CostPiece[]): { cost: OrderCost; shares: PieceShare[] } {
+  const cost = costOfPieces(pieces);
+  const shares: PieceShare[] = pieces.map(() => ({ priced: true, currency: null, shareMinor: 0n }));
+  const byCurrency = new Map<string, { index: number; exact: Frac }[]>();
+  pieces.forEach((piece, index) => {
+    if (piece.qtyMicro <= 0n) return;
+    let amount: Frac | null = null;
+    if (piece.lot) amount = piece.lot.totalMinor === null ? null : frac(piece.qtyMicro * piece.lot.totalMinor, piece.lot.qtyMicro);
+    else amount = piece.valueMinor > 0n ? frac(piece.valueMinor) : null;
+    if (amount === null || piece.currency === null) {
+      shares[index] = { priced: false, currency: piece.currency, shareMinor: 0n };
+      return;
+    }
+    shares[index] = { priced: true, currency: piece.currency, shareMinor: 0n };
+    byCurrency.set(piece.currency, [...(byCurrency.get(piece.currency) ?? []), { index, exact: amount }]);
+  });
+  for (const total of cost.byCurrency) {
+    const group = byCurrency.get(total.currency) ?? [];
+    const split = largestRemainder(group.map((g) => g.exact), total.totalMinor);
+    group.forEach((g, k) => {
+      shares[g.index] = { priced: true, currency: total.currency, shareMinor: split[k] ?? 0n };
+    });
+  }
+  return { cost, shares };
+}
+
+/**
+ * The finished goods an order puts into stock when it is completed: ONE lot of `outputMicro` that carries the order's WHOLE cost (so what leaves
+ * stock as materials enters it as the product, to the minor unit), and a unit cost of `total ÷ output` = the price of ONE output unit in minor units.
+ * That unit cost is the one rounding here: half-up, once, a display of the total, never multiplied back to a total.
+ */
+export function finishedLotCost(totalMinor: bigint, outputMicro: bigint): { totalMinor: bigint; unitCostMinor: bigint } {
+  if (outputMicro <= 0n || totalMinor < 0n) throw new RangeError("mfg.finished_cost");
+  return { totalMinor, unitCostMinor: divRound(totalMinor * MICRO, outputMicro) };
+}
+
 /**
  * The cost of ONE output unit: the exact sum divided by the real output (micro-units of the output unit), as text with six decimals more
  * than the currency's own (a sticker costs a fraction of a fils), rounded half-up once. Null without output.

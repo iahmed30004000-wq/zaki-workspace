@@ -95,6 +95,9 @@ const lot = (over: Record<string, unknown> = {}) => ({
   costPending: true,
   costedLater: null,
   canFillCost: false,
+  correctionCount: 0,
+  priceHistory: [],
+  canCorrectPrice: false,
   ...over,
 });
 const showCost = { currency: "JOD", valueMinor: 1_000, averageText: "0.020", formula: { value: "1.000", qty: "50", average: "0.020" } };
@@ -174,6 +177,8 @@ const recipesView = (over: Partial<RecipesView> = {}): RecipesView => ({
           lines: [{ id: "l0", materialId: "m1", materialName: "طحين", baseUnit: "غرام", qtyMicro: 25_000_000, enteredQtyMicro: 25_000_000, enteredUnitLabel: "غرام", materialArchived: false }],
         },
       ],
+      finished: null,
+      canStock: false,
     },
   ],
   materials: [{ id: "m1", name: "طحين", baseUnit: "غرام", units: [] }],
@@ -236,9 +241,12 @@ const order = (over: Partial<OrderItem> = {}): OrderItem => ({
   canComplete: false,
   canCancel: true,
   canReturn: false,
+  canEditDraft: true,
+  recipeStocked: false,
+  finished: null,
   ...over,
 });
-const ordersView = (orders: OrderItem[], over: Partial<OrdersView> = {}): OrdersView => ({ spaceId: "s1", spaceName: "المصنع", canEdit: true, canCost: false, orders, recipes: [{ id: "r1", name: "برطمان كريم", outputUnit: "برطمان", version: 2 }], ...over });
+const ordersView = (orders: OrderItem[], over: Partial<OrdersView> = {}): OrdersView => ({ spaceId: "s1", spaceName: "المصنع", canEdit: true, canCost: false, orders, recipes: [{ id: "r1", name: "برطمان كريم", outputUnit: "برطمان", version: 2, stocked: false }], ...over });
 
 describe("production orders", () => {
   it("a draft shows what it needs and has, and the issue step says it moves stock by itself, with its fix", () => {
@@ -284,6 +292,7 @@ describe("production orders", () => {
           ],
         },
       ],
+      frozen: false,
     };
     const done = order({ status: "COMPLETED", actualMicro: 5_000_000, canIssue: false, canCancel: false, cost, costIncomplete: true });
     const text = textOf(wrap(createElement(OrdersPage, { initial: ordersView([done], { canCost: true }) })));
@@ -403,6 +412,9 @@ describe("it is wired in, and only where it should be", () => {
       "orders/[id]/complete",
       "orders/[id]/cancel",
       "orders/[id]/return",
+      "orders/[id]",
+      "lots/[id]/correct",
+      "recipes/[id]/finished-stock",
       "reports",
       "reports/csv",
     ];
@@ -415,7 +427,7 @@ describe("it is wired in, and only where it should be", () => {
   });
 
   it("nothing in the slice is linked to the OMS: no import of it, no outgoing request", () => {
-    for (const file of ["manufacturing-costing.ts", "manufacturing-production.ts", "manufacturing-reports.ts"]) {
+    for (const file of ["manufacturing-costing.ts", "manufacturing-production.ts", "manufacturing-reports.ts", "manufacturing-order-cost.ts"]) {
       const source = read(`src/server/services/${file}`);
       expect(source, file).not.toMatch(/\bfetch\(|webhook|oms|salesflow/i);
     }
@@ -424,5 +436,89 @@ describe("it is wired in, and only where it should be", () => {
   it("no money or arithmetic on floats: the pure files use bigint and never Number() on an amount", () => {
     const source = read("src/lib/manufacturing/costing.ts");
     expect(source).not.toMatch(/parseFloat|toFixed|Math\.round|Number\(/);
+  });
+});
+
+// ───────────────────────────────────────── slice 3 ─────────────────────────────────────────
+
+const step = (over: Record<string, unknown> = {}) => ({ seq: 0, unitCostMinor: 20, totalCostMinor: 2_000, currency: "JOD", by: "سمير", at: new Date().toISOString(), reason: null, current: false, ...over });
+
+describe("a wrong late price", () => {
+  it("a cost holder gets «صحّح السعر» and the history with every reason; nobody else gets the button or a price, only that it was corrected", () => {
+    const priced = lot({ costPending: false, cost: { currency: "JOD", unitCostMinor: 40, totalCostMinor: 4_000 }, costedLater: { by: "سمير", at: new Date().toISOString() }, correctionCount: 1, canCorrectPrice: true, priceHistory: [step(), step({ seq: 1, unitCostMinor: 40, totalCostMinor: 4_000, reason: "الفاتورة غير", current: true })] });
+    const buyer = wrap(createElement(MaterialPage, { initial: detail({ canCost: true, cost: showCost, lots: [priced] }) }));
+    expect(buyer).toContain(`>${t("mfg.price_correct")}</button>`);
+    const text = textOf(buyer);
+    expect(text).toContain(t("mfg.price_history"));
+    expect(text).toContain(t("mfg.price_first"));
+    expect(text).toContain(t("mfg.price_correction_n").replace("{n}", "1"));
+    expect(text).toContain("الفاتورة غير");
+    expect(text).toContain(t("mfg.price_current"));
+    // the keeper: a count, no button, no history, no price
+    const keeper = wrap(createElement(MaterialPage, { initial: detail({ lots: [{ ...priced, cost: null, canCorrectPrice: false, priceHistory: [] }] }) }));
+    expect(keeper).not.toContain(`>${t("mfg.price_correct")}</button>`);
+    expect(textOf(keeper)).toContain(t("mfg.price_corrections_count").replace("{n}", "1"));
+    expect(textOf(keeper)).not.toContain("الفاتورة غير");
+    expect(textOf(keeper)).not.toContain(t("mfg.price_history"));
+  });
+
+  it("the correction form asks for the reason, says the past is not re-priced (⚠️ with its 🔧), and every string is Arabic", () => {
+    for (const key of ["mfg.price_correct", "mfg.price_correct_warn", "mfg.price_correct_fix", "mfg.f.correct_reason", "mfg.price_correct_save", "mfg.e.correction_same", "mfg.e.correction_not_priced", "mfg.order_cost_frozen_warn", "mfg.order_cost_frozen_fix"]) {
+      expect(AR[key], key).toMatch(/[؀-ۿ]/);
+    }
+    const source = read("src/components/manufacturing/stock-forms.tsx");
+    expect(source).toContain("mfg.price_correct_warn");
+    expect(source).toContain("mfg.price_correct_fix");
+    expect(source).toContain("mfg.f.correct_reason");
+  });
+});
+
+describe("a draft order can be edited", () => {
+  it("only a draft offers «عدّل المسودة», and only to somebody who may edit", () => {
+    const draft = wrap(createElement(OrdersPage, { initial: ordersView([order()]) }));
+    expect(draft).toContain(`>${t("mfg.order_edit")}</button>`);
+    const issued = wrap(createElement(OrdersPage, { initial: ordersView([order({ status: "ISSUED", canIssue: false, canCancel: false, canComplete: true, canReturn: true, canEditDraft: false })]) }));
+    expect(issued).not.toContain(`>${t("mfg.order_edit")}</button>`);
+    const viewer = wrap(createElement(OrdersPage, { initial: ordersView([order({ canIssue: false, canCancel: false, canEditDraft: false })], { canEdit: false }) }));
+    expect(viewer).not.toContain(`>${t("mfg.order_edit")}</button>`);
+  });
+});
+
+describe("finished goods", () => {
+  it("a recipe that keeps no finished stock offers the button; one that does names the material and links to it", () => {
+    const base = recipesView();
+    const open = wrap(createElement(RecipesPage, { initial: { ...base, recipes: [{ ...base.recipes[0]!, canStock: true }] } }));
+    expect(open).toContain(`>${t("mfg.finished_on")}</button>`);
+    expect(textOf(open)).toContain(t("mfg.finished_on_hint"));
+    const linked = wrap(createElement(RecipesPage, { initial: { ...base, recipes: [{ ...base.recipes[0]!, finished: { materialId: "m9", name: "برطمان كريم" }, canStock: false }] } }));
+    expect(linked).not.toContain(`>${t("mfg.finished_on")}</button>`);
+    expect(linked).toContain('href="/manufacturing/materials/m9"');
+    // a viewer has no button
+    const viewer = wrap(createElement(RecipesPage, { initial: { ...base, canEdit: false, recipes: [{ ...base.recipes[0]!, canStock: false }] } }));
+    expect(viewer).not.toContain(`>${t("mfg.finished_on")}</button>`);
+  });
+
+  it("a completed order says where its output went, and warns when the lot waits for a price (⚠️ with its 🔧); a frozen cost says the past is not re-priced", () => {
+    const done = order({ status: "COMPLETED", actualMicro: 5_000_000, canIssue: false, canCancel: false, canEditDraft: false, recipeStocked: true, finished: { materialId: "m9", materialName: "برطمان كريم", qtyMicro: 5_000_000, costPending: true } });
+    const text = textOf(wrap(createElement(OrdersPage, { initial: ordersView([done]) })));
+    expect(text).toContain(t("mfg.order_finished_in").replace("{qty}", "5").replace("{name}", "برطمان كريم"));
+    expect(text).toContain(`⚠️ ${t("mfg.order_finished_pending")}`);
+    expect(text).toContain(`🔧 ${t("mfg.order_finished_pending_fix")}`);
+    expect(text).toContain(`⚠️ ${t("mfg.order_finished_warn")}`);
+    expect(text).toContain(`🔧 ${t("mfg.order_finished_fix")}`);
+    // a person without the cost never reads a price here, only the quantity and the flag
+    expect(text).not.toMatch(/JOD|دينار/);
+    const frozen = order({
+      status: "COMPLETED",
+      actualMicro: 5_000_000,
+      canIssue: false,
+      canCancel: false,
+      canEditDraft: false,
+      cost: { totals: [{ currency: "JOD", totalMinor: 1_000, perUnitText: "0.200" }], lines: [{ materialName: "طحين", baseUnit: "غرام", currency: "JOD", qtyMicro: 50_000_000, pieces: [{ lotReceivedOn: "2026-10-30", qtyMicro: 50_000_000, unitText: "0.020", amountMinor: 1_000 }] }], frozen: true },
+    });
+    const seen = textOf(wrap(createElement(OrdersPage, { initial: ordersView([frozen], { canCost: true }) })));
+    expect(seen).toContain(`⚠️ ${t("mfg.order_cost_frozen_warn")}`);
+    expect(seen).toContain(`🔧 ${t("mfg.order_cost_frozen_fix")}`);
+    expect(seen).toContain(t("mfg.order_cost_frozen"));
   });
 });

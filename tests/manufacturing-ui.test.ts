@@ -188,6 +188,9 @@ describe("one material", () => {
       costPending: false,
       costedLater: null,
       canFillCost: false,
+      correctionCount: 0,
+      priceHistory: [],
+      canCorrectPrice: false,
       ...over,
     });
     const flagged = textOf(wrap(createElement(MaterialPage, { initial: detail({ lots: [lot({})] }) })));

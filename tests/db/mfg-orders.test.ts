@@ -208,9 +208,10 @@ describe("issuing the materials", () => {
     expect((await completeOrder(order.id, { actualQty: "1" })).status).toBe(200);
     await loginAs(w.buyer.id);
     const seen = await orderView(w.space.id, order.id);
-    // 12.5 + 12.5 = 25 exactly (rounding each piece first would say 26)
+    // 12.5 + 12.5 = 25 exactly (rounding each piece first would say 26); the pieces are split by the largest remainder so they add up to the 25 too:
+    // equal remainders go to the earlier piece (slice 3 - before it, the two pieces showed 13 + 13 = 26 under a total of 25)
     expect(seen.cost?.totals).toEqual([{ currency: "JOD", totalMinor: 25, perUnitText: "0.025" }]);
-    expect(seen.cost?.lines.map((l) => l.pieces[0]?.amountMinor)).toEqual([13, 13]);
+    expect(seen.cost?.lines.map((l) => l.pieces[0]?.amountMinor)).toEqual([13, 12]);
   });
 });
 
@@ -344,15 +345,19 @@ describe("the database keeps the order honest", () => {
     const order = await orderOk(w.space.id, p.recipe, "2");
     const row = () => db.productionOrder.findUniqueOrThrow({ where: { id: order.id } });
     await expect(db.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", actualQtyMicro: 1n, finishedAt: new Date(), finishedById: w.keeper.id } })).rejects.toThrow(/cannot go from/);
-    await expect(db.productionOrder.update({ where: { id: order.id }, data: { plannedQtyMicro: 1n } })).rejects.toThrow(/keeps its plan/);
+    // the identity never changes; the plan changes only while the order is a DRAFT (slice 3: mfg-order-edit.test.ts), so it is refused after the issue below
+    await expect(db.productionOrder.update({ where: { id: order.id }, data: { workspaceId: w.general.id } })).rejects.toThrow(/keeps its plan/);
     await expect(db.productionOrder.update({ where: { id: order.id }, data: { status: "WHATEVER" } })).rejects.toThrow();
     await expect(db.productionOrder.delete({ where: { id: order.id } })).rejects.toThrow(/append-only/);
     const line = await db.productionOrderLine.findFirstOrThrow({ where: { orderId: order.id } });
     await expect(db.productionOrderLine.update({ where: { id: line.id }, data: { requiredMicro: 1n } })).rejects.toThrow(/append-only/);
-    await expect(db.productionOrderLine.delete({ where: { id: line.id } })).rejects.toThrow(/append-only/);
     expect((await row()).status).toBe("DRAFT");
 
     expect((await issueOrder(order.id)).status).toBe(200);
+    // once issued the plan is frozen at the database, and so are the lines (a draft's lines may be replaced; an issued order's never)
+    await expect(db.productionOrder.update({ where: { id: order.id }, data: { plannedQtyMicro: 1n } })).rejects.toThrow(/keeps its plan/);
+    await expect(db.productionOrder.update({ where: { id: order.id }, data: { note: "بعد الصرف" } })).rejects.toThrow(/keeps its plan/);
+    await expect(db.productionOrderLine.delete({ where: { id: line.id } })).rejects.toThrow(/append-only/);
     const link = await db.productionOrderMovement.findFirstOrThrow({ where: { orderId: order.id } });
     await expect(db.productionOrderMovement.update({ where: { id: link.id }, data: { lineId: line.id } })).rejects.toThrow(/append-only/);
     await expect(db.productionOrderMovement.delete({ where: { id: link.id } })).rejects.toThrow(/append-only/);
