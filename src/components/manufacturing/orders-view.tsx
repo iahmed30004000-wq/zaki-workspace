@@ -3,7 +3,8 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Plus } from "lucide-react";
-import { apiPost } from "@/lib/api-client";
+import Link from "next/link";
+import { apiPatch, apiPost } from "@/lib/api-client";
 import { fmtAgo } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { LIMITS, formatMinor, formatQty, parseQtyMicro } from "@/lib/manufacturing/shared";
@@ -66,7 +67,7 @@ export function OrdersPage({ initial }: { initial: OrdersView }) {
           <ul className="grid gap-2">
             {data.orders.map((o, i) => (
               <li key={o.id}>
-                <OrderCard order={o} onDone={refresh} newest={i === 0} />
+                <OrderCard order={o} view={data} onDone={refresh} newest={i === 0} />
               </li>
             ))}
           </ul>
@@ -121,6 +122,7 @@ function NewOrderForm({ view, onDone }: { view: OrdersView; onDone: () => void }
         <Input value={note} maxLength={LIMITS.note} onChange={(e) => setNote(e.target.value)} />
       </Field>
       <p className="text-xs text-fg-muted sm:col-span-2">{t("mfg.order_draft_hint")}</p>
+      {recipe?.stocked ? <p className="text-xs text-fg-muted sm:col-span-2">{t("mfg.order_finished_will")}</p> : null}
       <div className="sm:col-span-2">
         <Button type="submit" disabled={busy || !ready}>
           {t("mfg.order_create")}
@@ -130,9 +132,9 @@ function NewOrderForm({ view, onDone }: { view: OrdersView; onDone: () => void }
   );
 }
 
-type Panel = "complete" | "cancel" | "return" | null;
+type Panel = "complete" | "cancel" | "return" | "edit" | null;
 
-function OrderCard({ order, onDone, newest }: { order: OrderItem; onDone: () => void; newest: boolean }) {
+function OrderCard({ order, view, onDone, newest }: { order: OrderItem; view: OrdersView; onDone: () => void; newest: boolean }) {
   const { t } = useI18n();
   const { toast } = useToast();
   // the open ones and the newest are shown in full; the finished older ones fold up (a tap opens them)
@@ -230,12 +232,18 @@ function OrderCard({ order, onDone, newest }: { order: OrderItem; onDone: () => 
                 <Button size="sm" disabled={busy || short} onClick={() => void step("issue", undefined, "mfg.order_issued_done")}>
                   {t("mfg.order_issue")}
                 </Button>
+                {order.canEditDraft ? (
+                  <Button size="sm" variant="secondary" onClick={() => setPanel(panel === "edit" ? null : "edit")} aria-expanded={panel === "edit"}>
+                    {t("mfg.order_edit")}
+                  </Button>
+                ) : null}
                 <Button size="sm" variant="ghost" onClick={() => setPanel(panel === "cancel" ? null : "cancel")} aria-expanded={panel === "cancel"}>
                   {t("mfg.order_cancel")}
                 </Button>
               </div>
             </div>
           ) : null}
+          {order.recipeStocked && (order.status === "DRAFT" || order.status === "ISSUED") ? <p className="text-xs text-fg-muted">{t("mfg.order_finished_will")}</p> : null}
 
           {order.status === "ISSUED" && order.canComplete ? (
             <div className="flex flex-wrap gap-2">
@@ -248,6 +256,25 @@ function OrderCard({ order, onDone, newest }: { order: OrderItem; onDone: () => 
             </div>
           ) : null}
 
+          {panel === "edit" && order.canEditDraft ? (
+            <EditDraftForm
+              order={order}
+              view={view}
+              busy={busy}
+              onSend={(body) => {
+                if (busy) return;
+                setBusy(true);
+                apiPatch(`/api/manufacturing/orders/${order.id}`, body)
+                  .then(() => {
+                    toast(t("mfg.order_edited"), "success");
+                    setPanel(null);
+                    onDone();
+                  })
+                  .catch((err: unknown) => toast(mfgErrorText(t, err), "error"))
+                  .finally(() => setBusy(false));
+              }}
+            />
+          ) : null}
           {panel === "complete" ? <CompleteForm order={order} busy={busy} onSend={(body) => step("complete", body, "mfg.order_completed_done")} /> : null}
           {panel === "cancel" ? <ReasonForm label={t("mfg.order_cancel_reason")} button={t("mfg.order_cancel")} busy={busy} onSend={(reason) => step("cancel", { reason }, "mfg.order_cancelled_done")} /> : null}
           {panel === "return" ? (
@@ -257,6 +284,25 @@ function OrderCard({ order, onDone, newest }: { order: OrderItem; onDone: () => 
                 <p className="mt-1 text-fg-muted">🔧 {t("mfg.order_return_fix")}</p>
               </div>
               <ReasonForm label={t("mfg.order_return_reason")} button={t("mfg.order_return")} busy={busy} onSend={(reason) => step("return", { reason }, "mfg.order_returned_done")} />
+            </div>
+          ) : null}
+
+          {order.finished ? (
+            <div role="note" className="rounded-lg border border-border bg-surface p-2 text-xs">
+              <p className="font-medium text-fg">
+                {t("mfg.order_finished_in", { qty: formatQty(order.finished.qtyMicro), name: order.finished.materialName })}{" "}
+                <Link href={`/manufacturing/materials/${order.finished.materialId}`} className="text-accent hover:underline">
+                  {t("mfg.finished_open")}
+                </Link>
+              </p>
+              {order.finished.costPending ? (
+                <p className="mt-1 text-warn">
+                  ⚠️ {t("mfg.order_finished_pending")} · 🔧 {t("mfg.order_finished_pending_fix")}
+                </p>
+              ) : null}
+              <p className="mt-1 text-fg-muted">
+                ⚠️ {t("mfg.order_finished_warn")} · 🔧 {t("mfg.order_finished_fix")}
+              </p>
             </div>
           ) : null}
 
@@ -270,6 +316,57 @@ function OrderCard({ order, onDone, newest }: { order: OrderItem; onDone: () => 
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** «عدّل المسودة»: the quantity, the recipe (it is then made from its newest version) and the note of an order that is still a draft. */
+function EditDraftForm({ order, view, busy, onSend }: { order: OrderItem; view: OrdersView; busy: boolean; onSend: (body: Record<string, unknown>) => void }) {
+  const { t } = useI18n();
+  const [recipeId, setRecipeId] = React.useState("");
+  const [qty, setQty] = React.useState(formatQty(order.plannedMicro).replace(/,/g, ""));
+  const [note, setNote] = React.useState(order.note ?? "");
+  const planned = parseQtyMicro(qty);
+  const qtyChanged = planned !== null && BigInt(order.plannedMicro) !== planned;
+  const noteChanged = note.trim() !== (order.note ?? "");
+  const changed = recipeId !== "" || qtyChanged || noteChanged;
+  const ready = changed && planned !== null && planned > 0n;
+  return (
+    <form
+      className="grid gap-3 rounded-lg border border-border bg-surface p-3 sm:grid-cols-2"
+      aria-label={t("mfg.order_edit")}
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (busy || !ready) return;
+        const body: Record<string, unknown> = {};
+        if (recipeId !== "") body["recipeId"] = recipeId;
+        if (qtyChanged) body["qty"] = qty;
+        if (noteChanged) body["note"] = note.trim() === "" ? null : note;
+        onSend(body);
+      }}
+    >
+      <Field label={t("mfg.f.order_recipe")}>
+        <Select value={recipeId} onChange={(e) => setRecipeId(e.target.value)}>
+          <option value="">{t("mfg.order_edit_recipe_keep")}</option>
+          {view.recipes.map((r) => (
+            <option key={r.id} value={r.id}>
+              {t("mfg.order_edit_recipe_newest", { name: r.name })}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      <Field label={t("mfg.f.order_qty", { unit: order.outputUnit })}>
+        <Input value={qty} inputMode="decimal" dir="ltr" onChange={(e) => setQty(e.target.value)} aria-invalid={qty.trim() !== "" && !(planned !== null && planned > 0n)} />
+      </Field>
+      <Field label={t("mfg.f.order_note")} className="sm:col-span-2">
+        <Input value={note} maxLength={LIMITS.note} onChange={(e) => setNote(e.target.value)} />
+      </Field>
+      <p className="text-xs text-fg-muted sm:col-span-2">{t("mfg.order_edit_hint")}</p>
+      <div className="sm:col-span-2">
+        <Button type="submit" size="sm" disabled={busy || !ready}>
+          {t("mfg.order_edit_save")}
+        </Button>
+      </div>
+    </form>
   );
 }
 
@@ -336,6 +433,13 @@ function CostBox({ cost, order }: { cost: OrderCost; order: OrderItem }) {
     <section aria-label={t("mfg.order_cost_title")} className="space-y-2 rounded-xl border border-border bg-surface p-3">
       <p className="text-xs font-medium text-fg-muted">{t("mfg.order_cost_title")}</p>
       <p className="text-xs text-fg-muted">{t("mfg.order_cost_formula")}</p>
+      {cost.frozen ? (
+        <div role="note" className="rounded-lg border border-warn/40 bg-warn/10 p-2 text-xs">
+          <p className="font-medium text-fg">⚠️ {t("mfg.order_cost_frozen_warn")}</p>
+          <p className="mt-1 text-fg-muted">🔧 {t("mfg.order_cost_frozen_fix")}</p>
+          <p className="mt-1 text-fg-muted">{t("mfg.order_cost_frozen")}</p>
+        </div>
+      ) : null}
       <ul className="grid gap-2">
         {cost.lines.map((line) => (
           <li key={line.materialName} className="text-xs">

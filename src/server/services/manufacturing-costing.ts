@@ -21,14 +21,26 @@ const LOT_SELECT = {
   receivedOn: true,
   createdAt: true,
   costing: { select: { totalCostMinor: true, unitCostMinor: true, currency: true } },
+  // slice 3: every later price of a lot is a correction; the latest one is the price (the newest sequence number)
+  corrections: { orderBy: { seq: "desc" }, take: 1, select: { seq: true, totalCostMinor: true, unitCostMinor: true, currency: true } },
 } satisfies Prisma.MaterialLotSelect;
 
 export type LotRow = Prisma.MaterialLotGetPayload<{ select: typeof LOT_SELECT }>;
 
-/** The price a lot has, wherever it came from: the receipt, or the costing filled in later. Null while it is pending. */
-export function effectiveCost(lot: Pick<LotRow, "costPending" | "totalCostMinor" | "unitCostMinor" | "currency" | "costing">): { totalMinor: bigint; unitMinor: bigint; currency: string } | null {
+type PriceRow = { totalCostMinor: bigint; unitCostMinor: bigint; currency: string };
+
+/**
+ * The price a lot has NOW, wherever it came from: the receipt; or, for a lot received without a price, its first price (the costing) and then
+ * its LATEST correction (the highest sequence number supersedes everything before it). Null while it is pending. This is the one function that
+ * says what a lot costs: the weighted average, the valuation and the cost of an order that is not finished read it, and nothing else.
+ */
+export function effectiveCost(
+  lot: Pick<LotRow, "costPending" | "totalCostMinor" | "unitCostMinor" | "currency" | "costing"> & { corrections?: readonly (PriceRow & { seq: number })[] },
+): { totalMinor: bigint; unitMinor: bigint; currency: string } | null {
   if (!lot.costPending) return { totalMinor: lot.totalCostMinor, unitMinor: lot.unitCostMinor, currency: lot.currency };
-  return lot.costing ? { totalMinor: lot.costing.totalCostMinor, unitMinor: lot.costing.unitCostMinor, currency: lot.costing.currency } : null;
+  let latest: (PriceRow & { seq?: number }) | null = lot.costing;
+  for (const c of lot.corrections ?? []) if (latest === null || latest.seq === undefined || c.seq > latest.seq) latest = c;
+  return latest ? { totalMinor: latest.totalCostMinor, unitMinor: latest.unitCostMinor, currency: latest.currency } : null;
 }
 
 const byAge = (a: LotRow, b: LotRow): number => a.receivedOn.getTime() - b.receivedOn.getTime() || a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id);

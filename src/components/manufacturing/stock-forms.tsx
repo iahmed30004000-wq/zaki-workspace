@@ -321,6 +321,66 @@ export function CostLotForm({ lotId, unitLabel, enteredQtyMicro, fixedCurrency, 
   );
 }
 
+// ───────────────────────────────────────── the correction of a late price ─────────────────────────────────────────
+
+/**
+ * «صحّح السعر»: a new price for a lot that was priced late, typed by a holder of the cost, for ONE of the lot's own unit, in the currency the lot was
+ * priced in, with the WRITTEN reason (required). It is added as a new record: the old price stays in the lot's history, and orders that are already
+ * finished are not re-priced (⚠️ shown with its 🔧 before it is sent).
+ */
+export function CorrectPriceForm({ lotId, unitLabel, enteredQtyMicro, currency, onDone }: { lotId: string; unitLabel: string; enteredQtyMicro: number; currency: string; onDone: () => void }) {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const currencyName = useCurrencyName();
+  const [price, setPrice] = React.useState("");
+  const [reason, setReason] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const unitCost = parseMinor(price, currency);
+  const total = unitCost !== null ? lineTotalMinor(BigInt(enteredQtyMicro), unitCost) : null;
+  const ready = unitCost !== null && reason.trim().length >= 2;
+
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy || !ready) return;
+    setBusy(true);
+    try {
+      await apiPost(`/api/manufacturing/lots/${lotId}/correct`, { unitCost: price, currency, reason });
+      toast(t("mfg.price_corrected"), "success");
+      onDone();
+    } catch (err) {
+      toast(mfgErrorText(t, err), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="mt-2 grid gap-2 rounded-lg border border-border bg-surface p-2 sm:grid-cols-3" aria-label={t("mfg.price_correct_title")}>
+      <Field label={t("mfg.f.price_per", { unit: unitLabel })}>
+        <Input value={price} inputMode="decimal" dir="ltr" onChange={(e) => setPrice(e.target.value)} aria-invalid={price.trim() !== "" && unitCost === null} />
+      </Field>
+      <Field label={t("mfg.f.correct_reason")} className="sm:col-span-2">
+        <Input value={reason} maxLength={LIMITS.reason} placeholder={t("mfg.f.correct_reason_ph")} onChange={(e) => setReason(e.target.value)} />
+      </Field>
+      <p aria-live="polite" className="text-xs text-fg-muted sm:col-span-2">
+        {total !== null && unitCost !== null ? (
+          <>
+            {t("mfg.preview_total")}: <span dir="ltr">{formatQty(enteredQtyMicro)}</span> × <span dir="ltr">{formatMinor(unitCost, currency)}</span> = <span dir="ltr">{formatMinor(total, currency)}</span> {currencyName(currency)}
+          </>
+        ) : (
+          t("mfg.cost_hint")
+        )}
+      </p>
+      <div className="flex items-end">
+        <Button type="submit" size="sm" disabled={busy || !ready}>
+          {t("mfg.price_correct_save")}
+        </Button>
+      </div>
+      <p className="text-xs text-warn sm:col-span-3">⚠️ {t("mfg.price_correct_warn")} · 🔧 {t("mfg.price_correct_fix")}</p>
+    </form>
+  );
+}
+
 // ───────────────────────────────────────── issue / adjust / count ─────────────────────────────────────────
 
 type MoveKind = "issue" | "adjust" | "count";

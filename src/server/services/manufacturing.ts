@@ -23,6 +23,7 @@ import type {
   MfgOverview,
   MfgUnit,
   MovementItem,
+  PriceStep,
   SupplierItem,
 } from "@/lib/manufacturing/view";
 import { assertEdit, mfgScope, notFound, recordMfg, type MfgScope } from "./manufacturing-access";
@@ -148,6 +149,23 @@ function lotCost(l: Parameters<typeof effectiveCost>[0]): { currency: string; un
   return cost ? { currency: cost.currency, unitCostMinor: num(cost.unitMinor), totalCostMinor: num(cost.totalMinor) } : null;
 }
 
+type HistoryRow = { unitCostMinor: bigint; totalCostMinor: bigint; currency: string; createdAt: Date; createdBy: { name: string } };
+
+/** The prices a lot has had, oldest first: the first price (no reason), then each correction with its reason; the last one is the price in force. */
+function priceHistoryOf(first: HistoryRow & { note: string | null }, corrections: readonly (HistoryRow & { seq: number; reason: string })[]): PriceStep[] {
+  const step = (r: HistoryRow, seq: number, reason: string | null, current: boolean): PriceStep => ({
+    seq,
+    unitCostMinor: num(r.unitCostMinor),
+    totalCostMinor: num(r.totalCostMinor),
+    currency: r.currency,
+    by: r.createdBy.name,
+    at: r.createdAt.toISOString(),
+    reason,
+    current,
+  });
+  return [step(first, 0, first.note, corrections.length === 0), ...corrections.map((c, i) => step(c, c.seq, c.reason, i === corrections.length - 1))];
+}
+
 const supplierOf = (s: { id: string; name: string; note: string | null; archivedAt: Date | null }): SupplierItem => ({ id: s.id, name: s.name, note: s.note, archived: s.archivedAt !== null });
 
 const unitOf = (u: { id: string; label: string; num: number; den: number; archivedAt: Date | null }): MfgUnit => ({ id: u.id, label: u.label, num: u.num, den: u.den, archived: u.archivedAt !== null });
@@ -214,7 +232,7 @@ export async function readMaterial(actor: Actor, materialId: string): Promise<Ma
       where: { materialId },
       orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }, { id: "asc" }],
       take: LIMITS.movements,
-      include: { supplier: { select: { id: true, name: true } }, createdBy: { select: { name: true } }, costing: { include: { createdBy: { select: { name: true } } } } },
+      include: { supplier: { select: { id: true, name: true } }, createdBy: { select: { name: true } }, costing: { include: { createdBy: { select: { name: true } } } }, corrections: { orderBy: { seq: "asc" }, include: { createdBy: { select: { name: true } } } } },
     }),
     db.materialMovement.findMany({
       where: { materialId },
@@ -258,8 +276,12 @@ export async function readMaterial(actor: Actor, materialId: string): Promise<Ma
     cost: scope.canCost ? lotCost(l) : null,
     reversed: reversedLots.has(l.id),
     costPending: l.costPending && !l.costing,
-    costedLater: l.costPending && l.costing ? { by: l.costing.createdBy.name, at: l.costing.createdAt.toISOString() } : null,
+    costedLater: l.costPending && l.costing ? { by: (l.corrections.at(-1) ?? l.costing).createdBy.name, at: (l.corrections.at(-1) ?? l.costing).createdAt.toISOString() } : null,
     canFillCost: scope.canCost && l.costPending && !l.costing && !reversedLots.has(l.id),
+    correctionCount: l.corrections.length,
+    // the history of every price the lot has had (the first one, then each correction with its reason): a holder of the cost only
+    priceHistory: scope.canCost && l.costPending && l.costing ? priceHistoryOf(l.costing, l.corrections) : [],
+    canCorrectPrice: scope.canCost && l.costPending && l.costing !== null && !reversedLots.has(l.id),
   }));
 
   const movementItems: MovementItem[] = movements.map((m) => {

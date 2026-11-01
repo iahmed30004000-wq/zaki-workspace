@@ -15,6 +15,9 @@ import * as suppliersRoute from "@/app/api/manufacturing/suppliers/route";
 import * as supplierRoute from "@/app/api/manufacturing/suppliers/[id]/route";
 import * as csvRoute from "@/app/api/manufacturing/csv/route";
 import * as costLotRoute from "@/app/api/manufacturing/lots/[id]/cost/route";
+import * as correctLotRoute from "@/app/api/manufacturing/lots/[id]/correct/route";
+import * as orderRoute from "@/app/api/manufacturing/orders/[id]/route";
+import * as finishedStockRoute from "@/app/api/manufacturing/recipes/[id]/finished-stock/route";
 import * as recipesRoute from "@/app/api/manufacturing/recipes/route";
 import * as recipeRoute from "@/app/api/manufacturing/recipes/[id]/route";
 import * as recipeVersionsRoute from "@/app/api/manufacturing/recipes/[id]/versions/route";
@@ -196,3 +199,9 @@ export async function orderView(spaceId: string, orderId: string): Promise<Order
   if (!found) throw new Error("order not listed");
   return found;
 }
+
+// ───────────────────────────────────────── slice 3: corrections, draft edits, finished goods ─────────────────────────────────────────
+
+export const correctPrice = (lotId: string, over: Record<string, unknown> = {}) => call(correctLotRoute.POST, { ...idOf(lotId), body: { unitCost: "3", currency: "JOD", reason: "السعر كان غلط", ...over } });
+export const editOrder = (orderId: string, body: Record<string, unknown>) => call(orderRoute.PATCH, { method: "PATCH", ...idOf(orderId), body });
+export const enableFinished = (recipeId: string) => call(finishedStockRoute.POST, { ...idOf(recipeId), body: {} });

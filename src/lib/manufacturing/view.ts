@@ -89,6 +89,19 @@ export interface ProofFile {
   url: string;
 }
 
+/** One price a lot has had: the first (seq 0, the note typed with it) and each correction (its number and its written reason). Cost holders only. */
+export interface PriceStep {
+  seq: number;
+  unitCostMinor: number;
+  totalCostMinor: number;
+  currency: string;
+  by: string;
+  at: string;
+  reason: string | null;
+  /** The price in force now (the newest one). */
+  current: boolean;
+}
+
 export interface LotItem {
   id: string;
   receivedOn: string;
@@ -111,6 +124,12 @@ export interface LotItem {
   costedLater: { by: string; at: string } | null;
   /** This viewer may fill the price now: holds `manufacturing.cost`, and the lot is still pending and not taken back. */
   canFillCost: boolean;
+  /** How many times the late price was corrected (a count, not a price: everybody who reads the lot sees it). */
+  correctionCount: number;
+  /** Every price of the lot, oldest first, for a holder of `manufacturing.cost`; empty for everybody else and for a lot that came with its price. */
+  priceHistory: PriceStep[];
+  /** This viewer may correct the late price now: holds `manufacturing.cost`, the lot was priced late and its receipt was not taken back. */
+  canCorrectPrice: boolean;
 }
 
 export interface MovementItem {
