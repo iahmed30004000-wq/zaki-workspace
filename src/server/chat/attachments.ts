@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { createReadStream, promises as fs } from "node:fs";
-import { join } from "node:path";
+import { createReadStream } from "node:fs";
 import type { ReceivedUpload } from "@/server/files/upload-stream";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
@@ -14,7 +13,7 @@ import {
 } from "@/server/files/sniff";
 
 export type { ChatAttachmentKind };
-import { fileLibrary, ingest, logFile, PENDING_PATH, readStored } from "@/server/services/files";
+import { discardStoredBytes, ingest, logFile, openStored, PENDING_PATH } from "@/server/services/files";
 
 /**
  * FILES-VOICE owns the implementation; SERVICES calls these from the message service.
@@ -294,15 +293,18 @@ export function attachmentView(att: {
 
 /* ---------------- reads / purge ---------------- */
 
-/** The raw row + bytes for the attachment route; the caller decides whether the viewer may read it. */
+/**
+ * The raw row + the file opened for streaming (from the server's disk or proxied from Drive, only the asked range)
+ * for the attachment route; the caller decides whether the viewer may read it.
+ */
 export async function readAttachment(orgId: string, attachmentId: string) {
   const att = await db.messageAttachment.findFirst({
     where: { id: attachmentId, file: { orgId, deletedAt: null, path: { not: PENDING_PATH } } },
     include: { file: { select: { id: true, name: true, mimeType: true, size: true, uploaderId: true, path: true, purpose: true } }, message: { select: { id: true, conversationId: true, deletedAt: true } } },
   });
   if (!att || !att.file) throw new NotFoundError("chat.f.not_found");
-  const stored = await readStored(orgId, att.file.id);
-  return { attachment: att, file: att.file, ...stored };
+  const opened = await openStored(orgId, att.file.id);
+  return { attachment: att, file: att.file, ...opened };
 }
 
 /** An unclaimed upload row (the uploader may still see his own file before the message exists). */
@@ -332,10 +334,10 @@ export async function purgeOrphanUploads(orgId?: string): Promise<number> {
       path: { not: PENDING_PATH },
       ...(orgId ? { orgId } : {}),
     },
-    select: { id: true, path: true },
+    select: { id: true, orgId: true, path: true, meta: true },
   });
   for (const f of orphans) {
-    await fs.rm(join(fileLibrary, f.path), { force: true }).catch(() => undefined);
+    await discardStoredBytes(f.orgId, f);
   }
   const res = await db.storedFile.deleteMany({ where: { id: { in: orphans.map((f) => f.id) } } });
   return res.count;

@@ -1,7 +1,7 @@
 {
-  "files.on_drive": "تُحفظ ملفات المكتبة على Google Drive",
+  "files.on_drive": "الملفات الجديدة تُحفظ على Google Drive وليس على الخادم",
   "files.drive_unavailable": "تعذّر جلب الملف من Google Drive الآن — حاول بعد قليل",
-  "google.libraryOn": "ملفات المكتبة الجديدة تُحفظ على Google Drive في مجلد «Zaki Workspace»، ولكل مساحة مجلدها. من يفتح الملف يمرّ بصلاحيات النظام: لا روابط عامة.",
+  "google.libraryOn": "ملفات المكتبة ومرفقات الدردشة الجديدة تُحفظ على Google Drive في مجلد «Zaki Workspace»، ولكل مساحة مجلدها. من يفتح الملف يمرّ بصلاحيات النظام: لا روابط عامة.",
   "google.libraryNeedsReconnect": "⚠️ الربط الحالي قديم (قراءة فقط)، فملفات المكتبة ما زالت تُحفظ على الخادم.",
   "google.libraryReconnectFix": "🔧 أعد الربط مرة واحدة لتُحفظ الملفات الجديدة على Google Drive.",
   "google.reconnect": "إعادة الربط",

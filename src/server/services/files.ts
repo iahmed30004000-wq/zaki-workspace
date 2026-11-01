@@ -13,11 +13,13 @@ import { logEvent } from "@/server/services/integrations";
 import { canReadConversation } from "@/server/policy/conversation";
 import { MAX_FILE_BYTES, canManageFile, checksumHex, safeStoredName, sniffMimeType } from "@/server/files/sniff";
 import { accessibleWorkspaceIds } from "@/server/services/access";
-import { libraryOnDrive } from "@/server/services/google";
+import { driveIsDown, pauseDrive, resumeDrive, storageTarget } from "@/server/files/storage-policy";
+import { insideLibrary, serverCopyOf } from "@/server/files/server-copy";
 import { mayReadApprovalFile } from "@/server/services/approval-access";
 import { MAX_PAGE_SCAN_BYTES, countPdfPages } from "@/server/files/pdf-pages";
 import {
   DriveStoreError,
+  chatDriveSpace,
   type DriveSpace,
   driveIdOf,
   driveNameFor,
@@ -407,15 +409,16 @@ export async function ingest(
   }
 
   const finalFamilyId = familyId || created.id;
-  // A library file goes to the owner's Drive when it is connected for it; on any Drive failure it is
-  // kept on the server exactly as before, so an upload never fails because of Drive.
+  // A file goes to the owner's Drive FIRST when it is connected and healthy (library, chat attachments, voice notes; see
+  // storage-policy.ts); on any Drive failure it is kept on the server instead, so an upload never fails because of Drive.
+  // Written to one place, never both.
   let space: { of: DriveSpace | null } | null = null;
   let steppingDown: string | null = null;
   let path = "";
   let target: string | null = null;
   let updated: { id: string; version: number; mimeType: string };
   try {
-    space = purpose === "LIBRARY" && (await libraryOnDrive(ctx.orgId)) ? { of: await driveSpaceOf(workspaceId) } : null;
+    space = purpose !== "AVATAR" && (await storageTarget(ctx.orgId)).target === "drive" ? { of: purpose === "LIBRARY" ? await driveSpaceOf(workspaceId) : chatDriveSpace(ctx.orgId) } : null;
     steppingDown = space && familyOf ? await previousHeadPath(ctx.orgId, finalFamilyId) : null;
     if (space) {
       path = await uploadToDrive(ctx.orgId, {
@@ -424,8 +427,14 @@ export async function ingest(
         ...(isIngestPath(input) ? { path: input.path, size } : { bytes: input.bytes }),
         space: space.of,
         fileId: created.id,
-      }).catch(
+      }).then(
+        (drivePath) => {
+          resumeDrive(ctx.orgId);
+          return drivePath;
+        },
         async (err: unknown) => {
+          // Drive itself is down (not just this file refused): the next minute's uploads skip it instead of each waiting
+          if (driveIsDown(err)) pauseDrive(ctx.orgId);
           await logEvent(ctx.orgId, { direction: "OUT", type: "file.drive_failed", status: "FAILED", detail: err instanceof DriveStoreError ? err.message : "drive.error" });
           return "";
         },
@@ -508,6 +517,22 @@ async function driveSpaceOf(workspaceId: string | null): Promise<DriveSpace | nu
 async function previousHeadPath(orgId: string, familyId: string): Promise<string | null> {
   const head = await db.storedFile.findFirst({ where: { orgId, familyId, isLatest: true, deletedAt: null, ...STORED }, select: { path: true } });
   return head?.path ?? null;
+}
+
+/**
+ * The bytes of a row that is being removed for good (an upload nobody claimed): the file on the server's disk, or the
+ * Drive file (into Drive's bin: the owner's, for 30 days), and a verified server copy still waiting for the owner's
+ * delete step. Never throws: a file already gone is the goal.
+ */
+export async function discardStoredBytes(orgId: string, f: { path: string; meta?: unknown }): Promise<void> {
+  const drop = async (stored: string) => {
+    const full = insideLibrary(fileLibrary, stored);
+    if (full) await fs.rm(full, { force: true }).catch(() => undefined);
+  };
+  if (isDrivePath(f.path)) await trashOnDrive(orgId, driveIdOf(f.path)).catch(() => undefined);
+  else await drop(f.path);
+  const copy = serverCopyOf(f.meta);
+  if (copy) await drop(copy.path);
 }
 
 /** Library files only: a chat file goes with its message, never through the library. */
