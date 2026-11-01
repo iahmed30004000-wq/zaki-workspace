@@ -140,7 +140,7 @@ export async function readReports(actor: Actor, query: z.infer<typeof reportQuer
     outputUnit: o.outputUnit,
     plannedMicro: o.plannedMicro,
     actualMicro: o.actualMicro,
-    day: (o.completedAt ?? o.issuedAt ?? o.createdAt).slice(0, 10),
+    day: (o.finishedAt ?? o.issuedAt ?? o.createdAt).slice(0, 10),
     costIncomplete: o.costIncomplete,
     cost: scope.canCost && o.cost ? { totals: o.cost.totals } : null,
   }));

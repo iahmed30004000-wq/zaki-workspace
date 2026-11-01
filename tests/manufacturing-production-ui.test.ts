@@ -226,7 +226,7 @@ const order = (over: Partial<OrderItem> = {}): OrderItem => ({
   createdBy: "سمير",
   createdAt: new Date().toISOString(),
   issuedAt: null,
-  completedAt: null,
+  finishedAt: null,
   closedAt: null,
   closeNote: null,
   lines: [{ id: "ol1", materialId: "m1", materialName: "طحين", baseUnit: "غرام", perUnitMicro: 30_000_000, requiredMicro: 150_000_000, balanceMicro: 200_000_000, unpricedMicro: 0, issuedMicro: 0, enough: true }],

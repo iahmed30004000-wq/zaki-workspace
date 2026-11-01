@@ -411,5 +411,8 @@
   "mfg.e.order_short": "في مادة ما بتكفي للأمر. ما انصرف ولا إشي.",
   "mfg.e.period_order": "تاريخ البداية بعد تاريخ النهاية.",
   "mfg.e.period_long": "الفترة أطول من سنة. قصّرها.",
-  "mfg.e.report_kind": "اختار نوع التقرير."
+  "mfg.e.report_kind": "اختار نوع التقرير.",
+  "mfg.f.order_recipe": "الوصفة",
+  "mfg.f.order_qty": "الكمية المخططة ({unit})",
+  "mfg.f.order_note": "ملاحظة (اختياري)"
 }

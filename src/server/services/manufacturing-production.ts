@@ -358,7 +358,7 @@ function orderItemOf(scope: MfgScope, o: OrderRow, taken: readonly Net[], positi
     createdBy: o.createdBy.name,
     createdAt: o.createdAt.toISOString(),
     issuedAt: o.issuedAt ? o.issuedAt.toISOString() : null,
-    completedAt: o.completedAt ? o.completedAt.toISOString() : null,
+    finishedAt: o.finishedAt ? o.finishedAt.toISOString() : null,
     closedAt: o.closedAt ? o.closedAt.toISOString() : null,
     closeNote: o.closeNote,
     lines,
@@ -530,7 +530,7 @@ export async function completeOrder(actor: Actor, orderId: string, input: z.infe
     if (fresh.status !== "ISSUED") throw invalid("orderId", "mfg.e.order_state");
     await tx.productionOrder.update({
       where: { id: orderId },
-      data: { status: "COMPLETED", completedAt: new Date(), completedById: actor.userId, actualQtyMicro: actual, wasteQtyMicro: waste, wasteNote: input.wasteNote },
+      data: { status: "COMPLETED", finishedAt: new Date(), finishedById: actor.userId, actualQtyMicro: actual, wasteQtyMicro: waste, wasteNote: input.wasteNote },
     });
   });
   await recordMfg(actor, order.workspaceId, "order_completed", orderId, { seq: order.seq, actualMicro: num(actual) });

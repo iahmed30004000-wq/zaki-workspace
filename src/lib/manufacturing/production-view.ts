@@ -132,7 +132,7 @@ export interface OrderItem {
   createdBy: string;
   createdAt: string;
   issuedAt: string | null;
-  completedAt: string | null;
+  finishedAt: string | null;
   closedAt: string | null;
   closeNote: string | null;
   lines: OrderLineItem[];

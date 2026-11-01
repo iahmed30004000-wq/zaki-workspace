@@ -2875,8 +2875,8 @@ model ProductionOrder {
   updatedAt       DateTime  @updatedAt
   issuedById      String?
   issuedAt        DateTime?
-  completedById   String?
-  completedAt     DateTime?
+  finishedById    String?
+  finishedAt      DateTime?
   actualQtyMicro  BigInt?
   wasteQtyMicro   BigInt?
   wasteNote       String?

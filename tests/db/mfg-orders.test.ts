@@ -343,7 +343,7 @@ describe("the database keeps the order honest", () => {
     const p = await plant(w);
     const order = await orderOk(w.space.id, p.recipe, "2");
     const row = () => db.productionOrder.findUniqueOrThrow({ where: { id: order.id } });
-    await expect(db.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", actualQtyMicro: 1n, completedAt: new Date(), completedById: w.keeper.id } })).rejects.toThrow(/cannot go from/);
+    await expect(db.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", actualQtyMicro: 1n, finishedAt: new Date(), finishedById: w.keeper.id } })).rejects.toThrow(/cannot go from/);
     await expect(db.productionOrder.update({ where: { id: order.id }, data: { plannedQtyMicro: 1n } })).rejects.toThrow(/keeps its plan/);
     await expect(db.productionOrder.update({ where: { id: order.id }, data: { status: "WHATEVER" } })).rejects.toThrow();
     await expect(db.productionOrder.delete({ where: { id: order.id } })).rejects.toThrow(/append-only/);
@@ -357,7 +357,7 @@ describe("the database keeps the order honest", () => {
     await expect(db.productionOrderMovement.update({ where: { id: link.id }, data: { lineId: line.id } })).rejects.toThrow(/append-only/);
     await expect(db.productionOrderMovement.delete({ where: { id: link.id } })).rejects.toThrow(/append-only/);
     // a completed order needs its real output
-    await expect(db.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", completedAt: new Date(), completedById: w.keeper.id } })).rejects.toThrow();
+    await expect(db.productionOrder.update({ where: { id: order.id }, data: { status: "COMPLETED", finishedAt: new Date(), finishedById: w.keeper.id } })).rejects.toThrow();
     expect((await completeOrder(order.id, { actualQty: "2" })).status).toBe(200);
     await expect(db.productionOrder.update({ where: { id: order.id }, data: { note: "بعد الإغلاق" } })).rejects.toThrow(/closed/);
     // an order that never says who issued it, or who closed it, is not accepted

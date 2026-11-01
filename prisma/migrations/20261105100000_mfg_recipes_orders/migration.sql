@@ -81,8 +81,8 @@ CREATE TABLE "ProductionOrder" (
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "issuedById" TEXT,
     "issuedAt" TIMESTAMP(3),
-    "completedById" TEXT,
-    "completedAt" TIMESTAMP(3),
+    "finishedById" TEXT,
+    "finishedAt" TIMESTAMP(3),
     "actualQtyMicro" BIGINT,
     "wasteQtyMicro" BIGINT,
     "wasteNote" TEXT,
@@ -230,7 +230,7 @@ ALTER TABLE "RecipeLine" ADD CONSTRAINT "RecipeLine_check" CHECK ("qtyMicro" > 0
 ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_plan_check" CHECK ("seq" > 0 AND "plannedQtyMicro" > 0);
 ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_status_check" CHECK ("status" IN ('DRAFT', 'ISSUED', 'COMPLETED', 'CANCELLED', 'RETURNED'));
 ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_issued_check" CHECK ("status" IN ('DRAFT', 'CANCELLED') OR ("issuedAt" IS NOT NULL AND "issuedById" IS NOT NULL));
-ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_completed_check" CHECK ("status" <> 'COMPLETED' OR ("actualQtyMicro" IS NOT NULL AND "actualQtyMicro" > 0 AND "completedAt" IS NOT NULL AND "completedById" IS NOT NULL));
+ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_completed_check" CHECK ("status" <> 'COMPLETED' OR ("actualQtyMicro" IS NOT NULL AND "actualQtyMicro" > 0 AND "finishedAt" IS NOT NULL AND "finishedById" IS NOT NULL));
 ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_closed_check" CHECK ("status" NOT IN ('CANCELLED', 'RETURNED') OR ("closedAt" IS NOT NULL AND "closedById" IS NOT NULL));
 ALTER TABLE "ProductionOrder" ADD CONSTRAINT "ProductionOrder_waste_check" CHECK ("wasteQtyMicro" IS NULL OR "wasteQtyMicro" >= 0);
 
