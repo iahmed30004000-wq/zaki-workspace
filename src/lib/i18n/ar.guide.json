@@ -216,5 +216,11 @@
   "guide.card.title": "أهلين! أنا زاكي، دليلك هون.",
   "guide.card.body": "بدك جولة سريعة؟ نص دقيقة وبتعرف وين كل إشي.",
   "guide.card.start": "يلا",
-  "guide.card.later": "بعدين"
+  "guide.card.later": "بعدين",
+  "guide.page.manufacturing_recipes.what": "هاي وصفات التصنيع: كل منتج جاهز وكم مادة بتاخد وحدته، ونسخ الوصفة اللي ما بتتعدّل.",
+  "guide.page.manufacturing_recipes.next": "أضف وصفة، أو اعمل نسخة جديدة إذا تغيّرت الكميات.",
+  "guide.page.manufacturing_orders.what": "هاي أوامر التصنيع: كمية مخططة من وصفة، وصرف المواد من المخزون، والناتج الفعلي والكلفة.",
+  "guide.page.manufacturing_orders.next": "اعمل أمر جديد، اصرف مواده (الصرف بينقص المخزون فورًا)، وسجّل الناتج لما يخلص.",
+  "guide.page.manufacturing_reports.what": "هاي تقارير المخزون: تقييم المخزون، الاستهلاك، كلفة الأوامر، والمواد اللي قربت تخلص.",
+  "guide.page.manufacturing_reports.next": "غيّر الفترة، ونزّل أي تقرير كملف."
 }

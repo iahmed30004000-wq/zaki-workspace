@@ -47,6 +47,7 @@ const material = (over: Partial<MaterialListItem> = {}): MaterialListItem => ({
   low: false,
   archived: false,
   pendingCount: false,
+  unpricedMicro: 0,
   cost: null,
   ...over,
 });
@@ -137,6 +138,7 @@ const detail = (over: Partial<MaterialDetail> = {}): MaterialDetail => ({
   low: false,
   archived: false,
   balanceMicro: 72_000_000,
+  unpricedMicro: 0,
   units: [{ id: "u1", label: "كرتونة", num: 24, den: 1, archived: false }],
   suppliers: [],
   canEdit: true,
@@ -183,6 +185,9 @@ describe("one material", () => {
       createdAt: new Date().toISOString(),
       cost: null,
       reversed: false,
+      costPending: false,
+      costedLater: null,
+      canFillCost: false,
       ...over,
     });
     const flagged = textOf(wrap(createElement(MaterialPage, { initial: detail({ lots: [lot({})] }) })));

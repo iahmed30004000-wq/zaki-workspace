@@ -282,6 +282,27 @@ export const PAGE_HELP: readonly PageHelp[] = [
     guestNextKey: INTERNAL,
   },
   {
+    id: "manufacturing-recipes",
+    pattern: "/manufacturing/recipes",
+    whatKey: "guide.page.manufacturing_recipes.what",
+    nextKey: "guide.page.manufacturing_recipes.next",
+    guestNextKey: INTERNAL,
+  },
+  {
+    id: "manufacturing-orders",
+    pattern: "/manufacturing/orders",
+    whatKey: "guide.page.manufacturing_orders.what",
+    nextKey: "guide.page.manufacturing_orders.next",
+    guestNextKey: INTERNAL,
+  },
+  {
+    id: "manufacturing-reports",
+    pattern: "/manufacturing/reports",
+    whatKey: "guide.page.manufacturing_reports.what",
+    nextKey: "guide.page.manufacturing_reports.next",
+    guestNextKey: INTERNAL,
+  },
+  {
     id: "ideas",
     pattern: "/ideas",
     whatKey: "guide.page.ideas.what",
