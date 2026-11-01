@@ -2,7 +2,7 @@
 
 import { useI18n } from "@/lib/i18n";
 
-/** Where a new file goes right now (`GET /api/files`, `GET /api/storage`): Drive, or the server and why. */
+/** Where a new file goes right now (`GET /api/files`, `GET /api/library-storage`): Drive, or the server and why. */
 export interface StorageState {
   target: "drive" | "server";
   reason: "not_configured" | "not_connected" | "needs_reconnect" | "feature_off" | "unavailable" | null;

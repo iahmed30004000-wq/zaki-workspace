@@ -230,6 +230,8 @@ Doors in use: `requireActor` 99 · `activeOrgCtx` 77 · `(none)` 34 · `requireT
 | PATCH, DELETE | `/api/key-results/[id]` | requireActor | `guest-guard`: assertNotGuest<br>`okr`: keyResultPatchSchema, removeKeyResult, updateKeyResult |
 | GET, POST | `/api/key-results/[id]/updates` | requireActor | `guest-guard`: assertNotGuest<br>`okr`: checkIn, checkInSchema, listCheckIns |
 | GET, POST | `/api/labels` | requireWorkspace ‡ | — |
+| GET | `/api/library-storage` | activeOrgCtx | `integrations`: activeOrgCtx<br>`storage`: storageMeter |
+| POST | `/api/library-storage/move` | activeOrgCtx | `integrations`: activeOrgCtx<br>`storage`: deleteServerCopies, moveToDrive |
 | GET, PATCH | `/api/me` | requireUser | `users`: updateProfile |
 | POST, DELETE | `/api/me/avatar` | requireActor | `avatars`: clearAvatar, setAvatar, AVATAR_MAX_BYTES<br>`features`: assertFeatureOn |
 | GET, POST | `/api/me/calendar-feed` | requireActor | `calendar-feed`: createFeedToken, listFeedTokens |
@@ -288,8 +290,6 @@ Doors in use: `requireActor` 99 · `activeOrgCtx` 77 · `(none)` 34 · `requireT
 | GET, PATCH | `/api/settings/features` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: listFeatures, setFeature |
 | GET | `/api/spaces/unplaced` | requireActor | `move-to-space`: listUnplaced |
 | POST | `/api/spaces/unplaced/move` | requireActor | `move-to-space`: moveSchema, moveToSpace |
-| GET | `/api/storage` | activeOrgCtx | `integrations`: activeOrgCtx<br>`storage`: storageMeter |
-| POST | `/api/storage/move` | activeOrgCtx | `integrations`: activeOrgCtx<br>`storage`: deleteServerCopies, moveToDrive |
 | GET, POST | `/api/tasks` | requireWorkspace | `team-scope`: teamFilterInSpace<br>`tasks`: createTask, listTasks<br>`org-day`: orgTimeZone<br>`n8n`: dispatchEvent<br>`rewards`: rewardsVisibleTo<br>`reward-input`: rewardBodySchema, toRewardRequest |
 | GET, PATCH, DELETE | `/api/tasks/[id]` | requireTaskAccess | `team-scope`: userSeesProject<br>`tasks`: updateTask, deleteTask<br>`active-people`: assertActiveAssignee<br>`org-day`: orgTimeZone<br>`rewards`: rewardsVisibleTo, setReward<br>`reward-input`: rewardBodySchema, toRewardRequest |
 | POST, GET | `/api/tasks/[id]/comments` | requireTeamWork ‡ | `n8n`: dispatchEvent |

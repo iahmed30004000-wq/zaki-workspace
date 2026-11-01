@@ -51,7 +51,7 @@ export function StoragePanel() {
   const [lines, setLines] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
-  const meter = useQuery({ queryKey: ["storage", "meter"], queryFn: () => apiGet<Meter>("/api/storage") });
+  const meter = useQuery({ queryKey: ["storage", "meter"], queryFn: () => apiGet<Meter>("/api/library-storage") });
   const m = meter.data;
   const refresh = () => qc.invalidateQueries({ queryKey: ["storage", "meter"] });
 
@@ -64,7 +64,7 @@ export function StoragePanel() {
   const countFirst = async () => {
     setBusy("copy");
     try {
-      const r = await apiPost<Batch>("/api/storage/move", { step: "copy", dryRun: true });
+      const r = await apiPost<Batch>("/api/library-storage/move", { step: "copy", dryRun: true });
       setPlan(r.plan ?? { files: 0, bytes: 0 });
     } catch (err) {
       failed(err);
@@ -83,7 +83,7 @@ export function StoragePanel() {
     let stoppedByDrive = false;
     try {
       do {
-        const r: Batch = await apiPost<Batch>("/api/storage/move", { step, after });
+        const r: Batch = await apiPost<Batch>("/api/library-storage/move", { step, after });
         sum.done += r.done;
         sum.bytes += r.bytes;
         sum.failed += r.failed;

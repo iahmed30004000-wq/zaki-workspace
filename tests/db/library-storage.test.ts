@@ -12,8 +12,8 @@ vi.hoisted(() => {
 import * as attachmentRoute from "@/app/api/chat/attachments/[id]/route";
 import * as filesRoute from "@/app/api/files/route";
 import * as rawRoute from "@/app/api/files/[id]/raw/route";
-import * as meterRoute from "@/app/api/storage/route";
-import * as moveRoute from "@/app/api/storage/move/route";
+import * as meterRoute from "@/app/api/library-storage/route";
+import * as moveRoute from "@/app/api/library-storage/move/route";
 import { purgeOrphanUploads } from "@/server/chat/attachments";
 import { forgetDriveFolders } from "@/server/files/drive-store";
 import { resumeDrive } from "@/server/files/storage-policy";

@@ -262,7 +262,7 @@ other way is a bug.
   which asks `storageTarget()` (`src/server/files/storage-policy.ts`); profile pictures stay on the
   server by design. A Drive download is always proxied through the app after the same permission check
   (`openStored`), never a Drive link. ⚠️ While Drive is not connected the server fills up. 🔧 The library
-  says so on screen with the fix, and the owner's storage panel (`/api/storage`, owner rank only) moves
+  says so on screen with the fix, and the owner's storage panel (`/api/library-storage`, owner rank only) moves
   the old files: a copy step that deletes nothing, and a separate explicit step that removes a server
   copy only after Drive reads back the exact size and SHA-256 recorded at the move
   (`src/server/services/storage.ts`).
