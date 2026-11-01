@@ -108,10 +108,10 @@ describe("«حال السيرفر»: the card", () => {
 });
 
 describe("«وضع التوفير»: the shell tells the browser, and the timers listen", () => {
-  it("the layout renders the mark before the shell, and the repeated refreshes read their period through pollMs", () => {
-    const layout = read("src/app/(app)/layout.tsx");
-    expect(layout.indexOf("<EconomyMark")).toBeGreaterThan(-1);
-    expect(layout.indexOf("<EconomyMark")).toBeLessThan(layout.indexOf("<AppShell"));
+  it("the layout hands the switch to the shell, the shell sets it before anything below renders, and the repeated refreshes read their period through pollMs", () => {
+    expect(read("src/app/(app)/layout.tsx")).toMatch(/economy=\{economyOn\(org\?\.settings\)\}/);
+    const shell = read("src/components/app-shell.tsx");
+    expect(shell).toMatch(/setEconomy\(economy\);\s+const \{ t \} = useI18n\(\);/);
     for (const file of [
       "src/components/checkins/checkins-view.tsx",
       "src/components/checkins/my-checkin-card.tsx",
