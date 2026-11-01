@@ -16,7 +16,7 @@ import type { Client } from "pg";
  *     {"a":2,"b":"y"}
  *     ]');
  *
- * Each row is rendered BY POSTGRES (`row_to_json(t)::text`, never parsed in JavaScript), so every column type (bytea, jsonb, arrays,
+ * Each row is rendered BY POSTGRES (`row_to_json(...)::text`, never parsed in JavaScript), so every column type (bytea, jsonb, arrays,
  * enums, numeric, timestamps) round-trips exactly, and listing the columns lets a column added later take its DEFAULT. A row is
  * exactly one line starting with `{` (JSON escapes every newline), which is what the verifier counts.
  *
@@ -90,15 +90,18 @@ export async function* dumpDatabase(client: Client, stats: DumpStats, now: Date 
       )
     ).rows;
     const columnRows = (
-      await client.query<{ rel: string; name: string }>(
-        `SELECT attrelid::text AS rel, attname AS name FROM pg_attribute
+      await client.query<{ rel: string; name: string; type: string }>(
+        `SELECT attrelid::text AS rel, attname AS name, format_type(atttypid, atttypmod) AS type FROM pg_attribute
           WHERE attrelid = ANY($1::text[]::oid[]) AND attnum > 0 AND NOT attisdropped AND attgenerated = '' AND attidentity <> 'a'
           ORDER BY attrelid, attnum`,
         [tableRows.map((t) => t.oid)],
       )
     ).rows;
-    const columns = new Map<string, string[]>();
-    for (const c of columnRows) columns.set(c.rel, [...(columns.get(c.rel) ?? []), c.name]);
+    const columns = new Map<string, Array<{ name: string; json: "json" | "jsonb" | null }>>();
+    for (const c of columnRows) {
+      const json = c.type === "jsonb" ? "jsonb" : c.type === "json" ? "json" : null;
+      columns.set(c.rel, [...(columns.get(c.rel) ?? []), { name: c.name, json }]);
+    }
     const migrations = (await client.query<{ present: string | null }>("SELECT to_regclass('public._prisma_migrations')::text AS present")).rows[0]?.present
       ? (await client.query<{ name: string }>("SELECT migration_name AS name FROM _prisma_migrations WHERE finished_at IS NOT NULL ORDER BY migration_name")).rows.map((r) => r.name)
       : [];
@@ -118,8 +121,13 @@ export async function* dumpDatabase(client: Client, stats: DumpStats, now: Date 
     for (const table of ordered) {
       const cols = columns.get(table.oid) ?? [];
       if (cols.length === 0) continue;
-      const colList = cols.map(ident).join(", ");
-      const head = `INSERT INTO ${ident(table.name)} (${colList}) SELECT ${colList} FROM json_populate_recordset(NULL::${ident(table.name)}, '[\n`;
+      const colList = cols.map((c) => ident(c.name)).join(", ");
+      // A JSON column travels as its TEXT (a JSON string inside the row's JSON) and is parsed back by the INSERT: left as a nested
+      // value, a JSON null would come back as an SQL NULL (json_populate_recordset cannot tell them apart) and a column of
+      // `json` type would lose its exact text. An SQL NULL stays NULL both ways.
+      const readList = cols.map((c) => (c.json ? `${ident(c.name)}::text AS ${ident(c.name)}` : ident(c.name))).join(", ");
+      const putList = cols.map((c) => (c.json ? `(${ident(c.name)} #>> '{}')::${c.json}` : ident(c.name))).join(", ");
+      const head = `INSERT INTO ${ident(table.name)} (${colList}) SELECT ${putList} FROM json_populate_recordset(NULL::${ident(table.name)}, '[\n`;
       yield `-- table: ${ident(table.name)}\n`;
       stats.tables++;
       let rows = 0;
@@ -131,7 +139,7 @@ export async function* dumpDatabase(client: Client, stats: DumpStats, now: Date 
         bytes = 0;
         return text;
       };
-      await client.query(`DECLARE zk_backup NO SCROLL CURSOR FOR SELECT row_to_json(t)::text AS j FROM ${ident(table.name)} t`);
+      await client.query(`DECLARE zk_backup NO SCROLL CURSOR FOR SELECT row_to_json(s)::text AS j FROM (SELECT ${readList} FROM ${ident(table.name)}) s`);
       try {
         for (;;) {
           const page = await client.query<{ j: string }>(`FETCH FORWARD ${FETCH_ROWS} FROM zk_backup`);

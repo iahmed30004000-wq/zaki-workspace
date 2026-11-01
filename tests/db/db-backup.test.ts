@@ -6,7 +6,7 @@ import { Readable } from "node:stream";
 import { gunzipSync } from "node:zlib";
 import { Client } from "pg";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import * as statusRoute from "@/app/api/integrations/db-backup/route";
 import * as runRoute from "@/app/api/integrations/db-backup/run/route";
 import * as verifyRoute from "@/app/api/integrations/db-backup/[id]/verify/route";
@@ -665,6 +665,21 @@ describe("the dump restores into a NEW empty database", () => {
     await makeUser({ orgId: w.org.id, name: "It's a \\ test\n-- not a comment {\"x\":1} — «عربي» 😀" });
     await db.organization.update({ where: { id: w.org.id }, data: { settings: { note: "it's \"quoted\" \\ and\nmulti-line", n: 1.5, list: [1, "two", null] } } });
     await setSwitch(w.org.id, true);
+    // JSON columns: a JSON null is NOT a SQL null, a string that looks like JSON is still a string, numbers keep their digits
+    const jsonCases: Array<Prisma.InputJsonValue | typeof Prisma.JsonNull | typeof Prisma.DbNull> = [
+      Prisma.JsonNull,
+      Prisma.DbNull,
+      "null",
+      '{"looks":"like json"}',
+      "it's \\ a \"string\"\n",
+      [],
+      {},
+      [1, 1.5, -0.25, 12345678901234567890, null, "x", [true, false], { a: { b: [] } }],
+      { "key with 'quote'": "ا\\u00e9", n: 1.0 },
+      0,
+      false,
+    ];
+    for (const meta of jsonCases) await db.auditLog.create({ data: { action: "backup.test.json", orgId: w.org.id, meta } });
 
     const url = process.env["DATABASE_URL"] as string;
     const source = new Client({ connectionString: directPgUrl(url) });
