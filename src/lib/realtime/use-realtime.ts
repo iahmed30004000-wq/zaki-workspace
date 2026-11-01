@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { pollMs } from "@/lib/economy";
 
 /**
  * The one realtime seam for every UI agent: useRealtime / useTyping / useOnline.
@@ -96,7 +97,7 @@ function startPolling(): void {
   stream.pollTimer = setInterval(() => {
     // A synthetic event: the UI refetches through the normal APIs (authorization applies there).
     dispatch({ kind: "conversation.changed" });
-  }, POLL_MS);
+  }, pollMs(POLL_MS));
 }
 
 function teardown(): void {

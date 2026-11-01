@@ -13,6 +13,7 @@ import {
 } from "@/server/files/sniff";
 
 export type { ChatAttachmentKind };
+import { assertFeatureOn } from "@/server/services/features";
 import { discardStoredBytes, ingest, logFile, openStored, PENDING_PATH } from "@/server/services/files";
 
 /**
@@ -112,6 +113,8 @@ function clampPeaks(raw: unknown): number[] | undefined {
  * Everything the attachment row will need travels in `meta` on the StoredFile row.
  */
 export async function createChatUpload(input: ChatUploadInput): Promise<ChatUploadResult> {
+  // «الرسائل الصوتية» off: a recording is refused before a byte of it is kept (the other kinds of attachment are untouched)
+  if (input.declaredKind === "VOICE") await assertFeatureOn(input.actor.orgId, "voiceNotes");
   const upload = input.upload;
   const bytes = input.bytes;
   if (!upload && !bytes) throw new ForbiddenError("files.empty");

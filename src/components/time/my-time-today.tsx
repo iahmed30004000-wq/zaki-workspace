@@ -8,6 +8,7 @@ import { useOptionalToast } from "@/components/ui/toast";
 import { errorKeyOf, tt } from "@/lib/time-client";
 import { formatClock, formatDecimal, formatHM, runningSeconds } from "@/lib/time-tracking";
 import type { MyTimeToday } from "@/server/services/time-tracking";
+import { pollMs } from "@/lib/economy";
 
 /** How often the line asks the server again, so a timer stopped elsewhere (another tab, the job runner) shows up without a reload. */
 const REFRESH_MS = 60_000;
@@ -99,7 +100,7 @@ export function MyTimeToday() {
 
   React.useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), REFRESH_MS);
+    const timer = setInterval(() => void load(), pollMs(REFRESH_MS));
     return () => clearInterval(timer);
   }, [load]);
 

@@ -13,6 +13,7 @@ import { getIntegration } from "@/server/services/integrations";
 import { OrgNameForm } from "@/components/org-name-form";
 import { IntegrationBadge } from "@/components/integration-badge";
 import { FeatureSwitches } from "@/components/feature-switches";
+import { ServerHealthCard } from "@/components/server-health-card";
 import { listFeatures } from "@/server/services/features";
 
 export default async function SettingsPage() {
@@ -73,6 +74,9 @@ export default async function SettingsPage() {
           </Link>
         </div>
       </section>
+
+      {/* «حال السيرفر»: the owner's read-only look at the box (src/server/services/server-health.ts), above the switches it advises on */}
+      {actor.isOwner ? <ServerHealthCard /> : null}
 
       {/* «الميزات»: the owner's on/off switch for each feature (src/lib/features.ts) */}
       {actor.isOwner ? (

@@ -45,6 +45,7 @@ export function ConversationHeader({
   canSet,
   onSettings,
   onBack,
+  whiteboard = true,
 }: {
   conversationId: string;
   title: string;
@@ -56,6 +57,8 @@ export function ConversationHeader({
   canSet: boolean;
   onSettings: () => void;
   onBack: () => void;
+  /** the company's «السبورة» switch: off, no link to the board (the page is gone too) */
+  whiteboard?: boolean;
 }) {
   const board = `/chat/${encodeURIComponent(conversationId)}/whiteboard`;
   const pill = "inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-sm hover:bg-surface-2";
@@ -76,10 +79,12 @@ export function ConversationHeader({
           <span aria-hidden="true">🔍</span>
           {ct("chatc.search.open")}
         </button>
-        <Link href={board} className={pill}>
-          <span aria-hidden="true">🖍️</span>
-          {ct("whiteboard.open")}
-        </Link>
+        {whiteboard && (
+          <Link href={board} className={pill}>
+            <span aria-hidden="true">🖍️</span>
+            {ct("whiteboard.open")}
+          </Link>
+        )}
         {canSet && (
           <button type="button" onClick={onSettings} className={pill}>
             <span aria-hidden="true">⚙</span>
@@ -98,11 +103,13 @@ export function ConversationHeader({
             <DropdownMenuItem onSelect={onSearch}>
               <span aria-hidden="true">🔍</span> {ct("chatc.search.open")}
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <Link href={board}>
-                <span aria-hidden="true">🖍️</span> {ct("whiteboard.open")}
-              </Link>
-            </DropdownMenuItem>
+            {whiteboard && (
+              <DropdownMenuItem asChild>
+                <Link href={board}>
+                  <span aria-hidden="true">🖍️</span> {ct("whiteboard.open")}
+                </Link>
+              </DropdownMenuItem>
+            )}
             {canSet && (
               <DropdownMenuItem onSelect={onSettings}>
                 <span aria-hidden="true">⚙</span> {ct("chatc.topic.settings")}
