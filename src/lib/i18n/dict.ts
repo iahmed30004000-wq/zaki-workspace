@@ -41,6 +41,7 @@ import taskRewards from "./ar.task-rewards.json";
 import calendarFeed from "./ar.calendar-feed.json";
 import ownerBoard from "./ar.owner-board.json";
 import ownerAssistant from "./ar.owner-assistant.json";
+import chatAssistant from "./ar.chat-assistant.json";
 import customFields from "./ar.custom-fields.json";
 import outbox from "./ar.outbox.json";
 import checkins from "./ar.checkins.json";
@@ -103,6 +104,7 @@ export const AR: Record<string, string> = {
   ...calendarFeed,
   ...ownerBoard,
   ...ownerAssistant,
+  ...chatAssistant,
   ...customFields,
   ...outbox,
   ...checkins,

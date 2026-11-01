@@ -40,6 +40,13 @@ export function selectedMentionIds(value: string, selected: readonly { id: strin
 export const MENTION_ALL_NAME = "الكل";
 export const MENTION_ALL_ID = "*";
 
+/**
+ * «@المساعد»: the company's AI helper, offered in the «@» list only while «قراءة الدردشات للمساعد» is on. It is not a person: no
+ * user row, never stored in a message's `mentions`; the server finds the word in the body (`mentionsAssistant`) and answers once.
+ */
+export const ASSISTANT_MENTION_NAME = "المساعد";
+export const ASSISTANT_MENTION_ID = "assistant";
+
 const MENTION_END = /[\s,،.!?؟:؛;]/;
 
 /** The pieces of a body: plain text, and each `@name` of `names` that stands as a whole word (longest name first). */
@@ -74,6 +81,11 @@ export function splitMentions(body: string, names: readonly string[]): { text: s
 /** True when the body addresses everybody with «@الكل». */
 export function mentionsAll(body: string): boolean {
   return splitMentions(body, [MENTION_ALL_NAME]).some((piece) => piece.mention);
+}
+
+/** True when the body addresses the assistant with «@المساعد» as a whole word. */
+export function mentionsAssistant(body: string): boolean {
+  return splitMentions(body, [ASSISTANT_MENTION_NAME]).some((piece) => piece.mention);
 }
 
 /** Does a message's `mentions` reach this person: by name, or by «@الكل»? */

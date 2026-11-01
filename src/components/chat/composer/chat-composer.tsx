@@ -5,7 +5,7 @@ import { useI18n } from "@/lib/i18n";
 import { classifyFile, exceedsKindLimit, MAX_ATTACHMENTS_PER_MESSAGE, type FileKind } from "@/lib/chat/file-kinds";
 import { compressImage } from "@/lib/chat/compress-image";
 import { createChatUploadFormData, createVoiceUploadFormData, enterSends, messageClientId } from "@/lib/chat/conversation/client";
-import { filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
+import { ASSISTANT_MENTION_ID, filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
 import { Avatar } from "@/components/ui/avatar";
 import { useTyping } from "@/lib/realtime/use-realtime";
 import { playChatSound } from "@/lib/chat/sounds";
@@ -120,7 +120,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
   setClientId(messageClientId());
   const nextBody = insertMention(body, name);
   setBody(nextBody);
-  if (id === "*") { keepDraft(nextBody, mentions); return; } // «@الكل» is read from the words of the message at send time, it is no person
+  if (id === "*" || id === ASSISTANT_MENTION_ID) { keepDraft(nextBody, mentions); return; } // «@الكل» and «@المساعد» are read from the words of the message at send time, they are no person
   const nextMentions = mentions.some(member => member.id === id) ? mentions : [...mentions, { id, name }];
   setMentions(nextMentions);
   keepDraft(nextBody, nextMentions);
@@ -392,11 +392,14 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
         onMouseDown={event => event.preventDefault()}
         onClick={() => selectMention(member.id, member.name)}
        >
-        {member.all
+        {member.id === ASSISTANT_MENTION_ID
+         ? <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-info/15 text-sm font-bold text-info">✦</span>
+         : member.all
          ? <span aria-hidden="true" className="flex size-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-sm font-bold text-accent">@</span>
          : <span className="relative shrink-0"><Avatar name={member.name} src={member.avatarUrl} className="size-8 text-xs" />{member.online && <span aria-hidden="true" className="absolute -bottom-0.5 -end-0.5 size-2.5 rounded-full border-2 border-surface bg-ok" />}</span>}
         <span className="min-w-0 flex-1 truncate">{member.all ? `@${member.name}` : member.name}</span>
         {member.all && <span className="text-xs text-fg-muted">{t("chatc.mention_all_hint")}</span>}
+        {member.id === ASSISTANT_MENTION_ID && <span className="text-xs text-fg-muted">{t("chatai.mention_hint")}</span>}
        </button>
       </li>
      ))}

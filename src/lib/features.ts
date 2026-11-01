@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -87,6 +87,13 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // /owner/assistant and /api/owner-assistant answer «not found» for everybody, the owner included; the saved settings and
   // conversations stay and come back with the switch. It reads the board, so it also needs «لوحة المالك» on.
   ownerAssistant: false,
+  // «قراءة الدردشات للمساعد» (src/server/services/chat-assistant.ts): «@المساعد» appears in the «@» list of every chat and topic and answers ONLY when
+  // somebody mentions it, once, in that same conversation, from the last 30 messages of THAT conversation with the text filtered first
+  // (src/server/ai/redact-chat.ts). OFF until the owner turns it on. It needs «مساعد المالك» on and the owner's key saved. Off: the assistant is not in
+  // the list, a typed «@المساعد» is plain text and nothing is read or sent; the answers already posted stay as ordinary lines.
+  // ⚠️ An external model reads redacted chat text. 🔧 Phones, e-mails, links and addresses are masked, a conversation with a guest is refused,
+  // the audit log keeps who asked and how many characters, never the words.
+  chatAssistant: false,
   // «الرسائل بدون نت» (src/lib/chat/outbox/): a message that cannot be sent because the network is gone is kept in the browser,
   // shown as «بانتظار الإرسال» and sent again by itself (in order, once, even if the first try did reach the server), and what is
   // typed and not sent is kept per conversation. Off: sending fails with an error and the text stays in the box, as before; the

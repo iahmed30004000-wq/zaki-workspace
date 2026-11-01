@@ -8,6 +8,7 @@ import { systemSentence } from "@/lib/chat/system-sentence";
 import { ct } from "@/lib/chat/text";
 import { isMentioned, splitMentions } from "@/lib/chat/conversation/mentions";
 import { PollCard } from "@/components/chat/message/poll-card";
+import { AssistantLine } from "@/components/chat/message/assistant-line";
 import { VoicePlayer } from "@/components/chat/message/voice-player";
 import { MessageMenu, LONG_PRESS_MS } from "@/components/chat/message/message-menu";
 import type { MessageMenuContext, MessageMenuId } from "@/components/chat/message/message-menu-registry";
@@ -53,6 +54,7 @@ export function MessageItem({message,canModerate,oversight=false,readers=[],conv
  const press=React.useRef<{timer:ReturnType<typeof setTimeout>;x:number;y:number}|null>(null);
  const canAct=!oversight&&!message.deleted&&message.kind!=="SYSTEM";
  // a system line is a quiet sentence in the middle, never a bubble with an empty body
+ if(message.kind==="SYSTEM"&&message.system?.k==="assistant")return <AssistantLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt}/>;
  if(message.kind==="SYSTEM")return <p dir="rtl" role="note" className="my-2 text-center text-xs text-fg-muted">{systemSentence(message.system,message.authorName)}</p>;
  const context:MessageMenuContext={mine:message.mine,deleted:message.deleted,kind:message.kind,hasText:Boolean(message.body&&message.body.trim()),pinned:message.pinned,conversationKind,canPost,canModerate,oversight,canMakeWork,canMakeTask,canMakeTicket,canRemind};
  // a phone's long press opens the menu sheet; moving the finger (a scroll) or lifting early is no press
