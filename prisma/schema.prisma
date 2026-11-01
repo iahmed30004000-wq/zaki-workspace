@@ -66,6 +66,10 @@ model User {
   materialMovementsMade MaterialMovement[] @relation("MaterialMovementCreator")
   materialCounts   MaterialCount[]      @relation("MaterialCounter")
   materialCountsDecided MaterialCount[] @relation("MaterialCountDecider")
+  materialCostingsMade MaterialCosting[] @relation("MaterialCostingCreator")
+  recipesMade      Recipe[]             @relation("RecipeCreator")
+  recipeVersionsMade RecipeVersion[]    @relation("RecipeVersionCreator")
+  productionOrdersMade ProductionOrder[] @relation("ProductionOrderCreator")
   cardNotes       CardNote[]           @relation("CardNoteAuthor")
   cardRatings     CardRating[]         @relation("CardRater")
   cardAttachments CardAttachment[]     @relation("CardAttachmentAdder")
@@ -791,6 +795,9 @@ model Organization {
   documents        Document[]
   materials        Material[]
   suppliers        Supplier[]
+  materialCostings MaterialCosting[]
+  recipes          Recipe[]
+  productionOrders ProductionOrder[]
   integrations     Integration[]
   conversations    Conversation[]
   IntegrationEvent IntegrationEvent[]
@@ -918,6 +925,9 @@ model Workspace {
   documents     Document[]
   materials     Material[]
   suppliers     Supplier[]
+  materialCostings MaterialCosting[]
+  recipes       Recipe[]
+  productionOrders ProductionOrder[]
   checkinConfig CheckinConfig?
   checkinRounds CheckinRound[]
   apiTokens     ApiToken[]
@@ -2624,6 +2634,9 @@ model Material {
   lots         MaterialLot[]
   movements    MaterialMovement[]
   counts       MaterialCount[]
+  costings     MaterialCosting[]
+  recipeLines  RecipeLine[]
+  orderLines   ProductionOrderLine[]
 
   @@unique([workspaceId, code])
   @@index([orgId, workspaceId, archivedAt])
@@ -2686,6 +2699,9 @@ model MaterialLot {
   proofFileId      String?
   proofNote        String?
   note             String?
+  /// «استلام بدون سعر»: the price was not known at the receipt. The lot is written with unit cost and total 0 and this flag, and the
+  /// price comes once, later, as a MaterialCosting row (the lot itself is never updated). Until then the lot is outside the average.
+  costPending      Boolean   @default(false)
   createdById      String
   createdAt        DateTime  @default(now())
 
@@ -2693,6 +2709,7 @@ model MaterialLot {
   supplier  Supplier?          @relation(fields: [supplierId], references: [id], onDelete: NoAction)
   createdBy User               @relation("MaterialLotCreator", fields: [createdById], references: [id], onDelete: Restrict)
   movements MaterialMovement[]
+  costing   MaterialCosting?
 
   @@index([materialId, receivedOn])
   @@index([orgId, workspaceId])
@@ -2722,6 +2739,7 @@ model MaterialMovement {
   lot       MaterialLot?   @relation(fields: [lotId], references: [id], onDelete: Cascade)
   count     MaterialCount? @relation(fields: [countId], references: [id], onDelete: Cascade)
   createdBy User           @relation("MaterialMovementCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  orderLink ProductionOrderMovement?
 
   @@index([materialId, createdAt])
   @@index([orgId, workspaceId, createdAt])
@@ -2753,4 +2771,159 @@ model MaterialCount {
 
   @@index([materialId, status])
   @@index([orgId, workspaceId, status, createdAt])
+}
+
+// ---------- «مخزون التصنيع», slice 2: the late price, recipes and production orders ----------
+// Still stock and cost only: nothing here is linked to the OMS, and no money moves. Every number is an integer (micro-units, minor units).
+
+/// The price of a lot that was received «بدون سعر», written ONCE by a holder of `manufacturing.cost` (unique on `lotId`) and never changed:
+/// the lot row itself stays as it was. `unitCostMinor` is the price of ONE of the lot's entered unit (like a priced receipt), `totalCostMinor`
+/// the exact total rounded half-up once. A trigger refuses an UPDATE and a plain DELETE, and an insert for a lot that was not received unpriced.
+model MaterialCosting {
+  id             String   @id @default(cuid())
+  orgId          String
+  workspaceId    String
+  materialId     String
+  lotId          String   @unique
+  unitCostMinor  BigInt
+  totalCostMinor BigInt
+  currency       String
+  note           String?
+  createdById    String
+  createdAt      DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  material     Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  lot          MaterialLot  @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("MaterialCostingCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([materialId])
+  @@index([orgId, workspaceId])
+}
+
+/// A recipe (وصفة) of a manufacturing space: only its identity and whether it is archived. What it IS lives in its versions, which are
+/// written once and never edited (a change is a new version). Archived instead of deleted.
+model Recipe {
+  id          String    @id @default(cuid())
+  orgId       String
+  workspaceId String
+  archivedAt  DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  organization Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workspace    Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User            @relation("RecipeCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  versions     RecipeVersion[]
+
+  @@index([orgId, workspaceId, archivedAt])
+}
+
+/// One version of a recipe: the finished item's name and output unit (free Arabic text), and its lines. Written once (a trigger refuses an UPDATE).
+/// `version` counts from 1 per recipe.
+model RecipeVersion {
+  id          String   @id @default(cuid())
+  recipeId    String
+  version     Int
+  name        String
+  outputUnit  String
+  note        String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  recipe    Recipe            @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  createdBy User              @relation("RecipeVersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lines     RecipeLine[]
+  orders    ProductionOrder[]
+
+  @@unique([recipeId, version])
+}
+
+/// A line of a recipe version: how much of a material ONE output unit takes. `qtyMicro` is exact, in the material's BASE unit (what was typed
+/// in another unit of the material is kept in `enteredQtyMicro` / `enteredUnitLabel` for the screen).
+model RecipeLine {
+  id               String @id @default(cuid())
+  versionId        String
+  materialId       String
+  position         Int
+  qtyMicro         BigInt
+  enteredQtyMicro  BigInt
+  enteredUnitLabel String
+
+  version  RecipeVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  material Material      @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, materialId])
+}
+
+/// A production order (أمر تصنيع): a planned quantity of a recipe version. DRAFT → ISSUED (the materials were taken out of stock, FIFO by
+/// lot, as ISSUE movements linked through ProductionOrderMovement) → COMPLETED (the real output is recorded) or RETURNED (the issued
+/// materials went back by reversing movements); a DRAFT can be CANCELLED. A trigger allows only these steps and keeps the plan unchanged.
+/// The actors of the steps are plain ids (history survives a removed person; nobody is deleted anyway).
+model ProductionOrder {
+  id              String    @id @default(cuid())
+  orgId           String
+  workspaceId     String
+  seq             Int
+  recipeVersionId String
+  plannedQtyMicro BigInt
+  status          String    @default("DRAFT")
+  note            String?
+  createdById     String
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  issuedById      String?
+  issuedAt        DateTime?
+  completedById   String?
+  completedAt     DateTime?
+  actualQtyMicro  BigInt?
+  wasteQtyMicro   BigInt?
+  wasteNote       String?
+  closedById      String?
+  closedAt        DateTime?
+  closeNote       String?
+
+  organization  Organization            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workspace     Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  recipeVersion RecipeVersion           @relation(fields: [recipeVersionId], references: [id], onDelete: NoAction)
+  createdBy     User                    @relation("ProductionOrderCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lines         ProductionOrderLine[]
+  movements     ProductionOrderMovement[]
+
+  @@unique([workspaceId, seq])
+  @@index([orgId, workspaceId, status, createdAt])
+}
+
+/// What the order needs of one material: the recipe line's quantity per output unit as it was when the order was made, and the exact
+/// requirement (`requiredMicro` = per unit × planned, rounded half-up once). Written once.
+model ProductionOrderLine {
+  id            String @id @default(cuid())
+  orderId       String
+  materialId    String
+  position      Int
+  perUnitMicro  BigInt
+  requiredMicro BigInt
+
+  order     ProductionOrder           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  material  Material                  @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  movements ProductionOrderMovement[]
+
+  @@unique([orderId, materialId])
+}
+
+/// The link between an order and the ledger movements it caused (the ISSUE movements of its issue step and the REVERSE movements of its
+/// return). A movement belongs to at most one order. Written once.
+model ProductionOrderMovement {
+  id         String   @id @default(cuid())
+  orderId    String
+  lineId     String
+  movementId String   @unique
+  createdAt  DateTime @default(now())
+
+  order    ProductionOrder     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  line     ProductionOrderLine @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  movement MaterialMovement    @relation(fields: [movementId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
 }
