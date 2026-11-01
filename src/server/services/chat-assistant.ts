@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { log } from "@/server/log";
 import { AssistantError } from "@/server/ai/api";
 import { AiProviderError } from "@/server/ai/provider";
+import { LOCAL_MAX_OUTPUT_TOKENS, LOCAL_WINDOW } from "@/server/ai/local-transport";
 import { makeProvider } from "@/server/ai/registry";
 import { capText } from "@/server/ai/redact";
 import { CHAT_MAX_OUTPUT_TOKENS, CHAT_SYSTEM_PROMPT, REPLY_MAX_CHARS, buildChatPrompt, type ChatRow } from "@/server/ai/redact-chat";
@@ -13,7 +14,8 @@ import { emitRealtime } from "@/server/realtime/emit";
 import { FixedWindowLimiter } from "@/server/rate-limit";
 import { isFeatureOn } from "@/server/services/features";
 import { orgTimeZone } from "@/server/services/org-day";
-import { assertWithinQuota, getSettings, readKey, recordUsage, usageSummary } from "@/server/services/owner-assistant-settings";
+import { isLocalKind, providerReady, resolveProvider } from "@/server/services/assistant-provider";
+import { assertWithinQuota, getSettings, recordUsage, usageSummary } from "@/server/services/owner-assistant-settings";
 import { dayKeyOf } from "@/lib/owner-board";
 
 /**
@@ -58,18 +60,24 @@ export type AssistantOutcome =
   | { outcome: "refused"; reason: RefusalReason }
   | { outcome: "answered"; messageId: string };
 
-export type RefusalReason = "guest" | "no_key" | "daily" | "monthly" | "key_rejected" | "request" | "busy" | "failed";
+export type RefusalReason = "guest" | "no_key" | "no_local" | "daily" | "monthly" | "key_rejected" | "request" | "busy" | "failed" | "local_busy" | "local_down" | "local_missing" | "local_timeout" | "local_host";
 
 /** The sentence of each refusal: a dictionary key per reason. */
 const REFUSAL_KEY: Record<RefusalReason | "limited_user" | "limited_conversation", string> = {
   guest: "chatai.err.guest",
   no_key: "chatai.err.no_key",
+  no_local: "chatai.err.no_local",
   daily: "chatai.err.daily",
   monthly: "chatai.err.monthly",
   key_rejected: "chatai.err.key_rejected",
   request: "chatai.err.request",
   busy: "chatai.err.busy",
   failed: "chatai.err.failed",
+  local_busy: "chatai.err.local_busy",
+  local_down: "chatai.err.local_down",
+  local_missing: "chatai.err.local_missing",
+  local_timeout: "chatai.err.local_timeout",
+  local_host: "chatai.err.local_host",
   limited_user: "chatai.err.rate_user",
   limited_conversation: "chatai.err.rate_conversation",
 };
@@ -78,6 +86,11 @@ function reasonOfProviderError(key: string): RefusalReason {
   if (key === "assistant.err_key_rejected") return "key_rejected";
   if (key === "assistant.err_request") return "request";
   if (key === "assistant.err_rate_limited" || key === "assistant.err_overloaded") return "busy";
+  if (key === "assistant.err_local_busy") return "local_busy";
+  if (key === "assistant.err_local_down") return "local_down";
+  if (key === "assistant.err_local_missing") return "local_missing";
+  if (key === "assistant.err_local_timeout") return "local_timeout";
+  if (key === "assistant.err_local_host") return "local_host";
   return "failed";
 }
 
@@ -89,7 +102,7 @@ function reasonOfProviderError(key: string): RefusalReason {
  */
 export async function chatAssistantOffered(orgId: string): Promise<boolean> {
   if (!(await isFeatureOn(orgId, "chatAssistant")) || !(await isFeatureOn(orgId, "ownerAssistant"))) return false;
-  return (await getSettings(orgId)).hasKey;
+  return providerReady(await getSettings(orgId), "chat");
 }
 
 // ───────────────────────────────────────── the guest rule ─────────────────────────────────────────
@@ -120,6 +133,9 @@ interface Line {
   err?: RefusalReason | "limited";
   first?: boolean;
   read?: number;
+  /** a local model read the text (the screen names it instead of «an external model»); `relaxed`: with the relaxed filter */
+  local?: boolean;
+  relaxed?: boolean;
 }
 
 interface AuditFacts {
@@ -130,6 +146,9 @@ interface AuditFacts {
   charsReply?: number;
   masked?: number;
   model?: string;
+  /** only for a local model: which kind answered (`ollama` / `openai`) and whether the relaxed filter was on */
+  provider?: string;
+  relaxed?: boolean;
 }
 
 async function postLine(
@@ -142,6 +161,8 @@ async function postLine(
   if (line.err) p["err"] = line.err;
   if (line.first) p["first"] = 1;
   if (line.read !== undefined) p["read"] = line.read;
+  if (line.local) p["local"] = 1;
+  if (line.relaxed) p["relaxed"] = 1;
   try {
     return await db.$transaction(async (tx) => {
       const msg = await tx.chatMessage.create({
@@ -242,8 +263,11 @@ export async function answerMention(input: { orgId: string; conversationId: stri
 
     // 6. the owner's key and the company's quotas
     const settings = await getSettings(orgId);
-    const apiKey = settings.hasKey ? await readKey(orgId) : null;
-    if (!apiKey) return refuse("no_key");
+    const choice = await resolveProvider(orgId, settings, "chat");
+    if (!choice) return refuse(settings.chatProvider === "claude" ? "no_key" : "no_local");
+    const local = isLocalKind(choice.kind);
+    // names pass only for a local model with the owner's switch (`choice.relax`) or when he allowed names; Claude is never relaxed
+    const allowNames = settings.allowNames || choice.relax;
     const day = dayKeyOf(now, await orgTimeZone(orgId));
     try {
       assertWithinQuota(await usageSummary(orgId, settings, now));
@@ -273,15 +297,21 @@ export async function answerMention(input: { orgId: string; conversationId: stri
         rows.push({ id: m.id, authorId: m.authorId, authorName: m.author.name, body: m.body });
       }
     }
-    const people = settings.allowNames
+    const people = allowNames
       ? []
       : await db.organizationMember.findMany({ where: { organizationId: orgId, status: "ACTIVE" }, select: { user: { select: { name: true } } }, take: 1000 });
-    const prompt = buildChatPrompt(rows, { allowNames: settings.allowNames, askingMessageId: messageId, companyNames: people.map((p) => p.user.name) });
+    const prompt = buildChatPrompt(rows, {
+      allowNames,
+      askingMessageId: messageId,
+      companyNames: people.map((p) => p.user.name),
+      ...(choice.relax ? { relax: true } : {}),
+      ...(local ? { windowMessages: LOCAL_WINDOW.messages, windowChars: LOCAL_WINDOW.chars } : {}),
+    });
 
     // 8. the call: no tools, a bounded answer
     let completion;
     try {
-      completion = await makeProvider({ apiKey, model: settings.model }).complete({ system: CHAT_SYSTEM_PROMPT, messages: [{ role: "user", content: prompt.content }], maxTokens: CHAT_MAX_OUTPUT_TOKENS });
+      completion = await makeProvider(choice.config).complete({ system: CHAT_SYSTEM_PROMPT, messages: [{ role: "user", content: prompt.content }], maxTokens: local ? Math.min(CHAT_MAX_OUTPUT_TOKENS, LOCAL_MAX_OUTPUT_TOKENS) : CHAT_MAX_OUTPUT_TOKENS });
     } catch (err) {
       const key = err instanceof AiProviderError ? err.key : "unexpected";
       // the reason only: not the words, not the provider's body, not the key
@@ -294,8 +324,17 @@ export async function answerMention(input: { orgId: string; conversationId: stri
     const first = (await db.chatMessage.count({ where: { conversationId, kind: "SYSTEM", body: { startsWith: ASSISTANT_BODY_PREFIX } } })) === 0;
     const posted = await postLine(
       ctx,
-      { text, first, read: prompt.messages },
-      { outcome: "answered", readMessages: prompt.messages, charsSent: prompt.chars, charsReply: text.length, masked: prompt.maskedTotal, model: settings.model },
+      { text, first, read: prompt.messages, ...(local ? { local: true } : {}), ...(choice.relax ? { relaxed: true } : {}) },
+      {
+        outcome: "answered",
+        readMessages: prompt.messages,
+        charsSent: prompt.chars,
+        charsReply: text.length,
+        masked: prompt.maskedTotal,
+        model: choice.model,
+        ...(local ? { provider: choice.kind } : {}),
+        ...(choice.relax ? { relaxed: true } : {}),
+      },
       { day, inputTokens: completion.usage.inputTokens, outputTokens: completion.usage.outputTokens },
     );
     return posted ? { outcome: "answered", messageId: posted } : { outcome: "duplicate" };

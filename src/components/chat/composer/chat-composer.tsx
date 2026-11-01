@@ -313,6 +313,8 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
  }
 
  const empty = !body.trim() && !files.length && !editing;
+ // «الرسائل الصوتية» switch (`voiceNotes`): off, no microphone button and no «رسالة صوتية» in the «+» menu; absent: on
+ const voiceOn = detail.voiceNotes !== false;
  const recording = voice.mode === "recording" ? voice : null;
 
  if (recording || voice.mode === "review") {
@@ -415,7 +417,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
      <DropdownMenuContent align="start">
       <DropdownMenuItem onSelect={() => mediaInput.current?.click()}>{t("chat.f.attach_media")}</DropdownMenuItem>
       <DropdownMenuItem onSelect={() => fileInput.current?.click()}>{t("chat.f.attach_file")}</DropdownMenuItem>
-      <DropdownMenuItem onSelect={() => void startRecording(false)}>{t("chat.f.voice_label")}</DropdownMenuItem>
+      {voiceOn && <DropdownMenuItem onSelect={() => void startRecording(false)}>{t("chat.f.voice_label")}</DropdownMenuItem>}
       {detail.me.canPoll && <DropdownMenuItem onSelect={() => setPollOpen(true)}>{t("chatc.poll.menu")}</DropdownMenuItem>}
      </DropdownMenuContent>
     </DropdownMenu>}
@@ -443,7 +445,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
      className="max-h-40 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-border bg-surface px-3 py-2 text-base"
      placeholder={t("chatc.message")}
     />
-    {empty ? (
+    {empty && voiceOn ? (
      <button
       type="button"
       className={`${iconButton} bg-accent text-accent-fg touch-none select-none`}
@@ -456,7 +458,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
       <span aria-hidden="true">🎤</span>
      </button>
     ) : (
-     <button type="submit" disabled={busy || (editing !== null && !body.trim())} className={`${iconButton} bg-accent text-accent-fg`} aria-label={editing ? t("chatc.save") : busy ? t("chatc.sending") : t("chatc.send")}>
+     <button type="submit" disabled={busy || (editing !== null && !body.trim()) || empty} className={`${iconButton} bg-accent text-accent-fg`} aria-label={editing ? t("chatc.save") : busy ? t("chatc.sending") : t("chatc.send")}>
       <span aria-hidden="true">{busy ? "…" : "➤"}</span>
      </button>
     )}

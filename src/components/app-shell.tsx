@@ -1,5 +1,6 @@
 "use client";
 
+import { setEconomy } from "@/lib/economy";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
@@ -48,6 +49,8 @@ export interface AppShellProps {
   peopleDock?: boolean;
   /** The company's «الدردشة السريعة» switch: off, the floating button is not drawn. */
   quickChat?: boolean;
+  /** The company's «وضع التوفير» (`src/lib/features.ts`): the screen's repeated refreshes wait longer (`src/lib/economy.ts`). */
+  economy?: boolean;
   children: ReactNode;
 }
 
@@ -65,7 +68,9 @@ export interface AppShellProps {
  * (`buildNav` in the (app) layout): the frame only draws it, and the server still decides every request.
  * Theme tokens only, logical CSS only; the decoration is in the side menu's header and nowhere else.
  */
-export function AppShell({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, children }: AppShellProps) {
+export function AppShell({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, economy = false, children }: AppShellProps) {
+  // set while rendering, on purpose: the shell renders before its children, so every timer below reads the right period
+  setEconomy(economy);
   const { t } = useI18n();
   const toast = useOptionalToast();
   // «ترتيبي»: the person's own order, drawn over the map they may see (never adds or hides anything)

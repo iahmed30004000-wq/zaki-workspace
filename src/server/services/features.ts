@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
-import { FEATURES, featureOn, featuresOf, withFeature, type FeatureKey } from "@/lib/features";
+import { FEATURES, economyOn, featureOn, ownChoicesOf, withFeature, type FeatureKey } from "@/lib/features";
 
 /**
  * «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request.
@@ -28,9 +28,17 @@ export async function assertFeatureOn(orgId: string, key: FeatureKey): Promise<v
   if (!(await isFeatureOn(orgId, key))) throw new NotFoundError("features.off");
 }
 
-/** Every switch of the company, for «الميزات». */
+/** «وضع التوفير» is on for this company: the heavy switches of `ECONOMY_FORCED_OFF` are held off (src/lib/features.ts). */
+export async function isEconomyOn(orgId: string): Promise<boolean> {
+  return economyOn(await settingsOf(orgId));
+}
+
+/**
+ * Every switch of the company as the OWNER set it, for «الميزات» (economy mode is NOT applied here: a switch the owner left on and
+ * economy mode holds off still shows on, and the screen marks it «مطفية بوضع التوفير»; the effective value is `isFeatureOn`).
+ */
 export async function listFeatures(orgId: string): Promise<{ key: FeatureKey; on: boolean }[]> {
-  const all = featuresOf(await settingsOf(orgId));
+  const all = ownChoicesOf(await settingsOf(orgId));
   return FEATURES.map((key) => ({ key, on: all[key] }));
 }
 

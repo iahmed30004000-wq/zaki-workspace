@@ -5,6 +5,7 @@ import { useState } from "react";
 import { apiDelete, apiPut, ApiError } from "@/lib/api-client";
 import { fmtNumber } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
+import { LocalPanel, localValueOf, type LocalValue } from "./local-panel";
 import type { PublicSettings, UsageSummary } from "@/server/services/owner-assistant-settings";
 
 /**
@@ -39,6 +40,7 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
   const [budget, setBudget] = useState(String(initial.monthlyTokenBudget));
   const [allowNames, setAllowNames] = useState(initial.allowNames);
   const [allowTitles, setAllowTitles] = useState(initial.allowTitles);
+  const [local, setLocal] = useState<LocalValue>(() => localValueOf(initial));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -89,6 +91,15 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
         monthlyTokenBudget: Number(budget),
         allowNames,
         allowTitles,
+        // «نموذج محلي»: an empty address or name clears it (the server judges the address: an internal host only)
+        ownerProvider: local.ownerProvider,
+        chatProvider: local.chatProvider,
+        localBaseUrl: local.localBaseUrl.trim(),
+        localModel: local.localModel.trim(),
+        gatewayBaseUrl: local.gatewayBaseUrl.trim(),
+        gatewayModel: local.gatewayModel.trim(),
+        gatewayConfirmedLocal: local.gatewayConfirmedLocal,
+        localRelaxRedaction: local.localRelaxRedaction,
       });
       setMessage({ ok: true, text: t("assistant.settings.saved") });
     } catch (err) {
@@ -185,6 +196,8 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
           </label>
         ) : null}
       </section>
+
+      <LocalPanel value={local} onChange={(patch) => setLocal((v) => ({ ...v, ...patch }))} saved={initial} hasGatewayKey={initial.hasGatewayKey} gatewayKeyLast4={initial.gatewayKeyLast4} />
 
       <section className={card} aria-label={t("assistant.limits.title")}>
         <h2 className="text-sm font-semibold">{t("assistant.limits.title")}</h2>

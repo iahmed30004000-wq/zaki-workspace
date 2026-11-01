@@ -5,7 +5,7 @@ import { db } from "@/server/db";
 import { isOfSpace } from "@/server/chat/space-people";
 import { writeSystemMessage } from "@/server/chat/system";
 import { emitRealtime } from "@/server/realtime/emit";
-import { isFeatureOn } from "@/server/services/features";
+import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { canRead, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 import {
   canEndCall,
@@ -141,6 +141,8 @@ export async function settleCall(callId: string, now: Date = new Date()): Promis
 
 /** The call going on in this conversation (settled first), or null. Its readers only. */
 export async function activeCallOf(ctx: OrgAccessContext, conversationId: string): Promise<{ id: string; video: boolean; startedAt: string } | null> {
+  // «المكالمات» off (or «وضع التوفير»): nobody is on a call here, and the calls server is never asked
+  if (!(await isFeatureOn(ctx.orgId, "calls"))) return null;
   // the calls row of the person's grid (an external partner by the space's rules)
   await assertMemberCan(ctx, "calls.view", "section.view_denied", { spaceGuestsPass: true });
   const facts = await loadConversationFacts(ctx.userId, conversationId);
@@ -205,6 +207,7 @@ export async function startConversationCall(
   conversationId: string,
   opts: { video: boolean; ring: boolean },
 ): Promise<{ id: string; created: boolean }> {
+  await assertFeatureOn(ctx.orgId, "calls");
   await assertMemberCan(ctx, "calls.edit", "section.edit_denied", { spaceGuestsPass: true });
   const facts = await loadConversationFacts(ctx.userId, conversationId);
   if (!facts || facts.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
@@ -235,6 +238,7 @@ export async function startConversationCall(
 
 /** Opens a meeting of the space the person is in: a call with a link, for the space's people. */
 export async function startMeeting(ctx: OrgAccessContext, spaceId: string, opts: { title: string | null; video: boolean }): Promise<{ id: string }> {
+  await assertFeatureOn(ctx.orgId, "calls");
   await assertMemberCan(ctx, "calls.edit", "section.edit_denied", { spaceGuestsPass: true });
   const org = await loadOrgFacts(ctx.userId, ctx.orgId);
   const space = await db.workspace.findFirst({ where: { id: spaceId, organizationId: ctx.orgId }, select: { id: true } });
@@ -249,6 +253,7 @@ export async function startMeeting(ctx: OrgAccessContext, spaceId: string, opts:
 
 /** One call as its page shows it. Whoever may join it. */
 export async function callDetail(ctx: OrgAccessContext, callId: string): Promise<CallDto> {
+  await assertFeatureOn(ctx.orgId, "calls");
   await assertMemberCan(ctx, "calls.view", "section.view_denied", { spaceGuestsPass: true });
   await settleCall(callId);
   const { facts, org } = await ownCall(ctx, callId);
@@ -298,6 +303,7 @@ export async function callDetail(ctx: OrgAccessContext, callId: string): Promise
 
 /** The short pass into a call's room, for somebody who may join it. */
 export async function callPass(ctx: OrgAccessContext, callId: string): Promise<{ url: string; token: string; room: string; noiseFilter: boolean }> {
+  await assertFeatureOn(ctx.orgId, "calls");
   await assertMemberCan(ctx, "calls.view", "section.view_denied", { spaceGuestsPass: true });
   const { facts, org } = await ownCall(ctx, callId);
   if (facts.endedAt) throw new ForbiddenError("calls.e.ended");
@@ -321,6 +327,7 @@ export async function callPass(ctx: OrgAccessContext, callId: string): Promise<{
 
 /** «ضيف حدا»: rings one of the space's people into the call (they get a seat: the call, not the conversation). */
 export async function inviteToCall(ctx: OrgAccessContext, callId: string, userId: string): Promise<void> {
+  await assertFeatureOn(ctx.orgId, "calls");
   await assertMemberCan(ctx, "calls.edit", "section.edit_denied", { spaceGuestsPass: true });
   const { facts, org } = await ownCall(ctx, callId);
   if (!canInviteToCall(facts, org)) throw new ForbiddenError("calls.e.cannot_invite");

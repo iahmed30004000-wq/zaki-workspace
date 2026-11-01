@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { ck } from "@/lib/checkins-client";
 import type { CardState } from "@/server/services/checkins";
+import { pollMs } from "@/lib/economy";
 
 /** How often the card asks again, so a round that just opened shows up without a reload. */
 const REFRESH_MS = 60_000;
@@ -48,7 +49,7 @@ export function MyCheckinCard() {
 
   React.useEffect(() => {
     void load();
-    const timer = setInterval(() => void load(), REFRESH_MS);
+    const timer = setInterval(() => void load(), pollMs(REFRESH_MS));
     return () => clearInterval(timer);
   }, [load]);
 

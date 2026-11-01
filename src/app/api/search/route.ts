@@ -11,6 +11,7 @@ import { searchLibrary } from "@/server/services/files";
 import { arabicSearch, cleanQuery } from "@/lib/search/arabic";
 import { rankedSearch, sqlIn } from "@/server/search/ranked";
 import { Prisma } from "@prisma/client";
+import { isFeatureOn } from "@/server/services/features";
 
 const NOTHING = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [] };
 
@@ -31,6 +32,9 @@ export async function GET(req: Request) {
     const q = cleanQuery(url.searchParams.get("q") ?? "");
     const search = arabicSearch(q);
     if (!search || search.text.length < 2) return NextResponse.json(NOTHING);
+    // «البحث الشامل» off (or the company is in economy mode with it held off): an empty answer at once, no database work at all
+    const asker = await requireActor();
+    if (!(await isFeatureOn(asker.orgId, "search"))) return NextResponse.json(NOTHING);
 
     const memberships = await db.organizationMember.findMany({
       where: { userId: user.id, status: "ACTIVE" },
@@ -41,7 +45,7 @@ export async function GET(req: Request) {
 
     // the spaces they may open and, inside a space with teams, the space's own work and their teams'
     // …and only in the space they are in, like a separate site
-    const actor = await requireActor();
+    const actor = asker;
     const space = await currentSpace(actor);
     const scope = narrowScope(await loadWorkScope(user.id), space?.id);
     const workspaceIds = scopeSpaceIds(scope);

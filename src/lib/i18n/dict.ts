@@ -54,6 +54,8 @@ import okr from "./ar.okr.json";
 import apiDoor from "./ar.api-door.json";
 import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
+import localModel from "./ar.local-model.json";
+import economy from "./ar.economy.json";
 import backup from "./ar.backup.json";
 
 /**
@@ -88,6 +90,7 @@ export const AR: Record<string, string> = {
   ...calls,
   ...watch,
   ...features,
+  ...economy,
   ...libraryDrive,
   ...instant,
   ...taskLinks,
@@ -120,5 +123,6 @@ export const AR: Record<string, string> = {
   ...apiDoor,
   ...spaceLibrary,
   ...manufacturing,
+  ...localModel,
   ...backup,
 };
