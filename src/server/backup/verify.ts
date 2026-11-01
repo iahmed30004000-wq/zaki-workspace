@@ -1,6 +1,5 @@
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { StringDecoder } from "node:string_decoder";
 import { createGunzip } from "node:zlib";
 import { BackupCryptoError, decryptBackup } from "./envelope";
 import { DUMP_FORMAT } from "./dump";
@@ -84,10 +83,11 @@ export async function verifyBackupStream(source: AsyncIterable<Uint8Array>, mast
   const counter = new DumpCounter();
   try {
     await pipeline(Readable.from(decryptBackup(source, masterKey)), createGunzip(), async (plain: AsyncIterable<Buffer>) => {
-      const decoder = new StringDecoder("utf8");
+      // TextDecoder, not string_decoder: Next's bundler of the instrumentation entry cannot resolve that module
+      const decoder = new TextDecoder("utf-8");
       let rest = "";
       for await (const chunk of plain) {
-        rest += decoder.write(chunk);
+        rest += decoder.decode(chunk, { stream: true });
         let from = 0;
         for (let at = rest.indexOf("\n", from); at >= 0; at = rest.indexOf("\n", from)) {
           counter.line(rest.slice(from, at));
@@ -95,7 +95,7 @@ export async function verifyBackupStream(source: AsyncIterable<Uint8Array>, mast
         }
         rest = rest.slice(from);
       }
-      rest += decoder.end();
+      rest += decoder.decode();
       if (rest) counter.line(rest);
     });
   } catch (err) {
