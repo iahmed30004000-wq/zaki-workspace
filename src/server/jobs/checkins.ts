@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
+import { featureOnSql } from "@/server/features-sql";
 import { AR } from "@/lib/i18n/dict";
 import { resolveTimeZone } from "@/lib/zoned-time";
 import { NUDGE_DELAY_MS, idsOf, isParticipantsMode, openingFor, questionsOf, weekdaysOf } from "@/lib/checkins";
@@ -130,7 +131,7 @@ async function nudgeOne(id: string, now: Date): Promise<number | null> {
       FROM "Workspace" w, "Organization" o, "CheckinConfig" c
       WHERE r."id" = ${id} AND r."nudgedAt" IS NULL AND w."id" = r."workspaceId" AND o."id" = w."organizationId" AND c."workspaceId" = r."workspaceId"
         AND r."openedAt" <= ${nudgeCutoff(now)} AND r."closedAt" > ${now}
-        AND c."active" AND w."archivedAt" IS NULL AND ${FEATURE_ON}
+        AND c."active" AND w."archivedAt" IS NULL AND ${FEATURE_ON} AND ${featureOnSql("backgroundNudges")}
       RETURNING r."id", r."workspaceId", w."organizationId" AS "orgId", r."participantIds"`);
     const round = claimed[0];
     if (!round) return null;
@@ -146,7 +147,11 @@ async function nudgeOne(id: string, now: Date): Promise<number | null> {
   return sent;
 }
 
-/** The one extra nudge, three hours after a round opened, to those who have not answered and are not excused. */
+/**
+ * The one extra nudge, three hours after a round opened, to those who have not answered and are not excused. A company whose
+ * «تنبيهات الخلفية» switch is off (or in «وضع التوفير») is not even selected: its round keeps `nudgedAt` empty, so the nudge still goes
+ * out while the round is open once the switch is back on.
+ */
 export async function nudgeDueRounds(now: Date): Promise<Pick<CheckinsRun, "nudged" | "nudges">> {
   const run = { nudged: 0, nudges: 0 };
   const due = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
@@ -154,6 +159,7 @@ export async function nudgeDueRounds(now: Date): Promise<Pick<CheckinsRun, "nudg
     JOIN "Workspace" w ON w."id" = r."workspaceId"
     JOIN "Organization" o ON o."id" = w."organizationId"
     WHERE r."nudgedAt" IS NULL AND r."closedAt" > ${now} AND w."archivedAt" IS NULL AND ${FEATURE_ON}
+      AND ${featureOnSql("backgroundNudges")}
       AND r."openedAt" <= ${nudgeCutoff(now)}
     ORDER BY r."openedAt" ASC, r."id" ASC LIMIT 500`);
   for (const { id } of due) {

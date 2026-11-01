@@ -447,6 +447,9 @@ export async function conversationDetail(
     // the company's switch, so the log draws the shape it is set to (the words of a message never change)
     chatBubbles: await isFeatureOn(ctx.orgId, "chatBubbles"),
     chatOutbox: await isFeatureOn(ctx.orgId, "chatOutbox"),
+    calls: await isFeatureOn(ctx.orgId, "calls"),
+    whiteboard: await isFeatureOn(ctx.orgId, "whiteboard"),
+    voiceNotes: await isFeatureOn(ctx.orgId, "voiceNotes"),
   };
 }
 

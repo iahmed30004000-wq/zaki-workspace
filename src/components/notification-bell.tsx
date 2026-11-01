@@ -9,6 +9,7 @@ import { apiDelete, apiGet, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { fmtAgo } from "@/lib/format";
 import { ensurePush, pushState, type PushState } from "@/components/calls/push-client";
+import { pollMs } from "@/lib/economy";
 
 interface NotificationItem {
   id: string;
@@ -46,7 +47,7 @@ export function NotificationBell({ defaultOpen = false }: { defaultOpen?: boolea
   const query = useQuery({
     queryKey: ["notifications"],
     queryFn: () => apiGet<NotificationsResponse>("/api/notifications"),
-    refetchInterval: 30_000,
+    refetchInterval: pollMs(30_000),
   });
 
   const markAll = useMutation({

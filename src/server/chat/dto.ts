@@ -233,6 +233,12 @@ export interface ConversationDto {
   chatBubbles?: boolean;
   /** the company's «الرسائل بدون نت» switch (`chatOutbox`): off, the composer neither queues an unsent message nor keeps a draft; absent: on */
   chatOutbox?: boolean;
+  /** the company's «المكالمات» switch (`calls`, economy mode applied): off, the header draws no call button; absent: on */
+  calls?: boolean;
+  /** the company's «السبورة» switch (`whiteboard`, economy mode applied): off, the header draws no link to it; absent: on */
+  whiteboard?: boolean;
+  /** the company's «الرسائل الصوتية» switch (`voiceNotes`): off, the composer draws no microphone; absent: on */
+  voiceNotes?: boolean;
   /** pagination: the oldest message id on the page; pass it as `before` for the next page. */
   oldestId?: string | null;
 }

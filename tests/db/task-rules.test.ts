@@ -376,6 +376,34 @@ describe("«القواعد التلقائية»: the triggers and the actions", 
     expect((await task(slept.id)).priority).toBe("NORMAL");
   });
 
+  for (const how of ["backgroundNudges", "economyMode"] as const) {
+    it(`«لما تتأخر»: the scan is skipped while «${how}» holds it off (the rule and its tasks stay), and fires once when it is back`, async () => {
+      const w = await world();
+      const id = await mustAdd(w, rule({ name: "تأخر", trigger: "OVERDUE", actions: [{ type: "SET_PRIORITY", priority: "URGENT" }] }));
+      await db.taskRule.update({ where: { id }, data: { armedAt: new Date(Date.now() - 3 * 3_600_000) } });
+      const fresh = await plainTask(w, { dueDate: new Date(Date.now() + 3_600_000) });
+      const later = new Date(Date.now() + 2 * 3_600_000);
+      const flipTo = async (on: boolean) => {
+        const org = await db.organization.findUniqueOrThrow({ where: { id: w.org.id }, select: { settings: true } });
+        // «تنبيهات الخلفية» is held off by its own switch OFF; economy mode is held off by ITS switch ON
+        const value = how === "economyMode" ? !on : on;
+        await db.organization.update({ where: { id: w.org.id }, data: { settings: withFeature(org.settings, how, value) as Prisma.InputJsonValue } });
+      };
+      await flipTo(false);
+      expect(await fireOverdueRules(later)).toEqual({ fired: 0 });
+      expect((await runDueJobs(later)).taskRules).toEqual({ fired: 0 });
+      expect((await task(fresh.id)).priority).toBe("NORMAL");
+      expect(await runsOf(id)).toHaveLength(0);
+      // the rule itself is untouched and still active
+      expect((await db.taskRule.findUniqueOrThrow({ where: { id } })).active).toBe(true);
+
+      await flipTo(true);
+      expect(await fireOverdueRules(later)).toEqual({ fired: 1 });
+      expect((await task(fresh.id)).priority).toBe("URGENT");
+      expect(await fireOverdueRules(later)).toEqual({ fired: 0 });
+    });
+  }
+
   it("a rule belongs to its project and its board: other projects and other boards are not touched", async () => {
     const w = await world();
     const otherProject = await makeProject(w.ws.id, "ثاني");

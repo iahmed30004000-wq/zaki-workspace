@@ -19,6 +19,7 @@ import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "
 import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, DELETED_PREVIEW } from "@/server/chat/notify";
 import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
 import { afterMessageSent } from "@/server/services/chat-assistant";
+import { assertFeatureOn } from "@/server/services/features";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
 import type { Prisma } from "@prisma/client";
 import type { MessageDto } from "@/server/chat/dto";
@@ -107,6 +108,8 @@ export async function sendMessage(
   if (body.length > MAX_BODY) throw new ValidationError([{ path: "body", message: "chat.e.too_long" }]);
   if (body.length === 0 && attachments.length === 0) throw new ValidationError([{ path: "body", message: "chat.e.empty" }]);
 
+  // «الرسائل الصوتية» off: no new voice note (the ones already sent still play)
+  if (input.voice === true) await assertFeatureOn(ctx.orgId, "voiceNotes");
   // a VOICE message carries exactly one AUDIO attachment and no other kind
   const isVoice = attachments.length === 1 && (await attachmentKind(attachments[0]!)) === "AUDIO" && input.voice === true;
   if (input.voice === true && (!isVoice || attachments.length !== 1)) {
