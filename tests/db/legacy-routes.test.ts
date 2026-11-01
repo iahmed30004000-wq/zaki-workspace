@@ -57,6 +57,8 @@ import MembersPage from "@/app/(app)/members/page";
 import FilesPage from "@/app/(app)/files/page";
 import DocumentsPage from "@/app/(app)/documents/page";
 import DocumentRoute from "@/app/(app)/documents/[id]/page";
+import ManufacturingPage from "@/app/(app)/manufacturing/page";
+import MaterialRoute from "@/app/(app)/manufacturing/materials/[id]/page";
 import CrmPage from "@/app/(app)/crm/page";
 import AnalyticsPage from "@/app/(app)/analytics/page";
 import AutomationPage from "@/app/(app)/automation/page";
@@ -114,7 +116,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/documents/[id]"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -200,6 +202,8 @@ const PAGES: Record<string, PageCall> = {
   "/files": () => FilesPage(),
   "/documents": () => DocumentsPage(),
   "/documents/[id]": (args) => DocumentRoute({ params: idOf(args) }),
+  "/manufacturing": () => ManufacturingPage(),
+  "/manufacturing/materials/[id]": (args) => MaterialRoute({ params: idOf(args) }),
   "/crm": () => CrmPage(),
   "/analytics": () => AnalyticsPage(),
   "/automation": () => AutomationPage(),
@@ -400,6 +404,9 @@ function addressesOf(route: string, w: World): string[] {
     case "/documents/[id]":
       // a document of the team's space, one of the space shared with the partner (shared with partners, so the partner opens it), one of the space nobody is in, and one that is gone
       return [...spaces.map((s) => s.doc.id), GONE].map((id) => `/documents/${id}`);
+    case "/manufacturing/materials/[id]":
+      // the ledger needs a manufacturing space; this world has none, so the only address is one that is gone (every rank gets «not found»)
+      return [`/manufacturing/materials/${GONE}`];
     case "/approvals/[id]":
       // a request the owner and the people of the space open, and one that is gone
       return [w.approval.id, GONE].map((id) => `/approvals/${id}`);
