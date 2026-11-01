@@ -52,6 +52,11 @@ export const CAPABILITIES = [
   "campaigns.view",
   "campaigns.edit",
   "campaigns.delete",
+  // «مخزون التصنيع» (the stock and cost ledger of a manufacturing space): read quantities / record movements and stocktakes / see ANY cost.
+  // The service (manufacturing-access.ts) asks for `view` first, so an edit or a cost box without it opens nothing.
+  "manufacturing.view",
+  "manufacturing.edit",
+  "manufacturing.cost",
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -128,6 +133,9 @@ export const WIRED_CAPABILITIES: readonly Capability[] = [
   "board.team",
   "people.manage_lines",
   "people.review",
+  "manufacturing.view",
+  "manufacturing.edit",
+  "manufacturing.cost",
   ...SECTION_CAPABILITIES,
 ];
 
@@ -187,6 +195,9 @@ export const RANK_DEFAULTS: Record<OrgRole, readonly Capability[]> = {
     "calls.edit",
     "watch.view",
     "watch.edit",
+    // the stock ledger: an ADMIN reads and records (inside a manufacturing space he is in); the COST is the owner's alone to hand out
+    "manufacturing.view",
+    "manufacturing.edit",
   ],
   LEAD: [
     "board.self",
@@ -261,6 +272,7 @@ export const EXTERNAL_FORBIDDEN: readonly Capability[] = CAPABILITIES;
 
 /** Only the OWNER has these, and they can not be handed to anyone. */
 export const OWNER_ONLY: readonly Capability[] = ["archive.view"];
+
 
 export interface CapabilitySource {
   role: OrgRole;

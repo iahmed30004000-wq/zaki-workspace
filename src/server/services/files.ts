@@ -16,6 +16,7 @@ import { accessibleWorkspaceIds } from "@/server/services/access";
 import { driveIsDown, pauseDrive, resumeDrive, storageTarget } from "@/server/files/storage-policy";
 import { insideLibrary, serverCopyOf } from "@/server/files/server-copy";
 import { mayReadApprovalFile } from "@/server/services/approval-access";
+import { mayReadProofFile } from "@/server/services/manufacturing-proof";
 import { MAX_PAGE_SCAN_BYTES, countPdfPages } from "@/server/files/pdf-pages";
 import {
   DriveStoreError,
@@ -184,6 +185,8 @@ export async function assertMayReadFile(ctx: OrgAccessContext, id: string): Prom
   }
   // a file attached to an approval request opens for the people who may read that request
   if (await mayReadApprovalFile({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole }, id)) return;
+  // the proof photo of a stock receipt opens for the people who may read the receipt («مخزون التصنيع»)
+  if (await mayReadProofFile({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole }, id)) return;
   throw new NotFoundError("files.not_found");
 }
 

@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -141,6 +141,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // everybody, the owner included; the documents and their history stay and come back with the switch. (The PDF viewer is part of the
   // library and stays: a file is a file.)
   spaceDocs: true,
+  // «مخزون التصنيع» (src/server/services/manufacturing*.ts): the materials, lots, append-only movement ledger and stocktakes of a manufacturing
+  // space, with the weighted-average cost. Off: the «مخزون التصنيع» tab is not drawn and every page and route under /manufacturing and
+  // /api/manufacturing answers «not found» for everybody, the owner included; everything stored stays and comes back with the switch.
+  // ⚠️ It records stock and cost only: not accounting, no payment, nothing linked to the OMS. 🔧 Costs are shown only to «الكلفة» holders.
+  mfgLedger: true,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {

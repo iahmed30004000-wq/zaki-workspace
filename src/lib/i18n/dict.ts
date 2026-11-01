@@ -53,6 +53,7 @@ import documents from "./ar.documents.json";
 import okr from "./ar.okr.json";
 import apiDoor from "./ar.api-door.json";
 import spaceLibrary from "./ar.space-library.json";
+import manufacturing from "./ar.manufacturing.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -117,4 +118,5 @@ export const AR: Record<string, string> = {
   ...okr,
   ...apiDoor,
   ...spaceLibrary,
+  ...manufacturing,
 };

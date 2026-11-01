@@ -60,6 +60,12 @@ model User {
   documents       Document[]           @relation("DocumentCreator")
   documentsEdited Document[]           @relation("DocumentLastEditor")
   documentRevisions DocumentRevision[] @relation("DocumentRevisionEditor")
+  materialsMade    Material[]           @relation("MaterialCreator")
+  suppliersMade    Supplier[]           @relation("SupplierCreator")
+  materialLotsMade MaterialLot[]        @relation("MaterialLotCreator")
+  materialMovementsMade MaterialMovement[] @relation("MaterialMovementCreator")
+  materialCounts   MaterialCount[]      @relation("MaterialCounter")
+  materialCountsDecided MaterialCount[] @relation("MaterialCountDecider")
   cardNotes       CardNote[]           @relation("CardNoteAuthor")
   cardRatings     CardRating[]         @relation("CardRater")
   cardAttachments CardAttachment[]     @relation("CardAttachmentAdder")
@@ -783,6 +789,8 @@ model Organization {
   ideaVotes        IdeaVote[]
   cards            Card[]
   documents        Document[]
+  materials        Material[]
+  suppliers        Supplier[]
   integrations     Integration[]
   conversations    Conversation[]
   IntegrationEvent IntegrationEvent[]
@@ -908,6 +916,8 @@ model Workspace {
   watchSessions WatchSession[]
   cards         Card[]
   documents     Document[]
+  materials     Material[]
+  suppliers     Supplier[]
   checkinConfig CheckinConfig?
   checkinRounds CheckinRound[]
   apiTokens     ApiToken[]
@@ -2583,4 +2593,164 @@ model TaskRuleRun {
   @@unique([ruleId, taskId])
   @@index([projectId, createdAt])
   @@index([orgId])
+}
+
+// ---------- «مخزون التصنيع»: the stock and cost ledger of a manufacturing space ----------
+// (src/server/services/manufacturing*.ts, src/lib/manufacturing/). It records STOCK and COST only: no wallet, no payment, no approval of
+// money, and nothing of it is linked to the OMS. Quantities are integers in micro-units of the material base unit (1 unit = 1 000 000),
+// money is integer minor units + a currency code, never a float. The balance of a material is the SUM of its movements; nothing stores it.
+
+/// One raw material or packaging item of a manufacturing space (`layout = MANUFACTURING`). `baseUnit` is free Arabic text
+/// («علبة», «ستكر», «غرام»): every quantity of the material is counted in it. `currency` is fixed by the first receipt (every
+/// lot of a material shares one, so the weighted average is meaningful). Never deleted: `archivedAt`.
+model Material {
+  id            String    @id @default(cuid())
+  orgId         String
+  workspaceId   String
+  name          String
+  code          String?
+  baseUnit      String
+  lowStockMicro BigInt?
+  currency      String?
+  archivedAt    DateTime?
+  createdById   String
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  organization Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workspace    Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User               @relation("MaterialCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  units        MaterialUnit[]
+  lots         MaterialLot[]
+  movements    MaterialMovement[]
+  counts       MaterialCount[]
+
+  @@unique([workspaceId, code])
+  @@index([orgId, workspaceId, archivedAt])
+}
+
+/// A conversion of one material: 1 `label` = `num` / `den` base units (1 كرتونة = 24 علبة is num 24, den 1).
+/// Both are positive integers, so a conversion is exact. Archived instead of deleted.
+model MaterialUnit {
+  id         String    @id @default(cuid())
+  materialId String
+  label      String
+  num        Int
+  den        Int       @default(1)
+  archivedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  material Material @relation(fields: [materialId], references: [id], onDelete: Cascade)
+
+  @@unique([materialId, label])
+}
+
+/// A supplier of a manufacturing space. Not customer data, but the whole feature is closed to partners. Archived instead of deleted.
+model Supplier {
+  id          String    @id @default(cuid())
+  orgId       String
+  workspaceId String
+  name        String
+  note        String?
+  archivedAt  DateTime?
+  createdById String
+  createdAt   DateTime  @default(now())
+
+  organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User          @relation("SupplierCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lots         MaterialLot[]
+
+  @@index([orgId, workspaceId, archivedAt])
+}
+
+/// One stock receipt (دفعة). Written once, never changed (a trigger refuses an UPDATE). `qtyMicro` is in base units (exact);
+/// `enteredQtyMicro` / `enteredUnitLabel` / `unitCostMinor` are what was typed (the price of ONE entered unit, in minor units) and
+/// `totalCostMinor` is the exact total in minor units, rounded half-up once at write time. Proof: a photo (`proofFileId`: a chat
+/// upload read only through the ledger's own door; a plain id and not a foreign key on purpose, so that removing a company cannot trip over
+/// a file removed before the lot) or, when there really is none, the reason (`proofNote`): one of them is required.
+model MaterialLot {
+  id               String    @id @default(cuid())
+  orgId            String
+  workspaceId      String
+  materialId       String
+  supplierId       String?
+  receivedOn       DateTime  @db.Date
+  expiresOn        DateTime? @db.Date
+  qtyMicro         BigInt
+  enteredQtyMicro  BigInt
+  enteredUnitLabel String
+  unitCostMinor    BigInt
+  totalCostMinor   BigInt
+  currency         String
+  proofFileId      String?
+  proofNote        String?
+  note             String?
+  createdById      String
+  createdAt        DateTime  @default(now())
+
+  material  Material           @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  supplier  Supplier?          @relation(fields: [supplierId], references: [id], onDelete: NoAction)
+  createdBy User               @relation("MaterialLotCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  movements MaterialMovement[]
+
+  @@index([materialId, receivedOn])
+  @@index([orgId, workspaceId])
+}
+
+/// The append-only ledger. `kind`: RECEIVE (+), ISSUE (-), ADJUST (+/-, a reason), COUNT_ADJUST (+/-, an approved stocktake),
+/// REVERSE (the opposite of an earlier movement, `reversesId`; a movement is reversed at most once). `qtyMicro` is signed, in base
+/// units; `valueMinor` is the signed value at the weighted average of that moment (a receive: its lot's total). The balance of a
+/// material is the SUM of `qtyMicro`, its stock value the SUM of `valueMinor`. A trigger refuses an UPDATE, and a DELETE that is
+/// not part of a cascade.
+model MaterialMovement {
+  id          String   @id @default(cuid())
+  orgId       String
+  workspaceId String
+  materialId  String
+  lotId       String?
+  kind        String
+  qtyMicro    BigInt
+  valueMinor  BigInt
+  reason      String?
+  reversesId  String?  @unique
+  countId     String?  @unique
+  createdById String
+  createdAt   DateTime @default(now())
+
+  material  Material       @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  lot       MaterialLot?   @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  count     MaterialCount? @relation(fields: [countId], references: [id], onDelete: Cascade)
+  createdBy User           @relation("MaterialMovementCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([materialId, createdAt])
+  @@index([orgId, workspaceId, createdAt])
+}
+
+/// A stocktake (جرد) of one material: what was counted, what the book said at that moment, and the difference. PENDING until a
+/// SECOND person (never the counter) approves it; only then does a COUNT_ADJUST movement change the balance. REJECTED and MATCHED
+/// (no difference) change nothing. The approver differing from the counter is also a database check.
+model MaterialCount {
+  id               String    @id @default(cuid())
+  orgId            String
+  workspaceId      String
+  materialId       String
+  countedById      String
+  countedQtyMicro  BigInt
+  expectedQtyMicro BigInt
+  diffMicro        BigInt
+  note             String?
+  status           String    @default("PENDING")
+  decidedById      String?
+  decidedAt        DateTime?
+  decisionNote     String?
+  createdAt        DateTime  @default(now())
+
+  material  Material           @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  countedBy User               @relation("MaterialCounter", fields: [countedById], references: [id], onDelete: Restrict)
+  decidedBy User?              @relation("MaterialCountDecider", fields: [decidedById], references: [id], onDelete: Restrict)
+  movement  MaterialMovement[]
+
+  @@index([materialId, status])
+  @@index([orgId, workspaceId, status, createdAt])
 }
