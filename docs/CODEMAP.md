@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 284 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 295 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 34 feature switches and every place that reads them (§8).
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 284 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 295 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 117 services — the business rules (§6) |
+| `src/server/services/` | 120 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 113 · `activeOrgCtx` 77 · `(none)` 34 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 124 · `activeOrgCtx` 77 · `(none)` 34 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -234,6 +234,7 @@ Doors in use: `requireActor` 113 · `activeOrgCtx` 77 · `(none)` 34 · `require
 | POST | `/api/library-storage/move` | activeOrgCtx | `integrations`: activeOrgCtx<br>`storage`: deleteServerCopies, moveToDrive |
 | POST | `/api/manufacturing/counts/[id]/decide` | requireActor | `manufacturing-ledger`: decideCount, decideSchema |
 | GET | `/api/manufacturing/csv` | requireActor | `manufacturing`: readMaterial, readOverview |
+| POST | `/api/manufacturing/lots/[id]/cost` | requireActor | `manufacturing-ledger`: costLot, costLotSchema |
 | POST | `/api/manufacturing/materials` | requireActor | `manufacturing`: createMaterial, createMaterialSchema |
 | GET, PATCH | `/api/manufacturing/materials/[id]` | requireActor | `manufacturing`: readMaterial, updateMaterial, updateMaterialSchema |
 | POST | `/api/manufacturing/materials/[id]/adjust` | requireActor | `manufacturing-ledger`: adjustStock, adjustSchema |
@@ -243,7 +244,17 @@ Doors in use: `requireActor` 113 · `activeOrgCtx` 77 · `(none)` 34 · `require
 | POST | `/api/manufacturing/materials/[id]/units` | requireActor | `manufacturing`: addUnit, addUnitSchema |
 | DELETE | `/api/manufacturing/materials/[id]/units/[unitId]` | requireActor | `manufacturing`: archiveUnit |
 | POST | `/api/manufacturing/movements/[id]/reverse` | requireActor | `manufacturing-ledger`: reverseMovement, reverseSchema |
+| GET, POST | `/api/manufacturing/orders` | requireActor | `manufacturing-production`: createOrder, createOrderSchema, readOrders |
+| POST | `/api/manufacturing/orders/[id]/cancel` | requireActor | `manufacturing-production`: cancelOrder, closeOrderSchema |
+| POST | `/api/manufacturing/orders/[id]/complete` | requireActor | `manufacturing-production`: completeOrder, completeOrderSchema |
+| POST | `/api/manufacturing/orders/[id]/issue` | requireActor | `manufacturing-production`: issueOrder |
+| POST | `/api/manufacturing/orders/[id]/return` | requireActor | `manufacturing-production`: returnOrder, closeOrderSchema |
 | GET | `/api/manufacturing/overview` | requireActor | `manufacturing`: readOverview |
+| GET, POST | `/api/manufacturing/recipes` | requireActor | `manufacturing-production`: createRecipe, createRecipeSchema, readRecipes |
+| PATCH | `/api/manufacturing/recipes/[id]` | requireActor | `manufacturing-production`: archiveRecipe, archiveRecipeSchema |
+| POST | `/api/manufacturing/recipes/[id]/versions` | requireActor | `manufacturing-production`: addRecipeVersion, newVersionSchema |
+| GET | `/api/manufacturing/reports` | requireActor | `manufacturing-reports`: readReports, reportQuerySchema |
+| GET | `/api/manufacturing/reports/csv` | requireActor | `manufacturing-reports`: readReports, reportQuerySchema |
 | POST | `/api/manufacturing/suppliers` | requireActor | `manufacturing`: createSupplier, createSupplierSchema |
 | PATCH | `/api/manufacturing/suppliers/[id]` | requireActor | `manufacturing`: updateSupplier, updateSupplierSchema |
 | GET, PATCH | `/api/me` | requireUser | `users`: updateProfile |
@@ -378,7 +389,7 @@ Doors in use: `requireActor` 113 · `activeOrgCtx` 77 · `(none)` 34 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 284. Each one is a door that cannot have a session, or one that is closed.
+Six of 295. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -400,8 +411,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
 | `integrations` | 180 | 86 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `features` | 48 | 63 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
-| `current-space` | 128 | 54 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
+| `features` | 48 | 66 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `current-space` | 128 | 57 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 42 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `team-scope` | 149 | 27 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `org-day` | 26 | 24 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
@@ -416,7 +427,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `team-skills` | 302 | 13 | «المهارات» — the company's skills checklist and each person's level in it. |
 | `approvals` | 788 | 11 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
 | `n8n` | 294 | 11 | Events we allow orgs to forward to n8n — the UI shows exactly this list. |
-| `manufacturing` | 399 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
+| `manufacturing` | 412 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
+| `manufacturing-production` | 598 | 10 | «مخزون التصنيع», slice 2 — recipes and production orders. |
 | `owner-assistant-access` | 29 | 10 | «مساعد المالك» — WHO MAY OPEN IT, in one place. |
 | `owner-board` | 781 | 10 | «لوحة المالك» — THE NUMBERS. |
 | `custom-fields` | 542 | 9 | «حقول مخصصة» — the custom fields of a project's tasks. |
@@ -435,11 +447,11 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-guards` | 45 | 7 | The questions the page inside a card asks about its viewer, answered in one place. |
 | `google` | 355 | 7 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `last-seen` | 122 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
+| `manufacturing-ledger` | 458 | 7 | «مخزون التصنيع» — the movements. |
 | `task-recurrence` | 205 | 7 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-criteria` | 109 | 7 | «معايير التقييم» — the criteria a reviewer rates 1-5: the five the owner named (جودة الشغل، الالتزام بالمواعيد، التعاون، المبادرة، التواصل), which the owner may rename, add to (… |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
 | `checkins-space` | 18 | 6 | The space a check-in request is about: the one the request names (`workspaceId`, which the guards in src/server/services/checkins.ts check against the person), or else the space… |
-| `manufacturing-ledger` | 378 | 6 | «مخزون التصنيع» — the movements. |
 | `watch` | 372 | 6 | «نتفرّج سوا» — people of a space watch one link together (the owner's ask, 2026-10-26). |
 | `campaigns` | 235 | 5 | Campaigns live inside a department (marketing calendars). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
@@ -465,6 +477,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `api-tokens` | 197 | 3 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
+| `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
 | `milestones` | 173 | 3 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
 | `pinned` | 70 | 3 | «مثبّتة» — the pinned tasks a person may be shown, for the strip at the top of a project and the compact card of «اليوم». |
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
@@ -514,6 +527,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `today-dashboard` | 113 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
 | `approval-notify` | 65 | 0 | The bell of «طلبات الموافقة». |
 | `manufacturing-access` | 107 | 0 | «مخزون التصنيع» — WHO MAY DO WHAT, in one place. |
+| `manufacturing-costing` | 101 | 0 | «مخزون التصنيع» — reads the lots and movements of a material and turns them into its POSITION (balance, value of what has a price, the stock that has none, and the lots as first… |
 | `task-rules-guards` | 57 | 0 | THE QUESTIONS A RULE ASKS ABOUT PEOPLE AND PLACES («القواعد التلقائية») — one place, asked twice: when a rule is SAVED (the admin's screen) and again every time it RUNS (what wa… |
 | `task-rules-hook` | 43 | 0 | THE DOOR BETWEEN A TASK EVENT AND THE PROJECT'S RULES («القواعد التلقائية»). |
 
@@ -621,16 +635,23 @@ to be added to, and the places a bug can leave the row half-written.
 | `IdempotencyRecord` | 3 | `server/services/api-door.ts`: 3 |
 | `TaskRule` | 4 | `server/services/task-rules.ts`: 4 |
 | `TaskRuleRun` | 1 | `server/services/task-rules-run.ts`: 1 |
-| `Material` | 3 | `server/services/manufacturing.ts`: 2<br>`server/services/manufacturing-ledger.ts`: 1 |
+| `Material` | 4 | `server/services/manufacturing-ledger.ts`: 2<br>`server/services/manufacturing.ts`: 2 |
 | `MaterialUnit` | 3 | `server/services/manufacturing.ts`: 3 |
 | `Supplier` | 2 | `server/services/manufacturing.ts`: 2 |
 | `MaterialLot` | 1 | `server/services/manufacturing-ledger.ts`: 1 |
-| `MaterialMovement` | 5 | `server/services/manufacturing-ledger.ts`: 5 |
+| `MaterialMovement` | 7 | `server/services/manufacturing-ledger.ts`: 5<br>`server/services/manufacturing-production.ts`: 2 |
 | `MaterialCount` | 2 | `server/services/manufacturing-ledger.ts`: 2 |
+| `MaterialCosting` | 1 | `server/services/manufacturing-ledger.ts`: 1 |
+| `Recipe` | 2 | `server/services/manufacturing-production.ts`: 2 |
+| `RecipeVersion` | 1 | `server/services/manufacturing-production.ts`: 1 |
+| `ProductionOrder` | 5 | `server/services/manufacturing-production.ts`: 5 |
+| `ProductionOrderMovement` | 2 | `server/services/manufacturing-production.ts`: 2 |
 
 `PollOption` has no direct write of its own: it is filled only through a nested write on `Poll.options` in `server/chat/poll-shared.ts` — counted here so a change there is read as a change here.
 `TaskLabel` has no direct write of its own: it is filled only through a nested write on `Task.labels` in `server/services/tasks.ts` — counted here so a change there is read as a change here.
 ⚠️ **Nothing writes `CheckinRound` — not a route, not a service, not the seed, not a nested write.** The table was created by the first migration and has never held a row: a feature that was not built. 🔧 Keep the table (additive-only) and either build the feature or stop selecting it in Phase E.
+`RecipeLine` has no direct write of its own: it is filled only through a nested write on `RecipeVersion.lines` in `server/services/manufacturing-production.ts` — counted here so a change there is read as a change here.
+`ProductionOrderLine` has no direct write of its own: it is filled only through a nested write on `ProductionOrder.lines` in `server/services/manufacturing-production.ts` — counted here so a change there is read as a change here.
 
 ## 8. Feature switches → where they are read
 
@@ -672,14 +693,14 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `taskRules` | 4 — `app/(app)/projects/[id]/page.tsx`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
 | `apiDoor` | 2 — `server/services/api-door.ts`, `server/services/api-tokens.ts` |
 | `spaceDocs` | 3 — `app/(app)/documents/page.tsx`, `lib/nav/places.ts`, `server/services/documents.ts` |
-| `mfgLedger` | 4 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/page.tsx`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
+| `mfgLedger` | 7 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
 
 ## 9. What this map noticed
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 278 of 284 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 190 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 289 of 295 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 201 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **16 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 4 write neither (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 4 of those are one person's own preference (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **16 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

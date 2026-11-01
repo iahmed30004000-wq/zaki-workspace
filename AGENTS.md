@@ -208,6 +208,12 @@ other way is a bug.
   cost, total, value or average is cut on the server unless the person holds `.cost` (the owner's alone to hand out). Quantities are
   integer micro-units and money is integer minor units plus a currency code; the balance is the SUM of an append-only movement ledger
   (a mistake is a reversing movement), and a stocktake difference needs a second person.
+  Slice 2 extends it, it adds no second stock: a lot may be received «بدون سعر» by a person with `.edit` only (flagged, value 0) and a
+  holder of `.cost` fills the price ONCE later as an appended `MaterialCosting` row (the lot is never updated; until then it is outside the weighted
+  average and any cost using it is «ناقص», never guessed); recipes are versioned append-only (`Recipe`/`RecipeVersion`/`RecipeLine`, archived, never
+  deleted, no price in them); a production order (`ProductionOrder`: DRAFT → ISSUED → COMPLETED, CANCELLED before the issue, RETURNED after it) issues
+  its materials FIFO by lot in one transaction under row locks as ordinary linked ISSUE movements, and its cost is READ from what it took (exact
+  fractions, rounded once), never stored; the reports are read-only and built so that without `.cost` no money field exists in the answer or the CSV.
 - **A request is only as good as the database says it is.** Rank, status and capabilities are read
   on every request, never from the cookie. The cookie carries `tv` (the user's `tokenVersion`):
   suspending, offboarding, resetting a password, changing one's own password and "log out
