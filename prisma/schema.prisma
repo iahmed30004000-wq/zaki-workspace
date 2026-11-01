@@ -801,6 +801,7 @@ model Organization {
   recipes          Recipe[]
   productionOrders ProductionOrder[]
   integrations     Integration[]
+  backupRuns       BackupRun[]
   conversations    Conversation[]
   IntegrationEvent IntegrationEvent[]
   ChatMessage      ChatMessage[]
@@ -3016,4 +3017,37 @@ model ProductionOrderCostLine {
   lot      MaterialLot?        @relation(fields: [lotId], references: [id], onDelete: Cascade)
 
   @@index([orderId])
+}
+
+/// «نسخ احتياطي لقاعدة البيانات» (src/server/services/db-backup.ts): one row per attempt to copy the whole database, encrypted, to
+/// the owner's Google Drive. Holds only the outcome (times, size, counts, the Drive file id, a machine error key): never data and
+/// never a key. `status` is RUNNING | SUCCESS | FAILED and `trigger` SCHEDULED | MANUAL (plain text: the screen says them in Arabic).
+model BackupRun {
+  id             String    @id @default(cuid())
+  organizationId String
+  trigger        String
+  status         String
+  startedAt      DateTime  @default(now())
+  finishedAt     DateTime?
+  durationMs     Int?
+  sizeBytes      BigInt?
+  tableCount     Int?
+  rowCount       Int?
+  /// The Drive file id (never a link): the file is opened only through the app's own check.
+  driveFileId    String?
+  errorKey       String?
+  /// A short technical tag («drive.upload_start_403», a PostgreSQL error code): never a message that could carry data.
+  errorDetail    String?
+  requestedById  String?
+  verifiedAt     DateTime?
+  verifyOk       Boolean?
+  verifyTables   Int?
+  verifyRows     Int?
+  verifyErrorKey String?
+  /// Set when retention removed the file from Drive (the row stays as history).
+  prunedAt       DateTime?
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, startedAt])
 }

@@ -56,6 +56,7 @@ import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
+import backup from "./ar.backup.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -123,4 +124,5 @@ export const AR: Record<string, string> = {
   ...spaceLibrary,
   ...manufacturing,
   ...localModel,
+  ...backup,
 };

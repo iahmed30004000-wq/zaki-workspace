@@ -3,6 +3,7 @@ import { pageActor, presentedRole } from "@/app/(app)/_access";
 import { GuestNotice, refusedToGuest } from "@/app/(app)/_guest";
 import { AutomationView } from "@/components/automation-view";
 import { ApiDoorCard } from "@/components/api-door-card";
+import { DbBackupCard } from "@/components/db-backup-card";
 import { actorCan } from "@/server/policy/actor";
 
 export default async function AutomationPage() {
@@ -15,10 +16,12 @@ export default async function AutomationPage() {
   // «باب الربط الخارجي»: the tokens card, for whoever holds the switch. While the owner's «الميزات» switch is off the card only lists
   // and revokes (the list answer says `switchOn`): a leaked token must stay killable.
   const showDoor = actorCan(actor, "integrations.manage");
+  // «نسخ احتياطي لقاعدة البيانات»: the OWNER alone (a space admin never sees the card; its routes answer 403 anyway)
+  const showBackup = actor.isOwner;
 
   return (
     <Suspense fallback={null}>
-      <AutomationView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} doorCard={showDoor ? <ApiDoorCard /> : null} />
+      <AutomationView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} doorCard={showDoor ? <ApiDoorCard /> : null} backupCard={showBackup ? <DbBackupCard /> : null} />
     </Suspense>
   );
 }

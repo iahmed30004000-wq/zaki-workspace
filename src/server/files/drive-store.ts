@@ -19,6 +19,7 @@ const FOLDER_MIME = "application/vnd.google-apps.folder";
 export const ROOT_FOLDER_NAME = "Zaki Workspace";
 export const OLD_VERSIONS_FOLDER_NAME = "نسخ قديمة";
 export const CHAT_FOLDER_NAME = "مرفقات الدردشة";
+export const BACKUP_FOLDER_NAME = "نسخ احتياطي";
 
 export class DriveStoreError extends Error {
   constructor(public readonly step: string, public readonly status?: number) {
@@ -205,6 +206,25 @@ export async function readFromDrive(orgId: string, driveId: string, range: { sta
  */
 export function chatDriveSpace(orgId: string): DriveSpace {
   return { id: `_chat:${orgId}`, name: CHAT_FOLDER_NAME };
+}
+
+/**
+ * The folder of the database backups («نسخ احتياطي»), one per company beside the spaces' folders (src/server/backup/drive.ts).
+ * The id carries the company, so two companies on one Drive never share a folder.
+ */
+export function backupDriveSpace(orgId: string): DriveSpace {
+  return { id: `_backup:${orgId}`, name: BACKUP_FOLDER_NAME };
+}
+
+/**
+ * Removes a file from Drive for good (not into the bin: a backup that retention retires must free the owner's space). A file Drive
+ * no longer has counts as removed.
+ */
+export async function deleteOnDrive(orgId: string, driveId: string): Promise<void> {
+  const res = await driveRequest(orgId, `${FILES_URL}/${encodeURIComponent(driveId)}`, { method: "DELETE" });
+  if (!res) throw new DriveStoreError("delete_no_connection");
+  if (res.status === 404 || res.status === 204 || res.ok) return;
+  throw new DriveStoreError("delete", res.status);
 }
 
 /**

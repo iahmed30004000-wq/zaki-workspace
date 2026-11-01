@@ -83,6 +83,9 @@ const LATIN_IN_DICTIONARY = [
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
   "GOOGLE_CLIENT_SECRET",
+  "ENCRYPTION_KEY", // the server setting the owner keeps safe: the backup's encryption key
+  "Coolify", // the panel where that setting lives (provider name)
+  "Node", // the program the restore script runs with
   "/api/integrations/google/callback", // the address to give Google's console
   "drive.file", // the access scope to ask for
   "workspaceId", // JSON fields an n8n sender must write
