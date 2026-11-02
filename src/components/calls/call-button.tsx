@@ -14,7 +14,7 @@ import { ensurePush } from "./push-client";
  * whoever may write here, a menu: a voice or a video call, and in a topic «رنّ على الكل» (a DM always rings).
  * The server decides again on every step (src/server/policy/call.ts): this only offers.
  */
-export function CallButton({ conversationId, isDm, canStart }: { conversationId: string; isDm: boolean; canStart: boolean }) {
+export function CallButton({ conversationId, isDm, canStart, compact = false }: { conversationId: string; isDm: boolean; canStart: boolean; compact?: boolean }) {
   const router = useRouter();
   const toast = useOptionalToast();
   const [going, setGoing] = React.useState<{ id: string } | null>(null);
@@ -44,7 +44,15 @@ export function CallButton({ conversationId, isDm, canStart }: { conversationId:
     }
   }
 
-  const look = "inline-flex min-h-11 items-center gap-1 rounded-lg border px-3 text-sm";
+  // `compact`: a small round icon for a narrow head (the quick chat's window); the same menu and the same rules
+  const look = compact ? "inline-flex size-8 shrink-0 items-center justify-center rounded-full text-sm" : "inline-flex min-h-11 items-center gap-1 rounded-lg border px-3 text-sm";
+  if (going && compact) {
+    return (
+      <button type="button" aria-label={ct("calls.join_going")} title={ct("calls.join_going")} onClick={() => router.push(`/calls/${encodeURIComponent(going.id)}`)} className={`${look} bg-ok/15 text-ok hover:bg-ok/25`}>
+        <span aria-hidden="true" className="h-2 w-2 animate-pulse rounded-full bg-ok" />
+      </button>
+    );
+  }
   if (going) {
     return (
       <button type="button" onClick={() => router.push(`/calls/${encodeURIComponent(going.id)}`)} className={`${look} border-ok/50 bg-ok/10 font-semibold text-ok hover:bg-ok/20`}>
@@ -57,10 +65,10 @@ export function CallButton({ conversationId, isDm, canStart }: { conversationId:
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" disabled={busy} aria-label={ct("calls.menu_label")} className={`${look} border-border hover:bg-surface-2 disabled:opacity-60`}>
+        <button type="button" disabled={busy} aria-label={ct("calls.menu_label")} title={ct("calls.menu_label")} className={compact ? `${look} text-fg-muted hover:bg-surface-2 hover:text-fg disabled:opacity-60` : `${look} border-border hover:bg-surface-2 disabled:opacity-60`}>
           <span aria-hidden="true">📞</span>
           {/* a phone keeps the head to one row: the icon alone there */}
-          <span className="hidden sm:inline">{busy ? ct("calls.starting") : ct("calls.button")}</span>
+          {compact ? null : <span className="hidden sm:inline">{busy ? ct("calls.starting") : ct("calls.button")}</span>}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
