@@ -3,6 +3,7 @@ import { db, loginAs } from "./helpers";
 import {
   correctPrice,
   costLot,
+  enableFinished,
   completeOrder,
   detailOf,
   featureOff,
@@ -116,12 +117,10 @@ describe("correcting a late price", () => {
     expect((await correctPrice(lotId, { unitCost: "0.02" })).status).toBe(201);
   });
 
-  it("only a lot that was received without a price AND has been priced is corrected", async () => {
+  it("a lot is corrected once it has a price: a lot still waiting for its first price is not, nor a receipt that was taken back", async () => {
     const w = await mfgWorld();
     await loginAs(w.buyer.id);
     const id = await makeMaterial(w.space.id);
-    const priced = await receiveOk(id, { qty: "10", unitCost: "2" });
-    expect(messages(await correctPrice(priced.lotId))).toContain("mfg.e.correction_not_priced");
     await loginAs(w.keeper.id);
     const pending = await receiveUnpricedOk(id, { qty: "10" });
     await loginAs(w.buyer.id);
@@ -133,6 +132,11 @@ describe("correcting a late price", () => {
     const move = await db.materialMovement.findFirstOrThrow({ where: { lotId: pending.lotId, kind: "RECEIVE" } });
     expect((await reverse(move.id)).status).toBe(201);
     expect(messages(await correctPrice(pending.lotId))).toContain("mfg.e.costing_reversed");
+    // a priced receipt taken back is not corrected either
+    const priced = await receiveOk(id, { qty: "10", unitCost: "2" });
+    const pricedMove = await db.materialMovement.findFirstOrThrow({ where: { lotId: priced.lotId, kind: "RECEIVE" } });
+    expect((await reverse(pricedMove.id)).status).toBe(201);
+    expect(messages(await correctPrice(priced.lotId))).toContain("mfg.e.costing_reversed");
   });
 
   it("only a holder of the cost may; a keeper, a viewer, a person outside the space and a partner may not, and the keeper sees no price and no history", async () => {
@@ -282,7 +286,7 @@ describe("what is finished is not re-priced", () => {
 });
 
 describe("the database keeps the corrections honest", () => {
-  it("a correction is never changed or removed, is numbered without a gap, keeps the currency, and exists only for a lot priced late", async () => {
+  it("a correction is never changed or removed, is numbered without a gap, keeps the currency, and exists only for a lot that has a price", async () => {
     const w = await mfgWorld();
     const { flour, lotId } = await flourWith(w, "0.02");
     expect((await correctPrice(lotId, { unitCost: "0.03" })).status).toBe(201);
@@ -294,10 +298,12 @@ describe("the database keeps the corrections honest", () => {
     await expect(db.materialPriceCorrection.create({ data: { ...base, seq: 2, currency: "USD" } })).rejects.toThrow(/currency/);
     await expect(db.materialPriceCorrection.create({ data: { ...base, seq: 2, reason: " " } })).rejects.toThrow();
     await expect(db.materialPriceCorrection.create({ data: { ...base, seq: 2, totalCostMinor: -1n } })).rejects.toThrow();
-    // a lot that came with its price takes none, whoever asks
+    // a lot that came with its price takes one in that price's currency, and in no other
     await loginAs(w.buyer.id);
     const priced = await receiveOk(flour, { qty: "10", unitCost: "1" });
-    await expect(db.materialPriceCorrection.create({ data: { ...base, lotId: priced.lotId, seq: 1 } })).rejects.toThrow(/received without one/);
+    await expect(db.materialPriceCorrection.create({ data: { ...base, lotId: priced.lotId, seq: 1, currency: "USD" } })).rejects.toThrow(/currency/);
+    await expect(db.materialPriceCorrection.create({ data: { ...base, lotId: priced.lotId, seq: 2 } })).rejects.toThrow(/without a gap/);
+    expect((await db.materialPriceCorrection.create({ data: { ...base, lotId: priced.lotId, seq: 1 } })).seq).toBe(1);
     // a lot that has not been priced yet takes none either
     await loginAs(w.keeper.id);
     const pending = await receiveUnpricedOk(flour, { qty: "10" });
@@ -329,6 +335,84 @@ describe("the database keeps the corrections honest", () => {
     const { lotId } = await flourWith(w, "0.02");
     expect((await correctPrice(lotId, { unitCost: "0.05" })).status).toBe(201);
     await db.workspace.delete({ where: { id: w.space.id } });
+    expect(await db.materialPriceCorrection.count({ where: { lotId } })).toBe(0);
+  });
+});
+
+describe("correcting the price typed on a priced receipt (the owner's ask, 2026-11-02)", () => {
+  /** 100 g of flour received WITH its price, 0.01 a gram (1.000), by the buyer. */
+  async function pricedFlour(w: MfgWorld) {
+    await loginAs(w.buyer.id);
+    const flour = await makeMaterial(w.space.id, { name: "طحين", baseUnit: "غرام" });
+    const lot = await receiveOk(flour, { qty: "100", unitCost: "0.01" });
+    return { flour, lotId: lot.lotId };
+  }
+
+  it("a cost holder corrects it with a reason: a new row, the receipt untouched, the receipt's price first in the history", async () => {
+    const w = await mfgWorld();
+    const { flour, lotId } = await pricedFlour(w);
+    const lotBefore = await db.materialLot.findUniqueOrThrow({ where: { id: lotId } });
+    expect((await detailOf(flour)).lots.find((l) => l.id === lotId)).toMatchObject({ canCorrectPrice: true, correctionCount: 0 });
+
+    const done = await correctPrice(lotId, { unitCost: "0.02", currency: "JOD", reason: "الفاتورة 0.02 مش 0.01" });
+    expect(done.status, JSON.stringify(done.json)).toBe(201);
+    expect(done.json).toMatchObject({ seq: 1 });
+    expect(await db.materialLot.findUniqueOrThrow({ where: { id: lotId } })).toEqual(lotBefore);
+    expect(await db.materialPriceCorrection.findFirstOrThrow({ where: { lotId } })).toMatchObject({ seq: 1, unitCostMinor: 20n, totalCostMinor: 2_000n, currency: "JOD" });
+
+    const seen = await detailOf(flour);
+    expect(seen.cost).toMatchObject({ valueMinor: 2_000, averageText: "0.020" });
+    const lot = seen.lots.find((l) => l.id === lotId)!;
+    expect(lot).toMatchObject({ cost: { unitCostMinor: 20, totalCostMinor: 2_000 }, correctionCount: 1, canCorrectPrice: true });
+    expect(lot.priceHistory.map((s) => [s.seq, s.unitCostMinor, s.totalCostMinor, s.reason, s.current, s.by])).toEqual([
+      [0, 10, 1_000, null, false, "Buyer"],
+      [1, 20, 2_000, "الفاتورة 0.02 مش 0.01", true, "Buyer"],
+    ]);
+    // the same price as the one in force is refused; another currency too
+    expect(messages(await correctPrice(lotId, { unitCost: "0.02" }))).toContain("mfg.e.correction_same");
+    expect(messages(await correctPrice(lotId, { unitCost: "0.03", currency: "USD" }))).toContain("mfg.e.currency_mismatch");
+  });
+
+  it("what is left of a lot already partly used is valued at the new price; a completed order keeps its frozen cost; the ledger is never rewritten", async () => {
+    const w = await mfgWorld();
+    const { flour, lotId } = await pricedFlour(w);
+    const recipe = await recipeOk(w.space.id, [{ materialId: flour, qty: "10" }], { name: "برطمان", outputUnit: "برطمان" });
+    const done = await orderOk(w.space.id, recipe.id, "4"); // 40 g at 0.01
+    expect((await issueOrder(done.id)).status).toBe(200);
+    expect((await completeOrder(done.id, { actualQty: "4" })).status).toBe(200);
+    expect((await orderView(w.space.id, done.id)).cost).toMatchObject({ frozen: true, totals: [{ currency: "JOD", totalMinor: 400 }] });
+    const open = await orderOk(w.space.id, recipe.id, "2"); // 20 g, issued, not finished
+    expect((await issueOrder(open.id)).status).toBe(200);
+    expect((await detailOf(flour)).cost).toMatchObject({ valueMinor: 400 }); // 40 g left at 0.01
+
+    expect((await correctPrice(lotId, { unitCost: "0.03" })).status).toBe(201);
+    // the lot is 3.000 now: 40 g left of 100 g are 1.200
+    expect((await detailOf(flour)).cost).toMatchObject({ valueMinor: 1_200, averageText: "0.030" });
+    expect((await orderView(w.space.id, done.id)).cost).toMatchObject({ frozen: true, totals: [{ totalMinor: 400 }] });
+    expect((await orderView(w.space.id, open.id)).cost).toMatchObject({ frozen: false, totals: [{ totalMinor: 600 }] });
+    const issues = await db.materialMovement.findMany({ where: { materialId: flour, kind: "ISSUE" }, orderBy: { createdAt: "asc" } });
+    expect(issues.map((m) => m.valueMinor)).toEqual([-400n, -200n]);
+    expect((await db.materialLot.findUniqueOrThrow({ where: { id: lotId } })).totalCostMinor).toBe(1_000n);
+  });
+
+  it("the finished goods of an order are priced by the order's cost: their lot is not corrected here", async () => {
+    const w = await mfgWorld();
+    const { flour } = await pricedFlour(w);
+    const recipe = await recipeOk(w.space.id, [{ materialId: flour, qty: "10" }], { name: "برطمان", outputUnit: "برطمان" });
+    expect((await enableFinished(recipe.id)).status).toBe(201);
+    const order = await orderOk(w.space.id, recipe.id, "3");
+    expect((await issueOrder(order.id)).status).toBe(200);
+    expect((await completeOrder(order.id, { actualQty: "3" })).status).toBe(200);
+    const { outputLotId } = await db.productionOrder.findUniqueOrThrow({ where: { id: order.id }, select: { outputLotId: true } });
+    expect(messages(await correctPrice(outputLotId!, { unitCost: "9" }))).toContain("mfg.e.correction_output");
+    expect(await db.materialPriceCorrection.count({ where: { lotId: outputLotId! } })).toBe(0);
+  });
+
+  it("a keeper without the cost may not", async () => {
+    const w = await mfgWorld();
+    const { lotId } = await pricedFlour(w);
+    await loginAs(w.keeper.id);
+    expect((await correctPrice(lotId, { unitCost: "0.05" })).status).toBe(403);
     expect(await db.materialPriceCorrection.count({ where: { lotId } })).toBe(0);
   });
 });
