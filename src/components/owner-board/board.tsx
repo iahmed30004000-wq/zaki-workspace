@@ -46,10 +46,31 @@ const PRESETS: { key: string; label: string }[] = [
 ];
 
 /** A plain GET form: the window (preset or custom range), the space and the person. `people` is the list the person select offers. */
-export function FilterBar({ t, action, o, people, csvHref }: { t: ServerT; action: string; o: Pick<Overview, "window" | "filters" | "spaces">; people?: { userId: string; name: string }[]; csvHref?: string }) {
+export function FilterBar({
+  t,
+  action,
+  o,
+  people,
+  csvHref,
+  hidden,
+  resetHref,
+}: {
+  t: ServerT;
+  action: string;
+  o: Pick<Overview, "window" | "filters" | "spaces">;
+  people?: { userId: string; name: string }[];
+  csvHref?: string;
+  /** Fields the form carries along unseen (the section of «لوحة التحكم» the filters belong to). */
+  hidden?: Record<string, string>;
+  /** Where «إعادة ضبط» goes (default: the page itself). */
+  resetHref?: string;
+}) {
   const custom = o.window.preset === "custom";
   return (
     <form method="get" action={action} className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-3 shadow-card" data-testid="ob-filters">
+      {Object.entries(hidden ?? {}).map(([name, value]) => (
+        <input key={name} type="hidden" name={name} value={value} />
+      ))}
       <label className="flex flex-col gap-1 text-xs text-muted">
         {t("ownerboard.filter.range")}
         <select name="range" defaultValue={custom ? "" : o.window.preset} className="rounded-lg border border-border bg-surface-1 px-2 py-1.5 text-sm text-fg">
@@ -98,7 +119,7 @@ export function FilterBar({ t, action, o, people, csvHref }: { t: ServerT; actio
       <button type="submit" className="rounded-lg bg-accent px-4 py-1.5 text-sm font-medium text-accent-fg">
         {t("ownerboard.filter.apply")}
       </button>
-      <Link href={action} className="py-1.5 text-sm text-muted underline">
+      <Link href={resetHref ?? action} className="py-1.5 text-sm text-muted underline">
         {t("ownerboard.filter.reset")}
       </Link>
       {csvHref ? (

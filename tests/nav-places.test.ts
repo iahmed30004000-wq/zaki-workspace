@@ -45,7 +45,9 @@ const WORK_GUEST: TabKey[] = ["my-work", "projects", "list", "calendar"];
 const ADMIN_ALL: TabKey[] = ["team", "board", "reports", "automation", "telegram", "settings"];
 // «مساعد المالك» is the OWNER rank's alone, right after «لوحة المالك» (it is drawn while its switch in «الميزات» is on)
 // «الهيكل» and «الأداء والتطوير» (2026-10-31): the owner reads both; everybody else only when they supervise somebody or hold `people.review` / `people.manage_lines`
-const ADMIN_OWNER: TabKey[] = ["team", "board", "assistant", "structure", "development", "reports", "automation", "telegram", "settings", "archive"];
+// «التقارير» is a section of «لوحة التحكم» for the OWNER rank (2026-11-02), so the owner's menu does not draw it twice; with the panel switched off it is back
+const ADMIN_OWNER: TabKey[] = ["team", "board", "assistant", "structure", "development", "automation", "telegram", "settings", "archive"];
+const ADMIN_OWNER_PANEL_OFF: TabKey[] = ["team", "board", "assistant", "structure", "development", "reports", "automation", "telegram", "settings", "archive"];
 
 describe("the five places, for each kind of person", () => {
   it("OWNER: the six places; the work place has its nine tabs and the admin place includes the owner-only archive tab", () => {
@@ -54,6 +56,14 @@ describe("the five places, for each kind of person", () => {
     expect(tabs(nav, "work")).toEqual(WORK_ALL);
     expect(tabs(nav, "admin")).toEqual(ADMIN_OWNER);
     expect(place(nav, "admin")).toMatchObject({ labelKey: "nav.place.admin", href: "/members", icon: "admin" });
+  });
+
+  it("OWNER with «لوحة التحكم» off: «التقارير» is its own tab again, and the board tab is «لوحة المالك» again", () => {
+    const nav = buildNav({ ...who("OWNER"), off: ["controlPanel"] });
+    expect(tabs(nav, "admin")).toEqual(ADMIN_OWNER_PANEL_OFF);
+    expect(nav.places.flatMap((p) => p.tabs).find((x) => x.key === "board")?.labelKey).toBe("nav.tab.board");
+    // the board itself off too: the owner keeps «التقارير» (the panel is not there to hold it)
+    expect(tabs(buildNav({ ...who("OWNER"), off: ["ownerBoard"] }), "admin")).toContain("reports");
   });
 
   it("ADMIN (rank defaults): the same map as the owner", () => {

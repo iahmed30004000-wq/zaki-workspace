@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { AiProviderError } from "@/server/ai/provider";
-import { isInternalName, isPrivateAddress, makeGuardedLookup, parseLocalBaseUrl, resolvePrivate, type Resolver } from "@/server/ai/local-host";
+import { isInternalName, isPrivateAddress, makeGuardedLookup, parseLocalBaseUrl, resolveAllPrivate, resolvePrivate, type Resolver } from "@/server/ai/local-host";
 
 /**
  * «نموذج محلي» — the lock on the address (src/server/ai/local-host.ts). The address is typed by the owner and the server connects to it:
@@ -179,6 +179,23 @@ describe("resolving at connection time", () => {
   it("a name that resolves to private addresses only is accepted; the first one is used", async () => {
     const found = await resolvePrivate("ollama", resolver([{ address: "172.18.0.5", family: 4 }, { address: "fd00::5", family: 6 }]));
     expect(found).toEqual({ address: "172.18.0.5", family: 4 });
+  });
+
+  it("a Docker service has an IPv6 and an IPv4 address: all of them are judged, the IPv4 one comes first, and the lookup hands every one to the socket (a server on 0.0.0.0 answers only IPv4)", async () => {
+    const rows = [{ address: "fde4:75c5:b9d4::11", family: 6 as const }, { address: "172.18.0.11", family: 4 as const }];
+    expect(await resolveAllPrivate("hermes-agent", resolver(rows))).toEqual([{ address: "172.18.0.11", family: 4 }, { address: "fde4:75c5:b9d4::11", family: 6 }]);
+    expect(await resolvePrivate("hermes-agent", resolver(rows))).toEqual({ address: "172.18.0.11", family: 4 });
+    const lookup = makeGuardedLookup(resolver(rows));
+    await new Promise<void>((done) =>
+      lookup("hermes-agent", { all: true }, (err, address) => {
+        expect(err).toBeNull();
+        expect(address).toEqual([{ address: "172.18.0.11", family: 4 }, { address: "fde4:75c5:b9d4::11", family: 6 }]);
+        done();
+      }),
+    );
+    // a name with only an IPv6 address still works, and one public address among several still refuses the whole name
+    expect(await resolveAllPrivate("hermes-agent", resolver([rows[0] as (typeof rows)[0]]))).toHaveLength(1);
+    await expect(resolveAllPrivate("hermes-agent", resolver([...rows, { address: "2001:4860:4860::8888", family: 6 }]))).rejects.toMatchObject({ key: "assistant.err_local_host" });
   });
 
   it("ONE public address among the answers refuses the whole name (DNS rebinding, round-robin tricks)", async () => {

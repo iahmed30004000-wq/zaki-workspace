@@ -57,9 +57,11 @@ describe("the palette's places and tabs come from the person's map", () => {
 
   it("the owner can jump to every place and every tab, plus the guide and the profile", () => {
     const owner = hrefs("OWNER");
-    for (const href of ["/", "/chat", "/my-work", "/projects", "/list", "/calendar", "/goals", "/ideas", "/production", "/departments", "/crm", "/files", "/members", "/analytics", "/automation", "/telegram", "/settings", "/guide", "/profile"]) {
+    for (const href of ["/", "/chat", "/my-work", "/projects", "/list", "/calendar", "/goals", "/ideas", "/production", "/departments", "/crm", "/files", "/members", "/owner", "/automation", "/telegram", "/settings", "/guide", "/profile"]) {
       expect(owner, href).toContain(href);
     }
+    // «التقارير» is a section of «لوحة التحكم» (/owner) for the owner: the palette reaches it through that tab
+    expect(owner).not.toContain("/analytics");
     expect(new Set(owner).size).toBe(owner.length);
   });
 

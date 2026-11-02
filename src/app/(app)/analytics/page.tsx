@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
+import { actorFeatureOn } from "@/server/services/features";
 import { actorCan } from "@/server/policy/actor";
 import { GuestNotice, refusedToGuest } from "@/app/(app)/_guest";
 import { getServerT } from "@/lib/i18n/server";
@@ -17,6 +19,9 @@ export default async function AnalyticsPage() {
   // whatever their tab shows; for the team, the reports box of the person's grid (a lead's and up by default).
   if (refusedToGuest(actor, "reports")) return <GuestNotice />;
   if (!actorCan(actor, "reports.view")) return <SectionOffNotice />;
+  // «لوحة التحكم»: for the OWNER rank «التقارير» is a section of the panel while the panel (and the board under it) is on; the page stays as it
+  // was for everybody else and for the owner when a switch is off
+  if (actor.isOwner && (await actorFeatureOn(actor, "controlPanel")) && (await actorFeatureOn(actor, "ownerBoard"))) redirect("/owner?v=reports");
   // numbers for the active org (oldest ACTIVE membership), over the workspaces the user can open
   // …inside the space they are in (src/server/services/current-space.ts)
   const teams = narrowScope(await loadWorkScope(user.id), (await currentSpace(actor))?.id);

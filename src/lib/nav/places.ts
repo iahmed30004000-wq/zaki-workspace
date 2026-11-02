@@ -134,6 +134,8 @@ export interface TabDef {
   readonly feature?: FeatureKey;
   /** A tab that is called differently for different people («لوحة المالك» / «لوحة الفريق» / «لوحتي»): the dictionary key for this person. */
   readonly labelFor?: (subject: NavSubject) => string;
+  /** A tab that is not drawn for this person because something else took its place («التقارير» is inside «لوحة التحكم» for the owner). */
+  readonly hideFor?: (subject: NavSubject) => boolean;
 }
 
 export interface PlaceDef {
@@ -240,7 +242,8 @@ export const PLACES: readonly PlaceDef[] = [
         icon: "reports",
         requires: { anyOf: [{ capability: "board.self" }, { capability: "board.team" }] },
         feature: "ownerBoard",
-        labelFor: (subject) => (subject.role === "OWNER" ? "nav.tab.board" : subject.caps.includes("board.team") ? "nav.tab.boardTeam" : "nav.tab.boardSelf"),
+        labelFor: (subject) =>
+          subject.role === "OWNER" ? (subject.off?.includes("controlPanel") ? "nav.tab.board" : "nav.tab.controlPanel") : subject.caps.includes("board.team") ? "nav.tab.boardTeam" : "nav.tab.boardSelf",
       },
       // «مساعد المالك» (the owner's ask, 2026-10-30): next to «لوحة المالك», for the OWNER rank alone (the owner and his partners)
       // and only while its switch in «الميزات» is on. The pages and routes decide again on the server (404 for everybody else).
@@ -266,7 +269,16 @@ export const PLACES: readonly PlaceDef[] = [
         requires: { anyOf: [{ rankAtLeast: "OWNER" }, { capability: "people.review" }, { capability: "people.manage_lines" }, { supervisor: true }] },
         feature: "teamDevelopment",
       },
-      { key: "reports", href: "/analytics", labelKey: "nav.analytics", icon: "reports", requires: { capability: "reports.view" } },
+      // «التقارير» is a section of «لوحة التحكم» for the OWNER rank while that panel (and the board under it) is on: the page redirects there
+      // and the menu does not draw it twice. Everybody else with the «التقارير» box keeps this tab and this page.
+      {
+        key: "reports",
+        href: "/analytics",
+        labelKey: "nav.analytics",
+        icon: "reports",
+        requires: { capability: "reports.view" },
+        hideFor: (subject) => subject.role === "OWNER" && !subject.off?.includes("controlPanel") && !subject.off?.includes("ownerBoard"),
+      },
       { key: "automation", href: "/automation", labelKey: "nav.tab.automation", icon: "automation", requires: { capability: "integrations.manage" } },
       { key: "telegram", href: "/telegram", labelKey: "nav.telegram", icon: "telegram", requires: { capability: "integrations.manage" } },
       {
@@ -386,7 +398,13 @@ function findTab(tabKey: TabKey): { place: PlaceDef; tab: TabDef } | undefined {
  */
 export function canOpenTab(subject: NavSubject, tabKey: TabKey): boolean {
   const found = findTab(tabKey);
-  return found !== undefined && meets(found.place.requires, subject) && meets(found.tab.requires, subject) && !(found.tab.feature && subject.off?.includes(found.tab.feature));
+  return (
+    found !== undefined &&
+    meets(found.place.requires, subject) &&
+    meets(found.tab.requires, subject) &&
+    !(found.tab.feature && subject.off?.includes(found.tab.feature)) &&
+    !found.tab.hideFor?.(subject)
+  );
 }
 
 /**
@@ -438,7 +456,7 @@ export function buildNav(subject: NavSubject): NavModel {
   for (const def of placesFor(subject.spaceLayout)) {
     if (!meets(def.requires, subject)) continue;
     if (def.feature && subject.off?.includes(def.feature)) continue;
-    const allowed = def.tabs.filter((tab) => meets(tab.requires, subject) && !(tab.feature && subject.off?.includes(tab.feature)));
+    const allowed = def.tabs.filter((tab) => meets(tab.requires, subject) && !(tab.feature && subject.off?.includes(tab.feature)) && !tab.hideFor?.(subject));
     if (def.tabs.length > 0 && allowed.length === 0) continue;
 
     const first = allowed[0];

@@ -9,6 +9,7 @@ import { TodayDashboard } from "@/components/today/today-dashboard";
 import { TodayHero } from "@/components/today/today-hero";
 import { TodayTasksCard } from "@/components/today/today-tasks";
 import { getServerT } from "@/lib/i18n/server";
+import { NotFoundError } from "@/server/auth";
 import { getToday } from "@/server/services/today";
 import { getTodayDashboard } from "@/server/services/today-dashboard";
 import { currentSpace } from "@/server/services/current-space";
@@ -21,6 +22,9 @@ import { pinnedTasks } from "@/server/services/pinned";
 import { rewardLensFor } from "@/server/services/rewards";
 import { MyTimeToday } from "@/components/time/my-time-today";
 import { MyCheckinCard } from "@/components/checkins/my-checkin-card";
+import { ControlPanelHome } from "@/components/control-panel/panel";
+import { ZakiAiChip } from "@/components/control-panel/zaki-ai";
+import { controlPanelAccess, loadPanelHome, type PanelHome } from "@/server/services/control-panel";
 
 /** The browser tab says «اليوم» (the root layout adds the app name). */
 export const metadata = { title: getServerT().t("today.title") };
@@ -66,6 +70,9 @@ export default async function TodayPage() {
   // «مثبّتة»: a compact card of the tasks pinned in this space (draws nothing when none, or when the switch is off)
   const pinned = await pinnedTasks(actor, { spaceId: space?.id ?? null }, await rewardLensFor(actor, space?.id ?? null));
 
+  // «لوحة التحكم»: the owner's own panel on the home screen (the OWNER rank alone, while its switch and the board's are on)
+  const panel = await panelFor(actor);
+
   const name = data.greeting.firstName;
   const greeting = data.greeting.period === "morning" ? t("today.greeting.morning", { name }) : t("today.greeting.evening", { name });
 
@@ -74,6 +81,7 @@ export default async function TodayPage() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:gap-6">
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <TodayHero greeting={greeting} date={data.dateLabel} mission={missionOf(data.tasks)} />
+          {panel ? <ControlPanelHome t={t} view={panel} aiChip={<ZakiAiChip />} /> : null}
           <FirstStepsCard actor={actor} />
           <TodayDashboard data={dashboard} />
           <TodayTasksCard tasks={data.tasks} hasSpaces={data.hasSpaces} canCreateSpaces={data.canCreateSpaces} quickAdd={data.quickAdd} timeZone={data.timeZone} />
@@ -91,6 +99,17 @@ export default async function TodayPage() {
       </div>
     </div>
   );
+}
+
+/** The panel's numbers for the owner; null for everybody else, and for the owner while a switch is off (the page is then exactly as it was). */
+async function panelFor(actor: Awaited<ReturnType<typeof pageActor>>["actor"]): Promise<PanelHome | null> {
+  if (!actor.isOwner || actor.isExternal) return null;
+  try {
+    return await loadPanelHome(await controlPanelAccess(actor));
+  } catch (err) {
+    if (err instanceof NotFoundError) return null;
+    throw err;
+  }
 }
 
 export const dynamic = "force-dynamic";

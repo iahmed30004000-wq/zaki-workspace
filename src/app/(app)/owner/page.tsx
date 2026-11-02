@@ -5,6 +5,7 @@ import { pageActor } from "@/app/(app)/_access";
 import { NotFoundError } from "@/server/auth";
 import { actorFeatureOn } from "@/server/services/features";
 import { boardAccess } from "@/server/policy/board";
+import { ControlPanelPage } from "./control-panel-view";
 import { loadOverview, loadPerson, OwnerBoardError, type BoardQuery } from "@/server/services/owner-board";
 import { parseBoardQuery } from "@/server/services/owner-board-io";
 import { BoardCards, DefinitionNote, FilterBar, PeopleTable, PersonPage, TodayStrip, boardHref, paramsOf } from "@/components/owner-board/board";
@@ -23,6 +24,8 @@ export default async function OwnerBoardPage({ searchParams }: { searchParams?: 
     if (err instanceof NotFoundError) notFound();
     throw err;
   });
+  // «لوحة التحكم»: for the owner, /owner is the control panel while its switch is on (off: this page exactly as it was)
+  if (access.mode === "owner" && (await actorFeatureOn(actor, "controlPanel"))) return ControlPanelPage({ actor, searchParams: searchParams ?? {} });
   const { t } = getServerT();
   const query = parseBoardQuery(searchParams ?? {});
   const title = t(`ownerboard.title.${access.mode}`);

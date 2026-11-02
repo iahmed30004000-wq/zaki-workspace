@@ -157,8 +157,12 @@ export const systemResolver: Resolver = async (hostname) => {
   return rows.map((r) => ({ address: r.address, family: r.family === 6 ? 6 : 4 }));
 };
 
-/** Every address of a name must be private; the first one is the one the socket uses. A refusal is `assistant.err_local_host`. */
-export async function resolvePrivate(hostname: string, resolver: Resolver = systemResolver): Promise<ResolvedAddress> {
+/**
+ * Every address of a name must be private, and ALL of them are returned (IPv4 first, then IPv6, each group in the order the system gave them). A
+ * service on a Docker network usually has both, and a program that listens on `0.0.0.0` answers only the IPv4 one: the socket layer tries them
+ * in turn, and every one of them was judged here. A refusal is `assistant.err_local_host`.
+ */
+export async function resolveAllPrivate(hostname: string, resolver: Resolver = systemResolver): Promise<ResolvedAddress[]> {
   let rows: ResolvedAddress[];
   try {
     rows = await resolver(hostname);
@@ -166,9 +170,13 @@ export async function resolvePrivate(hostname: string, resolver: Resolver = syst
     // a name that does not resolve is a service that is not there: «down», not «forbidden»
     throw new AiProviderError("assistant.err_local_down");
   }
-  const first = rows[0];
-  if (!first || rows.some((r) => !isPrivateAddress(r.address))) throw new AiProviderError("assistant.err_local_host");
-  return first;
+  if (rows.length === 0 || rows.some((r) => !isPrivateAddress(r.address))) throw new AiProviderError("assistant.err_local_host");
+  return [...rows.filter((r) => r.family === 4), ...rows.filter((r) => r.family !== 4)];
+}
+
+/** The one address a single-address caller uses: the first of `resolveAllPrivate` (an IPv4 one when the name has one). */
+export async function resolvePrivate(hostname: string, resolver: Resolver = systemResolver): Promise<ResolvedAddress> {
+  return (await resolveAllPrivate(hostname, resolver))[0] as ResolvedAddress;
 }
 
 type LookupCallback = (err: Error | null, address?: string | ResolvedAddress[], family?: number) => void;
@@ -180,8 +188,8 @@ type LookupCallback = (err: Error | null, address?: string | ResolvedAddress[], 
 export function makeGuardedLookup(resolver: Resolver = systemResolver) {
   return (hostname: string, options: { all?: boolean } | number | undefined, callback: LookupCallback): void => {
     const wantAll = typeof options === "object" && options !== null && options.all === true;
-    void resolvePrivate(hostname, resolver).then(
-      (found) => (wantAll ? callback(null, [found]) : callback(null, found.address, found.family)),
+    void resolveAllPrivate(hostname, resolver).then(
+      (found) => (wantAll ? callback(null, found) : callback(null, (found[0] as ResolvedAddress).address, (found[0] as ResolvedAddress).family)),
       (err: unknown) => callback(err instanceof Error ? err : new Error("lookup")),
     );
   };

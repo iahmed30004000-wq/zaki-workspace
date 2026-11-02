@@ -235,10 +235,14 @@ describe("everybody else keeps the four pages exactly as before", () => {
       const who = person.name;
 
       // the reports box of the grid: a lead's and up by the template (the tab always was); a member gets the notice
-      const reports = await html(AnalyticsPage());
-      expect(reports, who).not.toContain(NOTICE);
-      if (person === w.member) expect(reports, who).toContain(t("access.section_off"));
-      else expect(reports, who).toContain(t("analytics.title"));
+      // (the OWNER's «التقارير» is a section of «لوحة التحكم» since 2026-11-02: his page sends him there; tests/db/control-panel.test.ts owns it)
+      if (person === w.owner) await expect(AnalyticsPage(), who).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
+      else {
+        const reports = await html(AnalyticsPage());
+        expect(reports, who).not.toContain(NOTICE);
+        if (person === w.member) expect(reports, who).toContain(t("access.section_off"));
+        else expect(reports, who).toContain(t("analytics.title"));
+      }
 
       const settings = await html(SettingsPage());
       expect(settings, who).toContain(t("settings.title"));
