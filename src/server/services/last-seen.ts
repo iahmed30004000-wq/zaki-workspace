@@ -22,8 +22,8 @@ import { resolveTimeZone } from "@/lib/zoned-time";
  *   - viewer is a GUEST, not ACTIVE, or the switch is off → left out.
  *   - the person is not ACTIVE (suspended, offboarded) → null: they are nobody here any more.
  *   - the viewer looks at themself → their own real time.
- *   - the person is an OWNER and «إخفاء المالك من متصل» is on → null for everybody but themself (exactly like the online
- *     dot: the owner does not light up for a colleague, a co-owner included).
+ *   - the person is an OWNER and «إخفاء المالك من متصل» is on → null for everybody but themself and the company's PRIMARY
+ *     owner (like the online dot for everybody else: the owner does not light up for a colleague, a co-owner included).
  *   - the viewer is an OWNER → the real time, even of somebody who chose «إخفاء آخر ظهوري» (the owner always sees all).
  *   - the viewer hides their own «آخر ظهور» → null for everybody (reciprocity, like a messenger).
  *   - the person chose «إخفاء آخر ظهوري» → null.
@@ -66,7 +66,7 @@ export async function lastSeenReader(orgId: string, viewerId: string): Promise<L
     db.organization.findUnique({ where: { id: orgId }, select: { settings: true, timezone: true } }),
     db.organizationMember.findUnique({
       where: { organizationId_userId: { organizationId: orgId, userId: viewerId } },
-      select: { role: true, status: true, hideLastSeen: true },
+      select: { role: true, status: true, hideLastSeen: true, primaryOwner: true },
     }),
   ]);
   if (!org || !viewer) return NOTHING;
@@ -77,12 +77,14 @@ export async function lastSeenReader(orgId: string, viewerId: string): Promise<L
   const timeZone = resolveTimeZone(org.timezone);
   const ownerHidden = featureOn(org.settings, "ownerHiddenOnline");
   const viewerIsOwner = viewer.role === "OWNER";
+  // the company's first owner reads everything, a partner who is hidden included (the owner, 2026-11-02: «بدي آخر ظهور للشباب»)
+  const viewerIsPrimary = viewerIsOwner && viewer.primaryOwner === true;
   const viewerHides = viewer.hideLastSeen === true;
 
   const read = (t: LastSeenTarget): string | null => {
     if (t.status !== undefined && t.status !== "ACTIVE") return null;
     if (t.userId === viewerId) return t.lastSeenAt ? t.lastSeenAt.toISOString() : null;
-    if (t.role === "OWNER" && ownerHidden) return null;
+    if (t.role === "OWNER" && ownerHidden && !viewerIsPrimary) return null;
     if (viewerIsOwner) return t.lastSeenAt ? t.lastSeenAt.toISOString() : null;
     if (viewerHides) return null;
     if (t.hideLastSeen === true) return null;
