@@ -79,8 +79,8 @@ export const costLotSchema = z.object({
   note: z.string().trim().max(LIMITS.note, "mfg.e.note").nullable().optional(),
 });
 /**
- * «تصحيح سعر دفعة»: a new price for a lot that was already priced late, with the WRITTEN reason (required). The price of ONE of the lot's own entered
- * unit, in the currency the lot was priced in (a correction never changes the currency).
+ * «تصحيح سعر دفعة»: a new price for a lot that has one (typed on the receipt, or priced late), with the WRITTEN reason (required). The price of ONE of
+ * the lot's own entered unit, in the currency the lot was priced in (a correction never changes the currency).
  */
 export const correctLotPriceSchema = z.object({
   unitCost: z.string().trim().min(1, "mfg.e.cost").max(24, "mfg.e.cost"),
@@ -278,14 +278,15 @@ export async function costLot(actor: Actor, lotId: string, input: z.infer<typeof
 }
 
 /**
- * «تصحيح سعر دفعة»: a holder of `manufacturing.cost` replaces the price of a lot that was received without one and priced late, because the price
- * that was typed was wrong. It is a NEW row (`MaterialPriceCorrection`, numbered per lot, written once, never changed), with the written reason, who
+ * «تصحيح سعر دفعة»: a holder of `manufacturing.cost` replaces the price of a lot, because the price that was typed was wrong: the price typed on
+ * the receipt (the owner's ask, 2026-11-02: a receipt already partly used could not be reversed and entered again), or the one filled in later. It is a NEW row (`MaterialPriceCorrection`, numbered per lot, written once, never changed), with the written reason, who
  * and when; the first price and every earlier correction stay as history. The effective price of the lot is the latest one: the weighted average, the
  * value of the stock and the cost of every order that is still open read it from then on.
  *
  * ⚠️ Orders already COMPLETED are NOT re-priced: their cost was frozen when it was complete (`ProductionOrderCostLine`), and this call first freezes
  * any completed order that was still reading this lot, so that nothing finished moves. 🔧 The history of the lot's prices shows every one with its
- * reason. A price typed on a priced receipt is not corrected here (the receipt is reversed and entered again).
+ * reason. The finished goods of a production order are priced by the order's cost (what its materials cost): their lot is not corrected here,
+ * the price of the material's own lot is.
  */
 export async function correctLotPrice(actor: Actor, lotId: string, input: z.infer<typeof correctLotPriceSchema>): Promise<{ correctionId: string; seq: number }> {
   const lot = await db.materialLot.findFirst({ where: { id: lotId, orgId: actor.orgId }, select: { id: true, materialId: true, workspaceId: true, enteredQtyMicro: true, costPending: true } });
@@ -301,13 +302,23 @@ export async function correctLotPrice(actor: Actor, lotId: string, input: z.infe
     assertOpen(material);
     const fresh = await tx.materialLot.findUniqueOrThrow({
       where: { id: lot.id },
-      select: { costPending: true, costing: { select: { id: true, unitCostMinor: true, currency: true } }, corrections: { orderBy: { seq: "desc" }, take: 1, select: { seq: true, unitCostMinor: true, currency: true } } },
+      select: {
+        costPending: true,
+        unitCostMinor: true,
+        currency: true,
+        producedBy: { select: { id: true } },
+        costing: { select: { id: true, unitCostMinor: true, currency: true } },
+        corrections: { orderBy: { seq: "desc" }, take: 1, select: { seq: true, unitCostMinor: true, currency: true } },
+      },
     });
-    // only a lot received without a price, and already priced, is corrected
-    if (!fresh.costPending || !fresh.costing) throw invalid("lotId", "mfg.e.correction_not_priced");
+    // a lot still waiting for its first price takes that first (`costLot`), not a correction
+    if (fresh.costPending && !fresh.costing) throw invalid("lotId", "mfg.e.correction_not_priced");
+    // the finished goods of an order carry what the order's materials cost: that is corrected on the materials' lots
+    if (!fresh.costPending && fresh.producedBy) throw invalid("lotId", "mfg.e.correction_output");
     const receipt = await tx.materialMovement.findFirst({ where: { lotId: lot.id, kind: "RECEIVE" }, select: { id: true } });
     if (receipt && (await tx.materialMovement.findFirst({ where: { reversesId: receipt.id }, select: { id: true } }))) throw invalid("lotId", "mfg.e.costing_reversed");
-    const current = fresh.corrections[0] ?? fresh.costing;
+    const first = fresh.costing ?? { unitCostMinor: fresh.unitCostMinor, currency: fresh.currency };
+    const current = fresh.corrections[0] ?? first;
     if (current.currency !== input.currency) throw invalid("currency", "mfg.e.currency_mismatch");
     if (current.unitCostMinor === unitCost) throw invalid("unitCost", "mfg.e.correction_same");
     // what is finished stays as it was: freeze the completed orders that still read this lot BEFORE its price changes

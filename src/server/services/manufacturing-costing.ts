@@ -30,15 +30,15 @@ export type LotRow = Prisma.MaterialLotGetPayload<{ select: typeof LOT_SELECT }>
 type PriceRow = { totalCostMinor: bigint; unitCostMinor: bigint; currency: string };
 
 /**
- * The price a lot has NOW, wherever it came from: the receipt; or, for a lot received without a price, its first price (the costing) and then
- * its LATEST correction (the highest sequence number supersedes everything before it). Null while it is pending. This is the one function that
- * says what a lot costs: the weighted average, the valuation and the cost of an order that is not finished read it, and nothing else.
+ * The price a lot has NOW, wherever it came from: its first price (the receipt's, or for a lot received without a price the costing filled in
+ * later) and then its LATEST correction (the highest sequence number supersedes everything before it; since 2026-11-02 a priced receipt is
+ * corrected too). Null while it is pending. This is the one function that says what a lot costs: the weighted average, the valuation and the cost
+ * of an order that is not finished read it, and nothing else.
  */
 export function effectiveCost(
   lot: Pick<LotRow, "costPending" | "totalCostMinor" | "unitCostMinor" | "currency" | "costing"> & { corrections?: readonly (PriceRow & { seq: number })[] },
 ): { totalMinor: bigint; unitMinor: bigint; currency: string } | null {
-  if (!lot.costPending) return { totalMinor: lot.totalCostMinor, unitMinor: lot.unitCostMinor, currency: lot.currency };
-  let latest: (PriceRow & { seq?: number }) | null = lot.costing;
+  let latest: (PriceRow & { seq?: number }) | null = lot.costPending ? lot.costing : { totalCostMinor: lot.totalCostMinor, unitCostMinor: lot.unitCostMinor, currency: lot.currency };
   for (const c of lot.corrections ?? []) if (latest === null || latest.seq === undefined || c.seq > latest.seq) latest = c;
   return latest ? { totalMinor: latest.totalCostMinor, unitMinor: latest.unitCostMinor, currency: latest.currency } : null;
 }
@@ -53,7 +53,8 @@ function factsOf(lots: readonly LotRow[], flows: ReadonlyMap<string, { qty: bigi
       id: lot.id,
       qtyMicro: lot.qtyMicro,
       totalMinor: cost ? cost.totalMinor : null,
-      lateCosted: lot.costPending && lot.costing !== null,
+      // its price is not the one its movements were written with: priced late, or corrected since (the value of what is left follows the new price)
+      lateCosted: (lot.costPending && lot.costing !== null) || (lot.corrections?.length ?? 0) > 0,
       flowQtyMicro: flow?.qty ?? 0n,
       flowValueMinor: flow?.value ?? 0n,
     };

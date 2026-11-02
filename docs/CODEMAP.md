@@ -444,13 +444,13 @@ high count is a wide surface: changing its signature reaches all of them.
 | `approvals` | 788 | 11 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
 | `documents` | 465 | 11 | «المستندات» — the text documents of a space. |
 | `n8n` | 294 | 11 | Events we allow orgs to forward to n8n — the UI shows exactly this list. |
-| `manufacturing` | 434 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
+| `manufacturing` | 450 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
 | `custom-fields` | 542 | 9 | «حقول مخصصة» — the custom fields of a project's tasks. |
 | `space-place` | 30 | 9 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `ideas` | 417 | 8 | Membership context resolved from the idea's own org (shared by API routes). |
-| `manufacturing-ledger` | 517 | 8 | «مخزون التصنيع» — the movements. |
+| `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
 | `tickets` | 501 | 8 | IT tickets live inside a department. |
 | `workspaces` | 331 | 8 | Spaces (workspaces): who is in one, who may change it. |
@@ -545,7 +545,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `today-dashboard` | 113 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
 | `approval-notify` | 65 | 0 | The bell of «طلبات الموافقة». |
 | `manufacturing-access` | 107 | 0 | «مخزون التصنيع» — WHO MAY DO WHAT, in one place. |
-| `manufacturing-costing` | 113 | 0 | «مخزون التصنيع» — reads the lots and movements of a material and turns them into its POSITION (balance, value of what has a price, the stock that has none, and the lots as first… |
+| `manufacturing-costing` | 114 | 0 | «مخزون التصنيع» — reads the lots and movements of a material and turns them into its POSITION (balance, value of what has a price, the stock that has none, and the lots as first… |
 | `manufacturing-order-cost` | 158 | 0 | «مخزون التصنيع», slice 3 — what an order TOOK and what it cost, read from the ledger, and the freezing of that cost once the order is completed. |
 | `task-rules-guards` | 57 | 0 | THE QUESTIONS A RULE ASKS ABOUT PEOPLE AND PLACES («القواعد التلقائية») — one place, asked twice: when a rule is SAVED (the admin's screen) and again every time it RUNS (what wa… |
 | `task-rules-hook` | 43 | 0 | THE DOOR BETWEEN A TASK EVENT AND THE PROJECT'S RULES («القواعد التلقائية»). |
