@@ -1,0 +1,17 @@
+{
+  "features.voiceTranscript.name": "كتابة نص الرسالة الصوتية",
+  "features.voiceTranscript.hint": "بيطلع تحت كل رسالة صوتية زر «اكتب النص»، والتسجيل بيروح لخدمة تحويل الصوت لنص اللي بتشغّلها إنت على جهازك، وبيرجع النص تحت الرسالة. ⚠️ النص ممكن يغلط، وبيطلع كـ«نص تقريبي» وما بيشيل الصوت. 🔧 بدون ما تجهّز الخدمة عند السيرفر ما بيطلع الزر، وإذا طفّيتها بيختفي الزر وما بيروح أي تسجيل، والنصوص اللي انكتبت قبل بتضل.",
+  "voiceTranscript.button": "اكتب النص",
+  "voiceTranscript.busy_button": "عم أكتب النص…",
+  "voiceTranscript.label": "نص تقريبي",
+  "voiceTranscript.hide": "خبّي النص",
+  "voiceTranscript.show": "اعرض النص",
+  "voiceTranscript.not_found": "الرسالة الصوتية مش موجودة",
+  "voiceTranscript.err_not_configured": "خدمة كتابة النص مش مجهّزة عند السيرفر بعد",
+  "voiceTranscript.err_down": "خدمة كتابة النص مش شغّالة هلأ، جرّب بعد شوي",
+  "voiceTranscript.err_busy": "الخدمة مشغولة بتسجيلات ثانية، جرّب بعد شوي",
+  "voiceTranscript.err_timeout": "كتابة النص أخدت وقت طويل، جرّب مرة ثانية",
+  "voiceTranscript.err_failed": "ما قدرت أكتب النص، جرّب مرة ثانية",
+  "voiceTranscript.err_big": "التسجيل كبير كتير عشان يتحوّل لنص",
+  "voiceTranscript.err_empty": "ما سمعت كلام واضح بالتسجيل"
+}

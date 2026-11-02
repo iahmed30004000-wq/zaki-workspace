@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -156,6 +156,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // «الرسائل الصوتية» (src/server/chat/messages.ts): record and send a voice note. Off: the microphone button is not drawn and a
   // voice message is refused; the notes already sent stay and still play.
   voiceNotes: true,
+  // «كتابة نص الرسالة الصوتية» (src/server/services/voice-transcript.ts): a «اكتب النص» button under a voice note sends the recording to a
+  // speech-to-text service the owner runs on his OWN machine (env TRANSCRIBE_URL, judged by src/server/ai/local-host.ts) and shows the text.
+  // Off by default: the audio leaves the app for that service. Off: no button, the route answers «not found», nothing is sent; the texts
+  // already written stay with their notes.
+  voiceTranscript: false,
   // «عدّ صفحات الـPDF» (src/server/services/files.ts): the viewer shows «12 صفحة». Off: the file is not even read for it (the count
   // reads the whole file into memory, up to 15 MB) and the viewer shows no count; the file itself opens as before.
   pdfPageCount: true,

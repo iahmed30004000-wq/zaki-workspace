@@ -10,6 +10,7 @@ import type { ConversationDto, MemberDto, MessageDto, ReaderDto } from "@/server
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { isFeatureOn } from "@/server/services/features";
+import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { chatAssistantOffered } from "@/server/services/chat-assistant";
 import { ASSISTANT_MENTION_ID, ASSISTANT_MENTION_NAME } from "@/lib/chat/conversation/mentions";
 import { lastSeenReader } from "@/server/services/last-seen";
@@ -450,6 +451,7 @@ export async function conversationDetail(
     calls: await isFeatureOn(ctx.orgId, "calls"),
     whiteboard: await isFeatureOn(ctx.orgId, "whiteboard"),
     voiceNotes: await isFeatureOn(ctx.orgId, "voiceNotes"),
+    voiceTranscript: await transcriptAvailable(ctx.orgId),
   };
 }
 
