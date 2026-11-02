@@ -232,7 +232,13 @@ export async function readMaterial(actor: Actor, materialId: string): Promise<Ma
       where: { materialId },
       orderBy: [{ receivedOn: "desc" }, { createdAt: "desc" }, { id: "asc" }],
       take: LIMITS.movements,
-      include: { supplier: { select: { id: true, name: true } }, createdBy: { select: { name: true } }, costing: { include: { createdBy: { select: { name: true } } } }, corrections: { orderBy: { seq: "asc" }, include: { createdBy: { select: { name: true } } } } },
+      include: {
+        supplier: { select: { id: true, name: true } },
+        createdBy: { select: { name: true } },
+        costing: { include: { createdBy: { select: { name: true } } } },
+        corrections: { orderBy: { seq: "asc" }, include: { createdBy: { select: { name: true } } } },
+        producedBy: { select: { id: true } },
+      },
     }),
     db.materialMovement.findMany({
       where: { materialId },
@@ -279,9 +285,19 @@ export async function readMaterial(actor: Actor, materialId: string): Promise<Ma
     costedLater: l.costPending && l.costing ? { by: (l.corrections.at(-1) ?? l.costing).createdBy.name, at: (l.corrections.at(-1) ?? l.costing).createdAt.toISOString() } : null,
     canFillCost: scope.canCost && l.costPending && !l.costing && !reversedLots.has(l.id),
     correctionCount: l.corrections.length,
-    // the history of every price the lot has had (the first one, then each correction with its reason): a holder of the cost only
-    priceHistory: scope.canCost && l.costPending && l.costing ? priceHistoryOf(l.costing, l.corrections) : [],
-    canCorrectPrice: scope.canCost && l.costPending && l.costing !== null && !reversedLots.has(l.id),
+    // the history of every price the lot has had (the first one, then each correction with its reason): a holder of the cost only. A lot priced on
+    // its receipt shows it once it was corrected (its first price is the receipt's, written by whoever received it)
+    priceHistory: !scope.canCost
+      ? []
+      : l.costPending
+        ? l.costing
+          ? priceHistoryOf(l.costing, l.corrections)
+          : []
+        : l.corrections.length > 0
+          ? priceHistoryOf({ unitCostMinor: l.unitCostMinor, totalCostMinor: l.totalCostMinor, currency: l.currency, createdAt: l.createdAt, createdBy: l.createdBy, note: null }, l.corrections)
+          : [],
+    // a lot that has a price is corrected (priced late, or on its receipt); the finished goods of an order are priced by the order's cost instead
+    canCorrectPrice: scope.canCost && !reversedLots.has(l.id) && (l.costPending ? l.costing !== null : l.producedBy === null),
   }));
 
   const movementItems: MovementItem[] = movements.map((m) => {
