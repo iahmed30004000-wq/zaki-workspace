@@ -239,6 +239,8 @@ export interface ConversationDto {
   whiteboard?: boolean;
   /** the company's «الرسائل الصوتية» switch (`voiceNotes`): off, the composer draws no microphone; absent: on */
   voiceNotes?: boolean;
+  /** «كتابة نص الرسالة الصوتية» (`voiceTranscript`): the switch is on AND a speech-to-text service is set up; absent or false: no «اكتب النص» button */
+  voiceTranscript?: boolean;
   /** pagination: the oldest message id on the page; pass it as `before` for the next page. */
   oldestId?: string | null;
 }

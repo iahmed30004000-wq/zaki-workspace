@@ -34,6 +34,8 @@ export interface LocalHttpRequest {
   url: string;
   headers: Record<string, string>;
   body?: string;
+  /** Binary payload (an uploaded recording): sent as is, instead of `body`. */
+  rawBody?: Uint8Array;
   signal: AbortSignal;
 }
 
@@ -70,7 +72,7 @@ export const nodeTransport: LocalTransport = (request) =>
         port: url.port || undefined,
         path: `${url.pathname}${url.search}`,
         method: request.method,
-        headers: { ...request.headers, ...(request.body !== undefined ? { "content-length": String(Buffer.byteLength(request.body)) } : {}) },
+        headers: { ...request.headers, ...(request.rawBody !== undefined ? { "content-length": String(request.rawBody.byteLength) } : request.body !== undefined ? { "content-length": String(Buffer.byteLength(request.body)) } : {}) },
         lookup: lookup as unknown as http.RequestOptions["lookup"],
         signal: request.signal,
       },
@@ -96,7 +98,8 @@ export const nodeTransport: LocalTransport = (request) =>
       if (key === "assistant.err_local_host" || key === "assistant.err_local_down") finish(() => reject(new TransportFailure(key)));
       else finish(() => reject(err));
     });
-    if (request.body !== undefined) req.write(request.body);
+    if (request.rawBody !== undefined) req.write(request.rawBody);
+    else if (request.body !== undefined) req.write(request.body);
     req.end();
   });
 
@@ -121,6 +124,8 @@ export interface CallOptions {
   body?: unknown;
   timeoutMs: number;
   signal?: AbortSignal;
+  /** A binary payload with its content type (a recording): sent in place of `body`. */
+  raw?: { bytes: Uint8Array; contentType: string };
   /** Tests: a transport of their own. */
   transport?: LocalTransport;
 }
@@ -146,8 +151,8 @@ export async function callLocal(options: CallOptions): Promise<LocalHttpResponse
     return await send({
       method: options.method,
       url: `${options.target.origin}${options.path}`,
-      headers: { accept: "application/json", ...(options.body !== undefined ? { "content-type": "application/json" } : {}), ...(options.headers ?? {}) },
-      ...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+      headers: { accept: "application/json", ...(options.raw ? { "content-type": options.raw.contentType } : options.body !== undefined ? { "content-type": "application/json" } : {}), ...(options.headers ?? {}) },
+      ...(options.raw ? { rawBody: options.raw.bytes } : options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
       signal: controller.signal,
     });
   } catch (err) {

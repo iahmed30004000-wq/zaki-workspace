@@ -57,6 +57,7 @@ import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
+import voiceTranscript from "./ar.voice-transcript.json";
 import backup from "./ar.backup.json";
 
 /**
@@ -92,6 +93,7 @@ export const AR: Record<string, string> = {
   ...watch,
   ...features,
   ...economy,
+  ...voiceTranscript,
   ...libraryDrive,
   ...instant,
   ...taskLinks,
