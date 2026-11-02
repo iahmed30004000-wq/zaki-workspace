@@ -43,8 +43,25 @@ export interface DocItem {
   canWrite: boolean;
   /** May mark it «مشاركة مع الشركاء» or take it off, and delete it: its author, a manager of the space, the owner. */
   canManage: boolean;
+  /** A deleted document the OWNER is reading: he may bring it back («رجّع المستند»). */
+  canUndelete: boolean;
   /** The people an @name can point at (the space's own staff). Empty for an external partner. */
   people: DocPerson[];
+}
+
+/** A deleted document of a space, as the owner's «المستندات المحذوفة» lists it. */
+export interface DocDeletedItem {
+  id: string;
+  title: string;
+  excerpt: string;
+  deletedAt: string;
+  authorName: string;
+}
+
+/** A document the search box found (its title), in the space the person is in. */
+export interface DocSearchHit {
+  id: string;
+  title: string;
 }
 
 export interface DocRevisionItem {

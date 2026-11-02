@@ -28,6 +28,7 @@ const COLUMN = {
   ChatMessage: "body",
   StoredFile: "name",
   User: "name",
+  Document: "title",
 } as const;
 export type SearchTable = keyof typeof COLUMN;
 

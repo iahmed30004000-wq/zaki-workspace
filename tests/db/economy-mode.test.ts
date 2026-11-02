@@ -382,7 +382,7 @@ describe("«البحث الشامل»: off, an empty answer and no search query"
 
     await setSwitch(f.org.id, "search", false);
     // an empty answer for work that exists and that this member may open: it stopped at the switch
-    expect(await find()).toEqual({ tasks: [], projects: [], topics: [], messages: [], people: [], files: [] });
+    expect(await find()).toEqual({ tasks: [], projects: [], topics: [], messages: [], people: [], files: [], documents: [] });
 
     const topic = await db.conversation.create({ data: { orgId: f.org.id, kind: "TOPIC", spaceId: f.wsIn.id, title: "عام" } });
     await db.chatMessage.create({ data: { conversationId: topic.id, orgId: f.org.id, authorId: f.member.id, kind: "TEXT", body: `رسالة ${f.token}` } });

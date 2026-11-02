@@ -6,10 +6,13 @@ import { accessibleWorkspaceIds } from "@/server/services/access";
 import { assertFeatureOn } from "@/server/services/features";
 import { pushNotification } from "@/server/notify";
 import { canWriteInWorkspace, isSpaceManager } from "@/server/workspace-role";
+import { rankedSearch, sqlIn } from "@/server/search/ranked";
+import { Prisma } from "@prisma/client";
+import type { ArabicSearch } from "@/lib/search/arabic";
 import { AR } from "@/lib/i18n/dict";
 import { LIMITS, cleanContent, excerptOf, mentionedIds } from "@/lib/docs/markup";
 import { changedDocFields, decideDocSave, shouldSnapshot, type DocSnapshot } from "@/lib/docs/versions";
-import type { DocItem, DocList, DocListItem, DocPerson, DocRevisionFull, DocRevisionItem, DocRevisionsView } from "@/lib/docs/shared";
+import type { DocDeletedItem, DocItem, DocList, DocListItem, DocPerson, DocRevisionFull, DocRevisionItem, DocRevisionsView, DocSearchHit } from "@/lib/docs/shared";
 
 /**
  * «المستندات» — the text documents of a space. ONE place decides who may do what with them:
@@ -19,7 +22,8 @@ import type { DocItem, DocList, DocListItem, DocPerson, DocRevisionFull, DocRevi
  *  - an external partner (a guest of the space) reads ONLY a document marked «مشاركة مع الشركاء», never writes, never sees
  *    the history, the staff names or the people an @name can point at; a document that is not shared does not exist for them;
  *  - the document's author, a manager of the space and the owner mark a document shared or take it off, and delete it;
- *  - nothing is ever hard-deleted: «حذف» sets `archivedAt`, and only the OWNER still reads it;
+ *  - nothing is ever hard-deleted: «حذف» sets `archivedAt`, and only the OWNER still reads it, lists it among the space's
+ *    deleted documents and brings it back («رجّع المستند»: `archivedAt` cleared, words and history as they were);
  *  - every query carries the company AND the space, and the feature's switch (`spaceDocs`) is read on every call.
  *
  * ⚠️ There is no live co-editing: the last save wins, and a save made from an older version is refused with 409 so the
@@ -134,6 +138,7 @@ async function toItem(scope: DocScope, row: Row): Promise<DocItem> {
     internal: !scope.external,
     canWrite: scope.canWrite && row.archivedAt === null,
     canManage: canManageDoc(scope, row),
+    canUndelete: scope.owner && row.archivedAt !== null,
     people: scope.canWrite ? await peopleOf(scope.actor.orgId, row.workspaceId) : [],
   };
 }
@@ -344,6 +349,72 @@ export async function archiveDocument(actor: Actor, id: string): Promise<void> {
   if (!canManageDoc(scope, row)) throw new ForbiddenError("docs.manage_denied");
   if (row.archivedAt) return;
   await db.document.update({ where: { id }, data: { archivedAt: new Date() } });
+}
+
+// ---------- deleted, and back ----------
+
+/** «المستندات المحذوفة» of a space: the OWNER's alone (for anybody else a deleted document does not exist: 404). */
+export async function listDeletedDocuments(actor: Actor, spaceId: string): Promise<{ documents: DocDeletedItem[] }> {
+  const scope = await docScope(actor, spaceId);
+  if (!scope.owner) throw new NotFoundError("docs.not_found");
+  const rows = await db.document.findMany({
+    where: { orgId: actor.orgId, workspaceId: spaceId, archivedAt: { not: null } },
+    orderBy: [{ archivedAt: "desc" }, { id: "asc" }],
+    take: 200,
+    select: { id: true, title: true, content: true, archivedAt: true, createdBy: { select: { name: true } } },
+  });
+  return {
+    documents: rows.map((r) => ({
+      id: r.id,
+      title: r.title,
+      excerpt: excerptOf(r.content, 140),
+      deletedAt: (r.archivedAt as Date).toISOString(),
+      authorName: r.createdBy.name,
+    })),
+  };
+}
+
+/**
+ * «رجّع المستند»: the OWNER brings a deleted document back to its space's list, exactly as it was (the same words, the same
+ * version, its whole history). Not a new version: like «مشاركة», it is the document's place, not its words. Bringing back a
+ * document that is not deleted changes nothing.
+ */
+export async function undeleteDocument(actor: Actor, id: string): Promise<DocItem> {
+  const { scope, row } = await loadDocument(actor, id);
+  if (!scope.owner) throw new NotFoundError("docs.not_found");
+  if (!row.archivedAt) return toItem(scope, row);
+  const back = await db.document.update({ where: { id }, data: { archivedAt: null }, select: SELECT });
+  return toItem(scope, back);
+}
+
+// ---------- the search box ----------
+
+/**
+ * The documents of the space the person is in whose TITLE matches, for the search box. The same rule as the list: the space
+ * must be theirs (`docScope`), a deleted document is never found, an external partner finds only the shared ones. With
+ * «المستندات» off, or a space that is not theirs, nothing is found (search is never the place that says why).
+ */
+export async function searchDocuments(actor: Actor, spaceId: string, search: ArabicSearch, take = 6): Promise<DocSearchHit[]> {
+  let scope: DocScope;
+  try {
+    scope = await docScope(actor, spaceId);
+  } catch (err) {
+    if (err instanceof NotFoundError) return [];
+    throw err;
+  }
+  const shared = scope.external ? [Prisma.sql`"sharedWithPartners" = TRUE`] : [];
+  const where = { orgId: actor.orgId, workspaceId: spaceId, archivedAt: null, ...(scope.external ? { sharedWithPartners: true } : {}) };
+  return rankedSearch({
+    query: {
+      table: "Document",
+      search,
+      rank: true,
+      where: [sqlIn("orgId", [actor.orgId]), sqlIn("workspaceId", [spaceId]), Prisma.sql`"archivedAt" IS NULL`, ...shared],
+      order: Prisma.sql`"updatedAt" DESC`,
+    },
+    take,
+    load: (ids) => db.document.findMany({ where: { ...where, id: { in: ids } }, select: { id: true, title: true } }),
+  });
 }
 
 // ---------- history ----------

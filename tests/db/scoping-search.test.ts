@@ -10,7 +10,7 @@ interface SearchBody {
 }
 
 /** Nothing found: every list of the answer empty (the space's chat, people and files included). */
-const EMPTY = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [] };
+const EMPTY = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [], documents: [] };
 
 async function search(q: string) {
   const res = await call(searchRoute.GET, { url: `http://localhost/api/search?q=${encodeURIComponent(q)}` });

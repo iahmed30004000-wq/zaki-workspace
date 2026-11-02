@@ -7,7 +7,8 @@
  * Every action opens something that already exists — nothing here creates anything by itself:
  *   task      Today's quick add (`/?new=task` opens its sheet)
  *   project   the projects page's «مشروع جديد» form (`/projects?new=project`)
- *   doc       the library, its upload button ready (`/files?new=upload`)
+ *   doc       «ملف»: the library, its upload button ready (`/files?new=upload`)
+ *   document  «مستند»: the space's text documents, the new document's title box ready (`/documents?new=document`)
  *   message   the chat's «محادثة جديدة» dialog, opened in place by the wheel
  *   watch     «نتفرّج سوا»: its page, the link box ready (`/watch?new=watch`)
  *   space     the «مساحة عمل جديدة» form of the space switcher, opened in place by the wheel
@@ -18,7 +19,7 @@
  */
 import { canOpenPlace, canOpenTab, type NavSubject } from "./places";
 
-export const NEW_ACTIONS = ["task", "project", "doc", "message", "watch", "space", "person"] as const;
+export const NEW_ACTIONS = ["task", "project", "doc", "document", "message", "watch", "space", "person"] as const;
 export type NewActionKey = (typeof NEW_ACTIONS)[number];
 
 /** The query parameter a page reads to open its own form (`useNewIntent`). */
@@ -29,6 +30,7 @@ export const NEW_HREF: Record<NewActionKey, string | null> = {
   task: "/?new=task",
   project: "/projects?new=project",
   doc: "/files?new=upload",
+  document: "/documents?new=document",
   message: null,
   watch: "/watch?new=watch",
   space: null,
@@ -44,6 +46,8 @@ const holds = (s: NavSubject, cap: string) => staff(s) && s.caps.includes(cap);
  *   task, project   staff holding that row's «يضيف ويعدّل» box of the section grid (a project needs a space they
  *                   belong to: the form lists those)
  *   doc             whoever has the library and its «يضيف ويعدّل» box
+ *   document        staff whose map shows «المستندات» (its switch `spaceDocs` on, a space that has the tab); the
+ *                   page offers the title box only to a writer of the space they are in, and the server decides again
  *   message         any staff member (the chat is everybody's place)
  *   watch           staff with the «نتفرّج سوا» row's «يضيف ويعدّل» box (the place is the staff's)
  *   space           `spaces.create`
@@ -53,6 +57,7 @@ const REQUIRES: Record<NewActionKey, (s: NavSubject) => boolean> = {
   task: (s) => holds(s, "tasks.edit"),
   project: (s) => holds(s, "projects.edit"),
   doc: (s) => holds(s, "files.edit") && canOpenTab(s, "files"),
+  document: (s) => staff(s) && canOpenTab(s, "documents"),
   message: staff,
   watch: (s) => holds(s, "watch.edit") && canOpenPlace(s, "watch"),
   space: (s) => holds(s, "spaces.create"),

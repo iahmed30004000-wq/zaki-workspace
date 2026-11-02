@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as 
 import { useRouter } from "next/navigation";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
-import { Clapperboard, FileText, FolderKanban, Layers, MessageCircle, Plus, SquareCheck, UserPlus, X, type LucideIcon } from "lucide-react";
+import { Clapperboard, FilePen, FileUp, FolderKanban, Layers, MessageCircle, Plus, SquareCheck, UserPlus, X, type LucideIcon } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { apiGet } from "@/lib/api-client";
 import { browserStore } from "@/lib/guide/storage";
@@ -17,7 +17,8 @@ import { ORGS_QUERY_KEY, type OrgsResponse } from "./space-switcher";
 const ICONS: Record<NewActionKey, LucideIcon> = {
   task: SquareCheck,
   project: FolderKanban,
-  doc: FileText,
+  doc: FileUp,
+  document: FilePen,
   message: MessageCircle,
   watch: Clapperboard,
   space: Layers,
@@ -59,7 +60,7 @@ function writeLast(key: NewActionKey): void {
  *
  * It is a Radix dialog (the app's own `Dialog` building blocks): focus is trapped and handed back to
  * the button, Escape and a tap outside close it, Tab walks the actions. The arrow keys move round the
- * ring and 1-6 start an action. «n» opens it from anywhere that is not a field.
+ * ring and 1-9 start an action. «n» opens it from anywhere that is not a field.
  *
  * Every action opens something that exists (src/lib/nav/new-actions.ts): a page's own form through
  * `?new=`, or — «رسالة», «مساحة» — the existing dialog, in place, once the wheel has closed (so that
@@ -128,7 +129,7 @@ export function NewWheel({ actions, defaultOpen = false, portal = true }: { acti
     else if (event.key === "ArrowUp" || event.key === "ArrowRight") move(at - 1);
     else if (event.key === "Home") move(0);
     else if (event.key === "End") move(n - 1);
-    else if (/^[1-6]$/.test(event.key) && Number(event.key) <= n) {
+    else if (/^[1-9]$/.test(event.key) && Number(event.key) <= n) {
       event.preventDefault();
       start(ordered[Number(event.key) - 1]!);
     }

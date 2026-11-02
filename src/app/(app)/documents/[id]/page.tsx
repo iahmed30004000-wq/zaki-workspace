@@ -19,7 +19,7 @@ export default async function DocumentRoute({ params }: { params: { id: string }
   if (refusedToGuest(actor, "documents")) return <GuestNotice />;
   try {
     const initial = await readDocument(actor, params.id);
-    return <DocumentPage key={initial.id} initial={initial} />;
+    return <DocumentPage key={`${initial.id}:${initial.archived}`} initial={initial} />;
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;

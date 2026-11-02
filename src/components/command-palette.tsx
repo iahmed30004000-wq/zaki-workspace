@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, FileText, FolderKanban, MessageSquareText, MessagesSquare, Search, SquareCheck, UserRound } from "lucide-react";
+import { BookOpen, FilePen, FileText, FolderKanban, MessageSquareText, MessagesSquare, Search, SquareCheck, UserRound } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { rankEntries } from "@/lib/guide/match";
@@ -20,6 +20,8 @@ interface SearchResponse {
   messages?: { id: string; conversationId: string; conversationTitle: string; authorName: string; snippet: string }[];
   people?: { id: string; name: string }[];
   files?: { id: string; name: string }[];
+  /** the space's text documents, by title */
+  documents?: { id: string; title: string }[];
 }
 
 /** One way to jump somewhere: a place, a tab, the guide or the person's account. */
@@ -104,7 +106,7 @@ interface Row {
 /**
  * Global quick navigation: Ctrl/⌘+K anywhere, or the search button in the top bar. Jumps to the places
  * and tabs of the person's map and searches the tasks and projects they may open — and, in the space they are
- * in, its topics, messages, people and files (the server decides which). A Radix dialog: focus moves into the search box and stays inside, Escape or a tap outside
+ * in, its topics, messages, people, files and documents (the server decides which). A Radix dialog: focus moves into the search box and stays inside, Escape or a tap outside
  * closes it, and focus goes back to whoever opened it.
  *
  * `defaultOpen` and `portal={false}` are for server-render tests (a portal draws nothing on the server).
@@ -195,6 +197,13 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
       sub: t("pal.file"),
       href: `/files#file-${file.id}`,
       icon: <FileText aria-hidden="true" className="size-4" />,
+    })),
+    ...(search.data?.documents ?? []).map((d) => ({
+      key: `d:${d.id}`,
+      main: d.title,
+      sub: t("pal.document"),
+      href: `/documents/${d.id}`,
+      icon: <FilePen aria-hidden="true" className="size-4" />,
     })),
   ];
   const total = rows.length;
