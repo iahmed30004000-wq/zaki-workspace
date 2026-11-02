@@ -137,7 +137,7 @@ export function AppShell({ user, nav: defaultNav, navOrder = null, rank, audienc
   };
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-surface">
+    <div className="relative flex h-dvh overflow-clip bg-surface">
       <a
         href="#zk-main"
         className="sr-only focus:not-sr-only focus:fixed focus:start-2 focus:top-2 focus:z-[100] focus:rounded-xl focus:bg-surface-1 focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-fg focus:shadow-lg"
