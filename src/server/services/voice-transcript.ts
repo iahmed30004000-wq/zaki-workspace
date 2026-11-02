@@ -42,7 +42,7 @@ export interface TranscribeServer {
 }
 
 /** The speech-to-text service of this installation, or null while it has none (the feature then hides its button). */
-export function transcribeServer(source: NodeJS.ProcessEnv = process.env): TranscribeServer | null {
+export function transcribeServer(source: Readonly<Record<string, string | undefined>> = process.env): TranscribeServer | null {
   const url = (source["TRANSCRIBE_URL"] ?? "").trim().replace(/\/+$/, "");
   if (!url) return null;
   const parsed = parseLocalBaseUrl(url);
@@ -56,7 +56,7 @@ export function transcribeServer(source: NodeJS.ProcessEnv = process.env): Trans
 }
 
 /** Is the button to be drawn for this company: the switch is on AND a service is set up. */
-export async function transcriptAvailable(orgId: string, source: NodeJS.ProcessEnv = process.env): Promise<boolean> {
+export async function transcriptAvailable(orgId: string, source: Readonly<Record<string, string | undefined>> = process.env): Promise<boolean> {
   return transcribeServer(source) !== null && (await isFeatureOn(orgId, "voiceTranscript"));
 }
 
@@ -171,7 +171,7 @@ export interface TranscriptResult {
 export async function transcribeAttachment(
   actor: Actor,
   attachmentId: string,
-  options: { source?: NodeJS.ProcessEnv; transport?: LocalTransport; queue?: LocalQueue } = {},
+  options: { source?: Readonly<Record<string, string | undefined>>; transport?: LocalTransport; queue?: LocalQueue } = {},
 ): Promise<TranscriptResult> {
   await assertFeatureOn(actor.orgId, "voiceTranscript");
   const att = await db.messageAttachment.findFirst({
