@@ -8,17 +8,19 @@ import { actorCan, actorCanWork, requireActor } from "@/server/policy/actor";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
 import { searchChat } from "@/server/chat/search";
 import { searchLibrary } from "@/server/services/files";
+import { searchDocuments } from "@/server/services/documents";
 import { arabicSearch, cleanQuery } from "@/lib/search/arabic";
 import { rankedSearch, sqlIn } from "@/server/search/ranked";
 import { Prisma } from "@prisma/client";
 import { isFeatureOn } from "@/server/services/features";
 
-const NOTHING = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [] };
+const NOTHING = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [], documents: [] };
 
 /**
  * Search over the tasks/projects of the workspaces the caller can open — and, in the space they are in, its chat
  * (topics and messages, each one only if they could open it: src/server/chat/search.ts), its people and its library
- * (never for a guest: no staff directory, no library).
+ * (never for a guest: no staff directory, no library), and its text documents by title (the list's own rule: an external
+ * partner finds only the shared ones, a deleted one is never found; src/server/services/documents.ts).
  * Authorization is enforced in SQL by the same rule every other view uses
  * (`accessibleWorkspaceIds`: the org OWNER sees every workspace of the company, everyone
  * else — an ADMIN included — only the workspaces they were put in, and only while they are
@@ -56,7 +58,7 @@ export async function GET(req: Request) {
     const ctx = { orgId: actor.orgId, userId: actor.userId, orgRole: actor.role };
     const taskSpaces = actorCanWork(actor, "tasks.view") ? workspaceIds : [];
     const projectSpaces = actorCanWork(actor, "projects.view") ? workspaceIds : [];
-    const [tasks, projects, chat, people, files] = await Promise.all([
+    const [tasks, projects, chat, people, files, documents] = await Promise.all([
       // the pool of ids by spelling (src/server/search/ranked.ts), then the SAME access where as ever on those ids
       taskSpaces.length === 0
         ? []
@@ -132,6 +134,8 @@ export async function GET(req: Request) {
           }),
       // the library's files only for whoever holds its «يشوف» box
       actor.isExternal || !place || !actorCan(actor, "files.view") ? [] : searchLibrary(actor.orgId, place, q),
+      // the space's text documents (their switch, the space and the partner rule are decided inside)
+      place ? searchDocuments(actor, place.spaceId, search) : [],
     ]);
 
     return NextResponse.json({
@@ -153,6 +157,7 @@ export async function GET(req: Request) {
       messages: chat.messages,
       people: people.map((m) => m.user),
       files,
+      documents,
     });
   });
 }

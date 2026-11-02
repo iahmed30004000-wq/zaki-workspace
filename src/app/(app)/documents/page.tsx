@@ -29,7 +29,7 @@ export default async function DocumentsPage() {
   if (!space) return <EmptyState title={t("docs.no_space")} />;
   try {
     const list = await listDocuments(actor, space.id);
-    return <DocumentsView spaceId={space.id} spaceName={space.name} initial={list.documents} canCreate={list.canCreate} />;
+    return <DocumentsView spaceId={space.id} spaceName={space.name} initial={list.documents} canCreate={list.canCreate} canSeeDeleted={actor.isOwner} />;
   } catch (err) {
     if (err instanceof NotFoundError) notFound();
     throw err;

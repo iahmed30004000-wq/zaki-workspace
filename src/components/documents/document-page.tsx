@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Bold, Heading1, Heading2, History, Link2, List, ListOrdered, Trash2, Users } from "lucide-react";
+import { ArrowRight, Bold, Heading1, Heading2, History, Link2, List, ListOrdered, RotateCcw, Trash2, Users } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { ApiError, apiDelete, apiGet, apiPatch, apiPost } from "@/lib/api-client";
@@ -329,6 +329,17 @@ export function DocumentPage({ initial }: { initial: DocItem }) {
     }
   }
 
+  /** «رجّع المستند»: the owner brings a deleted document back; the page is read again, now writable. */
+  async function undelete() {
+    try {
+      await apiPost(`/api/documents/${initial.id}/undelete`, {});
+      toast(t("docs.undelete.done"), "success");
+      router.refresh();
+    } catch (err) {
+      toast(docErrorText(t, err), "error");
+    }
+  }
+
   // ---------- the writing box ----------
 
   function tool(action: EditAction) {
@@ -404,6 +415,12 @@ export function DocumentPage({ initial }: { initial: DocItem }) {
         <span role="status" aria-live="polite" className={cn("ms-auto text-xs", state === "error" || state === "title" ? "text-danger" : "text-fg-muted")}>
           {statusText}
         </span>
+        {initial.canUndelete && (
+          <Button size="sm" variant="secondary" onClick={() => void undelete()}>
+            <RotateCcw className="size-4" />
+            {t("docs.undelete")}
+          </Button>
+        )}
       </div>
 
       {canWrite ? (

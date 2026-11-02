@@ -125,8 +125,28 @@ describe("the feature's wiring", () => {
   });
 
   it("the document route files all answer through withApi / withDocApi (a failure never leaks a stack)", () => {
-    for (const file of ["route.ts", "[id]/route.ts", "[id]/revisions/route.ts", "[id]/restore/route.ts", "[id]/share/route.ts"]) {
+    for (const file of ["route.ts", "[id]/route.ts", "[id]/revisions/route.ts", "[id]/restore/route.ts", "[id]/share/route.ts", "deleted/route.ts", "[id]/undelete/route.ts"]) {
       expect(read(`src/app/api/documents/${file}`), file).toMatch(/withApi|withDocApi/);
     }
+  });
+});
+
+describe("«المستندات المحذوفة»: the owner's way back", () => {
+  it("the owner is offered the deleted documents of the space; nobody else is", () => {
+    const owner = textOf(render(createElement(ToastProvider, null, createElement(DocumentsView, { spaceId: "s1", spaceName: "التسويق", initial: [], canCreate: true, canSeeDeleted: true }))));
+    expect(owner).toContain(AR["docs.deleted.show"]!);
+    const member = textOf(render(createElement(ToastProvider, null, createElement(DocumentsView, { spaceId: "s1", spaceName: "التسويق", initial: [], canCreate: true }))));
+    expect(member).not.toContain(AR["docs.deleted.show"]!);
+  });
+
+  it("a deleted document the owner opens says so and offers to bring it back", () => {
+    const page = read("src/components/documents/document-page.tsx");
+    expect(page).toContain("initial.canUndelete");
+    expect(page).toContain("/undelete");
+    expect(AR["docs.undelete"]).toBeTruthy();
+  });
+
+  it("«جديد» → «مستند» lands on this page with the title box ready", () => {
+    expect(read("src/components/documents/documents-view.tsx")).toContain('useNewIntent("document"');
   });
 });

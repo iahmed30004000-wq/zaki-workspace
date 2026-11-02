@@ -33,7 +33,7 @@ const search = async (q: string) => {
   const res = await call(searchRoute.GET, { url: `http://localhost/api/search?q=${encodeURIComponent(q)}` });
   return { status: res.status, body: res.json as unknown as Body };
 };
-const EMPTY = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [] };
+const EMPTY = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [], documents: [] };
 
 const token = () => `zq${uid().slice(0, 7)}`;
 

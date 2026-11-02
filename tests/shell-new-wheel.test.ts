@@ -42,12 +42,12 @@ function render(element: ReactElement, theme = "night"): string {
 const who = (role: NavRole, caps?: string[]) => ({ role, caps: caps ?? [...effectiveCapabilities({ role })] });
 
 describe("«جديد»: what each person is offered", () => {
-  it("the owner and an admin: all seven — مهمّة · مشروع · مستند · رسالة · نتفرّج سوا · مساحة · عضو", () => {
+  it("the owner and an admin: all eight — مهمّة · مشروع · ملف · مستند · رسالة · نتفرّج سوا · مساحة · عضو", () => {
     for (const role of ["OWNER", "ADMIN"] as const) expect(newActionsFor(who(role)), role).toEqual([...NEW_ACTIONS]);
   });
 
   it("a lead or a member: no «مساحة» (only the owner and the admins open spaces by default) and no «عضو» (`users.manage`)", () => {
-    for (const role of ["LEAD", "MEMBER"] as const) expect(newActionsFor(who(role)), role).toEqual(["task", "project", "doc", "message", "watch"]);
+    for (const role of ["LEAD", "MEMBER"] as const) expect(newActionsFor(who(role)), role).toEqual(["task", "project", "doc", "document", "message", "watch"]);
   });
 
   it("…unless the owner switched «فتح مساحة» on for that person by name", () => {
@@ -57,6 +57,15 @@ describe("«جديد»: what each person is offered", () => {
   it("the switches decide, not the rank: a member without `spaces.create` gets no «مساحة», one given `users.manage` gets «عضو»", () => {
     expect(newActionsFor(who("MEMBER", ["directory.view"]))).not.toContain("space");
     expect(newActionsFor(who("MEMBER", ["spaces.create", "users.manage"]))).toContain("person");
+  });
+
+  it("«مستند» is a text document of the space: offered while «المستندات» is on and its tab is on the map, never with the switch off", () => {
+    expect(NEW_HREF.document).toBe("/documents?new=document");
+    expect(newActionsFor(who("MEMBER"))).toContain("document");
+    expect(newActionsFor({ ...who("OWNER"), off: ["spaceDocs"] })).not.toContain("document");
+    expect(newActionsFor({ ...who("OWNER"), off: ["spaceDocs"] })).toContain("doc");
+    // «ملف» (an upload to the library) and «مستند» (a text document) are two different words on the wheel
+    expect(AR["shell.new.doc"]).not.toBe(AR["shell.new.document"]);
   });
 
   it("an external partner (guest): nothing, whatever was stored for them", () => {
@@ -87,7 +96,7 @@ describe("«جديد»: every action opens something real", () => {
 
   it("each page form it sends a person to answers its `?new=` value (useNewIntent)", () => {
     const sent = Object.values(NEW_HREF).filter((h): h is string => h !== null);
-    expect(sent).toHaveLength(5);
+    expect(sent).toHaveLength(6);
     for (const href of sent) {
       const value = new URL(href, "http://x").searchParams.get("new");
       expect(all, href).toContain(`useNewIntent("${value}"`);
