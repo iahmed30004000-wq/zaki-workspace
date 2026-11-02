@@ -114,6 +114,8 @@ describe("the floating quick chat", () => {
       "quickChat.other_space",
       "quickChat.other_space_badge",
       "quickChat.back",
+      "quickChat.open_full",
+      "quickChat.profile",
       "quickChat.loading",
       "quickChat.no_messages",
       "quickChat.deleted",
@@ -129,3 +131,20 @@ describe("the floating quick chat", () => {
     }
   });
 });
+
+describe("the private chat's own buttons (the owner, 2026-11-02)", () => {
+  const src = readFileSync(path.resolve(__dirname, "../src/components/shell/quick-chat.tsx"), "utf8");
+
+  it("the head of an open private chat has a call, the whole conversation and the person's page, beside the name", () => {
+    const head = src.slice(src.indexOf("{peer ? ("), src.indexOf("quickChat.close"));
+    expect(head).toContain("<CallButton compact");
+    expect(head).toContain("/chat/${encodeURIComponent(conversationId)}");
+    expect(head).toContain("/u/${encodeURIComponent(peer.userId)}");
+  });
+
+  it("the call asks the same questions the chat page asks: calls switched off or no right to call hides it", () => {
+    expect(src).toContain("conversationQuery.data.calls !== false");
+    expect(src).toContain("conversationQuery.data.me.canCall !== false");
+  });
+});
+

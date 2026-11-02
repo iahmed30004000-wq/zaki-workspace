@@ -2,7 +2,8 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowRight, MessageCircle, Search, Send, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, ExternalLink, MessageCircle, Search, Send, UserRound, X } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { fmtTime } from "@/lib/format";
@@ -10,6 +11,7 @@ import { lastSeenLabel } from "@/lib/last-seen";
 import { cn } from "@/lib/utils";
 import { foldedIncludes } from "@/lib/search/arabic";
 import { Avatar } from "@/components/ui/avatar";
+import { CallButton } from "@/components/calls/call-button";
 
 /** One row of `GET /api/chat/directory?scope=company` (src/server/chat/directory.ts). */
 export interface QuickChatPersonDto {
@@ -42,7 +44,9 @@ export interface QuickChatMessageDto {
 
 export interface QuickChatConversationDto {
   id: string;
-  me: { canPost: boolean };
+  me: { canPost: boolean; canCall?: boolean };
+  /** false when the company switched calls off (the same field the chat page reads) */
+  calls?: boolean;
   messages: QuickChatMessageDto[];
 }
 
@@ -243,6 +247,30 @@ export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: b
                     {(livePeer ? seenOf(livePeer) : null) ?? ((livePeer ?? peer).online ? t("quickChat.online") : t("quickChat.offline"))}
                   </span>
                 </span>
+                {/* the private chat's own buttons, beside the name: a call, the whole conversation, the person's page */}
+                {conversationId && conversationQuery.data && conversationQuery.data.calls !== false ? (
+                  <CallButton compact conversationId={conversationId} isDm canStart={conversationQuery.data.me.canPost && conversationQuery.data.me.canCall !== false} />
+                ) : null}
+                {conversationId ? (
+                  <Link
+                    href={`/chat/${encodeURIComponent(conversationId)}`}
+                    onClick={close}
+                    aria-label={t("quickChat.open_full")}
+                    title={t("quickChat.open_full")}
+                    className="grid size-8 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                  >
+                    <ExternalLink className="size-4" />
+                  </Link>
+                ) : null}
+                <Link
+                  href={`/u/${encodeURIComponent(peer.userId)}`}
+                  onClick={close}
+                  aria-label={t("quickChat.profile")}
+                  title={t("quickChat.profile")}
+                  className="grid size-8 shrink-0 place-items-center rounded-full text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                >
+                  <UserRound className="size-4" />
+                </Link>
               </>
             ) : (
               <>
