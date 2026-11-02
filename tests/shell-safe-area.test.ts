@@ -24,3 +24,15 @@ describe("the safe area and the keyboard (item 3)", () => {
     expect(read("src/app/globals.css")).toMatch(/overscroll-behavior-y:\s*contain/);
   });
 });
+
+/** The page stops where the content stops: nothing may stretch the document past the window and leave an empty band. */
+describe("the frame holds the page (no empty band under the shell)", () => {
+  it("the shell frame is positioned and clips, so an absolutely placed child (a screen-reader heading, a decoration) cannot lengthen the document", () => {
+    const shell = read("src/components/app-shell.tsx");
+    const frame = /<div className="([^"]*\bh-dvh\b[^"]*)">/.exec(shell)?.[1] ?? "";
+    expect(frame).toMatch(/\brelative\b/);
+    // `clip` (not `hidden`): a hidden frame can still be scrolled by a focus or a scroll-into-view, which is what opened the band
+    expect(frame).toMatch(/\boverflow-clip\b/);
+    expect(frame).not.toMatch(/\boverflow-hidden\b/);
+  });
+});
