@@ -459,7 +459,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `approval-forms` | 263 | 7 | «نموذج» — reusable forms that create approval requests. |
 | `card-audit` | 36 | 7 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `card-guards` | 45 | 7 | The questions the page inside a card asks about its viewer, answered in one place. |
-| `last-seen` | 122 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
+| `last-seen` | 124 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
 | `task-recurrence` | 205 | 7 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-criteria` | 109 | 7 | «معايير التقييم» — the criteria a reviewer rates 1-5: the five the owner named (جودة الشغل، الالتزام بالمواعيد، التعاون، المبادرة، التواصل), which the owner may rename, add to (… |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
