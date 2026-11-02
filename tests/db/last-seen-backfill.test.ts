@@ -57,3 +57,32 @@ describe("the «آخر ظهور» backfill", () => {
     expect(await seenOf(t.org.id, t.member.id)).toBeNull();
   });
 });
+
+describe("the «آخر ظهور» second fill, from the account's last sign-in", () => {
+  const SQL2 = readFileSync(path.resolve(__dirname, "../../prisma/migrations/20261110100000_last_seen_from_login/migration.sql"), "utf8");
+  const run2 = () => db.$executeRawUnsafe(SQL2.replace(/^--.*$/gm, ""));
+  const at = (iso: string) => new Date(iso);
+
+  it("moves a member forward to the account's sign-in, never backwards, and leaves a person of two companies alone", async () => {
+    const t = await makeTeam();
+    const other = await makeTeam();
+    // nothing recorded -> the sign-in; an older record -> the sign-in; a later record -> kept
+    await db.user.update({ where: { id: t.admin.id }, data: { lastLoginAt: at("2026-10-05T10:00:00Z") } });
+    await db.user.update({ where: { id: t.member.id }, data: { lastLoginAt: at("2026-10-06T10:00:00Z") } });
+    await db.organizationMember.update({ where: { organizationId_userId: { organizationId: t.org.id, userId: t.member.id } }, data: { lastSeenAt: at("2026-10-01T00:00:00Z") } });
+    await db.user.update({ where: { id: t.owner.id }, data: { lastLoginAt: at("2026-10-02T10:00:00Z") } });
+    await db.organizationMember.update({ where: { organizationId_userId: { organizationId: t.org.id, userId: t.owner.id } }, data: { lastSeenAt: at("2026-10-09T00:00:00Z") } });
+    // the same account active in a second company: not tied to one of them
+    await db.user.update({ where: { id: t.guest.id }, data: { lastLoginAt: at("2026-10-07T10:00:00Z") } });
+    await db.organizationMember.create({ data: { organizationId: other.org.id, userId: t.guest.id, role: "MEMBER", status: "ACTIVE" } });
+
+    await run2();
+    expect((await seenOf(t.org.id, t.admin.id))?.toISOString()).toBe("2026-10-05T10:00:00.000Z");
+    expect((await seenOf(t.org.id, t.member.id))?.toISOString()).toBe("2026-10-06T10:00:00.000Z");
+    expect((await seenOf(t.org.id, t.owner.id))?.toISOString()).toBe("2026-10-09T00:00:00.000Z");
+    expect(await seenOf(t.org.id, t.guest.id)).toBeNull();
+
+    await run2();
+    expect((await seenOf(t.org.id, t.member.id))?.toISOString()).toBe("2026-10-06T10:00:00.000Z");
+  });
+});
