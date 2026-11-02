@@ -18,6 +18,8 @@ import AnalyticsPage from "@/app/(app)/analytics/page";
 import { I18nProvider } from "@/lib/i18n";
 import { getServerT } from "@/lib/i18n/server";
 import { ToastProvider } from "@/components/ui/toast";
+import type { Prisma } from "@prisma/client";
+import { withFeature } from "@/lib/features";
 import { db, loginAs, logout, makeUser } from "./helpers";
 import { SPACE_COOKIE } from "@/server/services/current-space";
 import { joinWorkspace, makeScopedOrg, seedWork, todayNoon } from "./scoping-helpers";
@@ -207,7 +209,12 @@ describe("Analytics page: this organization and the workspaces the user can open
 
     // the OWNER may enter every workspace of the org; the reports count the one he is in (each space is its own
     // site: «كل المساحات» is where he looks over all of them)
+    // («لوحة التحكم», 2026-11-02: while it is on, the owner's «التقارير» is a section of the panel and this page sends him there; with that switch
+    // off the page is exactly what it was, and this is what is pinned below)
     await loginAs(f.owner.id);
+    await expect(AnalyticsPage()).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
+    const row = await db.organization.findUniqueOrThrow({ where: { id: f.org.id }, select: { settings: true } });
+    await db.organization.update({ where: { id: f.org.id }, data: { settings: withFeature(row.settings, "controlPanel", false) as Prisma.InputJsonValue } });
     enter(f.wsOut.id);
     const ownerPage = await html(AnalyticsPage());
     expect(ownerPage).toContain(t("analytics.statWorkspaces", { n: 1 }));

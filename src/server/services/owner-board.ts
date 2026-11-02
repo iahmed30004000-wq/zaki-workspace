@@ -599,7 +599,7 @@ function emptyOverview(access: BoardAccess, query: BoardQuery, win: BoardWindow,
 }
 
 /** «اليوم»: who did what since the company's day began, and who has done nothing yet (only the people listed). */
-async function loadToday(c: Ctx, now: Date, ids: Ids, listed: PersonRow[]): Promise<{ done: TodayRow[]; idle: { userId: string; name: string }[] }> {
+async function loadToday(c: Ctx, now: Date, ids: Ids, listed: readonly { userId: string; name: string }[]): Promise<{ done: TodayRow[]; idle: { userId: string; name: string }[] }> {
   const todayKey = dayKeyOf(now, c.tz);
   const win = resolveWindow({ from: todayKey, to: todayKey }, now, c.tz);
   const people = new Map(listed.map((r) => [r.userId, r.name]));
@@ -620,6 +620,20 @@ async function loadToday(c: Ctx, now: Date, ids: Ids, listed: PersonRow[]): Prom
   const done = [...byUser.values()].sort((a, b) => (b.last ?? "").localeCompare(a.last ?? ""));
   const idle = [...people].filter(([id]) => !byUser.has(id)).map(([userId, name]) => ({ userId, name })).sort((a, b) => a.name.localeCompare(b.name, "ar"));
   return { done, idle };
+}
+
+/**
+ * «اليوم» of the whole company, without the rest of the overview (no people table, no sections): the owner's control panel on the home screen
+ * asks for this. The owner's access only (the caller checked `boardAccess`); it reads, and writes nothing.
+ */
+export async function loadCompanyToday(access: BoardAccess, now: Date = new Date()): Promise<{ done: TodayRow[]; idle: { userId: string; name: string }[]; staff: number; timeZone: string }> {
+  if (!access.companyWide) throw new NotFoundError("ownerboard.not_found");
+  const tz = await orgTimeZone(access.orgId);
+  const win = windowFor({ preset: "today" }, now, tz);
+  const c: Ctx = { orgId: access.orgId, tz, win, scope: access.scope };
+  const members = (await baseMembers(access, access.scope, null)).filter((m) => m.status === "ACTIVE");
+  const today = await loadToday(c, now, null, members);
+  return { ...today, staff: members.length, timeZone: tz };
 }
 
 // ───────────────────────────────────────── a person ─────────────────────────────────────────

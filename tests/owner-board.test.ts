@@ -439,8 +439,10 @@ describe("the tab, in the menu", () => {
   });
   const board = (subject: ReturnType<typeof who> & { off?: readonly (typeof FEATURES)[number][] }) => buildNav(subject).places.flatMap((p) => p.tabs).find((tab) => tab.key === "board");
 
-  it("the owner sees «لوحة المالك»; a person with the team switch «لوحة الفريق»; everybody else «لوحتي»; a guest nothing", () => {
-    expect(board(who("OWNER"))).toEqual({ key: "board", href: "/owner", labelKey: "nav.tab.board" });
+  it("the owner sees «لوحة التحكم» («لوحة المالك» while that switch is off); a person with the team switch «لوحة الفريق»; everybody else «لوحتي»; a guest nothing", () => {
+    expect(board(who("OWNER"))).toEqual({ key: "board", href: "/owner", labelKey: "nav.tab.controlPanel" });
+    expect(board({ ...who("OWNER"), off: ["controlPanel"] })).toEqual({ key: "board", href: "/owner", labelKey: "nav.tab.board" });
+    expect(AR["nav.tab.controlPanel"]).toBe("لوحة التحكم");
     expect(board(who("LEAD", { capabilities: ["board.team"] }))?.labelKey).toBe("nav.tab.boardTeam");
     for (const role of ["ADMIN", "LEAD", "MEMBER"] as const) expect(board(who(role))?.labelKey, role).toBe("nav.tab.boardSelf");
     expect(board(who("GUEST"))).toBeUndefined();

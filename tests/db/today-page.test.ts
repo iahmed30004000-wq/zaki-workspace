@@ -72,6 +72,28 @@ async function busyWorld(now: Date = new Date()) {
 // wall of navigation: each is the one place a first step happens.
 const allowedLinks = /^(\/|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|\/my-work(\?tab=\w+)?|\/guide(\/[\w-]+)?|\/chat|\/time)$/;
 
+/**
+ * The owner's «لوحة التحكم» (2026-11-02) is a deliberate section of his home: numbers, sentences and who did what, not a wall of navigation. It is
+ * checked on its own (its links go to the panel's own page, the list of late work and the ideas, nowhere else) and taken out for the checks that
+ * are about the rest of the page.
+ */
+const panelLinks = /^(\/owner(\/people\/[\w-]+|\?v=\w+)?|\/list\?filter=overdue|\/ideas)$/;
+function splitPanel(markup: string): { rest: string; panel: string } {
+  const marker = markup.indexOf('data-testid="control-panel"');
+  if (marker < 0) return { rest: markup, panel: "" };
+  const start = markup.lastIndexOf("<section", marker);
+  let depth = 0;
+  let end = start;
+  for (const m of markup.slice(start).matchAll(/<(\/?)section\b/g)) {
+    depth += m[1] ? -1 : 1;
+    if (depth === 0) {
+      end = start + (m.index as number) + "</section>".length;
+      break;
+    }
+  }
+  return { rest: markup.slice(0, start) + markup.slice(end), panel: markup.slice(start, end) };
+}
+
 describe("the home page: «اليوم»", () => {
   it("greets by first name, writes the date in Arabic, and shows the member's own tasks in three groups with the done button", async () => {
     // one clock for the fixtures and the page (which reads the time itself): midnight cannot fall between them
@@ -158,9 +180,11 @@ describe("the home page: «اليوم»", () => {
     const { w } = await busyWorld();
     for (const person of [w.member.id, w.owner.id]) {
       await loginAs(person);
-      const markup = await html(HomePage());
+      const { rest: markup, panel } = splitPanel(await html(HomePage()));
       expect(classTokens(markup).filter((c) => /(^|:)grid-cols-/.test(c))).toEqual([]);
       expect(hrefsOf(markup).filter((h) => !allowedLinks.test(h))).toEqual([]);
+      expect(hrefsOf(panel).filter((h) => !panelLinks.test(h))).toEqual([]);
+      if (person === w.member.id) expect(panel).toBe("");
       for (const old of ["home.sectionWork", "home.sectionLib", "home.sectionTools", "home.unit_chats", "home.unit_files", "home.unit_depts"]) {
         expect(markup).not.toContain(t(old));
       }
@@ -183,6 +207,11 @@ describe("the home page: «اليوم»", () => {
   it("says everything in Arabic: no English word reaches a person, not a raw status, priority or key", async () => {
     const { w } = await busyWorld();
     await db.project.update({ where: { id: w.inside.project.id }, data: { status: "AT_RISK", name: "مشروع الهوية" } });
+    // the owner's panel names the company's people: they are given Arabic names here, like the two the busy world names already
+    let n = 0;
+    for (const u of await db.user.findMany({ where: { memberships: { some: { organizationId: w.org.id } }, id: { notIn: [w.owner.id, w.member.id] } }, select: { id: true } })) {
+      await db.user.update({ where: { id: u.id }, data: { name: `زميل ${++n}` } });
+    }
     for (const person of [w.member.id, w.owner.id]) {
       await loginAs(person);
       const text = readable(await html(HomePage()));

@@ -82,9 +82,12 @@ const LATIN_IN_DICTIONARY = [
   "x-zaki-token", // the legacy header name a sender may still use
   "GOOGLE_CLIENT_ID",
   "GOOGLE_CLIENT_SECRET",
-  "GOOGLE_CLIENT_SECRET",
   "ENCRYPTION_KEY", // the server setting the owner keeps safe: the backup's encryption key
   "Coolify", // the panel where that setting lives (provider name)
+  "Zaki-agent", // the exact name of the agent's service in that panel (the owner connects it from «لوحة التحكم»)
+  "Environment Variables", // the exact label of the section of that panel where its settings are typed
+  "Edit Compose File", // the exact label of the button of that panel that opens a service's file
+  "Restart", // the exact label of the button that restarts the service there
   "Node", // the program the restore script runs with
   "/api/integrations/google/callback", // the address to give Google's console
   "drive.file", // the access scope to ask for

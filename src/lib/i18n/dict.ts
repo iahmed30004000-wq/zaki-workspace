@@ -40,6 +40,7 @@ import cardsNav from "./ar.cards-nav.json";
 import taskRewards from "./ar.task-rewards.json";
 import calendarFeed from "./ar.calendar-feed.json";
 import ownerBoard from "./ar.owner-board.json";
+import controlPanel from "./ar.control-panel.json";
 import ownerAssistant from "./ar.owner-assistant.json";
 import chatAssistant from "./ar.chat-assistant.json";
 import customFields from "./ar.custom-fields.json";
@@ -109,6 +110,7 @@ export const AR: Record<string, string> = {
   ...taskRewards,
   ...calendarFeed,
   ...ownerBoard,
+  ...controlPanel,
   ...ownerAssistant,
   ...chatAssistant,
   ...customFields,
