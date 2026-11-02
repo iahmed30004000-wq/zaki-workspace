@@ -147,12 +147,33 @@ describe("the people dock", () => {
   it("a co-owner is an owner: he sees every real time, and the primary owner hides from him like from anybody (the dot's rule)", async () => {
     const w = await world();
     const co = await makeUser({ orgId: w.org.id, role: "OWNER", name: "Co-owner" });
+    // makeUser marks every OWNER primary: this one is a partner
+    await db.organizationMember.updateMany({ where: { userId: co.id }, data: { primaryOwner: false } });
     await setSeen(co.id);
     await setHide(w.mate.id, true);
     await loginAs(co.id);
     expect((await dock()).rows.get(w.mate.id)?.lastSeenAt).toBe(iso);
     await setFeature(w.org.id, "ownerHiddenOnline", true);
     expect((await dock()).rows.get(w.owner.id)?.lastSeenAt).toBeNull();
+  });
+
+  it("the PRIMARY owner reads a hidden partner's real time (the switch hides owners from everybody else, a partner included)", async () => {
+    const w = await world();
+    const co = await makeUser({ orgId: w.org.id, role: "OWNER", name: "Co-owner" });
+    await db.organizationMember.updateMany({ where: { userId: co.id }, data: { primaryOwner: false } });
+    await setSeen(co.id);
+    await setFeature(w.org.id, "ownerHiddenOnline", true);
+    // the primary owner sees the partner
+    await loginAs(w.owner.id);
+    expect((await dock()).rows.get(co.id)?.lastSeenAt).toBe(iso);
+    // another partner and everybody else do not
+    const co2 = await makeUser({ orgId: w.org.id, role: "OWNER", name: "Second partner" });
+    await db.organizationMember.updateMany({ where: { userId: co2.id }, data: { primaryOwner: false } });
+    await setSeen(co2.id);
+    await loginAs(co2.id);
+    expect((await dock()).rows.get(co.id)?.lastSeenAt).toBeNull();
+    await loginAs(w.member.id);
+    expect((await dock()).rows.get(co.id)?.lastSeenAt).toBeNull();
   });
 
   it("the company's other people are another company's: a person in two companies is read in the company of the request", async () => {
