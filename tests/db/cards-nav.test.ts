@@ -72,7 +72,7 @@ describe("the layout draws the map of the space the person is in", () => {
     enter(w.cardsSpace.id);
     const shell = await frame();
     expect(places(shell)).toEqual(["cards", "admin"]);
-    expect(shell.props.nav.places[1]?.tabs.map((t) => t.key)).toEqual(["team", "space", "board", "structure", "development", "reports", "automation", "telegram", "settings", "archive"]);
+    expect(shell.props.nav.places[1]?.tabs.map((t) => t.key)).toEqual(["team", "space", "board", "structure", "development", "automation", "telegram", "settings", "archive"]);
   });
 
   it("an external partner in the space sees «اللوحات» alone", async () => {
