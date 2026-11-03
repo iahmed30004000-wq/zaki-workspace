@@ -61,6 +61,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       defaultCollapsed={sidebarCollapsed}
       peopleDock={on.peopleDock}
       quickChat={on.quickChat}
+      siteGuide={on.siteGuide && on.ownerAssistant && actor.isOwner}
       economy={economyOn(org?.settings)}
     >
       {/* a call goes on while the person moves between pages; an incoming call rings on every page */}
