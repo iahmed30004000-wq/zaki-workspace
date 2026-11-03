@@ -1,0 +1,5 @@
+// The Android app of Zaki Workspace: a Trusted Web Activity, i.e. the site itself in a full-screen Chrome window with its own icon.
+// Nothing of the site is copied here: every page, every feature and every update comes from https://workspace.zakiai.io.
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}
