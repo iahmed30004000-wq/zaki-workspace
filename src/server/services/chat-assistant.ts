@@ -238,9 +238,9 @@ async function keepProposals(input: { orgId: string; userId: string; refs: Recor
   });
 }
 
-const TOPICS_MAX = 6;
-const TOPIC_MESSAGES = 8;
-const TOPIC_CHARS = 1_500;
+const TOPICS_MAX = 4;
+const TOPIC_MESSAGES = 6;
+const TOPIC_CHARS = 1_000;
 
 /**
  * What was said lately in the company's open topics, for the OWNER's own conversation: the newest topics, their last 8 text messages each,
@@ -387,12 +387,17 @@ export async function answerMention(input: { orgId: string; conversationId: stri
 
     // 7b. in the person's OWN conversation with the assistant, their work picture rides along (src/server/services/assistant-work.ts)
     const work = (await inOwnAssistantChat(orgId, conversationId, askerId))
-      ? await loadAssistantWork({ orgId, userId: askerId, role: org.role }, { allowNames, allowTitles: settings.allowTitles, local, now }).catch(() => null)
+      ? await loadAssistantWork({ orgId, userId: askerId, role: org.role }, { allowNames, allowTitles: settings.allowTitles, local, now }).catch((err: unknown) => {
+          // the name of the error only: the picture is simply missing from this answer
+          log.warn("chat_assistant.work_failed", { name: err instanceof Error ? err.name : "unknown" });
+          return null;
+        })
       : null;
     // the OWNER's own conversation also reads what was said lately in the company's open topics (never a DM, never one a guest can reach)
     const topics = work?.canPropose && !local ? await topicsDigest(orgId, askerId, conversationId, { allowNames, companyNames: people.map((p) => p.user.name), relax: choice.relax === true }).catch(() => null) : null;
     const proposing = work?.canPropose === true && (await isFeatureOn(orgId, "assistantProposals"));
     const content = work ? `<work>\n${work.text}\n</work>\n\n${topics ? `<topics>\n${topics.text}\n</topics>\n\n` : ""}${prompt.content}` : prompt.content;
+    if (work) log.info("chat_assistant.sizes", { work: work.text.length, topics: topics?.text.length ?? 0, chat: prompt.chars });
 
     // 8. the call: no tools, a bounded answer
     let completion;
