@@ -8,6 +8,8 @@ import { db } from "@/server/db";
 import { Prisma } from "@prisma/client";
 import { arabicSearch } from "@/lib/search/arabic";
 import { rankedSearch } from "@/server/search/ranked";
+import { isFeatureOn } from "@/server/services/features";
+import { snippetOf } from "@/server/chat/search";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { logEvent } from "@/server/services/integrations";
 import { canReadConversation } from "@/server/policy/conversation";
@@ -75,12 +77,15 @@ async function assertOfMySpaces(userId: string, workspaceId: string | null): Pro
 
 /**
  * The library files of the place whose name carries the words, spelled as people spell them (the search box):
- * names that START with the words first, then the ones that contain them, newest first inside each.
+ * names that START with the words first, then the ones that contain them, newest first inside each. With «قراءة نص الصور» on
+ * (`imageOcr`), a picture is also found by the words read out of it (`FileText`), after the name hits and with a `snippet` of
+ * the text around the words: the SAME where as the name search decides who sees it (the library's place, the latest version,
+ * never a deleted or half-written file); the route has already refused a guest and a person without the «يشوف» box.
  */
-export async function searchLibrary(orgId: string, place: FilePlace, q: string): Promise<Array<{ id: string; name: string }>> {
+export async function searchLibrary(orgId: string, place: FilePlace, q: string): Promise<Array<{ id: string; name: string; snippet?: string }>> {
   const search = arabicSearch(q);
   if (!search) return [];
-  return rankedSearch({
+  const byName: Array<{ id: string; name: string; snippet?: string }> = await rankedSearch({
     query: {
       table: "StoredFile",
       search,
@@ -108,6 +113,33 @@ export async function searchLibrary(orgId: string, place: FilePlace, q: string):
         select: { id: true, name: true },
       }),
   });
+  if (byName.length >= 6 || !(await isFeatureOn(orgId, "imageOcr"))) return byName;
+  const byText = await rankedSearch({
+    query: {
+      table: "FileText",
+      search,
+      rank: false,
+      where: [
+        Prisma.sql`"orgId" = ${orgId}`,
+        Prisma.sql`"fileId" IN (SELECT "id" FROM "StoredFile" WHERE "orgId" = ${orgId} AND "isLatest" = TRUE AND "deletedAt" IS NULL AND "purpose" = 'LIBRARY' AND "path" <> ${PENDING_PATH})`,
+      ],
+      order: Prisma.sql`"createdAt" DESC`,
+    },
+    take: 6,
+    // the pool above is coarse (no place): THIS where is the rule, the same one that lists the file
+    load: (ids) =>
+      db.fileText.findMany({
+        where: { id: { in: ids }, orgId, file: { orgId, isLatest: true, deletedAt: null, purpose: "LIBRARY", ...STORED, AND: [filePlaceWhere(place)] } },
+        select: { id: true, text: true, file: { select: { id: true, name: true } } },
+      }),
+  });
+  const out = [...byName];
+  for (const row of byText) {
+    if (out.length >= 6) break;
+    if (out.some((f) => f.id === row.file.id)) continue;
+    out.push({ id: row.file.id, name: row.file.name, snippet: snippetOf(row.text, q, 90) });
+  }
+  return out;
 }
 
 export async function listFiles(orgId: string, place?: FilePlace): Promise<

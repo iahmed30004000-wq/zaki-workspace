@@ -241,6 +241,8 @@ export interface ConversationDto {
   voiceNotes?: boolean;
   /** «كتابة نص الرسالة الصوتية» (`voiceTranscript`): the switch is on AND a speech-to-text service is set up; absent or false: no «اكتب النص» button */
   voiceTranscript?: boolean;
+  /** «قراءة نص الصور» (`imageOcr`): the switch is on, a vision service is set up AND no guest can reach this conversation; absent or false: no «اقرا النص» button under a picture */
+  imageOcr?: boolean;
   /** pagination: the oldest message id on the page; pass it as `before` for the next page. */
   oldestId?: string | null;
 }

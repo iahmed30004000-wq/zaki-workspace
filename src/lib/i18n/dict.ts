@@ -58,6 +58,7 @@ import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
 import voiceTranscript from "./ar.voice-transcript.json";
+import imageOcr from "./ar.image-ocr.json";
 import assistantChat from "./ar.assistant-chat.json";
 import siteGuide from "./ar.site-guide.json";
 import backup from "./ar.backup.json";
@@ -96,6 +97,7 @@ export const AR: Record<string, string> = {
   ...features,
   ...economy,
   ...voiceTranscript,
+  ...imageOcr,
   ...assistantChat,
   ...siteGuide,
   ...libraryDrive,

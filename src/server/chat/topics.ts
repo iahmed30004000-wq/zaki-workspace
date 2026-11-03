@@ -11,7 +11,8 @@ import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { isFeatureOn } from "@/server/services/features";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
-import { chatAssistantOffered } from "@/server/services/chat-assistant";
+import { ocrAvailable } from "@/server/services/image-ocr";
+import { chatAssistantOffered, conversationHasGuest } from "@/server/services/chat-assistant";
 import { ASSISTANT_MENTION_ID, ASSISTANT_MENTION_NAME } from "@/lib/chat/conversation/mentions";
 import { lastSeenReader } from "@/server/services/last-seen";
 import type { Prisma } from "@prisma/client";
@@ -452,6 +453,8 @@ export async function conversationDetail(
     whiteboard: await isFeatureOn(ctx.orgId, "whiteboard"),
     voiceNotes: await isFeatureOn(ctx.orgId, "voiceNotes"),
     voiceTranscript: await transcriptAvailable(ctx.orgId),
+    // a picture of a conversation a guest can reach is never read by a model: no button there
+    imageOcr: (await ocrAvailable(ctx.orgId)) && ctx.orgRole !== "GUEST" && !(await conversationHasGuest(facts, conversationId, ctx.orgId)),
   };
 }
 

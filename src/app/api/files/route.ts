@@ -9,6 +9,7 @@ import { storageTarget } from "@/server/files/storage-policy";
 import { parseMultipartUpload } from "@/server/files/multipart";
 import { uploadTempDir, UploadStreamError } from "@/server/files/upload-stream";
 import { MAX_FILE_BYTES } from "@/server/files/sniff";
+import { ocrAvailable } from "@/server/services/image-ocr";
 
 /**
  * The file library is closed to org GUESTs on every route (list, details, bytes, versions,
@@ -55,7 +56,8 @@ export async function GET() {
     // the library row of the person's grid («يشوف»); uploading is checked by `ingest` («يضيف ويعدّل»)
     await assertMemberCan(ctx, "files.view", "section.view_denied");
     const space = await currentSpace({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole });
-    const [files, storage] = await Promise.all([listFiles(ctx.orgId, { spaceId: space?.id ?? null, isHq: space?.kind === "HQ" }), storageTarget(ctx.orgId)]);
-    return NextResponse.json({ files, onDrive: storage.target === "drive", storage, space: space ? { id: space.id, name: space.name } : null });
+    const [files, storage, ocr] = await Promise.all([listFiles(ctx.orgId, { spaceId: space?.id ?? null, isHq: space?.kind === "HQ" }), storageTarget(ctx.orgId), ocrAvailable(ctx.orgId)]);
+    // `ocr`: «اقرا النص» is offered under a picture (the switch `imageOcr` is on AND a vision service is set up)
+    return NextResponse.json({ files, onDrive: storage.target === "drive", storage, ocr, space: space ? { id: space.id, name: space.name } : null });
   });
 }
