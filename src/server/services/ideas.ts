@@ -215,14 +215,15 @@ export interface IdeaDoorExtra {
 
 /**
  * An idea is born in the space the person is in. `opts.client`: a transaction the CALLER holds, so the idea is born in the
- * same commit as something else (the door's idempotency record); `opts.extra`: the columns of an idea sent in by another system.
+ * same commit as something else (the door's idempotency record); `opts.extra`: the columns of an idea sent in by another system; `opts.sourceMessageId`: the comment of a watch session it was made
+ * from («حوّل»; the door checked the comment already).
  */
 export async function createIdea(
   orgId: string,
   actor: ActorContext,
   input: CreateIdeaInput,
   spaceId: string | null = null,
-  opts: { client?: DbClient; extra?: IdeaDoorExtra } = {},
+  opts: { client?: DbClient; extra?: IdeaDoorExtra; sourceMessageId?: string } = {},
 ): Promise<IdeaDTO> {
   await assertMemberCan({ orgId, userId: actor.userId }, "ideas.edit", "section.edit_denied");
   const row = await (opts.client ?? db).idea.create({
@@ -232,6 +233,7 @@ export async function createIdea(
       creatorId: actor.userId,
       title: input.title,
       description: input.description ?? null,
+      ...(opts.sourceMessageId ? { sourceMessageId: opts.sourceMessageId } : {}),
       ...(opts.extra ? { source: opts.extra.source, externalRef: opts.extra.externalRef, tags: opts.extra.tags, apiTokenId: opts.extra.apiTokenId } : {}),
     },
     include: { ...IDEA_INCLUDE, organization: { select: { keyPrefix: true } } },

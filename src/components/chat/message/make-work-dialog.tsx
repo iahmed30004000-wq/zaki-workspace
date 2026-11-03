@@ -31,11 +31,14 @@ export function MakeWorkDialog({
   kind,
   onClose,
   onDone,
+  titleMax = 120,
 }: {
   message: Pick<MessageDto, "id" | "body"> | null;
   kind: WorkKind;
   onClose: () => void;
   onDone: (made: { kind: WorkKind; id: string }) => void;
+  /** how long the first line may be as a title (a comment of «نتفرّج سوا»: 200) */
+  titleMax?: number;
 }) {
   const [title, setTitle] = useState("");
   const [spaces, setSpaces] = useState<Space[] | null>(null);
@@ -54,7 +57,7 @@ export function MakeWorkDialog({
   // every time it opens: the message's first line, and the places to send it
   useEffect(() => {
     if (!message) return;
-    setTitle(titleOf(message.body));
+    setTitle(titleOf(message.body, titleMax));
     setError("");
     setBusy(false);
     let alive = true;
@@ -79,7 +82,7 @@ export function MakeWorkDialog({
     return () => {
       alive = false;
     };
-  }, [message, kind]);
+  }, [message, kind, titleMax]);
 
   // the space's projects, then the project's boards (one board: picked already)
   useEffect(() => {

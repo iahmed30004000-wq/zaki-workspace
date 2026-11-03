@@ -31,8 +31,15 @@ export default async function WatchSessionPage({ params, searchParams = {} }: { 
     if (err instanceof NotFoundError) notFound();
     throw err;
   });
-  // «حوّل»: what this person's «الأقسام» boxes let them make (each door checks again)
-  const convert = { idea: actorCan(actor, "ideas.edit"), task: actorCan(actor, "tasks.edit"), project: actorCan(actor, "projects.edit") };
+  // «حوّل»: what this person's «الأقسام» boxes let them make (each door checks again); none while its switch is off. «الشركة» holds no
+  // projects, so a session there offers no «مشروع».
+  const convertOn = await actorFeatureOn(actor, "watchConvert");
+  const space = convertOn ? await db.workspace.findUnique({ where: { id: session.spaceId }, select: { kind: true } }) : null;
+  const convert = {
+    idea: convertOn && actorCan(actor, "ideas.edit"),
+    task: convertOn && actorCan(actor, "tasks.edit"),
+    project: convertOn && actorCan(actor, "projects.edit") && space?.kind !== "HQ",
+  };
   return <WatchRoom session={session} viewerId={user.id} startAt={startAt} convert={convert} />;
 }
 
