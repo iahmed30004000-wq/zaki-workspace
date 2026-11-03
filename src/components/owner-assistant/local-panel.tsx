@@ -227,6 +227,7 @@ export function LocalPanel({ value, onChange, saved, hasGatewayKey: initialHasKe
             spellCheck={false}
             autoComplete="off"
             placeholder="http://hermes:8642"
+            readOnly={saved.gatewayFixed?.url === true}
             value={value.gatewayBaseUrl}
             // a confirmation belongs to ONE address: a different one starts unconfirmed
             onChange={(e) => onChange({ gatewayBaseUrl: e.target.value, ...(e.target.value.trim() !== (saved.gatewayBaseUrl ?? "") ? { gatewayConfirmedLocal: false } : {}) })}
@@ -237,8 +238,19 @@ export function LocalPanel({ value, onChange, saved, hasGatewayKey: initialHasKe
         </label>
         <label className="flex flex-col gap-1 text-xs text-muted">
           {t("localai.model.label")}
-          <input type="text" dir="ltr" spellCheck={false} autoComplete="off" value={value.gatewayModel} onChange={(e) => onChange({ gatewayModel: e.target.value })} className={`${field} text-start`} data-testid="ai-gateway-model" />
+          <input type="text" dir="ltr" spellCheck={false} autoComplete="off" readOnly={saved.gatewayFixed?.model === true} value={value.gatewayModel} onChange={(e) => onChange({ gatewayModel: e.target.value })} className={`${field} text-start`} data-testid="ai-gateway-model" />
         </label>
+        {saved.gatewayFixed && (saved.gatewayFixed.url || saved.gatewayFixed.model || saved.gatewayFixed.key) ? (
+          <p className="text-xs leading-6 text-ok" data-testid="ai-gateway-fixed">
+            {t("localai.gateway.fixed_note")}
+          </p>
+        ) : null}
+        {saved.gatewayFixed?.key ? (
+          <div className="space-y-1" data-testid="ai-gateway-key">
+            <h3 className="text-xs font-medium">{t("localai.gateway.key_title")}</h3>
+            <p className="text-sm font-medium text-ok">{t("localai.gateway.key_saved", { last4: saved.gatewayKeyLast4 ?? "" })}</p>
+          </div>
+        ) : (
         <div className="space-y-2" data-testid="ai-gateway-key">
           <h3 className="text-xs font-medium">{t("localai.gateway.key_title")}</h3>
           <p className="text-xs leading-6 text-muted">{t("localai.gateway.key_hint")}</p>
@@ -260,6 +272,7 @@ export function LocalPanel({ value, onChange, saved, hasGatewayKey: initialHasKe
             </p>
           ) : null}
         </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <button type="button" onClick={() => test("openai")} disabled={testing !== null || value.gatewayBaseUrl.trim() === ""} className="rounded-lg border border-border bg-surface-1 px-4 py-2 text-sm disabled:opacity-50" data-testid="ai-test-openai">
             {testing === "openai" ? t("localai.test.running") : t("localai.test.button")}
