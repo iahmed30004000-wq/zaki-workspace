@@ -18,13 +18,15 @@ export interface ProviderConfig {
   kind?: ProviderKind;
   /** A local kind only: the validated address (an origin). */
   baseUrl?: string;
+  /** A gateway at an outside https address that the owner allowed (`externalGateway`). */
+  external?: boolean;
 }
 
 export type ProviderFactory = (config: ProviderConfig) => AiProvider;
 
 const real: ProviderFactory = (config) => {
   if (config.kind === "ollama") return createOllamaProvider({ baseUrl: config.baseUrl ?? "", model: config.model });
-  if (config.kind === "openai") return createOpenAiCompatProvider({ baseUrl: config.baseUrl ?? "", model: config.model, apiKey: config.apiKey });
+  if (config.kind === "openai") return createOpenAiCompatProvider({ baseUrl: config.baseUrl ?? "", model: config.model, apiKey: config.apiKey, external: config.external === true });
   return createAnthropicProvider({ apiKey: config.apiKey, model: config.model });
 };
 

@@ -172,8 +172,10 @@ describe("the settings of the local model", () => {
     for (const field of ["localBaseUrl", "gatewayBaseUrl"]) {
       const res = await patch({ [field]: url });
       expect(res.status, `${field} ${url}`).toBe(422);
-      expect(JSON.stringify(res.json)).toContain(key);
-      expect(AR[key]).toBeTruthy();
+      // a public https NAME for the gateway is a different refusal: it names the switch «بوابة نموذج خارجية» that would allow it
+      const want = field === "gatewayBaseUrl" && url.startsWith("https://") && key === "assistant.local_url_public" ? "assistant.local_url_external_off" : key;
+      expect(JSON.stringify(res.json)).toContain(want);
+      expect(AR[want]).toBeTruthy();
     }
     expect(await db.aiSettings.count({ where: { orgId: w.org.id } })).toBe(0);
   });

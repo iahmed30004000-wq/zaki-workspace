@@ -40,6 +40,8 @@ export interface OpenAiCompatOptions {
   queue?: LocalQueue;
   timeoutMs?: number;
   numCtx?: number;
+  /** The address is an outside https service the owner allowed (`externalGateway`). */
+  external?: boolean;
 }
 
 export const OPENAI_CHAT_PATH = "/v1/chat/completions";
@@ -87,7 +89,7 @@ export function createOpenAiCompatProvider(options: OpenAiCompatOptions): AiProv
   const queue = options.queue ?? localQueue;
   return {
     async complete(request) {
-      const target = targetOf(options.baseUrl);
+      const target = targetOf(options.baseUrl, options.external === true);
       return queue.run(async () => {
         const send = (withTools: boolean) =>
           callLocal({
@@ -109,8 +111,8 @@ export function createOpenAiCompatProvider(options: OpenAiCompatOptions): AiProv
 }
 
 /** Lists the models the gateway offers, then (when the named one is among them) asks it for 5 tokens and times it. */
-export async function probeOpenAiCompat(options: { baseUrl: string; model: string | null; apiKey?: string; transport?: LocalTransport; queue?: LocalQueue; timeoutMs?: number }): Promise<ProbeResult> {
-  const target = targetOf(options.baseUrl);
+export async function probeOpenAiCompat(options: { baseUrl: string; model: string | null; apiKey?: string; external?: boolean; transport?: LocalTransport; queue?: LocalQueue; timeoutMs?: number }): Promise<ProbeResult> {
+  const target = targetOf(options.baseUrl, options.external === true);
   const timeoutMs = options.timeoutMs ?? LOCAL_PROBE_TIMEOUT_MS;
   const headers = authHeaders(options.apiKey);
   const t0 = Date.now();

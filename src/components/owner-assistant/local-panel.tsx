@@ -43,7 +43,15 @@ export const localValueOf = (s: PublicSettings): LocalValue => ({
 
 type TestResponse = ProbeResult & { provider: "ollama" | "openai" };
 
-const errorText = (t: (k: string) => string, err: unknown) => (err instanceof ApiError && err.messageKey ? t(err.messageKey) : t("common.error"));
+const errorText = (t: (k: string) => string, err: unknown): string => {
+  if (err instanceof ApiError) {
+    // the reason of a refusal travels in `details` (a dictionary key); the generic «تحقق من البيانات» comes after it
+    const details = Array.isArray(err.details) ? (err.details as { message?: string }[]) : [];
+    for (const d of details) if (d.message && t(d.message) !== d.message) return t(d.message);
+    if (err.messageKey && t(err.messageKey) !== err.messageKey) return t(err.messageKey);
+  }
+  return t("common.error");
+};
 const PROVIDERS: readonly ProviderKind[] = ["claude", "ollama", "openai"];
 
 export function LocalPanel({ value, onChange, saved, hasGatewayKey: initialHasKey, gatewayKeyLast4: initialLast4 }: { value: LocalValue; onChange: (patch: Partial<LocalValue>) => void; saved: PublicSettings; hasGatewayKey: boolean; gatewayKeyLast4: string | null }) {

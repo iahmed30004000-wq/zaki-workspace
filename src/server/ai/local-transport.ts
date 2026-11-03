@@ -36,6 +36,8 @@ export interface LocalHttpRequest {
   body?: string;
   /** Binary payload (an uploaded recording): sent as is, instead of `body`. */
   rawBody?: Uint8Array;
+  /** The owner allowed this outside https service (`externalGateway`): the socket accepts PUBLIC addresses only, never an inside one. */
+  external?: boolean;
   signal: AbortSignal;
 }
 
@@ -58,7 +60,7 @@ export const nodeTransport: LocalTransport = (request) =>
   new Promise<LocalHttpResponse>((resolve, reject) => {
     const url = new URL(request.url);
     const lib = url.protocol === "https:" ? https : http;
-    const lookup = makeGuardedLookup();
+    const lookup = makeGuardedLookup(undefined, request.external === true);
     let done = false;
     const finish = (fn: () => void) => {
       if (done) return;
@@ -153,6 +155,7 @@ export async function callLocal(options: CallOptions): Promise<LocalHttpResponse
       url: `${options.target.origin}${options.path}`,
       headers: { accept: "application/json", ...(options.raw ? { "content-type": options.raw.contentType } : options.body !== undefined ? { "content-type": "application/json" } : {}), ...(options.headers ?? {}) },
       ...(options.raw ? { rawBody: options.raw.bytes } : options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+      ...(options.target.external ? { external: true } : {}),
       signal: controller.signal,
     });
   } catch (err) {
@@ -169,8 +172,8 @@ export async function callLocal(options: CallOptions): Promise<LocalHttpResponse
 }
 
 /** The target of a stored address, or a refusal. The stored address was judged at save time; it is judged again here. */
-export function targetOf(baseUrl: string): LocalTarget {
-  const parsed = parseLocalBaseUrl(baseUrl);
+export function targetOf(baseUrl: string, external = false): LocalTarget {
+  const parsed = parseLocalBaseUrl(baseUrl, { external });
   if (!parsed.ok) throw new AiProviderError("assistant.err_local_host");
   return parsed.target;
 }

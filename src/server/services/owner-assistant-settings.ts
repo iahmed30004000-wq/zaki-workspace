@@ -7,6 +7,7 @@ import { orgTimeZone } from "@/server/services/org-day";
 import { DEFAULT_MODEL, KNOWN_MODELS, isValidLocalModelId, isValidModelId } from "@/server/ai/provider";
 import { AssistantError } from "@/server/ai/api";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
+import { isFeatureOn } from "@/server/services/features";
 import type { ProviderKind } from "@/server/ai/registry";
 
 /**
@@ -142,14 +143,14 @@ export async function readGatewayKey(orgId: string): Promise<string | null> {
 const providerSchema = z.enum(["claude", "ollama", "openai"], { errorMap: () => ({ message: "assistant.provider_invalid" }) });
 
 /** An address field: empty clears it; anything else must be an INTERNAL origin (the stored text is the normalised origin). */
-const addressSchema = z
+const addressSchema = (external: boolean) => z
   .string()
   .max(200, "assistant.local_url_invalid")
   .nullable()
   .transform((value, ctx): string | null => {
     const text = value === null ? "" : value.trim();
     if (text === "") return null;
-    const parsed = parseLocalBaseUrl(text);
+    const parsed = parseLocalBaseUrl(text, { external });
     if (!parsed.ok) {
       ctx.addIssue({ code: z.ZodIssueCode.custom, message: parsed.key });
       return z.NEVER;
@@ -180,9 +181,10 @@ const settingsSchema = z
     allowTitles: z.boolean().optional(),
     ownerProvider: providerSchema.optional(),
     chatProvider: providerSchema.optional(),
-    localBaseUrl: addressSchema.optional(),
+    localBaseUrl: addressSchema(false).optional(),
     localModel: modelNameSchema.optional(),
-    gatewayBaseUrl: addressSchema.optional(),
+    // saved with the outside rule too: whether it may be USED is judged by the switch `externalGateway` on every call
+    gatewayBaseUrl: addressSchema(true).optional(),
     gatewayModel: modelNameSchema.optional(),
     gatewayConfirmedLocal: z.boolean().optional(),
     localRelaxRedaction: z.boolean().optional(),
@@ -205,6 +207,9 @@ export async function updateSettings(ctx: { orgId: string; userId: string }, bod
   const patch = { ...(parsed.data as SettingsPatch) };
   const fields = Object.keys(patch).filter((k) => (patch as Record<string, unknown>)[k] !== undefined);
   if (fields.length === 0) invalid("body", "validation.failed");
+
+  // an address on the internet is saved only while the owner's switch «بوابة نموذج خارجية» is on (it is judged again on every call)
+  if (patch.gatewayBaseUrl && !parseLocalBaseUrl(patch.gatewayBaseUrl).ok && !(await isFeatureOn(ctx.orgId, "externalGateway"))) invalid("gatewayBaseUrl", "assistant.local_url_external_off");
 
   // an assistant can be pointed at a local model only once that model's address and name are saved
   const current = await getSettings(ctx.orgId);

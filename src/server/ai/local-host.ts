@@ -34,6 +34,8 @@ export interface LocalTarget {
   origin: string;
   /** The host is an IP address (no DNS question is asked: it was judged here). */
   literal: boolean;
+  /** An OUTSIDE https service the owner allowed on purpose (`externalGateway`): its name must resolve to public addresses only. */
+  external?: boolean;
 }
 
 export type LocalUrlResult = { ok: true; target: LocalTarget } | { ok: false; key: LocalUrlErrorKey };
@@ -115,8 +117,70 @@ export function isInternalName(host: string): boolean {
   return host.split(".").every((label) => NAME_LABEL.test(label));
 }
 
+/** Is `ip` a public address: not private, not loopback, not link-local / carrier-grade NAT / multicast / documentation / reserved? */
+export function isPublicAddress(ip: string): boolean {
+  const v4 = ipv4Parts(ip);
+  if (v4) {
+    const [a, b, c] = v4 as [number, number, number, number];
+    if (a === 0 || a === 10 || a === 127 || a >= 224) return false;
+    if (a === 100 && b >= 64 && b <= 127) return false;
+    if (a === 169 && b === 254) return false;
+    if (a === 172 && b >= 16 && b <= 31) return false;
+    if (a === 192 && (b === 168 || (b === 0 && (c === 0 || c === 2)))) return false;
+    if (a === 198 && (b === 18 || b === 19 || (b === 51 && c === 100))) return false;
+    if (a === 203 && b === 0 && c === 113) return false;
+    return true;
+  }
+  const g = ipv6Groups(ip);
+  if (!g) return false;
+  if (g.slice(0, 5).every((n) => n === 0) && g[5] === 0xffff) return isPublicAddress(`${(g[6] as number) >> 8}.${(g[6] as number) & 255}.${(g[7] as number) >> 8}.${(g[7] as number) & 255}`);
+  // global unicast 2000::/3 only, minus the documentation range 2001:db8::/32
+  if (((g[0] as number) & 0xe000) !== 0x2000) return false;
+  return !(g[0] === 0x2001 && g[1] === 0x0db8);
+}
+
+/** A public NAME for an outside service: dotted, ordinary labels, never a metadata name. (An IP address is never accepted for one.) */
+function isPublicName(host: string): boolean {
+  if (host.length === 0 || host.length > 253 || isMetadataName(host) || !host.includes(".")) return false;
+  if (INTERNAL_SUFFIXES.some((s) => host.endsWith(s))) return false;
+  const labels = host.split(".");
+  return labels.every((label) => NAME_LABEL.test(label)) && /[a-z]/.test(labels[labels.length - 1] as string);
+}
+
+export interface ParseOptions {
+  /**
+   * The owner switched `externalGateway` on: an https address with a public NAME is accepted too (the answer then carries
+   * `external: true`), and a trailing `/v1` is dropped (the app adds the path itself). The internal rule is judged first, unchanged.
+   */
+  external?: boolean;
+}
+
 /** Parses and judges the address the owner typed. Pure; the answer carries a dictionary key, never the text. */
-export function parseLocalBaseUrl(raw: unknown): LocalUrlResult {
+export function parseLocalBaseUrl(raw: unknown, options: ParseOptions = {}): LocalUrlResult {
+  const strict = parseInternalBaseUrl(raw);
+  if (strict.ok || !options.external) return strict;
+  return parseExternalBaseUrl(raw) ?? strict;
+}
+
+function parseExternalBaseUrl(raw: unknown): LocalUrlResult | null {
+  if (typeof raw !== "string") return null;
+  const text = raw.trim().replace(/\/v1\/?$/i, "");
+  if (text.length === 0 || text.length > 200 || /[\s\x00-\x1f\x7f\\?#]/.test(text)) return null;
+  let url: URL;
+  try {
+    url = new URL(text);
+  } catch {
+    return null;
+  }
+  if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash || (url.pathname !== "/" && url.pathname !== "")) return null;
+  const hostname = url.hostname.toLowerCase();
+  if (isIP(hostname) !== 0 || !isPublicName(hostname)) return null;
+  const port = url.port ? Number(url.port) : 443;
+  const origin = `https://${hostname}${port === 443 ? "" : `:${port}`}`;
+  return { ok: true, target: { protocol: "https:", hostname, port, origin, literal: false, external: true } };
+}
+
+function parseInternalBaseUrl(raw: unknown): LocalUrlResult {
   const invalid: LocalUrlResult = { ok: false, key: "assistant.local_url_invalid" };
   const publicHost: LocalUrlResult = { ok: false, key: "assistant.local_url_public" };
   if (typeof raw !== "string") return invalid;
@@ -162,7 +226,7 @@ export const systemResolver: Resolver = async (hostname) => {
  * service on a Docker network usually has both, and a program that listens on `0.0.0.0` answers only the IPv4 one: the socket layer tries them
  * in turn, and every one of them was judged here. A refusal is `assistant.err_local_host`.
  */
-export async function resolveAllPrivate(hostname: string, resolver: Resolver = systemResolver): Promise<ResolvedAddress[]> {
+export async function resolveAllPrivate(hostname: string, resolver: Resolver = systemResolver, external = false): Promise<ResolvedAddress[]> {
   let rows: ResolvedAddress[];
   try {
     rows = await resolver(hostname);
@@ -170,7 +234,9 @@ export async function resolveAllPrivate(hostname: string, resolver: Resolver = s
     // a name that does not resolve is a service that is not there: «down», not «forbidden»
     throw new AiProviderError("assistant.err_local_down");
   }
-  if (rows.length === 0 || rows.some((r) => !isPrivateAddress(r.address))) throw new AiProviderError("assistant.err_local_host");
+  // an outside service (the owner allowed it) must resolve to PUBLIC addresses only: a name that points inside is refused
+  const allowed = external ? isPublicAddress : isPrivateAddress;
+  if (rows.length === 0 || rows.some((r) => !allowed(r.address))) throw new AiProviderError("assistant.err_local_host");
   return [...rows.filter((r) => r.family === 4), ...rows.filter((r) => r.family !== 4)];
 }
 
@@ -185,10 +251,10 @@ type LookupCallback = (err: Error | null, address?: string | ResolvedAddress[], 
  * The `lookup` option of `http.request`: the socket connects to the address that was checked, not to one resolved a second time. It
  * answers both shapes of the callback (`all: true` as an array, otherwise address and family).
  */
-export function makeGuardedLookup(resolver: Resolver = systemResolver) {
+export function makeGuardedLookup(resolver: Resolver = systemResolver, external = false) {
   return (hostname: string, options: { all?: boolean } | number | undefined, callback: LookupCallback): void => {
     const wantAll = typeof options === "object" && options !== null && options.all === true;
-    void resolveAllPrivate(hostname, resolver).then(
+    void resolveAllPrivate(hostname, resolver, external).then(
       (found) => (wantAll ? callback(null, found) : callback(null, (found[0] as ResolvedAddress).address, (found[0] as ResolvedAddress).family)),
       (err: unknown) => callback(err instanceof Error ? err : new Error("lookup")),
     );
