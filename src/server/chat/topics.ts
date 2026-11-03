@@ -12,6 +12,7 @@ import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { isFeatureOn } from "@/server/services/features";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { chatAssistantOffered } from "@/server/services/chat-assistant";
+import { digestOffered } from "@/server/services/digest";
 import { ASSISTANT_MENTION_ID, ASSISTANT_MENTION_NAME } from "@/lib/chat/conversation/mentions";
 import { lastSeenReader } from "@/server/services/last-seen";
 import type { Prisma } from "@prisma/client";
@@ -452,6 +453,8 @@ export async function conversationDetail(
     whiteboard: await isFeatureOn(ctx.orgId, "whiteboard"),
     voiceNotes: await isFeatureOn(ctx.orgId, "voiceNotes"),
     voiceTranscript: await transcriptAvailable(ctx.orgId),
+    // «لخّصلي»: a topic only (never a private chat or somebody's conversation with the assistant), never for a partner, while «شو فاتني؟» is offered
+    digest: org!.role !== "GUEST" && facts.kind === "TOPIC" && conv.dmKey === null && (await digestOffered(ctx.orgId)),
   };
 }
 

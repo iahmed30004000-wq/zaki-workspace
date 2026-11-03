@@ -6,6 +6,7 @@ import { ArrowRight, MoreVertical } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ct } from "@/lib/chat/text";
 import { setSoundsEnabled, soundsEnabled } from "@/lib/chat/sounds";
+import { TopicSummaryButton } from "@/components/digest/topic-summary-button";
 
 /** «الأصوات»: a switch for the chat's sounds, kept in this browser (src/lib/chat/sounds.ts). */
 function SoundToggle() {
@@ -46,6 +47,7 @@ export function ConversationHeader({
   onSettings,
   onBack,
   whiteboard = true,
+  summarize = false,
 }: {
   conversationId: string;
   title: string;
@@ -59,6 +61,8 @@ export function ConversationHeader({
   onBack: () => void;
   /** the company's «السبورة» switch: off, no link to the board (the page is gone too) */
   whiteboard?: boolean;
+  /** «لخّصلي» (the company's «شو فاتني؟» switch): a button that summarises this topic for the person */
+  summarize?: boolean;
 }) {
   const board = `/chat/${encodeURIComponent(conversationId)}/whiteboard`;
   const pill = "inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-sm hover:bg-surface-2";
@@ -73,6 +77,7 @@ export function ConversationHeader({
         {subtitle ? <p className="truncate text-xs text-fg-muted">{subtitle}</p> : null}
       </div>
       <SoundToggle />
+      {summarize ? <TopicSummaryButton conversationId={conversationId} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-sm text-info hover:bg-surface-2" labelClassName="hidden md:inline" /> : null}
       <div className="shrink-0">{call}</div>
       <div className="hidden shrink-0 items-center gap-2 md:flex">
         <button type="button" aria-expanded={searching} onClick={onSearch} className={pill}>

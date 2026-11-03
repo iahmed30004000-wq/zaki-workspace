@@ -60,6 +60,7 @@ import economy from "./ar.economy.json";
 import voiceTranscript from "./ar.voice-transcript.json";
 import assistantChat from "./ar.assistant-chat.json";
 import siteGuide from "./ar.site-guide.json";
+import digest from "./ar.digest.json";
 import backup from "./ar.backup.json";
 
 /**
@@ -98,6 +99,7 @@ export const AR: Record<string, string> = {
   ...voiceTranscript,
   ...assistantChat,
   ...siteGuide,
+  ...digest,
   ...libraryDrive,
   ...instant,
   ...taskLinks,
