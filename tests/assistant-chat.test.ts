@@ -58,3 +58,18 @@ describe("where it is wired", () => {
     expect(read("src/server/chat/home.ts")).toContain("isAssistantChatKey(t.dmKey) && t.members.length === 0");
   });
 });
+
+describe("a gateway at an outside address is not a small local model", () => {
+  it("only a model on the owner's own server gets the short windows and the «local» note", async () => {
+    const { runsOnOwnServer } = await import("@/server/services/assistant-provider");
+    expect(runsOnOwnServer({ kind: "claude", config: {} })).toBe(false);
+    expect(runsOnOwnServer({ kind: "ollama", config: {} })).toBe(true);
+    expect(runsOnOwnServer({ kind: "openai", config: {} })).toBe(true);
+    expect(runsOnOwnServer({ kind: "openai", config: { external: true } })).toBe(false);
+  });
+
+  it("both assistants ask it, not the bare kind", () => {
+    expect(read("src/server/services/chat-assistant.ts")).toContain("const local = runsOnOwnServer(choice);");
+    expect(read("src/server/services/owner-assistant-chat.ts")).toContain("const local = runsOnOwnServer(choice);");
+  });
+});

@@ -30,7 +30,7 @@ import type { AssistantAccess } from "@/server/services/owner-assistant-access";
 import { loadScope } from "@/server/services/owner-assistant-data";
 import { restorerFor } from "@/server/services/owner-assistant-names";
 import { expireStale, prepareProposals, proposalViews, saveProposals, type ProposalView } from "@/server/services/owner-assistant-proposals";
-import { isLocalKind, resolveProvider } from "@/server/services/assistant-provider";
+import { resolveProvider, runsOnOwnServer } from "@/server/services/assistant-provider";
 import { assertWithinQuota, getSettings, recordUsage, usageSummary, type UsageSummary } from "@/server/services/owner-assistant-settings";
 import type { BoardQuery } from "@/server/services/owner-board";
 
@@ -157,7 +157,7 @@ export async function sendMessage(access: AssistantAccess, body: unknown, now: D
   // which model answers: Claude (the owner's key), or a local one (src/server/services/assistant-provider.ts)
   const choice = await resolveProvider(orgId, settings, "owner");
   if (!choice) throw new AssistantError(settings.ownerProvider === "claude" ? "assistant.no_key" : "assistant.no_local", "conflict");
-  const local = isLocalKind(choice.kind);
+  const local = runsOnOwnServer(choice);
   const tz = await orgTimeZone(orgId);
   const day = dayKeyOf(now, tz);
   assertWithinQuota(await usageSummary(orgId, settings, now));

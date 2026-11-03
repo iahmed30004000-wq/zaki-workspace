@@ -31,6 +31,13 @@ export interface ResolvedProvider {
   relax: boolean;
 }
 
+/**
+ * Does the call go to a SMALL model on the owner's own server (a short window, a short answer, the «local» note)? A gateway at an OUTSIDE address
+ * (`config.external`) is a big model like Claude: it gets the ordinary windows and the «external model» note, even though it speaks the same
+ * OpenAI dialect as a local one. The relaxed filter is never given to it either way (`relaxApplies`).
+ */
+export const runsOnOwnServer = (choice: { kind: ProviderKind; config: { external?: boolean } }): boolean => isLocalKind(choice.kind) && choice.config.external !== true;
+
 export const providerOfSlot = (settings: PublicSettings, slot: AssistantSlot): ProviderKind => (slot === "owner" ? settings.ownerProvider : settings.chatProvider);
 
 /** Is the chosen provider ready to be called, as far as the settings say (the key / the address and the model)? */
