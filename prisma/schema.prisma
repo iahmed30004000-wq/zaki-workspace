@@ -3051,3 +3051,49 @@ model BackupRun {
 
   @@index([organizationId, startedAt])
 }
+
+/// «بريد يصير مهمة»: the company's mailbox the app reads, one row per company. The password is an app password stored ENCRYPTED
+/// (`passwordEnc`, src/server/crypto.ts) and is never selected by a read or returned by a route. No foreign keys on purpose (as AiSettings).
+model MailInbox {
+  id            String    @id @default(cuid())
+  orgId         String    @unique
+  host          String
+  port          Int       @default(993)
+  secure        Boolean   @default(true)
+  username      String
+  passwordEnc   String
+  folder        String    @default("INBOX")
+  workspaceId   String
+  projectId     String
+  assigneeId    String?
+  /// Sender addresses («a@b.com») or domains («b.com»); empty = everybody.
+  allowList     String[]  @default([])
+  /// Mark the mail as read once its task exists (off by default: the mailbox is never changed).
+  markSeen      Boolean   @default(false)
+  /// The last mail looked at (IMAP UID) and the mailbox's UIDVALIDITY it belongs to; null = not started (the first run only notes where the mailbox ends).
+  lastUid       Int?
+  uidValidity   String?
+  /// Consecutive failed runs; at 5 the reading stops (`disabledAt`) until the owner saves again.
+  failures      Int       @default(0)
+  disabledAt    DateTime?
+  lastRunAt     DateTime?
+  lastOkAt      DateTime?
+  /// A machine key of the last failure (never the server's own text).
+  lastErrorKey  String?
+  createdCount  Int       @default(0)
+  skippedCount  Int       @default(0)
+  updatedById   String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+/// «بريد يصير مهمة»: the mails already turned into a task (by Message-ID, per company), so a mail never makes two tasks.
+model MailTaskSeen {
+  id        String   @id @default(cuid())
+  orgId     String
+  messageId String
+  taskId    String?
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, messageId])
+}

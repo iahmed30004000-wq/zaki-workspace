@@ -61,6 +61,7 @@ import voiceTranscript from "./ar.voice-transcript.json";
 import assistantChat from "./ar.assistant-chat.json";
 import siteGuide from "./ar.site-guide.json";
 import backup from "./ar.backup.json";
+import mailToTask from "./ar.mail-to-task.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -98,6 +99,7 @@ export const AR: Record<string, string> = {
   ...voiceTranscript,
   ...assistantChat,
   ...siteGuide,
+  ...mailToTask,
   ...libraryDrive,
   ...instant,
   ...taskLinks,

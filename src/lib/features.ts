@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "emailToTask"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -206,6 +206,12 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // tab is «لوحة المالك» again, «التقارير» is its own page again for the owner too, and /api/control-panel answers «not found»; it stores
   // nothing of its own, so nothing is lost.
   controlPanel: true,
+  // «بريد يصير مهمة» (src/server/services/mail-to-task.ts): the app reads the company mailbox (the owner types its app password into the card himself,
+  // stored encrypted) and each new mail becomes one task: the subject and a short plain-text excerpt, never an attachment, nothing sent to any model, no
+  // mail deleted, moved or answered. OFF until the owner turns it on. Off: the job reads nothing, the settings and the connection test answer «not found»
+  // (taking the mailbox out of the card still works); the tasks already made stay. ⚠️ The app reads a mailbox and keeps each subject and a short excerpt.
+  // 🔧 Turn it off here and take the mailbox out of the card: the password is deleted.
+  emailToTask: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
