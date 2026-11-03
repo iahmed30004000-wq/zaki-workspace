@@ -8,12 +8,13 @@ import { AiProviderError } from "@/server/ai/provider";
 import { LOCAL_MAX_OUTPUT_TOKENS, LOCAL_WINDOW } from "@/server/ai/local-transport";
 import { makeProvider } from "@/server/ai/registry";
 import { capText } from "@/server/ai/redact";
-import { CHAT_MAX_OUTPUT_TOKENS, CHAT_SYSTEM_PROMPT, REPLY_MAX_CHARS, buildChatPrompt, type ChatRow } from "@/server/ai/redact-chat";
+import { CHAT_MAX_OUTPUT_TOKENS, CHAT_SYSTEM_PROMPT, CHAT_WORK_PROMPT, REPLY_MAX_CHARS, buildChatPrompt, type ChatRow } from "@/server/ai/redact-chat";
 import { systemMessage } from "@/server/chat/system";
 import { canRead, loadConversationFacts, loadOrgFacts, type ConversationFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
 import { FixedWindowLimiter } from "@/server/rate-limit";
 import { isFeatureOn } from "@/server/services/features";
+import { loadAssistantWork } from "@/server/services/assistant-work";
 import { orgTimeZone } from "@/server/services/org-day";
 import { isLocalKind, providerReady, resolveProvider } from "@/server/services/assistant-provider";
 import { assertWithinQuota, getSettings, recordUsage, usageSummary } from "@/server/services/owner-assistant-settings";
@@ -318,10 +319,21 @@ export async function answerMention(input: { orgId: string; conversationId: stri
       ...(local ? { windowMessages: LOCAL_WINDOW.messages, windowChars: LOCAL_WINDOW.chars } : {}),
     });
 
+    // 7b. in the person's OWN conversation with the assistant, their work picture rides along (src/server/services/assistant-work.ts)
+    const work = (await inOwnAssistantChat(orgId, conversationId, askerId))
+      ? await loadAssistantWork({ orgId, userId: askerId, role: org.role }, { allowNames, allowTitles: settings.allowTitles, local, now }).catch(() => null)
+      : null;
+    const content = work ? `<work>
+${work.text}
+</work>
+
+${prompt.content}` : prompt.content;
+
     // 8. the call: no tools, a bounded answer
     let completion;
     try {
-      completion = await makeProvider(choice.config).complete({ system: CHAT_SYSTEM_PROMPT, messages: [{ role: "user", content: prompt.content }], maxTokens: local ? Math.min(CHAT_MAX_OUTPUT_TOKENS, LOCAL_MAX_OUTPUT_TOKENS) : CHAT_MAX_OUTPUT_TOKENS });
+      completion = await makeProvider(choice.config).complete({ system: work ? `${CHAT_SYSTEM_PROMPT}
+${CHAT_WORK_PROMPT}` : CHAT_SYSTEM_PROMPT, messages: [{ role: "user", content }], maxTokens: local ? Math.min(CHAT_MAX_OUTPUT_TOKENS, LOCAL_MAX_OUTPUT_TOKENS) : CHAT_MAX_OUTPUT_TOKENS });
     } catch (err) {
       const key = err instanceof AiProviderError ? err.key : "unexpected";
       // the reason only: not the words, not the provider's body, not the key
@@ -338,9 +350,9 @@ export async function answerMention(input: { orgId: string; conversationId: stri
       {
         outcome: "answered",
         readMessages: prompt.messages,
-        charsSent: prompt.chars,
+        charsSent: content.length,
         charsReply: text.length,
-        masked: prompt.maskedTotal,
+        masked: prompt.maskedTotal + (work?.masked ?? 0),
         model: choice.model,
         ...(local ? { provider: choice.kind } : {}),
         ...(choice.relax ? { relaxed: true } : {}),
