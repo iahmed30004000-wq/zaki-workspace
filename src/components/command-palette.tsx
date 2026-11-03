@@ -13,11 +13,11 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { NavIcon } from "@/components/shell/nav-icons";
 
 interface SearchResponse {
-  tasks: { id: string; key: string; title: string; priority: string; projectId: string; projectName: string }[];
+  tasks: { id: string; key: string; title: string; priority: string; projectId: string; projectName: string; semantic?: boolean }[];
   projects: { id: string; name: string; workspaceId: string; workspaceName: string }[];
   /** the space's chat, people and library (src/app/api/search/route.ts) */
   topics?: { id: string; title: string; emoji: string | null }[];
-  messages?: { id: string; conversationId: string; conversationTitle: string; authorName: string; snippet: string }[];
+  messages?: { id: string; conversationId: string; conversationTitle: string; authorName: string; snippet: string; semantic?: boolean }[];
   people?: { id: string; name: string }[];
   files?: { id: string; name: string }[];
   /** the space's text documents, by title */
@@ -101,6 +101,8 @@ interface Row {
   sub?: string;
   href: string;
   icon: React.ReactNode;
+  /** found by meaning, not by the words («بحث بالمعنى») */
+  close?: boolean;
 }
 
 /**
@@ -160,6 +162,7 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
       main: `${task.key} ${task.title}`,
       sub: task.projectName,
       href: `/tasks/${task.id}`,
+      ...(task.semantic ? { close: true } : {}),
       icon: <SquareCheck aria-hidden="true" className="size-4" />,
     })),
     ...(search.data?.projects ?? []).map((p) => ({
@@ -182,6 +185,7 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
       sub: `${m.conversationTitle} · ${m.authorName}`,
       // opened around the message, scrolled to it
       href: `/chat/${m.conversationId}?m=${encodeURIComponent(m.id)}`,
+      ...(m.semantic ? { close: true } : {}),
       icon: <MessageSquareText aria-hidden="true" className="size-4" />,
     })),
     ...(search.data?.people ?? []).map((person) => ({
@@ -296,6 +300,7 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
                 icon={row.icon}
                 main={row.main}
                 sub={row.sub}
+                close={row.close === true}
               />
             ))}
           </div>
@@ -318,6 +323,7 @@ function PaletteRow({
   icon,
   main,
   sub,
+  close = false,
 }: {
   id: string;
   active: boolean;
@@ -326,7 +332,9 @@ function PaletteRow({
   icon: React.ReactNode;
   main: string;
   sub?: string;
+  close?: boolean;
 }) {
+  const { t } = useI18n();
   return (
     <button
       id={id}
@@ -343,6 +351,7 @@ function PaletteRow({
     >
       <span className="shrink-0 text-muted">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{main}</span>
+      {close ? <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent">{t("semantic.close")}</span> : null}
       {sub ? <span className="max-w-32 shrink-0 truncate text-xs text-muted">{sub}</span> : null}
     </button>
   );
