@@ -11,6 +11,7 @@ import { PollCard } from "@/components/chat/message/poll-card";
 import { AssistantLine } from "@/components/chat/message/assistant-line";
 import { VoicePlayer } from "@/components/chat/message/voice-player";
 import { VoiceTranscript } from "@/components/chat/message/voice-transcript";
+import { MessageTranslation, useTranslation } from "@/components/chat/message/message-translation";
 import { MessageMenu, LONG_PRESS_MS } from "@/components/chat/message/message-menu";
 import type { MessageMenuContext, MessageMenuId } from "@/components/chat/message/message-menu-registry";
 /**
@@ -28,7 +29,7 @@ import type { MessageMenuContext, MessageMenuId } from "@/components/chat/messag
  * a mouse or the keyboard, a long press on a phone. What the menu offers comes from
  * message-menu-registry.ts, which mirrors the server's rules.
  */
-export interface MessageItemProps { message: MessageDto; canModerate: boolean; oversight?: boolean; readers?: ReaderDto[]; conversationKind?: "DM" | "GROUP" | "TOPIC"; canPost?: boolean; canMakeWork?: boolean; canMakeTask?: boolean; canMakeTicket?: boolean; canRemind?: boolean; /** «اكتب النص» is offered under a voice note */ canTranscribe?: boolean; onReact: (message: MessageDto, emoji: string) => void; onAction: (message: MessageDto, id: MessageMenuId) => void;
+export interface MessageItemProps { message: MessageDto; canModerate: boolean; oversight?: boolean; readers?: ReaderDto[]; conversationKind?: "DM" | "GROUP" | "TOPIC"; canPost?: boolean; canMakeWork?: boolean; canMakeTask?: boolean; canMakeTicket?: boolean; canRemind?: boolean; /** «ترجم» is offered in the menu (`me.canTranslate`) */ canTranslate?: boolean; /** «اكتب النص» is offered under a voice note */ canTranscribe?: boolean; onReact: (message: MessageDto, emoji: string) => void; onAction: (message: MessageDto, id: MessageMenuId) => void;
   /** the names «@» can point at here (the people of the conversation and «الكل»): their mentions are drawn highlighted */
   mentionNames?: string[];
   /** me: a message that mentions me (by name or «@الكل») is marked for me */
@@ -50,14 +51,15 @@ export function ReaderList({readers}:{readers:ReaderDto[]}){return <ul data-read
 export function TypingLine({names}:{names:string[]}){if(!names.length)return null;const text=names.length===1?ct("chatc.typing.one",{name:names[0]??""}):names.length===2?ct("chatc.typing.two",{a:names[0]??"",b:names[1]??""}):ct("chatc.typing.many",{names:names.join(ct("chatc.list_sep"))});return <p role="status" aria-live="polite" data-typing className="px-3 pb-1 text-xs text-fg-muted">{text}</p>;}
 /** The small row of people whose newest read message is this one (topics and groups), five at most and «+n»; a tap opens who read and when. */
 export function ReaderRow({readers}:{readers:ReaderDto[]}){const [open,setOpen]=React.useState(false);if(!readers.length)return null;const shown=readers.slice(0,MAX_READER_AVATARS);const more=readers.length-shown.length;const names=shown.map(r=>r.name).join(ct("chatc.list_sep"))+(more>0?` ${interpolate(AR["chatc.readers_more"]??"",{count:more})}`:"");return <div data-readers className="mt-1 flex flex-col items-end"><button type="button" aria-expanded={open} aria-label={interpolate(AR["chatc.readers"]??"",{names})} onClick={()=>setOpen(v=>!v)} className="flex min-h-6 justify-end gap-0.5">{shown.map(r=><Avatar key={r.userId} name={r.name} src={r.avatarUrl} className="h-6 w-6"/>)}{more>0&&<span aria-hidden="true" className="self-center text-xs text-fg-muted">+{more}</span>}</button>{open&&<ReaderList readers={readers}/>}</div>;}
-export function MessageItem({message,canModerate,oversight=false,readers=[],conversationKind="TOPIC",canPost=true,canMakeWork=false,canMakeTask,canMakeTicket,canRemind=false,canTranscribe=false,classic=false,mentionNames=[],meId,groupStart=true,groupEnd=true,onReact,onAction,onOpenWork}: MessageItemProps) {
+export function MessageItem({message,canModerate,oversight=false,readers=[],conversationKind="TOPIC",canPost=true,canMakeWork=false,canMakeTask,canMakeTicket,canRemind=false,canTranslate=false,canTranscribe=false,classic=false,mentionNames=[],meId,groupStart=true,groupEnd=true,onReact,onAction,onOpenWork}: MessageItemProps) {
  const [sheetOpen,setSheetOpen]=React.useState(false);
  const press=React.useRef<{timer:ReturnType<typeof setTimeout>;x:number;y:number}|null>(null);
+ const translation=useTranslation(message.id);
  const canAct=!oversight&&!message.deleted&&message.kind!=="SYSTEM";
  // a system line is a quiet sentence in the middle, never a bubble with an empty body
  if(message.kind==="SYSTEM"&&message.system?.k==="assistant")return <AssistantLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt}/>;
  if(message.kind==="SYSTEM")return <p dir="rtl" role="note" className="my-2 text-center text-xs text-fg-muted">{systemSentence(message.system,message.authorName)}</p>;
- const context:MessageMenuContext={mine:message.mine,deleted:message.deleted,kind:message.kind,hasText:Boolean(message.body&&message.body.trim()),pinned:message.pinned,conversationKind,canPost,canModerate,oversight,canMakeWork,canMakeTask,canMakeTicket,canRemind};
+ const context:MessageMenuContext={mine:message.mine,deleted:message.deleted,kind:message.kind,hasText:Boolean(message.body&&message.body.trim()),pinned:message.pinned,conversationKind,canPost,canModerate,oversight,canMakeWork,canMakeTask,canMakeTicket,canRemind,canTranslate};
  // a phone's long press opens the menu sheet; moving the finger (a scroll) or lifting early is no press
  const endPress=()=>{if(press.current){clearTimeout(press.current.timer);press.current=null;}};
  const onPointerDown=(e:React.PointerEvent)=>{if(e.pointerType==="mouse"||!canAct)return;const {clientX:x,clientY:y}=e;press.current={x,y,timer:setTimeout(()=>{press.current=null;setSheetOpen(true);},LONG_PRESS_MS)};};
@@ -68,12 +70,13 @@ export function MessageItem({message,canModerate,oversight=false,readers=[],conv
  const bubble=`max-w-[85%] min-w-0 break-words rounded-2xl border px-3 py-2 [@media(hover:none)]:select-none sm:max-w-[75%] ${message.mine?`border-accent/30 bg-accent/10 ${groupEnd?"rounded-ee-md":""}`:mentionsMe?`border-warn/50 bg-warn/10 ${groupEnd?"rounded-es-md":""}`:`border-border bg-surface ${groupEnd?"rounded-es-md":""}`}`;
  const run=groupStart&&groupEnd?"single":groupStart?"start":groupEnd?"end":"middle";
  const timeLine=<span className="mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted">{message.edited&&<span>{ct("chatc.edited")}</span>}{message.pinned&&<span>{ct("chatc.pinned")}</span>}<time dateTime={message.createdAt} dir="ltr" className="tabular-nums">{time}</time>{message.mine&&message.status&&!message.deleted&&<MessageTicks status={message.status}/>}</span>;
- const menu=canAct?<MessageMenu context={context} onAction={id=>onAction(message,id)} onReact={emoji=>onReact(message,emoji)} sheetOpen={sheetOpen} onSheetOpenChange={setSheetOpen}/>:null;
+ const menu=canAct?<MessageMenu context={context} onAction={id=>{if(id==="translate")void translation.ask();else onAction(message,id);}} onReact={emoji=>onReact(message,emoji)} sheetOpen={sheetOpen} onSheetOpenChange={setSheetOpen}/>:null;
  // what a message SAYS: the same in both shapes (only where it sits and what surrounds it differ)
  const content=<>
   {message.replyTo&&<blockquote className="mb-1.5 border-s-2 border-accent/40 bg-surface-2/60 px-2 py-1 text-xs"><span className="block font-semibold text-fg-muted">{message.replyTo.authorName}</span><span className="line-clamp-2">{message.replyTo.deleted?ct("chatc.deleted"):message.replyTo.preview??ct("chatc.message_fallback")}</span></blockquote>}
   {mentionsMe&&<span data-mentions-me className="mb-1 block text-xs font-semibold text-warn">{ct("chatc.mention_me")}</span>}
   {message.deleted?<p className="text-sm italic text-fg-muted">{ct("chatc.deleted")}</p>:message.body&&<p className="whitespace-pre-wrap text-sm leading-relaxed">{mentionNames.length?splitMentions(message.body,mentionNames).map((piece,i)=>piece.mention?<span key={i} data-mention className="rounded bg-accent/10 px-0.5 font-semibold text-accent">{piece.text}</span>:<React.Fragment key={i}>{piece.text}</React.Fragment>):message.body}</p>}
+  {!message.deleted&&<MessageTranslation state={translation.state} onHide={translation.hide}/>}
   {message.poll&&!message.deleted&&<PollCard messageId={message.id} poll={message.poll}/>}
   {message.work?.length?<div className="mt-1 flex flex-wrap gap-1">{message.work.map(w=>w.kind==="task"?<a key={w.id} href={`/tasks/${w.id}`} className="inline-flex min-h-8 items-center rounded-full bg-accent/10 px-2 text-xs font-semibold text-accent">{ct("chatc.work.open_task")}</a>:<button key={w.id} type="button" onClick={()=>onOpenWork?.("ticket",w.id)} className="inline-flex min-h-8 items-center rounded-full bg-info/10 px-2 text-xs font-semibold text-info">{ct("chatc.work.open_ticket")}</button>)}</div>:null}
   {message.attachments.map(file=>{const url=safeMediaUrl(file.url); if(!url)return <a key={file.id} href="#" aria-disabled="true">{file.name}</a>; if(message.kind==="VOICE"&&file.mime.startsWith("audio/"))return <div key={file.id}><VoicePlayer src={url} peaks={file.peaks} durationMs={file.durationMs}/>{canTranscribe&&<VoiceTranscript attachmentId={file.id}/>}</div>; return <div key={file.id} className="my-1.5"><a href={url} download={file.name} className="text-xs underline">{ct("chatc.download",{name:file.name})}</a>{file.kind==="IMAGE"&&file.mime.startsWith("image/")&&<img src={url} alt={file.name} loading="lazy" className="mt-1 max-h-80 max-w-full rounded-lg"/>}{file.kind==="VIDEO"&&file.mime.startsWith("video/")&&<video src={url} controls preload="metadata" className="mt-1 max-h-80 max-w-full rounded-lg"/>}{file.kind==="AUDIO"&&file.mime.startsWith("audio/")&&<audio src={url} controls preload="metadata" className="mt-1 w-full"/>}</div>})}

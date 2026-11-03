@@ -216,6 +216,8 @@ export interface ConversationDto {
     canMakeTicket?: boolean;
     /** may set a reminder for himself on a message (the «ذكّرني» switch is on; not in silent oversight) */
     canRemind?: boolean;
+    /** may translate a message (`messageTranslate` and the assistant are on, staff, no guest in the conversation); absent: no «ترجم» item */
+    canTranslate?: boolean;
     /** may write «@الكل» here: a topic, not a guest, and may post */
     canMentionAll?: boolean;
     /** may start a poll here: a topic, not a guest, and may post */

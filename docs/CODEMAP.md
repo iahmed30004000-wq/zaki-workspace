@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 314 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 315 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 51 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 52 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 314 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 315 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 134 services — the business rules (§6) |
+| `src/server/services/` | 135 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 139 · `activeOrgCtx` 81 · `(none)` 34 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 140 · `activeOrgCtx` 81 · `(none)` 34 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -172,6 +172,7 @@ Doors in use: `requireActor` 139 · `activeOrgCtx` 81 · `(none)` 34 · `require
 | POST | `/api/chat/messages/[id]/react` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/messages/[id]/task` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/messages/[id]/ticket` | activeOrgCtx | `integrations`: activeOrgCtx |
+| POST | `/api/chat/messages/[id]/translate` | requireActor | `message-translate`: translateMessage, TranslateError |
 | GET, PUT, DELETE | `/api/chat/order` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/oversight/conversations` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/oversight/conversations/[id]` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -408,7 +409,7 @@ Doors in use: `requireActor` 139 · `activeOrgCtx` 81 · `(none)` 34 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 314. Each one is a door that cannot have a session, or one that is closed.
+Six of 315. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -430,18 +431,18 @@ high count is a wide surface: changing its signature reaches all of them.
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
 | `integrations` | 180 | 90 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `features` | 56 | 87 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 56 | 88 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `current-space` | 128 | 58 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
-| `org-day` | 26 | 28 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
+| `org-day` | 26 | 29 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
 | `team-scope` | 149 | 28 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `tasks` | 652 | 20 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 569 | 18 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `access` | 76 | 17 | Workspace-level isolation — the company's master switch. |
 | `cards` | 614 | 17 | «اللوحات» — the cards of a space. |
+| `owner-assistant-settings` | 365 | 16 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `rewards` | 351 | 16 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
 | `time-tracking` | 662 | 16 | «حساب وقت الشغل» — the time people log on tasks (the owner, 2026-10-30: «حساب وقت الشغل: نعم»). |
-| `owner-assistant-settings` | 365 | 15 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `checkins` | 625 | 14 | «التسجيل اليومي» — a short stand-up per space (the owner's approved backlog, 2026-10-31). |
 | `approval-access` | 144 | 13 | «طلبات الموافقة» — WHO MAY DO WHAT, in one place. |
 | `owner-assistant-access` | 29 | 13 | «مساعد المالك» — WHO MAY OPEN IT, in one place. |
@@ -472,11 +473,12 @@ high count is a wide surface: changing its signature reaches all of them.
 | `team-criteria` | 109 | 7 | «معايير التقييم» — the criteria a reviewer rates 1-5: the five the owner named (جودة الشغل، الالتزام بالمواعيد، التعاون، المبادرة، التواصل), which the owner may rename, add to (… |
 | `watch` | 372 | 7 | «نتفرّج سوا» — people of a space watch one link together (the owner's ask, 2026-10-26). |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
+| `assistant-provider` | 78 | 6 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `checkins-space` | 18 | 6 | The space a check-in request is about: the one the request names (`workspaceId`, which the guards in src/server/services/checkins.ts check against the person), or else the space… |
 | `owner-board-io` | 78 | 6 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
-| `assistant-provider` | 78 | 5 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `campaigns` | 235 | 5 | Campaigns live inside a department (marketing calendars). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
+| `chat-assistant` | 495 | 5 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `owner-assistant-chat` | 306 | 5 | «مساعد المالك» — THE CONVERSATION. |
 | `owner-board-sections` | 85 | 5 | «لوحة المالك» — THE EXTENSION POINT. |
 | `production` | 262 | 5 | Daily production. |
@@ -489,7 +491,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `views` | 490 | 5 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
 | `api-door` | 448 | 4 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
 | `calendar-feed` | 331 | 4 | «اشتراك التقويم» — a person's private calendar feed. |
-| `chat-assistant` | 495 | 4 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `control-panel` | 279 | 4 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
 | `crm` | 228 | 4 | no header comment — exports `OPPORTUNITY_STAGES`, `createCustomerSchema`, `updateCustomerSchema`, `createOpportunitySchema`, `updateOpportunitySchema`, … |
 | `db-backup` | 460 | 4 | «نسخ احتياطي لقاعدة البيانات»: a daily, encrypted copy of the WHOLE database on the owner's own Google Drive. |
@@ -520,6 +521,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-revisions` | 91 | 2 | «الإصدارات»: the snapshots every saved edit left behind (written by `saveCardEdit`, never changed or removed: the table refuses an UPDATE). |
 | `goals` | 307 | 2 | no header comment — exports `periodWindow`, `goalSchema`, `goalStatus`, `listGoals`, `createGoal`, … |
 | `member-rules` | 184 | 2 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
+| `message-translate` | 181 | 2 | «ترجمة رسالة» — one tap turns a text message into Arabic (or, when it is mostly Arabic, into English). |
 | `move-to-space` | 106 | 2 | «انقل لمساحة» (the plan, 2026-10-25: each space is like a separate site). |
 | `nav-order` | 73 | 2 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
 | `onboarding` | 88 | 2 | The one-time onboarding every account goes through (the owner creates accounts with a temporary password and nobody has accepted the transparency notice yet): choose your own pa… |
@@ -624,7 +626,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `TaskComment` | 3 | `app/api/tasks/[id]/comments/[commentId]/route.ts`: 2<br>`app/api/tasks/[id]/comments/route.ts`: 1 |
 | `TaskActivity` | 10 | `server/services/tasks.ts`: 4<br>`server/services/task-assign.ts`: 3<br>`app/api/tasks/[id]/comments/route.ts`: 1<br>`server/activity.ts`: 1<br>+1 more |
 | `Notification` | 8 | `server/notify.ts`: 3<br>`app/api/notifications/[id]/route.ts`: 1<br>`app/api/notifications/read/route.ts`: 1<br>`server/chat/notify.ts`: 1<br>+2 more |
-| `AuditLog` | 47 | `server/services/owner-assistant-settings.ts`: 5<br>`server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/db-backup.ts`: 4<br>+18 more |
+| `AuditLog` | 48 | `server/services/owner-assistant-settings.ts`: 5<br>`server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/db-backup.ts`: 4<br>+19 more |
 | `Idea` | 6 | `server/services/ideas.ts`: 4<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `IdeaVote` | 2 | `server/services/ideas.ts`: 2 |
 | `Integration` | 4 | `server/services/integrations.ts`: 2<br>`server/services/google.ts`: 1<br>`server/services/telegram.ts`: 1 |
@@ -640,7 +642,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `CardRating` | 1 | `server/services/card-ratings.ts`: 1 |
 | `CardAttachment` | 4 | `server/services/card-attachments.ts`: 4 |
 | `AiSettings` | 5 | `server/services/owner-assistant-settings.ts`: 5 |
-| `AiUsage` | 3 | `server/services/chat-assistant.ts`: 1<br>`server/services/digest.ts`: 1<br>`server/services/owner-assistant-settings.ts`: 1 |
+| `AiUsage` | 4 | `server/services/chat-assistant.ts`: 1<br>`server/services/digest.ts`: 1<br>`server/services/message-translate.ts`: 1<br>`server/services/owner-assistant-settings.ts`: 1 |
 | `AiConversation` | 4 | `server/services/owner-assistant-chat.ts`: 3<br>`server/services/chat-assistant.ts`: 1 |
 | `AiMessage` | 3 | `server/services/owner-assistant-chat.ts`: 2<br>`server/services/chat-assistant.ts`: 1 |
 | `AiProposal` | 8 | `server/services/owner-assistant-proposals.ts`: 8 |
@@ -718,8 +720,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `calendarFeed` | 2 — `app/(app)/calendar/page.tsx`, `server/services/calendar-feed.ts` |
 | `ownerBoard` | 4 — `app/(app)/analytics/page.tsx`, `lib/nav/places.ts`, `server/policy/board.ts`, `server/services/assistant-work.ts` |
 | `taskRewards` | 4 — `app/api/instant/route.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
-| `ownerAssistant` | 6 — `lib/nav/places.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/owner-assistant-access.ts`, `server/services/site-guide.ts`, `server/services/zaki-ai.ts` |
-| `chatAssistant` | 2 — `server/services/chat-assistant.ts`, `server/services/digest.ts` |
+| `ownerAssistant` | 7 — `lib/nav/places.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts`, `server/services/owner-assistant-access.ts`, `server/services/site-guide.ts`, `server/services/zaki-ai.ts` |
+| `chatAssistant` | 3 — `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts` |
 | `chatOutbox` | 1 — `server/chat/topics.ts` |
 | `customFields` | 3 — `app/(app)/projects/[id]/page.tsx`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
 | `checkins` | 7 — `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
@@ -742,6 +744,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `siteGuide` | 1 — `server/services/site-guide.ts` |
 | `morningDigest` | 1 — `server/services/digest.ts` |
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
+| `messageTranslate` | 1 — `server/services/message-translate.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
 | `search` | 12 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
@@ -753,8 +756,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 308 of 314 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 220 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 309 of 315 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 221 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **16 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 4 write neither (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 4 of those are one person's own preference (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
-- **16 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
+- **17 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 
