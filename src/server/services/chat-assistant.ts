@@ -7,14 +7,17 @@ import { AssistantError } from "@/server/ai/api";
 import { AiProviderError } from "@/server/ai/provider";
 import { LOCAL_MAX_OUTPUT_TOKENS, LOCAL_WINDOW } from "@/server/ai/local-transport";
 import { makeProvider } from "@/server/ai/registry";
-import { capText } from "@/server/ai/redact";
-import { CHAT_MAX_OUTPUT_TOKENS, CHAT_SYSTEM_PROMPT, CHAT_WORK_PROMPT, REPLY_MAX_CHARS, buildChatPrompt, type ChatRow } from "@/server/ai/redact-chat";
+import { capText, redactTitle } from "@/server/ai/redact";
+import { PROPOSE_TOOL } from "@/server/ai/actions";
+import { CHAT_MAX_OUTPUT_TOKENS, CHAT_PROPOSE_PROMPT, CHAT_SYSTEM_PROMPT, CHAT_TOPICS_PROMPT, CHAT_WORK_PROMPT, REPLY_MAX_CHARS, buildChatPrompt, type ChatRow } from "@/server/ai/redact-chat";
 import { systemMessage } from "@/server/chat/system";
 import { canRead, loadConversationFacts, loadOrgFacts, type ConversationFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
 import { FixedWindowLimiter } from "@/server/rate-limit";
 import { isFeatureOn } from "@/server/services/features";
 import { loadAssistantWork } from "@/server/services/assistant-work";
+import { restorerFor } from "@/server/services/owner-assistant-names";
+import { prepareProposals, saveProposals } from "@/server/services/owner-assistant-proposals";
 import { orgTimeZone } from "@/server/services/org-day";
 import { isLocalKind, providerReady, resolveProvider } from "@/server/services/assistant-provider";
 import { assertWithinQuota, getSettings, recordUsage, usageSummary } from "@/server/services/owner-assistant-settings";
@@ -138,6 +141,8 @@ interface Line {
   /** a local model read the text (the screen names it instead of «an external model»); `relaxed`: with the relaxed filter */
   local?: boolean;
   relaxed?: boolean;
+  /** the proposals this answer made (ids of `AiProposal`, shown as cards with «وافق» / «ارفض») */
+  props?: string[];
 }
 
 interface AuditFacts {
@@ -165,6 +170,7 @@ async function postLine(
   if (line.read !== undefined) p["read"] = line.read;
   if (line.local) p["local"] = 1;
   if (line.relaxed) p["relaxed"] = 1;
+  if (line.props && line.props.length > 0) p["props"] = line.props.join(",");
   try {
     return await db.$transaction(async (tx) => {
       const msg = await tx.chatMessage.create({
@@ -215,6 +221,66 @@ async function inOwnAssistantChat(orgId: string, conversationId: string, authorI
   const conv = await db.conversation.findUnique({ where: { id: conversationId }, select: { orgId: true, kind: true, dmKey: true } });
   if (!conv || conv.orgId !== orgId || conv.kind !== "TOPIC" || !isAssistantChatOf(conv.dmKey, authorId)) return false;
   return isFeatureOn(orgId, "assistantContact");
+}
+
+/**
+ * The proposals of one answer, kept as the owner's own `AiProposal` rows (the SAME table, routes and rules as «مساعد المالك»: «وافق» runs it once,
+ * through the ordinary services, as him). A conversation of the owner assistant is made for them so the references can be resolved later.
+ */
+async function keepProposals(input: { orgId: string; userId: string; refs: Record<string, string>; text: string; calls: readonly { name: string; input: unknown }[]; now: Date }): Promise<string[]> {
+  if (input.calls.length === 0) return [];
+  const prepared = await prepareProposals(input.orgId, input.refs, input.calls);
+  if (prepared.items.length === 0) return [];
+  return db.$transaction(async (tx) => {
+    const conv = await tx.aiConversation.create({ data: { orgId: input.orgId, userId: input.userId, title: AR["chatai.proposals_title"] ?? "", refs: input.refs, createdAt: input.now, updatedAt: input.now }, select: { id: true } });
+    const answer = await tx.aiMessage.create({ data: { conversationId: conv.id, role: "ASSISTANT", content: input.text, createdAt: input.now }, select: { id: true } });
+    return saveProposals(tx, { orgId: input.orgId, conversationId: conv.id, messageId: answer.id }, prepared.items);
+  });
+}
+
+const TOPICS_MAX = 6;
+const TOPIC_MESSAGES = 8;
+const TOPIC_CHARS = 1_500;
+
+/**
+ * What was said lately in the company's open topics, for the OWNER's own conversation: the newest topics, their last 8 text messages each,
+ * through the SAME chat filter as a mention (phones, e-mails, links, secrets masked; staff as «زميل n» unless names are allowed). Never a DM, never
+ * another assistant conversation, never a conversation a guest can reach (a doubt is a skip), never an attachment.
+ */
+async function topicsDigest(
+  orgId: string,
+  askerId: string,
+  exceptId: string,
+  options: { allowNames: boolean; companyNames: readonly string[]; relax: boolean },
+): Promise<{ text: string; masked: number } | null> {
+  const topics = await db.conversation.findMany({
+    where: { orgId, kind: "TOPIC", closedAt: null, dmKey: null, id: { not: exceptId } },
+    orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+    take: TOPICS_MAX * 2,
+    select: { id: true, title: true },
+  });
+  const parts: string[] = [];
+  let masked = 0;
+  for (const topic of topics) {
+    if (parts.length >= TOPICS_MAX) break;
+    const facts = await loadConversationFacts(askerId, topic.id);
+    if (!facts || facts.orgId !== orgId || (await conversationHasGuest(facts, topic.id, orgId))) continue;
+    const window = await db.chatMessage.findMany({
+      where: { conversationId: topic.id, deletedAt: null, kind: "TEXT" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: TOPIC_MESSAGES,
+      select: { id: true, authorId: true, body: true, author: { select: { name: true } } },
+    });
+    if (window.length === 0) continue;
+    const rows: ChatRow[] = window.reverse().map((m) => ({ id: m.id, authorId: m.authorId, authorName: m.author.name, body: m.body }));
+    const prompt = buildChatPrompt(rows, { allowNames: options.allowNames, askingMessageId: "", companyNames: options.companyNames, ...(options.relax ? { relax: true } : {}), windowMessages: TOPIC_MESSAGES, windowChars: TOPIC_CHARS });
+    const lines = /<chat>\n([\s\S]*?)\n<\/chat>/.exec(prompt.content)?.[1] ?? "";
+    if (!lines) continue;
+    const title = redactTitle(topic.title ?? "");
+    masked += prompt.maskedTotal + title.count;
+    parts.push(`[${title.text}]\n${lines}`);
+  }
+  return parts.length > 0 ? { text: parts.join("\n\n"), masked } : null;
 }
 
 /** Mentions being answered right now in this process (a second delivery of the same message stops here). */
@@ -323,17 +389,15 @@ export async function answerMention(input: { orgId: string; conversationId: stri
     const work = (await inOwnAssistantChat(orgId, conversationId, askerId))
       ? await loadAssistantWork({ orgId, userId: askerId, role: org.role }, { allowNames, allowTitles: settings.allowTitles, local, now }).catch(() => null)
       : null;
-    const content = work ? `<work>
-${work.text}
-</work>
-
-${prompt.content}` : prompt.content;
+    // the OWNER's own conversation also reads what was said lately in the company's open topics (never a DM, never one a guest can reach)
+    const topics = work?.canPropose && !local ? await topicsDigest(orgId, askerId, conversationId, { allowNames, companyNames: people.map((p) => p.user.name), relax: choice.relax === true }).catch(() => null) : null;
+    const proposing = work?.canPropose === true && (await isFeatureOn(orgId, "assistantProposals"));
+    const content = work ? `<work>\n${work.text}\n</work>\n\n${topics ? `<topics>\n${topics.text}\n</topics>\n\n` : ""}${prompt.content}` : prompt.content;
 
     // 8. the call: no tools, a bounded answer
     let completion;
     try {
-      completion = await makeProvider(choice.config).complete({ system: work ? `${CHAT_SYSTEM_PROMPT}
-${CHAT_WORK_PROMPT}` : CHAT_SYSTEM_PROMPT, messages: [{ role: "user", content }], maxTokens: local ? Math.min(CHAT_MAX_OUTPUT_TOKENS, LOCAL_MAX_OUTPUT_TOKENS) : CHAT_MAX_OUTPUT_TOKENS });
+      completion = await makeProvider(choice.config).complete({ system: work ? [CHAT_SYSTEM_PROMPT, CHAT_WORK_PROMPT, ...(proposing ? [CHAT_PROPOSE_PROMPT] : []), ...(topics ? [CHAT_TOPICS_PROMPT] : [])].join("\n") : CHAT_SYSTEM_PROMPT, messages: [{ role: "user", content }], ...(proposing ? { tools: [{ name: PROPOSE_TOOL.name, description: PROPOSE_TOOL.description, inputSchema: PROPOSE_TOOL.inputSchema as unknown as Record<string, unknown> }] } : {}), maxTokens: local ? Math.min(CHAT_MAX_OUTPUT_TOKENS, LOCAL_MAX_OUTPUT_TOKENS) : CHAT_MAX_OUTPUT_TOKENS });
     } catch (err) {
       const key = err instanceof AiProviderError ? err.key : "unexpected";
       // the reason only: not the words, not the provider's body, not the key
@@ -342,11 +406,21 @@ ${CHAT_WORK_PROMPT}` : CHAT_SYSTEM_PROMPT, messages: [{ role: "user", content }]
     }
 
     // 9. the line
-    const text = capText(completion.text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), REPLY_MAX_CHARS) || (AR["chatai.reply_empty"] ?? "");
+    let text = capText(completion.text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), REPLY_MAX_CHARS) || (AR["chatai.reply_empty"] ?? "");
+    // the owner's own conversation: «موظف 2» / T5 are put back as the names and titles they stand for (it is his line, nobody else's)
+    let props: string[] = [];
+    if (work?.canPropose && Object.keys(work.refs).length > 0) {
+      try {
+        text = (await restorerFor(orgId, work.refs, [text])).restore(text);
+        if (proposing) props = await keepProposals({ orgId, userId: askerId, refs: work.refs, text, calls: completion.toolCalls, now });
+      } catch (err) {
+        log.warn("chat_assistant.proposals_failed", { name: err instanceof Error ? err.name : "unknown" });
+      }
+    }
     const first = (await db.chatMessage.count({ where: { conversationId, kind: "SYSTEM", body: { startsWith: ASSISTANT_BODY_PREFIX } } })) === 0;
     const posted = await postLine(
       ctx,
-      { text, first, read: prompt.messages, ...(local ? { local: true } : {}), ...(choice.relax ? { relaxed: true } : {}) },
+      { text, first, read: prompt.messages, ...(props.length > 0 ? { props } : {}), ...(local ? { local: true } : {}), ...(choice.relax ? { relaxed: true } : {}) },
       {
         outcome: "answered",
         readMessages: prompt.messages,

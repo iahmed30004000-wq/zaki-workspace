@@ -3,6 +3,7 @@ import { zonedDayStart } from "@/lib/zoned-time";
 import { db } from "@/server/db";
 import { LOCAL_CONTEXT_LIMITS } from "@/server/ai/local-transport";
 import { buildContext, redactTitle } from "@/server/ai/redact";
+import type { RefTable } from "@/server/ai/redact";
 import type { BoardAccess } from "@/server/policy/board";
 import { isFeatureOn } from "@/server/services/features";
 import { orgTimeZone } from "@/server/services/org-day";
@@ -28,6 +29,10 @@ export interface AssistantWork {
   text: string;
   /** What the filter masked in the titles and names it carried. */
   masked: number;
+  /** The references (U1, T5, S1, P2) of the text, to put real names back and to resolve a proposal. Empty for anybody but the owner. */
+  refs: RefTable;
+  /** The owner's own conversation: the assistant may propose actions (he approves each). */
+  canPropose: boolean;
 }
 
 export async function loadAssistantWork(
@@ -48,7 +53,7 @@ export async function loadAssistantWork(
     };
     const raw = await loadScope(access, { preset: "7" }, now);
     const built = buildContext(raw, { allowNames: options.allowNames, allowTitles: options.allowTitles, ...(options.local ? LOCAL_CONTEXT_LIMITS : {}) });
-    return { text: JSON.stringify({ scope: "company", ...built.context }), masked: built.masked };
+    return { text: JSON.stringify({ scope: "company", ...built.context }), masked: built.masked, refs: built.refs, canPropose: true };
   }
   return ownWork(who, options, now);
 }
@@ -87,5 +92,5 @@ async function ownWork(
     return { ...base, title: title.text };
   });
   const text = JSON.stringify({ scope: "mine", today, openTotal, overdue, finishedLast7Days: finished, tasksShown: tasks.length, tasks });
-  return { text, masked };
+  return { text, masked, refs: {}, canPropose: false };
 }

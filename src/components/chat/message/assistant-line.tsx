@@ -1,6 +1,7 @@
 import React from "react";
 import type { SystemMeta } from "@/server/chat/dto";
 import { ct } from "@/lib/chat/text";
+import { AssistantProposals } from "@/components/chat/message/assistant-proposals";
 
 /**
  * «المساعد»'s answer, drawn as what it is: an AI line in the middle of the conversation, never as a person's bubble. It is a system
@@ -17,6 +18,8 @@ export function AssistantLine({ meta, time, createdAt }: { meta: SystemMeta; tim
   const text = typeof p["text"] === "string" ? p["text"] : "";
   const refusal = typeof p["err"] === "string";
   const first = p["first"] === 1;
+  // proposals made by this answer (the owner's own conversation): ids of his `AiProposal` rows, drawn as cards below the text
+  const props = typeof p["props"] === "string" ? p["props"] : "";
   const read = typeof p["read"] === "number" ? p["read"] : 0;
   // answered by a LOCAL model (the owner's own server): the note names it instead of «an external model»; `relaxed`: the filter was loosened
   const local = p["local"] === 1;
@@ -33,6 +36,7 @@ export function AssistantLine({ meta, time, createdAt }: { meta: SystemMeta; tim
           <time dateTime={createdAt} dir="ltr" className="ms-auto font-normal tabular-nums text-fg-muted">{time}</time>
         </p>
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</p>
+        {!refusal && props ? <AssistantProposals ids={props} /> : null}
         {!refusal && (
           <div className="mt-2 border-t border-border pt-1 text-xs text-fg-muted">
             {first ? (
