@@ -120,6 +120,48 @@ export function WhiteboardScreen({ conversationId, title }: { conversationId: st
     timer.current = setTimeout(() => void push(), SAVE_AFTER_MS);
   }, [board?.canDraw, push]);
 
+  // «المرشد» (the owner's guide, src/components/site-guide): while this board is open it may read the words on it and add notes and boxes.
+  // Only a person who may draw gets `canDraw`; what it adds goes through the same autosave as a hand-drawn stroke, and Excalidraw's undo takes it back.
+  const canDraw = board?.canDraw === true;
+  React.useEffect(() => {
+    if (!board) return;
+    window.__zakiBoard = {
+      canDraw,
+      texts: () => {
+        const out: string[] = [];
+        for (const e of apiRef.current?.getSceneElements() ?? []) {
+          const text = (e as { text?: unknown }).text;
+          if (typeof text === "string" && text.trim()) out.push(text.trim());
+        }
+        return out;
+      },
+      write: async (items) => {
+        const api = apiRef.current;
+        if (!api || !canDraw || items.length === 0) return 0;
+        const { convertToExcalidrawElements, CaptureUpdateAction } = await import("@excalidraw/excalidraw");
+        const existing = api.getSceneElements();
+        // new things go below what is already there unless the guide gave a place
+        const bottom = existing.reduce((m, e) => Math.max(m, e.y + e.height), 0);
+        let nextY = existing.length > 0 ? bottom + 60 : 0;
+        const skeleton = items.map((item) => {
+          const x = item.x ?? 0;
+          const y = item.y ?? nextY;
+          if (item.y === undefined) nextY += item.kind === "box" ? 140 : 70;
+          return item.kind === "box"
+            ? { type: "rectangle" as const, x, y, width: 260, height: 100, label: { text: item.text, fontSize: 20 } }
+            : { type: "text" as const, x, y, text: item.text, fontSize: 24 };
+        });
+        const made = convertToExcalidrawElements(skeleton);
+        api.updateScene({ elements: [...api.getSceneElementsIncludingDeleted(), ...made], captureUpdate: CaptureUpdateAction.IMMEDIATELY });
+        api.scrollToContent(made, { fitToViewport: false, animate: true });
+        return made.length;
+      },
+    };
+    return () => {
+      delete window.__zakiBoard;
+    };
+  }, [board, canDraw]);
+
   // leaving the page sends what is left
   React.useEffect(() => () => {
     if (timer.current) {

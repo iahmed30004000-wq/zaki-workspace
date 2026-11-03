@@ -15,6 +15,7 @@ import { ZakiMark } from "@/components/logo";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { PeopleDock } from "@/components/shell/people-dock";
 import { QuickChat } from "@/components/shell/quick-chat";
+import { SiteGuide } from "@/components/site-guide/site-guide";
 import { PlaceTabs } from "@/components/shell/place-tabs";
 import { Sidebar } from "@/components/shell/sidebar";
 import { SpaceSwitcher, useCurrentSpace, type ShellSpace } from "@/components/shell/space-switcher";
@@ -49,6 +50,8 @@ export interface AppShellProps {
   peopleDock?: boolean;
   /** The company's «الدردشة السريعة» switch: off, the floating button is not drawn. */
   quickChat?: boolean;
+  /** «المرشد»: the owner guide (its switch is on and the person is the owner). */
+  siteGuide?: boolean;
   /** The company's «وضع التوفير» (`src/lib/features.ts`): the screen's repeated refreshes wait longer (`src/lib/economy.ts`). */
   economy?: boolean;
   children: ReactNode;
@@ -68,7 +71,7 @@ export interface AppShellProps {
  * (`buildNav` in the (app) layout): the frame only draws it, and the server still decides every request.
  * Theme tokens only, logical CSS only; the decoration is in the side menu's header and nowhere else.
  */
-export function AppShell({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, economy = false, children }: AppShellProps) {
+export function AppShell({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, siteGuide = false, economy = false, children }: AppShellProps) {
   // set while rendering, on purpose: the shell renders before its children, so every timer below reads the right period
   setEconomy(economy);
   const { t } = useI18n();
@@ -218,6 +221,7 @@ export function AppShell({ user, nav: defaultNav, navOrder = null, rank, audienc
       {/* the round quick chat in the corner (the owner's ask, 2026-10-30); the chat page itself is the full
           conversation, so the button stays out of its way, and never for a guest (no DMs at all) */}
       <QuickChat enabled={!isGuest && quickChat && place?.key !== "chat"} />
+      <SiteGuide enabled={!isGuest && siteGuide} />
     </div>
   );
 }
