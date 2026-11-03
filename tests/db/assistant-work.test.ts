@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { Prisma } from "@prisma/client";
 import * as assistantRoute from "@/app/api/chat/assistant/route";
+import * as proposalsRoute from "@/app/api/chat/assistant/proposals/route";
+import * as approveRoute from "@/app/api/owner-assistant/proposals/[id]/approve/route";
 import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
 import { withFeature, type FeatureKey } from "@/lib/features";
-import type { AiCompletion, AiRequest } from "@/server/ai/provider";
+import type { AiCompletion, AiRequest, AiToolCall } from "@/server/ai/provider";
 import { setProviderFactoryForTests } from "@/server/ai/registry";
 import { settleChatAssistantForTests } from "@/server/services/chat-assistant";
 import { saveKey } from "@/server/services/owner-assistant-settings";
@@ -20,14 +22,15 @@ import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorks
 const KEY = "sk-ant-api03-WORK-TESTKEY-never-appears-1234567890-ABCD"; // scan-secrets:ignore
 
 let seen: AiRequest[] = [];
-const script: () => Partial<AiCompletion> = () => ({ text: "ملخص جاهز" });
+let script: () => Partial<AiCompletion> = () => ({ text: "ملخص جاهز" });
 beforeEach(() => {
   seen = [];
+  script = () => ({ text: "ملخص جاهز" });
   setProviderFactoryForTests(() => ({
     async complete(request) {
       seen.push(request);
       const out = script();
-      return { text: out.text ?? "", toolCalls: [], usage: { inputTokens: 100, outputTokens: 40 } };
+      return { text: out.text ?? "", toolCalls: out.toolCalls ?? [], usage: { inputTokens: 100, outputTokens: 40 } };
     },
   }));
 });
@@ -124,5 +127,76 @@ describe("where it does NOT ride along", () => {
     await say(w.sara.id, id, "بدي ملخص الشغل");
     expect(seen).toHaveLength(1);
     expect(sentText()).not.toContain("<work>");
+  });
+});
+
+const pin = (ref: string): AiToolCall => ({ name: "propose_action", input: { type: "pin_task", params: { task: ref }, reason: "متأخرة وعليها ضغط" } });
+const cards = async (who: string, ids: string) => {
+  await loginAs(who);
+  const res = await call(proposalsRoute.GET, { url: `http://localhost/api/chat/assistant/proposals?ids=${ids}` });
+  return (res.json?.["proposals"] ?? []) as { id: string; status: string; type: string }[];
+};
+const propsOf = async (conversationId: string): Promise<string> => {
+  const row = (await lines(conversationId)).at(-1);
+  return String((JSON.parse(row?.body ?? "{}") as { p?: { props?: string } }).p?.props ?? "");
+};
+const lines = (conversationId: string) => db.chatMessage.findMany({ where: { conversationId, kind: "SYSTEM", body: { startsWith: '{"k":"assistant"' } }, orderBy: { createdAt: "asc" } });
+
+describe("«كل شي»: the owner reads the open topics and proposes, and presses «وافق» himself", () => {
+  it("the owner's question carries the latest lines of the open topics (filtered), the tool and its instructions", async () => {
+    const w = await world();
+    await say(w.sara.id, w.topic.id, "ميزانية الحملة القادمة 5000 دينار");
+    seen = [];
+    const id = (await open(w.owner.id)).json?.["id"] as string;
+    await say(w.owner.id, id, "شو صار؟");
+    expect(sentText()).toContain("<topics>");
+    expect(sentText()).toContain("ميزانية الحملة القادمة");
+    expect(seen[0]?.tools?.map((t) => t.name)).toEqual(["propose_action"]);
+    expect(seen[0]?.system).toContain("propose_action");
+  });
+
+  it("a topic a guest can reach, and the owner's other conversations, are not in it", async () => {
+    const w = await world();
+    const guestSpace = await makeWorkspace(w.org.id, [{ userId: w.guest.id, role: "GUEST" }, { userId: w.sara.id }], "شريك خارجي");
+    const open2 = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", spaceId: guestSpace.id, title: "كلام الشريك" } });
+    await db.chatMessage.create({ data: { orgId: w.org.id, conversationId: open2.id, authorId: w.sara.id, body: "سر الشريك الحساس", kind: "TEXT" } });
+    const id = (await open(w.owner.id)).json?.["id"] as string;
+    await say(w.owner.id, id, "شو صار؟");
+    expect(sentText()).not.toContain("سر الشريك الحساس");
+  });
+
+  it("a proposal becomes a card of his own; nobody else sees it; «وافق» runs it once, through the same route as «مساعد المالك»", async () => {
+    const w = await world();
+    const id = (await open(w.owner.id)).json?.["id"] as string;
+    // the first question gives the model the references; the second proposes on one of them
+    await say(w.owner.id, id, "شو صار؟");
+    const ref = (workOf()["tasks"] as { ref: string }[])[0]?.ref as string;
+    script = () => ({ text: "ثبّت أهم مهمة", toolCalls: [pin(ref)] });
+    await say(w.owner.id, id, "شو أثبّت؟");
+    const ids = await propsOf(id);
+    expect(ids).not.toBe("");
+    const mine = await cards(w.owner.id, ids);
+    expect(mine).toHaveLength(1);
+    expect(mine[0]).toMatchObject({ type: "pin_task", status: "PENDING" });
+    expect(await cards(w.sara.id, ids)).toHaveLength(0);
+    // nothing ran yet
+    expect(await db.task.count({ where: { orgId: w.org.id, pinnedAt: { not: null } } })).toBe(0);
+    await loginAs(w.owner.id);
+    const done = await call(approveRoute.POST, { params: { id: ids } });
+    expect(done.status, done.text).toBe(200);
+    expect(await db.task.count({ where: { orgId: w.org.id, pinnedAt: { not: null } } })).toBe(1);
+  });
+
+  it("a member can propose nothing (no tool offered), and with the switch off the owner's tool is gone", async () => {
+    const w = await world();
+    const saraChat = (await open(w.sara.id)).json?.["id"] as string;
+    await say(w.sara.id, saraChat, "بدي ملخص الشغل");
+    expect(seen[0]?.tools).toBeUndefined();
+    seen = [];
+    await setFeature(w.org.id, "assistantProposals", false);
+    const id = (await open(w.owner.id)).json?.["id"] as string;
+    await say(w.owner.id, id, "شو صار؟");
+    expect(seen[0]?.tools).toBeUndefined();
+    expect(await db.aiProposal.count({ where: { orgId: w.org.id } })).toBe(0);
   });
 });
