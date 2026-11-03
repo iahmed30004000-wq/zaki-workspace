@@ -22,6 +22,11 @@ import { loadScope } from "@/server/services/owner-assistant-data";
  */
 
 export const WORK_TASKS_MAX = 15;
+/**
+ * The owner's picture is cut to what a chat answer can carry: the board assistant allows 60 000 characters, but a gateway that routes a question
+ * to whichever model is free may pick one with a short window, and a long request loses its FIRST part (this one) without a word.
+ */
+export const WORK_CONTEXT_LIMITS = { maxChars: 12_000, maxTasks: 25, maxTitles: 25 } as const;
 const WEEK_MS = 7 * 86_400_000;
 
 export interface AssistantWork {
@@ -52,7 +57,8 @@ export async function loadAssistantWork(
       scope: { restricted: false, workspaceIds: [], teamIds: [] },
     };
     const raw = await loadScope(access, { preset: "7" }, now);
-    const built = buildContext(raw, { allowNames: options.allowNames, allowTitles: options.allowTitles, ...(options.local ? LOCAL_CONTEXT_LIMITS : {}) });
+    const limits = options.local ? LOCAL_CONTEXT_LIMITS : WORK_CONTEXT_LIMITS;
+    const built = buildContext(raw, { allowNames: options.allowNames, allowTitles: options.allowTitles, ...limits });
     return { text: JSON.stringify({ scope: "company", ...built.context }), masked: built.masked, refs: built.refs, canPropose: true };
   }
   return ownWork(who, options, now);

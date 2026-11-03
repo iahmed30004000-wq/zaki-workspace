@@ -495,7 +495,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `api-tokens` | 197 | 3 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `assistant-provider` | 78 | 3 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
-| `chat-assistant` | 490 | 3 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
+| `chat-assistant` | 495 | 3 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
 | `milestones` | 173 | 3 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
@@ -528,7 +528,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `timeline` | 76 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
 | `voice-transcript` | 201 | 2 | «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine. |
 | `zaki-ai` | 171 | 2 | «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
-| `assistant-work` | 97 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
+| `assistant-work` | 103 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
 | `calendar` | 62 | 1 | The calendar's data logic, taken out of the page so it can be tested with an injected `now`. |
 | `card-links` | 64 | 1 | What the card was turned into: the tasks made from it («حوّلها لمهمة») and the topic it was sent to («أرسل»). |
 | `card-log` | 89 | 1 | «السجل»: a read-only timeline made of the AuditLog rows written about this card. |

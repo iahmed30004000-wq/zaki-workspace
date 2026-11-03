@@ -200,3 +200,33 @@ describe("«كل شي»: the owner reads the open topics and proposes, and press
     expect(await db.aiProposal.count({ where: { orgId: w.org.id } })).toBe(0);
   });
 });
+
+describe("a colleague whose name carries a number does not lose the whole picture", () => {
+  it("with names allowed, the number in the name is masked and the owner still gets the board", async () => {
+    const w = await world();
+    const { updateSettings } = await import("@/server/services/owner-assistant-settings");
+    await updateSettings({ orgId: w.org.id, userId: w.owner.id }, { allowNames: true });
+    await db.user.update({ where: { id: w.omar.id }, data: { name: "عمر 0791234567" } });
+    const id = (await open(w.owner.id)).json?.["id"] as string;
+    expect((await say(w.owner.id, id, "شو وضع الشغل؟")).status).toBe(201);
+    const work = workOf();
+
+    expect(work).toMatchObject({ scope: "company", openTasksTotal: 5 });
+    expect(sentText()).not.toContain("0791234567");
+  });
+});
+
+describe("the owner's picture is cut to what a chat answer can carry", () => {
+  it("a company with hundreds of tasks sends at most 25 of them and 12 000 characters of picture", async () => {
+    const w = await world();
+    const p = await makeProject(w.ws.id);
+    const base = { orgId: w.org.id, workspaceId: w.ws.id, projectId: p.project.id, boardId: p.board.id, columnId: p.todo.id, creatorId: w.owner.id };
+    for (let i = 0; i < 60; i += 1) await makeTask({ ...base, assigneeId: i % 2 ? w.sara.id : w.omar.id, title: `مهمة ${i}` });
+    const id = (await open(w.owner.id)).json?.["id"] as string;
+    await say(w.owner.id, id, "شو وضع الشغل؟");
+    const work = workOf();
+    expect(work["openTasksTotal"]).toBe(65);
+    expect((work["tasks"] as unknown[]).length).toBeLessThanOrEqual(25);
+    expect(JSON.stringify(work).length).toBeLessThanOrEqual(12_500);
+  });
+});
