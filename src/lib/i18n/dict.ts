@@ -61,6 +61,7 @@ import voiceTranscript from "./ar.voice-transcript.json";
 import assistantChat from "./ar.assistant-chat.json";
 import siteGuide from "./ar.site-guide.json";
 import digest from "./ar.digest.json";
+import watchConvert from "./ar.watch-convert.json";
 import backup from "./ar.backup.json";
 
 /**
@@ -100,6 +101,7 @@ export const AR: Record<string, string> = {
   ...assistantChat,
   ...siteGuide,
   ...digest,
+  ...watchConvert,
   ...libraryDrive,
   ...instant,
   ...taskLinks,
