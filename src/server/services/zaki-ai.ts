@@ -50,6 +50,8 @@ export interface ZakiAiStatus {
   /** A dictionary key saying why it is not connected (null when connected or when nothing is saved). */
   reason: string | null;
   suggested: { baseUrl: string; model: string };
+  /** Which parts the server's variables fix (ZAKI_GATEWAY_*); absent when none is fixed. */
+  fixed?: { url: boolean; model: boolean; key: boolean };
   checkedAt: string;
 }
 
@@ -83,6 +85,7 @@ export async function zakiAiStatus(orgId: string, opts: { fresh?: boolean; now?:
     keyLast4: settings.gatewayKeyLast4,
     confirmedLocal: settings.gatewayBaseUrl ? settings.gatewayConfirmedLocal : null,
     suggested: { ...SUGGESTED },
+    ...(settings.gatewayFixed ? { fixed: settings.gatewayFixed } : {}),
   };
   if (!settings.gatewayBaseUrl || !settings.gatewayModel) return unsaved(base, now);
   const checked = await judgeGatewayAddress(orgId, settings.gatewayBaseUrl);
@@ -112,8 +115,9 @@ export async function zakiAiStatus(orgId: string, opts: { fresh?: boolean; now?:
 
 const connectSchema = z
   .object({
-    baseUrl: z.string().trim().min(1, "assistant.local_url_invalid").max(200, "assistant.local_url_invalid"),
-    model: z.string().trim().min(1, "assistant.local_model_invalid").max(160, "assistant.local_model_invalid").refine(isValidLocalModelId, "assistant.local_model_invalid"),
+    /** Left out: the saved one (or the one the server's variables fix). */
+    baseUrl: z.string().trim().min(1, "assistant.local_url_invalid").max(200, "assistant.local_url_invalid").optional(),
+    model: z.string().trim().min(1, "assistant.local_model_invalid").max(160, "assistant.local_model_invalid").refine(isValidLocalModelId, "assistant.local_model_invalid").optional(),
     /** The Bearer key (the agent's API key). Left out: the saved one stays. */
     key: z.string().max(400, "assistant.key_invalid").optional(),
     /** «أؤكد إن النموذج الخلفي محلي على سيرفري». */
@@ -136,13 +140,18 @@ export async function connectZakiAi(ctx: { orgId: string; userId: string }, body
     throw new ValidationError([{ path: first?.path.join(".") || "body", message: first && first.message.startsWith("assistant.") ? first.message : "validation.failed" }]);
   }
   const input = parsed.data;
-  const checked = await judgeGatewayAddress(ctx.orgId, input.baseUrl);
+  const before = await getSettings(ctx.orgId);
+  const baseUrl = input.baseUrl ?? before.gatewayBaseUrl;
+  const model = input.model ?? before.gatewayModel;
+  if (!baseUrl) throw new ValidationError([{ path: "baseUrl", message: "assistant.local_url_invalid" }]);
+  if (!model) throw new ValidationError([{ path: "model", message: "assistant.local_model_invalid" }]);
+  const checked = await judgeGatewayAddress(ctx.orgId, baseUrl);
   if (!checked.ok) throw new ValidationError([{ path: "baseUrl", message: checked.key }]);
 
   if (input.key !== undefined && input.key.trim() !== "") await saveGatewayKey(ctx, input.key.trim());
   await updateSettings(ctx, {
     gatewayBaseUrl: checked.target.origin,
-    gatewayModel: input.model,
+    gatewayModel: model,
     ...(input.confirmLocal !== undefined ? { gatewayConfirmedLocal: input.confirmLocal } : {}),
   });
   cache.delete(ctx.orgId);
@@ -150,7 +159,10 @@ export async function connectZakiAi(ctx: { orgId: string; userId: string }, body
   const status = await zakiAiStatus(ctx.orgId, { fresh: true });
   if (status.state !== "connected") return status;
   const current = await getSettings(ctx.orgId);
-  if (current.ownerProvider !== "openai") await updateSettings(ctx, { ownerProvider: "openai" });
+  // the server's variables make it THE internal model: both assistants (the owner's and «@المساعد») use it; typed by hand, only the owner's
+  const both = current.gatewayFixed?.url === true && current.gatewayFixed.model === true;
+  const switchOver = { ...(current.ownerProvider !== "openai" ? { ownerProvider: "openai" as const } : {}), ...(both && current.chatProvider !== "openai" ? { chatProvider: "openai" as const } : {}) };
+  if (Object.keys(switchOver).length > 0) await updateSettings(ctx, switchOver);
   cache.delete(ctx.orgId);
   return zakiAiStatus(ctx.orgId, { fresh: true });
 }

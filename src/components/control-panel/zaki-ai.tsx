@@ -114,11 +114,12 @@ export function ZakiAiPanel() {
     local: local ?? status?.confirmedLocal ?? false,
   };
 
-  async function connect() {
+  /** `fixed`: the server's variables hold the address, the model and the key; nothing is typed, the button only tests and links. */
+  async function connect(fixed = false) {
     if (busy) return;
     setBusy("connect");
     try {
-      const next = await apiPost<ZakiAiStatus>("/api/control-panel/ai", { baseUrl: form.url, model: form.model, confirmLocal: form.local, ...(key.trim() ? { key: key.trim() } : {}) });
+      const next = await apiPost<ZakiAiStatus>("/api/control-panel/ai", fixed ? {} : { baseUrl: form.url, model: form.model, confirmLocal: form.local, ...(key.trim() ? { key: key.trim() } : {}) });
       set(next);
       setKey("");
       if (next.state === "connected") toast(t("cp.ai.done_connected"), "success");
@@ -145,6 +146,7 @@ export function ZakiAiPanel() {
   const { icon: Icon, cls } = STATE_ICON[state];
   const host = status?.baseUrl ? status.baseUrl.replace(/^https?:\/\//, "") : "";
   const field = "w-full rounded-lg border border-border bg-surface-1 px-3 py-2 text-sm text-fg";
+  const fixedByServer = status?.fixed?.url === true && status.fixed.model === true;
 
   return (
     <div className="space-y-4" data-testid="zaki-ai-panel" data-state={state}>
@@ -184,7 +186,23 @@ export function ZakiAiPanel() {
         </div>
       </section>
 
-      {status?.state !== "connected" ? (
+      {fixedByServer ? (
+        <section className="space-y-3 rounded-card border border-border bg-surface-1 p-4 shadow-card" data-testid="zaki-ai-fixed">
+          <h3 className="text-sm font-semibold">{t("cp.ai.fixed_title")}</h3>
+          <p className="text-xs leading-5 text-fg-muted">{t("cp.ai.fixed_line", { model: status?.model ?? "", host })}</p>
+          <p className={cn("text-xs leading-5", status?.hasKey ? "text-ok" : "text-warn")}>{status?.hasKey ? t("cp.ai.fixed_key_ok", { last4: status.keyLast4 ?? "" }) : t("cp.ai.fixed_key_missing")}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button type="button" disabled={busy !== null} onClick={() => void connect(true)} data-testid="zaki-ai-fixed-connect">
+              {busy === "connect" ? t("cp.ai.connecting") : t("cp.ai.fixed_button")}
+            </Button>
+            <Link href="/owner/assistant" className="text-sm text-info underline">
+              {t("cp.ai.open_settings")}
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {!fixedByServer && status?.state !== "connected" ? (
         <section className="rounded-card border border-border bg-surface-1 p-4 shadow-card">
           <h3 className="text-sm font-semibold">{t("cp.ai.steps")}</h3>
           <ol className="mt-2 list-decimal space-y-2 ps-5 text-sm leading-6">
@@ -207,6 +225,7 @@ export function ZakiAiPanel() {
         </section>
       ) : null}
 
+      {fixedByServer ? null : (
       <form
         className="space-y-3 rounded-card border border-border bg-surface-1 p-4 shadow-card"
         onSubmit={(e) => {
@@ -248,6 +267,7 @@ export function ZakiAiPanel() {
           </Link>
         </div>
       </form>
+      )}
     </div>
   );
 }

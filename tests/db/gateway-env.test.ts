@@ -4,6 +4,9 @@ import type { Prisma } from "@prisma/client";
 import * as settingsRoute from "@/app/api/owner-assistant/settings/route";
 import * as gatewayKeyRoute from "@/app/api/owner-assistant/local/key/route";
 import * as chatRoute from "@/app/api/owner-assistant/chat/route";
+import * as aiRoute from "@/app/api/control-panel/ai/route";
+import { setLocalTransportForTests, type LocalHttpRequest } from "@/server/ai/local-transport";
+import { resetZakiAiCacheForTests } from "@/server/services/zaki-ai";
 import { withFeature, type FeatureKey } from "@/lib/features";
 import { setProviderFactoryForTests, type ProviderConfig } from "@/server/ai/registry";
 import type { AiRequest } from "@/server/ai/provider";
@@ -43,6 +46,8 @@ afterEach(() => {
     else process.env[n] = saved[n];
   }
   setProviderFactoryForTests(null);
+  setLocalTransportForTests(null);
+  resetZakiAiCacheForTests();
   vi.restoreAllMocks();
 });
 
@@ -154,5 +159,71 @@ describe("the assistant", () => {
     const res = await read();
     expect((res.json as { gatewayBaseUrl: string | null }).gatewayBaseUrl).toBeNull();
     expect(JSON.stringify(res.json)).not.toContain("gatewayFixed");
+  });
+});
+
+describe("«افحص واربط» on the control panel", () => {
+  const connect = (body: unknown = {}) => call(aiRoute.POST, { body });
+  const providers = async (orgId: string) => {
+    const row = await db.aiSettings.findUniqueOrThrow({ where: { orgId }, select: { ownerProvider: true, chatProvider: true } });
+    return row;
+  };
+  const gateway = (log: LocalHttpRequest[], status = 200) =>
+    setLocalTransportForTests(async (request) => {
+      log.push(request);
+      return status === 200 ? { status, text: JSON.stringify({ data: [{ id: "auto/best-chat" }, { id: "auto/cheap" }] }) } : { status, text: "{}" };
+    });
+
+  it("with the variables set, ONE press with nothing typed tests the connection and links both assistants", async () => {
+    const w = await world();
+    setEnv();
+    const log: LocalHttpRequest[] = [];
+    gateway(log);
+    const res = await connect();
+    expect(res.status, res.text).toBe(200);
+    expect(res.json).toMatchObject({ state: "connected", inUse: true, baseUrl: ORIGIN, model: MODEL_ENV, hasKey: true, keyLast4: KEY_ENV.slice(-4), fixed: { url: true, model: true, key: true } });
+    expect(res.text).not.toContain(KEY_ENV);
+    expect(log[0]?.url).toBe(`${ORIGIN}/v1/models`);
+    expect(log[0]?.headers["authorization"]).toBe(`Bearer ${KEY_ENV}`);
+    expect(log[0]?.external).toBe(true);
+    expect(await providers(w.org.id)).toEqual({ ownerProvider: "openai", chatProvider: "openai" });
+  });
+
+  it("a gateway that refuses the key is said so and links nothing", async () => {
+    const w = await world();
+    setEnv();
+    gateway([], 401);
+    const res = await connect();
+    expect(res.status).toBe(200);
+    expect(res.json).toMatchObject({ state: "unreachable", inUse: false });
+    expect(JSON.stringify(res.json)).toContain("assistant.err_key_rejected");
+    const row = await db.aiSettings.findUnique({ where: { orgId: w.org.id }, select: { ownerProvider: true, chatProvider: true } });
+    expect(row?.ownerProvider ?? "claude").toBe("claude");
+    expect(row?.chatProvider ?? "claude").toBe("claude");
+  });
+
+  it("with the outside-address switch off the press is refused with the sentence that names the switch, and nothing is sent", async () => {
+    await world(false);
+    setEnv();
+    const log: LocalHttpRequest[] = [];
+    gateway(log);
+    const res = await connect();
+    expect(res.status).toBe(422);
+    expect(res.text).toContain("assistant.local_url_external_off");
+    expect(log).toHaveLength(0);
+  });
+
+  it("with nothing fixed and nothing saved, an empty press is refused as before", async () => {
+    await world();
+    const res = await connect();
+    expect(res.status).toBe(422);
+  });
+
+  it("without the variables the typed form still links the owner's assistant only", async () => {
+    const w = await world();
+    gateway([]);
+    const res = await connect({ baseUrl: "http://hermes-agent:8642", model: "auto/cheap" });
+    expect(res.json).toMatchObject({ state: "connected" });
+    expect(await providers(w.org.id)).toEqual({ ownerProvider: "openai", chatProvider: "claude" });
   });
 });
