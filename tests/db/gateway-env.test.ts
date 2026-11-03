@@ -189,6 +189,15 @@ describe("«افحص واربط» on the control panel", () => {
     expect(await providers(w.org.id)).toEqual({ ownerProvider: "openai", chatProvider: "openai" });
   });
 
+  it("an old «local» tick never makes an outside address look local on the screen", async () => {
+    const w = await world();
+    setEnv();
+    await db.aiSettings.create({ data: { orgId: w.org.id, gatewayConfirmedLocal: true } });
+    gateway([]);
+    const res = await connect();
+    expect(res.json).toMatchObject({ state: "connected", confirmedLocal: false });
+  });
+
   it("a gateway that refuses the key is said so and links nothing", async () => {
     const w = await world();
     setEnv();
