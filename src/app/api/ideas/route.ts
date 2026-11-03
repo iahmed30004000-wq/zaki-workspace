@@ -8,10 +8,13 @@ import { assertNotGuest } from "@/server/services/guest-guard";
 import { createIdea, listIdeas } from "@/server/services/ideas";
 import { currentSpace } from "@/server/services/current-space";
 import { dispatchEvent } from "@/server/services/n8n";
+import { assertWatchComment } from "@/server/watch/convert";
 
 const createSchema = z.object({
   title: z.string().trim().min(3).max(140),
   description: z.string().max(2000).nullable().optional(),
+  /** «حوّل» in «نتفرّج سوا»: the comment this idea is made from (checked by `assertWatchComment`) */
+  sourceMessageId: z.string().min(1).optional(),
 });
 
 const querySchema = z.object({
@@ -55,7 +58,9 @@ export async function POST(req: Request) {
     const input = await parseJson(createSchema, req);
     // born in the space the person is in
     const space = await currentSpace({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole });
-    const idea = await createIdea(ctx.orgId, ctx, input, space?.id ?? null);
+    const { sourceMessageId, ...text } = input;
+    const source = sourceMessageId ? await assertWatchComment(ctx, sourceMessageId) : null;
+    const idea = await createIdea(ctx.orgId, ctx, text, space?.id ?? null, source ? { sourceMessageId: source.id } : {});
     await dispatchEvent(ctx.orgId, "idea.created", { ideaId: idea.id, title: idea.title });
     return NextResponse.json({ idea }, { status: 201 });
   });
