@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils";
 import { foldedIncludes } from "@/lib/search/arabic";
 import { Avatar } from "@/components/ui/avatar";
 import { CallButton } from "@/components/calls/call-button";
+import { AssistantRow } from "@/components/chat/assistant-row";
 
 /** One row of `GET /api/chat/directory?scope=company` (src/server/chat/directory.ts). */
 export interface QuickChatPersonDto {
@@ -26,6 +27,8 @@ export interface QuickChatPersonDto {
 }
 
 export interface QuickChatPeopleDto {
+  /** «المساعد» is offered as the first name of the list (its switch is on and «@المساعد» is on). */
+  assistant?: boolean;
   /** the company's zone, so «اليوم» and «أمس» are the company's days; present only with «آخر ظهور» */
   timeZone?: string;
   people: QuickChatPersonDto[];
@@ -378,6 +381,7 @@ export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: b
                   />
                 </div>
               </div>
+              {peopleQuery.data?.assistant === true && (!needle || foldedIncludes(t("assistantChat.row_title"), needle)) ? <AssistantRow className="border-b border-border" onOpened={close} /> : null}
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {peopleQuery.isPending ? (
                   <p className="p-3 text-sm text-fg-muted">{t("quickChat.loading")}</p>

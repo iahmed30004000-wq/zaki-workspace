@@ -1,5 +1,6 @@
 import { AR } from "@/lib/i18n/dict";
 import { ASSISTANT_MENTION_NAME, mentionsAssistant } from "@/lib/chat/conversation/mentions";
+import { isAssistantChatKey, isAssistantChatOf } from "@/lib/chat/assistant-chat";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
 import { AssistantError } from "@/server/ai/api";
@@ -208,6 +209,13 @@ async function postLine(
 
 // ───────────────────────────────────────── the answer ─────────────────────────────────────────
 
+/** Is this the author's OWN conversation with the assistant (its key names them), and is the contact's switch on? */
+async function inOwnAssistantChat(orgId: string, conversationId: string, authorId: string): Promise<boolean> {
+  const conv = await db.conversation.findUnique({ where: { id: conversationId }, select: { orgId: true, kind: true, dmKey: true } });
+  if (!conv || conv.orgId !== orgId || conv.kind !== "TOPIC" || !isAssistantChatOf(conv.dmKey, authorId)) return false;
+  return isFeatureOn(orgId, "assistantContact");
+}
+
 /** Mentions being answered right now in this process (a second delivery of the same message stops here). */
 const inflight = new Set<string>();
 
@@ -218,7 +226,9 @@ const inflight = new Set<string>();
 export async function answerMention(input: { orgId: string; conversationId: string; messageId: string }, now: Date = new Date()): Promise<AssistantOutcome> {
   const { orgId, conversationId, messageId } = input;
   const msg = await db.chatMessage.findUnique({ where: { id: messageId }, select: { id: true, orgId: true, conversationId: true, authorId: true, body: true, kind: true, deletedAt: true, createdAt: true } });
-  if (!msg || msg.orgId !== orgId || msg.conversationId !== conversationId || msg.kind !== "TEXT" || msg.deletedAt || !mentionsAssistant(msg.body)) return { outcome: "ignored" };
+  if (!msg || msg.orgId !== orgId || msg.conversationId !== conversationId || msg.kind !== "TEXT" || msg.deletedAt) return { outcome: "ignored" };
+  // a mention wakes it anywhere; with no «@», only the person's OWN conversation with the assistant does («المساعد» in the people lists)
+  if (!mentionsAssistant(msg.body) && !(await inOwnAssistantChat(orgId, conversationId, msg.authorId))) return { outcome: "ignored" };
   const askerId = msg.authorId;
 
   // 1. the switches: off means a typed mention is only text
@@ -363,11 +373,19 @@ const jobs = new Set<Promise<unknown>>();
  * is written when the model has answered, and appears live like any message. A body without «@المساعد» costs one string search.
  */
 export function afterMessageSent(input: { orgId: string; conversationId: string; messageId: string; body: string }): void {
-  if (input.body.length === 0 || !mentionsAssistant(input.body)) return;
-  const job: Promise<unknown> = answerMention({ orgId: input.orgId, conversationId: input.conversationId, messageId: input.messageId }).catch((err: unknown) => {
-    // the name of the error only: a message of it could hold a piece of the text
-    log.error("chat_assistant.crashed", { name: err instanceof Error ? err.name : "unknown" });
-  });
+  if (input.body.length === 0) return;
+  const answer = (): Promise<unknown> =>
+    answerMention({ orgId: input.orgId, conversationId: input.conversationId, messageId: input.messageId }).catch((err: unknown) => {
+      // the name of the error only: a message of it could hold a piece of the text
+      log.error("chat_assistant.crashed", { name: err instanceof Error ? err.name : "unknown" });
+    });
+  // no «@»: one cheap read of the conversation's key (off the sender's path) says whether it is somebody's conversation with the assistant
+  const job: Promise<unknown> = mentionsAssistant(input.body)
+    ? answer()
+    : db.conversation
+        .findUnique({ where: { id: input.conversationId }, select: { dmKey: true } })
+        .then((c) => (isAssistantChatKey(c?.dmKey) ? answer() : undefined))
+        .catch(() => undefined);
   jobs.add(job);
   void job.finally(() => jobs.delete(job));
 }
