@@ -235,7 +235,7 @@ describe("the switch, the words and the screen", () => {
   });
 
   it("no pgvector: nothing in the migration creates an extension", () => {
-    const sql = read("prisma/migrations/20261111090000_search_embedding/migration.sql");
+    const sql = read("prisma/migrations/20261111100300_search_embedding/migration.sql");
     expect(sql).not.toMatch(/CREATE\s+EXTENSION/i);
     expect(sql).not.toMatch(/\bvector\(/i);
     expect(sql).toContain("DOUBLE PRECISION[]");
