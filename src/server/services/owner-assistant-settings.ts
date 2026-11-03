@@ -8,6 +8,7 @@ import { DEFAULT_MODEL, KNOWN_MODELS, isValidLocalModelId, isValidModelId } from
 import { AssistantError } from "@/server/ai/api";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
 import { isFeatureOn } from "@/server/services/features";
+import { gatewayEnv, validGatewayKeyText } from "@/server/services/gateway-env";
 import type { ProviderKind } from "@/server/ai/registry";
 
 /**
@@ -52,6 +53,8 @@ export interface PublicSettings {
   hasGatewayKey: boolean;
   gatewayKeyLast4: string | null;
   gatewayConfirmedLocal: boolean;
+  /** Which parts of the gateway the server's variables fix (ZAKI_GATEWAY_*): the screen shows them as fixed and refuses to change them. */
+  gatewayFixed?: { url: boolean; model: boolean; key: boolean };
   /** The privacy filter is relaxed for a local model (for the gateway: only with the confirmation). Never for Claude. */
   localRelaxRedaction: boolean;
 }
@@ -98,7 +101,27 @@ const PUBLIC_COLUMNS = {
   localRelaxRedaction: true,
 } as const;
 
+/** The gateway's address, model and key as the server's variables fix them (ZAKI_GATEWAY_*): they win over the saved ones. */
+function withFixedGateway(settings: PublicSettings): PublicSettings {
+  const fixed = gatewayEnv();
+  if (!fixed.baseUrl && !fixed.model && !fixed.key) return settings;
+  return {
+    ...settings,
+    gatewayBaseUrl: fixed.baseUrl ?? settings.gatewayBaseUrl,
+    gatewayModel: fixed.model ?? settings.gatewayModel,
+    hasGatewayKey: fixed.key !== null ? true : settings.hasGatewayKey,
+    gatewayKeyLast4: fixed.key !== null ? fixed.key.slice(-4) : settings.gatewayKeyLast4,
+    // another address is another question: the confirmation belongs to the saved address only
+    gatewayConfirmedLocal: fixed.baseUrl !== null && fixed.baseUrl !== settings.gatewayBaseUrl ? false : settings.gatewayConfirmedLocal,
+    gatewayFixed: { url: fixed.baseUrl !== null, model: fixed.model !== null, key: fixed.key !== null },
+  };
+}
+
 export async function getSettings(orgId: string): Promise<PublicSettings> {
+  return withFixedGateway(await readSettings(orgId));
+}
+
+async function readSettings(orgId: string): Promise<PublicSettings> {
   const row = await db.aiSettings.findUnique({ where: { orgId }, select: PUBLIC_COLUMNS });
   if (!row) return { ...DEFAULT_SETTINGS };
   return {
@@ -132,6 +155,8 @@ export async function readKey(orgId: string): Promise<string | null> {
 
 /** The gateway's Bearer key as plain text, for the provider call ONLY. Null: none saved (a gateway may want none). */
 export async function readGatewayKey(orgId: string): Promise<string | null> {
+  const fixed = gatewayEnv().key;
+  if (fixed) return fixed;
   const row = await db.aiSettings.findUnique({ where: { orgId }, select: { gatewayKeyCipher: true } });
   if (!row?.gatewayKeyCipher) return null;
   const plain = decryptSecrets<{ apiKey?: unknown }>(row.gatewayKeyCipher);
@@ -208,6 +233,11 @@ export async function updateSettings(ctx: { orgId: string; userId: string }, bod
   const fields = Object.keys(patch).filter((k) => (patch as Record<string, unknown>)[k] !== undefined);
   if (fields.length === 0) invalid("body", "validation.failed");
 
+  // what the server's variables fix cannot be changed from a screen (the same value is harmless)
+  const fixedGateway = gatewayEnv();
+  if (patch.gatewayBaseUrl !== undefined && fixedGateway.baseUrl && patch.gatewayBaseUrl !== fixedGateway.baseUrl) invalid("gatewayBaseUrl", "assistant.gateway_fixed");
+  if (patch.gatewayModel !== undefined && fixedGateway.model && patch.gatewayModel !== fixedGateway.model) invalid("gatewayModel", "assistant.gateway_fixed");
+
   // an address on the internet is saved only while the owner's switch «بوابة نموذج خارجية» is on (it is judged again on every call)
   if (patch.gatewayBaseUrl && !parseLocalBaseUrl(patch.gatewayBaseUrl).ok && !(await isFeatureOn(ctx.orgId, "externalGateway"))) invalid("gatewayBaseUrl", "assistant.local_url_external_off");
 
@@ -264,10 +294,11 @@ export async function removeKey(ctx: { orgId: string; userId: string }): Promise
 
 /** The gateway's key: printable ASCII with no space, 8 to 400 characters (a local gateway's key may be short). */
 export function validGatewayKey(key: unknown): key is string {
-  return typeof key === "string" && /^[\x21-\x7E]{8,400}$/.test(key);
+  return validGatewayKeyText(key);
 }
 
 export async function saveGatewayKey(ctx: { orgId: string; userId: string }, key: unknown): Promise<PublicSettings> {
+  if (gatewayEnv().key) invalid("key", "assistant.gateway_fixed");
   const plain = typeof key === "string" ? key.trim() : key;
   if (!validGatewayKey(plain)) invalid("key", "assistant.key_invalid");
   const gatewayKeyCipher = encryptSecrets({ apiKey: plain as string });
@@ -280,6 +311,7 @@ export async function saveGatewayKey(ctx: { orgId: string; userId: string }, key
 }
 
 export async function removeGatewayKey(ctx: { orgId: string; userId: string }): Promise<PublicSettings> {
+  if (gatewayEnv().key) invalid("key", "assistant.gateway_fixed");
   await db.$transaction(async (tx) => {
     await tx.aiSettings.updateMany({ where: { orgId: ctx.orgId }, data: { gatewayKeyCipher: null, gatewayKeyLast4: null } });
     await tx.auditLog.create({ data: { action: "ai.gateway_key_removed", actorId: ctx.userId, orgId: ctx.orgId } });
