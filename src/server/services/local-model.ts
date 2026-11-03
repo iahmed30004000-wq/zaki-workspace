@@ -2,6 +2,7 @@ import { z } from "zod";
 import { ValidationError } from "@/server/auth";
 import { AssistantError } from "@/server/ai/api";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
+import { judgeGatewayAddress } from "@/server/services/gateway-address";
 import { probeOllama, type ProbeResult } from "@/server/ai/local-provider";
 import { probeOpenAiCompat } from "@/server/ai/openai-compat-provider";
 import { isValidLocalModelId } from "@/server/ai/provider";
@@ -51,7 +52,7 @@ export async function testLocalConnection(access: AssistantAccess, body: unknown
   const typedUrl = parsed.data.baseUrl?.trim();
   const baseUrl = typedUrl ? typedUrl : provider === "ollama" ? settings.localBaseUrl : settings.gatewayBaseUrl;
   if (!baseUrl) throw new ValidationError([{ path: "baseUrl", message: "assistant.local_incomplete" }]);
-  const checked = parseLocalBaseUrl(baseUrl);
+  const checked = provider === "ollama" ? parseLocalBaseUrl(baseUrl) : await judgeGatewayAddress(access.orgId, baseUrl);
   if (!checked.ok) throw new ValidationError([{ path: "baseUrl", message: checked.key }]);
   const typedModel = parsed.data.model?.trim();
   const model = typedModel ? typedModel : provider === "ollama" ? settings.localModel : settings.gatewayModel;
@@ -59,5 +60,5 @@ export async function testLocalConnection(access: AssistantAccess, body: unknown
 
   if (provider === "ollama") return { provider, ...(await probeOllama({ baseUrl: checked.target.origin, model: model ?? null })) };
   const apiKey = settings.hasGatewayKey ? ((await readGatewayKey(access.orgId)) ?? "") : "";
-  return { provider, ...(await probeOpenAiCompat({ baseUrl: checked.target.origin, model: model ?? null, apiKey })) };
+  return { provider, ...(await probeOpenAiCompat({ baseUrl: checked.target.origin, model: model ?? null, apiKey, external: "external" in checked && checked.external === true })) };
 }

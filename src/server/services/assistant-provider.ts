@@ -1,6 +1,7 @@
 import type { ProviderConfig, ProviderKind } from "@/server/ai/registry";
 import { readGatewayKey, readKey, type PublicSettings } from "@/server/services/owner-assistant-settings";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
+import { judgeGatewayAddress } from "@/server/services/gateway-address";
 
 /**
  * «نموذج محلي» — WHICH MODEL ANSWERS, in one place. Both assistants («مساعد المالك» and «@المساعد» في الدردشة) ask `resolveProvider` and
@@ -36,14 +37,15 @@ export const providerOfSlot = (settings: PublicSettings, slot: AssistantSlot): P
 export function providerReady(settings: PublicSettings, slot: AssistantSlot): boolean {
   const kind = providerOfSlot(settings, slot);
   if (kind === "ollama") return settings.localBaseUrl !== null && settings.localModel !== null && parseLocalBaseUrl(settings.localBaseUrl).ok;
-  if (kind === "openai") return settings.gatewayBaseUrl !== null && settings.gatewayModel !== null && parseLocalBaseUrl(settings.gatewayBaseUrl).ok;
+  if (kind === "openai") return settings.gatewayBaseUrl !== null && settings.gatewayModel !== null && parseLocalBaseUrl(settings.gatewayBaseUrl, { external: true }).ok;
   return settings.hasKey;
 }
 
 /** Whether the relaxed filter may be used with this provider. Pure: the whole privacy rule of the provider choice is this function. */
 export function relaxApplies(settings: PublicSettings, kind: ProviderKind): boolean {
   if (kind === "ollama") return settings.localRelaxRedaction;
-  if (kind === "openai") return settings.localRelaxRedaction && settings.gatewayConfirmedLocal;
+  // an outside address is never «local»: only an internal one can be confirmed, whatever the tick says
+  if (kind === "openai") return settings.localRelaxRedaction && settings.gatewayConfirmedLocal && !(settings.gatewayBaseUrl !== null && !parseLocalBaseUrl(settings.gatewayBaseUrl).ok);
   return false;
 }
 
@@ -55,8 +57,10 @@ export async function resolveProvider(orgId: string, settings: PublicSettings, s
     return { kind, model: settings.localModel as string, relax: relaxApplies(settings, kind), config: { kind, apiKey: "", model: settings.localModel as string, baseUrl: settings.localBaseUrl as string } };
   }
   if (kind === "openai") {
+    const address = await judgeGatewayAddress(orgId, settings.gatewayBaseUrl);
+    if (!address.ok) return null;
     const apiKey = settings.hasGatewayKey ? ((await readGatewayKey(orgId)) ?? "") : "";
-    return { kind, model: settings.gatewayModel as string, relax: relaxApplies(settings, kind), config: { kind, apiKey, model: settings.gatewayModel as string, baseUrl: settings.gatewayBaseUrl as string } };
+    return { kind, model: settings.gatewayModel as string, relax: relaxApplies(settings, kind), config: { kind, apiKey, model: settings.gatewayModel as string, baseUrl: address.target.origin, ...(address.external ? { external: true } : {}) } };
   }
   const apiKey = await readKey(orgId);
   if (!apiKey) return null;

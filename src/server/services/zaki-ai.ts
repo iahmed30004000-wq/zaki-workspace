@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { ValidationError } from "@/server/auth";
 import { AiProviderError, isValidLocalModelId } from "@/server/ai/provider";
-import { parseLocalBaseUrl } from "@/server/ai/local-host";
+import { judgeGatewayAddress } from "@/server/services/gateway-address";
 import { probeOpenAiCompat } from "@/server/ai/openai-compat-provider";
 import { FixedWindowLimiter } from "@/server/rate-limit";
 import { isFeatureOn } from "@/server/services/features";
@@ -85,7 +85,7 @@ export async function zakiAiStatus(orgId: string, opts: { fresh?: boolean; now?:
     suggested: { ...SUGGESTED },
   };
   if (!settings.gatewayBaseUrl || !settings.gatewayModel) return unsaved(base, now);
-  const checked = parseLocalBaseUrl(settings.gatewayBaseUrl);
+  const checked = await judgeGatewayAddress(orgId, settings.gatewayBaseUrl);
   if (!checked.ok) return { ...unsaved(base, now), state: "unreachable", reason: checked.key };
 
   // what the answer depends on: a changed address, model or key is a new question
@@ -98,7 +98,7 @@ export async function zakiAiStatus(orgId: string, opts: { fresh?: boolean; now?:
   const apiKey = settings.hasGatewayKey ? ((await readGatewayKey(orgId)) ?? "") : "";
   let status: ZakiAiStatus;
   try {
-    const probe = await probeOpenAiCompat({ baseUrl: checked.target.origin, model: null, apiKey });
+    const probe = await probeOpenAiCompat({ baseUrl: checked.target.origin, model: null, apiKey, external: checked.external });
     const missing = probe.models.length > 0 && !probe.models.includes(settings.gatewayModel) && !probe.models.includes(`${settings.gatewayModel}:latest`);
     status = { ...base, state: missing ? "model_missing" : "connected", reason: missing ? "assistant.err_local_missing" : null, models: probe.models.slice(0, 10), listMs: probe.listMs, checkedAt: now.toISOString() };
   } catch (err) {
@@ -136,7 +136,7 @@ export async function connectZakiAi(ctx: { orgId: string; userId: string }, body
     throw new ValidationError([{ path: first?.path.join(".") || "body", message: first && first.message.startsWith("assistant.") ? first.message : "validation.failed" }]);
   }
   const input = parsed.data;
-  const checked = parseLocalBaseUrl(input.baseUrl);
+  const checked = await judgeGatewayAddress(ctx.orgId, input.baseUrl);
   if (!checked.ok) throw new ValidationError([{ path: "baseUrl", message: checked.key }]);
 
   if (input.key !== undefined && input.key.trim() !== "") await saveGatewayKey(ctx, input.key.trim());

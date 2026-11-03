@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 308 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 44 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 45 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -51,7 +51,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 128 services — the business rules (§6) |
+| `src/server/services/` | 129 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -424,7 +424,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
 | `integrations` | 180 | 87 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `features` | 56 | 79 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 56 | 81 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `current-space` | 128 | 57 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 42 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `team-scope` | 149 | 27 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -438,7 +438,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `checkins` | 625 | 14 | «التسجيل اليومي» — a short stand-up per space (the owner's approved backlog, 2026-10-31). |
 | `approval-access` | 144 | 13 | «طلبات الموافقة» — WHO MAY DO WHAT, in one place. |
 | `owner-assistant-access` | 29 | 13 | «مساعد المالك» — WHO MAY OPEN IT, in one place. |
-| `owner-assistant-settings` | 328 | 13 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
+| `owner-assistant-settings` | 333 | 13 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `team-skills` | 302 | 13 | «المهارات» — the company's skills checklist and each person's level in it. |
 | `manufacturing-production` | 791 | 12 | «مخزون التصنيع», slice 2 — recipes and production orders. |
 | `owner-board` | 795 | 12 | «لوحة المالك» — THE NUMBERS. |
@@ -492,7 +492,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `api-tokens` | 197 | 3 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
-| `assistant-provider` | 67 | 3 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
+| `assistant-provider` | 71 | 3 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
+| `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
 | `milestones` | 173 | 3 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
 | `pinned` | 70 | 3 | «مثبّتة» — the pinned tasks a person may be shown, for the strip at the top of a project and the compact card of «اليوم». |
@@ -533,7 +534,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `department-space` | 93 | 1 | EVERY DEPARTMENT HAS ITS SPACE (the owner's decision, 2026-10-25: each space is like a separate site). |
 | `first-steps` | 100 | 1 | The first-steps card («خطواتك الأولى») computed from REAL data for the signed-in actor: nothing is stored about "progress" - a step is done because the rows say so (a theme chos… |
 | `instant-work` | 131 | 1 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
-| `local-model` | 64 | 1 | «اختبر الاتصال» — the button of the local model's settings. |
+| `local-model` | 65 | 1 | «اختبر الاتصال» — the button of the local model's settings. |
 | `manufacturing-proof` | 36 | 1 | The gate of the file routes for a proof photo of a receipt: it opens ONLY for the people who may read the receipt, that is to say the ledger's own rule and nothing looser than i… |
 | `my-work` | 168 | 1 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
 | `owner-assistant-data` | 120 | 1 | «مساعد المالك» — WHAT THE MODEL MAY LEARN FROM, as raw material for `buildContext` (src/server/ai/redact.ts). |
@@ -722,6 +723,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `whiteboard` | 3 — `app/(app)/chat/[id]/whiteboard/page.tsx`, `server/chat/topics.ts`, `server/chat/whiteboard.ts` |
 | `voiceNotes` | 3 — `server/chat/attachments.ts`, `server/chat/messages.ts`, `server/chat/topics.ts` |
 | `voiceTranscript` | 1 — `server/services/voice-transcript.ts` |
+| `externalGateway` | 2 — `server/services/gateway-address.ts`, `server/services/owner-assistant-settings.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
 | `search` | 12 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
