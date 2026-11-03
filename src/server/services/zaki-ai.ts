@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { ValidationError } from "@/server/auth";
 import { AiProviderError, isValidLocalModelId } from "@/server/ai/provider";
+import { parseLocalBaseUrl } from "@/server/ai/local-host";
 import { judgeGatewayAddress } from "@/server/services/gateway-address";
 import { probeOpenAiCompat } from "@/server/ai/openai-compat-provider";
 import { FixedWindowLimiter } from "@/server/rate-limit";
@@ -83,7 +84,8 @@ export async function zakiAiStatus(orgId: string, opts: { fresh?: boolean; now?:
     model: settings.gatewayModel,
     hasKey: settings.hasGatewayKey,
     keyLast4: settings.gatewayKeyLast4,
-    confirmedLocal: settings.gatewayBaseUrl ? settings.gatewayConfirmedLocal : null,
+    // an outside address is never «local», whatever was ticked before: the screen must not say the filter is relaxed for it
+    confirmedLocal: settings.gatewayBaseUrl ? settings.gatewayConfirmedLocal && parseLocalBaseUrl(settings.gatewayBaseUrl).ok : null,
     suggested: { ...SUGGESTED },
     ...(settings.gatewayFixed ? { fixed: settings.gatewayFixed } : {}),
   };
