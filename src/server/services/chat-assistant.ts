@@ -19,7 +19,7 @@ import { loadAssistantWork } from "@/server/services/assistant-work";
 import { restorerFor } from "@/server/services/owner-assistant-names";
 import { prepareProposals, saveProposals } from "@/server/services/owner-assistant-proposals";
 import { orgTimeZone } from "@/server/services/org-day";
-import { isLocalKind, providerReady, resolveProvider } from "@/server/services/assistant-provider";
+import { providerReady, resolveProvider, runsOnOwnServer } from "@/server/services/assistant-provider";
 import { assertWithinQuota, getSettings, recordUsage, usageSummary } from "@/server/services/owner-assistant-settings";
 import { dayKeyOf } from "@/lib/owner-board";
 
@@ -342,7 +342,7 @@ export async function answerMention(input: { orgId: string; conversationId: stri
     const settings = await getSettings(orgId);
     const choice = await resolveProvider(orgId, settings, "chat");
     if (!choice) return refuse(settings.chatProvider === "claude" ? "no_key" : "no_local");
-    const local = isLocalKind(choice.kind);
+    const local = runsOnOwnServer(choice);
     // names pass only for a local model with the owner's switch (`choice.relax`) or when he allowed names; Claude is never relaxed
     const allowNames = settings.allowNames || choice.relax;
     const day = dayKeyOf(now, await orgTimeZone(orgId));

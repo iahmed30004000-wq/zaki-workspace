@@ -494,7 +494,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `api-tokens` | 197 | 3 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
-| `assistant-provider` | 71 | 3 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
+| `assistant-provider` | 78 | 3 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `chat-assistant` | 490 | 3 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
