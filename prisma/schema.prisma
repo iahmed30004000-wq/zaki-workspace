@@ -3061,3 +3061,18 @@ model BackupRun {
 
   @@index([organizationId, startedAt])
 }
+
+// «شو فاتني؟»: the last digest written for a person on «اليوم», kept for 3 hours so the page never asks the model twice for the same
+// morning. One row per person (replaced when a new one is written). Holds the model's short answer only, never the material it read.
+// No foreign keys on purpose (like AiUsage): a cache row is disposable.
+model DigestCache {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  text      String
+  forDay    String
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId])
+  @@index([createdAt])
+}

@@ -22,6 +22,8 @@ import { pinnedTasks } from "@/server/services/pinned";
 import { rewardLensFor } from "@/server/services/rewards";
 import { MyTimeToday } from "@/components/time/my-time-today";
 import { MyCheckinCard } from "@/components/checkins/my-checkin-card";
+import { DigestCard } from "@/components/digest/digest-card";
+import { digestOffered } from "@/server/services/digest";
 import { ControlPanelHome } from "@/components/control-panel/panel";
 import { ZakiAiChip } from "@/components/control-panel/zaki-ai";
 import { controlPanelAccess, loadPanelHome, type PanelHome } from "@/server/services/control-panel";
@@ -73,6 +75,9 @@ export default async function TodayPage() {
   // «لوحة التحكم»: the owner's own panel on the home screen (the OWNER rank alone, while its switch and the board's are on)
   const panel = await panelFor(actor);
 
+  // «شو فاتني؟»: the catch-up card, only while its switch, «مساعد المالك», «قراءة الدردشات للمساعد» and a ready provider are on, and never for a partner (the text is fetched by the card after the page is drawn)
+  const digestOn = !actor.isExternal && (await digestOffered(actor.orgId));
+
   const name = data.greeting.firstName;
   const greeting = data.greeting.period === "morning" ? t("today.greeting.morning", { name }) : t("today.greeting.evening", { name });
 
@@ -82,6 +87,7 @@ export default async function TodayPage() {
         <div className="flex min-w-0 flex-1 flex-col gap-4">
           <TodayHero greeting={greeting} date={data.dateLabel} mission={missionOf(data.tasks)} />
           {panel ? <ControlPanelHome t={t} view={panel} aiChip={<ZakiAiChip />} /> : null}
+          {digestOn ? <DigestCard /> : null}
           <FirstStepsCard actor={actor} />
           <TodayDashboard data={dashboard} />
           <TodayTasksCard tasks={data.tasks} hasSpaces={data.hasSpaces} canCreateSpaces={data.canCreateSpaces} quickAdd={data.quickAdd} timeZone={data.timeZone} />

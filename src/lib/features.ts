@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "watchConvert"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -181,6 +181,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // its controls), takes him to pages, points at things and explains them out loud, and clicks or types ONLY after he presses «نفّذ». Owner only.
   // Off: no button, no voice call, the route answers not found.
   siteGuide: true,
+  // «شو فاتني؟» (src/server/services/digest.ts, src/components/digest): a short card on «اليوم» written by the owner's assistant — what changed in the
+  // person's own tasks and in the topics they missed — and a «لخّصلي» button inside a topic. Only what the person may already read, filtered like the
+  // chat assistant, generated when the card is opened and kept 3 hours. OFF until the owner turns it on (it sends redacted work text to the model);
+  // needs «مساعد المالك» and «قراءة الدردشات للمساعد» on and a ready provider. Off: no card, no button, the routes answer not found.
+  morningDigest: false,
   // «حوّل» in «نتفرّج سوا» (src/server/watch/convert.ts, src/components/watch/watch-comments.tsx): a comment of a session becomes a task, an idea
   // or a project, and the comment shows what it became. Off: the action is not drawn, the doors refuse a link back to a comment, and the
   // room itself and what was already made stay. Harmless UI: on.
