@@ -1,5 +1,6 @@
 import { db } from "@/server/db";
 import { MENTION_ALL_ID } from "@/lib/chat/conversation/mentions";
+import { isAssistantChatKey } from "@/lib/chat/assistant-chat";
 import { isFeatureOn } from "@/server/services/features";
 import type { OrgAccessContext } from "@/server/auth";
 import { loadOrgFacts, isSpaceAdmin } from "@/server/policy/conversation";
@@ -64,6 +65,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
           archivedAt: true,
           pinnedAt: true,
           systemKey: true,
+          dmKey: true,
           teamId: true,
           members: { where: { userId: ctx.userId }, select: { lastReadAt: true } },
         },
@@ -89,6 +91,8 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
     const seen = new Set(sections.map((team) => team.id));
 
     for (const t of s.conversations) {
+      // somebody's conversation with the assistant is listed for that person only (the owner reads it by its link, his list is not filled with them)
+      if (isAssistantChatKey(t.dmKey) && t.members.length === 0) continue;
       // a restricted topic is read by its own rows (and by the OWNER); a guest sees what everyone sees
       const passes =
         isOwner || (!t.restricted && spaceRole !== null) || (t.restricted && t.members.length > 0);
