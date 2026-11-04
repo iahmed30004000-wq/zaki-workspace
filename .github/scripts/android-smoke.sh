@@ -31,7 +31,7 @@ fi
 # the Pixel 6 screen is 1080x2400: the two fields and the button sit where the first screenshot shows them
 adb shell input tap 540 1270; sleep 1
 adb shell input text "nobody@example.com"; sleep 1
-adb shell input tap 540 1470; sleep 1
+adb shell input keyevent 61; sleep 1   # TAB: the next field (the keyboard moved the screen, a tap would miss)
 adb shell input text "wrong-password-123"; sleep 1
 adb exec-out screencap -p > "$OUT/1b-typed.png"
 adb shell input keyevent 4   # closes the keyboard
