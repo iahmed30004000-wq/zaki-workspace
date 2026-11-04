@@ -116,7 +116,7 @@ fun ChatListScreen(state: AppState) {
                     error = T.offline
                 }
             }
-            delay(8000)
+            delay(15_000)
         }
     }
 
@@ -198,7 +198,7 @@ private fun Bubble(m: Message, showAuthor: Boolean, onAttachment: (String) -> Un
                     modifier = Modifier.padding(top = 4.dp).clickable { onAttachment(a.url) },
                 )
             }
-            Text(clock(m.createdAt), color = Color(0xB3FFFFFF), fontSize = 11.sp, modifier = Modifier.align(Alignment.End).padding(top = 2.dp))
+            Text(remember(m.createdAt) { clock(m.createdAt) }, color = Color(0xB3FFFFFF), fontSize = 11.sp, modifier = Modifier.align(Alignment.End).padding(top = 2.dp))
         }
     }
 }
@@ -208,7 +208,7 @@ private fun Bubble(m: Message, showAuthor: Boolean, onAttachment: (String) -> Un
 fun ConversationScreen(state: AppState, id: String, onCall: (callId: String) -> Unit) {
     var conv by remember(id) { mutableStateOf<Conversation?>(null) }
     var error by remember(id) { mutableStateOf<String?>(null) }
-    var text by remember(id) { mutableStateOf("") }
+    var restore by remember(id) { mutableStateOf("") }
     var pending by remember(id) { mutableStateOf<List<Message>>(emptyList()) }
     var calling by remember(id) { mutableStateOf(false) }
     var lastRead by remember(id) { mutableStateOf("") }
@@ -237,15 +237,12 @@ fun ConversationScreen(state: AppState, id: String, onCall: (callId: String) -> 
                     error = T.offline
                 }
             }
-            delay(4000)
+            delay(5000)
         }
     }
 
-    fun send() {
-        val body = text.trim()
-        if (body.isEmpty()) return
+    fun send(body: String) {
         val clientId = UUID.randomUUID().toString()
-        text = ""
         pending = pending + Message(id = "pending-$clientId", body = body, mine = true, createdAt = OffsetDateTime.now().toString())
         scope.launch {
             try {
@@ -254,13 +251,13 @@ fun ConversationScreen(state: AppState, id: String, onCall: (callId: String) -> 
                 pending = pending.filter { it.id != "pending-$clientId" }
             } catch (e: Exception) {
                 pending = pending.filter { it.id != "pending-$clientId" }
-                text = body
+                restore = body
                 error = if (e is ApiException) T.generic else T.offline
             }
         }
     }
 
-    Column(Modifier.fillMaxSize().imePadding()) {
+    Column(Modifier.fillMaxSize()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { state.openConversation = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.back) }
             Text(
@@ -309,21 +306,34 @@ fun ConversationScreen(state: AppState, id: String, onCall: (callId: String) -> 
         if (c != null && (!c.me.canPost || c.closed)) {
             Text(T.cannotPost, color = Zk.Muted, modifier = Modifier.fillMaxWidth().padding(16.dp))
         } else {
-            Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it },
-                    placeholder = { Text(T.writeMessage, color = Zk.Muted) },
-                    maxLines = 5,
-                    modifier = Modifier.weight(1f),
-                )
-                IconButton(
-                    onClick = { send() },
-                    enabled = text.isNotBlank(),
-                    modifier = Modifier.size(52.dp).clip(CircleShape).background(if (text.isNotBlank()) Zk.Accent else Zk.Surface3),
-                ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = T.send, tint = Zk.OnAccent) }
-            }
+            Composer(restore = restore, onSend = { body -> restore = ""; send(body) })
         }
-        Spacer(Modifier.height(0.dp))
+    }
+}
+
+/** The box where the message is written. It owns its text, so typing redraws only this box (never the 30 messages above it). */
+@Composable
+private fun Composer(restore: String, onSend: (String) -> Unit) {
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(restore) { if (restore.isNotEmpty()) text = restore }
+    Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it },
+            placeholder = { Text(T.writeMessage, color = Zk.Muted) },
+            maxLines = 5,
+            modifier = Modifier.weight(1f),
+        )
+        IconButton(
+            onClick = {
+                val body = text.trim()
+                if (body.isNotEmpty()) {
+                    text = ""
+                    onSend(body)
+                }
+            },
+            enabled = text.isNotBlank(),
+            modifier = Modifier.size(52.dp).clip(CircleShape).background(if (text.isNotBlank()) Zk.Accent else Zk.Surface3),
+        ) { Icon(Icons.AutoMirrored.Filled.Send, contentDescription = T.send, tint = Zk.OnAccent) }
     }
 }

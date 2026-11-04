@@ -13,39 +13,22 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
-import androidx.activity.result.ActivityResultLauncher
-import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.result.ActivityResult
 import androidx.core.content.ContextCompat
 
 /**
- * The pages of the site that are not native screens yet open here, inside the app (never in another app): the same session as the native
- * screens, the microphone and camera of a call asked for by the system, files picked from the phone. One web view lives as long as the app
- * screen does, so going between tabs does not reload the page.
+ * A page of the site inside the app (never in another app), signed in with the app's own session. It is made when a page is opened and thrown
+ * away when the person leaves it, so a closed page costs the app nothing. The system's questions (microphone and camera for a call, a file
+ * to pick) go through the two callbacks the activity gives, because only the activity can ask for them.
  */
-class WebHost(private val activity: ComponentActivity) {
+class WebHost(
+    private val activity: ComponentActivity,
+    private val askPermissions: (Array<String>, (Map<String, Boolean>) -> Unit) -> Unit,
+    private val pickFiles: (Intent, (ActivityResult) -> Unit) -> Unit,
+) {
     private var pendingPermission: PermissionRequest? = null
     private var fileCallback: ValueCallback<Array<Uri>>? = null
-
-    private val permissionLauncher: ActivityResultLauncher<Array<String>> =
-        activity.registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
-            val request = pendingPermission ?: return@registerForActivityResult
-            pendingPermission = null
-            val resources = request.resources.filter { r ->
-                when (r) {
-                    PermissionRequest.RESOURCE_AUDIO_CAPTURE -> granted[Manifest.permission.RECORD_AUDIO] == true
-                    PermissionRequest.RESOURCE_VIDEO_CAPTURE -> granted[Manifest.permission.CAMERA] == true
-                    else -> false
-                }
-            }
-            if (resources.isEmpty()) request.deny() else request.grant(resources.toTypedArray())
-        }
-
-    private val fileLauncher =
-        activity.registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-            val cb = fileCallback ?: return@registerForActivityResult
-            fileCallback = null
-            cb.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data))
-        }
+    private var loaded: String? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     val webView: WebView = WebView(activity).apply {
@@ -80,10 +63,21 @@ class WebHost(private val activity: ComponentActivity) {
                 val missing = needed.filter { ContextCompat.checkSelfPermission(activity, it) != PackageManager.PERMISSION_GRANTED }
                 if (missing.isEmpty()) {
                     request.grant(request.resources)
-                } else {
-                    pendingPermission?.deny()
-                    pendingPermission = request
-                    permissionLauncher.launch(missing.toTypedArray())
+                    return
+                }
+                pendingPermission?.deny()
+                pendingPermission = request
+                askPermissions(missing.toTypedArray()) { granted ->
+                    val asked = pendingPermission ?: return@askPermissions
+                    pendingPermission = null
+                    val resources = asked.resources.filter { r ->
+                        when (r) {
+                            PermissionRequest.RESOURCE_AUDIO_CAPTURE -> granted[Manifest.permission.RECORD_AUDIO] == true || ContextCompat.checkSelfPermission(activity, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+                            PermissionRequest.RESOURCE_VIDEO_CAPTURE -> granted[Manifest.permission.CAMERA] == true || ContextCompat.checkSelfPermission(activity, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
+                            else -> false
+                        }
+                    }
+                    if (resources.isEmpty()) asked.deny() else asked.grant(resources.toTypedArray())
                 }
             }
 
@@ -91,7 +85,11 @@ class WebHost(private val activity: ComponentActivity) {
                 fileCallback?.onReceiveValue(null)
                 fileCallback = callback
                 return try {
-                    fileLauncher.launch(params.createIntent())
+                    pickFiles(params.createIntent()) { result ->
+                        val cb = fileCallback
+                        fileCallback = null
+                        cb?.onReceiveValue(FileChooserParams.parseResult(result.resultCode, result.data))
+                    }
                     true
                 } catch (e: Exception) {
                     fileCallback = null
@@ -102,19 +100,19 @@ class WebHost(private val activity: ComponentActivity) {
     }
 
     /** The address of a page of the site. */
-    fun urlOf(path: String): String = if (path.startsWith("http")) path else Config.BASE + (if (path.startsWith("/")) path else "/$path")
+    private fun urlOf(path: String): String = if (path.startsWith("http")) path else Config.BASE + (if (path.startsWith("/")) path else "/$path")
 
-    private var loaded: String? = null
-
+    /** Opens a page of the site (the session is handed to the web view first, here on the screen's own thread). */
     fun show(path: String) {
         val url = urlOf(path)
-        if (loaded != url) {
-            loaded = url
-            webView.loadUrl(url)
-        }
+        if (loaded == url) return
+        loaded = url
+        Api.syncToWebView()
+        webView.loadUrl(url)
     }
 
     fun destroy() {
+        webView.stopLoading()
         webView.destroy()
     }
 }

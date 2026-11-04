@@ -88,6 +88,9 @@ object Api {
 
     private fun url(path: String) = Config.BASE + path
 
+    /** Reads the answer into its type OFF the screen's thread: a big answer (a conversation) parsed on it makes the screen stutter. */
+    private suspend inline fun <reified T> parse(text: String): T = withContext(Dispatchers.Default) { json.decodeFromString<T>(text) }
+
     private suspend fun get(path: String): String = run(Request.Builder().url(url(path)).header("Cache-Control", "no-cache").get().build())
 
     private suspend fun post(path: String, body: String = "{}"): String = run(Request.Builder().url(url(path)).post(body.toRequestBody(jsonType)).build())
@@ -95,13 +98,11 @@ object Api {
     private suspend fun delete(path: String): String = run(Request.Builder().url(url(path)).delete().build())
 
     suspend fun login(identifier: String, password: String): LoginResult {
-        val text = post("/api/auth/login", json.encodeToString(LoginBody(identifier.trim(), password)))
-        syncToWebView()
-        return json.decodeFromString(text)
+        return parse(post("/api/auth/login", json.encodeToString(LoginBody(identifier.trim(), password))))
     }
 
     /** Signs the phone in as a device of the person: the key the live line (StreamService) uses. */
-    suspend fun registerDevice(): DeviceKey = json.decodeFromString(post("/api/me/app-devices", json.encodeToString(DeviceBody(Build.MODEL ?: "Android"))))
+    suspend fun registerDevice(): DeviceKey = parse(post("/api/me/app-devices", json.encodeToString(DeviceBody(Build.MODEL ?: "Android"))))
 
     suspend fun removeDevice(id: String) {
         if (id.isNotEmpty()) runCatching { delete("/api/me/app-devices/$id") }
@@ -116,9 +117,9 @@ object Api {
         get("/api/me")
     }
 
-    suspend fun home(): Home = json.decodeFromString(get("/api/chat/home"))
+    suspend fun home(): Home = parse(get("/api/chat/home"))
 
-    suspend fun conversation(id: String): Conversation = json.decodeFromString(get("/api/chat/conversations/$id?limit=40"))
+    suspend fun conversation(id: String): Conversation = parse(get("/api/chat/conversations/$id?limit=30"))
 
     suspend fun send(id: String, body: String, clientId: String) {
         post("/api/chat/conversations/$id/messages", json.encodeToString(SendBody(body, clientId)))
@@ -128,9 +129,9 @@ object Api {
         runCatching { post("/api/chat/conversations/$id/read") }
     }
 
-    suspend fun startCall(id: String): CallStarted = json.decodeFromString(post("/api/chat/conversations/$id/call", json.encodeToString(StartCallBody())))
+    suspend fun startCall(id: String): CallStarted = parse(post("/api/chat/conversations/$id/call", json.encodeToString(StartCallBody())))
 
-    suspend fun notifications(): Notifications = json.decodeFromString(get("/api/notifications"))
+    suspend fun notifications(): Notifications = parse(get("/api/notifications"))
 
     suspend fun readAllNotifications() {
         runCatching { post("/api/notifications/read", json.encodeToString(ReadAll())) }
@@ -140,7 +141,7 @@ object Api {
         runCatching { post("/api/notifications/read", json.encodeToString(ReadOne(id))) }
     }
 
-    suspend fun chatUnread(): Int = runCatching { json.decodeFromString<UnreadTotal>(get("/api/chat/unread")).total }.getOrDefault(0)
+    suspend fun chatUnread(): Int = runCatching { parse<UnreadTotal>(get("/api/chat/unread")).total }.getOrDefault(0)
 }
 
 /** The session cookies, kept on the phone between launches. */
@@ -177,8 +178,6 @@ class PrefsCookieJar(context: Context) : CookieJar {
             }
         }
         editor.apply()
-        // a session that changed on the way (a refreshed cookie) reaches the web view too
-        runCatching { Api.syncToWebView() }
     }
 
     @Synchronized

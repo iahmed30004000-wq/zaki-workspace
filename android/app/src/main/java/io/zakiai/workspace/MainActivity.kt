@@ -7,18 +7,17 @@ import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.ActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -29,12 +28,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.core.content.ContextCompat
@@ -42,26 +38,34 @@ import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 
 /**
- * The app: native sign-in, chat and notifications, and the rest of the site in a web view inside it. A tapped notification or call opens here
- * (the address arrives as the intent's data and goes through AppState.open).
+ * The app: native sign-in, chat and notifications; a page of the site opens over them when it is asked for and is thrown away when it is
+ * left. A tapped notification or call opens here (the address arrives as the intent's data and goes through AppState.open).
  */
 class MainActivity : ComponentActivity() {
     private val state = AppState()
-    private lateinit var web: WebHost
+    private var web: WebHost? = null
 
     private val notificationPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
+
+    // the system's questions for a page of the site (microphone, camera, a file): asked here, answered to the page
+    private var permissionAnswer: ((Map<String, Boolean>) -> Unit)? = null
+    private val permissionLauncher = registerForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { granted ->
+        permissionAnswer?.invoke(granted)
+        permissionAnswer = null
+    }
+    private var fileAnswer: ((ActivityResult) -> Unit)? = null
+    private val fileLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        fileAnswer?.invoke(result)
+        fileAnswer = null
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Api.init(applicationContext)
-        web = WebHost(this)
         Notifier.channels(this)
         Notifier.cancelRing(this)
         state.signedIn = Api.hasSession()
-        if (state.signedIn) {
-            Api.syncToWebView()
-            StreamService.start(this)
-        }
+        if (state.signedIn) StreamService.start(this)
         handle(intent)
 
         setContent {
@@ -70,7 +74,14 @@ class MainActivity : ComponentActivity() {
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
                     // a Surface gives every Text the theme's text colour (a bare Box leaves it black on the dark paper)
                     Surface(modifier = Modifier.fillMaxSize(), color = Zk.Surface, contentColor = Zk.Text) {
-                        ZakiApp(state, web, askNotifications = { askNotificationPermission() }, onSignedIn = { next -> afterSignIn(next) }, onLogout = { logout() })
+                        ZakiApp(
+                            state,
+                            webHost = { webHost() },
+                            releaseWeb = { releaseWeb() },
+                            askNotifications = { askNotificationPermission() },
+                            onSignedIn = { next -> afterSignIn(next) },
+                            onLogout = { logout() },
+                        )
                     }
                 }
             }
@@ -85,8 +96,27 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        if (isFinishing) web.destroy()
+        releaseWeb()
         super.onDestroy()
+    }
+
+    /** The page's window, made when a page is opened. */
+    private fun webHost(): WebHost =
+        web ?: WebHost(
+            this,
+            askPermissions = { permissions, answer ->
+                permissionAnswer = answer
+                permissionLauncher.launch(permissions)
+            },
+            pickFiles = { intent, answer ->
+                fileAnswer = answer
+                fileLauncher.launch(intent)
+            },
+        ).also { web = it }
+
+    private fun releaseWeb() {
+        web?.destroy()
+        web = null
     }
 
     private fun handle(intent: Intent?) {
@@ -105,7 +135,7 @@ class MainActivity : ComponentActivity() {
         state.signedIn = true
         state.tab = Tab.CHAT
         askNotificationPermission()
-        lifecycleScopeLaunch {
+        lifecycleScope.launch {
             runCatching {
                 val key = Api.registerDevice()
                 Config.setToken(this@MainActivity, key.token, key.id)
@@ -116,29 +146,32 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun logout() {
-        lifecycleScopeLaunch {
+        lifecycleScope.launch {
             Api.removeDevice(Config.deviceId(this@MainActivity))
             Api.logout()
             Config.clearToken(this@MainActivity)
             stopService(Intent(this@MainActivity, StreamService::class.java))
             Api.forgetSession()
-            state.signedIn = false
+            state.webPath = null
             state.openConversation = null
+            state.signedIn = false
         }
-    }
-
-    private fun lifecycleScopeLaunch(block: suspend () -> Unit) {
-        lifecycleScope.launch { block() }
     }
 }
 
 @Composable
-fun ZakiApp(state: AppState, web: WebHost, askNotifications: () -> Unit, onSignedIn: (String) -> Unit, onLogout: () -> Unit) {
+fun ZakiApp(
+    state: AppState,
+    webHost: () -> WebHost,
+    releaseWeb: () -> Unit,
+    askNotifications: () -> Unit,
+    onSignedIn: (String) -> Unit,
+    onLogout: () -> Unit,
+) {
     if (!state.signedIn) {
         LoginScreen(onSignedIn = onSignedIn)
         return
     }
-    val scope = rememberCoroutineScope()
 
     // a session that the server no longer honours sends the person back to sign-in
     LaunchedEffect(state.signedIn) {
@@ -154,8 +187,15 @@ fun ZakiApp(state: AppState, web: WebHost, askNotifications: () -> Unit, onSigne
         }
     }
 
+    // a page of the site, over everything, until it is closed
+    val page = state.webPath
+    if (page != null) {
+        WebOverlay(state, webHost, releaseWeb)
+        return
+    }
+
     val conversation = state.openConversation
-    if (conversation != null && state.tab == Tab.CHAT) {
+    if (conversation != null) {
         ConversationScreen(state, conversation) { callId ->
             state.openConversation = null
             state.open("/calls/$callId")
@@ -163,37 +203,47 @@ fun ZakiApp(state: AppState, web: WebHost, askNotifications: () -> Unit, onSigne
         return
     }
 
+    val scope = rememberCoroutineScope()
     Scaffold(
         containerColor = Zk.Surface,
         bottomBar = {
             NavigationBar(containerColor = Zk.Surface2) {
-                @Composable
-                fun item(label: String, selected: Boolean, badge: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
-                    NavigationBarItem(
-                        selected = selected,
-                        onClick = onClick,
-                        label = { Text(label) },
-                        icon = {
-                            BadgedBox(badge = { if (badge > 0) Badge { Text(if (badge > 99) "99+" else badge.toString()) } }) { Icon(icon, contentDescription = label) }
-                        },
-                        colors = NavigationBarItemDefaults.colors(selectedIconColor = Zk.OnAccent, indicatorColor = Zk.Accent, unselectedIconColor = Zk.Muted, unselectedTextColor = Zk.Muted, selectedTextColor = Zk.Accent),
-                    )
-                }
-                item(T.chat, state.tab == Tab.CHAT, state.chatUnread, Icons.Filled.Email) { state.tab = Tab.CHAT }
-                item(T.today, state.tab == Tab.WEB && state.webPath == "/", 0, Icons.Filled.Home) { state.webPath = "/"; state.tab = Tab.WEB }
-                item(T.tasks, state.tab == Tab.WEB && state.webPath == "/my-work", 0, Icons.Filled.List) { state.webPath = "/my-work"; state.tab = Tab.WEB }
-                item(T.notifications, state.tab == Tab.NOTES, state.notesUnread, Icons.Filled.Notifications) { state.tab = Tab.NOTES }
-                item(T.more, state.tab == Tab.MORE, 0, Icons.Filled.Menu) { state.tab = Tab.MORE }
+                Tabs(state)
             }
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             when (state.tab) {
                 Tab.CHAT -> ChatListScreen(state)
-                Tab.WEB -> WebScreen(state, web)
                 Tab.NOTES -> NotificationsScreen(state)
                 Tab.MORE -> MoreScreen(state, onLogout = { scope.launch { onLogout() } }, askNotifications = askNotifications)
             }
         }
     }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.Tabs(state: AppState) {
+    TabItem(T.chat, state.tab == Tab.CHAT, state.chatUnread, Icons.Filled.Email) { state.tab = Tab.CHAT }
+    TabItem(T.notifications, state.tab == Tab.NOTES, state.notesUnread, Icons.Filled.Notifications) { state.tab = Tab.NOTES }
+    TabItem(T.more, state.tab == Tab.MORE, 0, Icons.Filled.Menu) { state.tab = Tab.MORE }
+}
+
+@Composable
+private fun androidx.compose.foundation.layout.RowScope.TabItem(label: String, selected: Boolean, badge: Int, icon: ImageVector, onClick: () -> Unit) {
+    NavigationBarItem(
+        selected = selected,
+        onClick = onClick,
+        label = { Text(label) },
+        icon = {
+            BadgedBox(badge = { if (badge > 0) Badge { Text(if (badge > 99) "99+" else badge.toString()) } }) { Icon(icon, contentDescription = label) }
+        },
+        colors = NavigationBarItemDefaults.colors(
+            selectedIconColor = Zk.OnAccent,
+            indicatorColor = Zk.Accent,
+            unselectedIconColor = Zk.Muted,
+            unselectedTextColor = Zk.Muted,
+            selectedTextColor = Zk.Accent,
+        ),
+    )
 }

@@ -6,15 +6,15 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 
-enum class Tab { CHAT, WEB, NOTES, MORE }
+enum class Tab { CHAT, NOTES, MORE }
 
 /** Where the person is in the app. One object, read by every screen. */
 class AppState {
     var signedIn by mutableStateOf(false)
     var tab by mutableStateOf(Tab.CHAT)
 
-    /** the page of the site shown in the web view (a path of the site, "/" for «اليوم») */
-    var webPath by mutableStateOf("/")
+    /** the page of the site open over everything (a path of the site), or null: the web view exists only while this is set */
+    var webPath by mutableStateOf<String?>(null)
 
     /** the conversation open over the tabs, or null */
     var openConversation by mutableStateOf<String?>(null)
@@ -39,7 +39,6 @@ class AppState {
         }
         openConversation = null
         webPath = path
-        tab = Tab.WEB
     }
 
     companion object {
