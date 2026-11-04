@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Lightbulb, ListTodo, FolderPlus, Pin, Send, Wand2 } from "lucide-react";
+import Link from "next/link";
+import { Lightbulb, ListTodo, FolderPlus, Pin, Send, Wand2, CheckCheck } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { useRealtime } from "@/lib/realtime/use-realtime";
@@ -24,6 +25,13 @@ export interface WatchComment {
   createdAt: string;
   videoAtSec?: number | null;
 }
+
+/** What a comment became (src/server/watch/convert.ts): the link opens it. */
+interface Conversion {
+  kind: "task" | "idea" | "project";
+  id: string;
+}
+const CONVERSION_HREF = { task: (id: string) => `/tasks/${id}`, idea: () => "/ideas", project: (id: string) => `/projects/${id}` } as const;
 
 /** How many comments the panel keeps (the newest; the whole talk stays in «الدردشة»). */
 const PAGE = 50;
@@ -70,6 +78,7 @@ export function WatchComments({
   const [sending, setSending] = useState(false);
   const [onlyKey, setOnlyKey] = useState(false);
   const [taskFrom, setTaskFrom] = useState<{ id: string; body: string } | null>(null);
+  const [made, setMade] = useState<Record<string, Conversion[]>>({});
   const seen = useRef<Set<string>>(new Set());
   const listEnd = useRef<HTMLLIElement>(null);
 
@@ -90,9 +99,20 @@ export function WatchComments({
     }
   }, [conversationId, onReaction]);
 
+  // what the comments became («تحوّل إلى مهمة»…): only what this person may see, nothing while «حوّل» is off
+  const loadMade = useCallback(async () => {
+    try {
+      const res = await apiGet<{ conversions: Record<string, Conversion[]> }>(`/api/watch/${session.id}/conversions`);
+      setMade(res.conversions);
+    } catch {
+      setMade({});
+    }
+  }, [session.id]);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadMade();
+  }, [load, loadMade]);
 
   useRealtime((e) => {
     if (e.conversationId !== conversationId) return;
@@ -132,13 +152,16 @@ export function WatchComments({
   const canConvert = convert.idea || convert.task || convert.project;
 
   /** An idea or a project from a draft, through the doors that already make them (their rules, their boxes). */
-  async function make(kind: "idea" | "project", draft: Draft) {
+  async function make(kind: "idea" | "project", draft: Draft, messageId?: string) {
     try {
+      // a comment's own idea or project keeps the comment it came from; the whole session's has none
+      const source = messageId ? { sourceMessageId: messageId } : {};
       if (kind === "idea") {
-        await apiPost("/api/ideas", { title: draft.title, description: draft.description });
+        await apiPost("/api/ideas", { title: draft.title, description: draft.description, ...source });
       } else {
-        await apiPost("/api/projects", { workspaceId: session.spaceId, name: draft.title.slice(0, 120), description: draft.description });
+        await apiPost("/api/projects", { workspaceId: session.spaceId, name: draft.title.slice(0, 120), description: draft.description, ...source });
       }
+      void loadMade();
       toast?.toast(t(kind === "idea" ? "watch.convert.made_idea" : "watch.convert.made_project", { title: draft.title }), "success");
     } catch (err) {
       toast?.toast(t(watchErrorKey(err)), "error");
@@ -202,6 +225,16 @@ export function WatchComments({
               ) : (
                 <bdi className="text-fg">{m.body}</bdi>
               )}
+              {(made[m.id] ?? []).map((c) => (
+                <Link
+                  key={`${c.kind}-${c.id}`}
+                  href={CONVERSION_HREF[c.kind](c.id)}
+                  className="ms-2 inline-flex items-center gap-1 rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent hover:bg-accent/20"
+                >
+                  <CheckCheck className="h-3 w-3" aria-hidden="true" />
+                  {t(c.kind === "task" ? "watch.convert.became_task" : c.kind === "idea" ? "watch.convert.became_idea" : "watch.convert.became_project")}
+                </Link>
+              ))}
             </p>
             {canConvert && !m.deleted && m.body ? (
               <ConvertMenu
@@ -210,7 +243,7 @@ export function WatchComments({
                 onTask={setTaskFrom}
                 label={t("watch.convert.comment")}
                 draft={() => commentDraft({ body: m.body ?? "", authorName: m.authorName, videoAtSec: m.videoAtSec }, session, words)}
-                task={{ id: m.id, body: m.body }}
+                task={{ id: m.id, body: isKeyMoment(m.body) ? momentText(m.body ?? "") || m.body || "" : m.body }}
               />
             ) : null}
           </li>
@@ -270,8 +303,10 @@ export function WatchComments({
         message={taskFrom}
         kind="task"
         onClose={() => setTaskFrom(null)}
+        titleMax={200}
         onDone={() => {
           setTaskFrom(null);
+          void loadMade();
           toast?.toast(t("watch.convert.made_task"), "success");
         }}
       />
@@ -292,7 +327,7 @@ function ConvertMenu({
   task,
 }: {
   rights: ConvertRights;
-  onMake: (kind: "idea" | "project", draft: Draft) => void | Promise<void>;
+  onMake: (kind: "idea" | "project", draft: Draft, messageId?: string) => void | Promise<void>;
   onTask: (from: { id: string; body: string }) => void;
   label: string;
   draft: () => Draft;
@@ -313,7 +348,7 @@ function ConvertMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {rights.idea ? (
-            <DropdownMenuItem onSelect={() => void onMake("idea", draft())}>
+            <DropdownMenuItem onSelect={() => void onMake("idea", draft(), task?.id)}>
               <Lightbulb className="h-4 w-4" aria-hidden="true" /> {t("watch.convert.to_idea")}
             </DropdownMenuItem>
           ) : null}
@@ -323,7 +358,7 @@ function ConvertMenu({
             </DropdownMenuItem>
           ) : null}
           {rights.project ? (
-            <DropdownMenuItem onSelect={() => void onMake("project", draft())}>
+            <DropdownMenuItem onSelect={() => void onMake("project", draft(), task?.id)}>
               <FolderPlus className="h-4 w-4" aria-hidden="true" /> {t("watch.convert.to_project")}
             </DropdownMenuItem>
           ) : null}

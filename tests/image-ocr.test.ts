@@ -177,7 +177,7 @@ describe("the switch, the words and the screen", () => {
     expect(code).not.toMatch(/log\.|console\./);
     expect(code.match(/apiKey/g)?.length).toBeLessThan(10);
     // the kept row has no place for it, and the audit meta is counters only
-    expect(read("prisma/migrations/20261111100000_file_text/migration.sql")).not.toMatch(/secret|apikey|token/i);
+    expect(read("prisma/migrations/20261111100200_file_text/migration.sql")).not.toMatch(/secret|apikey|token/i);
     expect(code).toMatch(/meta: \{ outcome, \.\.\.\(failure \? \{ key: failure \} : \{\}\), \.\.\.counters \}/);
   });
 });

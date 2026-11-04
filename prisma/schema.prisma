@@ -513,6 +513,8 @@ model ChatMessage {
   attachments   MessageAttachment[]
   // the tasks and tickets made from this message
   tasks         Task[]              @relation("MessageTasks")
+  ideas         Idea[]              @relation("MessageIdeas")
+  projects      Project[]           @relation("MessageProjects")
   // «ذكّرني» on this message (src/server/services/reminders.ts)
   reminders     Reminder[]
   tickets       Ticket[]            @relation("MessageTickets")
@@ -1045,12 +1047,15 @@ model Project {
   targetDate   DateTime?
   // The role of a project the app keeps for itself: "instant" holds the space's «مهام فورية» (one per space).
   systemKey    String?
+  // «نتفرّج سوا» «حوّل»: the comment of a watch session this project was made from (the comment shows what it became)
+  sourceMessageId String?
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
   workspace  Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   team       Team?           @relation(fields: [teamId], references: [id])
   department Department?     @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  sourceMessage ChatMessage?  @relation("MessageProjects", fields: [sourceMessageId], references: [id], onDelete: SetNull)
   teamId     String?
   boards     Board[]
   tasks      Task[]
@@ -1068,6 +1073,7 @@ model Project {
   @@index([status])
   @@index([departmentId])
   @@index([teamId])
+  @@index([sourceMessageId])
 }
 
 model Milestone {
@@ -1582,6 +1588,8 @@ model Idea {
   description String?
   status      IdeaStatus @default(NEW) // NEW -> UNDER_REVIEW -> PLANNING -> LAUNCHED, or REJECTED (ACCEPTED: before PLANNING existed)
   taskId      String? // set when converted into a real task
+  // «نتفرّج سوا» «حوّل»: the comment of a watch session this idea was made from (the comment shows what it became)
+  sourceMessageId String?
   // The space the idea was born in (the owner's decision, 2026-10-25: each space has its own ideas). None: an idea
   // from before spaces had them, read in «الشركة».
   workspaceId String?
@@ -1600,11 +1608,13 @@ model Idea {
   creator      User         @relation("IdeaCreator", fields: [creatorId], references: [id], onDelete: Cascade)
   workspace    Workspace?   @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
   apiToken     ApiToken?    @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
+  sourceMessage ChatMessage? @relation("MessageIdeas", fields: [sourceMessageId], references: [id], onDelete: SetNull)
   votes        IdeaVote[]
 
   @@index([orgId, status])
   @@index([orgId, createdAt])
   @@index([orgId, workspaceId])
+  @@index([sourceMessageId])
   @@index([apiTokenId, createdAt])
 }
 
@@ -3066,4 +3076,19 @@ model BackupRun {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, startedAt])
+}
+
+// «شو فاتني؟»: the last digest written for a person on «اليوم», kept for 3 hours so the page never asks the model twice for the same
+// morning. One row per person (replaced when a new one is written). Holds the model's short answer only, never the material it read.
+// No foreign keys on purpose (like AiUsage): a cache row is disposable.
+model DigestCache {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  text      String
+  forDay    String
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId])
+  @@index([createdAt])
 }

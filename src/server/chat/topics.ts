@@ -13,6 +13,8 @@ import { isFeatureOn } from "@/server/services/features";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { ocrAvailable } from "@/server/services/image-ocr";
 import { chatAssistantOffered, conversationHasGuest } from "@/server/services/chat-assistant";
+import { digestOffered } from "@/server/services/digest";
+import { translateOffered } from "@/server/services/message-translate";
 import { ASSISTANT_MENTION_ID, ASSISTANT_MENTION_NAME } from "@/lib/chat/conversation/mentions";
 import { lastSeenReader } from "@/server/services/last-seen";
 import type { Prisma } from "@prisma/client";
@@ -415,6 +417,8 @@ export async function conversationDetail(
       canMakeTicket: (await memberCan(ctx, "tickets.edit")) === true,
       // «ذكّرني» on a message: the company's switch, and never in silent oversight (a reminder is his own trace; he joins first)
       canRemind: !(org!.role === "OWNER" && !facts.viewerIsMember) && (await isFeatureOn(ctx.orgId, "reminders")),
+      // «ترجم» on a text message: the switches, a ready model, staff only, and no guest among the conversation's people (src/server/services/message-translate.ts)
+      canTranslate: await translateOffered({ orgId: ctx.orgId, role: org!.role, facts, conversationId }),
       canMentionAll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       canPoll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       id: ctx.userId,
@@ -455,6 +459,8 @@ export async function conversationDetail(
     voiceTranscript: await transcriptAvailable(ctx.orgId),
     // a picture of a conversation a guest can reach is never read by a model: no button there
     imageOcr: (await ocrAvailable(ctx.orgId)) && ctx.orgRole !== "GUEST" && !(await conversationHasGuest(facts, conversationId, ctx.orgId)),
+    // «لخّصلي»: a topic only (never a private chat or somebody's conversation with the assistant), never for a partner, while «شو فاتني؟» is offered
+    digest: org!.role !== "GUEST" && facts.kind === "TOPIC" && conv.dmKey === null && (await digestOffered(ctx.orgId)),
   };
 }
 

@@ -59,8 +59,11 @@ import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
 import voiceTranscript from "./ar.voice-transcript.json";
 import imageOcr from "./ar.image-ocr.json";
+import messageTranslate from "./ar.message-translate.json";
 import assistantChat from "./ar.assistant-chat.json";
 import siteGuide from "./ar.site-guide.json";
+import digest from "./ar.digest.json";
+import watchConvert from "./ar.watch-convert.json";
 import backup from "./ar.backup.json";
 
 /**
@@ -98,8 +101,11 @@ export const AR: Record<string, string> = {
   ...economy,
   ...voiceTranscript,
   ...imageOcr,
+  ...messageTranslate,
   ...assistantChat,
   ...siteGuide,
+  ...digest,
+  ...watchConvert,
   ...libraryDrive,
   ...instant,
   ...taskLinks,
