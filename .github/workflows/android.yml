@@ -3,9 +3,8 @@
 # `android/` is a tiny Trusted Web Activity: the site in a full-screen window with its own icon. Nothing of the site is copied into it, so
 # every page and every update comes from https://workspace.zakiai.io and this file is run only when the WRAPPER changes (or by hand).
 #
-# The repository is public, so the APK carries no secret. It is signed with the standard debug key of the runner: it installs on a phone
-# («allow installs from this source»), but each build has its own key, so a new APK is installed after removing the old one. A fixed release
-# key (a repository secret) is the owner's step when he wants updates over the old install; see docs/ANDROID.md.
+# The APK is signed with ONE fixed key kept as the repository secret ANDROID_KEYSTORE_B64 (never a file in git): it makes every new build install over the
+# old one and lets Chrome hide its address bar (public/.well-known/assetlinks.json). Without the secret it falls back to the debug key. See docs/ANDROID.md.
 #
 # The finished file is published as the release «android-latest» (a stable link for the phone) and kept as a run artifact.
 name: Android
@@ -51,11 +50,21 @@ jobs:
       - name: Accept the Android SDK licences
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Build the debug APK
-        run: gradle -p android assembleDebug --no-daemon --stacktrace
+      - name: Put the signing key in place (only when the repository has it)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then
+            echo "$KEYSTORE_B64" | base64 -d > android/zaki.p12
+          else
+            echo "::warning::ANDROID_KEYSTORE_B64 is not set: this build is signed with the debug key (see docs/ANDROID.md)"
+          fi
+
+      - name: Build the signed APK
+        run: gradle -p android assembleRelease --no-daemon --stacktrace
 
       - name: Name the file
-        run: cp android/app/build/outputs/apk/debug/app-debug.apk zaki-workspace.apk
+        run: cp android/app/build/outputs/apk/release/app-release.apk zaki-workspace.apk
 
       - uses: actions/upload-artifact@v4
         with:

@@ -21,3 +21,8 @@ data/files/
 # Excalidraw's fonts, copied by scripts/copy-whiteboard-assets.mjs at build
 /public/excalidraw/
 /public/noise/
+
+# the app signing key is a repository secret, never a file in git
+android/zaki.p12
+*.p12
+*.jks

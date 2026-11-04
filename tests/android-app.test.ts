@@ -30,13 +30,29 @@ describe("the Android app (a Trusted Web Activity)", () => {
     expect(colors).toContain("#050F1F");
   });
 
-  it("is built by its own workflow, publishes only from main, and holds no key", () => {
+  it("is built by its own workflow and publishes only from main", () => {
     const wf = read(".github/workflows/android.yml");
-    expect(wf).toContain("gradle -p android assembleDebug");
+    expect(wf).toContain("gradle -p android assembleRelease");
     expect(wf).toContain("if: github.ref == 'refs/heads/main'");
     expect(wf).toContain("android-latest");
+    // the key lives in the gradle file and the repository, never in the workflow, and no private key is pasted anywhere as text
     expect(wf).not.toMatch(/storePassword|keyPassword|BEGIN (RSA |EC )?PRIVATE KEY/);
-    expect(existsSync(join(process.cwd(), "android/app/release.jks"))).toBe(false);
     expect(read("docs/ANDROID.md")).toContain("android-latest");
+  });
+
+  it("signs every build with ONE fixed key and the site proves it owns the app (so Chrome hides its bar)", () => {
+    // the key itself is never in git: the workflow writes it from a repository secret
+    expect(existsSync(join(process.cwd(), "android/zaki.p12"))).toBe(false);
+    expect(read(".gitignore")).toContain("android/zaki.p12");
+    expect(read(".github/workflows/android.yml")).toContain("secrets.ANDROID_KEYSTORE_B64");
+    const gradle = read("android/app/build.gradle");
+    expect(gradle).toContain("signingConfigs.zaki");
+    const links = JSON.parse(read("public/.well-known/assetlinks.json"));
+    expect(links).toHaveLength(1);
+    expect(links[0].relation).toEqual(["delegate_permission/common.handle_all_urls"]);
+    expect(links[0].target.namespace).toBe("android_app");
+    expect(links[0].target.package_name).toBe("io.zakiai.workspace");
+    expect(links[0].target.sha256_cert_fingerprints).toHaveLength(1);
+    expect(links[0].target.sha256_cert_fingerprints[0]).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
   });
 });
