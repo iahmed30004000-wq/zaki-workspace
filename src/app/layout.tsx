@@ -4,7 +4,6 @@ import { IBM_Plex_Sans_Arabic, Lalezar } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
-import { AppScaleLock } from "@/components/app-scale-lock";
 import { DECOR_COOKIE, THEME_COOKIE, decorLevelOf, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";
 import { DIGITS_COOKIE, digitsOf } from "@/lib/digits";
@@ -66,9 +65,11 @@ function chosen() {
 /** The browser bar wears the chosen theme's page colour. */
 export function generateViewport(): Viewport {
   // viewportFit "cover" lets env(safe-area-inset-*) work on iPhones with a notch or a home bar (the bottom bar and sheets use it)
+  // the scale is fixed at 1 (the owner, 2026-11-04: the installed app zoomed in and out by itself, on a double tap, a pinch or a focus on a
+  // field, and left the page cut at its edges): a workspace is used like an app, the text size is the phone's own font size
   // interactiveWidget "resizes-content": when the keyboard opens, the page shrinks instead of the
   // bottom bar sliding under it, so the composer and the bottom bar stay reachable
-  return { width: "device-width", initialScale: 1, viewportFit: "cover", interactiveWidget: "resizes-content", themeColor: themeColorOf(chosen().theme) };
+  return { width: "device-width", initialScale: 1, minimumScale: 1, maximumScale: 1, userScalable: false, viewportFit: "cover", interactiveWidget: "resizes-content", themeColor: themeColorOf(chosen().theme) };
 }
 
 /**
@@ -85,7 +86,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers theme={theme} decor={decor} digits={digits}>
           {children}
-          <AppScaleLock />
         </Providers>
       </body>
     </html>

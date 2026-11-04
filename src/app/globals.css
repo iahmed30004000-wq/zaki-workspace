@@ -15,6 +15,13 @@ body {
   height: 100%;
 }
 
+html {
+  /* the phone's browser never re-sizes the text of a page by itself (that read as the page growing and shrinking), and a double tap is a tap, not a zoom */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
 body {
   @apply bg-surface text-fg antialiased;
   /* the pull-to-refresh / rubber-band overscroll never happens on the page itself */
