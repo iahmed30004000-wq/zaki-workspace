@@ -11,17 +11,44 @@ describe("the Android app (a Trusted Web Activity)", () => {
     const manifest = read("android/app/src/main/AndroidManifest.xml");
     expect(manifest).toContain('android:value="https://workspace.zakiai.io/"');
     expect(manifest).toContain('android:host="workspace.zakiai.io"');
-    expect(manifest).toContain("com.google.androidbrowserhelper.trusted.LauncherActivity");
+    // the door is our own MainActivity, which IS the library's Trusted Web Activity launcher plus the app's native parts
+    expect(manifest).toContain('android:name=".MainActivity"');
+    expect(read("android/app/src/main/java/io/zakiai/workspace/MainActivity.java")).toContain("extends LauncherActivity");
     expect(read("android/app/src/main/res/values/strings.xml")).toContain("<string name=\"app_name\">زاكي</string>");
   });
 
-  it("keeps one stable identity and asks for nothing but the network and notifications", () => {
+  it("keeps one stable identity and asks only for what the live line and the call screen need", () => {
     const gradle = read("android/app/build.gradle");
     expect(gradle).toContain("applicationId 'io.zakiai.workspace'");
     expect(gradle).toContain("namespace 'io.zakiai.workspace'");
     const manifest = read("android/app/src/main/AndroidManifest.xml");
     const permissions = [...manifest.matchAll(/uses-permission android:name="([^"]+)"/g)].map((m) => m[1]);
-    expect(permissions.sort()).toEqual(["android.permission.INTERNET", "android.permission.POST_NOTIFICATIONS"]);
+    expect(permissions.sort()).toEqual([
+      "android.permission.FOREGROUND_SERVICE",
+      "android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING",
+      "android.permission.INTERNET",
+      "android.permission.POST_NOTIFICATIONS",
+      "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
+      "android.permission.USE_FULL_SCREEN_INTENT",
+    ]);
+    // no backup: the key of the pairing must never be copied off the phone
+    expect(manifest).toContain('android:allowBackup="false"');
+  });
+
+  it("is a real app around the site: a live line, a call screen, the pairing door, and it only ever opens addresses of the site", () => {
+    const manifest = read("android/app/src/main/AndroidManifest.xml");
+    for (const name of [".StreamService", ".CallActivity", ".PairActivity", ".BootReceiver", ".DeclineReceiver"]) expect(manifest, name).toContain(`android:name="${name}"`);
+    expect(manifest).toContain('android:foregroundServiceType="remoteMessaging"');
+    // the key reaches the app by an intent addressed to its own package (the site's side), and only the pairing screen takes it
+    expect(manifest).toContain('android:scheme="zaki"');
+    expect(read("src/components/app-link/app-link.tsx")).toContain("package=io.zakiai.workspace");
+    const config = read("android/app/src/main/java/io/zakiai/workspace/Config.java");
+    expect(config).toContain('BASE = "https://workspace.zakiai.io"');
+    expect(config).toContain('path.startsWith("//")');
+    const service = read("android/app/src/main/java/io/zakiai/workspace/StreamService.java");
+    expect(service).toContain("/api/device/stream");
+    expect(service).toContain("Authorization");
   });
 
   it("has its icons, and its colour is the site's theme colour", () => {

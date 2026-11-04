@@ -3,6 +3,7 @@ import webpush from "web-push";
 import { db } from "@/server/db";
 import { appUrl } from "@/server/env";
 import { log } from "@/server/log";
+import { deliverToDevices } from "@/server/devices/hub";
 
 /**
  * RINGING WHEN THE SITE IS CLOSED — Web Push (the owner's «اشعار بالمكالمة او رنين»). The browser's own push service
@@ -65,7 +66,12 @@ export function setPushSenderForTests(next: Sender | null): void {
  */
 export async function pushTo(userIds: string[], message: PushMessage): Promise<void> {
   if (userIds.length === 0) return;
-  const subs = await db.pushSubscription.findMany({ where: { userId: { in: userIds } }, select: { id: true, endpoint: true, p256dh: true, auth: true } });
+  // the Android app's live line first (src/server/devices/hub.ts): a ring or a note reaches the phone as its own full-screen call or notification
+  const onPhone = deliverToDevices(userIds, { kind: message.kind, title: message.title, body: message.body, url: message.url, tag: message.tag });
+  const all = await db.pushSubscription.findMany({ where: { userId: { in: userIds } }, select: { id: true, userId: true, endpoint: true, p256dh: true, auth: true, userAgent: true } });
+  // while the app is connected it shows the message itself: the browser of the same phone (an Android one) stays quiet, so nothing shows twice.
+  // Laptops, other browsers and a phone whose app is not connected are reached by Web Push as before.
+  const subs = all.filter((s) => !(onPhone.has(s.userId) && /android/i.test(s.userAgent ?? "")));
   if (subs.length === 0) return;
   let keys: PushKeys;
   try {
@@ -97,11 +103,12 @@ export async function pushTo(userIds: string[], message: PushMessage): Promise<v
 }
 
 /** This browser of this person agrees to be rung (one row per browser; a browser that changed hands moves). */
-export async function subscribe(userId: string, sub: { endpoint: string; p256dh: string; auth: string }): Promise<void> {
+export async function subscribe(userId: string, sub: { endpoint: string; p256dh: string; auth: string; userAgent?: string | null }): Promise<void> {
+  const userAgent = sub.userAgent ? sub.userAgent.slice(0, 300) : null;
   await db.pushSubscription.upsert({
     where: { endpoint: sub.endpoint },
-    create: { userId, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth },
-    update: { userId, p256dh: sub.p256dh, auth: sub.auth },
+    create: { userId, endpoint: sub.endpoint, p256dh: sub.p256dh, auth: sub.auth, userAgent },
+    update: { userId, p256dh: sub.p256dh, auth: sub.auth, userAgent },
   });
 }
 

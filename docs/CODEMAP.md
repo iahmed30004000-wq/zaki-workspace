@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 319 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 322 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 55 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 56 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,7 +45,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 319 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 322 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 144 · `activeOrgCtx` 81 · `(none)` 34 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 144 · `activeOrgCtx` 83 · `(none)` 35 · `requireTeamWork` 13 · `requireTaskAccess` 10 · `requireUser` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -199,6 +199,7 @@ Doors in use: `requireActor` 144 · `activeOrgCtx` 81 · `(none)` 34 · `require
 | GET, POST | `/api/departments/[id]/campaigns` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`campaigns`: createCampaign, createCampaignSchema, listDepartmentCampaigns |
 | POST | `/api/departments/[id]/members` | activeOrgCtx | `integrations`: activeOrgCtx<br>`departments`: membersSchema, setMembers |
 | GET, POST | `/api/departments/[id]/tickets` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`tickets`: createTicket, createTicketSchema, listDepartmentTickets |
+| GET | `/api/device/stream` | **none** (public by design) † | — |
 | POST | `/api/digest` | requireActor † | `digest`: morningDigest |
 | GET, POST | `/api/documents` | requireActor | `documents`: createDocSchema, createDocument, listDocuments |
 | GET, PATCH, DELETE | `/api/documents/[id]` | requireActor | `documents`: archiveDocument, readDocument, saveDocSchema, saveDocument |
@@ -277,6 +278,8 @@ Doors in use: `requireActor` 144 · `activeOrgCtx` 81 · `(none)` 34 · `require
 | POST | `/api/manufacturing/suppliers` | requireActor | `manufacturing`: createSupplier, createSupplierSchema |
 | PATCH | `/api/manufacturing/suppliers/[id]` | requireActor | `manufacturing`: updateSupplier, updateSupplierSchema |
 | GET, PATCH | `/api/me` | requireUser | `users`: updateProfile |
+| GET, POST | `/api/me/app-devices` | activeOrgCtx | `integrations`: activeOrgCtx<br>`features`: assertFeatureOn |
+| DELETE | `/api/me/app-devices/[id]` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST, DELETE | `/api/me/avatar` | requireActor | `avatars`: clearAvatar, setAvatar, AVATAR_MAX_BYTES<br>`features`: assertFeatureOn |
 | GET, POST | `/api/me/calendar-feed` | requireActor | `calendar-feed`: createFeedToken, listFeedTokens |
 | DELETE | `/api/me/calendar-feed/[id]` | requireActor | `calendar-feed`: revokeFeedToken |
@@ -413,7 +416,7 @@ Doors in use: `requireActor` 144 · `activeOrgCtx` 81 · `(none)` 34 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 319. Each one is a door that cannot have a session, or one that is closed.
+Six of 322. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -434,8 +437,8 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 56 | 95 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
-| `integrations` | 180 | 90 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
+| `features` | 56 | 97 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `integrations` | 180 | 92 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 128 | 58 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 29 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
@@ -612,6 +615,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `Call` | 4 | `server/calls/calls.ts`: 4 |
 | `CallPerson` | 4 | `server/calls/calls.ts`: 4 |
 | `PushSubscription` | 4 | `server/calls/push.ts`: 4 |
+| `AppDevice` | 4 | `server/devices/devices.ts`: 4 |
 | `WatchSession` | 4 | `server/services/watch.ts`: 4 |
 | `Organization` | 6 | `server/services/google.ts`: 2<br>`app/api/organizations/[id]/route.ts`: 1<br>`server/services/db-backup.ts`: 1<br>`server/services/features.ts`: 1<br>+1 more |
 | `OrganizationMember` | 6 | `server/services/accounts.ts`: 4<br>`server/services/last-seen.ts`: 1<br>`server/services/team-lines.ts`: 1 |
@@ -716,7 +720,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watch` | 13 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/watch/watch-home.tsx`, `lib/guide/page-help.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts` |
 | `sectionPermissions` | 1 — `server/policy/section-grid.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
-| `pushEverything` | 1 — `server/notify.ts` |
+| `pushEverything` | 2 — `app/api/device/stream/route.ts`, `server/notify.ts` |
+| `appConnection` | 3 — `app/(app)/app-link/page.tsx`, `app/api/me/app-devices/route.ts`, `server/devices/devices.ts` |
 | `chatRowMenu` | 2 — `server/chat/home.ts`, `server/chat/purge.ts` |
 | `callNoiseFilter` | 1 — `server/calls/calls.ts` |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
@@ -773,8 +778,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 313 of 319 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 225 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 316 of 322 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 227 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **16 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 4 write neither (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 4 of those are one person's own preference (`/api/me/digits`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **17 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

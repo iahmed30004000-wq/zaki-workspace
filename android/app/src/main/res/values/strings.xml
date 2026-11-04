@@ -1,4 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">زاكي</string>
+
+    <string name="channel_status">الاتصال</string>
+    <string name="channel_notes">الإشعارات</string>
+    <string name="channel_calls">المكالمات</string>
+    <string name="status_title">زاكي متصل</string>
+
+    <string name="call_incoming">مكالمة واردة</string>
+    <string name="call_answer">رد</string>
+    <string name="call_decline">رفض</string>
+
+    <string name="pair_title">تم ربط التلفون</string>
+    <string name="pair_intro">باقي ثلاث أشياء ليرنّ التلفون بالمكالمات وتوصلك الإشعارات حتى لو التطبيق مسكّر:</string>
+    <string name="pair_notifications">السماح بالإشعارات</string>
+    <string name="pair_fullscreen">السماح بشاشة المكالمة الكاملة</string>
+    <string name="pair_battery">تشغيل التطبيق بدون قيود البطارية</string>
+    <string name="pair_open">افتح زاكي</string>
 </resources>
