@@ -6,14 +6,12 @@ import { join } from "node:path";
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
 
-describe("the Android app (a Trusted Web Activity)", () => {
-  it("opens exactly the production site, in the phone's Chrome, and is named «زاكي»", () => {
+describe("the Android app (native: Kotlin + Compose)", () => {
+  it("talks to exactly the production site, opens its links, and is named «زاكي»", () => {
     const manifest = read("android/app/src/main/AndroidManifest.xml");
-    expect(manifest).toContain('android:value="https://workspace.zakiai.io/"');
     expect(manifest).toContain('android:host="workspace.zakiai.io"');
-    // the door is our own MainActivity, which IS the library's Trusted Web Activity launcher plus the app's native parts
     expect(manifest).toContain('android:name=".MainActivity"');
-    expect(read("android/app/src/main/java/io/zakiai/workspace/MainActivity.java")).toContain("extends LauncherActivity");
+    expect(read("android/app/src/main/java/io/zakiai/workspace/Config.java")).toContain('BASE = "https://workspace.zakiai.io"');
     expect(read("android/app/src/main/res/values/strings.xml")).toContain("<string name=\"app_name\">زاكي</string>");
   });
 
@@ -24,11 +22,14 @@ describe("the Android app (a Trusted Web Activity)", () => {
     const manifest = read("android/app/src/main/AndroidManifest.xml");
     const permissions = [...manifest.matchAll(/uses-permission android:name="([^"]+)"/g)].map((m) => m[1]);
     expect(permissions.sort()).toEqual([
+      "android.permission.CAMERA",
       "android.permission.FOREGROUND_SERVICE",
       "android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING",
       "android.permission.INTERNET",
+      "android.permission.MODIFY_AUDIO_SETTINGS",
       "android.permission.POST_NOTIFICATIONS",
       "android.permission.RECEIVE_BOOT_COMPLETED",
+      "android.permission.RECORD_AUDIO",
       "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
       "android.permission.USE_FULL_SCREEN_INTENT",
     ]);
@@ -36,19 +37,21 @@ describe("the Android app (a Trusted Web Activity)", () => {
     expect(manifest).toContain('android:allowBackup="false"');
   });
 
-  it("is a real app around the site: a live line, a call screen, the pairing door, and it only ever opens addresses of the site", () => {
+  it("is a real app: native screens, a live line, a call screen, and it only ever opens addresses of the site", () => {
     const manifest = read("android/app/src/main/AndroidManifest.xml");
-    for (const name of [".StreamService", ".CallActivity", ".PairActivity", ".BootReceiver", ".DeclineReceiver"]) expect(manifest, name).toContain(`android:name="${name}"`);
+    for (const name of [".StreamService", ".CallActivity", ".BootReceiver", ".DeclineReceiver"]) expect(manifest, name).toContain(`android:name="${name}"`);
     expect(manifest).toContain('android:foregroundServiceType="remoteMessaging"');
-    // the key reaches the app by an intent addressed to its own package (the site's side), and only the pairing screen takes it
-    expect(manifest).toContain('android:scheme="zaki"');
-    expect(read("src/components/app-link/app-link.tsx")).toContain("package=io.zakiai.workspace");
-    const config = read("android/app/src/main/java/io/zakiai/workspace/Config.java");
-    expect(config).toContain('BASE = "https://workspace.zakiai.io"');
+    const dir = "android/app/src/main/java/io/zakiai/workspace/";
+    for (const f of ["MainActivity.kt", "LoginScreen.kt", "ChatScreens.kt", "OtherScreens.kt", "Api.kt", "WebHost.kt"]) expect(existsSync(join(process.cwd(), dir + f)), f).toBe(true);
+    // the app's own web view keeps every address that is not the site out of its window
+    expect(read(dir + "WebHost.kt")).toContain("Config.BASE");
+    const config = read(dir + "Config.java");
     expect(config).toContain('path.startsWith("//")');
-    const service = read("android/app/src/main/java/io/zakiai/workspace/StreamService.java");
+    const service = read(dir + "StreamService.java");
     expect(service).toContain("/api/device/stream");
     expect(service).toContain("Authorization");
+    // writes carry the site's own origin, as the website's pages do (the server's origin guard)
+    expect(read(dir + "Api.kt")).toContain('.header("Origin", Config.BASE)');
   });
 
   it("has its icons, and its colour is the site's theme colour", () => {

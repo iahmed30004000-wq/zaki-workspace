@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the app's own dark paper: no white flash while it opens -->
+    <style name="Theme.Zaki" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/zk_surface</item>
+        <item name="android:statusBarColor">@color/zk_surface</item>
+        <item name="android:navigationBarColor">@color/zk_surface</item>
+    </style>
+</resources>

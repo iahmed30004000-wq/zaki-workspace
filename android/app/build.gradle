@@ -1,5 +1,7 @@
 plugins {
     id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+    id 'org.jetbrains.kotlin.plugin.serialization'
 }
 
 android {
@@ -10,14 +12,13 @@ android {
         applicationId 'io.zakiai.workspace'
         minSdk 26
         targetSdk 34
-        // raised by hand when the wrapper itself changes; the site updates itself
-        versionCode 3
-        versionName '2.0'
+        // raised by hand when the app itself changes
+        versionCode 4
+        versionName '3.0'
     }
 
-    // ONE fixed key for every build, so a new build installs over the old app and Chrome can prove the site belongs to the app
-    // (public/.well-known/assetlinks.json carries this key's fingerprint). The key file is NOT in git: the workflow writes android/zaki.p12 from the
-    // repository secret ANDROID_KEYSTORE_B64. Without it (a pull request from a fork, a build on a computer) the build falls back to the debug key.
+    // ONE fixed key for every build, so a new build installs over the old app. The key file is NOT in git: the workflow writes android/zaki.p12
+    // from the repository secret ANDROID_KEYSTORE_B64. Without it (a pull request from a fork, a build on a computer) the build falls back to the debug key.
     def zakiKey = file('../zaki.p12')
     signingConfigs {
         zaki {
@@ -43,8 +44,32 @@ android {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
     }
+    kotlinOptions {
+        jvmTarget = '17'
+    }
+    buildFeatures {
+        compose true
+    }
+    composeOptions {
+        // the Compose compiler that matches Kotlin 1.9.24
+        kotlinCompilerExtensionVersion '1.5.14'
+    }
+    packaging {
+        resources.excludes += '/META-INF/{AL2.0,LGPL2.1}'
+    }
 }
 
 dependencies {
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+    implementation 'androidx.core:core-ktx:1.13.1'
+    implementation 'androidx.activity:activity-compose:1.9.2'
+    implementation 'androidx.lifecycle:lifecycle-runtime-ktx:2.8.6'
+    implementation 'androidx.lifecycle:lifecycle-runtime-compose:2.8.6'
+    implementation platform('androidx.compose:compose-bom:2024.09.03')
+    implementation 'androidx.compose.ui:ui'
+    implementation 'androidx.compose.foundation:foundation'
+    implementation 'androidx.compose.material3:material3'
+    implementation 'androidx.compose.material:material-icons-core'
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
+    implementation 'org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3'
+    implementation 'com.squareup.okhttp3:okhttp:4.12.0'
 }

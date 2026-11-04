@@ -1,12 +1,16 @@
 # The Android app
 
-`android/` is a **Trusted Web Activity**: the site, full screen, in the phone's own Chrome, with its own icon and name («زاكي»).
-Nothing of the site is copied into it, so every page, feature and update comes from `https://workspace.zakiai.io` and the wrapper changes
-only when its icon, name or colour changes.
+`android/` is a **native app** (Kotlin + Jetpack Compose) for `https://workspace.zakiai.io`. It talks to the site's own API with the same session
+cookie the website uses (kept on the phone), so nothing of the site is duplicated on the server.
 
-Why a Trusted Web Activity and not a WebView: it is the phone's real Chrome, so web push, the microphone and camera of calls, the speech
-recognition of the guide and the installed-app behaviour all work exactly as in the browser. A WebView has none of speech recognition,
-push or screen sharing.
+- **Native screens:** sign-in, the chat (list, conversation, send, read marks, calls start), the notifications.
+- **Inside the app, in a web view** (same session, microphone/camera/file picker handled by the app): everything not native yet: «اليوم»،
+  «المهام»، المشاريع، الملفات… and the call page. A new feature of the website appears here by itself when the site is deployed; only a
+  new NATIVE screen or a change to a native one needs a new APK.
+- **The live line** (`StreamService`, `/api/device/stream`): notifications and the full-screen ring of a call arrive even when the app is closed.
+  Signing in registers the phone as a device of the person (`/api/me/app-devices`); signing out removes it.
+
+Making a page native is adding a screen in `android/app/src/main/java/io/zakiai/workspace/` that calls the page's API route.
 
 ## How it is built
 
@@ -26,12 +30,11 @@ The key is a **repository secret**, never a file in git: `ANDROID_KEYSTORE_B64` 
 `android/zaki.p12` before building; without the secret it falls back to the debug key and warns. `.gitignore` keeps the file out of git.
 Only the key's public fingerprint is in the repository (`public/.well-known/assetlinks.json`).
 
-## The address bar
+## Checked on an emulator
 
-Chrome hides the address bar of a Trusted Web Activity only when the site proves it belongs to the app (Digital Asset Links). The proof is
-`public/.well-known/assetlinks.json`, served by the site itself (the middleware lets it through without a sign-in), with the SHA-256
-fingerprint of the app key and the package name. If the key is ever replaced, the fingerprint there must be replaced too
-(`tests/android-app.test.ts` checks its shape). Chrome checks it when the app opens, so the site must be deployed before the new app is tried.
+`.github/workflows/android-smoke.yml` builds the app, starts an Android emulator, installs it, opens it, tries a WRONG sign-in against the real site
+(proving the round trip) and keeps the screenshots and the log as the run's artifact. It fails when the app crashes. It cannot sign in (no
+account is ever used), so the screens after sign-in are checked by hand.
 
 ## Changing it
 
