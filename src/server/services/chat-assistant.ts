@@ -87,7 +87,7 @@ const REFUSAL_KEY: Record<RefusalReason | "limited_user" | "limited_conversation
   limited_conversation: "chatai.err.rate_conversation",
 };
 
-function reasonOfProviderError(key: string): RefusalReason {
+export function reasonOfProviderError(key: string): RefusalReason {
   if (key === "assistant.err_key_rejected") return "key_rejected";
   if (key === "assistant.err_request") return "request";
   if (key === "assistant.err_rate_limited" || key === "assistant.err_overloaded") return "busy";

@@ -137,6 +137,8 @@ export interface ChatPromptOptions {
   /** A smaller window for a small local model (default: `WINDOW_MESSAGES` / `WINDOW_CHARS`). */
   windowMessages?: number;
   windowChars?: number;
+  /** A shorter cut for each message (default: `MESSAGE_CHARS`): the digest reads many conversations at once. */
+  messageChars?: number;
 }
 
 export interface ChatPrompt {
@@ -200,7 +202,7 @@ export function buildChatPrompt(rows: readonly ChatRow[], options: ChatPromptOpt
     const r = redactChatText(text, options.relax === true);
     for (const k of CHAT_MASK_KINDS) masked[k] += r.masked[k];
     text = r.text;
-    text = capText(text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), asking ? ASKING_MESSAGE_CHARS : MESSAGE_CHARS);
+    text = capText(text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), asking ? ASKING_MESSAGE_CHARS : (options.messageChars ?? MESSAGE_CHARS));
     return { row, line: `${labelOf(row)}: ${text}`, asking };
   });
 

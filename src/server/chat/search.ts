@@ -58,7 +58,7 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
         select: { id: true, body: true, createdAt: true, author: { select: { name: true } } },
       }),
   });
-  return rows.map((m) => ({
+  const hits: MessageHitDto[] = rows.map((m) => ({
     id: m.id,
     conversationId,
     conversationTitle: "",
@@ -66,6 +66,72 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
     at: m.createdAt.toISOString(),
     snippet: snippetOf(m.body, q),
   }));
+  // …and the messages whose pictures carry the words (the same conversation, already judged readable above)
+  const seen = new Set(hits.map((h) => h.id));
+  for (const pic of await pictureTextHits(ctx.orgId, search, Prisma.sql`m."conversationId" = ${conversationId}`, { conversationId }, 30)) {
+    for (const link of pic.file.chatLinks) {
+      const m = link.message;
+      if (!m || seen.has(m.id) || hits.length >= 30) continue;
+      seen.add(m.id);
+      hits.push({ id: m.id, conversationId, conversationTitle: "", authorName: m.author.name, at: m.createdAt.toISOString(), snippet: snippetOf(pic.text, q) });
+    }
+  }
+  return hits;
+}
+
+/**
+ * The messages whose PICTURES carry the words (`FileText`, «قراءة نص الصور»; off with the switch `imageOcr`), newest first. The pool is coarse
+ * (`poolMessages`: a SQL condition on the message alias `m`); the real rule is `messageWhere` on the message of each link, and the caller
+ * still asks `canRead` for the conversation of every hit, exactly as for a message that carries the words itself. Never a deleted message
+ * or a system line.
+ */
+async function pictureTextHits(
+  orgId: string,
+  search: NonNullable<ReturnType<typeof arabicSearch>>,
+  poolMessages: Prisma.Sql,
+  messageWhere: Prisma.ChatMessageWhereInput,
+  take: number,
+) {
+  if (!(await isFeatureOn(orgId, "imageOcr"))) return [];
+  return rankedSearch({
+    query: {
+      table: "FileText",
+      search,
+      rank: false,
+      where: [
+        Prisma.sql`"orgId" = ${orgId}`,
+        Prisma.sql`"fileId" IN (SELECT a."fileId" FROM "MessageAttachment" a JOIN "ChatMessage" m ON m."id" = a."messageId" WHERE m."orgId" = ${orgId} AND m."deletedAt" IS NULL AND m."kind" <> 'SYSTEM' AND ${poolMessages})`,
+      ],
+      order: Prisma.sql`"createdAt" DESC`,
+    },
+    take,
+    load: (ids) =>
+      db.fileText.findMany({
+        where: { id: { in: ids }, orgId, file: { orgId, deletedAt: null } },
+        select: {
+          id: true,
+          text: true,
+          file: {
+            select: {
+              chatLinks: {
+                where: { message: { orgId, ...searchable, ...messageWhere } },
+                select: {
+                  message: {
+                    select: {
+                      id: true,
+                      createdAt: true,
+                      conversationId: true,
+                      author: { select: { name: true } },
+                      conversation: { select: { kind: true, title: true, members: { take: 2, select: { userId: true, user: { select: { name: true } } } } } },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      }),
+  });
 }
 
 /** One reading check per conversation, whatever the number of hits in it. */
@@ -170,6 +236,24 @@ export async function searchChat(
       at: m.createdAt.toISOString(),
       snippet: snippetOf(m.body, q, 90),
     });
+  }
+  // the messages whose pictures carry the words: the same place, and the same reading check per conversation as for any message
+  const seen = new Set(messages.map((m) => m.id));
+  for (const pic of await pictureTextHits(ctx.orgId, search, Prisma.sql`m."conversationId" IN (SELECT "id" FROM "Conversation" WHERE "orgId" = ${ctx.orgId} AND ${placeSql})`, { conversation: { orgId: ctx.orgId, ...here } }, 60)) {
+    for (const link of pic.file.chatLinks) {
+      if (messages.length >= 8) break;
+      const m = link.message;
+      if (!m || seen.has(m.id) || !(await reads(m.conversationId))) continue;
+      seen.add(m.id);
+      messages.push({
+        id: m.id,
+        conversationId: m.conversationId,
+        conversationTitle: m.conversation.kind === "DM" ? (m.conversation.members.find((x) => x.userId !== ctx.userId)?.user.name ?? "") : (m.conversation.title ?? ""),
+        authorName: m.author.name,
+        at: m.createdAt.toISOString(),
+        snippet: snippetOf(pic.text, q, 90),
+      });
+    }
   }
   return { topics, messages };
 }

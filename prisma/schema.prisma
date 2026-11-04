@@ -379,11 +379,27 @@ model StoredFile {
   cards        Card[]              @relation("CardFile")
   coverOf      Card[]              @relation("CardCover")
   cardLinks    CardAttachment[]    @relation("CardAttachmentFile")
+  // the words read out of a picture by the owner's own vision service (`imageOcr`): none until somebody asks
+  text         FileText?
 
   @@index([orgId, familyId, isLatest])
   @@index([familyId])
   @@index([orgId, purpose])
   @@index([orgId, workspaceId])
+}
+
+// «قراءة نص الصور» (src/server/services/image-ocr.ts): the text of one picture, at most 20 000 characters. Search reads it
+// (src/server/services/files.ts, src/server/chat/search.ts) under the SAME visibility rule as the file or the message.
+model FileText {
+  id        String   @id @default(cuid())
+  fileId    String   @unique
+  orgId     String
+  text      String
+  createdAt DateTime @default(now())
+
+  file StoredFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 // ---------- internal chat (Phase: real-time rooms over the org boundary) ----------
@@ -3093,4 +3109,19 @@ model SearchEmbedding {
   @@index([orgId, kind, workspaceId, createdAt])
   @@index([orgId, kind, conversationId, createdAt])
   @@index([conversationId])
+}
+
+// «شو فاتني؟»: the last digest written for a person on «اليوم», kept for 3 hours so the page never asks the model twice for the same
+// morning. One row per person (replaced when a new one is written). Holds the model's short answer only, never the material it read.
+// No foreign keys on purpose (like AiUsage): a cache row is disposable.
+model DigestCache {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  text      String
+  forDay    String
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId])
+  @@index([createdAt])
 }

@@ -19,7 +19,7 @@ interface SearchResponse {
   topics?: { id: string; title: string; emoji: string | null }[];
   messages?: { id: string; conversationId: string; conversationTitle: string; authorName: string; snippet: string; semantic?: boolean }[];
   people?: { id: string; name: string }[];
-  files?: { id: string; name: string }[];
+  files?: { id: string; name: string; snippet?: string }[];
   /** the space's text documents, by title */
   documents?: { id: string; title: string }[];
 }
@@ -198,7 +198,8 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
     ...(search.data?.files ?? []).map((file) => ({
       key: `f:${file.id}`,
       main: file.name,
-      sub: t("pal.file"),
+      // a picture found by the words inside it shows a piece of them (the server sends `snippet` only then)
+      sub: file.snippet ? `${t("pal.file")} · ${file.snippet}` : t("pal.file"),
       href: `/files#file-${file.id}`,
       icon: <FileText aria-hidden="true" className="size-4" />,
     })),
