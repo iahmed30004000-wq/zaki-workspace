@@ -16,6 +16,10 @@ import { PdfViewer } from "@/components/files/pdf-viewer";
 import { StoragePanel } from "@/components/files/storage-panel";
 import { StorageWarning, type StorageState } from "@/components/files/storage-warning";
 import { Input } from "@/components/ui/input";
+import { ImageText } from "@/components/image-text";
+
+/** The pictures «اقرا النص» reads (the server judges the bytes again). */
+const OCR_MIMES = new Set(["image/png", "image/jpeg", "image/webp"]);
 
 interface FileRow {
   id: string;
@@ -62,7 +66,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
 
   const list = useQuery({
     queryKey: ["files", "list"],
-    queryFn: () => apiGet<{ files: FileRow[]; onDrive?: boolean; storage?: StorageState; space?: { id: string; name: string } | null }>("/api/files"),
+    queryFn: () => apiGet<{ files: FileRow[]; ocr?: boolean; onDrive?: boolean; storage?: StorageState; space?: { id: string; name: string } | null }>("/api/files"),
   });
 
   // a search hit (`/files#file-<id>`): once the list is here, bring that file into view (the browser's own jump ran
@@ -237,6 +241,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
                   <img src={`/api/files/${f.id}/raw`} alt={f.name} className="h-28 w-full rounded-lg object-cover" loading="lazy" />
                 </a>
               )}
+              {list.data?.ocr === true && OCR_MIMES.has(f.mimeType) && <ImageText endpoint={`/api/files/${encodeURIComponent(f.id)}/text`} />}
             </li>
           ))}
         </ul>

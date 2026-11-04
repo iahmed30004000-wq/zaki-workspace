@@ -29,6 +29,8 @@ const COLUMN = {
   StoredFile: "name",
   User: "name",
   Document: "title",
+  // the words read out of a picture («قراءة نص الصور»): the pool only; the caller's own access where decides, as for every table
+  FileText: "text",
 } as const;
 export type SearchTable = keyof typeof COLUMN;
 

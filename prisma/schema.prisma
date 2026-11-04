@@ -379,11 +379,27 @@ model StoredFile {
   cards        Card[]              @relation("CardFile")
   coverOf      Card[]              @relation("CardCover")
   cardLinks    CardAttachment[]    @relation("CardAttachmentFile")
+  // the words read out of a picture by the owner's own vision service (`imageOcr`): none until somebody asks
+  text         FileText?
 
   @@index([orgId, familyId, isLatest])
   @@index([familyId])
   @@index([orgId, purpose])
   @@index([orgId, workspaceId])
+}
+
+// «قراءة نص الصور» (src/server/services/image-ocr.ts): the text of one picture, at most 20 000 characters. Search reads it
+// (src/server/services/files.ts, src/server/chat/search.ts) under the SAME visibility rule as the file or the message.
+model FileText {
+  id        String   @id @default(cuid())
+  fileId    String   @unique
+  orgId     String
+  text      String
+  createdAt DateTime @default(now())
+
+  file StoredFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 // ---------- internal chat (Phase: real-time rooms over the org boundary) ----------
