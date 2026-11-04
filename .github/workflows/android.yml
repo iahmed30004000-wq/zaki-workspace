@@ -1,6 +1,6 @@
 # THE ANDROID APP IS BUILT HERE, NOT ON ANYBODY'S COMPUTER.
 #
-# `android/` is a tiny Trusted Web Activity: the site in a full-screen window with its own icon. Nothing of the site is copied into it, so
+# `android/` is a native app (Kotlin + Compose) on the site's own API; the rest of the site opens inside it in a web view, so
 # every page and every update comes from https://workspace.zakiai.io and this file is run only when the WRAPPER changes (or by hand).
 #
 # The APK is signed with ONE fixed key kept as the repository secret ANDROID_KEYSTORE_B64 (never a file in git): it makes every new build install over the
