@@ -24,7 +24,8 @@ const nextConfig = {
     // `sharp` is native (it needs child_process/detect-libc): bundling it breaks the
     // instrumentation compile with "Module not found: Can't resolve 'child_process'".
     // `nodemailer` (registration mail) is Node-only too: it needs stream/net/tls.
-    serverComponentsExternalPackages: ["bcryptjs", "@prisma/client", "pg", "sharp", "nodemailer"],
+    // `imapflow` and `mailparser` («بريد يصير مهمة») are Node-only as well (net/tls/zlib/string_decoder, iconv-lite, libmime).
+    serverComponentsExternalPackages: ["bcryptjs", "@prisma/client", "pg", "sharp", "nodemailer", "imapflow", "mailparser"],
   },
   /**
    * Native/server-only modules must stay OUTSIDE the webpack graph. `sharp` is a native
@@ -54,6 +55,8 @@ const nextConfig = {
           "pg-connection-string": "commonjs pg-connection-string",
           bcryptjs: "commonjs bcryptjs",
           nodemailer: "commonjs nodemailer",
+          imapflow: "commonjs imapflow",
+          mailparser: "commonjs mailparser",
         },
       ];
     } else {
@@ -74,6 +77,9 @@ const nextConfig = {
         bcryptjs: false,
         // reached through instrumentation → realtime purge → registration → mail (Node-only)
         nodemailer: false,
+        // reached through instrumentation → job runner → mail-to-task (the mailbox reader): Node-only
+        imapflow: false,
+        mailparser: false,
         fs: false,
         path: false,
         net: false,

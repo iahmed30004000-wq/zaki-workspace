@@ -1,4 +1,3 @@
-import { simpleParser } from "mailparser";
 import { MAIL_LIMITS, excerptOf } from "@/lib/mail-to-task";
 
 /**
@@ -18,6 +17,8 @@ export async function bodyToText(type: "text/plain" | "text/html" | null, body: 
   const text = body.length > MAX_PART_CHARS ? body.slice(0, MAX_PART_CHARS) : body;
   if (type === "text/plain") return excerptOf(text, MAIL_LIMITS.excerpt * 2);
   try {
+    // loaded here, never at the top of the file: a Node-only package must not be walked by the bundler
+    const { simpleParser } = await import("mailparser");
     const wrapped = Buffer.from(`Content-Type: text/html; charset=utf-8\r\nContent-Transfer-Encoding: 8bit\r\n\r\n${text}`, "utf8");
     // `skipHtmlToText` stays off (that is the point); `skipImageLinks`: an inline picture is not text; no attachment is kept
     const parsed = await simpleParser(wrapped, { skipImageLinks: true, skipTextToHtml: true, skipTextLinks: true, maxHtmlLengthToParse: MAX_PART_CHARS });

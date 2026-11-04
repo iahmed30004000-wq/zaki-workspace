@@ -1,6 +1,6 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { ImapFlow, type MailboxLockObject, type MessageStructureObject } from "imapflow";
+import type { ImapFlow, MailboxLockObject, MessageStructureObject } from "imapflow";
 import { isPrivateAddress } from "@/server/net-guard";
 
 /**
@@ -179,7 +179,9 @@ export class ImapMailSource implements MailSource {
   async open(): Promise<MailBoxInfo> {
     const a = this.account;
     const address = await publicAddressOf(a.host);
-    const client = new ImapFlow({
+    // loaded here, never at the top of the file: a Node-only package must not be walked by the bundler (instrumentation, edge pass)
+    const { ImapFlow: Imap } = await import("imapflow");
+    const client = new Imap({
       host: address,
       port: a.port,
       secure: a.secure,
