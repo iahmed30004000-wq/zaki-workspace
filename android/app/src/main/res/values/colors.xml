@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- the default theme's surface colour (the same as the site's manifest theme_color) -->
+    <color name="zk_surface">#050F1F</color>
+</resources>
