@@ -13,53 +13,38 @@ adb shell am start -n "$PKG/.MainActivity"
 sleep 12
 adb exec-out screencap -p > "$OUT/1-opened.png"
 
-# the sign-in screen must be there: dump the screen and look for its words
-dump() { adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1; adb pull /sdcard/ui.xml "$OUT/$1" >/dev/null 2>&1; }
-dump ui-1.xml
-if ! grep -q "تسجيل الدخول" "$OUT/ui-1.xml"; then
+# the screen's words, read from an accessibility dump (it is retried: the system sometimes says «could not get idle state»)
+dump() {
+  for i in 1 2 3 4 5 6; do
+    if adb shell uiautomator dump /sdcard/ui.xml 2>&1 | grep -q "dumped to"; then adb pull /sdcard/ui.xml "$OUT/$1" >/dev/null 2>&1 && return 0; fi
+    sleep 2
+  done
+  return 1
+}
+dump ui-1.xml || echo "no dump of the first screen"
+if [ -f "$OUT/ui-1.xml" ] && ! grep -q "تسجيل الدخول" "$OUT/ui-1.xml"; then
   echo "the sign-in screen did not appear"
   adb logcat -d > "$OUT/logcat.txt"
   exit 1
 fi
 
-# centre of the n-th text field and of the sign-in button, from the dump (python3 is on the runner)
-centre() {
-  python3 - "$OUT/$1" "$2" "$3" <<'PY'
-import re, sys
-xml = open(sys.argv[1], encoding="utf-8").read()
-kind, n = sys.argv[2], int(sys.argv[3])
-nodes = re.findall(r'<node [^>]*>', xml)
-def box(node):
-    m = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node)
-    x1, y1, x2, y2 = map(int, m.groups())
-    return (x1 + x2) // 2, (y1 + y2) // 2
-if kind == "edit":
-    hits = [box(x) for x in nodes if 'class="android.widget.EditText"' in x]
-else:
-    hits = [box(x) for x in nodes if 'text="دخول"' in x and 'clickable="true"' in x] or [box(x) for x in nodes if 'text="دخول"' in x]
-print(f"{hits[n][0]} {hits[n][1]}")
-PY
-}
-
-read -r X1 Y1 <<<"$(centre ui-1.xml edit 0)"
-adb shell input tap "$X1" "$Y1"; sleep 1
+# the Pixel 6 screen is 1080x2400: the two fields and the button sit where the first screenshot shows them
+adb shell input tap 540 1270; sleep 1
 adb shell input text "nobody@example.com"; sleep 1
-read -r X2 Y2 <<<"$(centre ui-1.xml edit 1)"
-adb shell input tap "$X2" "$Y2"; sleep 1
+adb shell input tap 540 1470; sleep 1
 adb shell input text "wrong-password-123"; sleep 1
+adb exec-out screencap -p > "$OUT/1b-typed.png"
 adb shell input keyevent 4   # closes the keyboard
 sleep 1
-dump ui-2.xml
-read -r X3 Y3 <<<"$(centre ui-2.xml button 0)"
-adb shell input tap "$X3" "$Y3"
+adb shell input tap 540 1665
 sleep 8
 adb exec-out screencap -p > "$OUT/2-wrong-password.png"
-dump ui-3.xml
+dump ui-3.xml || echo "no dump of the last screen"
 adb logcat -d > "$OUT/logcat.txt"
 
 STATUS=0
 # the round trip to the real server worked: it answered «wrong user name or password»
-if ! grep -q "غير صحيحة" "$OUT/ui-3.xml"; then
+if [ ! -f "$OUT/ui-3.xml" ] || ! grep -q "غير صحيحة" "$OUT/ui-3.xml"; then
   echo "the app did not show the server's answer to a wrong password"
   STATUS=1
 fi

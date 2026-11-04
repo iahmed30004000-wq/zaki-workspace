@@ -8,8 +8,6 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -26,6 +24,7 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -69,7 +68,8 @@ class MainActivity : ComponentActivity() {
             ZakiTheme {
                 // the app reads right to left whatever language the phone is in
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
-                    Box(Modifier.fillMaxSize().background(Zk.Surface)) {
+                    // a Surface gives every Text the theme's text colour (a bare Box leaves it black on the dark paper)
+                    Surface(modifier = Modifier.fillMaxSize(), color = Zk.Surface, contentColor = Zk.Text) {
                         ZakiApp(state, web, askNotifications = { askNotificationPermission() }, onSignedIn = { next -> afterSignIn(next) }, onLogout = { logout() })
                     }
                 }
