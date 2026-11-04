@@ -216,6 +216,8 @@ export interface ConversationDto {
     canMakeTicket?: boolean;
     /** may set a reminder for himself on a message (the «ذكّرني» switch is on; not in silent oversight) */
     canRemind?: boolean;
+    /** may translate a message (`messageTranslate` and the assistant are on, staff, no guest in the conversation); absent: no «ترجم» item */
+    canTranslate?: boolean;
     /** may write «@الكل» here: a topic, not a guest, and may post */
     canMentionAll?: boolean;
     /** may start a poll here: a topic, not a guest, and may post */
@@ -241,6 +243,10 @@ export interface ConversationDto {
   voiceNotes?: boolean;
   /** «كتابة نص الرسالة الصوتية» (`voiceTranscript`): the switch is on AND a speech-to-text service is set up; absent or false: no «اكتب النص» button */
   voiceTranscript?: boolean;
+  /** «قراءة نص الصور» (`imageOcr`): the switch is on, a vision service is set up AND no guest can reach this conversation; absent or false: no «اقرا النص» button under a picture */
+  imageOcr?: boolean;
+  /** «لخّصلي» (`morningDigest`): the switches are on, a provider is ready, and this is a topic of staff; absent or false: no button */
+  digest?: boolean;
   /** pagination: the oldest message id on the page; pass it as `before` for the next page. */
   oldestId?: string | null;
 }
@@ -314,6 +320,8 @@ export interface MessageHitDto {
   at: string;
   /** a piece of the message around the words searched */
   snippet: string;
+  /** found by meaning, not by the words («بحث بالمعنى»): drawn as «بمعنى قريب» */
+  semantic?: boolean;
 }
 
 export interface TopicHitDto {

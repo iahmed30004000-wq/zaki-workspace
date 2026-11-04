@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "watchConvert", "emailToTask"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -181,10 +181,20 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // its controls), takes him to pages, points at things and explains them out loud, and clicks or types ONLY after he presses «نفّذ». Owner only.
   // Off: no button, no voice call, the route answers not found.
   siteGuide: true,
+  // «شو فاتني؟» (src/server/services/digest.ts, src/components/digest): a short card on «اليوم» written by the owner's assistant — what changed in the
+  // person's own tasks and in the topics they missed — and a «لخّصلي» button inside a topic. Only what the person may already read, filtered like the
+  // chat assistant, generated when the card is opened and kept 3 hours. OFF until the owner turns it on (it sends redacted work text to the model);
+  // needs «مساعد المالك» and «قراءة الدردشات للمساعد» on and a ready provider. Off: no card, no button, the routes answer not found.
+  morningDigest: false,
   // «حوّل» in «نتفرّج سوا» (src/server/watch/convert.ts, src/components/watch/watch-comments.tsx): a comment of a session becomes a task, an idea
   // or a project, and the comment shows what it became. Off: the action is not drawn, the doors refuse a link back to a comment, and the
   // room itself and what was already made stay. Harmless UI: on.
   watchConvert: true,
+  // «ترجمة رسالة» (src/server/services/message-translate.ts): a «ترجم» item in the message menu turns a text message into Arabic (or English when it is
+  // mostly Arabic) with the owner's assistant model, after the privacy filter. Needs «مساعد المالك» and «قراءة الدردشات للمساعد» on and a ready model; staff only,
+  // never in a conversation a guest can reach. The translation is shown to the asker only and is never stored. Off by default: the message text leaves for the
+  // model. Off: no item, the route answers «not found».
+  messageTranslate: false,
   // «عدّ صفحات الـPDF» (src/server/services/files.ts): the viewer shows «12 صفحة». Off: the file is not even read for it (the count
   // reads the whole file into memory, up to 15 MB) and the viewer shows no count; the file itself opens as before.
   pdfPageCount: true,
@@ -210,6 +220,18 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // tab is «لوحة المالك» again, «التقارير» is its own page again for the owner too, and /api/control-panel answers «not found»; it stores
   // nothing of its own, so nothing is lost.
   controlPanel: true,
+  // «بحث بالمعنى» (src/server/services/search-semantic.ts, search-embed-index.ts): the search box also finds a message or task by its MEANING («علب التغليف» finds «الكراتين»),
+  // marked «بمعنى قريب» and always after the hits the words found. The text of messages and tasks (after the chat filter, never a direct chat,
+  // never a conversation or space a guest can reach) is sent to the embeddings service of the server (env EMBED_URL, EMBED_MODEL, EMBED_API_KEY); the
+  // vectors stay in the database. OFF by default: text leaves the app. Off: the search is the word search exactly as before, nothing is sent,
+  // indexed or queried; the vectors already made stay and come back with the switch.
+  semanticSearch: false,
+  // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
+  // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),
+  // keeps the text it reads (FileText) under the picture, and search finds the picture by those words under the file's own visibility rule.
+  // Off by default: the picture leaves the app for that service. Off: no button, the routes answer «not found», nothing is sent and search
+  // ignores the kept texts; the texts already read stay.
+  imageOcr: false,
   // «بريد يصير مهمة» (src/server/services/mail-to-task.ts): the app reads the company mailbox (the owner types its app password into the card himself,
   // stored encrypted) and each new mail becomes one task: the subject and a short plain-text excerpt, never an attachment, nothing sent to any model, no
   // mail deleted, moved or answered. OFF until the owner turns it on. Off: the job reads nothing, the settings and the connection test answer «not found»

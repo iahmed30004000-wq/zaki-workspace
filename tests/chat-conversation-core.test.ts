@@ -12,6 +12,6 @@ describe("conversation UI core", () => {
     expect(html).toContain("role=\"log\"");
   });
   it("keeps menu actions in one ordered list; reactions are the emoji bar above it, delete comes last", () => {
-    expect(messageMenuItems.map(item => item.id)).toEqual(["reply", "pin", "forward", "edit", "note", "copy", "task", "ticket", "remind", "delete"]);
+    expect(messageMenuItems.map(item => item.id)).toEqual(["reply", "pin", "forward", "edit", "note", "copy", "task", "ticket", "remind", "translate", "delete"]);
   });
 });

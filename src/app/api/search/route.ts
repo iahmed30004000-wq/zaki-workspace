@@ -13,6 +13,8 @@ import { arabicSearch, cleanQuery } from "@/lib/search/arabic";
 import { rankedSearch, sqlIn } from "@/server/search/ranked";
 import { Prisma } from "@prisma/client";
 import { isFeatureOn } from "@/server/services/features";
+import { semanticHits, SEMANTIC_MESSAGES, SEMANTIC_TASKS } from "@/server/services/search-semantic";
+import { mergeHits } from "@/server/services/search-embeddings";
 
 const NOTHING = { tasks: [], projects: [], topics: [], messages: [], people: [], files: [], documents: [] };
 
@@ -58,6 +60,8 @@ export async function GET(req: Request) {
     const ctx = { orgId: actor.orgId, userId: actor.userId, orgRole: actor.role };
     const taskSpaces = actorCanWork(actor, "tasks.view") ? workspaceIds : [];
     const projectSpaces = actorCanWork(actor, "projects.view") ? workspaceIds : [];
+    // «بحث بالمعنى»: asked at the same time as the words, and only ever AFTER them (the switch, the service and the person are judged inside)
+    const byMeaning = semanticHits({ actor, q, place, scope, taskSpaces });
     const [tasks, projects, chat, people, files, documents] = await Promise.all([
       // the pool of ids by spelling (src/server/search/ranked.ts), then the SAME access where as ever on those ids
       taskSpaces.length === 0
@@ -138,14 +142,19 @@ export async function GET(req: Request) {
       place ? searchDocuments(actor, place.spaceId, search) : [],
     ]);
 
+    const meaning = await byMeaning;
+    const mergedTasks = mergeHits(tasks, meaning.tasks, { cap: 8, extra: SEMANTIC_TASKS });
+    const mergedMessages = mergeHits(chat.messages, meaning.messages, { cap: 8, extra: SEMANTIC_MESSAGES });
+
     return NextResponse.json({
-      tasks: tasks.map((t) => ({
+      tasks: mergedTasks.map(({ hit: t, semantic }) => ({
         id: t.id,
         key: `${t.organization.keyPrefix}-${t.number}`,
         title: t.title,
         priority: t.priority,
         projectId: t.project.id,
         projectName: t.project.name,
+        ...(semantic ? { semantic: true } : {}),
       })),
       projects: projects.map((p) => ({
         id: p.id,
@@ -154,7 +163,7 @@ export async function GET(req: Request) {
         workspaceName: p.workspace.name,
       })),
       topics: chat.topics,
-      messages: chat.messages,
+      messages: mergedMessages.map(({ hit }) => hit),
       people: people.map((m) => m.user),
       files,
       documents,

@@ -379,11 +379,27 @@ model StoredFile {
   cards        Card[]              @relation("CardFile")
   coverOf      Card[]              @relation("CardCover")
   cardLinks    CardAttachment[]    @relation("CardAttachmentFile")
+  // the words read out of a picture by the owner's own vision service (`imageOcr`): none until somebody asks
+  text         FileText?
 
   @@index([orgId, familyId, isLatest])
   @@index([familyId])
   @@index([orgId, purpose])
   @@index([orgId, workspaceId])
+}
+
+// «قراءة نص الصور» (src/server/services/image-ocr.ts): the text of one picture, at most 20 000 characters. Search reads it
+// (src/server/services/files.ts, src/server/chat/search.ts) under the SAME visibility rule as the file or the message.
+model FileText {
+  id        String   @id @default(cuid())
+  fileId    String   @unique
+  orgId     String
+  text      String
+  createdAt DateTime @default(now())
+
+  file StoredFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
 }
 
 // ---------- internal chat (Phase: real-time rooms over the org boundary) ----------
@@ -431,6 +447,8 @@ model Conversation {
   whiteboard   Whiteboard?
   calls        Call[]
   watch        WatchSession?
+  // «بحث بالمعنى»: the vectors of this topic's messages (src/server/services/search-embed-index.ts)
+  searchEmbeddings SearchEmbedding[]
 
   @@unique([orgId, dmKey])
   @@unique([spaceId, systemKey])
@@ -937,6 +955,8 @@ model Workspace {
   checkinConfig CheckinConfig?
   checkinRounds CheckinRound[]
   apiTokens     ApiToken[]
+  // «بحث بالمعنى»: the vectors of this space's tasks
+  searchEmbeddings SearchEmbedding[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, systemKey])
@@ -3106,4 +3126,48 @@ model MailTaskSeen {
   createdAt DateTime @default(now())
 
   @@unique([orgId, messageId])
+}
+
+// ---------- «بحث بالمعنى»: the vectors of messages and tasks (src/server/services/search-embed*.ts) ----------
+
+// One vector per message or task, kept as plain numbers (NOT the pgvector extension: a failing CREATE EXTENSION once stopped a deploy); the
+// similarity is computed in the app over a bounded candidate set. The text is never stored here, only its hash (to know when it changed).
+// `conversationId` is set for a message, `workspaceId` for a task; deleting the conversation or the space deletes its vectors.
+model SearchEmbedding {
+  id             String   @id @default(cuid())
+  orgId          String
+  // message | task
+  kind           String
+  refId          String
+  conversationId String?
+  workspaceId    String?
+  // unit length (cosine = dot product)
+  vector         Float[]
+  // the embeddings model that made it: a vector of another model is never compared with this one
+  model          String
+  textHash       String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  workspace    Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, refId])
+  @@index([orgId, kind, workspaceId, createdAt])
+  @@index([orgId, kind, conversationId, createdAt])
+  @@index([conversationId])
+}
+
+// «شو فاتني؟»: the last digest written for a person on «اليوم», kept for 3 hours so the page never asks the model twice for the same
+// morning. One row per person (replaced when a new one is written). Holds the model's short answer only, never the material it read.
+// No foreign keys on purpose (like AiUsage): a cache row is disposable.
+model DigestCache {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  text      String
+  forDay    String
+  createdAt DateTime @default(now())
+
+  @@unique([orgId, userId])
+  @@index([createdAt])
 }

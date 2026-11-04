@@ -87,7 +87,7 @@ const REFUSAL_KEY: Record<RefusalReason | "limited_user" | "limited_conversation
   limited_conversation: "chatai.err.rate_conversation",
 };
 
-function reasonOfProviderError(key: string): RefusalReason {
+export function reasonOfProviderError(key: string): RefusalReason {
   if (key === "assistant.err_key_rejected") return "key_rejected";
   if (key === "assistant.err_request") return "request";
   if (key === "assistant.err_rate_limited" || key === "assistant.err_overloaded") return "busy";
@@ -116,7 +116,7 @@ export async function chatAssistantOffered(orgId: string): Promise<boolean> {
  * Does the conversation have a guest among the people it reaches? Its own rows, and for an open topic its whole space; a guest by the
  * company's rank, or by the space's. The check over-approximates on purpose (a «مقطع» topic counts its space): a doubt is a refusal.
  */
-export async function conversationHasGuest(facts: ConversationFacts, conversationId: string, orgId: string): Promise<boolean> {
+export async function conversationHasGuest(facts: Pick<ConversationFacts, "kind" | "spaceId" | "restricted">, conversationId: string, orgId: string): Promise<boolean> {
   const rows = await db.conversationMember.findMany({ where: { conversationId }, select: { userId: true } });
   const ids = new Set(rows.map((r) => r.userId));
   if (facts.spaceId && facts.kind === "TOPIC") {

@@ -17,9 +17,12 @@
  *   (`me.canRemind`: the server sets it from the switch and never in silent oversight; the reminder itself is checked
  *   again when it is set, src/server/services/reminders.ts).
  *
+ * - translate: «ترجم», a text message, where the server says the person may (`me.canTranslate`: the switch `messageTranslate` and the
+ *   assistant are on, staff, no guest in the conversation; the route checks all of it again).
+ *
  * Nothing at all on a deleted message, a system line, or for the owner in silent oversight.
  */
-export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "remind";
+export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "remind" | "translate";
 
 export interface MessageMenuContext {
   mine: boolean;
@@ -38,6 +41,8 @@ export interface MessageMenuContext {
   canMakeTicket?: boolean;
   /** may set a reminder on this message (`me.canRemind`: the «ذكّرني» switch is on; absent: no) */
   canRemind?: boolean;
+  /** may translate this message (`me.canTranslate`; absent: no) */
+  canTranslate?: boolean;
 }
 
 /** `labelKey`: a key of ar.chat-conversation.json (the strings live there, not here). */
@@ -53,6 +58,7 @@ export const messageMenuItems: MessageMenuAction[] = [
   { id: "task", labelKey: () => "chatc.menu.task", available: (c) => c.hasText && !!c.canMakeWork && c.canMakeTask !== false },
   { id: "ticket", labelKey: () => "chatc.menu.ticket", available: (c) => c.hasText && !!c.canMakeWork && c.canMakeTicket !== false },
   { id: "remind", labelKey: () => "chatc.menu.remind", available: (c) => !!c.canRemind },
+  { id: "translate", labelKey: () => "translate.menu", available: (c) => !!c.canTranslate && c.kind === "TEXT" && c.hasText },
   { id: "delete", labelKey: () => "chatc.menu.delete", danger: true, available: (c) => c.mine || c.canModerate },
 ];
 
