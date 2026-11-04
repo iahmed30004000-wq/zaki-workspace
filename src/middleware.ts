@@ -19,7 +19,7 @@ import { safeNextPath } from "@/lib/safe-next";
  * 3. API routes enforce auth themselves (`requireUser` answers 403 auth.onboarding_required for
  *    somebody who has not finished the onboarding).
  */
-const MACHINE_PATHS = ["/api/integrations/n8n/inbound", "/api/v1", "/api/health"];
+const MACHINE_PATHS = ["/api/integrations/n8n/inbound", "/api/v1", "/api/health", "/api/voice-agent/turn"];
 const PUBLIC_PATHS = [
   "/login",
   "/register",

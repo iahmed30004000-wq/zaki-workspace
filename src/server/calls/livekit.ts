@@ -76,6 +76,23 @@ export async function passFor(server: CallsServer, opts: { callId: string; userI
   );
 }
 
+/** The identity the assistant joins a room with (never a user id: people's identities are user ids). */
+export const ASSISTANT_IDENTITY = "assistant";
+
+/** The pass the voice agent (the assistant) joins ONE call's room with: it listens and speaks, nothing else; valid for five minutes. */
+export async function assistantPass(server: CallsServer, callId: string): Promise<string> {
+  return sign(
+    server,
+    {
+      sub: ASSISTANT_IDENTITY,
+      name: "المساعد",
+      metadata: JSON.stringify({ bot: true }),
+      video: { room: roomOf(callId), roomJoin: true, canPublish: true, canSubscribe: true, canPublishData: true },
+    },
+    300,
+  );
+}
+
 // ---------- RoomService (server to server) ----------
 
 type Fetch = typeof fetch;

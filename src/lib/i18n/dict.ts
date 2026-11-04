@@ -67,6 +67,7 @@ import digest from "./ar.digest.json";
 import watchConvert from "./ar.watch-convert.json";
 import backup from "./ar.backup.json";
 import mailToTask from "./ar.mail-to-task.json";
+import assistantMeetings from "./ar.assistant-meetings.json";
 import appDevices from "./ar.app-devices.json";
 
 /**
@@ -111,6 +112,7 @@ export const AR: Record<string, string> = {
   ...digest,
   ...watchConvert,
   ...mailToTask,
+  ...assistantMeetings,
   ...appDevices,
   ...libraryDrive,
   ...instant,
