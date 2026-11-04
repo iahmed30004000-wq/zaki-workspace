@@ -58,6 +58,7 @@ import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
 import voiceTranscript from "./ar.voice-transcript.json";
+import semanticSearch from "./ar.semantic-search.json";
 import imageOcr from "./ar.image-ocr.json";
 import messageTranslate from "./ar.message-translate.json";
 import assistantChat from "./ar.assistant-chat.json";
@@ -100,6 +101,7 @@ export const AR: Record<string, string> = {
   ...features,
   ...economy,
   ...voiceTranscript,
+  ...semanticSearch,
   ...imageOcr,
   ...messageTranslate,
   ...assistantChat,

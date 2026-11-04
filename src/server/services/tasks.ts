@@ -19,6 +19,7 @@ import {
 import { onTaskCompleted } from "./recurrence-spawn";
 import { assertRequiredFilled } from "./custom-fields";
 import { afterTaskEvents, type TaskRuleEvent } from "./task-rules-hook";
+import { queueSync } from "@/server/services/search-embed-index";
 
 export interface ActorContext {
   userId: string;
@@ -201,6 +202,8 @@ export async function createTask(actor: ActorContext, input: CreateTaskInput): P
   await assertMemberCan(actor, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
   const made = await db.$transaction((tx) => createTaskInTx(tx, actor, input));
   await notifyCreatedRequests(made, actor);
+  // «بحث بالمعنى»: its vector is made in the background (a no-op without the switch and a service)
+  queueSync(actor.orgId, "task", made.id);
   // «القواعد التلقائية»: «لما تنعمل مهمة»: after the commit, never in the way (a rule's own task creation never starts a rule)
   await afterTaskEvents([{ trigger: "CREATED", taskId: made.id }]);
   return made;
@@ -536,6 +539,8 @@ export async function updateTask(
   });
   if (saved.assignRequest) await notifyAssignRequest(taskId, actor.userId, saved.assignRequest.toUserId);
   for (const r of saved.coRequests) await notifyAssignRequest(taskId, actor.userId, r.toUserId);
+  // «بحث بالمعنى»: the vector follows the new words (or goes when the task is archived)
+  if (data.title !== undefined || data.description !== undefined || data.archived !== undefined) queueSync(actor.orgId, "task", taskId);
   return saved;
 }
 

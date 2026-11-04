@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
  * «الميزات»: the owner switches each feature on or off. Off, the feature is gone from every screen and its doors
  * answer «not found»; what it stored is kept, and switching it on brings it all back.
  */
-export function FeatureSwitches({ initial }: { initial: { key: FeatureKey; on: boolean }[] }) {
+export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: FeatureKey; on: boolean }[]; notReady?: FeatureKey[] }) {
   const { t } = useI18n();
   const toast = useOptionalToast();
   const router = useRouter();
@@ -100,9 +100,11 @@ export function FeatureSwitches({ initial }: { initial: { key: FeatureKey; on: b
               <div className="min-w-0">
                 <p className="text-sm font-medium text-fg">
                   {t(`features.${f.key}.name`)}
+                  {notReady.includes(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("semantic.not_ready")}</span> : null}
                   {held.has(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("economy.held")}</span> : null}
                 </p>
                 <p className="text-xs text-muted">{t(`features.${f.key}.hint`)}</p>
+                {notReady.includes(f.key) ? <p className="text-xs text-warn">{t("semantic.not_ready_hint")}</p> : null}
               </div>
               <div className={cn(held.has(f.key) && "opacity-50")}>
                 {toggle(f)}

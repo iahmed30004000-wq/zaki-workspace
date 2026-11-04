@@ -447,6 +447,8 @@ model Conversation {
   whiteboard   Whiteboard?
   calls        Call[]
   watch        WatchSession?
+  // «بحث بالمعنى»: the vectors of this topic's messages (src/server/services/search-embed-index.ts)
+  searchEmbeddings SearchEmbedding[]
 
   @@unique([orgId, dmKey])
   @@unique([spaceId, systemKey])
@@ -953,6 +955,8 @@ model Workspace {
   checkinConfig CheckinConfig?
   checkinRounds CheckinRound[]
   apiTokens     ApiToken[]
+  // «بحث بالمعنى»: the vectors of this space's tasks
+  searchEmbeddings SearchEmbedding[]
 
   @@unique([organizationId, slug])
   @@unique([organizationId, systemKey])
@@ -3076,6 +3080,35 @@ model BackupRun {
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
 
   @@index([organizationId, startedAt])
+}
+
+// ---------- «بحث بالمعنى»: the vectors of messages and tasks (src/server/services/search-embed*.ts) ----------
+
+// One vector per message or task, kept as plain numbers (NOT the pgvector extension: a failing CREATE EXTENSION once stopped a deploy); the
+// similarity is computed in the app over a bounded candidate set. The text is never stored here, only its hash (to know when it changed).
+// `conversationId` is set for a message, `workspaceId` for a task; deleting the conversation or the space deletes its vectors.
+model SearchEmbedding {
+  id             String   @id @default(cuid())
+  orgId          String
+  // message | task
+  kind           String
+  refId          String
+  conversationId String?
+  workspaceId    String?
+  // unit length (cosine = dot product)
+  vector         Float[]
+  // the embeddings model that made it: a vector of another model is never compared with this one
+  model          String
+  textHash       String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  workspace    Workspace?    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([kind, refId])
+  @@index([orgId, kind, workspaceId, createdAt])
+  @@index([orgId, kind, conversationId, createdAt])
+  @@index([conversationId])
 }
 
 // «شو فاتني؟»: the last digest written for a person on «اليوم», kept for 3 hours so the page never asks the model twice for the same

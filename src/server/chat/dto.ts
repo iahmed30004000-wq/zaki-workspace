@@ -320,6 +320,8 @@ export interface MessageHitDto {
   at: string;
   /** a piece of the message around the words searched */
   snippet: string;
+  /** found by meaning, not by the words («بحث بالمعنى»): drawn as «بمعنى قريب» */
+  semantic?: boolean;
 }
 
 export interface TopicHitDto {

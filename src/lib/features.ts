@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -220,6 +220,12 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // tab is «لوحة المالك» again, «التقارير» is its own page again for the owner too, and /api/control-panel answers «not found»; it stores
   // nothing of its own, so nothing is lost.
   controlPanel: true,
+  // «بحث بالمعنى» (src/server/services/search-semantic.ts, search-embed-index.ts): the search box also finds a message or task by its MEANING («علب التغليف» finds «الكراتين»),
+  // marked «بمعنى قريب» and always after the hits the words found. The text of messages and tasks (after the chat filter, never a direct chat,
+  // never a conversation or space a guest can reach) is sent to the embeddings service of the server (env EMBED_URL, EMBED_MODEL, EMBED_API_KEY); the
+  // vectors stay in the database. OFF by default: text leaves the app. Off: the search is the word search exactly as before, nothing is sent,
+  // indexed or queried; the vectors already made stay and come back with the switch.
+  semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
   // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),
   // keeps the text it reads (FileText) under the picture, and search finds the picture by those words under the file's own visibility rule.

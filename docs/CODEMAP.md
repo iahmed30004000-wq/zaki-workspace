@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 317 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 53 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 54 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -51,7 +51,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 137 services — the business rules (§6) |
+| `src/server/services/` | 140 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -330,7 +330,7 @@ Doors in use: `requireActor` 142 · `activeOrgCtx` 81 · `(none)` 34 · `require
 | GET | `/api/rewards/totals` | requireActor | `rewards`: openRewardTotals |
 | GET | `/api/rt` | requireActor † | — |
 | POST | `/api/rt/typing` | requireActor | — |
-| GET | `/api/search` | requireUser | `current-space`: currentSpace<br>`team-scope`: loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, …<br>`files`: searchLibrary<br>`documents`: searchDocuments<br>`features`: isFeatureOn |
+| GET | `/api/search` | requireUser | `current-space`: currentSpace<br>`team-scope`: loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, …<br>`files`: searchLibrary<br>`documents`: searchDocuments<br>`features`: isFeatureOn<br>`search-semantic`: semanticHits, SEMANTIC_MESSAGES, SEMANTIC_TASKS<br>`search-embeddings`: mergeHits |
 | GET, PATCH | `/api/settings/features` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: listFeatures, setFeature |
 | GET | `/api/settings/server-health` | activeOrgCtx | `integrations`: activeOrgCtx<br>`server-health`: serverHealth |
 | POST | `/api/site-guide/step` | requireActor † | `site-guide`: guideStep |
@@ -432,13 +432,13 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 56 | 91 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 56 | 94 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 90 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 128 | 58 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 29 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
-| `team-scope` | 149 | 28 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
-| `tasks` | 652 | 20 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
+| `team-scope` | 149 | 29 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
+| `tasks` | 657 | 20 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 601 | 19 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `access` | 76 | 17 | Workspace-level isolation — the company's master switch. |
 | `cards` | 614 | 17 | «اللوحات» — the cards of a space. |
@@ -458,6 +458,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `custom-fields` | 542 | 9 | «حقول مخصصة» — the custom fields of a project's tasks. |
 | `space-place` | 30 | 9 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
+| `chat-assistant` | 495 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `ideas` | 419 | 8 | Membership context resolved from the idea's own org (shared by API routes). |
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
@@ -476,7 +477,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `watch` | 372 | 7 | «نتفرّج سوا» — people of a space watch one link together (the owner's ask, 2026-10-26). |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
 | `assistant-provider` | 78 | 6 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
-| `chat-assistant` | 495 | 6 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `checkins-space` | 18 | 6 | The space a check-in request is about: the one the request names (`workspaceId`, which the guards in src/server/services/checkins.ts check against the person), or else the space… |
 | `owner-board-io` | 78 | 6 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
 | `campaigns` | 235 | 5 | Campaigns live inside a department (marketing calendars). |
@@ -500,6 +500,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `digest` | 400 | 4 | «شو فاتني؟» — a short catch-up written by the owner's assistant for ONE person, on «اليوم», and «لخّصلي» inside a topic. |
 | `okr` | 482 | 4 | «الأهداف والنتائج» — the key results of an objective (src/lib/okr.ts holds the arithmetic). |
 | `reward-input` | 30 | 4 | What a request body says about a reward: the amount as the person typed it (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency (optiona… |
+| `search-embed-index` | 312 | 4 | «بحث بالمعنى» — WHAT GETS A VECTOR, and when. |
+| `search-embeddings` | 276 | 4 | «بحث بالمعنى» — the connector and the pure rules. |
 | `task-assign` | 265 | 4 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
 | `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
@@ -556,6 +558,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `my-work` | 168 | 1 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
 | `presence-roster` | 96 | 1 | THE PEOPLE DOCK — who works here and who is at their screen right now (the owner's ask, 2026-10-29: «المستخدمين ظاهرين على زاوية الموقع تحت وكل واحد جنبه علامة خضراء أونلاين»). |
 | `recurrence-spawn` | 221 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |
+| `search-semantic` | 191 | 1 | «بحث بالمعنى» — THE QUESTION. |
 | `server-health` | 90 | 1 | «حال السيرفر» — a read-only look at how hard the box is working, for the OWNER alone (the one who can switch «وضع التوفير»). |
 | `site-guide` | 140 | 1 | «المرشد» — ONE STEP of the guide. |
 | `space-delete` | 93 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
@@ -690,6 +693,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `ProductionOrderMovement` | 2 | `server/services/manufacturing-production.ts`: 2 |
 | `ProductionOrderCostLine` | 1 | `server/services/manufacturing-order-cost.ts`: 1 |
 | `BackupRun` | 5 | `server/services/db-backup.ts`: 5 |
+| `SearchEmbedding` | 2 | `server/services/search-embed-index.ts`: 2 |
 | `DigestCache` | 1 | `server/services/digest.ts`: 1 |
 
 `PollOption` has no direct write of its own: it is filled only through a nested write on `Poll.options` in `server/chat/poll-shared.ts` — counted here so a change there is read as a change here.
@@ -756,6 +760,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `economyMode` | 2 — `components/feature-switches.tsx`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
 | `controlPanel` | 4 — `app/(app)/analytics/page.tsx`, `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/services/control-panel.ts` |
+| `semanticSearch` | 4 — `app/(app)/settings/page.tsx`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 4 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 
 ## 9. What this map noticed

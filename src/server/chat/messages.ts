@@ -20,6 +20,7 @@ import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessage
 import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
 import { afterMessageSent } from "@/server/services/chat-assistant";
 import { assertFeatureOn } from "@/server/services/features";
+import { queueSync } from "@/server/services/search-embed-index";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
 import type { Prisma } from "@prisma/client";
 import type { MessageDto } from "@/server/chat/dto";
@@ -203,6 +204,8 @@ export async function sendMessage(
   await notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, dto);
   // «@المساعد»: one answer in this conversation, written when the model has answered (never delays this reply)
   if (kind === "TEXT") afterMessageSent({ orgId: ctx.orgId, conversationId, messageId: created.id, body });
+  // «بحث بالمعنى»: its vector is made in the background (a no-op without the switch and a service)
+  if (kind === "TEXT") queueSync(ctx.orgId, "message", created.id);
   return dto;
 }
 
@@ -270,6 +273,8 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
     await emitRealtime(tx, ctx.orgId, "message.edited", { conversationId: msg.conversationId, messageId, spaceId: facts.spaceId ?? undefined });
     return m;
   });
+  // «بحث بالمعنى»: the vector follows the new words
+  queueSync(ctx.orgId, "message", messageId);
   return presentMessage(updated, withViewer(viewerOf(facts, org), ctx.userId));
 }
 
@@ -310,6 +315,8 @@ export async function deleteMessage(ctx: OrgAccessContext, messageId: string): P
       });
     }
   });
+  // «بحث بالمعنى»: a deleted message loses its vector
+  queueSync(ctx.orgId, "message", messageId);
 }
 
 // ---------- reactions ----------

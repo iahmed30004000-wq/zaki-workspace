@@ -15,6 +15,7 @@ import { IntegrationBadge } from "@/components/integration-badge";
 import { FeatureSwitches } from "@/components/feature-switches";
 import { ServerHealthCard } from "@/components/server-health-card";
 import { listFeatures } from "@/server/services/features";
+import { embedServer } from "@/server/services/search-embeddings";
 
 export default async function SettingsPage() {
   const { t } = getServerT();
@@ -92,7 +93,7 @@ export default async function SettingsPage() {
               <p className="text-xs text-muted">{t("features.subtitle")}</p>
             </div>
           </div>
-          <FeatureSwitches initial={features} />
+          <FeatureSwitches initial={features} notReady={embedServer() ? [] : ["semanticSearch"]} />
         </section>
       ) : null}
 
