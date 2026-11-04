@@ -1,5 +1,7 @@
-// The Android app of Zaki Workspace: a Trusted Web Activity, i.e. the site itself in a full-screen Chrome window with its own icon.
-// Nothing of the site is copied here: every page, every feature and every update comes from https://workspace.zakiai.io.
+// The Android app of Zaki Workspace: a native app (Kotlin + Jetpack Compose) that talks to the site's own API (https://workspace.zakiai.io/api).
+// Sign-in, chat and notifications are native screens; the rest of the site opens inside the app, in a WebView, until it is made native too.
 plugins {
     id 'com.android.application' version '8.5.2' apply false
+    id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+    id 'org.jetbrains.kotlin.plugin.serialization' version '1.9.24' apply false
 }

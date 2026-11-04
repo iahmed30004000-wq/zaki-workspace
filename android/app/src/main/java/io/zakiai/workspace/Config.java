@@ -17,12 +17,16 @@ final class Config {
         return prefs(c).getString("token", "");
     }
 
-    static void setToken(Context c, String token) {
-        prefs(c).edit().putString("token", token).putLong("since", 0).putBoolean("declined", false).apply();
+    static void setToken(Context c, String token, String deviceId) {
+        prefs(c).edit().putString("token", token).putString("deviceId", deviceId).putLong("since", System.currentTimeMillis()).apply();
+    }
+
+    static String deviceId(Context c) {
+        return prefs(c).getString("deviceId", "");
     }
 
     static void clearToken(Context c) {
-        prefs(c).edit().remove("token").apply();
+        prefs(c).edit().remove("token").remove("deviceId").apply();
     }
 
     static long since(Context c) {
