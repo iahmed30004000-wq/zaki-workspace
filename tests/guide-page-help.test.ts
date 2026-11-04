@@ -62,6 +62,7 @@ const PAGES: [string, string][] = [
   ["/settings", "settings"],
   ["/profile", "profile"],
   ["/u/ckabc123", "person"],
+  ["/app-link", "app-link"],
   ["/guide", "guide"],
   ["/guide/tasks", "guide-article"],
 ];

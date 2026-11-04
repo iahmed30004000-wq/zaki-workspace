@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/chat/text";
+import { fmtDateTime } from "@/lib/format";
 
 interface Device {
   id: string;
@@ -107,7 +108,7 @@ export function AppLink({ auto }: { auto: boolean }) {
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-fg">{d.name}</p>
                 <p className="text-xs text-fg-muted">
-                  {d.lastSeenAt ? ct("appLink.last_seen", { when: new Date(d.lastSeenAt).toLocaleString("ar") }) : ct("appLink.never")}
+                  {d.lastSeenAt ? ct("appLink.last_seen", { when: fmtDateTime(d.lastSeenAt) }) : ct("appLink.never")}
                 </p>
               </div>
               <Button type="button" size="sm" variant="ghost" onClick={() => void remove(d.id)}>
