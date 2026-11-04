@@ -1,14 +1,17 @@
 package io.zakiai.workspace
 
+import androidx.compose.runtime.Immutable
 import kotlinx.serialization.Serializable
 
 /**
  * What the site's API answers, only the fields the app draws (the server's own types: src/server/chat/dto.ts). A field the server adds later is
  * ignored; a field the server leaves out takes its default here, so an older or newer server never crashes the app.
  */
+@Immutable
 @Serializable
 data class LastMessage(val at: String? = null, val preview: String? = null, val mine: Boolean = false)
 
+@Immutable
 @Serializable
 data class Topic(
     val id: String,
@@ -21,6 +24,7 @@ data class Topic(
     val lastMessage: LastMessage? = null,
 )
 
+@Immutable
 @Serializable
 data class Space(
     val id: String,
@@ -30,18 +34,23 @@ data class Space(
     val topics: List<Topic> = emptyList(),
 )
 
+@Immutable
 @Serializable
 data class Peer(val id: String = "", val name: String = "")
 
+@Immutable
 @Serializable
 data class Dm(val id: String, val peer: Peer = Peer(), val unread: Int = 0, val lastMessage: LastMessage? = null)
 
+@Immutable
 @Serializable
 data class Home(val spaces: List<Space> = emptyList(), val dms: List<Dm> = emptyList())
 
+@Immutable
 @Serializable
 data class Attachment(val id: String = "", val kind: String = "FILE", val name: String = "", val url: String = "")
 
+@Immutable
 @Serializable
 data class Message(
     val id: String,
@@ -54,9 +63,11 @@ data class Message(
     val attachments: List<Attachment> = emptyList(),
 )
 
+@Immutable
 @Serializable
 data class ConversationMe(val canPost: Boolean = true, val canCall: Boolean? = null)
 
+@Immutable
 @Serializable
 data class Conversation(
     val id: String,
@@ -69,6 +80,7 @@ data class Conversation(
     val messages: List<Message> = emptyList(),
 )
 
+@Immutable
 @Serializable
 data class NotificationItem(
     val id: String,
@@ -80,6 +92,7 @@ data class NotificationItem(
     val createdAt: String = "",
 )
 
+@Immutable
 @Serializable
 data class Notifications(val items: List<NotificationItem> = emptyList(), val unreadCount: Int = 0)
 

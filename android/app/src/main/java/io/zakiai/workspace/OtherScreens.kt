@@ -25,6 +25,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -33,6 +37,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -77,7 +82,7 @@ fun NotificationsScreen(state: AppState) {
     LaunchedEffect(Unit) {
         while (isActive) {
             if (lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) load()
-            delay(10_000)
+            delay(20_000)
         }
     }
 
@@ -119,19 +124,30 @@ fun NotificationsScreen(state: AppState) {
     }
 }
 
-/** A page of the site inside the app, signed in with the app's own session. Its back arrow walks back through the site, then leaves it. */
+/**
+ * A page of the site over the app, signed in with the app's own session. Its back arrow walks back through the site's pages, then closes it.
+ * The web view is made when this opens and thrown away when it closes (nothing of it stays in the app's memory).
+ */
 @Composable
-fun WebScreen(state: AppState, host: WebHost) {
-    BackHandler(enabled = host.webView.canGoBack()) { host.webView.goBack() }
-    LaunchedEffect(state.webPath) { host.show(state.webPath) }
-    AndroidView(
-        modifier = Modifier.fillMaxSize(),
-        factory = {
-            (host.webView.parent as? ViewGroup)?.removeView(host.webView)
-            host.webView
-        },
-        update = { host.show(state.webPath) },
-    )
+fun WebOverlay(state: AppState, getHost: () -> WebHost, release: () -> Unit) {
+    val host = remember { getHost() }
+    DisposableEffect(Unit) { onDispose { release() } }
+    BackHandler { if (host.webView.canGoBack()) host.webView.goBack() else state.webPath = null }
+    LaunchedEffect(state.webPath) { state.webPath?.let { host.show(it) } }
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = { state.webPath = null }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.back) }
+            Text(T.appName, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+        HorizontalDivider(color = Zk.Surface3)
+        AndroidView(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            factory = {
+                (host.webView.parent as? ViewGroup)?.removeView(host.webView)
+                host.webView
+            },
+        )
+    }
 }
 
 @Composable
@@ -144,6 +160,8 @@ private fun SettingButton(label: String, onClick: () -> Unit) {
 }
 
 private val PAGES = listOf(
+    "اليوم" to "/",
+    "مهامي" to "/my-work",
     "المشاريع" to "/projects",
     "التقويم" to "/calendar",
     "الملفات" to "/files",
@@ -164,7 +182,7 @@ fun MoreScreen(state: AppState, onLogout: () -> Unit, askNotifications: () -> Un
         // the buttons of a granted permission disappear when the person comes back from the system settings
         while (isActive) {
             tick++
-            delay(1500)
+            delay(3000)
         }
     }
     val recheck = tick >= 0

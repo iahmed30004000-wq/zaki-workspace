@@ -54,6 +54,24 @@ describe("the Android app (native: Kotlin + Compose)", () => {
     expect(read(dir + "Api.kt")).toContain('.header("Origin", Config.BASE)');
   });
 
+  it("stays smooth: answers are parsed off the screen's thread, typing redraws only the box, and a web page exists only while it is open", () => {
+    const dir = "android/app/src/main/java/io/zakiai/workspace/";
+    const api = read(dir + "Api.kt");
+    expect(api).toContain("withContext(Dispatchers.Default) { json.decodeFromString<T>(text) }");
+    // no answer is decoded anywhere else (that would put the parsing back on the screen's thread)
+    expect(api.match(/json.decodeFromString/g)).toHaveLength(1);
+    const chat = read(dir + "ChatScreens.kt");
+    expect(chat).toContain("private fun Composer(");
+    expect(chat).not.toContain("imePadding()");
+    expect(read(dir + "Models.kt").match(/@Immutable/g)?.length).toBeGreaterThanOrEqual(10);
+    // three tabs only; the web view is made by MainActivity.webHost() on demand and destroyed on release
+    expect(read(dir + "AppState.kt")).toContain("enum class Tab { CHAT, NOTES, MORE }");
+    const main = read(dir + "MainActivity.kt");
+    expect(main).toContain("private fun webHost(): WebHost =");
+    expect(main).toContain("web?.destroy()");
+    expect(main).not.toContain("web = WebHost(");
+  });
+
   it("has its icons, and its colour is the site's theme colour", () => {
     for (const d of ["mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi"]) expect(existsSync(join(process.cwd(), `android/app/src/main/res/${d}/ic_launcher.png`)), d).toBe(true);
     const colors = read("android/app/src/main/res/values/colors.xml");
