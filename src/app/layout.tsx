@@ -4,6 +4,7 @@ import { IBM_Plex_Sans_Arabic, Lalezar } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
 import { Providers } from "./providers";
+import { AppScaleLock } from "@/components/app-scale-lock";
 import { DECOR_COOKIE, THEME_COOKIE, decorLevelOf, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";
 import { DIGITS_COOKIE, digitsOf } from "@/lib/digits";
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body>
         <Providers theme={theme} decor={decor} digits={digits}>
           {children}
+          <AppScaleLock />
         </Providers>
       </body>
     </html>
