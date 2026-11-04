@@ -6,6 +6,7 @@ import { expireAiProposals, type AiProposalsRun } from "./ai-proposals";
 import { runCheckins, type CheckinsRun } from "./checkins";
 import { runTaskRules, type TaskRulesRun } from "./task-rules";
 import { runDueBackups, type BackupsRun } from "./db-backup";
+import { runMailToTask, type MailTasksRun } from "./mail-to-task";
 import { runSearchEmbed, type SearchEmbedRun } from "./search-embed";
 
 /**
@@ -29,6 +30,8 @@ export interface JobsRun {
   taskRules: TaskRulesRun | null;
   /** «نسخ احتياطي لقاعدة البيانات»: the daily encrypted copy to the owner's Drive, started when its hour has come (it finishes in the background). */
   backups: BackupsRun | null;
+  /** «بريد يصير مهمة»: the company mailbox read (every 5 minutes) while its switch is on: one task per new mail. */
+  mailTasks: MailTasksRun | null;
   /** «بحث بالمعنى»: one small batch of vectors for each company that turned it on (null while no embeddings service is set up). */
   searchEmbed: SearchEmbedRun | null;
   /** The names of the jobs that threw. */
@@ -36,7 +39,7 @@ export interface JobsRun {
 }
 
 export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
-  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, searchEmbed: null, failed: [] };
+  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, mailTasks: null, searchEmbed: null, failed: [] };
   try {
     result.reminders = await fireDueReminders(now);
   } catch (err) {
@@ -84,6 +87,12 @@ export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
   } catch (err) {
     result.failed.push("searchEmbed");
     log.error("jobs.failed", { job: "searchEmbed", message: err instanceof Error ? err.message : String(err) });
+  }
+  try {
+    result.mailTasks = await runMailToTask(now);
+  } catch (err) {
+    result.failed.push("mailTasks");
+    log.error("jobs.failed", { job: "mailTasks", message: err instanceof Error ? err.name : "error" });
   }
   return result;
 }

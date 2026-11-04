@@ -56,7 +56,7 @@ interface DriveFile {
   link: string | null;
 }
 
-export function AutomationView({ ctx, doorCard = null, backupCard = null }: { ctx: { orgRole: string }; doorCard?: ReactNode; backupCard?: ReactNode }) {
+export function AutomationView({ ctx, doorCard = null, backupCard = null, mailCard = null }: { ctx: { orgRole: string }; doorCard?: ReactNode; backupCard?: ReactNode; mailCard?: ReactNode }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -413,6 +413,9 @@ x-zaki-signature: sha256=HMAC_SHA256(secret, "{timestamp}.{raw body}")`}
 
       {/* ---------------- «نسخ احتياطي لقاعدة البيانات»: the OWNER's card alone (the server refuses everybody else) ---------------- */}
       {backupCard}
+
+      {/* ---------------- «بريد يصير مهمة»: the OWNER's card alone ---------------- */}
+      {mailCard}
     </div>
   );
 }

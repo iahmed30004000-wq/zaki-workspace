@@ -66,6 +66,7 @@ import siteGuide from "./ar.site-guide.json";
 import digest from "./ar.digest.json";
 import watchConvert from "./ar.watch-convert.json";
 import backup from "./ar.backup.json";
+import mailToTask from "./ar.mail-to-task.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -108,6 +109,7 @@ export const AR: Record<string, string> = {
   ...siteGuide,
   ...digest,
   ...watchConvert,
+  ...mailToTask,
   ...libraryDrive,
   ...instant,
   ...taskLinks,

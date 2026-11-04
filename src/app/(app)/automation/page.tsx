@@ -4,6 +4,7 @@ import { GuestNotice, refusedToGuest } from "@/app/(app)/_guest";
 import { AutomationView } from "@/components/automation-view";
 import { ApiDoorCard } from "@/components/api-door-card";
 import { DbBackupCard } from "@/components/db-backup-card";
+import { MailToTaskCard } from "@/components/mail-to-task-card";
 import { actorCan } from "@/server/policy/actor";
 
 export default async function AutomationPage() {
@@ -18,10 +19,11 @@ export default async function AutomationPage() {
   const showDoor = actorCan(actor, "integrations.manage");
   // «نسخ احتياطي لقاعدة البيانات»: the OWNER alone (a space admin never sees the card; its routes answer 403 anyway)
   const showBackup = actor.isOwner;
+  // «بريد يصير مهمة»: the OWNER's card too (the mailbox password is his alone to type)
 
   return (
     <Suspense fallback={null}>
-      <AutomationView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} doorCard={showDoor ? <ApiDoorCard /> : null} backupCard={showBackup ? <DbBackupCard /> : null} />
+      <AutomationView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} doorCard={showDoor ? <ApiDoorCard /> : null} backupCard={showBackup ? <DbBackupCard /> : null} mailCard={showBackup ? <MailToTaskCard /> : null} />
     </Suspense>
   );
 }
