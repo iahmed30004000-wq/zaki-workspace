@@ -468,6 +468,14 @@ export const PAGE_HELP: readonly PageHelp[] = [
     article: "privacy",
   },
   {
+    id: "app-link",
+    pattern: "/app-link",
+    whatKey: "guide.page.app-link.what",
+    nextKey: "guide.page.app-link.next",
+    tour: "shell",
+    article: "start",
+  },
+  {
     id: "guide",
     pattern: "/guide",
     whatKey: "guide.page.guide.what",

@@ -8,11 +8,11 @@ android {
 
     defaultConfig {
         applicationId 'io.zakiai.workspace'
-        minSdk 23
+        minSdk 26
         targetSdk 34
         // raised by hand when the wrapper itself changes; the site updates itself
-        versionCode 2
-        versionName '1.1'
+        versionCode 3
+        versionName '2.0'
     }
 
     // ONE fixed key for every build, so a new build installs over the old app and Chrome can prove the site belongs to the app

@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -27,6 +27,9 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // every notification of the bell also reaches the person's phone and laptop while the site is closed (Web Push);
   // off: only a ringing call does, as before
   pushEverything: true,
+  // the Android app's live line (src/server/devices/devices.ts, /api/device/stream): the full-screen ring and the notifications reach the app
+  // even when it is closed. Off: nobody can pair a phone, the line answers «not found» and everything goes through the browser's Web Push as before
+  appConnection: true,
   // «⋯» next to every topic and chat of the list (pin, archive, delete) and the owner's «حذف نهائي» (src/server/chat/purge.ts)
   chatRowMenu: true,
   // the noise filter on the microphone in calls (src/components/calls/noise-filter.ts): off, the voice is sent as the

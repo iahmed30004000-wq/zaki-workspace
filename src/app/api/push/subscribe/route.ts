@@ -16,7 +16,7 @@ export async function POST(req: Request) {
   return withApi(async () => {
     const ctx = await activeOrgCtx();
     const body = await parseJson(subSchema, req);
-    await subscribe(ctx.userId, { endpoint: body.endpoint, p256dh: body.keys.p256dh, auth: body.keys.auth });
+    await subscribe(ctx.userId, { endpoint: body.endpoint, p256dh: body.keys.p256dh, auth: body.keys.auth, userAgent: req.headers.get("user-agent") });
     return NextResponse.json({ ok: true });
   });
 }

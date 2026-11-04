@@ -100,6 +100,7 @@ model User {
   startedWatches  WatchSession[]       @relation("WatchStarter")
   callSeats       CallPerson[]
   pushDevices     PushSubscription[]
+  appDevices      AppDevice[]
   issuedApiTokens ApiToken[]           @relation("ApiTokenIssuer")
 }
 
@@ -749,6 +750,23 @@ model PushSubscription {
   auth       String
   createdAt  DateTime  @default(now())
   lastUsedAt DateTime?
+  // the browser's user agent, written when it subscribes: the Android app takes over an Android browser's notifications while it is connected
+  userAgent  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// The Android app of a person (src/server/devices/devices.ts): paired once from the site, then it keeps a live line to the server
+// (/api/device/stream) for notifications and the full-screen ring of a call. Only a hash of its key is stored.
+model AppDevice {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  name       String    @default("Android")
+  createdAt  DateTime  @default(now())
+  lastSeenAt DateTime?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

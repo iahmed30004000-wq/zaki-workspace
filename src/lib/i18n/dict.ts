@@ -67,6 +67,7 @@ import digest from "./ar.digest.json";
 import watchConvert from "./ar.watch-convert.json";
 import backup from "./ar.backup.json";
 import mailToTask from "./ar.mail-to-task.json";
+import appDevices from "./ar.app-devices.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -110,6 +111,7 @@ export const AR: Record<string, string> = {
   ...digest,
   ...watchConvert,
   ...mailToTask,
+  ...appDevices,
   ...libraryDrive,
   ...instant,
   ...taskLinks,
