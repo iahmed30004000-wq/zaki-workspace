@@ -9,6 +9,9 @@ import { z } from "zod";
  * what is not allowed, the browser refuses it again): the model's words are never trusted.
  */
 
+/** The page event that asks the guide to open and start its voice call (sent by the «اتصل بالمساعد» button of the assistant's own conversation). */
+export const GUIDE_CALL_EVENT = "zaki-guide:call";
+
 export const MAX_ELEMENTS = 120;
 export const MAX_NAME_CHARS = 80;
 export const MAX_HEADINGS = 12;
