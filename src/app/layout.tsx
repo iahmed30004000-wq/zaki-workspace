@@ -83,9 +83,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ar" dir="rtl" data-theme={attrs["data-theme"]} data-decor={attrs["data-decor"]} data-digits={digits} className={className} suppressHydrationWarning>
       <body>
-        <AppScaleLock />
         <Providers theme={theme} decor={decor} digits={digits}>
           {children}
+          <AppScaleLock />
         </Providers>
       </body>
     </html>
