@@ -103,6 +103,21 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
     }
   }
 
+  // «ادعُ المساعد» (the owner only, when his program is set up): the assistant joins as a participant and speaks when spoken to
+  const [assistantBusy, setAssistantBusy] = React.useState(false);
+  async function toggleAssistant(on: boolean) {
+    setAssistantBusy(true);
+    try {
+      await callApi(`${api}/assistant`, { on });
+      say(ct(on ? "calls.assistant.joined" : "calls.assistant.left"));
+      window.setTimeout(() => void load(), 2500);
+    } catch (e) {
+      say(e instanceof Error ? e.message : ct("calls.action_failed"), "error");
+    } finally {
+      setAssistantBusy(false);
+    }
+  }
+
   // «إنهاء للكل» asks once: the first tap turns the button into «أكيد؟», the second ends the call for everybody
   const [confirming, setConfirming] = React.useState(false);
   React.useEffect(() => {
@@ -277,6 +292,14 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
         <Round on={!!me?.isCameraEnabled} onClick={() => void call.toggle("cam")} label={me?.isCameraEnabled ? ct("calls.cam_off") : ct("calls.cam_on")} icon={me?.isCameraEnabled ? "🎥" : "📷"} />
         {canShareScreen() && (
           <Round on={!!me?.isScreenShareEnabled} onClick={() => void call.toggle("screen")} label={me?.isScreenShareEnabled ? ct("calls.screen_stop") : ct("calls.screen_start")} icon="🖥️" />
+        )}
+        {view?.assistant?.available && (
+          <Round
+            on={!!view.assistant.present}
+            onClick={() => void (assistantBusy ? undefined : toggleAssistant(!view.assistant?.present))}
+            label={ct(assistantBusy ? "calls.assistant.joining" : view.assistant.present ? "calls.assistant.dismiss" : "calls.assistant.invite")}
+            icon="🤖"
+          />
         )}
         <Round on={panel !== "none"} onClick={() => setPanel((v) => (v === "none" ? "people" : "none"))} label={ct("calls.people")} icon="👥" />
         {/* «اطلع»: alone, the call goes on; a host also has «إنهاء للكل» (the owner's «زر انهاء مكالمة لمنشئ + خروج») */}

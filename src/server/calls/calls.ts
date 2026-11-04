@@ -20,6 +20,7 @@ import {
 } from "@/server/policy/call";
 import { closeRoom, dropFromRoom, muteInRoom, passFor, peopleInRoom, requireCallsServer, roomOf } from "./livekit";
 import { pushTo } from "./push";
+import { assistantState } from "./assistant-agent";
 import { ct } from "@/lib/chat/text";
 
 /**
@@ -50,6 +51,8 @@ export interface CallDto {
   people: { userId: string; name: string; canRemove: boolean; canMute: boolean; avatarUrl: string | null }[];
   /** `end`: the viewer is a host and may end the call for everybody («إنهاء للكل»); everybody may leave */
   can: { invite: boolean; end: boolean };
+  /** «المساعد بالاجتماعات»: the OWNER may call his assistant in (`available`), and it is in the room now (`present`) */
+  assistant: { available: boolean; present: boolean };
 }
 
 async function ownCall(ctx: OrgAccessContext, callId: string) {
@@ -298,6 +301,7 @@ export async function callDetail(ctx: OrgAccessContext, callId: string): Promise
         return { userId: p.identity, name: row.user.name, avatarUrl: row.user.avatarUrl, canRemove: canRemoveFromCall(facts, org, ctx.userId, target), canMute: canMuteInCall(facts, org, ctx.userId, target) };
       }),
     can: { invite: canInviteToCall(facts, org), end: !facts.endedAt && canEndCall(facts, org, ctx.userId) },
+    assistant: facts.endedAt ? { available: false, present: false } : await assistantState(ctx, inRoom),
   };
 }
 

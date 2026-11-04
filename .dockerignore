@@ -17,3 +17,4 @@ storage
 .env*
 !.env.example
 README.md
+voice-agent

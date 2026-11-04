@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -241,6 +241,12 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // (taking the mailbox out of the card still works); the tasks already made stay. ⚠️ The app reads a mailbox and keeps each subject and a short excerpt.
   // 🔧 Turn it off here and take the mailbox out of the card: the password is deleted.
   emailToTask: false,
+  // «المساعد بالاجتماعات» (src/server/calls/assistant-agent.ts): the owner calls his assistant into a call: it listens and answers by voice when somebody speaks to
+  // it. The sound goes through a small program of the owner's OWN (voice-agent/, on his server): speech to text and text to speech both run there, free; the words
+  // that reach the model are filtered like the chat assistant's. OFF until the owner turns it on; it needs «مساعد المالك» on and the program's address and secret in Coolify.
+  // Off: no button in the call, the routes answer «not found», an assistant already in a room is sent away. ⚠️ While it is in the call its program hears everybody in the room.
+  // 🔧 Only the owner calls it in, the room sees «المساعد» as a participant, and he sends it out with one tap; nothing of the sound is stored.
+  assistantInMeetings: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {

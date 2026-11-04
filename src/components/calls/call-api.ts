@@ -17,6 +17,7 @@ export interface CallView {
   path: string;
   people: { userId: string; name: string; canRemove: boolean; canMute: boolean; avatarUrl?: string | null }[];
   can: { invite: boolean; end: boolean };
+  assistant?: { available: boolean; present: boolean };
 }
 
 /** The Arabic of an error key the server answered (`calls.e.*`), or the generic «ما زبطت». */
