@@ -184,6 +184,7 @@ describe("middleware: the files a browser fetches by itself pass without a sessi
   const STATIC = [
     "/manifest.webmanifest", // drawn by Next from src/app/manifest.ts
     "/apple-icon.png", // src/app/apple-icon.png
+    "/.well-known/assetlinks.json", // public/.well-known/: how Chrome proves the Android app owns the site
     "/icon.svg", // src/app/icon.svg
     ...served("icons", /\.png$/),
     ...served("brand/decor", /\.webp$/),

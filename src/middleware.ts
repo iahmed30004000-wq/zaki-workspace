@@ -73,11 +73,12 @@ function isMachinePath(pathname: string): boolean {
  * redirected. ONLY those: a page address that merely ENDS like a file (`/tasks/abc.png` = the task page with the id
  * "abc.png") is a page and goes through the sign-in and onboarding rules below. A dot segment never counts as a
  * public folder. `/sw.js` is the service worker (it shows a ring when the site is closed: src/server/calls/push.ts).
+ * `/.well-known/assetlinks.json` is how Chrome proves the Android app owns this site (public/.well-known/assetlinks.json): it must answer a stranger.
  * `/noise/` is the call noise filter's model and worklet (src/components/calls/noise-filter.ts).
  * `/sounds/` is the ring of a call (src/lib/calls/ring-sound.ts): it must play on the sign-in page's side of a redirect too.
  */
 const STATIC_DIRS = ["/icons/", "/brand/", "/fonts/", "/noise/", "/sounds/"];
-const STATIC_ROOT_FILES = new Set(["/icon.svg", "/apple-icon.png", "/manifest.webmanifest", "/favicon.ico", "/robots.txt", "/sw.js"]);
+const STATIC_ROOT_FILES = new Set(["/icon.svg", "/apple-icon.png", "/manifest.webmanifest", "/favicon.ico", "/robots.txt", "/sw.js", "/.well-known/assetlinks.json"]);
 const STATIC_EXT = /\.(?:svg|png|jpe?g|gif|webp|avif|ico|txt|xml|webmanifest|woff2?|css|js|map|wasm|mp3)$/i;
 function isStaticFile(pathname: string): boolean {
   if (STATIC_ROOT_FILES.has(pathname)) return true;

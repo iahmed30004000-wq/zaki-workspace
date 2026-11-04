@@ -1,0 +1,10 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "io.zakiai.workspace",
+      "sha256_cert_fingerprints": ["E9:3E:61:0A:34:C3:BD:FC:ED:35:A4:B6:F7:C7:25:6B:88:63:16:E1:4B:07:6D:1F:62:E1:23:03:8E:E2:4F:CF"]
+    }
+  }
+]
