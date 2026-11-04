@@ -14,6 +14,7 @@ import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { ocrAvailable } from "@/server/services/image-ocr";
 import { chatAssistantOffered, conversationHasGuest } from "@/server/services/chat-assistant";
 import { digestOffered } from "@/server/services/digest";
+import { isAssistantChatOf } from "@/lib/chat/assistant-chat";
 import { translateOffered } from "@/server/services/message-translate";
 import { ASSISTANT_MENTION_ID, ASSISTANT_MENTION_NAME } from "@/lib/chat/conversation/mentions";
 import { lastSeenReader } from "@/server/services/last-seen";
@@ -460,6 +461,8 @@ export async function conversationDetail(
     // a picture of a conversation a guest can reach is never read by a model: no button there
     imageOcr: (await ocrAvailable(ctx.orgId)) && ctx.orgRole !== "GUEST" && !(await conversationHasGuest(facts, conversationId, ctx.orgId)),
     // «لخّصلي»: a topic only (never a private chat or somebody's conversation with the assistant), never for a partner, while «شو فاتني؟» is offered
+    // the owner in his OWN conversation with the assistant: the call button rings the assistant (only while the guide, which owns the voice call, is on)
+    assistantCall: org!.role === "OWNER" && isAssistantChatOf(conv.dmKey, ctx.userId) && (await isFeatureOn(ctx.orgId, "siteGuide")) && (await isFeatureOn(ctx.orgId, "ownerAssistant")),
     digest: org!.role !== "GUEST" && facts.kind === "TOPIC" && conv.dmKey === null && (await digestOffered(ctx.orgId)),
   };
 }

@@ -247,6 +247,8 @@ export interface ConversationDto {
   imageOcr?: boolean;
   /** «لخّصلي» (`morningDigest`): the switches are on, a provider is ready, and this is a topic of staff; absent or false: no button */
   digest?: boolean;
+  /** the owner's OWN conversation with the assistant and «المرشد» is on: the header's call button rings the assistant (the guide's voice call) */
+  assistantCall?: boolean;
   /** pagination: the oldest message id on the page; pass it as `before` for the next page. */
   oldestId?: string | null;
 }

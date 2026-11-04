@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Compass, Mic, PhoneCall, PhoneOff, Send, Square, X } from "lucide-react";
 import { ApiError, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
-import { MAX_HISTORY_TURNS, MAX_STEPS_PER_ASK, type GuideAction } from "@/lib/site-guide/rules";
+import { GUIDE_CALL_EVENT, MAX_HISTORY_TURNS, MAX_STEPS_PER_ASK, type GuideAction } from "@/lib/site-guide/rules";
 import { GUIDE_ATTR, readPage } from "@/components/site-guide/page-reader";
 import { clearHighlight, highlight, judge, nameOfControl, typeInto, type Verdict } from "@/components/site-guide/executor";
 import { canListen, listenOnce, speak, stopSpeaking, type Listener } from "@/components/site-guide/voice";
@@ -253,6 +253,17 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
     stopSpeaking();
   }, []);
 
+  const startCallRef = useRef<() => void>(() => undefined);
+  // «اتصل بالمساعد» in the assistant's own conversation: open the panel and start the voice call
+  useEffect(() => {
+    const onCall = () => {
+      setOpen(true);
+      window.setTimeout(() => startCallRef.current(), 50);
+    };
+    window.addEventListener(GUIDE_CALL_EVENT, onCall);
+    return () => window.removeEventListener(GUIDE_CALL_EVENT, onCall);
+  }, []);
+
   const startCall = () => {
     if (!listenCanStart) {
       push({ role: "note", text: t("siteGuide.voice_unsupported") });
@@ -262,6 +273,10 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
     stopRef.current = false;
     setCalling(true);
     listenNext();
+  };
+
+  startCallRef.current = () => {
+    if (!callingRef.current) startCall();
   };
 
   const stopAll = () => {

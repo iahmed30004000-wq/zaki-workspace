@@ -73,3 +73,13 @@ describe("a gateway at an outside address is not a small local model", () => {
     expect(read("src/server/services/owner-assistant-chat.ts")).toContain("const local = runsOnOwnServer(choice);");
   });
 });
+
+describe("«اتصل بالمساعد»: where it is wired", () => {
+  it("the header rings the assistant through the guide's own call, with words and an event", () => {
+    expect(read("src/components/chat/conversation/conversation-screen.tsx")).toContain("call={detail?.assistantCall?<AssistantCallButton/>");
+    expect(read("src/components/site-guide/assistant-call-button.tsx")).toContain("new CustomEvent(GUIDE_CALL_EVENT)");
+    expect(read("src/components/site-guide/site-guide.tsx")).toContain("window.addEventListener(GUIDE_CALL_EVENT, onCall)");
+    expect(read("src/server/chat/topics.ts")).toContain("isAssistantChatOf(conv.dmKey, ctx.userId)");
+    expect(AR["assistantChat.call"]).toBeTruthy();
+  });
+});

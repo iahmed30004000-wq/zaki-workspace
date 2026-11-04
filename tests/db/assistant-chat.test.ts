@@ -206,3 +206,26 @@ describe("the helpers", () => {
 });
 
 export type { World };
+
+describe("«اتصل بالمساعد»: the call button of the owner's own conversation", () => {
+  const detailOf = async (who: string, id: string) => {
+    const detailRoute = await import("@/app/api/chat/conversations/[id]/route");
+    await loginAs(who);
+    const res = await call(detailRoute.GET, { params: { id } });
+    return res.json?.["assistantCall"];
+  };
+
+  it("only the OWNER, in his own conversation with the assistant, while the guide is on, gets the flag", async () => {
+    const w = await world();
+    await setFeature(w.org.id, "siteGuide", true);
+    const ownerChat = (await open(w.owner.id)).json?.["id"] as string;
+    const saraChat = (await open(w.sara.id)).json?.["id"] as string;
+    expect(await detailOf(w.owner.id, ownerChat)).toBe(true);
+    // a member's own conversation, and an ordinary topic, never draw it
+    expect(await detailOf(w.sara.id, saraChat)).toBeFalsy();
+    expect(await detailOf(w.owner.id, w.topic.id)).toBeFalsy();
+    // the guide off: the ordinary call button stays
+    await setFeature(w.org.id, "siteGuide", false);
+    expect(await detailOf(w.owner.id, ownerChat)).toBeFalsy();
+  });
+});
