@@ -21,6 +21,7 @@ from livekit import rtc
 from piper import PiperVoice
 
 import logic
+import tashkeel
 
 log = logging.getLogger("voice-agent")
 
@@ -29,6 +30,24 @@ TURN_URL = os.environ.get("WORKSPACE_TURN_URL", "")  # https://workspace.zakiai.
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
 PIPER_VOICE = os.environ.get("PIPER_VOICE", "/models/ar_JO-kareem-medium.onnx")
 MAX_SESSIONS = int(os.environ.get("MAX_SESSIONS", "2"))
+# Vowel marks before speaking (the voice was trained on marked text; without them it sounds like a robot). TASHKEEL=0 turns it off.
+TASHKEEL = os.environ.get("TASHKEEL", "1") != "0"
+TASHKEEL_DIR = os.environ.get("TASHKEEL_DIR", "/models/tashkeel")
+
+
+def _knob(name: str):
+    """An optional Piper setting from the environment; unset means the voice's own default."""
+    raw = os.environ.get(name, "").strip()
+    try:
+        return float(raw) if raw else None
+    except ValueError:
+        return None
+
+
+PIPER_LENGTH_SCALE = _knob("PIPER_LENGTH_SCALE")  # above 1 = slower
+PIPER_NOISE_SCALE = _knob("PIPER_NOISE_SCALE")  # more variation in the voice
+PIPER_NOISE_W = _knob("PIPER_NOISE_W")  # more variation in the rhythm
+PIPER_SENTENCE_SILENCE = _knob("PIPER_SENTENCE_SILENCE") or 0.2  # seconds of pause between sentences
 
 RATE = 16000  # what the recogniser and the voice detector want
 FRAME_MS = 30
@@ -40,12 +59,20 @@ OUT_RATE = 24000  # the room's voice track
 
 _whisper = None
 _voice = None
+_tashkeel = None
 
 
 def load_models() -> None:
-    global _whisper, _voice
+    global _whisper, _voice, _tashkeel
     _whisper = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
     _voice = PiperVoice.load(PIPER_VOICE)
+    if TASHKEEL:
+        _tashkeel = tashkeel.load(TASHKEEL_DIR)
+        if _tashkeel:
+            sample = "برأيي لازم نأجل الاجتماع لبكرا"
+            log.info("tashkeel on: %s -> %s", sample, _tashkeel(sample))
+    else:
+        log.info("tashkeel off (TASHKEEL=0)")
 
 
 def transcribe(pcm: np.ndarray) -> str:
@@ -57,7 +84,16 @@ def transcribe(pcm: np.ndarray) -> str:
 
 def synthesize(text: str):
     """Piper's answer as 16-bit mono PCM and its sample rate."""
-    return b"".join(_voice.synthesize_stream_raw(text)), _voice.config.sample_rate
+    if _tashkeel:
+        text = _tashkeel(text)
+    chunks = _voice.synthesize_stream_raw(
+        text,
+        length_scale=PIPER_LENGTH_SCALE,
+        noise_scale=PIPER_NOISE_SCALE,
+        noise_w=PIPER_NOISE_W,
+        sentence_silence=PIPER_SENTENCE_SILENCE,
+    )
+    return b"".join(chunks), _voice.config.sample_rate
 
 
 class Meeting:

@@ -5,7 +5,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 curl c
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY logic.py agent.py entrypoint.sh ./
+COPY logic.py tashkeel.py agent.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
 ENV HF_HOME=/models/hf PORT=8080 PYTHONUNBUFFERED=1
