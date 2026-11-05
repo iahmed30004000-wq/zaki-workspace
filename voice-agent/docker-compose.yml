@@ -10,6 +10,7 @@ services:
       - WORKSPACE_TURN_URL=${WORKSPACE_TURN_URL:-https://workspace.zakiai.io/api/voice-agent/turn}
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
       - MAX_SESSIONS=${MAX_SESSIONS:-2}
+      - TASHKEEL=${TASHKEEL:-1}
     volumes:
       - voice-models:/models
     expose:
