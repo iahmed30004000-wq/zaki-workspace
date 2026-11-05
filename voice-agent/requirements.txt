@@ -4,3 +4,5 @@ webrtcvad-wheels==2.0.14
 faster-whisper==1.0.3
 piper-tts==1.2.0
 livekit==0.18.3
+requests==2.32.3
+huggingface_hub==0.25.2
