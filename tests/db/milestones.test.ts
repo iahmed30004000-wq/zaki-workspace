@@ -32,9 +32,11 @@ describe("«المعالم»: creating one", () => {
   it("is stored with the day the person picked, read in the company's zone", async () => {
     const w = await world();
     await loginAs(w.member.id);
+    // Keep this fixture in the future: the API derives OVERDUE from the current company day.
+    const targetDate = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
     const created = await call(listRoute.POST, {
       params: { id: w.made.project.id },
-      body: { name: "تسليم النسخة الأولى", targetDate: "2026-11-05" },
+      body: { name: "تسليم النسخة الأولى", targetDate },
     });
     expect(created.status).toBe(201);
     const m = (created.json as { milestone: { id: string; name: string; status: string; targetDate: string } }).milestone;
@@ -42,7 +44,7 @@ describe("«المعالم»: creating one", () => {
     expect(m.status).toBe("OPEN");
     // stored as noon of that day; the DAY is what matters and it must not shift
     const row = await db.milestone.findUniqueOrThrow({ where: { id: m.id }, select: { targetDate: true } });
-    expect(row.targetDate?.toISOString().slice(0, 10)).toBe("2026-11-05");
+    expect(row.targetDate?.toISOString().slice(0, 10)).toBe(targetDate);
 
     const list = await call(listRoute.GET, { params: { id: w.made.project.id } });
     expect(list.status).toBe(200);
