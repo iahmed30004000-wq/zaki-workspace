@@ -242,7 +242,9 @@ def main() -> None:
     logging.basicConfig(level=logging.INFO)
     if len(SECRET) < 16 or not TURN_URL:
         raise SystemExit("VOICE_AGENT_SECRET (16+ characters) and WORKSPACE_TURN_URL are required")
+    log.info("loading models (the first start downloads the speech model, a few minutes)")
     load_models()
+    log.info("models ready, listening on port %s", os.environ.get("PORT", "8080"))
     app = web.Application()
     app.add_routes([web.post("/join", join), web.post("/leave", leave), web.get("/health", health)])
     web.run_app(app, port=int(os.environ.get("PORT", "8080")))
