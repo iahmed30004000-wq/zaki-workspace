@@ -26,3 +26,6 @@ data/files/
 android/zaki.p12
 *.p12
 *.jks
+
+__pycache__/
+*.pyc
