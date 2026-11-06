@@ -53,6 +53,8 @@ describe("the switch and the words", () => {
   it("the prompt asks for a short spoken answer with no formatting and gives the silence word", () => {
     expect(MEETING_SYSTEM_PROMPT).toContain("[صمت]");
     expect(MEETING_SYSTEM_PROMPT).toContain("ما بتنفّذ");
+    // spoken in Standard Arabic, not a dialect (the owner asked for it)
+    expect(MEETING_SYSTEM_PROMPT).toContain("الفصحى");
   });
 
   it("the agent's route is a machine path (no session), and the program is kept out of the site's image", () => {

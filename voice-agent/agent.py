@@ -22,6 +22,8 @@ from piper import PiperVoice
 
 import logic
 import tashkeel
+import tts_edge
+import tts_gemini
 
 log = logging.getLogger("voice-agent")
 
@@ -33,6 +35,17 @@ MAX_SESSIONS = int(os.environ.get("MAX_SESSIONS", "2"))
 # Vowel marks before speaking (the voice was trained on marked text; without them it sounds like a robot). TASHKEEL=0 turns it off.
 TASHKEEL = os.environ.get("TASHKEEL", "1") != "0"
 TASHKEEL_DIR = os.environ.get("TASHKEEL_DIR", "/models/tashkeel")
+
+
+# Which voice speaks: "edge" (Microsoft's neural voices, free, Standard Arabic; the default), "gemini" (needs the owner's own key), or "piper"
+# (local only, nothing leaves the server). A failure of the chosen one falls back to Piper.
+TTS_ENGINE = os.environ.get("TTS_ENGINE", "edge").strip().lower()
+EDGE_VOICE = os.environ.get("EDGE_VOICE", "ar-SA-HamedNeural")
+EDGE_RATE = os.environ.get("EDGE_RATE", "+0%")
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.environ.get("GEMINI_TTS_MODEL", "gemini-3.8-flash-lite-tts")
+GEMINI_FALLBACK_MODEL = os.environ.get("GEMINI_TTS_FALLBACK_MODEL", "gemini-2.5-flash-preview-tts")
+GEMINI_VOICE = os.environ.get("GEMINI_VOICE", "Kore")
 
 
 def _knob(name: str):
@@ -208,7 +221,15 @@ class Meeting:
 
     async def say(self, text: str) -> None:
         loop = asyncio.get_running_loop()
-        raw, rate = await loop.run_in_executor(None, synthesize, text)
+        heard = None
+        if TTS_ENGINE == "gemini" and GEMINI_KEY:  # a natural voice; any failure falls through to the local one
+            async with aiohttp.ClientSession() as http:
+                heard = await tts_gemini.synthesize(http, GEMINI_KEY, text, GEMINI_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_VOICE)
+        elif TTS_ENGINE == "edge":
+            heard = await tts_edge.synthesize(text, EDGE_VOICE, EDGE_RATE)
+        if heard is None and TTS_ENGINE != "piper":
+            log.warning("speaking with the local voice instead")
+        raw, rate = heard if heard else await loop.run_in_executor(None, synthesize, text)
         pcm = np.frombuffer(raw, dtype=np.int16)
         if rate != OUT_RATE:  # a plain linear resample is enough for speech
             x = np.linspace(0, len(pcm) - 1, int(len(pcm) * OUT_RATE / rate))
@@ -280,6 +301,14 @@ def main() -> None:
         raise SystemExit("VOICE_AGENT_SECRET (16+ characters) and WORKSPACE_TURN_URL are required")
     log.info("loading models (the first start downloads the speech model, a few minutes)")
     load_models()
+    if TTS_ENGINE == "gemini" and not GEMINI_KEY:
+        log.warning("TTS_ENGINE=gemini but GEMINI_API_KEY is empty: the local voice will speak")
+    log.info(
+        "voice: %s",
+        {"edge": f"microsoft {EDGE_VOICE}, local Piper as backup", "gemini": f"gemini {GEMINI_MODEL} / {GEMINI_VOICE}, local Piper as backup"}.get(
+            TTS_ENGINE, "local Piper only"
+        ),
+    )
     log.info("models ready, listening on port %s", os.environ.get("PORT", "8080"))
     app = web.Application()
     app.add_routes([web.post("/join", join), web.post("/leave", leave), web.get("/health", health)])

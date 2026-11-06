@@ -11,6 +11,11 @@ services:
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
       - MAX_SESSIONS=${MAX_SESSIONS:-2}
       - TASHKEEL=${TASHKEEL:-1}
+      # who speaks: edge (Microsoft neural voice, the default) | gemini (needs GEMINI_API_KEY, the owner's own) | piper (local only)
+      - TTS_ENGINE=${TTS_ENGINE:-edge}
+      - EDGE_VOICE=${EDGE_VOICE:-ar-SA-HamedNeural}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_VOICE=${GEMINI_VOICE:-Kore}
     volumes:
       - voice-models:/models
     expose:
