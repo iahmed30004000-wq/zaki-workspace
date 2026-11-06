@@ -42,6 +42,8 @@ export interface OpenAiCompatOptions {
   numCtx?: number;
   /** The address is an outside https service the owner allowed (`externalGateway`). */
   external?: boolean;
+  /** The chat path when the service is not at `/v1/chat/completions` (Groq: `/openai/v1/chat/completions`). Judged by the caller. */
+  chatPath?: string;
 }
 
 export const OPENAI_CHAT_PATH = "/v1/chat/completions";
@@ -95,7 +97,7 @@ export function createOpenAiCompatProvider(options: OpenAiCompatOptions): AiProv
           callLocal({
             target,
             method: "POST",
-            path: OPENAI_CHAT_PATH,
+            path: options.chatPath ?? OPENAI_CHAT_PATH,
             headers: authHeaders(options.apiKey),
             body: buildOpenAiBody(options.model, request, numCtx, withTools),
             timeoutMs,

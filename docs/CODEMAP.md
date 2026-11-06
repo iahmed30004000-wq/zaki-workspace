@@ -51,7 +51,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 141 services — the business rules (§6) |
+| `src/server/services/` | 142 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -532,6 +532,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-page` | 47 | 2 | The page inside a card, as ONE read: the card, what the viewer may do on it, the stars, the gallery. |
 | `card-ratings` | 58 | 2 | «التقييم» (the first of the two systems): stars 1 to 5 from the people of the space, one per person per card, changeable. |
 | `card-revisions` | 91 | 2 | «الإصدارات»: the snapshots every saved edit left behind (written by `saveCardEdit`, never changed or removed: the table refuses an UPDATE). |
+| `gateway-env` | 39 | 2 | «بوابة ثابتة من السيرفر» — the gateway of the owner's assistant, fixed by VARIABLES of the server instead of typed on a screen. |
 | `goals` | 307 | 2 | no header comment — exports `periodWindow`, `goalSchema`, `goalStatus`, `listGoals`, `createGoal`, … |
 | `image-ocr-route` | 23 | 2 | The answer of «اقرا النص» for both doors (a library file, a chat attachment): the body may say `{ "again": true }` («اقرا من جديد»). |
 | `member-rules` | 184 | 2 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
@@ -559,10 +560,10 @@ high count is a wide surface: changing its signature reaches all of them.
 | `custom-fields-export` | 73 | 1 | «حقول مخصصة» — the project's values as a CSV file. |
 | `department-space` | 93 | 1 | EVERY DEPARTMENT HAS ITS SPACE (the owner's decision, 2026-10-25: each space is like a separate site). |
 | `first-steps` | 100 | 1 | The first-steps card («خطواتك الأولى») computed from REAL data for the signed-in actor: nothing is stored about "progress" - a step is done because the rows say so (a theme chos… |
-| `gateway-env` | 39 | 1 | «بوابة ثابتة من السيرفر» — the gateway of the owner's assistant, fixed by VARIABLES of the server instead of typed on a screen. |
 | `instant-work` | 131 | 1 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
 | `local-model` | 65 | 1 | «اختبر الاتصال» — the button of the local model's settings. |
 | `manufacturing-proof` | 36 | 1 | The gate of the file routes for a proof photo of a receipt: it opens ONLY for the people who may read the receipt, that is to say the ledger's own rule and nothing looser than i… |
+| `meeting-model-env` | 51 | 1 | «نموذج الاجتماعات» — a FAST model for the meeting assistant only, fixed by VARIABLES of the server (like `gateway-env.ts`). |
 | `my-work` | 168 | 1 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
 | `presence-roster` | 96 | 1 | THE PEOPLE DOCK — who works here and who is at their screen right now (the owner's ask, 2026-10-29: «المستخدمين ظاهرين على زاوية الموقع تحت وكل واحد جنبه علامة خضراء أونلاين»). |
 | `recurrence-spawn` | 221 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |

@@ -4,7 +4,8 @@ import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext }
 import { AssistantError } from "@/server/ai/api";
 import { makeProvider } from "@/server/ai/registry";
 import { redactText } from "@/server/ai/redact";
-import type { AiChatMessage } from "@/server/ai/provider";
+import { AiProviderError, type AiChatMessage, type AiCompletion } from "@/server/ai/provider";
+import { meetingModelEnv } from "@/server/services/meeting-model-env";
 import { LOCAL_MAX_OUTPUT_TOKENS } from "@/server/ai/local-transport";
 import { dayKeyOf } from "@/lib/owner-board";
 import { hmacHex, safeEqual } from "@/server/crypto";
@@ -186,29 +187,52 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
 
   const settings = await getSettings(call.orgId);
   const choice = await resolveProvider(call.orgId, settings, "owner");
-  if (!choice) throw new AssistantError(settings.ownerProvider === "claude" ? "assistant.no_key" : "assistant.no_local", "conflict");
+  // a fast model of the owner's own for meetings (server variables, meeting-model-env.ts); the chosen one stays the fallback
+  const fast = meetingModelEnv();
+  if (!choice && !fast) throw new AssistantError(settings.ownerProvider === "claude" ? "assistant.no_key" : "assistant.no_local", "conflict");
   assertWithinQuota(await usageSummary(call.orgId, settings, now));
-  const small = runsOnOwnServer(choice);
+  const small = choice ? runsOnOwnServer(choice) : false;
 
   const clean = (text: string): string => redactText(text.replace(/[\x00-\x1f\x7f]+/g, " ").trim()).text;
   const history: AiChatMessage[] = input.history.map((t) => ({ role: t.role, content: clean(t.text) }));
   while (history.length > 0 && history[0]?.role !== "user") history.shift();
   const where = call.title ?? call.conversation?.title;
   const heard = `${where ? `عنوان الاجتماع: ${clean(where)}\n` : ""}${input.addressed ? "موجّه إليك" : "مش موجّه إليك"}${input.speaker ? ` · ${clean(input.speaker)}` : ""}:\n${clean(input.text)}`;
-  const completion = await makeProvider(choice.config).complete({
-    system: MEETING_SYSTEM_PROMPT,
-    messages: [...history, { role: "user", content: heard }],
-    tools: [],
-    // a spoken answer is short: a long one is a minute of a machine talking
-    maxTokens: small ? Math.min(220, LOCAL_MAX_OUTPUT_TOKENS) : 220,
-  });
+  const messages: AiChatMessage[] = [...history, { role: "user", content: heard }];
+  let completion: AiCompletion | null = null;
+  let model = choice?.model ?? "";
+  if (fast) {
+    try {
+      completion = await makeProvider({ kind: "openai", apiKey: fast.key, model: fast.model, baseUrl: fast.origin, external: true, chatPath: fast.path, fast: true }).complete({
+        system: MEETING_SYSTEM_PROMPT,
+        messages,
+        tools: [],
+        maxTokens: 220,
+      });
+      model = fast.model;
+    } catch (err) {
+      // the reason only (a key), never the text: then the chosen model answers instead
+      log.warn("assistant_meeting.fast_failed", { reason: err instanceof AiProviderError ? err.key : "unknown" });
+    }
+  }
+  if (!completion) {
+    if (!choice) throw new AssistantError(settings.ownerProvider === "claude" ? "assistant.no_key" : "assistant.no_local", "conflict");
+    model = choice.model;
+    completion = await makeProvider(choice.config).complete({
+      system: MEETING_SYSTEM_PROMPT,
+      messages,
+      tools: [],
+      // a spoken answer is short: a long one is a minute of a machine talking
+      maxTokens: small ? Math.min(220, LOCAL_MAX_OUTPUT_TOKENS) : 220,
+    });
+  }
   const reply = completion.text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f*#_`>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 600);
   const silent = reply === "" || reply.includes(SILENCE) || (!input.addressed && reply.length === 0);
   // the cost is the owner's: it is his assistant, his key
   const owner = await db.organizationMember.findFirst({ where: { organizationId: call.orgId, role: "OWNER", status: "ACTIVE" }, select: { userId: true }, orderBy: { createdAt: "asc" } });
   if (owner) await recordUsage({ orgId: call.orgId, userId: owner.userId }, dayKeyOf(now, await orgTimeZone(call.orgId)), completion.usage);
   await db.auditLog.create({
-    data: { action: "assistant.meeting_turn", actorId: null, orgId: call.orgId, target: input.callId, meta: { heard: input.text.length, said: silent ? 0 : reply.length, addressed: input.addressed, model: choice.model } },
+    data: { action: "assistant.meeting_turn", actorId: null, orgId: call.orgId, target: input.callId, meta: { heard: input.text.length, said: silent ? 0 : reply.length, addressed: input.addressed, model } },
   });
   return { reply: silent ? "" : reply, silent };
 }
