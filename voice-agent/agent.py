@@ -62,10 +62,18 @@ PIPER_NOISE_SCALE = _knob("PIPER_NOISE_SCALE")  # more variation in the voice
 PIPER_NOISE_W = _knob("PIPER_NOISE_W")  # more variation in the rhythm
 PIPER_SENTENCE_SILENCE = _knob("PIPER_SENTENCE_SILENCE") or 0.2  # seconds of pause between sentences
 
+# Timings are always logged; what was said is logged only with VOICE_DEBUG=1 (it is the people's talk).
+DEBUG = os.environ.get("VOICE_DEBUG", "0") == "1"
+# A short «one moment» is spoken the moment the assistant is addressed, while the model thinks. VOICE_FILLER=0 turns it off.
+FILLER = os.environ.get("VOICE_FILLER", "1") != "0"
+FILLER_TEXT = os.environ.get("VOICE_FILLER_TEXT", "حسنًا، لحظة من فضلك.")
+# How many CPU threads the speech recogniser may use (the library's default is 4, which is slow on a big server).
+WHISPER_THREADS = int(os.environ.get("WHISPER_THREADS", "0")) or min(os.cpu_count() or 4, 8)
+
 RATE = 16000  # what the recogniser and the voice detector want
 FRAME_MS = 30
 FRAME_SAMPLES = RATE * FRAME_MS // 1000
-END_SILENCE_FRAMES = 700 // FRAME_MS  # 0.7 s of quiet ends a sentence
+END_SILENCE_FRAMES = 500 // FRAME_MS  # half a second of quiet ends a sentence
 MAX_UTTERANCE_SECONDS = 15
 MIN_UTTERANCE_SECONDS = 0.6
 OUT_RATE = 24000  # the room's voice track
@@ -73,11 +81,13 @@ OUT_RATE = 24000  # the room's voice track
 _whisper = None
 _voice = None
 _tashkeel = None
+_filler = None
 
 
 def load_models() -> None:
     global _whisper, _voice, _tashkeel
-    _whisper = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8")
+    _whisper = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8", cpu_threads=WHISPER_THREADS)
+    log.info("speech recogniser: %s on %d threads", WHISPER_MODEL, WHISPER_THREADS)
     _voice = PiperVoice.load(PIPER_VOICE)
     if TASHKEEL:
         _tashkeel = tashkeel.load(TASHKEEL_DIR)
@@ -136,6 +146,8 @@ class Meeting:
         track = rtc.LocalAudioTrack.create_audio_track("assistant-voice", self.source)
         await self.room.local_participant.publish_track(track, rtc.TrackPublishOptions(source=rtc.TrackSource.SOURCE_MICROPHONE))
         self._spawn(self.watch_empty())
+        if FILLER:
+            self._spawn(self.filler())  # rendered now, so the first «one moment» is ready when it is needed
         log.info("joined %s", self.room_name)
 
     def _spawn(self, coro) -> None:
@@ -187,19 +199,35 @@ class Meeting:
 
     async def heard(self, pcm, speaker: str) -> None:
         loop = asyncio.get_running_loop()
+        began = time.time()  # the speaker has just finished: everything from here is the wait they feel
         text = await loop.run_in_executor(None, transcribe, pcm)
+        stt_ms = int((time.time() - began) * 1000)
         if logic.is_noise(text):
+            log.info("heard noise (%.1fs of audio, listened %d ms)", len(pcm) / RATE, stt_ms)
             return
         addressed = logic.is_addressed(text, self.last_spoke_at, time.time())
+        log.info("heard %.1fs of audio, listened %d ms, addressed=%s%s", len(pcm) / RATE, stt_ms, addressed, f", text: {text}" if DEBUG else "")
         self.history.append({"role": "user", "text": f"{speaker}: {text}"})
         self.history = self.history[-12:]
         if not addressed or self.speaking:
             return
         async with self.busy:
-            answer = await self.ask(speaker, text, addressed)
+            asked = time.time()
+            thinking = asyncio.create_task(self.ask(speaker, text, addressed))
+            if FILLER and not self.speaking:  # a short «one moment» while the model thinks, so the room is not silent
+                await self.play(await self.filler())
+            answer = await thinking
+            think_ms = int((time.time() - asked) * 1000)
             if answer:
                 self.history.append({"role": "assistant", "text": answer})
+                spoke = time.time()
                 await self.say(answer)
+                log.info(
+                    "answered: listened %d ms + thought %d ms + voice %d ms to the end of the answer, %d ms after they stopped%s",
+                    stt_ms, think_ms, int((time.time() - spoke) * 1000), int((time.time() - began) * 1000), f", said: {answer}" if DEBUG else "",
+                )
+            else:
+                log.info("no answer (listened %d ms, waited %d ms)", stt_ms, think_ms)
 
     async def ask(self, speaker: str, text: str, addressed: bool) -> str:
         body = json.dumps(
@@ -219,7 +247,18 @@ class Meeting:
             log.warning("turn failed: %s", err)
             return ""
 
+    async def filler(self):
+        """«One moment»: spoken once, then kept (rendering it needs the voice engine, the first time only)."""
+        global _filler
+        if _filler is None:
+            _filler = await self.render(FILLER_TEXT)
+        return _filler
+
     async def say(self, text: str) -> None:
+        await self.play(await self.render(text))
+
+    async def render(self, text: str):
+        """The text as 24 kHz 16-bit mono sound."""
         loop = asyncio.get_running_loop()
         heard = None
         if TTS_ENGINE == "gemini" and GEMINI_KEY:  # a natural voice; any failure falls through to the local one
@@ -234,6 +273,9 @@ class Meeting:
         if rate != OUT_RATE:  # a plain linear resample is enough for speech
             x = np.linspace(0, len(pcm) - 1, int(len(pcm) * OUT_RATE / rate))
             pcm = np.interp(x, np.arange(len(pcm)), pcm).astype(np.int16)
+        return pcm
+
+    async def play(self, pcm) -> None:
         self.speaking = True
         try:
             step = OUT_RATE // 100  # 10 ms
