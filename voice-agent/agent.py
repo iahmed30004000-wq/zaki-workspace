@@ -11,6 +11,7 @@ import json
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import aiohttp
 import numpy as np
@@ -22,6 +23,7 @@ from piper import PiperVoice
 
 import logic
 import tashkeel
+import stt_groq
 import tts_edge
 import tts_gemini
 
@@ -65,10 +67,17 @@ PIPER_SENTENCE_SILENCE = _knob("PIPER_SENTENCE_SILENCE") or 0.2  # seconds of pa
 # Timings are always logged; what was said is logged only with VOICE_DEBUG=1 (it is the people's talk).
 DEBUG = os.environ.get("VOICE_DEBUG", "0") == "1"
 # A short «one moment» is spoken the moment the assistant is addressed, while the model thinks. VOICE_FILLER=0 turns it off.
-FILLER = os.environ.get("VOICE_FILLER", "1") != "0"
+FILLER = os.environ.get("VOICE_FILLER", "0") == "1"  # off by default: it only repeats itself while the real answer is late
 FILLER_TEXT = os.environ.get("VOICE_FILLER_TEXT", "حسنًا، لحظة من فضلك.")
-# How many CPU threads the speech recogniser may use (the library's default is 4, which is slow on a big server).
-WHISPER_THREADS = int(os.environ.get("WHISPER_THREADS", "0")) or min(os.cpu_count() or 4, 8)
+# How many CPU threads the LOCAL speech recogniser may use. The server is shared with the site and the calls: more threads than cores only thrash.
+WHISPER_THREADS = int(os.environ.get("WHISPER_THREADS", "0")) or min(os.cpu_count() or 4, 4)
+# Who listens: "local" (faster-whisper on this server; nothing leaves it) or "groq" (Groq's hosted Whisper with the owner's own GROQ_API_KEY: fast
+# and far better Arabic, but every sentence of the room is sent to Groq). Any failure of the hosted one falls back to the local one.
+STT_ENGINE = os.environ.get("STT_ENGINE", "local").strip().lower()
+GROQ_KEY = os.environ.get("GROQ_API_KEY", "").strip()
+GROQ_STT_MODEL = os.environ.get("GROQ_STT_MODEL", "whisper-large-v3-turbo")
+# A hint for the recogniser so it knows the assistant's names (it wrote «يا مساعد» as «يا موساق»). Set STT_PROMPT to a space to send none.
+STT_PROMPT = os.environ.get("STT_PROMPT", "اجتماع عمل. المساعد زاكي يشارك فيه.").strip()
 
 RATE = 16000  # what the recogniser and the voice detector want
 FRAME_MS = 30
@@ -87,7 +96,11 @@ _filler = None
 def load_models() -> None:
     global _whisper, _voice, _tashkeel
     _whisper = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8", cpu_threads=WHISPER_THREADS)
-    log.info("speech recogniser: %s on %d threads", WHISPER_MODEL, WHISPER_THREADS)
+    log.info("speech recogniser: %s on %d threads (one sentence at a time)", WHISPER_MODEL, WHISPER_THREADS)
+    if STT_ENGINE == "groq":
+        log.info("listening: groq %s%s", GROQ_STT_MODEL, "" if GROQ_KEY else " (NO KEY: local only)")
+    else:
+        log.info("listening: local only (nothing leaves the server)")
     _voice = PiperVoice.load(PIPER_VOICE)
     if TASHKEEL:
         _tashkeel = tashkeel.load(TASHKEEL_DIR)
@@ -100,9 +113,30 @@ def load_models() -> None:
 
 def transcribe(pcm: np.ndarray) -> str:
     segments, _ = _whisper.transcribe(
-        pcm.astype(np.float32) / 32768.0, language="ar", beam_size=1, vad_filter=False, condition_on_previous_text=False
+        pcm.astype(np.float32) / 32768.0,
+        language="ar",
+        beam_size=1,
+        vad_filter=False,
+        condition_on_previous_text=False,
+        initial_prompt=STT_PROMPT or None,
     )
     return " ".join(s.text.strip() for s in segments).strip()
+
+
+# ONE sentence at a time on the local recogniser: several at once (every voice, every pause) fought over the same cores and a two-second
+# sentence took up to 29 seconds.
+_local_stt = ThreadPoolExecutor(max_workers=1, thread_name_prefix="whisper")
+
+
+async def recognise(pcm: np.ndarray) -> str:
+    """The sentence as text: the hosted recogniser when chosen, the local one otherwise or when the hosted one fails."""
+    if STT_ENGINE == "groq" and GROQ_KEY:
+        async with aiohttp.ClientSession() as http:
+            text = await stt_groq.transcribe(http, GROQ_KEY, pcm.tobytes(), GROQ_STT_MODEL, STT_PROMPT)
+        if text is not None:
+            return text
+        log.warning("listening with the local recogniser instead")
+    return await asyncio.get_running_loop().run_in_executor(_local_stt, transcribe, pcm)
 
 
 def synthesize(text: str):
@@ -198,11 +232,10 @@ class Meeting:
                         self._spawn(self.heard(pcm, speaker))
 
     async def heard(self, pcm, speaker: str) -> None:
-        loop = asyncio.get_running_loop()
         began = time.time()  # the speaker has just finished: everything from here is the wait they feel
-        text = await loop.run_in_executor(None, transcribe, pcm)
+        text = await recognise(pcm)
         stt_ms = int((time.time() - began) * 1000)
-        if logic.is_noise(text):
+        if logic.is_noise(text, STT_PROMPT):
             log.info("heard noise (%.1fs of audio, listened %d ms)", len(pcm) / RATE, stt_ms)
             return
         addressed = logic.is_addressed(text, self.last_spoke_at, time.time())
@@ -215,7 +248,10 @@ class Meeting:
             asked = time.time()
             thinking = asyncio.create_task(self.ask(speaker, text, addressed))
             if FILLER and not self.speaking:  # a short «one moment» while the model thinks, so the room is not silent
-                await self.play(await self.filler())
+                try:
+                    await self.play(await self.filler())
+                except Exception as err:  # never let the filler cost the answer
+                    log.warning("filler failed: %s", err)
             answer = await thinking
             think_ms = int((time.time() - asked) * 1000)
             if answer:

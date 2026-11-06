@@ -40,9 +40,17 @@ def is_addressed(text: str, last_spoke_at: float | None, now: float) -> bool:
     return any(normalize(w) in words for w in WAKE_WORDS)
 
 
-def is_noise(text: str) -> bool:
-    """Speech to text invents words out of silence and music: very short results and the few phrases it repeats are dropped."""
+def _plain(text: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[.,،!؟?:؛]", " ", normalize(text))).strip()
+
+
+def is_noise(text: str, prompt: str = "") -> bool:
+    """Speech to text invents words out of silence and music: very short results and the few phrases it repeats are dropped.
+    A hint given to the recogniser (the names it should know) is sometimes echoed back out of silence: an answer that is only a piece of it is noise too."""
     cleaned = normalize(text)
     if len(cleaned) < 3:
         return True
-    return cleaned in {"شكرا", "شكرا لكم", "اشتركوا في القناة", "ترجمة نانسي قنقر"}
+    if cleaned in {"شكرا", "شكرا لكم", "اشتركوا في القناة", "ترجمة نانسي قنقر"}:
+        return True
+    hint = _plain(prompt)
+    return bool(hint) and _plain(text) in hint
