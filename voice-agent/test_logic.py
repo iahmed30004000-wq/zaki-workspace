@@ -32,6 +32,14 @@ class AddressedTests(unittest.TestCase):
         self.assertTrue(logic.is_noise("شكرا"))
         self.assertFalse(logic.is_noise("مين بدو يكتب المحضر"))
 
+    def test_an_echo_of_the_recogniser_hint_is_noise_but_a_real_call_is_not(self):
+        hint = "اجتماع عمل. المساعد زاكي يشارك فيه."
+        self.assertTrue(logic.is_noise("اجتماع عمل.", hint))
+        self.assertTrue(logic.is_noise("المساعد زاكي يشارك فيه", hint))
+        self.assertFalse(logic.is_noise("يا مساعد، شو رأيك؟", hint))
+        self.assertFalse(logic.is_noise("زاكي لخّص لنا الاجتماع", hint))
+        self.assertFalse(logic.is_noise("اجتماع عمل", ""))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -14,8 +14,11 @@ services:
       # who speaks: edge (Microsoft neural voice, the default) | gemini (needs GEMINI_API_KEY, the owner's own) | piper (local only)
       # speed and diagnosis: timings are always in the log; VOICE_DEBUG=1 adds what was said; VOICE_FILLER=0 drops the spoken «one moment»
       - VOICE_DEBUG=${VOICE_DEBUG:-0}
-      - VOICE_FILLER=${VOICE_FILLER:-1}
+      - VOICE_FILLER=${VOICE_FILLER:-0}
       - WHISPER_THREADS=${WHISPER_THREADS:-0}
+      # who listens: local (default, nothing leaves the server) | groq (needs GROQ_API_KEY, the owner's own; every sentence goes to Groq)
+      - STT_ENGINE=${STT_ENGINE:-local}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
       - TTS_ENGINE=${TTS_ENGINE:-edge}
       - EDGE_VOICE=${EDGE_VOICE:-ar-SA-HamedNeural}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
