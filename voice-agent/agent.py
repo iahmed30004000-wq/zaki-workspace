@@ -22,6 +22,7 @@ from piper import PiperVoice
 
 import logic
 import tashkeel
+import tts_gemini
 
 log = logging.getLogger("voice-agent")
 
@@ -33,6 +34,13 @@ MAX_SESSIONS = int(os.environ.get("MAX_SESSIONS", "2"))
 # Vowel marks before speaking (the voice was trained on marked text; without them it sounds like a robot). TASHKEEL=0 turns it off.
 TASHKEEL = os.environ.get("TASHKEEL", "1") != "0"
 TASHKEEL_DIR = os.environ.get("TASHKEEL_DIR", "/models/tashkeel")
+
+
+# The natural voice (Gemini, free tier, Standard Arabic). Off until the owner puts his own key here; remove the key and it is off again.
+GEMINI_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
+GEMINI_MODEL = os.environ.get("GEMINI_TTS_MODEL", "gemini-3.8-flash-lite-tts")
+GEMINI_FALLBACK_MODEL = os.environ.get("GEMINI_TTS_FALLBACK_MODEL", "gemini-2.5-flash-preview-tts")
+GEMINI_VOICE = os.environ.get("GEMINI_VOICE", "Kore")
 
 
 def _knob(name: str):
@@ -208,7 +216,13 @@ class Meeting:
 
     async def say(self, text: str) -> None:
         loop = asyncio.get_running_loop()
-        raw, rate = await loop.run_in_executor(None, synthesize, text)
+        heard = None
+        if GEMINI_KEY:  # the natural voice; any failure falls through to the local one
+            async with aiohttp.ClientSession() as http:
+                heard = await tts_gemini.synthesize(http, GEMINI_KEY, text, GEMINI_MODEL, GEMINI_FALLBACK_MODEL, GEMINI_VOICE)
+            if heard is None:
+                log.warning("speaking with the local voice instead")
+        raw, rate = heard if heard else await loop.run_in_executor(None, synthesize, text)
         pcm = np.frombuffer(raw, dtype=np.int16)
         if rate != OUT_RATE:  # a plain linear resample is enough for speech
             x = np.linspace(0, len(pcm) - 1, int(len(pcm) * OUT_RATE / rate))
@@ -280,6 +294,7 @@ def main() -> None:
         raise SystemExit("VOICE_AGENT_SECRET (16+ characters) and WORKSPACE_TURN_URL are required")
     log.info("loading models (the first start downloads the speech model, a few minutes)")
     load_models()
+    log.info("voice: %s", f"gemini {GEMINI_MODEL} / {GEMINI_VOICE}, local Piper as backup" if GEMINI_KEY else "local Piper (no GEMINI_API_KEY)")
     log.info("models ready, listening on port %s", os.environ.get("PORT", "8080"))
     app = web.Application()
     app.add_routes([web.post("/join", join), web.post("/leave", leave), web.get("/health", health)])

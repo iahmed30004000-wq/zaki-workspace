@@ -11,6 +11,9 @@ services:
       - WHISPER_MODEL=${WHISPER_MODEL:-small}
       - MAX_SESSIONS=${MAX_SESSIONS:-2}
       - TASHKEEL=${TASHKEEL:-1}
+      # the natural voice: empty = off (the local voice speaks). The owner puts his own key here in Coolify.
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_VOICE=${GEMINI_VOICE:-Kore}
     volumes:
       - voice-models:/models
     expose:
