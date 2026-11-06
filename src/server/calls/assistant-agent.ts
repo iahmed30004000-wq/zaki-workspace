@@ -146,6 +146,8 @@ export const MEETING_SYSTEM_PROMPT = [
 ].join("\n");
 
 export const SILENCE = "[صمت]";
+/** What it says when it was addressed but the model had nothing to say (an unclear sentence, an empty answer). */
+export const REPEAT_REQUEST = "لم أفهم جيدًا، هل يمكنك أن تعيد من فضلك؟";
 
 const turnSchema = z.object({
   callId: z.string().min(1).max(64),
@@ -203,13 +205,19 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
   let model = choice?.model ?? "";
   if (fast) {
     try {
-      completion = await makeProvider({ kind: "openai", apiKey: fast.key, model: fast.model, baseUrl: fast.origin, external: true, chatPath: fast.path, fast: true }).complete({
+      // 512, not 220: a «thinking» model (gpt-oss) spends the allowance on its own reasoning and answers with nothing if it is too small
+      const answer = await makeProvider({ kind: "openai", apiKey: fast.key, model: fast.model, baseUrl: fast.origin, external: true, chatPath: fast.path, fast: true }).complete({
         system: MEETING_SYSTEM_PROMPT,
         messages,
         tools: [],
-        maxTokens: 220,
+        maxTokens: 512,
       });
-      model = fast.model;
+      if (answer.text.trim() === "") {
+        log.warn("assistant_meeting.fast_failed", { reason: "empty_answer" });
+      } else {
+        completion = answer;
+        model = fast.model;
+      }
     } catch (err) {
       // the reason only (a key), never the text: then the chosen model answers instead
       log.warn("assistant_meeting.fast_failed", { reason: err instanceof AiProviderError ? err.key : "unknown" });
@@ -227,13 +235,16 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
     });
   }
   const reply = completion.text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f*#_`>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 600);
-  const silent = reply === "" || reply.includes(SILENCE) || (!input.addressed && reply.length === 0);
+  const wantsSilence = reply === "" || reply.includes(SILENCE);
+  // silence is only for talk that was not meant for the assistant: when somebody spoke TO it, it never just stays quiet
+  const silent = wantsSilence && !input.addressed;
+  const spoken = wantsSilence ? REPEAT_REQUEST : reply;
   // the cost is the owner's: it is his assistant, his key
   const owner = await db.organizationMember.findFirst({ where: { organizationId: call.orgId, role: "OWNER", status: "ACTIVE" }, select: { userId: true }, orderBy: { createdAt: "asc" } });
   if (owner) await recordUsage({ orgId: call.orgId, userId: owner.userId }, dayKeyOf(now, await orgTimeZone(call.orgId)), completion.usage);
   await db.auditLog.create({
-    data: { action: "assistant.meeting_turn", actorId: null, orgId: call.orgId, target: input.callId, meta: { heard: input.text.length, said: silent ? 0 : reply.length, addressed: input.addressed, model } },
+    data: { action: "assistant.meeting_turn", actorId: null, orgId: call.orgId, target: input.callId, meta: { heard: input.text.length, said: silent ? 0 : spoken.length, addressed: input.addressed, model } },
   });
-  return { reply: silent ? "" : reply, silent };
+  return { reply: silent ? "" : spoken, silent };
 }
 

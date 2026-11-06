@@ -19,6 +19,7 @@ services:
       # who listens: local (default, nothing leaves the server) | groq (needs GROQ_API_KEY, the owner's own; every sentence goes to Groq)
       - STT_ENGINE=${STT_ENGINE:-local}
       - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_STT_MODEL=${GROQ_STT_MODEL:-whisper-large-v3}
       - TTS_ENGINE=${TTS_ENGINE:-edge}
       - EDGE_VOICE=${EDGE_VOICE:-ar-SA-HamedNeural}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}

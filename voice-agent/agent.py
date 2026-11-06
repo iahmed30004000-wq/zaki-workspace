@@ -75,7 +75,7 @@ WHISPER_THREADS = int(os.environ.get("WHISPER_THREADS", "0")) or min(os.cpu_coun
 # and far better Arabic, but every sentence of the room is sent to Groq). Any failure of the hosted one falls back to the local one.
 STT_ENGINE = os.environ.get("STT_ENGINE", "local").strip().lower()
 GROQ_KEY = os.environ.get("GROQ_API_KEY", "").strip()
-GROQ_STT_MODEL = os.environ.get("GROQ_STT_MODEL", "whisper-large-v3-turbo")
+GROQ_STT_MODEL = os.environ.get("GROQ_STT_MODEL", "whisper-large-v3")  # the full model: better Arabic than -turbo, still well under a second
 # A hint for the recogniser so it knows the assistant's names (it wrote «يا مساعد» as «يا موساق»). Set STT_PROMPT to a space to send none.
 STT_PROMPT = os.environ.get("STT_PROMPT", "اجتماع عمل. المساعد زاكي يشارك فيه.").strip()
 

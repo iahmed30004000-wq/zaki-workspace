@@ -10,7 +10,7 @@ import type { AiRequest } from "@/server/ai/provider";
 import { setProviderFactoryForTests } from "@/server/ai/registry";
 import { saveKey } from "@/server/services/owner-assistant-settings";
 import { setCallsFetchForTests } from "@/server/calls/livekit";
-import { setAgentFetchForTests, signBody } from "@/server/calls/assistant-agent";
+import { REPEAT_REQUEST, setAgentFetchForTests, signBody } from "@/server/calls/assistant-agent";
 import { call, db, loginAs, makeTeam, makeWorkspace } from "./helpers";
 
 /**
@@ -197,6 +197,16 @@ describe("what the assistant says", () => {
     expect((await ask(w.callId, { addressed: false })).json).toEqual({ reply: "", silent: true });
     said = "**تمام** # ماشي";
     expect((await ask(w.callId)).json?.["reply"]).toBe("تمام ماشي");
+  });
+
+  it("somebody spoke TO the assistant: the model's «[صمت]» or an empty answer becomes «please repeat», never silence", async () => {
+    const w = await world();
+    for (const answer of ["[صمت]", ""]) {
+      said = answer;
+      expect((await ask(w.callId)).json, JSON.stringify(answer)).toEqual({ reply: REPEAT_REQUEST, silent: false });
+    }
+    said = "[صمت]";
+    expect((await ask(w.callId, { addressed: false })).json).toEqual({ reply: "", silent: true });
   });
 
   it("a wrong secret, an old signature or a missing agent setting is «not found»; the model is never called", async () => {
