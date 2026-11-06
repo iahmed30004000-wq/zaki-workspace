@@ -6,3 +6,4 @@ piper-tts==1.2.0
 livekit==0.18.3
 requests==2.32.3
 huggingface_hub==0.25.2
+edge-tts==7.3.1
