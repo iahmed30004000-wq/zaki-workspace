@@ -1,5 +1,5 @@
 import { PARTICLE_CAP, emit, mulberry32, repaintPercent, revealEase, revealPolygon, shardSeeds, stepParticles, mixRgb, parseTriplet, rgbOf, type Particle, type RevealLook, type Rgb } from "@/lib/themes/switch-motion";
-import { motionAllowed, particleBudget, revealRadius, type FxGate } from "@/lib/themes/switch-fx";
+import { motionAllowed, revealRadius, type FxGate } from "@/lib/themes/switch-fx";
 
 /**
  * The theme change as a torn-ink reveal that grows from where the person pressed — «repainting NN%».
@@ -60,7 +60,8 @@ export async function changeThemeWithReveal(apply: () => void, options: RevealOp
   const duration = options.durationMs ?? DURATION[look];
   const w = window.innerWidth;
   const h = window.innerHeight;
-  const radius = revealRadius(origin.x, origin.y, w, h);
+  // the percentage is the share of the way to the farthest corner: 100% is the moment the torn edge has covered it
+  const radius = revealRadius(origin.x, origin.y, w, h) * 0.9;
   const accent = token(toDark ? "lm-spark-d" : "lm-spark-l", [255, 176, 32]);
   const ink = token(toDark ? "lm-bg-d" : "lm-bg-l", [15, 16, 23]);
   const rim = mixRgb(accent, [255, 255, 255], 0.35);
@@ -87,16 +88,16 @@ export async function changeThemeWithReveal(apply: () => void, options: RevealOp
       display: "flex",
       alignItems: "center",
       gap: "10px",
-      padding: "8px 14px",
+      padding: "10px 18px",
       borderRadius: "9999px",
-      font: "600 12px/1 ui-sans-serif, system-ui, sans-serif",
+      font: "600 15px/1 ui-sans-serif, system-ui, sans-serif",
       color: "rgb(var(--fx-lm-ink-d))",
       background: "rgb(var(--fx-lm-panel-d) / 0.92)",
       boxShadow: "0 6px 24px rgb(var(--fx-lm-bg-d) / 0.45)",
     });
     pillText = document.createElement("span");
     const track = document.createElement("span");
-    Object.assign(track.style, { display: "block", width: "56px", height: "3px", borderRadius: "2px", background: "rgb(var(--fx-lm-mute-d) / 0.4)", overflow: "hidden" });
+    Object.assign(track.style, { display: "block", width: "72px", height: "4px", borderRadius: "2px", background: "rgb(var(--fx-lm-mute-d) / 0.4)", overflow: "hidden" });
     pillBar = document.createElement("span");
     Object.assign(pillBar.style, { display: "block", height: "100%", width: "0%", background: rgbOf(accent) });
     track.appendChild(pillBar);
@@ -134,7 +135,7 @@ export async function changeThemeWithReveal(apply: () => void, options: RevealOp
       const rand = mulberry32(seed ^ 0x9e37);
       const shards = shardSeeds(look === "shards" ? 22 : 0, seed);
       const live: Particle[] = [];
-      const cap = Math.min(PARTICLE_CAP, options.particles ?? 90, particleBudget(gate, 90) || 0);
+      const cap = Math.min(PARTICLE_CAP, options.particles ?? 110);
       const start = performance.now();
       let last = start;
       const rimColor = rgbOf(rim, 1);
@@ -146,8 +147,9 @@ export async function changeThemeWithReveal(apply: () => void, options: RevealOp
           const t = Math.min(1, (now - start) / duration);
           const e = revealEase(t, look);
           const r = radius * e;
-          root.style.setProperty("--zk-clip", revealPolygon(origin.x, origin.y, r, look, seed + Math.floor(t * 6), 72));
-          if (pillText) pillText.textContent = options.label?.(repaintPercent(t)) ?? "";
+          root.style.setProperty("--zk-clip", revealPolygon(origin.x, origin.y, r, look, seed + Math.floor(t * 6), look === "shards" ? 96 : 72));
+          // the number stays a left-to-right run inside the Arabic words ("36%" must not read "%36")
+          if (pillText) pillText.textContent = (options.label?.(repaintPercent(t)) ?? "").replace(/(\d+%)/, "\u2066$1\u2069");
           if (pillBar) pillBar.style.width = `${repaintPercent(t)}%`;
           if (ctx) {
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -182,7 +184,7 @@ export async function changeThemeWithReveal(apply: () => void, options: RevealOp
             }
             // trails with a bright head
             if (t < 0.88 && cap > 0) {
-              const n = look === "ink" ? 1 : 2;
+              const n = look === "ink" ? 2 : 3;
               for (let i = 0; i < n; i++) {
                 const a = rand() * Math.PI * 2;
                 const sp = 420 + rand() * 900;

@@ -28,6 +28,9 @@ const SCENES: Record<VariantKey, SceneComponent> = {
   glass: load(() => import("./glass-scene").then((m) => m.GlassScene)),
 };
 
+/** The key caps of the pill, as printed on a keyboard (the hints beside them are Arabic). */
+const KEYCAP = { hide: "H", esc: "Esc" } as const;
+
 const START = GALLERY_VARIANTS.findIndex((v) => v.key === "glass");
 
 export function ThemeGallery({ economy = false }: { economy?: boolean }) {
@@ -93,7 +96,7 @@ export function ThemeGallery({ economy = false }: { economy?: boolean }) {
             {t("gallery.toggle")}
           </button>
           <span className="keys">
-            <kbd>{t("gallery.key.space")}</kbd> {t("gallery.hint.toggle")} · <kbd>{t("gallery.key.hide")}</kbd> {t("gallery.hint.hide")} · <kbd>{t("gallery.key.esc")}</kbd> {t("gallery.hint.exit")}
+            <kbd>{t("gallery.key.space")}</kbd> {t("gallery.hint.toggle")} · <kbd>{KEYCAP.hide}</kbd> {t("gallery.hint.hide")} · <kbd>{KEYCAP.esc}</kbd> {t("gallery.hint.exit")}
           </span>
         </div>
       )}

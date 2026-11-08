@@ -23,6 +23,8 @@ const KNOB_X0 = 415; // dark: the knob rests at the left end
 const KNOB_X1 = 1000; // light: at the right end
 const PAIRS = ["gl-bg", "gl-ink", "gl-veil", "gl-tint", "gl-line", "gl-mono"] as const;
 const CH = 13.2; // the mono labels' advance in design px
+/** The reference's own monospace annotations: kept in English on purpose (they are part of the picture, not the interface). */
+const FEATURES = ["REFRACTION", "DISPERSION", "FRESNEL", "CAUSTIC"] as const;
 
 interface Callout {
   text: string;
@@ -200,13 +202,11 @@ export const GlassScene = forwardRef<SceneHandle>(function GlassScene(_props, ha
           ))}
         </div>
         <div className="fx-gl-feat" aria-hidden="true">
-          <span>REFRACTION</span>
-          <b>·</b>
-          <span>DISPERSION</span>
-          <b>·</b>
-          <span>FRESNEL</span>
-          <b>·</b>
-          <span>CAUSTIC</span>
+          {FEATURES.map((f, i) => (
+            <span key={f} className={i > 0 ? "sep" : undefined}>
+              {f}
+            </span>
+          ))}
         </div>
         <p className="fx-gl-caption" dir="rtl">
           {t("gallery.glass.caption")}

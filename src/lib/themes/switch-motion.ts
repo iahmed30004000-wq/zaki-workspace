@@ -389,8 +389,8 @@ export function edgeProfile(points: number, seed: number, roughness: number, smo
  * broken off). `ink`: a soft wobbling blot. Every radius has the same number of vertices so `clip-path` can animate between them.
  */
 export function revealPolygon(cx: number, cy: number, radius: number, look: RevealLook, seed: number, points = 72): string {
-  const profile = look === "ink" ? edgeProfile(points, seed, 0.1, 5) : edgeProfile(points, seed, 0.42, 1);
-  const spikes = look === "shards" ? edgeProfile(points, seed + 99, 0.2, 0) : null;
+  const profile = look === "ink" ? edgeProfile(points, seed, 0.1, 5) : edgeProfile(points, seed, 0.36, 0);
+  const spikes = look === "shards" ? edgeProfile(points, seed + 99, 0.28, 0) : null;
   const v: string[] = [];
   for (let i = 0; i < points; i++) {
     const a = (i / points) * Math.PI * 2;

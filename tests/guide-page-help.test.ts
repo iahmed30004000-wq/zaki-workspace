@@ -56,6 +56,7 @@ const PAGES: [string, string][] = [
   ["/crm", "crm"],
   ["/time", "time"],
   ["/checkins", "checkins"],
+  ["/theme-gallery", "theme-gallery"],
   ["/analytics", "analytics"],
   ["/automation", "automation"],
   ["/telegram", "telegram"],

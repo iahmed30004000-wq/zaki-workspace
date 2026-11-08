@@ -18,9 +18,9 @@
   background: repeating-conic-gradient(
     from 0deg,
     transparent 0deg 5deg,
-    rgb(var(--s-lp-ray) / 0.55) 6.5deg 8.5deg,
+    rgb(var(--s-lp-ray) / 0.8) 6.5deg 8.5deg,
     transparent 10deg 14deg,
-    rgb(var(--s-lp-ray) / 0.3) 16deg 17.5deg,
+    rgb(var(--s-lp-ray) / 0.5) 16deg 17.5deg,
     transparent 19deg 24deg
   );
   -webkit-mask-image: radial-gradient(circle closest-side, black 0, transparent 38%);

@@ -46,7 +46,9 @@ describe("the gallery's control pill", () => {
     expect(html).toContain(`aria-label="${AR["gallery.prev"]}"`);
     expect(html).toContain(`aria-label="${AR["gallery.next"]}"`);
     expect(html).toContain(`>${AR["gallery.toggle"]}</button>`);
-    for (const key of ["gallery.key.space", "gallery.key.hide", "gallery.key.esc", "gallery.hint.toggle", "gallery.hint.hide", "gallery.hint.exit"]) expect(html).toContain(AR[key] ?? "missing");
+    for (const key of ["gallery.key.space", "gallery.hint.toggle", "gallery.hint.hide", "gallery.hint.exit"]) expect(html).toContain(AR[key] ?? "missing");
+    expect(html).toContain("<kbd>H</kbd>");
+    expect(html).toContain("<kbd>Esc</kbd>");
     expect((html.match(/<kbd>/g) ?? []).length).toBe(3);
   });
 

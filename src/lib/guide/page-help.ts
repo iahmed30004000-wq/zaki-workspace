@@ -410,6 +410,15 @@ export const PAGE_HELP: readonly PageHelp[] = [
     article: "places",
   },
   {
+    id: "theme-gallery",
+    pattern: "/theme-gallery",
+    whatKey: "guide.page.theme-gallery.what",
+    nextKey: "guide.page.theme-gallery.next",
+    guestNextKey: INTERNAL,
+    tour: "shell",
+    article: "places",
+  },
+  {
     id: "checkins",
     pattern: "/checkins",
     whatKey: "guide.page.checkins.what",

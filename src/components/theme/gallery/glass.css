@@ -19,7 +19,7 @@
   display: block;
   border-radius: 50%;
   filter: blur(80px);
-  opacity: calc(0.52 - 0.2 * var(--m));
+  opacity: calc(0.52 - 0.3 * var(--m));
 }
 .fx-gl-blobs .b1 { left: 150px; top: 560px; width: 560px; height: 520px; background: rgb(var(--fx-gl-blob-1)); }
 .fx-gl-blobs .b2 { left: 700px; top: 620px; width: 560px; height: 440px; background: rgb(var(--fx-gl-blob-3)); }
@@ -161,15 +161,16 @@
   top: 792px;
   display: flex;
   justify-content: center;
-  gap: 36px;
+  gap: 0;
   font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
   font-size: 23.5px;
   line-height: 36px;
   color: rgb(var(--s-gl-mono));
   pointer-events: none;
 }
-.fx-gl-feat b {
-  font-weight: 400;
+.fx-gl-feat .sep::before {
+  content: "·";
+  margin-inline-end: 36px;
 }
 .fx-gl-caption {
   left: 0;
