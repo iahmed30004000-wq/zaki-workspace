@@ -258,16 +258,19 @@ describe("the frame for the owner, on a project page", () => {
     expect(header).toContain(`aria-label="${AR["pal.open"]}"`);
     expect(header).toContain(`aria-label="${AR["notif.title"]}"`);
     expect(header).toContain(`aria-label="${AR["shell.avatar.open"]?.replace("{name}", USER.name)}"`);
-    expect(header).toContain(`role="group" aria-label="${AR["shell.theme.aria"]}"`);
+    // «ليل / نهار» is ONE switch now («مظهر المفتاح», src/components/theme/theme-switch.tsx), no longer the two-button group
+    expect(header).toMatch(new RegExp(`<button[^>]*role="switch"[^>]*aria-label="${AR["themeSwitch.aria"]}"`));
+    expect(header).not.toContain(`role="group" aria-label="${AR["shell.theme.aria"]}"`);
     expect(header).toContain(`aria-label="${AR["shell.new.open"]}"`);
     expect(html).not.toContain(`aria-label="${AR["top.theme"]}"`);
   });
 
   it("«ليل / نهار» is on a phone too (no hidden wrapper), and «جديد» is gold with the scrim's text", () => {
     const header = outerOf(html, /<header\b[^>]*>/, "header");
-    const group = /<div[^>]*role="group" aria-label="[^"]*"[^>]*>/.exec(header)?.[0] ?? "";
+    const group = /<button[^>]*role="switch"[^>]*>/.exec(header)?.[0] ?? "";
+    expect(group).not.toBe("");
     expect(group).not.toMatch(/\bhidden\b/);
-    expect(header).not.toMatch(/<div class="hidden sm:block"><div[^>]*role="group"/);
+    expect(header).not.toMatch(/<div class="hidden sm:block"><button[^>]*role="switch"/);
     const opener = /<button[^>]*aria-label="جديد"[^>]*>/.exec(header)?.[0] ?? "";
     expect(opener).toMatch(/\bbg-accent-2\b/);
     expect(opener).toMatch(/\btext-scrim\b/);
