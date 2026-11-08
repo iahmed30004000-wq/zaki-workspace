@@ -14,7 +14,7 @@
  * the same rule so native controls (checkboxes, date pickers, scrollbars) follow the theme.
  */
 import { DEFAULT_THEME, THEME_KEYS, THEMES, type ThemeKey } from "./registry";
-import { themeVariables } from "./palettes";
+import { themeFxVariables, themeVariables } from "./palettes";
 
 /** Where the generated stylesheet lives (relative to the repository root). */
 export const THEMES_CSS_FILE = "src/app/themes.css";
@@ -31,6 +31,8 @@ const HEADER = [
 function rule(selector: string, key: ThemeKey): string {
   const lines = [`  color-scheme: ${THEMES[key].dark ? "dark" : "light"};`];
   for (const [name, value] of themeVariables(key)) lines.push(`  ${name}: ${value};`);
+  // the illustration colours of «مظهر المفتاح» (palettes.ts FX_TOKENS), after the interface tokens
+  for (const [name, value] of themeFxVariables(key)) lines.push(`  ${name}: ${value};`);
   return `${selector} {\n${lines.join("\n")}\n}`;
 }
 

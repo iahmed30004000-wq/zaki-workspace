@@ -1,0 +1,46 @@
+{
+  "features.themeSwitchFx.name": "مفتاح المظهر المتحرك",
+  "features.themeSwitchFx.hint": "مفتاح النهار والليل بالشريط العلوي بيبدّل المظهر بحركة «ترسم» الشاشة من مكان الضغطة، وكل شخص بيختار شكله: زجاج أو لمبة أو سما أو حرارة اللون. كله بالمتصفح، بدون إنترنت وبدون أي نموذج. إذا طفيته، بيضل المفتاح الصغير العادي بس، وما بيتحمّل ولا كود حركة. ⚠️ اللمبة وحرارة اللون بيغيّروا ألوان الشاشة كلها شوي. 🔧 محدودين بحدّ هادي، وزر «رجّع» بيرجّعها طبيعية، وهالمفتاح بيشيلها عن الكل.",
+
+  "themeSwitch.aria": "الوضع الليلي",
+  "themeSwitch.toggle_to_day": "حوّل لمظهر النهار",
+  "themeSwitch.toggle_to_dark": "حوّل لمظهر الليل",
+
+  "themeSwitch.picker": "مظهر المفتاح",
+  "themeSwitch.picker_hint": "شكل مفتاح النهار والليل بالشريط العلوي. بينحفظ على حسابك وبيرافقك على كل أجهزتك.",
+  "themeSwitch.try": "جرّبه هون",
+  "themeSwitch.warn": "⚠️ «لمبة» و«حرارة اللون» بيغيّروا ألوان الشاشة كلها شوي، و«زجاج» بيبيّن أحلى بكروم وأمثاله. 🔧 كل واحد محدود بحدّ هادي، وزر «رجّع» بيرجّع الألوان طبيعية، وبترجع للمفتاح العادي بأي وقت.",
+  "themeSwitch.motion_note": "الحركة بتوقف لحالها إذا جهازك طالب تقليل الحركة أو إذا «وضع التوفير» شغّال.",
+
+  "themeSwitch.style.plain": "عادي",
+  "themeSwitch.style.plain.hint": "مفتاح صغير: ضغطة وبتبدّل بين النهار والليل.",
+  "themeSwitch.style.glass": "زجاج",
+  "themeSwitch.style.glass.hint": "كرة زجاج بتكبّر اللي تحتها وبتلمع. بتشتغل أحلى بكروم وأمثاله.",
+  "themeSwitch.style.lamp": "لمبة",
+  "themeSwitch.style.lamp.hint": "كرة لمبة: اسحبها وبينزل أو بيزيد ضوء الشاشة كلها.",
+  "themeSwitch.style.sky": "سما",
+  "themeSwitch.style.sky.hint": "اسحب السما من منتصف الليل للظهر، والمظهر بيتبدّل عند الفجر والغروب.",
+  "themeSwitch.style.warmth": "حرارة اللون",
+  "themeSwitch.style.warmth.hint": "شريط بين بارد ودافي بيلوّن الشاشة بلمسة خفيفة، مريح للعين بالسهر.",
+
+  "themeSwitch.lamp.label": "سطوع الشاشة",
+  "themeSwitch.lamp.value": "السطوع {value}%",
+
+  "themeSwitch.sky.label": "الوقت بالسما",
+  "themeSwitch.sky.drag": "اسحب السما",
+  "themeSwitch.sky.midnight": "منتصف الليل",
+  "themeSwitch.sky.night": "ليل",
+  "themeSwitch.sky.dawn": "الفجر",
+  "themeSwitch.sky.morning": "الصبح",
+  "themeSwitch.sky.noon": "الظهر",
+  "themeSwitch.sky.afternoon": "العصر",
+  "themeSwitch.sky.sunset": "الغروب",
+
+  "themeSwitch.warmth.label": "حرارة اللون",
+  "themeSwitch.warmth.cool": "بارد",
+  "themeSwitch.warmth.warm": "دافي",
+  "themeSwitch.warmth.neutral": "طبيعي",
+  "themeSwitch.warmth.value_cool": "بارد {value}%",
+  "themeSwitch.warmth.value_warm": "دافي {value}%",
+  "themeSwitch.warmth.reset": "رجّع الألوان طبيعية"
+}

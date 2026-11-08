@@ -347,3 +347,37 @@ html {
 [data-digits="arabic"] .zk-digits-sample {
   font-family: var(--font-plex), "Segoe UI", Tahoma, sans-serif;
 }
+
+/* ── «مظهر المفتاح» (src/lib/themes/switch-fx.ts, src/components/theme/switch-fx-provider.tsx) ──────────
+   The tint laid over the whole app by the lamp (dims) and by «حرارة اللون» (warm or cool). It is one fixed,
+   click-through layer, drawn from the theme's own tokens (`--scrim`, `--fx-warm`, `--fx-cool`); the three
+   opacities are set by the provider, capped (0.36 / 0.18 / 0.14) so text stays readable, and are absent when
+   there is nothing to draw. Never printed. */
+[data-zk-tint] {
+  position: fixed;
+  inset: 0;
+  z-index: 9990;
+  pointer-events: none;
+  background:
+    linear-gradient(rgb(var(--scrim) / var(--zk-dim, 0)), rgb(var(--scrim) / var(--zk-dim, 0))),
+    linear-gradient(rgb(var(--fx-warm) / var(--zk-warm, 0)), rgb(var(--fx-warm) / var(--zk-warm, 0))),
+    linear-gradient(rgb(var(--fx-cool) / var(--zk-cool, 0)), rgb(var(--fx-cool) / var(--zk-cool, 0)));
+}
+@media print {
+  [data-zk-tint] {
+    display: none;
+  }
+}
+/* The theme change as a torn-edge reveal (switch-fx/reveal.ts): while it runs the browser's own cross-fade is turned off and the NEW
+   page is drawn over the old one, clipped by the polygon the script animates. Only present while the class is on <html>. */
+html.zk-reveal::view-transition-old(root),
+html.zk-reveal::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+html.zk-reveal::view-transition-old(root) {
+  z-index: 1;
+}
+html.zk-reveal::view-transition-new(root) {
+  z-index: 2;
+}

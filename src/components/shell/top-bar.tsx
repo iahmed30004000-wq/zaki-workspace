@@ -9,7 +9,7 @@ import { ZakiMark } from "@/components/logo";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { PageHelpButton } from "@/components/guide/page-help-button";
-import { NightDaySwitch } from "@/components/theme/night-day-switch";
+import { ThemeSwitch } from "@/components/theme/theme-switch";
 import { AvatarMenu, type AvatarUser } from "./avatar-menu";
 import { NewWheel } from "./new-wheel";
 
@@ -70,7 +70,7 @@ export function TopBar({
           <CommandPalette nav={nav} />
         </div>
         <div className="ms-auto flex shrink-0 items-center gap-0.5 md:gap-2">
-          <NightDaySwitch />
+          <ThemeSwitch />
           <PageHelpButton pathname={pathname} audience={audience} />
           <NotificationBell />
           <NewWheel actions={newActions} />

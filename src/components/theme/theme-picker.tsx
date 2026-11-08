@@ -8,6 +8,7 @@ import { DECOR_LEVELS, themeLabelKey, themeMoodKey, type ThemeKey } from "@/lib/
 import { useTheme } from "./theme-provider";
 import { useDigits } from "./digits-provider";
 import { DIGIT_MODES, DIGIT_SAMPLES } from "@/lib/digits";
+import { SwitchStylePicker } from "./switch-style-picker";
 
 /**
  * The theme picker: four cards, each a native radio (so arrows move the choice, Tab enters and
@@ -139,6 +140,9 @@ export function ThemePicker({ className }: { className?: string }) {
           })}
         </div>
       </fieldset>
+
+      {/* «مظهر المفتاح» — the look of the top bar's light/dark switch (src/lib/themes/switch-fx.ts); drawn only while its feature switch is on */}
+      <SwitchStylePicker />
     </div>
   );
 }

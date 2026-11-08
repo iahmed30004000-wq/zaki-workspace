@@ -69,6 +69,7 @@ import backup from "./ar.backup.json";
 import mailToTask from "./ar.mail-to-task.json";
 import assistantMeetings from "./ar.assistant-meetings.json";
 import appDevices from "./ar.app-devices.json";
+import themeSwitch from "./ar.theme-switch.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -149,4 +150,5 @@ export const AR: Record<string, string> = {
   ...manufacturing,
   ...localModel,
   ...backup,
+  ...themeSwitch,
 };

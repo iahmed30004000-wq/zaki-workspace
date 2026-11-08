@@ -34,6 +34,8 @@ model User {
   locale       String   @default("ar") // ar | fr (en reserved)
   theme        String   @default("system") // light | dark | system
   digits       String   @default("latin") // latin | arabic: how 0-9 are drawn (src/lib/digits.ts)
+  // «مظهر المفتاح»: the look of the light/dark switch, as `style.brightness.warmth.dark` (src/lib/themes/switch-fx.ts); null = the plain switch
+  themeSwitch  String?
   avatarUrl    String?
   jobTitle     String? // وظيفي: professional title shown on profile (e.g. "Project Manager")
   bio          String?

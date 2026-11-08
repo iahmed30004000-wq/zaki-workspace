@@ -8,6 +8,7 @@ import { loginSchema } from "@/server/validation";
 import { onboardingStateOf } from "@/server/policy/org-settings";
 import { THEME_COOKIE, isChosenTheme, prefCookieOptions, themeOf } from "@/lib/themes/registry";
 import { DIGITS_COOKIE, digitsOf } from "@/lib/digits";
+import { SWITCH_COOKIE, parseSwitchPref, serializeSwitchPref } from "@/lib/themes/switch-fx";
 
 /**
  * Brute-force guard (policy and reasoning live in login-guard.ts): the (typed text, address) pair,
@@ -37,6 +38,7 @@ async function findAccount(identifier: string) {
       transparencyVersion: true,
       theme: true,
       digits: true,
+      themeSwitch: true,
       memberships: {
         where: { status: "ACTIVE" },
         orderBy: { createdAt: "asc" },
@@ -106,6 +108,8 @@ export async function POST(req: Request) {
       if (isChosenTheme(user.theme)) res.cookies.set(THEME_COOKIE, themeOf(user.theme), prefCookieOptions(process.env.NODE_ENV === "production"));
       // and how they see 0-9 (always set: «123» is a choice too, and this device may hold the other one)
       res.cookies.set(DIGITS_COOKIE, digitsOf(user.digits), prefCookieOptions(process.env.NODE_ENV === "production"));
+      // and the look of their light/dark switch («مظهر المفتاح»), when they chose one
+      if (user.themeSwitch) res.cookies.set(SWITCH_COOKIE, serializeSwitchPref(parseSwitchPref(user.themeSwitch)), prefCookieOptions(process.env.NODE_ENV === "production"));
       return res;
     } finally {
       attempt.done();

@@ -12,6 +12,7 @@ import { currentSpace } from "@/server/services/current-space";
 import { hasActiveReports, navSubjectOf } from "@/server/services/nav-order";
 import { CallRing } from "@/components/calls/call-ring";
 import { CallProvider } from "@/components/calls/call-provider";
+import { SWITCH_COOKIE } from "@/lib/themes/switch-fx";
 
 /**
  * The frame of every signed-in page, decided on the server from the DATABASE (behind the middleware,
@@ -63,6 +64,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       quickChat={on.quickChat}
       siteGuide={on.siteGuide && on.ownerAssistant && actor.isOwner}
       economy={economyOn(org?.settings)}
+      // «مظهر المفتاح»: the person's look of the light/dark switch (the `zk-switch` cookie, so the very first paint already has the right tint);
+      // the company's `themeSwitchFx` switch decides whether any of it is drawn (off: the plain switch only, no effect code, no tint)
+      themeSwitch={cookies().get(SWITCH_COOKIE)?.value}
+      themeSwitchFx={on.themeSwitchFx}
     >
       {/* a call goes on while the person moves between pages; an incoming call rings on every page */}
       <CallProvider>
