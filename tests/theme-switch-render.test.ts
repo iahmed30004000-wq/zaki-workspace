@@ -265,7 +265,7 @@ describe("the source: lazy, light, and inside the theme system", () => {
     expect(layout).toContain("themeSwitch={cookies().get(SWITCH_COOKIE)?.value}");
     expect(layout).toContain("themeSwitchFx={on.themeSwitchFx}");
     const shell = read("components/app-shell.tsx");
-    expect(shell).toMatch(/<SwitchFxProvider initial={props.themeSwitch} enabled={props.themeSwitchFx ?? false}/);
+    expect(shell).toContain("<SwitchFxProvider initial={props.themeSwitch} enabled={props.themeSwitchFx ?? false}");
   });
 
   it("the stylesheet comes with the lazy chunk, not with the page everybody downloads", () => {
