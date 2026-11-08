@@ -121,7 +121,7 @@ describe("the tint layer: drawn from the server's first frame, only for the lamp
 });
 
 describe("the four looks (the lazy chunk's controls)", () => {
-  const look = (style: "glass" | "lamp" | "sky" | "warmth", pref = `${style}.100.0.night`, theme = "night", size: "bar" | "preview" = "bar") =>
+  const look = (style: "plain" | "glass" | "lamp" | "sky" | "warmth", pref = `${style}.100.0.night`, theme = "night", size: "bar" | "preview" = "bar") =>
     render(createElement(FxControl, { style, size }), { pref, theme });
 
   it("glass: a role=switch, checked on a dark theme", () => {
@@ -160,18 +160,35 @@ describe("the four looks (the lazy chunk's controls)", () => {
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,6}\b|rgba?\(\s*\d|hsla?\(/);
   });
 
-  it("warmth: a slider -100..100, neutral by default, and the reset button only while there is something to reset", () => {
-    const neutral = look("warmth");
-    expect(neutral).toContain('role="slider"');
-    expect(attr(neutral, "aria-valuenow")).toEqual(["0"]);
-    expect(attr(neutral, "aria-valuetext")).toEqual([AR["themeSwitch.warmth.neutral"]]);
-    expect(neutral).not.toContain(AR["themeSwitch.warmth.reset"]);
-    const warm = look("warmth", "warmth.100.35.night");
-    expect(attr(warm, "aria-valuetext")).toEqual([AR["themeSwitch.warmth.value_warm"]?.replace("{value}", "35")]);
-    expect(warm).toContain(`aria-label="${AR["themeSwitch.warmth.reset"]}"`);
+  it("warmth (temperature): a slider 0..100 that rests at the moon (0) on a dark theme and the sun (100) on «نهار», reading its colour temperature aloud; the old tint's reset button only while one is saved", () => {
+    const moon = look("warmth");
+    expect(moon).toContain('role="slider"');
+    expect(attr(moon, "aria-valuemin")).toEqual(["0"]);
+    expect(attr(moon, "aria-valuemax")).toEqual(["100"]);
+    expect(attr(moon, "aria-valuenow")).toEqual(["0"]);
+    expect(attr(moon, "aria-valuetext")).toEqual([`10,500 K · ${AR["gallery.temp.cool"]}`]);
+    const sun = look("warmth", "warmth.100.0.night", "day");
+    expect(attr(sun, "aria-valuenow")).toEqual(["100"]);
+    expect(attr(sun, "aria-valuetext")).toEqual([`2,100 K · ${AR["gallery.temp.warm"]}`]);
+    expect(moon).not.toContain(AR["themeSwitch.warmth.reset"]);
+    const saved = look("warmth", "warmth.100.35.night");
+    expect(saved).toContain(`aria-label="${AR["themeSwitch.warmth.reset"]}"`);
     expect(look("warmth", "warmth.100.-20.night")).toContain(`aria-label="${AR["themeSwitch.warmth.reset"]}"`);
     // the reset is a 44px target too
-    expect(/<button[^>]*class="[^"]*\bmin-h-11\b[^"]*\bmin-w-11\b/.test(warm)).toBe(true);
+    expect(/<button[^>]*class="[^"]*\bmin-h-11\b[^"]*\bmin-w-11\b/.test(saved)).toBe(true);
+  });
+
+  it("plain (a knob you can drag): the plain switch's own markup — role=switch, checked on a dark theme, 44px target, Arabic name — with the knob's place as a variable", () => {
+    const night = look("plain", "plain.100.0.night", "night");
+    expect(night).toMatch(/<button[^>]*role="switch"/);
+    expect(attr(night, "aria-checked")).toEqual(["true"]);
+    expect(attr(night, "aria-label")).toEqual([AR["themeSwitch.aria"]]);
+    expect(attr(night, "title")).toEqual([AR["themeSwitch.toggle_to_day"]]);
+    expect(night).toMatch(/<button[^>]*class="[^"]*\bmin-h-11\b[^"]*\bmin-w-11\b/);
+    expect(night).toContain("--q:0");
+    const day = look("plain", "plain.100.0.night", "day");
+    expect(attr(day, "aria-checked")).toEqual(["false"]);
+    expect(day).toContain("--q:1");
   });
 
   it("particles: a small canvas for the sheds by default, none in «وضع التوفير» or with the feature off", () => {
@@ -185,7 +202,7 @@ describe("the four looks (the lazy chunk's controls)", () => {
   });
 
   it("every look: Arabic names, theme tokens only, logical directions only, no Latin word", () => {
-    for (const style of ["glass", "lamp", "sky", "warmth"] as const) {
+    for (const style of ["plain", "glass", "lamp", "sky", "warmth"] as const) {
       for (const size of ["bar", "preview"] as const) {
         const html = look(style, `${style}.80.20.night`, "night", size);
         const tokens = classTokens(html);

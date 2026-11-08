@@ -368,6 +368,14 @@ html {
     display: none;
   }
 }
+/* The page following a knob (src/components/theme/scrub/page-scrub.ts): while <html> carries `data-theme-scrub` the engine writes the mixed
+   palette as inline custom properties every frame, so no colour may lag behind it with a transition of its own. Only present while a
+   knob is being dragged or is gliding to an end; the attribute is gone as soon as the theme has been committed. */
+html[data-theme-scrub] *,
+html[data-theme-scrub] *::before,
+html[data-theme-scrub] *::after {
+  transition: none !important;
+}
 /* The theme change as a torn-edge reveal (switch-fx/reveal.ts): while it runs the browser's own cross-fade is turned off and the NEW
    page is drawn over the old one, clipped by the polygon the script animates. Only present while the class is on <html>. */
 html.zk-reveal::view-transition-old(root),

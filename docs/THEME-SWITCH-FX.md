@@ -27,12 +27,43 @@ The numbering is the reference's (01 .. 06); the names are Arabic.
 reveal, the sheds, the rays and the glide off (the knobs still work, the position jumps); every particle pool is capped
 (`PARTICLE_CAP` = 120 in the gallery, 60 in the top bar); nothing is heavier than SVG, canvas 2D, CSS and one SVG filter (no WebGL, no Three.js).
 
+## The page follows the knob (2026-11-09 — the owner's correction)
+
+The first switch toggled on a click and played a one-shot reveal; dragging did not scrub the theme. In the recording you DRAG the knob,
+it moves under your pointer and the page changes WHILE it moves. Now every look of the top bar does exactly that, on the real app:
+
+| What | Where |
+|---|---|
+| The maths: OKLab mix of the two palettes, endpoints exact, text flips across the middle, knob position -> t | `src/lib/themes/scrub.ts` |
+| The engine: writes the mixed palette as inline custom properties on `<html>`, one pass per frame, drops them on commit/cancel | `src/components/theme/scrub/page-scrub.ts` (lazy chunk) |
+| The bridge a knob uses: `move(t)`, `settle(toDark)`, `cancel()`, `warm()` | `scrub/use-page-scrub.ts`, `scrub/use-look.ts` |
+| The knob (drag, release spring, click, keys, Escape/blur) | `fx/kit.ts` `useKnob` |
+| The default look with a draggable knob | `switch-fx/plain-scrub.tsx` (its own lazy chunk) |
+
+- t = 0 is «نهار», t = 1 the person's own dark theme (the one they are on, else `pref.dark`). Colours are mixed in OKLab; the three page surfaces
+  and the border get a small warm bump in the middle (the reference passes through a brown); text-like tokens (`fg`, `fg-muted`, `muted`, the
+  `*-fg` labels) FLIP across 48 .. 52% instead of fading through a grey nobody can read; fonts, radius, shadow, `color-scheme` and the `dark`
+  class switch at 50%. `html[data-theme-scrub]` turns CSS transitions off so nothing lags behind the knob.
+- While dragging, the knob follows the pointer (tau 70 ms) and the page follows the knob. On release the knob glides to the nearer end on the
+  damped spring and ONLY THEN is the theme committed (data-theme, cookie, account) and the overrides removed in the same task, so no frame shows
+  an unthemed page. A press on the track glides to the other end the same way; Enter / Space on the glass, the arrows step 10% (the sky: one
+  hour), Home / End jump, and the knob settles 650 ms after the last key. Escape, the window losing focus or the control leaving the page puts the
+  committed theme back and stores nothing.
+- The sky maps the knob to its own `day` curve (the page is dark through 05:30, light after 06:30); a release decides at the page's half-way
+  point, not at the middle of the track. The temperature look is now moon <-> sun with the page (10,500 K .. 2,100 K under it); an older saved
+  tint is cleared the first time the knob is used (the reset button stays while one is saved).
+- The plain switch keeps the torn «repainting» reveal for a TAP (a press with no travel) and for Enter / Space; a DRAG scrubs.
+- Gating: `scrubAllowed(gate)` = `motionAllowed(gate)`: the feature on, no «وضع التوفير», no reduced-motion request. Otherwise the knob still moves
+  and a release is one plain, instant swap, and the engine is never fetched. The engine is fetched when the pointer arrives or the control is focused.
+- ⚠️ Repainting the whole page every frame is the heaviest thing this feature does. 🔧 It only runs while a knob is dragged or gliding, writes at
+  most one pass per animation frame, skips a pass whose numbers did not change, and is off under the gate above.
+
 ## The knob (all variants)
 
 - While dragging the knob follows the pointer with a short lag: exponential smoothing, tau 70 ms (80–90 ms for the sky), the same at any frame rate.
 - On release (glass, lamp, repainting) it flies to the nearer end on a damped spring (stiffness 210, damping 21: one small overshoot, then rest);
   a flick (the pointer's speed when it let go) carries it over the middle. A press without travel on the track toggles.
-- The sky and the colour temperature do not snap: they stay where they were dropped.
+- In the GALLERY the sky and the colour temperature do not snap: they stay where they were dropped (in the top bar the theme must be one of two, so they settle on the nearer end). In the temperature scene the reading follows the POINTER (hover or press), the knob glides to the spot a click leaves the pointer on.
 - «Toggle» (the button) and Space glide the knob to the opposite end.
 
 ## 06 · Real glass — «زجاج حقيقي»

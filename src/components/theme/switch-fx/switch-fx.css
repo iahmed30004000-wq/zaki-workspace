@@ -250,3 +250,49 @@
     opacity: 0.6;
   }
 }
+
+/* ── plain: the default switch with a knob you can drag (plain-scrub.tsx) ──
+   The same 48 x 28 pill and 24 px knob as the plain switch in the shell; `--p` is the knob's place (0 at the start of the track),
+   `--q` how much of the day it carries (1 = «نهار»), so the sun and the moon cross-fade with the knob's position. */
+.zx[data-style="plain"] {
+  --zx-w: 48px;
+  --zx-h: 28px;
+  --zx-k: 24px;
+  --zx-pad: 2px;
+  --zx-travel: 18px;
+  --q: 1;
+}
+.zx-pill {
+  position: relative;
+  display: block;
+  box-sizing: border-box;
+  width: var(--zx-w);
+  height: var(--zx-h);
+  border-radius: 9999px;
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--surface-2));
+}
+.zx-plain-knob {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: calc(var(--zx-pad) + var(--p) * var(--zx-travel));
+  width: var(--zx-k);
+  height: var(--zx-k);
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  border-radius: 9999px;
+  background: rgb(var(--accent));
+  color: rgb(var(--accent-fg));
+  box-shadow: var(--shadow-card);
+}
+.zx-plain-sun,
+.zx-plain-moon {
+  grid-area: 1 / 1;
+}
+.zx-plain-sun {
+  opacity: var(--q);
+}
+.zx-plain-moon {
+  opacity: calc(1 - var(--q));
+}
