@@ -1,0 +1,195 @@
+/* «06 · Real glass» (glass-scene.tsx). Colours: --s-gl-* (written by the scene), --fx-gl-* and --fx-glass-*. */
+
+.fx-gl {
+  --m: 0;
+  background: rgb(var(--s-gl-bg));
+  color: rgb(var(--s-gl-ink));
+}
+.fx-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgb(var(--s-gl-line) / 0.07) 1.5px, transparent 1.5px),
+    linear-gradient(90deg, rgb(var(--s-gl-line) / 0.07) 1.5px, transparent 1.5px);
+  background-size: 48px 48px;
+  background-position: 0 0;
+}
+.fx-gl-blobs i {
+  position: absolute;
+  display: block;
+  border-radius: 50%;
+  filter: blur(80px);
+  opacity: calc(0.52 - 0.2 * var(--m));
+}
+.fx-gl-blobs .b1 { left: 150px; top: 560px; width: 560px; height: 520px; background: rgb(var(--fx-gl-blob-1)); }
+.fx-gl-blobs .b2 { left: 700px; top: 620px; width: 560px; height: 440px; background: rgb(var(--fx-gl-blob-3)); }
+.fx-gl-blobs .b3 { left: 1200px; top: 640px; width: 560px; height: 520px; background: rgb(var(--fx-gl-blob-2)); }
+.fx-gl-blobs .b4 { left: 1250px; top: 40px; width: 520px; height: 520px; background: rgb(var(--fx-gl-blob-4)); opacity: calc(0.22 + 0.04 * var(--m)); }
+.fx-gl-blobs .b5 { left: 1300px; top: 160px; width: 420px; height: 420px; background: rgb(var(--fx-gl-blob-5)); opacity: calc(0.06 + 0.3 * var(--m)); }
+
+.fx-gl-word {
+  left: 300px;
+  top: 215px;
+  width: 1120px;
+  height: 560px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 430px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  color: rgb(var(--s-gl-ink));
+  -webkit-text-stroke: 16px rgb(var(--s-gl-ink));
+  paint-order: stroke fill;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.fx-gl-track {
+  left: 365px;
+  top: 308px;
+  width: 990px;
+  height: 378px;
+  border-radius: 150px;
+  background: rgb(var(--s-gl-veil) / calc(0.38 + 0.17 * var(--m)));
+  backdrop-filter: blur(0.6px);
+  -webkit-backdrop-filter: blur(0.6px);
+  box-shadow:
+    inset 0 0 0 1.5px rgb(var(--fx-glass-edge) / 0.28),
+    inset 0 3px 10px rgb(var(--fx-glass-edge) / 0.25),
+    0 24px 60px -24px rgb(var(--fx-tp-bg-d) / 0.35);
+  pointer-events: none;
+}
+.fx-gl-rail {
+  left: 582.5px;
+  top: 328px;
+  width: 585px;
+  height: 335px;
+  pointer-events: none;
+}
+.fx-gl-hit {
+  left: 365px;
+  top: 308px;
+  width: 990px;
+  height: 378px;
+  border-radius: 150px;
+  cursor: grab;
+}
+.fx-gl-knob {
+  left: var(--kx, 1000px);
+  top: 328px;
+  width: 335px;
+  height: 335px;
+  cursor: grab;
+  touch-action: none;
+}
+.fx-gl-knob:active {
+  cursor: grabbing;
+}
+.fx-gl-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 30%;
+  box-shadow:
+    0 0 110px 14px rgb(var(--s-gl-tint) / 0.5),
+    0 40px 90px -10px rgb(var(--s-gl-tint) / 0.45);
+  pointer-events: none;
+}
+.fx-gl-glass {
+  position: absolute !important;
+  inset: 0;
+}
+.fx-gl-icon {
+  color: rgb(var(--s-gl-ink) / 0.82);
+  mix-blend-mode: normal;
+}
+.fx-gl-lines {
+  left: 0;
+  top: 0;
+  width: 1720px;
+  height: 1080px;
+  pointer-events: none;
+  overflow: visible;
+}
+.fx-gl-lines polyline {
+  stroke: rgb(var(--s-gl-line) / 0.55);
+  stroke-width: 1.4;
+}
+.fx-gl-lines .ring {
+  fill: rgb(var(--s-gl-bg) / 0.35);
+  stroke: rgb(var(--s-gl-line) / 0.45);
+  stroke-width: 1.2;
+}
+.fx-gl-lines .dot {
+  fill: rgb(var(--s-gl-ink));
+}
+.fx-gl-label {
+  left: 0;
+  top: 0;
+  font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: 22px;
+  line-height: 36px;
+  letter-spacing: 0;
+  white-space: nowrap;
+  color: rgb(var(--s-gl-mono));
+  pointer-events: none;
+}
+.fx-gl-dots {
+  left: 665px;
+  top: 738px;
+  display: flex;
+  gap: 23.7px;
+  pointer-events: none;
+}
+.fx-gl-dots i {
+  display: block;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.fx-gl-dots .d1 { background: rgb(var(--fx-gl-dot-1)); }
+.fx-gl-dots .d2 { background: rgb(var(--fx-gl-dot-2)); }
+.fx-gl-dots .d3 { background: rgb(var(--fx-gl-dot-3)); }
+.fx-gl-dots .d4 { background: rgb(var(--fx-gl-dot-4)); }
+.fx-gl-dots .d5 { background: rgb(var(--fx-gl-dot-5)); }
+.fx-gl-dots .d6 { background: rgb(var(--fx-gl-dot-6)); }
+.fx-gl-dots .d7 { background: rgb(var(--fx-gl-dot-7)); }
+.fx-gl-dots .d8 { background: rgb(var(--fx-gl-dot-8)); }
+.fx-gl-feat {
+  left: 0;
+  width: 1720px;
+  top: 792px;
+  display: flex;
+  justify-content: center;
+  gap: 36px;
+  font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+  font-size: 23.5px;
+  line-height: 36px;
+  color: rgb(var(--s-gl-mono));
+  pointer-events: none;
+}
+.fx-gl-feat b {
+  font-weight: 400;
+}
+.fx-gl-caption {
+  left: 0;
+  width: 1720px;
+  top: 1004px;
+  margin: 0;
+  text-align: center;
+  font-size: 26px;
+  line-height: 36px;
+  color: rgb(var(--s-gl-mono));
+  pointer-events: none;
+}
+.fx-gl-light {
+  left: 0;
+  top: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgb(var(--fx-glass-edge));
+  box-shadow: 0 0 14px 4px rgb(var(--fx-glass-glow) / 0.8);
+  pointer-events: none;
+  transform: translate(1234px, 694px);
+}

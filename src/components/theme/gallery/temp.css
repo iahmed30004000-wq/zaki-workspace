@@ -1,0 +1,84 @@
+/* «01 · colour temperature» (temp-scene.tsx). Colours: --s-tp-* written by the scene, --fx-tp-*. */
+
+.fx-tp {
+  --m: 0;
+  --p: 0.82;
+  background: rgb(var(--s-tp-bg));
+  color: rgb(var(--s-tp-ink));
+}
+.fx-tp-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgb(var(--s-tp-dot) / 0.55) 2.2px, transparent 2.8px);
+  background-size: 40px 40px;
+  -webkit-mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, black 10%, transparent 80%);
+  mask-image: radial-gradient(ellipse 60% 55% at 50% 45%, black 10%, transparent 80%);
+  opacity: 0.55;
+}
+.fx-tp-halo {
+  left: calc(var(--kx, 1000px) - 330px);
+  top: -90px;
+  width: 760px;
+  height: 760px;
+  border-radius: 50%;
+  background-image: radial-gradient(circle, rgb(var(--s-tp-tint) / 0.9) 3px, transparent 3.6px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(circle closest-side, black 40%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side, black 40%, transparent 100%);
+  opacity: 0.22;
+  pointer-events: none;
+}
+.fx-tp-orb {
+  top: 430px;
+  width: 120px;
+  height: 120px;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.fx-tp-orb svg { width: 68px; height: 68px; position: relative; }
+.fx-tp-orb::before {
+  content: "";
+  position: absolute;
+  inset: -90px;
+  border-radius: 50%;
+  filter: blur(26px);
+}
+.fx-tp-orb.moon { left: 364px; }
+.fx-tp-orb.moon::before { background: radial-gradient(circle, rgb(var(--fx-tp-moon) / 0.55), transparent 65%); opacity: calc(0.35 + 0.65 * (1 - var(--p))); }
+.fx-tp-orb.sun { left: 1234px; }
+.fx-tp-orb.sun::before { background: radial-gradient(circle, rgb(var(--fx-tp-sun) / 0.7), transparent 65%); opacity: calc(0.3 + 0.7 * var(--p)); }
+.fx-tp-flare {
+  left: 1294px;
+  top: 489px;
+  width: 520px;
+  height: 3px;
+  background: linear-gradient(90deg, rgb(var(--fx-tp-sun) / 0.7), transparent);
+  filter: blur(1px);
+  opacity: calc(var(--p) * var(--p));
+  pointer-events: none;
+}
+.fx-tp-track {
+  left: 590px;
+  top: 430px;
+  width: 580px;
+  height: 108px;
+  border-radius: 54px;
+  background: linear-gradient(90deg, rgb(var(--s-tp-tint) / 0.3), rgb(var(--s-tp-track)) 40%);
+  box-shadow: inset 0 3px 8px rgb(var(--fx-tp-bg-d) / 0.18), 0 0 0 1px rgb(var(--s-tp-ink) / 0.06);
+  pointer-events: none;
+}
+.fx-tp-rail { left: 652px; top: 436px; width: 456px; height: 96px; pointer-events: none; }
+.fx-tp-hit { left: 590px; top: 430px; width: 580px; height: 108px; border-radius: 54px; cursor: grab; }
+.fx-tp-knob { left: var(--kx, 1060px); top: 436px; width: 96px; height: 96px; cursor: grab; touch-action: none; }
+.fx-tp-glass { position: absolute !important; inset: 0; border-radius: 28% !important; }
+.fx-tp-icon { color: rgb(var(--s-tp-ink) / 0.85); }
+.fx-tp-sheds { left: 0; top: 0; width: 1720px; height: 1080px; pointer-events: none; }
+.fx-tp-scale { left: 580px; top: 676px; width: 560px; height: 40px; pointer-events: none; }
+.fx-tp-scale .bar { position: absolute; left: 0; top: 14px; width: 560px; height: 7px; border-radius: 4px; background: linear-gradient(90deg, rgb(var(--fx-tp-cool)), rgb(var(--fx-tp-mid)) 50%, rgb(var(--fx-tp-warm))); }
+.fx-tp-scale .marker { position: absolute; left: -7px; top: -2px; width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 11px solid rgb(var(--s-tp-ink)); }
+.fx-tp-scale b { position: absolute; top: 26px; font-size: 15px; font-weight: 400; color: rgb(var(--s-tp-mute)); }
+.fx-tp-scale .lo { left: 0; }
+.fx-tp-scale .hi { right: 0; }
+.fx-tp-read { left: 0; width: 1720px; top: 708px; text-align: center; font-size: 24px; font-weight: 700; color: rgb(var(--s-tp-ink)); pointer-events: none; }
+.fx-tp-cap { left: 0; width: 1720px; top: 748px; text-align: center; font-size: 18px; color: rgb(var(--s-tp-mute)); pointer-events: none; }

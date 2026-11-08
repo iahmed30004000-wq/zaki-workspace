@@ -1,0 +1,65 @@
+/* «03 · Lumen» and «04 · Tonight's reading» (lumen-scenes.tsx). Colours: --s-lm-* written by the scene, --fx-lm-*, --fx-rd-*. */
+
+.fx-lm {
+  background: rgb(var(--s-lm-bg));
+  color: rgb(var(--s-lm-ink));
+}
+.fx-lm .dotlogo { left: 54px; top: 70px; width: 32px; height: 32px; border-radius: 50%; background: rgb(var(--s-lm-accent)); box-shadow: 0 0 0 5px rgb(var(--s-lm-accent) / 0.2); }
+.fx-lm .brand { left: 104px; top: 66px; font-size: 27px; font-weight: 700; line-height: 40px; }
+.fx-lm .search {
+  left: 293px; top: 62px; width: 1092px; height: 58px; border-radius: 29px; display: flex; align-items: center; gap: 14px; padding: 0 24px;
+  background: rgb(var(--s-lm-field)); color: rgb(var(--s-lm-mute)); font-size: 23px; box-sizing: border-box;
+}
+.fx-lm-toggle {
+  position: absolute; left: 1488px; top: 58px; width: 190px; height: 66px; padding: 7px; border: 0; border-radius: 33px; cursor: pointer; box-sizing: border-box;
+  background: rgb(var(--s-lm-field)); box-shadow: inset 0 2px 6px rgb(var(--fx-tp-bg-d) / 0.18);
+  display: flex; align-items: center; justify-content: flex-start;
+}
+.fx-lm[data-dark="true"] .fx-lm-toggle { justify-content: flex-end; }
+.fx-lm-toggle .knob {
+  width: 54px; height: 52px; border-radius: 17px; display: grid; place-items: center; color: rgb(var(--s-lm-ink));
+  background: rgb(var(--s-lm-panel)); box-shadow: inset 0 0 0 2px rgb(var(--s-lm-accent) / 0.7), 0 4px 12px rgb(var(--s-lm-accent) / 0.35);
+}
+.fx-lm .rail { left: 34px; top: 170px; width: 118px; height: 830px; border-radius: 38px; background: rgb(var(--s-lm-panel)); display: flex; flex-direction: column; align-items: center; gap: 28px; padding-top: 34px; box-sizing: border-box; box-shadow: 0 10px 30px -18px rgb(var(--fx-tp-bg-d) / 0.5); }
+.fx-lm .rail b { width: 50px; height: 50px; border-radius: 15px; background: rgb(var(--s-lm-field)); }
+.fx-lm .rail b.on { background: rgb(var(--s-lm-accent)); box-shadow: 0 6px 16px rgb(var(--s-lm-accent) / 0.45); }
+.fx-lm .card { border-radius: 40px; background: rgb(var(--s-lm-panel)); box-shadow: 0 14px 34px -22px rgb(var(--fx-tp-bg-d) / 0.5); overflow: hidden; }
+.fx-lm .card p { position: absolute; margin: 0; white-space: nowrap; text-align: left; }
+.fx-lm .card.day { left: 190px; top: 170px; width: 886px; height: 490px; }
+.fx-lm .card.sun { left: 1104px; top: 170px; width: 584px; height: 230px; }
+.fx-lm .card.lux { left: 1104px; top: 428px; width: 584px; height: 232px; }
+.fx-lm .card.feed { left: 190px; top: 690px; width: 1498px; height: 310px; }
+.fx-lm .card .h { left: 38px; top: 30px; font-size: 32px; font-weight: 700; }
+.fx-lm .card .s { left: 38px; top: 32px; font-size: 22px; color: rgb(var(--s-lm-mute)); }
+.fx-lm .card.day .s { top: 76px; }
+.fx-lm .card .up { right: 38px; top: 34px; font-size: 22px; font-weight: 700; color: rgb(var(--s-lm-accent)); }
+.fx-lm .card .big { left: 38px; top: 84px; font-size: 52px; font-weight: 700; }
+.fx-lm .card .bars { position: absolute; left: 36px; right: 36px; top: 130px; bottom: 32px; display: flex; align-items: flex-end; gap: 12px; }
+.fx-lm .card .bars i { flex: 1; border-radius: 8px; background: linear-gradient(180deg, rgb(var(--s-lm-accent2)), rgb(var(--s-lm-accent))); }
+.fx-lm .card .arc { position: absolute; right: 44px; top: 90px; width: 74px; stroke: rgb(var(--s-lm-accent)); }
+.fx-lm .card .ring { position: absolute; right: 38px; top: 96px; width: 80px; stroke: rgb(var(--s-lm-accent)); }
+.fx-lm .card .ring .track { stroke: rgb(var(--s-lm-accent) / 0.25); }
+.fx-lm .row { position: absolute; left: 0; right: 0; height: 80px; }
+.fx-lm .row b { position: absolute; left: 36px; top: 12px; width: 40px; height: 40px; border-radius: 50%; }
+.fx-lm .row b.red { background: rgb(var(--fx-lp-red)); }
+.fx-lm .row b.blue { background: rgb(var(--fx-lp-blue)); }
+.fx-lm .row b.green { background: rgb(var(--fx-lp-green)); }
+.fx-lm .row strong { position: absolute; left: 100px; top: 2px; font-size: 24px; }
+.fx-lm .row span { position: absolute; left: 100px; top: 34px; font-size: 21px; color: rgb(var(--s-lm-mute)); }
+.fx-lm .row em { position: absolute; right: 38px; top: 14px; font-style: normal; font-size: 21px; color: rgb(var(--s-lm-mute)); }
+.fx-lm .row hr { position: absolute; left: 36px; right: 36px; bottom: -8px; margin: 0; border: 0; border-top: 1.5px solid rgb(var(--s-lm-mute) / 0.2); }
+
+/* «04 · Tonight's reading»: a serif title and four rows with a coloured pixel icon and a bookmark */
+.fx-rd .title { left: 44px; top: 56px; margin: 0; font-family: "Noto Naskh Arabic", Amiri, "Times New Roman", serif; font-size: 62px; font-weight: 600; line-height: 1.2; }
+.fx-rd .sub { left: 46px; top: 140px; margin: 0; font-size: 24px; color: rgb(var(--s-lm-mute)); }
+.fx-rd .item { left: 42px; width: 1634px; height: 140px; border-radius: 30px; background: rgb(var(--s-lm-panel)); box-shadow: 0 10px 28px -20px rgb(var(--fx-tp-bg-d) / 0.5), inset 0 0 0 1.5px rgb(var(--s-lm-ink) / 0.06); }
+.fx-rd .item strong { position: absolute; left: 150px; top: 36px; font-size: 30px; }
+.fx-rd .item span { position: absolute; left: 150px; top: 82px; font-size: 24px; color: rgb(var(--s-lm-mute)); }
+.fx-rd .item .mark { position: absolute; right: 44px; top: 54px; color: rgb(var(--s-lm-mute)); fill: none; }
+.fx-rd .item .mark.on { color: rgb(var(--s-lm-accent)); fill: rgb(var(--s-lm-accent)); }
+.fx-rd .item .ic { position: absolute; left: 32px; top: 30px; width: 80px; height: 80px; border-radius: 22px; display: grid; grid-template-columns: repeat(2, 12px); gap: 8px; place-content: center; box-shadow: inset 0 0 0 2px rgb(var(--fx-glass-edge) / 0.25); }
+.fx-rd .item .ic i { display: block; width: 12px; height: 12px; border-radius: 3px; background: rgb(var(--fx-glass-edge) / 0.85); }
+.fx-rd .ic.i1 { background: linear-gradient(160deg, rgb(var(--fx-rd-i1)), rgb(var(--fx-rd-i1) / 0.75)); }
+.fx-rd .ic.i2 { background: linear-gradient(160deg, rgb(var(--fx-rd-i2)), rgb(var(--fx-rd-i2) / 0.75)); }
+.fx-rd .ic.i3 { background: linear-gradient(160deg, rgb(var(--fx-rd-i3)), rgb(var(--fx-rd-i3) / 0.75)); }
+.fx-rd .ic.i4 { background: linear-gradient(160deg, rgb(var(--fx-rd-i4)), rgb(var(--fx-rd-i4) / 0.75)); }
