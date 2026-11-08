@@ -5,6 +5,7 @@ import "./sky.css";
 import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import { useI18n } from "@/lib/i18n";
 import { mixRgb, rgbOf, skyClock, skyMinute, skyMoment } from "@/lib/themes/switch-motion";
+import { flipCurve } from "@/lib/themes/scrub";
 import { prefersReducedMotion, useFxReader, useKnob } from "../fx/kit";
 import { SkyArt, type SkyArtHandle } from "../fx/sky-art";
 import type { SceneHandle } from "./scene-types";
@@ -32,7 +33,7 @@ export const SkyScene = forwardRef<SceneHandle>(function SkyScene(_props, handle
     if (!r || !art.current || !read) return;
     const res = art.current.paint(minute);
     r.style.background = rgbOf(res.page);
-    const ink = mixRgb(read("tp-ink-d"), read("tp-ink-l"), res.day);
+    const ink = mixRgb(read("tp-ink-d"), read("tp-ink-l"), 1 - flipCurve(1 - res.day)); // the caption flips across the middle (readable on the brown page)
     r.style.setProperty("--ink", `${ink[0]} ${ink[1]} ${ink[2]}`);
     const key = `${skyMoment(minute)}|${skyClock(minute)}`;
     if (key !== lastKey.current) {

@@ -2,7 +2,7 @@
 
 import "../fx/exact.css";
 import "./temp.css";
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState, type PointerEvent } from "react";
 import { useI18n } from "@/lib/i18n";
 import { PARTICLE_CAP, clamp01, emit, formatKelvin, kelvinCaption, kelvinOf, lerp, mulberry32, rgbOf, stepParticles, type Particle } from "@/lib/themes/switch-motion";
 import { GlassKnob, isChromium } from "../fx/glass-knob";
@@ -64,6 +64,8 @@ export const TempScene = forwardRef<SceneHandle>(function TempScene(_props, hand
   const reduced = useRef(false);
   const [refract, setRefract] = useState(false);
   const lastCap = useRef("");
+  /** Where the pointer is along the track (0..1), or null: the reference's reading follows the POINTER (hover or press), the knob follows the press. */
+  const hover = useRef<number | null>(null);
 
   useEffect(() => setRefract(isChromium()), []);
 
@@ -97,6 +99,32 @@ export const TempScene = forwardRef<SceneHandle>(function TempScene(_props, hand
     return particles.current.length > 0;
   });
 
+  /** The scale under the knob: the readout, its caption and the marker, for a position 0..1 (the knob's, or the pointer's while it is over the track). */
+  const showReading = (p: number) => {
+    const k = kelvinOf(p);
+    if (read.current) read.current.textContent = formatKelvin(k);
+    const c = kelvinCaption(k);
+    if (cap.current && lastCap.current !== c) {
+      lastCap.current = c;
+      cap.current.textContent = t(`gallery.temp.${c}`);
+    }
+    if (marker.current) marker.current.style.transform = `translateX(${(clamp01(p) * BAR_W).toFixed(1)}px)`;
+  };
+
+  const track = (e: PointerEvent<HTMLDivElement>) => {
+    const r = rail.current?.getBoundingClientRect();
+    if (!r || r.width <= 0) return;
+    // only along the track's own band, so the reading does not jump while the pointer is elsewhere on the page
+    if (e.clientY < r.top - r.height * 0.6 || e.clientY > r.bottom + r.height * 0.6) return;
+    const q = clamp01((e.clientX - r.left) / r.width);
+    hover.current = q;
+    showReading(q);
+  };
+  const onHover = (e: PointerEvent<HTMLDivElement>) => {
+    knob.bind.onPointerMove(e);
+    track(e);
+  };
+
   const paint = (p: number) => {
     const r = root.current;
     const rd = reader();
@@ -108,14 +136,7 @@ export const TempScene = forwardRef<SceneHandle>(function TempScene(_props, hand
     const x = lerp(KNOB_X0, KNOB_X1, p);
     r.style.setProperty("--kx", `${x}px`);
     icon.current?.setMorph(m);
-    const k = kelvinOf(p);
-    if (read.current) read.current.textContent = formatKelvin(k);
-    const c = kelvinCaption(k);
-    if (cap.current && lastCap.current !== c) {
-      lastCap.current = c;
-      cap.current.textContent = t(`gallery.temp.${c}`);
-    }
-    if (marker.current) marker.current.style.transform = `translateX(${(clamp01(p) * BAR_W).toFixed(1)}px)`;
+    if (hover.current === null) showReading(p);
     const dx = x - prev.current.x;
     prev.current.x = x;
     if (!reduced.current && Math.abs(dx) > 0.8) {
@@ -160,10 +181,19 @@ export const TempScene = forwardRef<SceneHandle>(function TempScene(_props, hand
     prev.current.x = lerp(KNOB_X0, KNOB_X1, 0.82);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useImperativeHandle(handle, () => ({ toggle: knob.toggle }), [knob.toggle]);
+  useImperativeHandle(
+    handle,
+    () => ({
+      toggle: () => {
+        hover.current = null;
+        knob.toggle();
+      },
+    }),
+    [knob],
+  );
 
   return (
-    <div ref={root} className="fx-sc fx-tp" dir="ltr" data-scene="temp" onPointerMove={knob.bind.onPointerMove}>
+    <div ref={root} className="fx-sc fx-tp" dir="ltr" data-scene="temp" onPointerMove={onHover} onPointerDownCapture={track}>
       <div className="fx-tp-dots" aria-hidden="true" />
       <div className="fx-sc-stage">
         <div className="fx-tp-halo" aria-hidden="true" />

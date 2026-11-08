@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import { Moon, Sun } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { arrowToDark, effectiveStyle, type SwitchStyle } from "@/lib/themes/switch-fx";
+import { arrowToDark, effectiveStyle, motionAllowed, type SwitchStyle } from "@/lib/themes/switch-fx";
 import { useSwitchFx } from "./switch-fx-provider";
 import { prefetchReveal, useThemeToggle } from "./use-theme-toggle";
 
@@ -16,11 +16,18 @@ import { prefetchReveal, useThemeToggle } from "./use-theme-toggle";
  *
  * The person may have chosen another look in «مظهر المفتاح» (زجاج، لمبة، سما، حرارة اللون): that code is a separate chunk,
  * fetched only by somebody who chose it (`ssr: false`), and the plain switch is what shows until it arrives and whenever the
- * feature switch is off. The four themes and the decoration level stay in the avatar menu (theme-picker.tsx).
+ * feature switch is off. While effects are allowed even the plain look gets a knob you can drag (the page changes while it moves,
+ * switch-fx/plain-scrub.tsx, its own small lazy chunk); «وضع التوفير», reduced motion and the feature OFF keep this file's instant switch. The four themes and the decoration level stay in the avatar menu (theme-picker.tsx).
  */
 
 /** The effect looks: one lazy chunk (its stylesheet comes with it). */
 export const LazyFxControl = dynamic(() => import("./switch-fx/fx-control").then((m) => m.FxControl), {
+  ssr: false,
+  loading: () => <PlainSwitch />,
+});
+
+/** The plain switch with a knob that can be dragged and scrubs the page: its own lazy chunk, fetched only while effects are allowed. */
+export const LazyPlainScrub = dynamic(() => import("./switch-fx/plain-scrub").then((m) => m.PlainScrub), {
   ssr: false,
   loading: () => <PlainSwitch />,
 });
@@ -80,6 +87,6 @@ export function PlainSwitch({ className }: { className?: string }) {
 export function ThemeSwitch() {
   const { pref, gate } = useSwitchFx();
   const style: SwitchStyle = effectiveStyle(pref.style, gate);
-  if (style === "plain") return <PlainSwitch />;
+  if (style === "plain") return motionAllowed(gate) ? <LazyPlainScrub /> : <PlainSwitch />;
   return <LazyFxControl style={style} size="bar" />;
 }
