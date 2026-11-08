@@ -259,6 +259,15 @@ describe("the source: lazy, light, and inside the theme system", () => {
     expect(read("components/theme/switch-fx/reveal.ts")).toMatch(/import\("\.\/sparks"\)/);
   });
 
+  it("the (app) layout keeps AppShell as its root element (the database layout tests read its props) and hands it the cookie and the feature switch", () => {
+    const layout = read("app/(app)/layout.tsx");
+    expect(layout).toMatch(/return (s*<AppShell/);
+    expect(layout).toContain("themeSwitch={cookies().get(SWITCH_COOKIE)?.value}");
+    expect(layout).toContain("themeSwitchFx={on.themeSwitchFx}");
+    const shell = read("components/app-shell.tsx");
+    expect(shell).toMatch(/<SwitchFxProvider initial={props.themeSwitch} enabled={props.themeSwitchFx ?? false}/);
+  });
+
   it("the stylesheet comes with the lazy chunk, not with the page everybody downloads", () => {
     expect(read("components/theme/switch-fx/fx-control.tsx")).toContain('import "./switch-fx.css"');
     expect(read("app/globals.css")).not.toContain("zk-glass");

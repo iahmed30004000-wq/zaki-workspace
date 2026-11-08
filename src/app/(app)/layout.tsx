@@ -12,7 +12,6 @@ import { currentSpace } from "@/server/services/current-space";
 import { hasActiveReports, navSubjectOf } from "@/server/services/nav-order";
 import { CallRing } from "@/components/calls/call-ring";
 import { CallProvider } from "@/components/calls/call-provider";
-import { SwitchFxProvider } from "@/components/theme/switch-fx-provider";
 import { SWITCH_COOKIE } from "@/lib/themes/switch-fx";
 
 /**
@@ -46,35 +45,35 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // «الإدارة» > «المساحة» is offered to whoever manages THIS space (a space role is not a capability: read here from
   // the database, never from the cookie; an external partner never does). The page decides again.
   const subject = navSubjectOf(actor, org?.settings, space, await hasActiveReports(actor));
-  // «مظهر المفتاح»: the person's look of the light/dark switch comes from the `zk-switch` cookie, so the very first paint already has the right
-  // tint; the company's `themeSwitchFx` switch decides whether any of it is drawn (off: the plain switch only, no effect code, no tint)
   return (
-    <SwitchFxProvider initial={cookies().get(SWITCH_COOKIE)?.value} enabled={on.themeSwitchFx} economy={economyOn(org?.settings)}>
-      <AppShell
-        // the shell draws a name, a username and an e-mail; session facts (tv, locale, onboarding
-        // flags) are the server's business and never cross to the browser
-        user={{ name: user.name, username: user.username, email: user.email, avatarUrl: avatarUrl }}
-        rank={actor.role}
-        isGuest={actor.isExternal}
-        nav={buildNav(subject)}
-        navOrder={readNavOrder(me?.navOrder)}
-        newActions={actor.isExternal ? [] : newActionsFor(subject)}
-        orgName={org?.name}
-        space={space ? { id: space.id, name: space.name, emoji: space.emoji } : null}
-        canOverview={actor.role === "OWNER" || actor.role === "ADMIN"}
-        audience={audienceOf(actor)}
-        defaultCollapsed={sidebarCollapsed}
-        peopleDock={on.peopleDock}
-        quickChat={on.quickChat}
-        siteGuide={on.siteGuide && on.ownerAssistant && actor.isOwner}
-        economy={economyOn(org?.settings)}
-      >
-        {/* a call goes on while the person moves between pages; an incoming call rings on every page */}
-        <CallProvider>
-          {children}
-          <CallRing />
-        </CallProvider>
-      </AppShell>
-    </SwitchFxProvider>
+    <AppShell
+      // the shell draws a name, a username and an e-mail; session facts (tv, locale, onboarding
+      // flags) are the server's business and never cross to the browser
+      user={{ name: user.name, username: user.username, email: user.email, avatarUrl: avatarUrl }}
+      rank={actor.role}
+      isGuest={actor.isExternal}
+      nav={buildNav(subject)}
+      navOrder={readNavOrder(me?.navOrder)}
+      newActions={actor.isExternal ? [] : newActionsFor(subject)}
+      orgName={org?.name}
+      space={space ? { id: space.id, name: space.name, emoji: space.emoji } : null}
+      canOverview={actor.role === "OWNER" || actor.role === "ADMIN"}
+      audience={audienceOf(actor)}
+      defaultCollapsed={sidebarCollapsed}
+      peopleDock={on.peopleDock}
+      quickChat={on.quickChat}
+      siteGuide={on.siteGuide && on.ownerAssistant && actor.isOwner}
+      economy={economyOn(org?.settings)}
+      // «مظهر المفتاح»: the person's look of the light/dark switch (the `zk-switch` cookie, so the very first paint already has the right tint);
+      // the company's `themeSwitchFx` switch decides whether any of it is drawn (off: the plain switch only, no effect code, no tint)
+      themeSwitch={cookies().get(SWITCH_COOKIE)?.value}
+      themeSwitchFx={on.themeSwitchFx}
+    >
+      {/* a call goes on while the person moves between pages; an incoming call rings on every page */}
+      <CallProvider>
+        {children}
+        <CallRing />
+      </CallProvider>
+    </AppShell>
   );
 }

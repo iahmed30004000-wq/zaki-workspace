@@ -20,6 +20,7 @@ import { PlaceTabs } from "@/components/shell/place-tabs";
 import { Sidebar } from "@/components/shell/sidebar";
 import { SpaceSwitcher, useCurrentSpace, type ShellSpace } from "@/components/shell/space-switcher";
 import { TopBar } from "@/components/shell/top-bar";
+import { SwitchFxProvider } from "@/components/theme/switch-fx-provider";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/components/shell/sidebar-state";
 import { useChatUnread } from "@/lib/chat/use-chat-unread";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
@@ -54,6 +55,10 @@ export interface AppShellProps {
   siteGuide?: boolean;
   /** The company's «وضع التوفير» (`src/lib/features.ts`): the screen's repeated refreshes wait longer (`src/lib/economy.ts`). */
   economy?: boolean;
+  /** «مظهر المفتاح»: the `zk-switch` cookie the server read (the person's look of the light/dark switch). */
+  themeSwitch?: string;
+  /** The company's `themeSwitchFx` switch (`src/lib/features.ts`): off, only the plain switch, no effect code and no tint. */
+  themeSwitchFx?: boolean;
   children: ReactNode;
 }
 
@@ -71,7 +76,16 @@ export interface AppShellProps {
  * (`buildNav` in the (app) layout): the frame only draws it, and the server still decides every request.
  * Theme tokens only, logical CSS only; the decoration is in the side menu's header and nowhere else.
  */
-export function AppShell({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, siteGuide = false, economy = false, children }: AppShellProps) {
+/** The frame, inside «مظهر المفتاح»'s provider (the choice of the top bar's switch and the tint layer over the app). */
+export function AppShell(props: AppShellProps) {
+  return (
+    <SwitchFxProvider initial={props.themeSwitch} enabled={props.themeSwitchFx ?? false} economy={props.economy ?? false}>
+      <AppShellFrame {...props} />
+    </SwitchFxProvider>
+  );
+}
+
+function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, siteGuide = false, economy = false, children }: AppShellProps) {
   // set while rendering, on purpose: the shell renders before its children, so every timer below reads the right period
   setEconomy(economy);
   const { t } = useI18n();
