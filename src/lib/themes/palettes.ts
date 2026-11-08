@@ -258,7 +258,7 @@ export const PALETTES: Record<ThemeKey, Palette> = {
  * The sky is its own scene — a midnight sky stays a midnight sky inside the light theme's pill — so most values are shared; the
  * Islamic and neon themes tint the aurora and the sun toward their own accents.
  */
-export const FX_TOKENS = [
+const FX_CORE_TOKENS = [
   "fx-warm",
   "fx-cool",
   "fx-sky-night-top",
@@ -278,9 +278,72 @@ export const FX_TOKENS = [
   "fx-glass-edge",
   "fx-glass-glow",
 ] as const;
+
+/**
+ * The scene colours of the exact showcase (the gallery «معرض مفاتيح المظهر» and the top bar's looks): a scene has a light and a dark
+ * page (`-l` / `-d`, mixed by the knob's position in the browser) plus a few colours that never change. They are art — the fake
+ * dashboards, the sky, the glass — and live only inside the gallery and the switch's own pill, never behind a number of the app.
+ */
+const SCENE_FX = {
+  // glass
+  "fx-gl-bg-l": "#DAD9D5", "fx-gl-bg-d": "#0B0B0F",
+  "fx-gl-bg-x": "#8E766B",
+  "fx-lp-bg-x": "#6A5A6C",
+  "fx-tp-bg-x": "#988078",
+  "fx-gl-ink-l": "#1F1F22", "fx-gl-ink-d": "#F3F3F8",
+  "fx-gl-veil-l": "#E9E8E4", "fx-gl-veil-d": "#08080D",
+  "fx-gl-tint-l": "#F0AE45", "fx-gl-tint-d": "#6A62FF",
+  "fx-gl-line-l": "#2B2B2E", "fx-gl-line-d": "#E6E6F0",
+  "fx-gl-mono-l": "#6A6965", "fx-gl-mono-d": "#8D8D96",
+  "fx-gl-blob-1": "#E8668A", "fx-gl-blob-2": "#F4D35E", "fx-gl-blob-3": "#5FD3A8", "fx-gl-blob-4": "#6C8CFF", "fx-gl-blob-5": "#8B5CF6",
+  "fx-gl-dot-1": "#EF2D56", "fx-gl-dot-2": "#F5822A", "fx-gl-dot-3": "#F8C93B", "fx-gl-dot-4": "#78D957",
+  "fx-gl-dot-5": "#2DC9B4", "fx-gl-dot-6": "#3B7DF3", "fx-gl-dot-7": "#7C3AED", "fx-gl-dot-8": "#D946EF",
+  // the control pill of the gallery (grey in both pages, like the reference)
+  "fx-ui-pill": "#B9B5B2", "fx-ui-ink": "#2A2928", "fx-ui-mute": "#6B6967", "fx-ui-chip": "#1D1C1B", "fx-ui-chip-ink": "#F4F3F1", "fx-ui-key": "#D6D3D0",
+  // the lamp (and its analytics dashboard)
+  "fx-lp-bg-l": "#E7DFCF", "fx-lp-bg-d": "#0A0B17",
+  "fx-lp-card-l": "#F6F3EC", "fx-lp-card-d": "#191A2A",
+  "fx-lp-ink-l": "#1D1D20", "fx-lp-ink-d": "#F2F2F7",
+  "fx-lp-mute-l": "#7A766E", "fx-lp-mute-d": "#8A8CA3",
+  "fx-lp-bar-l": "#B58B55", "fx-lp-bar-d": "#6D69DE",
+  "fx-lp-ray-l": "#FFC24F", "fx-lp-ray-d": "#5B57E4",
+  "fx-lp-track-l": "#D3CEC2", "fx-lp-track-d": "#07070D",
+  "fx-lp-edge-l": "#FFFFFF", "fx-lp-edge-d": "#6C6AE8",
+  "fx-lp-line-l": "#D08A2E", "fx-lp-line-d": "#6D69DE",
+  "fx-lp-red": "#D8574A", "fx-lp-blue": "#4F86E0", "fx-lp-green": "#62B95A", "fx-lp-ok": "#34C759",
+  // «Lumen» and «Tonight's reading»
+  "fx-lm-bg-l": "#E4E2DD", "fx-lm-bg-d": "#0F1017",
+  "fx-lm-panel-l": "#FBFAF7", "fx-lm-panel-d": "#181924",
+  "fx-lm-ink-l": "#1B1B1F", "fx-lm-ink-d": "#F3F3F8",
+  "fx-lm-mute-l": "#7D7A74", "fx-lm-mute-d": "#8B8DA3",
+  "fx-lm-accent-l": "#F5A524", "fx-lm-accent-d": "#5B54E0",
+  "fx-lm-accent2-l": "#F8CC7A", "fx-lm-accent2-d": "#8F8BF5",
+  "fx-lm-field-l": "#D9D6D0", "fx-lm-field-d": "#1E1F2B",
+  "fx-lm-spark-l": "#FFB020", "fx-lm-spark-d": "#7A6CFF",
+  "fx-rd-i1": "#D8574A", "fx-rd-i2": "#4F86E0", "fx-rd-i3": "#D9A23A", "fx-rd-i4": "#7B4FD6",
+  // the sky: six key frames (midnight, moonset, golden hour, morning, mid-morning, noon): top, low, page, far hills, near hills
+  "fx-sk0-top": "#0B1530", "fx-sk0-low": "#2C2C66", "fx-sk0-page": "#0C0D13", "fx-sk0-far": "#1F2349", "fx-sk0-near": "#0F1229",
+  "fx-sk1-top": "#2A2152", "fx-sk1-low": "#6A4672", "fx-sk1-page": "#3A2F31", "fx-sk1-far": "#463A62", "fx-sk1-near": "#241C3A",
+  "fx-sk2-top": "#5E5486", "fx-sk2-low": "#E39A80", "fx-sk2-page": "#765F5A", "fx-sk2-far": "#6E5667", "fx-sk2-near": "#352C3F",
+  "fx-sk3-top": "#8A98D2", "fx-sk3-low": "#F0BDB3", "fx-sk3-page": "#B9A39F", "fx-sk3-far": "#80798F", "fx-sk3-near": "#3F4A5E",
+  "fx-sk4-top": "#4D8DD6", "fx-sk4-low": "#C9DFF1", "fx-sk4-page": "#D6D3CE", "fx-sk4-far": "#8497B7", "fx-sk4-near": "#4D5E7A",
+  "fx-sk5-top": "#3E86DA", "fx-sk5-low": "#D5E7F8", "fx-sk5-page": "#DEDCD6", "fx-sk5-far": "#8AA2C2", "fx-sk5-near": "#4A5F7E",
+  "fx-sk-cloud-pink": "#F2B9B6", "fx-sk-window": "#FFC24F", "fx-sk-pine": "#17252A", "fx-sk-cabin": "#6A2C24", "fx-sk-lake-day": "#3F64AA", "fx-sk-lake-night": "#171B3A",
+  // colour temperature (moon <-> sun)
+  "fx-tp-bg-l": "#E6E3DD", "fx-tp-bg-d": "#08090F",
+  "fx-tp-track-l": "#D9D5CD", "fx-tp-track-d": "#0B0B12",
+  "fx-tp-ink-l": "#2A2A2E", "fx-tp-ink-d": "#F2F2F6",
+  "fx-tp-mute-l": "#8B8883", "fx-tp-mute-d": "#7D7F90",
+  "fx-tp-dot-l": "#9A978F", "fx-tp-dot-d": "#3E4052",
+  "fx-tp-tint-l": "#F1B04C", "fx-tp-tint-d": "#9A9CF5",
+  "fx-tp-moon": "#8C8BF2", "fx-tp-sun": "#FFB02E", "fx-tp-cool": "#7B86F2", "fx-tp-mid": "#F4F3EE", "fx-tp-warm": "#F59A2C",
+} as const;
+
+export const FX_TOKENS = [...FX_CORE_TOKENS, ...(Object.keys(SCENE_FX) as Array<keyof typeof SCENE_FX>)] as const;
 export type FxToken = (typeof FX_TOKENS)[number];
 
 const FX_BASE: Record<FxToken, string> = {
+  ...SCENE_FX,
   "fx-warm": "#FFB45C", // the warm tint: an amber lamp
   "fx-cool": "#6FA8FF", // the cool tint: a clear morning blue
   "fx-sky-night-top": "#0B1230",

@@ -378,6 +378,19 @@ html.zk-reveal::view-transition-new(root) {
 html.zk-reveal::view-transition-old(root) {
   z-index: 1;
 }
+/* the shape is re-computed every frame by the script (`--zk-clip`, a polygon): a torn edge that grows from the press */
 html.zk-reveal::view-transition-new(root) {
   z-index: 2;
+  clip-path: var(--zk-clip, circle(0 at 50% 50%));
+}
+/* the sparks and the «repainting NN%» pill live in a group of their own, above both snapshots, never cross-faded */
+html.zk-reveal::view-transition-group(zk-overlay) {
+  animation: none;
+  z-index: 3;
+}
+html.zk-reveal::view-transition-old(zk-overlay) {
+  display: none;
+}
+html.zk-reveal::view-transition-new(zk-overlay) {
+  animation: none;
 }

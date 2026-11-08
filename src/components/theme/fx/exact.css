@@ -1,0 +1,79 @@
+/*
+ * The exact showcase (the gallery «معرض مفاتيح المظهر» and the top bar's looks): what every scene shares — the full-screen frame,
+ * the 1720 x 1080 stage scaled to the window, the grid, the glass knob and the control pill.
+ *
+ * Every colour is a variable: the illustration tokens `--fx-*` (src/lib/themes/palettes.ts) or the per-scene `--s-*` that the scene
+ * writes while the knob moves (the light page and the dark page mixed by the knob's position). No hex, no rgb numbers.
+ */
+
+.fx-sc {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+.fx-sc-stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 1720px;
+  height: 1080px;
+  transform: translate(-50%, -50%) scale(var(--sc, 1));
+  transform-origin: center;
+}
+.fx-sc-stage > * {
+  position: absolute;
+}
+.fx-mono {
+  font-family: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
+}
+.fx-defs {
+  position: absolute;
+  pointer-events: none;
+}
+
+/* ── the glass knob (gallery and top bar) ── */
+.fx-glass {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  isolation: isolate;
+  border-radius: 30%;
+  box-shadow:
+    inset 0 0 0 1.5px rgb(var(--fx-glass-edge) / 0.5),
+    inset 0 7px 12px -6px rgb(var(--fx-glass-edge) / 0.85),
+    inset 0 -16px 30px -12px rgb(var(--fx-glass-glow) / 0.95);
+}
+.fx-glass > * {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.fx-glass-tint {
+  background:
+    linear-gradient(165deg, rgb(var(--s-gl-tint) / 0.68), rgb(var(--s-gl-tint) / 0.38) 55%, rgb(var(--s-gl-tint) / 0.58)),
+    radial-gradient(120% 90% at 30% 0%, rgb(var(--fx-glass-edge) / 0.35), transparent 60%);
+}
+.fx-glass-caustic {
+  background: radial-gradient(54% 34% at var(--lx, 50%) var(--ly, 100%), rgb(var(--fx-glass-glow) / 0.95), rgb(var(--fx-glass-glow) / 0.35) 55%, transparent 100%);
+  mix-blend-mode: screen;
+  opacity: 0.85;
+}
+.fx-glass-rim {
+  box-shadow:
+    inset 0 0 0 1px rgb(var(--fx-glass-edge) / 0.45),
+    inset 0 0 22px 2px rgb(var(--fx-glass-edge) / 0.35);
+  background: radial-gradient(closest-side, transparent 74%, rgb(var(--fx-glass-edge) / 0.28) 100%);
+}
+.fx-glass > canvas,
+.fx-glass > svg {
+  inset: auto;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+}

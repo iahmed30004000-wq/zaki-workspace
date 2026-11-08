@@ -1,0 +1,81 @@
+/* The gallery's own frame and control pill (theme-gallery.tsx). The scenes bring their own stylesheets. */
+
+.fx-gallery {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  --sc: 1;
+}
+.fx-pill {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 50px;
+  padding: 0 18px;
+  border-radius: 25px;
+  white-space: nowrap;
+  font-size: 15px;
+  color: rgb(var(--fx-ui-ink));
+  background: rgb(var(--fx-ui-pill) / 0.82);
+  -webkit-backdrop-filter: blur(16px) saturate(1.2);
+  backdrop-filter: blur(16px) saturate(1.2);
+  box-shadow: inset 0 0 0 1px rgb(var(--fx-glass-edge) / 0.3), 0 10px 28px -10px rgb(var(--fx-tp-bg-d) / 0.35);
+}
+.fx-pill .nav {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 15px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.fx-pill .nav:hover { background: rgb(var(--fx-glass-edge) / 0.35); }
+.fx-pill .name { min-width: 150px; text-align: center; font-weight: 600; }
+.fx-pill .chip {
+  height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 17px;
+  cursor: pointer;
+  font: inherit;
+  background: rgb(var(--fx-ui-chip));
+  color: rgb(var(--fx-ui-chip-ink));
+}
+.fx-pill .keys { color: rgb(var(--fx-ui-mute)); font-size: 14px; }
+.fx-pill kbd {
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 6px;
+  color: rgb(var(--fx-ui-ink));
+  background: rgb(var(--fx-ui-key) / 0.85);
+}
+.fx-pill button:focus-visible,
+.fx-pill-show:focus-visible { outline: 2px solid rgb(var(--fx-ui-chip)); outline-offset: 2px; }
+.fx-pill-show {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  width: 120px;
+  height: 12px;
+  transform: translateX(-50%);
+  z-index: 70;
+  border: 0;
+  border-radius: 0 0 8px 8px;
+  background: transparent;
+  cursor: pointer;
+}
+@media (max-width: 760px) {
+  .fx-pill { gap: 6px; padding: 0 10px; }
+  .fx-pill .keys { display: none; }
+  .fx-pill .name { min-width: 0; }
+}

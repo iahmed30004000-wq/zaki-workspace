@@ -1,0 +1,89 @@
+/* «05 · drag the sky» (sky-scene.tsx). The page colour and --ink are written by the scene from the --fx-sk* tokens. */
+
+.fx-sk {
+  --ink: 32 31 30;
+  background: rgb(var(--fx-sk5-page));
+  transition: none;
+}
+.fx-sk-pill {
+  left: 320px;
+  top: 250px;
+  width: 1080px;
+  height: 430px;
+  border-radius: 215px;
+  overflow: hidden;
+  cursor: ew-resize;
+  touch-action: none;
+  box-shadow:
+    0 0 0 2px rgb(var(--fx-glass-edge) / 0.28),
+    0 40px 70px -28px rgb(var(--fx-tp-bg-d) / 0.55),
+    0 14px 24px -10px rgb(var(--fx-tp-bg-d) / 0.3);
+}
+.fx-sk-art {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.fx-sk-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(var(--fx-glass-edge) / 0.18), transparent 22%, transparent 78%, rgb(var(--fx-tp-bg-d) / 0.22));
+  box-shadow: inset 0 0 0 2px rgb(var(--fx-glass-edge) / 0.22), inset 0 6px 14px rgb(var(--fx-glass-edge) / 0.25);
+}
+.fx-sk-title {
+  left: 0;
+  width: 1720px;
+  top: 742px;
+  margin: 0;
+  text-align: center;
+  font-size: 29px;
+  font-weight: 700;
+  line-height: 40px;
+  color: rgb(var(--ink));
+  pointer-events: none;
+}
+.fx-sk-sub {
+  left: 0;
+  width: 1720px;
+  top: 794px;
+  margin: 0;
+  text-align: center;
+  font-size: 22px;
+  line-height: 32px;
+  color: rgb(var(--ink) / 0.55);
+  pointer-events: none;
+}
+.fx-sk-ring {
+  left: 0;
+  top: 0;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2px solid rgb(var(--fx-tp-bg-d) / 0.7);
+  box-shadow: 0 0 0 1px rgb(var(--fx-glass-edge) / 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s;
+}
+.fx-lanterns {
+  animation: fx-drift 9s ease-in-out infinite alternate;
+}
+@keyframes fx-drift {
+  from { transform: translateX(-6px); }
+  to { transform: translateX(8px); }
+}
+.fx-smoke {
+  animation: fx-smoke 5s ease-in-out infinite alternate;
+  transform-box: fill-box;
+}
+@keyframes fx-smoke {
+  from { transform: translateX(-3px) scaleY(0.96); }
+  to { transform: translateX(4px) scaleY(1.04); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-lanterns, .fx-smoke { animation: none; }
+}

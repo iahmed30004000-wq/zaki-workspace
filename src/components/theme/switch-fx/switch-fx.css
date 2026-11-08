@@ -1,356 +1,252 @@
 /*
- * «مظهر المفتاح» — the four looks of the top bar's switch (fx-control.tsx). Loaded with that component's chunk, so the people
- * who keep the plain switch never download it.
+ * «مظهر المفتاح» — the four looks of the top bar's switch (fx-control.tsx), compact versions of the gallery's variants.
+ * Loaded with that component's chunk, so the people who keep the plain switch never download it.
  *
- * Every colour is a theme variable: the interface tokens (`--border`, `--surface-1`, `--scrim` ...) and the illustration tokens
- * (`--fx-*`, src/lib/themes/palettes.ts FX_TOKENS). No hex, no rgb numbers: tests/no-hardcoded-colors.test.ts and the drift tests
- * guard the sources. The art is only ever INSIDE the control's own pill (and the settings preview), never behind a number.
- * Logical properties and the `--zk-dir` factor (1, or -1 in a right-to-left page) keep every drag the right way round.
+ * Every colour is a theme variable: the interface tokens (`--border`, `--surface-2`, `--fg` ...), the illustration tokens
+ * (`--fx-*`, src/lib/themes/palettes.ts) and `--s-*`, the pairs the control mixes by the knob's position. No hex, no rgb numbers.
+ * The tracks are pictures (a lamp, a sky, a moon and a sun) and always read left to right: the control sets `dir="ltr"` itself and
+ * every offset below is logical (`inset-inline-start` ...), so there is one rule for the position of the knob.
  */
 
-.zk-fx {
-  --zk-dir: 1;
-  --zk-p: 0;
-  --zk-b: 1;
-  --zk-h: 44px;
-  --zk-knob: 36px;
-  --zk-pad: 4px;
-  --zk-track: 132px;
-  --zk-grad: to right;
-  --zk-rtl-base: 0px;
+.zx {
+  --zx-dir: 1;
+  --zx-w: 112px;
+  --zx-h: 44px;
+  --zx-k: 38px;
+  --zx-pad: 3px;
+  --zx-travel: 68px;
+  --p: 1;
   position: relative;
   display: inline-flex;
   flex-shrink: 0;
   align-items: center;
   gap: 0.25rem;
+  direction: ltr;
 }
-[dir="rtl"] .zk-fx {
-  --zk-dir: -1;
-  --zk-grad: to left;
-  --zk-rtl-base: 100px;
-}
-.zk-fx-column {
+.zx-column {
   flex-direction: column;
   align-items: center;
   gap: 0.5rem;
 }
-/* a phone's top bar is crowded: the pills are narrower there */
+.zx-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
 @media (max-width: 767px) {
-  .zk-fx[data-size="bar"] {
-    --zk-track: 104px;
+  .zx[data-size="bar"][data-style="lamp"],
+  .zx[data-size="bar"][data-style="warmth"] {
+    --zx-w: 112px;
+    --zx-travel: 68px;
   }
 }
-.zk-fx[data-style="glass"][data-size="bar"] {
-  --zk-track: 84px;
-}
-.zk-fx[data-size="preview"] {
-  --zk-h: 68px;
-  --zk-knob: 56px;
-  --zk-track: 264px;
-}
-.zk-fx[data-style="glass"][data-size="preview"] {
-  --zk-track: 200px;
-}
-.zk-fx[data-style="sky"][data-size="preview"] {
-  --zk-h: 88px;
-}
-
-.zk-fx-defs {
-  position: absolute;
-  pointer-events: none;
-}
-
-/* ── the track every look shares ── */
-.zk-fx-track {
+.zx-track {
   position: relative;
   box-sizing: border-box;
   flex-shrink: 0;
-  width: var(--zk-track);
-  height: var(--zk-h);
+  width: var(--zx-w);
+  height: var(--zx-h);
+  padding: 0;
   border-radius: 9999px;
   border: 1px solid rgb(var(--border));
-  background: rgb(var(--surface-1));
+  background: rgb(var(--surface-2));
   color: rgb(var(--fg));
+  overflow: hidden;
   cursor: grab;
   touch-action: none;
   user-select: none;
   -webkit-user-select: none;
 }
-.zk-fx[data-dragging="true"] .zk-fx-track {
+.zx[data-dragging="true"] .zx-track,
+.zx-track:active {
   cursor: grabbing;
 }
-.zk-fx-track:focus-visible {
+.zx-track:focus-visible {
   outline: 2px solid rgb(var(--accent));
   outline-offset: 2px;
 }
-.zk-fx-knob {
-  position: absolute;
-  inset-inline-start: var(--zk-pad);
-  top: 50%;
-  display: grid;
-  width: var(--zk-knob);
-  height: var(--zk-knob);
-  place-items: center;
-  border-radius: 9999px;
-  transform: translate(calc(var(--zk-dir) * var(--zk-p) * (var(--zk-track) - var(--zk-knob) - var(--zk-pad) * 2 - 2px)), -50%);
-  transition: transform 0.18s ease;
-}
-.zk-fx[data-dragging="true"] .zk-fx-knob {
-  transition: none;
-  will-change: transform;
-}
-.zk-fx-readout {
-  min-width: 2.75rem;
-  font-size: 0.75rem;
-  line-height: 1rem;
-  font-variant-numeric: tabular-nums;
-  color: rgb(var(--fg-muted));
-  text-align: center;
-}
-.zk-fx[data-size="bar"] .zk-fx-readout {
-  display: none;
-}
-@media (min-width: 768px) {
-  .zk-fx[data-size="bar"][data-style="lamp"] .zk-fx-readout {
-    display: inline;
-  }
-}
-
-/* ── glass: a knob of glass over two big marks ── */
-.zk-glass-track {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 0.5rem;
-  overflow: hidden;
-  background: rgb(var(--surface-2));
-}
-.zk-glass-end {
-  display: grid;
-  place-items: center;
-  width: var(--zk-knob);
-  color: rgb(var(--fg-muted));
-}
-.zk-glass-word {
-  font-size: 1.25rem;
-  font-weight: 700;
-  line-height: 1;
-  color: rgb(var(--fg));
-}
-.zk-glass-knob {
-  overflow: hidden;
-  border: 1px solid rgb(var(--fx-glass-edge) / 0.55);
-  background: rgb(var(--fx-glass-edge) / 0.14);
-  box-shadow:
-    inset 0 1px 1px rgb(var(--fx-glass-edge) / 0.8),
-    inset 0 -2px 3px rgb(var(--fx-glass-edge) / 0.25),
-    0 6px 14px rgb(var(--scrim) / 0.35);
-  -webkit-backdrop-filter: blur(3px) saturate(1.4);
-  backdrop-filter: blur(3px) saturate(1.4);
-}
-/* the caustic: a glow the pointer moves across the knob (written by the component, one write per frame) */
-.zk-glass-knob::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: radial-gradient(circle at var(--zk-lx, 30%) var(--zk-ly, 25%), rgb(var(--fx-glass-glow) / 0.7), transparent 58%);
-  opacity: 0.8;
-}
-.zk-fx[data-motion="false"] .zk-glass-knob::after {
-  opacity: 0.45;
-}
-
-/* ── lamp: the knob lights the app, with rays ── */
-.zk-lamp-track {
-  background: rgb(var(--surface-2));
-}
-.zk-lamp-fill {
+.zx-rail {
   position: absolute;
   inset-block: 0;
-  inset-inline-start: 0;
-  width: calc(var(--zk-knob) / 2 + var(--zk-pad) + var(--zk-p) * (var(--zk-track) - var(--zk-knob) - var(--zk-pad) * 2));
-  border-radius: 9999px;
-  background: linear-gradient(var(--zk-grad), rgb(var(--fx-lamp-ray) / 0), rgb(var(--fx-lamp-ray) / 0.38));
-}
-.zk-lamp-knob {
-  background: linear-gradient(rgb(var(--fx-lamp-ray)), rgb(var(--fx-sun)));
-  color: rgb(var(--scrim));
-  box-shadow:
-    0 0 calc(var(--zk-b) * 20px) calc(var(--zk-b) * 3px) rgb(var(--fx-lamp-ray) / calc(0.12 + var(--zk-b) * 0.5)),
-    inset 0 1px 1px rgb(var(--fx-glass-edge) / 0.6);
-}
-.zk-lamp-rays {
-  position: absolute;
-  inset: -55%;
-  width: 210%;
-  height: 210%;
-  overflow: visible;
+  inset-inline-start: calc(var(--zx-pad) + var(--zx-k) / 2);
+  width: var(--zx-travel);
   pointer-events: none;
-  opacity: calc(0.15 + var(--zk-b) * 0.75);
-  stroke: rgb(var(--fx-lamp-ray));
-  stroke-width: 2.4;
-  stroke-linecap: round;
 }
-.zk-fx[data-motion="true"] .zk-lamp-rays {
-  animation: zk-rays-turn 18s linear infinite;
+.zx-knob {
+  position: absolute;
+  top: 50%;
+  inset-inline-start: calc(var(--zx-pad) + var(--p) * var(--zx-travel));
+  width: var(--zx-k);
+  height: var(--zx-k);
+  translate: 0 -50%;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
 }
-@keyframes zk-rays-turn {
-  to {
-    transform: rotate(1turn);
-  }
+.zx-icon {
+  color: rgb(var(--fg) / 0.85);
 }
 
-/* ── sky: a window onto the day, drawn from the theme's illustration colours ── */
-.zk-sky-track {
-  overflow: hidden;
-  cursor: ew-resize;
+/* the two ends of the glass and warmth tracks: a crescent and a sun, dimmed while the knob is over them */
+.zx-end {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  pointer-events: none;
 }
-.zk-sky-svg {
+.zx-end-night {
+  inset-inline-start: 12px;
+  box-shadow: inset -4px -1px 0 0 rgb(var(--fx-tp-moon));
+  opacity: calc(0.35 + 0.65 * var(--p));
+}
+.zx-end-day {
+  inset-inline-end: 12px;
+  background: rgb(var(--fx-tp-sun));
+  box-shadow: 0 0 0 3px rgb(var(--fx-tp-sun) / 0.28);
+  opacity: calc(0.35 + 0.65 * (1 - var(--p)));
+}
+.zx[data-style="glass"] .zx-track,
+.zx[data-style="warmth"] .zx-track {
+  background: linear-gradient(90deg, rgb(var(--s-gl-tint, var(--s-tp-tint)) / 0.28), rgb(var(--surface-2)) 62%);
+}
+.zx-glass {
+  position: relative !important;
+  inset: auto !important;
+  border-radius: 30% !important;
+}
+.zx-sheds {
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  pointer-events: none;
+}
+
+/* ── lamp ── */
+.zx[data-style="lamp"] .zx-track {
+  background: linear-gradient(90deg, rgb(var(--s-lp-ray) / calc(0.1 + 0.12 * (1 - var(--p)))), rgb(var(--surface-2)) 66%);
+}
+.zx-rays {
+  position: absolute;
+  inset: 0;
+  background: repeating-conic-gradient(from 0deg at calc(var(--zx-pad) + var(--p) * var(--zx-travel) + var(--zx-k) / 2) 50%, transparent 0deg 7deg, rgb(var(--s-lp-ray) / 0.5) 9deg 12deg, transparent 14deg 22deg);
+  -webkit-mask-image: radial-gradient(circle at calc(var(--zx-pad) + var(--p) * var(--zx-travel) + var(--zx-k) / 2) 50%, black 0, transparent 70%);
+  mask-image: radial-gradient(circle at calc(var(--zx-pad) + var(--p) * var(--zx-travel) + var(--zx-k) / 2) 50%, black 0, transparent 70%);
+  pointer-events: none;
+}
+.zx-knob-lamp {
+  border-radius: 28%;
+  background: linear-gradient(170deg, rgb(var(--s-lp-edge) / 0.8), rgb(var(--s-lp-ray) / calc(0.95 - 0.5 * (1 - var(--p)))));
+  box-shadow: inset 0 0 0 1.5px rgb(var(--s-lp-edge) / 0.7), 0 4px 14px rgb(var(--s-lp-ray) / 0.55);
+}
+.zx-readout {
+  position: absolute;
+  top: 50%;
+  translate: 0 -50%;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgb(var(--fg-muted));
+  pointer-events: none;
+}
+.zx[data-size="preview"] .zx-readout {
+  font-size: 14px;
+}
+
+/* ── sky ── */
+.zx-sky {
+  border: 0;
+  cursor: ew-resize;
+  box-shadow: 0 0 0 1.5px rgb(var(--border)), 0 8px 18px -10px rgb(var(--fx-tp-bg-d) / 0.5);
+}
+.zx-sky-art {
   position: absolute;
   inset: 0;
   width: 100%;
   height: 100%;
+  display: block;
 }
-.zk-stop-night-top {
-  stop-color: rgb(var(--fx-sky-night-top));
+.zx-sky-shine {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgb(var(--fx-glass-edge) / 0.2), transparent 30%, rgb(var(--fx-tp-bg-d) / 0.2));
+  box-shadow: inset 0 0 0 1.5px rgb(var(--fx-glass-edge) / 0.2);
 }
-.zk-stop-night-low {
-  stop-color: rgb(var(--fx-sky-night-low));
+.zx-caption {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
-.zk-stop-day-top {
-  stop-color: rgb(var(--fx-sky-day-top));
+.zx-caption-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: rgb(var(--fg));
 }
-.zk-stop-day-low {
-  stop-color: rgb(var(--fx-sky-day-low));
-}
-.zk-stop-aurora-a {
-  stop-color: rgb(var(--fx-aurora-a));
-}
-.zk-stop-aurora-b {
-  stop-color: rgb(var(--fx-aurora-b));
-}
-.zk-night-layer {
-  opacity: calc(1 - var(--zk-blend, 0));
-}
-.zk-day-layer {
-  opacity: var(--zk-blend, 0);
-}
-.zk-star {
-  fill: rgb(var(--fx-star));
-}
-.zk-fx[data-motion="true"] .zk-star {
-  animation: zk-twinkle 3.2s ease-in-out infinite;
-  animation-delay: var(--d, 0s);
-}
-@keyframes zk-twinkle {
-  50% {
-    opacity: 0.35;
-  }
-}
-.zk-cloud {
-  fill: rgb(var(--fx-cloud) / 0.9);
-}
-.zk-fx[data-motion="true"] .zk-cloud-a {
-  animation: zk-drift 14s ease-in-out infinite alternate;
-}
-.zk-fx[data-motion="true"] .zk-cloud-b {
-  animation: zk-drift 19s ease-in-out infinite alternate-reverse;
-}
-@keyframes zk-drift {
-  to {
-    transform: translateX(6px);
-  }
-}
-.zk-sun {
-  opacity: var(--zk-sunv, 0);
-  transform: translate(calc(var(--zk-rtl-base) + var(--zk-dir) * var(--zk-sunx, 50) * 1px), calc(var(--zk-suny, 20) * 1px));
-}
-.zk-sun-glow {
-  fill: rgb(var(--fx-sun) / 0.28);
-}
-.zk-sun-disc {
-  fill: rgb(var(--fx-sun));
-}
-.zk-moon {
-  opacity: var(--zk-moonv, 0);
-  transform: translate(calc(var(--zk-rtl-base) + var(--zk-dir) * var(--zk-moonx, 50) * 1px), calc(var(--zk-moony, 20) * 1px));
-}
-.zk-moon-disc {
-  fill: rgb(var(--fx-moon));
-}
-.zk-hill-far {
-  fill: rgb(var(--fx-hill-far));
-}
-.zk-hill-near {
-  fill: rgb(var(--fx-hill-near));
-}
-.zk-cabin {
-  fill: rgb(var(--fx-hill-near));
-}
-.zk-cabin-light {
-  fill: rgb(var(--fx-sun));
+.zx-caption-sub {
+  font-size: 0.75rem;
+  color: rgb(var(--fg-muted));
 }
 
-/* ── colour temperature: cool at one end, warm at the other ── */
-.zk-warm-track {
-  overflow: hidden;
-  background: linear-gradient(var(--zk-grad), rgb(var(--fx-cool) / 0.5), rgb(var(--surface-1)) 50%, rgb(var(--fx-warm) / 0.5));
-}
-.zk-warm-knob {
-  background: rgb(var(--surface-1));
-  border: 1px solid rgb(var(--border));
-  color: rgb(var(--fg));
-  box-shadow: var(--shadow-card);
-}
-.zk-warm-knob > svg {
-  grid-area: 1 / 1;
-}
-.zk-warm-moon {
-  opacity: calc(1 - var(--zk-p));
-}
-.zk-warm-sun {
-  opacity: var(--zk-p);
-}
-.zk-dot {
-  position: absolute;
-  bottom: 12%;
-  width: 3px;
-  height: 3px;
-  border-radius: 9999px;
-  background: rgb(var(--fx-spark));
-  opacity: 0;
+/* ── colour temperature ── */
+.zx-scale {
+  position: relative;
+  width: var(--zx-w);
+  height: 52px;
   pointer-events: none;
 }
-.zk-fx[data-motion="true"] .zk-dot {
-  animation: zk-rise 3s ease-in infinite;
+.zx-scale-bar {
+  position: absolute;
+  inset-inline-start: 0;
+  top: 10px;
+  width: 100%;
+  height: 5px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, rgb(var(--fx-tp-cool)), rgb(var(--fx-tp-mid)) 50%, rgb(var(--fx-tp-warm)));
 }
-@keyframes zk-rise {
-  0% {
-    transform: translateY(0);
-    opacity: 0;
-  }
-  25% {
-    opacity: 0.8;
-  }
-  100% {
-    transform: translateY(-26px);
-    opacity: 0;
-  }
+.zx-scale-marker {
+  position: absolute;
+  inset-inline-start: calc(var(--p) * var(--zx-w) - 5px);
+  top: -1px;
+  border-inline: 5px solid transparent;
+  border-top: 8px solid rgb(var(--fg));
+}
+.zx-scale-lo,
+.zx-scale-hi {
+  position: absolute;
+  top: 18px;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 400;
+  color: rgb(var(--fg-muted));
+}
+.zx-scale-lo { inset-inline-start: 0; }
+.zx-scale-hi { inset-inline-end: 0; }
+.zx-scale-read {
+  position: absolute;
+  inset-inline: 0;
+  top: 18px;
+  text-align: center;
+  font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  font-size: 13px;
+  font-weight: 700;
+  color: rgb(var(--fg));
+}
+.zx-scale-cap {
+  position: absolute;
+  inset-inline: 0;
+  top: 36px;
+  text-align: center;
+  font-size: 11px;
+  color: rgb(var(--fg-muted));
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .zk-lamp-rays,
-  .zk-star,
-  .zk-cloud,
-  .zk-dot {
-    animation: none !important;
+  .zx-rays {
+    opacity: 0.6;
   }
-}
-
-/* the bar is only 44px tall inside a 56-64px header: its rays are shorter than the preview's, so they never leave the header */
-.zk-fx[data-size="bar"] .zk-lamp-rays {
-  inset: -35%;
-  width: 170%;
-  height: 170%;
 }

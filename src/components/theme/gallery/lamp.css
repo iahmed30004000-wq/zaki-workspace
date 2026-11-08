@@ -1,0 +1,155 @@
+/* «02 · The knob is the lamp» (lamp-scene.tsx). Colours: --s-lp-* written by the scene (the light page and the dark page mixed by the knob), --fx-lp-*. */
+
+.fx-lp {
+  --m: 0;
+  background: rgb(var(--s-lp-bg));
+  color: rgb(var(--s-lp-ink));
+}
+.fx-lp-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 60% 55% at calc(var(--kx, 996px) + 60px) 70px, rgb(var(--s-lp-ray) / calc(0.5 - 0.15 * var(--m))), transparent 70%);
+}
+.fx-lp-rays {
+  left: calc(var(--kx, 996px) + 60px - 1300px);
+  top: -1230px;
+  width: 2600px;
+  height: 2600px;
+  background: repeating-conic-gradient(
+    from 0deg,
+    transparent 0deg 5deg,
+    rgb(var(--s-lp-ray) / 0.8) 6.5deg 8.5deg,
+    transparent 10deg 14deg,
+    rgb(var(--s-lp-ray) / 0.5) 16deg 17.5deg,
+    transparent 19deg 24deg
+  );
+  -webkit-mask-image: radial-gradient(circle closest-side, black 0, transparent 38%);
+  mask-image: radial-gradient(circle closest-side, black 0, transparent 38%);
+  opacity: calc(0.9 - 0.1 * var(--m));
+  animation: fx-spin 120s linear infinite;
+  pointer-events: none;
+}
+@keyframes fx-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .fx-lp-rays {
+    animation: none;
+  }
+}
+.fx-lp-track {
+  left: 592px;
+  top: 65px;
+  width: 536px;
+  height: 128px;
+  border-radius: 64px;
+  background: linear-gradient(90deg, rgb(var(--s-lp-edge) / calc(0.1 + 0.2 * var(--m))), rgb(var(--s-lp-track) / 0.72) 55%);
+  box-shadow:
+    inset 0 -3px 6px rgb(var(--s-lp-edge) / 0.5),
+    inset 0 2px 10px rgb(var(--s-lp-track) / 0.9),
+    0 0 0 1px rgb(var(--s-lp-edge) / calc(0.15 + 0.1 * var(--m)));
+  pointer-events: none;
+}
+.fx-lp-rail {
+  left: 660px;
+  top: 68px;
+  width: 396px;
+  height: 120px;
+  pointer-events: none;
+}
+.fx-lp-hit {
+  left: 592px;
+  top: 65px;
+  width: 536px;
+  height: 128px;
+  border-radius: 64px;
+  cursor: grab;
+}
+.fx-lp-label {
+  left: 502px;
+  top: 104px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: rgb(var(--s-lp-mute));
+  pointer-events: none;
+}
+.fx-lp-pct {
+  left: 1164px;
+  top: 104px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: rgb(var(--s-lp-mute));
+  pointer-events: none;
+}
+.fx-lp-knob {
+  left: var(--kx, 996px);
+  top: 68px;
+  width: 120px;
+  height: 118px;
+  border-radius: 28px;
+  display: grid;
+  place-items: center;
+  cursor: grab;
+  touch-action: none;
+  background: linear-gradient(170deg, rgb(var(--s-lp-edge) / 0.75), rgb(var(--s-lp-ray) / calc(0.95 - 0.55 * var(--m))) 70%, rgb(var(--s-lp-ray)));
+  box-shadow:
+    inset 0 0 0 2px rgb(var(--s-lp-edge) / calc(0.8 - 0.35 * var(--m))),
+    inset 0 -10px 18px -8px rgb(var(--s-lp-edge) / 0.7),
+    0 14px 44px rgb(var(--s-lp-ray) / 0.7),
+    0 0 90px 18px rgb(var(--s-lp-ray) / 0.35);
+}
+.fx-lp-knob:active {
+  cursor: grabbing;
+}
+.fx-lp-icon {
+  color: rgb(var(--s-lp-ink) / 0.85);
+}
+.fx-lp-sheds {
+  left: 0;
+  top: 0;
+  width: 1720px;
+  height: 420px;
+  pointer-events: none;
+}
+.fx-lp-card {
+  border-radius: 46px;
+  background: linear-gradient(170deg, rgb(var(--s-lp-card) / 0.92), rgb(var(--s-lp-card) / 0.7));
+  box-shadow:
+    inset 0 0 0 1.5px rgb(var(--s-lp-edge) / calc(0.55 - 0.25 * var(--m))),
+    0 18px 40px -22px rgb(var(--fx-tp-bg-d) / calc(0.4 + 0.3 * var(--m)));
+  overflow: hidden;
+  text-align: left;
+}
+.fx-lp-card p {
+  position: absolute;
+  margin: 0;
+  white-space: nowrap;
+}
+.fx-lp-card.c1 { left: 43px; top: 255px; width: 524px; height: 224px; }
+.fx-lp-card.c2 { left: 597px; top: 255px; width: 524px; height: 224px; }
+.fx-lp-card.c3 { left: 1152px; top: 255px; width: 524px; height: 224px; }
+.fx-lp-card.big { left: 43px; top: 510px; width: 1025px; height: 527px; }
+.fx-lp-card.room { left: 1099px; top: 510px; width: 577px; height: 527px; }
+.fx-lp-card .k { left: 31px; top: 28px; font-size: 26px; color: rgb(var(--s-lp-mute)); }
+.fx-lp-card .v { left: 31px; top: 70px; font-size: 52px; font-weight: 700; line-height: 1.15; color: rgb(var(--s-lp-ink)); }
+.fx-lp-card .h { left: 35px; top: 30px; font-size: 30px; font-weight: 700; color: rgb(var(--s-lp-ink)); }
+.fx-lp-card .s { left: 35px; top: 72px; font-size: 26px; color: rgb(var(--s-lp-mute)); }
+.fx-lp-card .spark { position: absolute; left: 26px; bottom: 28px; width: 472px; height: 90px; }
+.fx-lp-card .bars { position: absolute; left: 36px; right: 34px; top: 150px; bottom: 54px; display: flex; align-items: flex-end; gap: 7px; border-bottom: 1.5px solid rgb(var(--s-lp-mute) / 0.3); }
+.fx-lp-card .bars i { display: block; flex: 1; border-radius: 7px 7px 3px 3px; background: linear-gradient(180deg, rgb(var(--s-lp-bar)), rgb(var(--s-lp-bar) / 0.38)); }
+.fx-lp-ticks span { position: absolute; bottom: 14px; font-size: 22px; color: rgb(var(--s-lp-mute)); }
+.fx-lp-card .row { position: absolute; left: 0; right: 0; height: 70px; }
+.fx-lp-card .row b { position: absolute; left: 36px; top: 0; width: 48px; height: 48px; border-radius: 50%; }
+.fx-lp-card .row b.red { background: radial-gradient(circle at 35% 30%, rgb(var(--s-lp-edge) / 0.4), rgb(var(--fx-lp-red)) 60%); }
+.fx-lp-card .row b.blue { background: radial-gradient(circle at 35% 30%, rgb(var(--s-lp-edge) / 0.4), rgb(var(--fx-lp-blue)) 60%); }
+.fx-lp-card .row b.green { background: radial-gradient(circle at 35% 30%, rgb(var(--s-lp-edge) / 0.4), rgb(var(--fx-lp-green)) 60%); }
+.fx-lp-card .row i { position: absolute; left: 100px; display: block; border-radius: 6px; background: rgb(var(--s-lp-mute) / 0.7); }
+.fx-lp-card .row i.l1 { top: 5px; height: 12px; background: rgb(var(--s-lp-ink) / 0.55); }
+.fx-lp-card .row i.l2 { top: 28px; height: 10px; }
+.fx-lp-card .row u { position: absolute; right: 36px; top: 12px; width: 15px; height: 15px; border-radius: 50%; }
+.fx-lp-card .row u.ok { background: rgb(var(--fx-lp-ok)); }
+.fx-lp-card .row u.off { background: rgb(var(--s-lp-mute) / 0.6); }

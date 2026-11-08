@@ -132,28 +132,31 @@ describe("the four looks (the lazy chunk's controls)", () => {
     expect(attr(html, "aria-label")).toEqual([AR["themeSwitch.aria"]]);
   });
 
-  it("lamp: a slider 40..100 that reads its value aloud in Arabic", () => {
-    const html = look("lamp", "lamp.65.0.night");
-    expect(html).toContain('role="slider"');
-    expect(attr(html, "aria-valuemin")).toEqual(["40"]);
-    expect(attr(html, "aria-valuemax")).toEqual(["100"]);
-    expect(attr(html, "aria-valuenow")).toEqual(["65"]);
-    expect(attr(html, "aria-valuetext")).toEqual([AR["themeSwitch.lamp.value"]?.replace("{value}", "65")]);
-    expect(html).toContain('tabindex="0"');
+  it("lamp: a slider 0..100 (the knob's % ) that rests at 0 on a dark theme and 100 on «نهار», and reads its value aloud in Arabic", () => {
+    const dark = look("lamp");
+    expect(dark).toContain('role="slider"');
+    expect(attr(dark, "aria-valuemin")).toEqual(["0"]);
+    expect(attr(dark, "aria-valuemax")).toEqual(["100"]);
+    expect(attr(dark, "aria-valuenow")).toEqual(["0"]);
+    const day = look("lamp", "lamp.100.0.night", "day");
+    expect(attr(day, "aria-valuenow")).toEqual(["100"]);
+    expect(attr(day, "aria-valuetext")).toEqual([AR["themeSwitch.lamp.value"]?.replace("{value}", "100")]);
+    expect(dark).toContain('tabindex="0"');
   });
 
-  it("sky: a slider over the 1440 minutes of the day that rests at midnight on a dark theme and noon on «نهار», named by the time of day", () => {
+  it("sky: a slider over the 12 hours 00:00 .. 12:00 that rests at midnight on a dark theme and at noon on «نهار», named by the moment", () => {
     const dark = look("sky");
     expect(dark).toContain('role="slider"');
+    expect(attr(dark, "aria-valuemax")).toEqual(["720"]);
     expect(attr(dark, "aria-valuenow")).toEqual(["0"]);
-    expect(attr(dark, "aria-valuetext")).toEqual([`${AR["themeSwitch.sky.midnight"]} 00:00`]);
+    expect(attr(dark, "aria-valuetext")).toEqual([`${AR["gallery.sky.midnight"]} 00:00`]);
     expect(attr(look("sky", "sky.100.0.night", "day"), "aria-valuenow")).toEqual(["720"]);
-    expect(attr(look("sky", "sky.100.0.night", "day"), "aria-valuetext")).toEqual([`${AR["themeSwitch.sky.noon"]} 12:00`]);
+    expect(attr(look("sky", "sky.100.0.night", "day"), "aria-valuetext")).toEqual([`${AR["gallery.sky.noon"]} 12:00`]);
   });
 
   it("sky: the scene is decorative (aria-hidden) and drawn from theme variables, never a colour", () => {
     const html = look("sky");
-    expect(html).toMatch(/<svg[^>]*class="zk-sky-svg"[^>]*aria-hidden="true"/);
+    expect(html).toMatch(/<svg[^>]*class="zx-sky-art"[^>]*aria-hidden="true"/);
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,6}\b|rgba?\(\s*\d|hsla?\(/);
   });
 
@@ -171,15 +174,14 @@ describe("the four looks (the lazy chunk's controls)", () => {
     expect(/<button[^>]*class="[^"]*\bmin-h-11\b[^"]*\bmin-w-11\b/.test(warm)).toBe(true);
   });
 
-  it("particles: a few drifting dots by default, none in «وضع التوفير», and never more than the cap", () => {
-    const dots = (html: string) => (html.match(/class="zk-dot"/g) ?? []).length;
-    expect(dots(look("warmth"))).toBeGreaterThan(0);
-    expect(dots(look("warmth", undefined, "night", "preview"))).toBeLessThanOrEqual(60);
+  it("particles: a small canvas for the sheds by default, none in «وضع التوفير» or with the feature off", () => {
+    const sheds = (html: string) => (html.match(/<canvas[^>]*class="zx-sheds"/g) ?? []).length;
+    expect(sheds(look("warmth"))).toBe(1);
     const economy = render(createElement(FxControl, { style: "warmth", size: "bar" }), { pref: "warmth.100.0.night", economy: true });
-    expect(dots(economy)).toBe(0);
+    expect(sheds(economy)).toBe(0);
     expect(economy).toContain('data-motion="false"');
     const off = render(createElement(FxControl, { style: "warmth", size: "bar" }), { pref: "warmth.100.0.night", enabled: false });
-    expect(dots(off)).toBe(0);
+    expect(sheds(off)).toBe(0);
   });
 
   it("every look: Arabic names, theme tokens only, logical directions only, no Latin word", () => {
@@ -256,7 +258,7 @@ describe("the source: lazy, light, and inside the theme system", () => {
     expect(read("components/theme/theme-switch.tsx")).toMatch(/dynamic\(\(\) => import\("\.\/switch-fx\/fx-control"\)/);
     expect(read("components/theme/theme-switch.tsx")).toMatch(/ssr:\s*false/);
     expect(read("components/theme/use-theme-toggle.ts")).toMatch(/import\("\.\/switch-fx\/reveal"\)/);
-    expect(read("components/theme/switch-fx/reveal.ts")).toMatch(/import\("\.\/sparks"\)/);
+    expect(read("components/theme/switch-fx/reveal.ts")).toContain("PARTICLE_CAP");
   });
 
   it("the (app) layout keeps AppShell as its root element (the database layout tests read its props) and hands it the cookie and the feature switch", () => {
@@ -283,22 +285,21 @@ describe("the source: lazy, light, and inside the theme system", () => {
     const fx = read("components/theme/switch-fx/switch-fx.css").replace(/\/\*[\s\S]*?\*\//g, "");
     expect(fx).not.toMatch(/(?:^|[\s{;])(?:left|right|margin-left|margin-right|padding-left|padding-right)\s*:/);
     expect(fx).toContain("inset-inline-start");
-    expect(fx).toContain("--zk-dir");
+    expect(fx).toContain("--zx-dir");
   });
 
-  it("animation work is bounded: requestAnimationFrame only inside a drag or a burst, cancelled on the way out; never a timer loop", () => {
-    const drag = read("components/theme/switch-fx/use-drag.ts");
-    expect(drag).toContain("cancelAnimationFrame");
-    expect(drag).toMatch(/useEffect\(\s*\(\) => \(\) => \{[^}]*cancelAnimationFrame/);
-    const glass = read("components/theme/switch-fx/fx-control.tsx");
-    expect(glass).toMatch(/useEffect\(\(\) => \(\) => cancelAnimationFrame\(lightRaf\.current\), \[\]\)/);
-    for (const file of ["components/theme/switch-fx/fx-control.tsx", "components/theme/switch-fx/use-drag.ts", "components/theme/switch-fx/sparks.ts", "components/theme/switch-fx/reveal.ts", "components/theme/switch-fx-provider.tsx"]) {
+  it("animation work is bounded: requestAnimationFrame only inside a drag, a settling knob or a reveal, cancelled on the way out; never a timer loop", () => {
+    const kit = read("components/theme/fx/kit.ts");
+    expect(kit).toContain("cancelAnimationFrame");
+    expect(kit).toMatch(/useEffect\(\(\) => stop, \[stop\]\)/);
+    const reveal = read("components/theme/switch-fx/reveal.ts");
+    expect(reveal).toContain("cancelAnimationFrame");
+    expect(reveal).toContain("cancelReveal");
+    for (const file of ["components/theme/switch-fx/fx-control.tsx", "components/theme/fx/kit.ts", "components/theme/fx/sheds.tsx", "components/theme/switch-fx/reveal.ts", "components/theme/switch-fx-provider.tsx"]) {
       expect(read(file), file).not.toMatch(/setInterval\(/);
       expect(read(file), file).not.toMatch(/Math\.random\(/);
     }
-    const sparks = read("components/theme/switch-fx/sparks.ts");
-    expect(sparks).toContain("MAX_PARTICLES");
-    expect(sparks).toContain("stopSparks");
+    expect(read("lib/themes/switch-motion.ts")).toContain("PARTICLE_CAP");
   });
 
   it("no network call but the saving of the choice itself", () => {
