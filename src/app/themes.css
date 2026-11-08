@@ -36,6 +36,24 @@
   --font-display: var(--font-reem, "Reem Kufi"), var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif;
   --radius-card: 1.125rem;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.52), 0 1px 3px rgb(0 0 0 / 0.30);
+  --fx-warm: 255 180 92;
+  --fx-cool: 111 168 255;
+  --fx-sky-night-top: 11 18 48;
+  --fx-sky-night-low: 42 42 92;
+  --fx-sky-day-top: 90 169 230;
+  --fx-sky-day-low: 207 232 247;
+  --fx-sun: 255 201 74;
+  --fx-moon: 232 234 242;
+  --fx-star: 255 246 216;
+  --fx-aurora-a: 79 216 160;
+  --fx-aurora-b: 138 107 232;
+  --fx-cloud: 255 255 255;
+  --fx-hill-far: 43 53 96;
+  --fx-hill-near: 23 28 58;
+  --fx-lamp-ray: 255 210 122;
+  --fx-spark: 255 200 102;
+  --fx-glass-edge: 255 255 255;
+  --fx-glass-glow: 255 233 176;
 }
 
 [data-theme="night"] {
@@ -69,6 +87,24 @@
   --font-display: var(--font-reem, "Reem Kufi"), var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif;
   --radius-card: 1.125rem;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.52), 0 1px 3px rgb(0 0 0 / 0.30);
+  --fx-warm: 255 180 92;
+  --fx-cool: 111 168 255;
+  --fx-sky-night-top: 11 18 48;
+  --fx-sky-night-low: 42 42 92;
+  --fx-sky-day-top: 90 169 230;
+  --fx-sky-day-low: 207 232 247;
+  --fx-sun: 255 201 74;
+  --fx-moon: 232 234 242;
+  --fx-star: 255 246 216;
+  --fx-aurora-a: 79 216 160;
+  --fx-aurora-b: 138 107 232;
+  --fx-cloud: 255 255 255;
+  --fx-hill-far: 43 53 96;
+  --fx-hill-near: 23 28 58;
+  --fx-lamp-ray: 255 210 122;
+  --fx-spark: 255 200 102;
+  --fx-glass-edge: 255 255 255;
+  --fx-glass-glow: 255 233 176;
 }
 
 [data-theme="day"] {
@@ -102,6 +138,24 @@
   --font-display: var(--font-reem, "Reem Kufi"), var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif;
   --radius-card: 1.125rem;
   --shadow-card: 0 1px 2px rgb(12 50 82 / 0.06), 0 1px 3px rgb(12 50 82 / 0.08);
+  --fx-warm: 255 180 92;
+  --fx-cool: 111 168 255;
+  --fx-sky-night-top: 11 18 48;
+  --fx-sky-night-low: 42 42 92;
+  --fx-sky-day-top: 90 169 230;
+  --fx-sky-day-low: 207 232 247;
+  --fx-sun: 255 201 74;
+  --fx-moon: 232 234 242;
+  --fx-star: 255 246 216;
+  --fx-aurora-a: 79 216 160;
+  --fx-aurora-b: 138 107 232;
+  --fx-cloud: 255 255 255;
+  --fx-hill-far: 111 134 179;
+  --fx-hill-near: 65 80 126;
+  --fx-lamp-ray: 255 210 122;
+  --fx-spark: 255 200 102;
+  --fx-glass-edge: 255 255 255;
+  --fx-glass-glow: 255 241 204;
 }
 
 [data-theme="islamic-epic"] {
@@ -135,6 +189,24 @@
   --font-display: var(--font-reem, "Reem Kufi"), var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif;
   --radius-card: 0.75rem;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.52), 0 1px 3px rgb(0 0 0 / 0.30);
+  --fx-warm: 255 180 92;
+  --fx-cool: 111 168 255;
+  --fx-sky-night-top: 11 18 48;
+  --fx-sky-night-low: 42 42 92;
+  --fx-sky-day-top: 90 169 230;
+  --fx-sky-day-low: 207 232 247;
+  --fx-sun: 230 192 112;
+  --fx-moon: 232 234 242;
+  --fx-star: 255 246 216;
+  --fx-aurora-a: 92 198 185;
+  --fx-aurora-b: 138 107 232;
+  --fx-cloud: 255 255 255;
+  --fx-hill-far: 43 53 96;
+  --fx-hill-near: 23 28 58;
+  --fx-lamp-ray: 230 192 112;
+  --fx-spark: 212 175 90;
+  --fx-glass-edge: 255 255 255;
+  --fx-glass-glow: 255 233 176;
 }
 
 [data-theme="neon-coast"] {
@@ -168,4 +240,22 @@
   --font-display: var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif;
   --radius-card: 0.875rem;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.66), 0 1px 3px rgb(0 0 0 / 0.44);
+  --fx-warm: 255 180 92;
+  --fx-cool: 111 168 255;
+  --fx-sky-night-top: 11 18 48;
+  --fx-sky-night-low: 42 42 92;
+  --fx-sky-day-top: 90 169 230;
+  --fx-sky-day-low: 207 232 247;
+  --fx-sun: 255 201 74;
+  --fx-moon: 232 234 242;
+  --fx-star: 255 246 216;
+  --fx-aurora-a: 77 217 219;
+  --fx-aurora-b: 240 103 174;
+  --fx-cloud: 255 255 255;
+  --fx-hill-far: 43 53 96;
+  --fx-hill-near: 23 28 58;
+  --fx-lamp-ray: 255 210 122;
+  --fx-spark: 77 217 219;
+  --fx-glass-edge: 255 255 255;
+  --fx-glass-glow: 191 243 244;
 }

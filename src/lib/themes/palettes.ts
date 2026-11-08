@@ -250,6 +250,69 @@ export const PALETTES: Record<ThemeKey, Palette> = {
   },
 };
 
+/**
+ * The ILLUSTRATION colours of «مظهر المفتاح» (src/lib/themes/switch-fx.ts): the sky, the sun and moon, the lamp's rays, the sparks,
+ * the glass' edge, and the two tints laid over the app. They are art, not interface: never text, never behind a number, an amount or
+ * a table (the switch's own pill and the settings preview are the only places they appear), so they are NOT in COLOR_TOKENS (no
+ * Tailwind utility, no contrast gate) and are written as `--fx-*` variables the stylesheet src/components/theme/switch-fx.css reads.
+ * The sky is its own scene — a midnight sky stays a midnight sky inside the light theme's pill — so most values are shared; the
+ * Islamic and neon themes tint the aurora and the sun toward their own accents.
+ */
+export const FX_TOKENS = [
+  "fx-warm",
+  "fx-cool",
+  "fx-sky-night-top",
+  "fx-sky-night-low",
+  "fx-sky-day-top",
+  "fx-sky-day-low",
+  "fx-sun",
+  "fx-moon",
+  "fx-star",
+  "fx-aurora-a",
+  "fx-aurora-b",
+  "fx-cloud",
+  "fx-hill-far",
+  "fx-hill-near",
+  "fx-lamp-ray",
+  "fx-spark",
+  "fx-glass-edge",
+  "fx-glass-glow",
+] as const;
+export type FxToken = (typeof FX_TOKENS)[number];
+
+const FX_BASE: Record<FxToken, string> = {
+  "fx-warm": "#FFB45C", // the warm tint: an amber lamp
+  "fx-cool": "#6FA8FF", // the cool tint: a clear morning blue
+  "fx-sky-night-top": "#0B1230",
+  "fx-sky-night-low": "#2A2A5C",
+  "fx-sky-day-top": "#5AA9E6",
+  "fx-sky-day-low": "#CFE8F7",
+  "fx-sun": "#FFC94A",
+  "fx-moon": "#E8EAF2",
+  "fx-star": "#FFF6D8",
+  "fx-aurora-a": "#4FD8A0",
+  "fx-aurora-b": "#8A6BE8",
+  "fx-cloud": "#FFFFFF",
+  "fx-hill-far": "#2B3560",
+  "fx-hill-near": "#171C3A",
+  "fx-lamp-ray": "#FFD27A",
+  "fx-spark": "#FFC866",
+  "fx-glass-edge": "#FFFFFF",
+  "fx-glass-glow": "#FFE9B0",
+};
+
+export const FX_COLORS: Record<ThemeKey, Record<FxToken, string>> = {
+  night: FX_BASE,
+  day: { ...FX_BASE, "fx-hill-far": "#6F86B3", "fx-hill-near": "#41507E", "fx-glass-glow": "#FFF1CC" },
+  "islamic-epic": { ...FX_BASE, "fx-sun": "#E6C070", "fx-aurora-a": "#5CC6B9", "fx-lamp-ray": "#E6C070", "fx-spark": "#D4AF5A" },
+  "neon-coast": { ...FX_BASE, "fx-aurora-a": "#4DD9DB", "fx-aurora-b": "#F067AE", "fx-spark": "#4DD9DB", "fx-glass-glow": "#BFF3F4" },
+};
+
+/** The illustration colours of one theme as CSS custom properties (`R G B` triplets), written after the interface tokens. */
+export function themeFxVariables(key: ThemeKey): Array<[string, string]> {
+  return FX_TOKENS.map((token): [string, string] => [`--${token}`, hexToTriplet(FX_COLORS[key][token])]);
+}
+
 /** One theme as CSS custom properties, in a fixed order: colours as `R G B` triplets, then the style values. */
 export function themeVariables(key: ThemeKey): Array<[string, string]> {
   const { colors, style } = PALETTES[key];
