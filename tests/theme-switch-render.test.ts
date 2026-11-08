@@ -261,7 +261,7 @@ describe("the source: lazy, light, and inside the theme system", () => {
 
   it("the (app) layout keeps AppShell as its root element (the database layout tests read its props) and hands it the cookie and the feature switch", () => {
     const layout = read("app/(app)/layout.tsx");
-    expect(layout).toMatch(/return (s*<AppShell/);
+    expect(layout).toMatch(/return \(\s*<AppShell\b/);
     expect(layout).toContain("themeSwitch={cookies().get(SWITCH_COOKIE)?.value}");
     expect(layout).toContain("themeSwitchFx={on.themeSwitchFx}");
     const shell = read("components/app-shell.tsx");
