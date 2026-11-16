@@ -6,6 +6,7 @@ import { RANK } from "@/server/policy/rank";
 import type { Actor } from "@/server/policy/actor";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { inCatalogueOrder } from "@/server/services/member-rules";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 
 /**
  * Organization members: the rank rules of account management and the roster.
@@ -131,14 +132,16 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     },
   });
   const ids = rows.map((r) => r.user.id);
+  // the open-work counts the roster shows never count a private task the person asking may not see
+  const visibleTasks = await taskParticipantFilter(actor.userId);
 
   const [tasks, tickets, routines, coTasks, links, orgSpaces, mine] = await Promise.all([
-    db.task.groupBy({ by: ["assigneeId"], where: { ...openTaskWhere(orgId), assigneeId: { in: ids } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["assigneeId"], where: { ...openTaskWhere(orgId), assigneeId: { in: ids }, AND: [visibleTasks] }, _count: { _all: true } }),
     db.ticket.groupBy({ by: ["assigneeId"], where: { ...openTicketWhere(orgId), assigneeId: { in: ids } }, _count: { _all: true } }),
     db.routine.groupBy({ by: ["assigneeId"], where: { ...activeRoutineWhere(orgId), assigneeId: { in: ids } }, _count: { _all: true } }),
     // «لمين» with more than one person: the tasks a person holds beside their primary are theirs to count too
     db.taskCoAssignee.findMany({
-      where: { userId: { in: ids }, task: { ...openTaskWhere(orgId) } },
+      where: { userId: { in: ids }, task: { ...openTaskWhere(orgId), AND: [visibleTasks] } },
       select: { userId: true },
     }),
     db.workspaceMember.findMany({

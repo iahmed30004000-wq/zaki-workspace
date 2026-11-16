@@ -130,6 +130,7 @@ export async function storeAssignRequest(
 }
 
 async function taskLine(taskId: string): Promise<{ key: string; title: string; workspaceId: string; creatorId: string } | null> {
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const task = await db.task.findUnique({
     where: { id: taskId },
     select: { number: true, title: true, workspaceId: true, creatorId: true, organization: { select: { keyPrefix: true } } },
@@ -169,6 +170,7 @@ export async function answerAssignRequest(
   if (!answer.accept && !reason) throw new ForbiddenError("taskreq.reason_required");
 
   const done = await db.$transaction(async (tx) => {
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     const task = await tx.task.findFirst({ where: { id: taskId, orgId: actor.orgId }, select: { id: true, assigneeId: true } });
     if (!task) throw new NotFoundError("task.not_found");
     const all = await tx.taskAssignRequest.findMany({ where: { taskId, orgId: actor.orgId }, orderBy: { createdAt: "desc" } });

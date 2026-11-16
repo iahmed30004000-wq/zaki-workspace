@@ -6,6 +6,7 @@ import { audit, NotFoundError, requireTeamWork } from "@/server/auth";
 import { withApi } from "@/server/api";
 import { parseJson } from "@/server/validation";
 import type { Prisma } from "@prisma/client";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 
 /**
  * Board detail: columns + tasks (non-archived) with the canonical task select.
@@ -32,7 +33,7 @@ export async function GET(
         select: { id: true, name: true, color: true, position: true, done: true },
       }),
       db.task.findMany({
-        where: { boardId: board.id, archived: false },
+        where: { boardId: board.id, archived: false, AND: [await taskParticipantFilter(access.userId)] },
         orderBy: [{ columnId: "asc" }, { position: "asc" }, { id: "asc" }],
         select: {
           id: true,

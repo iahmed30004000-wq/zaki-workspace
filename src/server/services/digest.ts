@@ -217,6 +217,7 @@ async function taskSection(actor: Actor, p: Prepared, now: Date): Promise<{ line
   if (spaces.length === 0) return { lines: [], masked: 0 };
   const mine = { OR: [{ assigneeId: actor.userId }, { coAssignees: { some: { userId: actor.userId } } }] };
   const noReward = { OR: [{ rewardStatus: null }, { rewardStatus: { notIn: ["OPEN", "AWARDED"] } }] };
+  // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
   const rows = await db.task.findMany({
     where: {
       orgId: actor.orgId,

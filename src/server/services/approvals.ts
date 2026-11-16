@@ -649,6 +649,7 @@ async function attachmentsOf(requestId: string): Promise<AttachmentView[]> {
 
 async function linkOf(kind: string | null, id: string | null, orgId: string): Promise<LinkView | null> {
   if (!kind || !id) return null;
+  // task-visibility: only the link's address: the task page itself refuses a person who may not see it
   if (kind === "TASK") return { kind, id, href: (await db.task.findFirst({ where: { id, orgId }, select: { id: true } })) ? `/tasks/${id}` : null };
   if (kind === "CARD") return { kind, id, href: (await db.card.findFirst({ where: { id, orgId }, select: { id: true } })) ? `/cards/${id}` : null };
   if (kind === "MESSAGE") {

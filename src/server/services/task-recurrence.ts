@@ -82,6 +82,7 @@ const SELECT = { id: true, rule: true, mode: true, active: true, stoppedReason: 
 /** The task's series as the screens need it. The caller has already passed the task's own guard (the task page). */
 export async function recurrenceOfTask(taskId: string, orgId: string): Promise<RecurrenceState> {
   const [task, timeZone] = await Promise.all([
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     db.task.findUnique({ where: { id: taskId }, select: { recurrence: { select: SELECT } } }),
     orgTimeZone(orgId),
   ]);
@@ -136,7 +137,9 @@ export async function setRecurrence(taskId: string, input: SetRecurrenceInput, n
 
   await db.$transaction(async (tx) => {
     // the task's row is held while its series is made or changed: two people pressing «حفظ» at once are taken one by one
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     await tx.$queryRaw`SELECT 1 FROM "Task" WHERE "id" = ${taskId} FOR UPDATE`;
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     const task = await tx.task.findFirst({
       where: { id: taskId, orgId: access.orgId },
       select: { id: true, workspaceId: true, projectId: true, boardId: true, dueDate: true, recurrence: { select: { id: true, rule: true } } },
@@ -187,6 +190,7 @@ export async function setRecurrence(taskId: string, input: SetRecurrenceInput, n
 /** «إيقاف»: the series stops; every task already made stays. */
 export async function stopRecurrence(taskId: string): Promise<RecurrenceState> {
   const access = await writeAccess(taskId);
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const task = await db.task.findFirst({ where: { id: taskId, orgId: access.orgId }, select: { recurrenceId: true } });
   if (!task?.recurrenceId) throw new NotFoundError("recurrence.not_found");
   await db.taskRecurrence.update({ where: { id: task.recurrenceId }, data: { active: false, stoppedReason: null } });
@@ -199,6 +203,7 @@ export async function stopRecurrence(taskId: string): Promise<RecurrenceState> {
  */
 export async function recurringTaskIds(taskIds: readonly string[]): Promise<Set<string>> {
   if (taskIds.length === 0) return new Set();
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const rows = await db.task.findMany({ where: { id: { in: [...taskIds] }, recurrence: { active: true } }, select: { id: true } });
   return new Set(rows.map((r) => r.id));
 }

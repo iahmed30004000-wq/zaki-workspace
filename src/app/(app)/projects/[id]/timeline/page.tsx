@@ -18,7 +18,7 @@ export default async function TimelinePage({ params }: { params: { id: string } 
   const project = await db.project
     .findUnique({ where: { id: params.id }, select: { workspaceId: true, teamId: true } })
     .catch(() => null);
-  const inScope = project && canSeeProject(scope, project) ? await getProjectTimeline(params.id).catch(() => null) : null;
+  const inScope = project && canSeeProject(scope, project) ? await getProjectTimeline(params.id, user.id).catch(() => null) : null;
   if (inScope && project) await keepInSpace(await requireActor(), project.workspaceId, `/projects/${params.id}/timeline`);
   if (!inScope) return <div className="p-6 text-sm text-fg-muted">{t("timeline.not_found")}</div>;
 

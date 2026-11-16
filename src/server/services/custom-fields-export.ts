@@ -6,6 +6,7 @@ import { fieldDefsOf, isPartnerIn } from "@/server/services/custom-fields";
 import { fieldsCsv, type ExportRow } from "@/lib/custom-fields-csv";
 import { fromStored } from "@/lib/custom-fields";
 import { columnLabel } from "@/lib/i18n/enums";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 
 /**
  * «حقول مخصصة» — the project's values as a CSV file.
@@ -28,7 +29,7 @@ export async function projectFieldsCsv(projectId: string): Promise<{ filename: s
 
   const defs = await fieldDefsOf(projectId);
   const tasks = await db.task.findMany({
-    where: { projectId, orgId: access.orgId, archived: false },
+    where: { projectId, orgId: access.orgId, archived: false, AND: [await taskParticipantFilter(access.userId)] },
     orderBy: [{ number: "asc" }, { id: "asc" }],
     take: MAX_ROWS,
     select: {

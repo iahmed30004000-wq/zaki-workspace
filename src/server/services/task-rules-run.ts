@@ -52,6 +52,7 @@ const TASK_SELECT = {
 } as const;
 
 async function taskForRules(taskId: string) {
+  // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
   return db.task.findUnique({ where: { id: taskId }, select: TASK_SELECT });
 }
 type TaskRow = NonNullable<Awaited<ReturnType<typeof taskForRules>>>;
@@ -273,6 +274,7 @@ export async function fireOverdueRules(now: Date): Promise<TaskRulesRun> {
     if (off.has(rule.orgId)) continue;
     try {
       // the pair is not in the log yet (NOT EXISTS: a long log never starves the newer tasks of a round)
+      // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
       const ids = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
         SELECT t."id" FROM "Task" t
         WHERE t."projectId" = ${rule.projectId} AND t."orgId" = ${rule.orgId}

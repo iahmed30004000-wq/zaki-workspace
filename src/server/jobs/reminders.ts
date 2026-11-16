@@ -69,6 +69,7 @@ async function fireOne(id: string, now: Date): Promise<keyof RemindersRun | null
     let workspaceId: string | null = null;
     if (r.taskId) {
       if (!(await userCanReadTask(r.userId, r.orgId, r.taskId))) return dismiss();
+      // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
       workspaceId = (await tx.task.findUnique({ where: { id: r.taskId }, select: { workspaceId: true } }))?.workspaceId ?? null;
     }
     let conversationId: string | null = null;

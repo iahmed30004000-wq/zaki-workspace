@@ -18,10 +18,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const input = await parseJson(moveSchema, req);
     const task = await db.task.findFirst({
       where: { id: params.id },
-      select: { id: true, workspaceId: true, project: { select: { teamId: true } } },
+      select: { id: true, workspaceId: true, project: { select: { teamId: true } }, visibility: true, creatorId: true, assigneeId: true, coAssignees: { select: { userId: true } }, },
     });
     if (!task) throw new NotFoundError("task.not_found");
-    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found");
+    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found", task);
     const moved = await moveTask(ctx, params.id, input);
     await dispatchEvent(ctx.orgId, "task.moved", {
       taskId: moved.id,

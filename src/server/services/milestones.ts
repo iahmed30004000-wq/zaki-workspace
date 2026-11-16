@@ -159,6 +159,7 @@ export async function updateMilestone(
 export async function deleteMilestone(milestoneId: string): Promise<void> {
   const target = await milestoneForWrite(milestoneId);
   const { orgId, userId } = await assertMayEditProject(target.projectId);
+  // task-visibility: a number for a manager's own decision (delete / confirm); no task is shown
   const attached = await db.task.count({ where: { milestoneId, archived: false } });
   if (attached > 0) throw new ForbiddenError("milestone.has_tasks");
   await db.milestone.delete({ where: { id: milestoneId } });

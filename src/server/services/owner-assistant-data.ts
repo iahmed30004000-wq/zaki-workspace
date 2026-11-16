@@ -63,14 +63,18 @@ export async function loadScope(access: BoardAccess, query: BoardQuery, now: Dat
   const spaceRows = overview.spaces.filter((s) => !spaceId || s.id === spaceId).slice(0, SPACES_LIMIT);
   const spaceIds = spaceRows.map((s) => s.id);
   const [taskRows, openTotal, perSpace, perSpaceOverdue, projectRows] = await Promise.all([
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.task.findMany({
       where: taskWhere,
       select: { id: true, title: true, assigneeId: true, workspaceId: true, projectId: true, priority: true, dueDate: true, coAssignees: { select: { userId: true } } },
       orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
       take: TASK_READ_LIMIT,
     }),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.task.count({ where: taskWhere }),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.task.groupBy({ by: ["workspaceId"], where: { ...taskWhere, workspaceId: { in: spaceIds } }, _count: { _all: true } }),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.task.groupBy({ by: ["workspaceId"], where: { ...taskWhere, workspaceId: { in: spaceIds }, dueDate: { lt: todayStart } }, _count: { _all: true } }),
     spaceIds.length
       ? db.project.findMany({

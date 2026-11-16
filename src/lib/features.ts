@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -228,6 +228,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // never a conversation or space a guest can reach) is sent to the embeddings service of the server (env EMBED_URL, EMBED_MODEL, EMBED_API_KEY); the
   // vectors stay in the database. OFF by default: text leaves the app. Off: the search is the word search exactly as before, nothing is sent,
   // indexed or queried; the vectors already made stay and come back with the switch.
+  // «المعنيين بس» (src/server/services/team-scope.ts, tasks.ts): a task can be private to the people it concerns. The read rule of a
+  // private task ALWAYS applies, whatever this says (a private row never leaks because a switch was flipped); this switch only
+  // makes a NEW task that somebody holds private by default. OFF until the owner answers D-P2: new tasks stay «المساحة كلها»
+  // and the person may choose «المعنيين بس» on each one (or the space's manager does it in one click for the open ones).
+  taskPrivacy: false,
   semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
   // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),

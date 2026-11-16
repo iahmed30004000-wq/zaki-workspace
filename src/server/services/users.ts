@@ -9,6 +9,7 @@ import { accessibleWorkspaceIds } from "@/server/services/access";
 import { avatarHue } from "@/lib/format";
 import { lastSeenReader } from "@/server/services/last-seen";
 import { isOnline } from "@/server/realtime/presence";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 
 export interface ProfilePatch {
   name?: string;
@@ -143,7 +144,7 @@ export async function getProfileForViewer(viewerId: string, targetId: string): P
   // from before spaces had them belongs to the company and counts)
   const viewerSpaces = await accessibleWorkspaceIds(viewerId);
   const ideaScope = { orgId: { in: staffOrgIds }, OR: [{ workspaceId: { in: viewerSpaces } }, { workspaceId: null }] };
-  const taskScope = { orgId: { in: staffOrgIds }, workspaceId: { in: viewerSpaces } };
+  const taskScope = { orgId: { in: staffOrgIds }, workspaceId: { in: viewerSpaces }, AND: [await taskParticipantFilter(viewerId)] };
   const stats = await Promise.all([
     db.idea.count({ where: { creatorId: targetId, ...ideaScope } }),
     db.ideaVote.count({ where: { idea: { creatorId: targetId, ...ideaScope } } }),

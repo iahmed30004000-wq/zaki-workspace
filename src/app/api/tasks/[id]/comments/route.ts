@@ -27,12 +27,14 @@ export async function POST(
         number: true,
         assigneeId: true,
         creatorId: true,
+        visibility: true,
+        coAssignees: { select: { userId: true } },
         organization: { select: { keyPrefix: true } },
       },
     });
     if (!task) throw new NotFoundError("task.not_found");
     // writing needs a member of the space: an external partner (GUEST) only reads
-    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found");
+    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found", task);
     await assertMemberCan(ctx, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
     const comment = await db.taskComment.create({
       data: { taskId: task.id, authorId: ctx.userId, body: input.body },
@@ -60,10 +62,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return withApi(async () => {
     const task = await db.task.findFirst({
       where: { id: params.id },
-      select: { workspaceId: true, project: { select: { teamId: true } } },
+      select: { workspaceId: true, project: { select: { teamId: true } }, visibility: true, creatorId: true, assigneeId: true, coAssignees: { select: { userId: true } }, },
     });
     if (!task) throw new NotFoundError("task.not_found");
-    const access = await requireTeamWork(task.workspaceId, task.project.teamId, undefined, "task.not_found");
+    const access = await requireTeamWork(task.workspaceId, task.project.teamId, undefined, "task.not_found", task);
     await assertMemberCan(access, "tasks.view", "section.view_denied", { spaceGuestsPass: true });
     const comments = await db.taskComment.findMany({
       where: { taskId: params.id },

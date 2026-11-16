@@ -355,6 +355,7 @@ async function handleMail(row: InboxRow, actor: ActorContext, info: MailBoxInfo,
     const board = await db.board.findFirst({ where: { projectId: row.projectId, archived: false }, orderBy: { createdAt: "asc" }, select: { id: true, columns: { orderBy: { position: "asc" }, take: 1, select: { id: true } } } });
     if (!board || board.columns.length === 0) throw new ForbiddenError("mail.err.no_board");
     const task = await createTask(actor, {
+      visibility: "SPACE",
       workspaceId: row.workspaceId,
       projectId: row.projectId,
       boardId: board.id,

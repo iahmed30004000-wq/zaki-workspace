@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 325 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 326 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 58 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 59 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 325 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 326 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 142 services — the business rules (§6) |
+| `src/server/services/` | 144 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 144 · `activeOrgCtx` 84 · `(none)` 36 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 8 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 144 · `activeOrgCtx` 84 · `(none)` 36 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -107,7 +107,7 @@ Doors in use: `requireActor` 144 · `activeOrgCtx` 84 · `(none)` 36 · `require
 | POST | `/api/auth/register/confirm` | **none** (public by design) | `registration`: confirmRegistration |
 | GET | `/api/avatars/[id]` | requireActor | `avatars`: readAvatar |
 | POST | `/api/boards` | requireTeamWork ‡ | `tasks`: DEFAULT_BOARD_COLUMNS |
-| GET, PATCH, POST | `/api/boards/[id]` | requireTeamWork ‡ | — |
+| GET, PATCH, POST | `/api/boards/[id]` | requireTeamWork ‡ | `team-scope`: taskParticipantFilter |
 | POST | `/api/boards/[id]/columns` | requireTeamWork ‡ | — |
 | PATCH, DELETE | `/api/boards/[id]/columns/[columnId]` | requireTeamWork ‡ | — |
 | GET | `/api/calendar/feed/[token]` | **none** (public by design) † | `calendar-feed`: authorizeFeedRequest, buildFeedFor, feedEtag |
@@ -411,6 +411,7 @@ Doors in use: `requireActor` 144 · `activeOrgCtx` 84 · `(none)` 36 · `require
 | POST | `/api/workspaces/[id]/archive` | requireActor | `workspaces`: SpaceConflictError<br>`space-manage`: archiveSchema, setSpaceArchived |
 | GET, POST | `/api/workspaces/[id]/delete-all` | requireActor | `workspaces`: SpaceConflictError<br>`space-delete`: deleteAllSchema, deleteSpaceWithWork, spaceContents |
 | GET, POST, PATCH, DELETE | `/api/workspaces/[id]/members` | requireWorkspace | `workspaces`: SpaceConflictError, canManageHere, changeWorkspaceMembers, listWorkspaceMembers, … |
+| GET, POST | `/api/workspaces/[id]/private-tasks` | requireWorkspace | `task-privacy-bulk`: countPublicAssignedTasks, makeAssignedTasksPrivate |
 | GET, POST | `/api/workspaces/[id]/teams` | requireWorkspace | `teams`: TeamConflictError, createTeam, listTeams |
 | PATCH, DELETE | `/api/workspaces/[id]/teams/[teamId]` | requireWorkspace | `teams`: TeamConflictError, deleteTeam, updateTeam |
 | POST | `/api/workspaces/[id]/teams/[teamId]/members` | requireWorkspace | `teams`: setTeamMembers |
@@ -419,7 +420,7 @@ Doors in use: `requireActor` 144 · `activeOrgCtx` 84 · `(none)` 36 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 325. Each one is a door that cannot have a session, or one that is closed.
+Six of 326. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -444,33 +445,33 @@ high count is a wide surface: changing its signature reaches all of them.
 | `integrations` | 180 | 93 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 128 | 58 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
+| `team-scope` | 254 | 35 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `org-day` | 26 | 30 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
-| `team-scope` | 149 | 29 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
-| `tasks` | 657 | 21 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
+| `tasks` | 708 | 21 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 601 | 19 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `access` | 76 | 17 | Workspace-level isolation — the company's master switch. |
 | `cards` | 614 | 17 | «اللوحات» — the cards of a space. |
 | `owner-assistant-settings` | 365 | 17 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
-| `rewards` | 351 | 16 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
+| `rewards` | 355 | 16 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
 | `time-tracking` | 662 | 16 | «حساب وقت الشغل» — the time people log on tasks (the owner, 2026-10-30: «حساب وقت الشغل: نعم»). |
 | `checkins` | 625 | 14 | «التسجيل اليومي» — a short stand-up per space (the owner's approved backlog, 2026-10-31). |
 | `approval-access` | 144 | 13 | «طلبات الموافقة» — WHO MAY DO WHAT, in one place. |
 | `owner-assistant-access` | 29 | 13 | «مساعد المالك» — WHO MAY OPEN IT, in one place. |
 | `team-skills` | 302 | 13 | «المهارات» — the company's skills checklist and each person's level in it. |
 | `manufacturing-production` | 791 | 12 | «مخزون التصنيع», slice 2 — recipes and production orders. |
-| `n8n` | 294 | 12 | Events we allow orgs to forward to n8n — the UI shows exactly this list. |
-| `owner-board` | 795 | 12 | «لوحة المالك» — THE NUMBERS. |
-| `approvals` | 788 | 11 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
+| `n8n` | 295 | 12 | Events we allow orgs to forward to n8n — the UI shows exactly this list. |
+| `owner-board` | 801 | 12 | «لوحة المالك» — THE NUMBERS. |
+| `approvals` | 789 | 11 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
 | `documents` | 465 | 11 | «المستندات» — the text documents of a space. |
 | `manufacturing` | 450 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
-| `custom-fields` | 542 | 9 | «حقول مخصصة» — the custom fields of a project's tasks. |
+| `custom-fields` | 545 | 9 | «حقول مخصصة» — the custom fields of a project's tasks. |
 | `space-place` | 30 | 9 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
 | `chat-assistant` | 495 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `ideas` | 419 | 8 | Membership context resolved from the idea's own org (shared by API routes). |
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
-| `owner-assistant-proposals` | 398 | 8 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
+| `owner-assistant-proposals` | 400 | 8 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
 | `tickets` | 501 | 8 | IT tickets live inside a department. |
 | `workspaces` | 331 | 8 | Spaces (workspaces): who is in one, who may change it. |
@@ -481,7 +482,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-audit` | 36 | 7 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `card-guards` | 45 | 7 | The questions the page inside a card asks about its viewer, answered in one place. |
 | `last-seen` | 124 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
-| `task-recurrence` | 205 | 7 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
+| `task-recurrence` | 210 | 7 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-criteria` | 109 | 7 | «معايير التقييم» — the criteria a reviewer rates 1-5: the five the owner named (جودة الشغل، الالتزام بالمواعيد، التعاون، المبادرة، التواصل), which the owner may rename, add to (… |
 | `watch` | 372 | 7 | «نتفرّج سوا» — people of a space watch one link together (the owner's ask, 2026-10-26). |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
@@ -493,33 +494,33 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-board-sections` | 85 | 5 | «لوحة المالك» — THE EXTENSION POINT. |
 | `production` | 262 | 5 | Daily production. |
 | `reminders` | 169 | 5 | «ذكّرني» — a person's reminder for THEMSELVES (never for somebody else), on a task, on a chat message, or on its own. |
-| `task-assign` | 265 | 5 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
+| `task-assign` | 267 | 5 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
 | `task-steps` | 160 | 5 | «خطوات» — the short checklist inside a task. |
 | `team-reviews` | 209 | 5 | «التقييمات» — what the owner and the supervisors write about a person for a period. |
 | `teams` | 228 | 5 | TEAMS INSIDE A SPACE — who is in which team, and which project belongs to which (the reading rule is in team-scope.ts). |
 | `telegram` | 299 | 5 | Validates a bot token by calling getMe. |
-| `users` | 339 | 5 | no header comment — exports `updateProfile`, `getProfileForViewer`, `getPublicProfile`, `memberDirectory` |
-| `views` | 490 | 5 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
-| `api-door` | 448 | 4 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
+| `users` | 340 | 5 | no header comment — exports `updateProfile`, `getProfileForViewer`, `getPublicProfile`, `memberDirectory` |
+| `views` | 497 | 5 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
+| `api-door` | 452 | 4 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
 | `calendar-feed` | 331 | 4 | «اشتراك التقويم» — a person's private calendar feed. |
-| `control-panel` | 279 | 4 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
+| `control-panel` | 286 | 4 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
 | `crm` | 228 | 4 | no header comment — exports `OPPORTUNITY_STAGES`, `createCustomerSchema`, `updateCustomerSchema`, `createOpportunitySchema`, `updateOpportunitySchema`, … |
 | `db-backup` | 460 | 4 | «نسخ احتياطي لقاعدة البيانات»: a daily, encrypted copy of the WHOLE database on the owner's own Google Drive. |
 | `departments` | 240 | 4 | The departments area is the company's staff directory (who works where, with which job title), so org GUESTs get 403 on every function here, read or write. |
-| `digest` | 400 | 4 | «شو فاتني؟» — a short catch-up written by the owner's assistant for ONE person, on «اليوم», and «لخّصلي» inside a topic. |
-| `okr` | 482 | 4 | «الأهداف والنتائج» — the key results of an objective (src/lib/okr.ts holds the arithmetic). |
+| `digest` | 401 | 4 | «شو فاتني؟» — a short catch-up written by the owner's assistant for ONE person, on «اليوم», and «لخّصلي» inside a topic. |
+| `okr` | 489 | 4 | «الأهداف والنتائج» — the key results of an objective (src/lib/okr.ts holds the arithmetic). |
 | `reward-input` | 30 | 4 | What a request body says about a reward: the amount as the person typed it (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency (optiona… |
-| `search-embed-index` | 312 | 4 | «بحث بالمعنى» — WHAT GETS A VECTOR, and when. |
+| `search-embed-index` | 314 | 4 | «بحث بالمعنى» — WHAT GETS A VECTOR, and when. |
 | `search-embeddings` | 276 | 4 | «بحث بالمعنى» — the connector and the pure rules. |
 | `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `api-tokens` | 197 | 3 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
-| `mail-to-task` | 485 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
+| `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
-| `milestones` | 173 | 3 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
-| `owner-assistant-names` | 84 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
+| `milestones` | 174 | 3 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
+| `owner-assistant-names` | 85 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
 | `pinned` | 70 | 3 | «مثبّتة» — the pinned tasks a person may be shown, for the strip at the top of a project and the compact card of «اليوم». |
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
 | `reward-guard` | 39 | 3 | «مهمة بمكافأة» — the guard every writer of a task goes through (tasks.ts `updateTask` / `deleteTask` / `createTask`, the reward routes). |
@@ -541,38 +542,40 @@ high count is a wide surface: changing its signature reaches all of them.
 | `move-to-space` | 106 | 2 | «انقل لمساحة» (the plan, 2026-10-25: each space is like a separate site). |
 | `nav-order` | 73 | 2 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
 | `onboarding` | 88 | 2 | The one-time onboarding every account goes through (the owner creates accounts with a temporary password and nobody has accepted the transparency notice yet): choose your own pa… |
-| `org-members` | 202 | 2 | Organization members: the rank rules of account management and the roster. |
+| `org-members` | 205 | 2 | Organization members: the rank rules of account management and the roster. |
 | `orgs` | 154 | 2 | no header comment — exports `JOIN_CODE_ALPHABET`, `generateJoinCode`, `registrationOpen`, `registerOrganization`, `canManageOrg` |
-| `owner-assistant-data` | 120 | 2 | «مساعد المالك» — WHAT THE MODEL MAY LEARN FROM, as raw material for `buildContext` (src/server/ai/redact.ts). |
+| `owner-assistant-data` | 124 | 2 | «مساعد المالك» — WHAT THE MODEL MAY LEARN FROM, as raw material for `buildContext` (src/server/ai/redact.ts). |
 | `storage` | 300 | 2 | THE STORAGE OF THE COMPANY'S FILES — what the owner sees and does about the server's disk filling up (his decision, 2026-11-01). |
 | `task-links` | 170 | 2 | «التبعيات» — the links between two tasks (the owner, 2026-10-30: the table existed and nothing wrote it). |
 | `team-people` | 115 | 2 | «الأداء والتطوير» — the front door: the people the viewer reads, and the header of one person's file. |
 | `time-section` | 50 | 2 | «الوقت المسجّل» — ONE section for two screens: the owner board's people table (registered in `BOARD_SECTIONS`) and the number beside a person's score (registered in `SCORE_SECTI… |
-| `timeline` | 76 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
+| `timeline` | 77 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
 | `voice-transcript` | 201 | 2 | «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine. |
 | `zaki-ai` | 171 | 2 | «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
-| `assistant-work` | 103 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
+| `assistant-work` | 107 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
 | `calendar` | 62 | 1 | The calendar's data logic, taken out of the page so it can be tested with an injected `now`. |
 | `card-links` | 64 | 1 | What the card was turned into: the tasks made from it («حوّلها لمهمة») and the topic it was sent to («أرسل»). |
 | `card-log` | 89 | 1 | «السجل»: a read-only timeline made of the AuditLog rows written about this card. |
 | `card-status` | 32 | 1 | «حالة الاعتماد» (the second of the two systems): مسودة → قيد المراجعة → معتمدة → مؤرشفة, set by a moderator of the space or the OWNER. |
 | `checkins-section` | 27 | 1 | «التسجيل اليومي» as a section of the team score: how many days a person answered in the period and the run of answered days. |
 | `credentials` | 64 | 1 | Account credentials as pure functions (no database): what a username may look like, the password policy, and the temporary passwords the owner hands to a new or reset account. |
-| `custom-fields-export` | 73 | 1 | «حقول مخصصة» — the project's values as a CSV file. |
+| `custom-fields-export` | 74 | 1 | «حقول مخصصة» — the project's values as a CSV file. |
 | `department-space` | 93 | 1 | EVERY DEPARTMENT HAS ITS SPACE (the owner's decision, 2026-10-25: each space is like a separate site). |
-| `first-steps` | 100 | 1 | The first-steps card («خطواتك الأولى») computed from REAL data for the signed-in actor: nothing is stored about "progress" - a step is done because the rows say so (a theme chos… |
+| `first-steps` | 102 | 1 | The first-steps card («خطواتك الأولى») computed from REAL data for the signed-in actor: nothing is stored about "progress" - a step is done because the rows say so (a theme chos… |
 | `instant-work` | 131 | 1 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
 | `local-model` | 65 | 1 | «اختبر الاتصال» — the button of the local model's settings. |
 | `manufacturing-proof` | 36 | 1 | The gate of the file routes for a proof photo of a receipt: it opens ONLY for the people who may read the receipt, that is to say the ledger's own rule and nothing looser than i… |
 | `meeting-model-env` | 51 | 1 | «نموذج الاجتماعات» — a FAST model for the meeting assistant only, fixed by VARIABLES of the server (like `gateway-env.ts`). |
 | `my-work` | 168 | 1 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
 | `presence-roster` | 96 | 1 | THE PEOPLE DOCK — who works here and who is at their screen right now (the owner's ask, 2026-10-29: «المستخدمين ظاهرين على زاوية الموقع تحت وكل واحد جنبه علامة خضراء أونلاين»). |
-| `recurrence-spawn` | 221 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |
+| `recurrence-spawn` | 227 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |
+| `reporting-line` | 30 | 1 | Everybody BELOW a person in the reporting line (`OrganizationMember.managerId`, transitive, ACTIVE people only), as user ids. |
 | `search-semantic` | 191 | 1 | «بحث بالمعنى» — THE QUESTION. |
 | `server-health` | 90 | 1 | «حال السيرفر» — a read-only look at how hard the box is working, for the OWNER alone (the one who can switch «وضع التوفير»). |
 | `site-guide` | 140 | 1 | «المرشد» — ONE STEP of the guide. |
-| `space-delete` | 93 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
-| `task-rules-run` | 296 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
+| `space-delete` | 94 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
+| `task-privacy-bulk` | 38 | 1 | «خلّي المهام المسندة المفتوحة خاصة»: one click for the whole space (P0.2). |
+| `task-rules-run` | 298 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
 | `today` | 298 | 1 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
 | `today-dashboard` | 113 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
@@ -632,7 +635,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `Board` | 3 | `app/api/boards/[id]/route.ts`: 1<br>`app/api/boards/route.ts`: 1<br>`server/services/instant-work.ts`: 1 |
 | `BoardColumn` | 4 | `app/api/boards/[id]/columns/[columnId]/route.ts`: 2<br>`app/api/boards/[id]/columns/route.ts`: 1<br>`app/api/boards/[id]/route.ts`: 1 |
 | `TaskCounter` | 1 | `server/services/tasks.ts`: 1 |
-| `Task` | 16 | `server/services/tasks.ts`: 5<br>`server/services/rewards.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1<br>+5 more |
+| `Task` | 17 | `server/services/tasks.ts`: 5<br>`server/services/rewards.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1<br>+6 more |
 | `TaskRecurrence` | 7 | `server/services/task-recurrence.ts`: 3<br>`server/jobs/recurrence.ts`: 2<br>`server/services/recurrence-spawn.ts`: 2 |
 | `TaskStep` | 6 | `server/services/task-steps.ts`: 5<br>`server/services/recurrence-spawn.ts`: 1 |
 | `Reminder` | 5 | `server/services/reminders.ts`: 3<br>`server/jobs/reminders.ts`: 2 |
@@ -643,7 +646,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `Label` | 1 | `app/api/labels/route.ts`: 1 |
 | `TaskDependency` | 2 | `server/services/task-links.ts`: 2 |
 | `TaskComment` | 3 | `app/api/tasks/[id]/comments/[commentId]/route.ts`: 2<br>`app/api/tasks/[id]/comments/route.ts`: 1 |
-| `TaskActivity` | 10 | `server/services/tasks.ts`: 4<br>`server/services/task-assign.ts`: 3<br>`app/api/tasks/[id]/comments/route.ts`: 1<br>`server/activity.ts`: 1<br>+1 more |
+| `TaskActivity` | 12 | `server/services/tasks.ts`: 5<br>`server/services/task-assign.ts`: 3<br>`app/api/tasks/[id]/comments/route.ts`: 1<br>`server/activity.ts`: 1<br>+2 more |
 | `Notification` | 8 | `server/notify.ts`: 3<br>`app/api/notifications/[id]/route.ts`: 1<br>`app/api/notifications/read/route.ts`: 1<br>`server/chat/notify.ts`: 1<br>+2 more |
 | `AuditLog` | 51 | `server/services/owner-assistant-settings.ts`: 5<br>`server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/db-backup.ts`: 4<br>+20 more |
 | `Idea` | 6 | `server/services/ideas.ts`: 4<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
@@ -774,6 +777,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `economyMode` | 2 — `components/feature-switches.tsx`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
 | `controlPanel` | 4 — `app/(app)/analytics/page.tsx`, `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/services/control-panel.ts` |
+| `taskPrivacy` | 1 — `server/services/tasks.ts` |
 | `semanticSearch` | 4 — `app/(app)/settings/page.tsx`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 4 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
@@ -784,7 +788,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 319 of 325 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Every guarded route asks a guard — none compares a role name.** 320 of 326 routes open with a function from §3; the other 6 are the doors listed in §5.
 - **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 228 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **17 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 5 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **17 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.

@@ -204,6 +204,7 @@ export default async function TaskPage({ params }: { params: { id: string } }) {
         boardName: task.column.board.name,
         dueDate: task.dueDate?.toISOString() ?? null,
         creatorName: task.creator.name,
+        visibility: task.visibility,
         assigneeId: task.assigneeId,
         assigneeName: task.assignee?.name ?? null,
         assigneeIds: [...(task.assigneeId ? [task.assigneeId] : []), ...task.coAssignees.map((r) => r.userId)],

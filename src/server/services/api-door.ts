@@ -368,6 +368,7 @@ export async function doorCreateTask(who: DoorPrincipal, clientKey: string, inpu
     });
     if (!board) throw new DoorError(404, "door.board_not_found", "That board does not exist in the space this token writes to.");
     const made = await createTaskInTx(tx, actor, {
+      visibility: "SPACE",
       workspaceId: who.workspaceId,
       projectId: board.projectId,
       boardId: board.id,
@@ -387,6 +388,7 @@ export async function doorCreateTask(who: DoorPrincipal, clientKey: string, inpu
         meta: { tokenId: who.tokenId, via: "api-door", externalRef: input.externalRef ?? null, requestId: who.requestId },
       },
     });
+    // task-visibility: only the tasks THIS token made: its person is their creator
     const row = await tx.task.findUniqueOrThrow({ where: { id: made.id }, select: TASK_SELECT });
     return { status: 201, body: { data: taskOut(row) }, resourceType: "task", resourceId: made.id };
   });
@@ -399,12 +401,14 @@ export async function doorCreateTask(who: DoorPrincipal, clientKey: string, inpu
 
 /** A task THIS token made: any other task (another token's, a person's, another company's) is the same 404. */
 export async function doorTaskStatus(who: DoorPrincipal, taskId: string): Promise<DoorTask> {
+  // task-visibility: only the tasks THIS token made: its person is their creator
   const row = await db.task.findFirst({ where: { id: taskId, orgId: who.orgId, apiTokenId: who.tokenId }, select: TASK_SELECT });
   if (!row) throw new DoorError(404, "door.not_found", "Not found.");
   return taskOut(row);
 }
 
 export async function doorListTasks(who: DoorPrincipal, opts: { limit: number; cursor?: string }): Promise<{ data: DoorTask[]; nextCursor: string | null }> {
+  // task-visibility: only the tasks THIS token made: its person is their creator
   const rows = await db.task.findMany({
     where: { orgId: who.orgId, apiTokenId: who.tokenId },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],

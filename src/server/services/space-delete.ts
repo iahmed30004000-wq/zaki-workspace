@@ -48,6 +48,7 @@ export async function spaceContents(actor: Actor, spaceId: string): Promise<Spac
   const here = { workspaceId: space.id };
   const [projects, tasks, conversations, messages, files, ideas, goals, routines, customers] = await Promise.all([
     db.project.count({ where: here }),
+    // task-visibility: a number for a manager's own decision (delete / confirm); no task is shown
     db.task.count({ where: here }),
     db.conversation.count({ where: { spaceId: space.id } }),
     db.chatMessage.count({ where: { conversation: { spaceId: space.id }, kind: { not: "SYSTEM" } } }),

@@ -4,7 +4,7 @@ import { actorCanWork, requireActor } from "@/server/policy/actor";
 import { SectionOffNotice } from "@/app/(app)/_access";
 import { keepInSpace } from "@/server/services/current-space";
 import { db } from "@/server/db";
-import { loadWorkScope, projectVisibleWhere } from "@/server/services/team-scope";
+import { loadWorkScope, projectVisibleWhere, taskParticipantFilter } from "@/server/services/team-scope";
 import { TASK_INCLUDE } from "@/server/services/tasks";
 import { canWriteInWorkspace } from "@/server/workspace-role";
 import { BoardView, type TaskCardData } from "@/components/board-view";
@@ -64,7 +64,7 @@ export default async function BoardPage({ params }: { params: { id: string } }) 
       select: { id: true, name: true, color: true, position: true, done: true },
     }),
     db.task.findMany({
-      where: { boardId: board.id, archived: false },
+      where: { boardId: board.id, archived: false, AND: [await taskParticipantFilter(user.id)] },
       orderBy: [{ position: "asc" }, { id: "asc" }],
       include: TASK_INCLUDE,
     }),

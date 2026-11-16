@@ -5,7 +5,7 @@ import { pageUser } from "@/server/auth";
 import { actorCanWork, requireActor } from "@/server/policy/actor";
 import { SectionOffNotice } from "@/app/(app)/_access";
 import { keepInSpace } from "@/server/services/current-space";
-import { loadWorkScope, projectVisibleWhere } from "@/server/services/team-scope";
+import { loadWorkScope, projectVisibleWhere, taskParticipantFilter } from "@/server/services/team-scope";
 import { canWriteInWorkspace, isSpaceManager } from "@/server/workspace-role";
 import { Card, CardBody, CardHeader, Badge } from "@/components/ui/card";
 import { BoardCreateButton } from "@/components/board-create-button";
@@ -96,7 +96,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     select: { id: true },
   });
   const doneCount = doneColumnIds.length
-    ? await db.task.count({ where: { projectId: project.id, archived: false, columnId: { in: doneColumnIds.map((c) => c.id) } } })
+    ? await db.task.count({ where: { projectId: project.id, archived: false, columnId: { in: doneColumnIds.map((c) => c.id) }, AND: [await taskParticipantFilter(actor.userId)] } })
     : 0;
   const open = project._count.tasks;
   const pct = open + doneCount > 0 ? Math.round((doneCount / (open + doneCount)) * 100) : 0;
