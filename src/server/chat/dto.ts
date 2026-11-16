@@ -190,6 +190,11 @@ export interface ConversationDto {
   restricted?: boolean;
   /** The «مقطع» the topic belongs to (null: the whole space's, or not a topic). */
   teamId?: string | null;
+  /**
+   * A private conversation only (a DM, a group, a restricted or a «مقطع»'s topic): true when somebody who is not in it
+   * holds silent oversight (`archive.view`), false when nobody does. ABSENT for an open topic. The sheet says so honestly (P0.4).
+   */
+  oversightNotice?: boolean;
   pinned?: boolean;
   archived?: boolean;
   closed: boolean;

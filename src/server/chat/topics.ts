@@ -10,6 +10,7 @@ import { writeSystemMessage } from "@/server/chat/system";
 import type { ConversationDto, MemberDto, MessageDto, ReaderDto } from "@/server/chat/dto";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
+import { oversightReaderExists } from "@/server/chat/archive-access";
 import { isFeatureOn } from "@/server/services/features";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { ocrAvailable } from "@/server/services/image-ocr";
@@ -406,6 +407,10 @@ export async function conversationDetail(
     postingPolicy: conv.postingPolicy as ConversationDto["postingPolicy"],
     restricted: conv.restricted,
     teamId: conv.teamId,
+    // P0.4: a private conversation tells its people whether somebody outside it may read it silently
+    ...(facts.kind !== "TOPIC" || conv.restricted || conv.teamId
+      ? { oversightNotice: await oversightReaderExists(ctx.orgId, conv.members.map((m) => m.userId)) }
+      : {}),
     closed: !!conv.closedAt,
     pinned: !!conv.pinnedAt,
     archived: !!conv.archivedAt,

@@ -35,6 +35,7 @@ function TopicBody({ topic }: { topic: TopicSummaryDto }) {
           <span className="min-w-0 flex-1 truncate font-medium">{topic.title}</span>
           {topic.pinned && <span role="img" aria-label={ct("chath.pinned")}>📌</span>}
           {topic.restricted && <span role="img" aria-label={ct("chath.restricted")}>🔒</span>}
+          {!topic.restricted && topic.teamId && <span role="img" aria-label={ct("chath.team_topic")}>👥</span>}
           {topic.closed && <span role="img" aria-label={ct("chath.closed")}>🔐</span>}
           {topic.lastMessage && <small className="shrink-0 text-xs text-fg-muted">{whenOf(topic.lastMessage.at)}</small>}
         </span>

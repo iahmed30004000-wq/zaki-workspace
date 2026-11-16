@@ -172,12 +172,12 @@ Tests:
 
 ### P0.4 Say who can see it — branch `feat/privacy-visible`
 
-- [ ] Topic header subtitle for a restricted topic: «🔒 خاص · 4 أشخاص» (button) → a sheet with the people, plus one line
+- [x] Topic header subtitle for a restricted topic: «🔒 خاص · 4 أشخاص» (button) → a sheet with the people, plus one line
       «والمالك بصفة رقابة» when oversight holders exist (honest, matches the transparency notice).
-- [ ] Topic row: lock icon for restricted, people icon for a team topic.
-- [ ] Topic settings: before saving, «رح يشوفه: …» with the resulting list.
-- [ ] Oversight banner reworded: «أنت عم تقرأ هالموضوع بصفة رقابة — أصحابه ما بيعرفوا إنك قرأت».
-- [ ] Render tests for the four states. Digits are Western 0-9 in every string (`tests/arabic-ui.test.ts`).
+- [x] Topic row: lock icon for restricted, people icon for a team topic.
+- [x] Topic settings: before saving, «رح يشوفه: …» with the resulting list.
+- [x] Oversight banner reworded: «أنت عم تقرأ هالموضوع بصفة رقابة — أصحابه ما بيعرفوا إنك قرأت».
+- [x] Render tests for the four states. Digits are Western 0-9 in every string (`tests/arabic-ui.test.ts`).
 
 ### P0.5 Privacy regression matrix — branch `test/privacy-matrix`
 
