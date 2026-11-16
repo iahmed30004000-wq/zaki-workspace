@@ -181,13 +181,13 @@ Tests:
 
 ### P0.5 Privacy regression matrix — branch `test/privacy-matrix`
 
-- [ ] `tests/db/privacy-matrix.test.ts`: personas (primary owner; partner with / without `archive.view`; org ADMIN in /
+- [x] `tests/db/privacy-matrix.test.ts`: personas (primary owner; partner with / without `archive.view`; org ADMIN in /
       out of the space; space ADMIN; member in / out of a restricted topic; team member / non-member; guest) × objects
       (open topic, restricted topic, team topic, DM, SPACE task, PARTICIPANTS task, task made from a private topic,
       attachment in a private topic) × surfaces (chat home, open, page of messages, search, unread, notify audience,
       realtime gate, digest, attachment download, task GET, task lists, counts). Table-driven; the expected matrix is data
       at the top of the file so the owner's decisions are readable.
-- [ ] Required for every later phase (README rule R8).
+- [x] Required for every later phase (README rule R8).
 
 ### P0.6 The Android signing password is in a public file — branch `fix/android-signing-secret`
 

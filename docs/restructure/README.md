@@ -154,7 +154,7 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 - [x] P0.2 Private tasks («المعنيين بس») applied to every read (the create-form picker and the lock on board cards, the calendar and search hits are still open: see `pr/P0.2.md`)
 - [x] P0.3 Work made from a private chat stays private
 - [x] P0.4 Privacy visible on screen (who can see a topic / a task)
-- [ ] P0.5 Privacy test matrix
+- [x] P0.5 Privacy test matrix
 - [ ] P0.6 Android signing passwords out of the repository (owner rotates first)
 - [ ] ✋ Owner live check
 
@@ -242,3 +242,4 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 | 2026-11-17 | P0.2 gates closed on `feat/task-visibility`: build green, full DB suite green after `tests/db/features.test.ts` learned the new switch | — | `pr/P0.2.md` |
 | 2026-11-17 | P0.3 done on `fix/private-chat-work` (stacked on P0.2): a task made from a private conversation is «المعنيين بس»; public, a ticket, an idea or a project from a private source need the person's confirmation, enforced on the server; the dialog explains. Gates: typecheck, lint, migration lint, secret scan, build green; DB suite green except two load-only flakes that pass alone | — | `pr/P0.3.md` |
 | 2026-11-17 | P0.4 done on `feat/privacy-visible` (stacked on P0.3): a private conversation says so in its head and row, the sheet names its people and says honestly when the owner may read silently, «رح يشوفه: …» before saving settings, the banner reworded. Gates: typecheck, lint, migration lint, secret scan, build green; unit tests green except the two Node 26 files; database suite 3462/3462 | — | `pr/P0.4.md` |
+| 2026-11-17 | P0.5 done on `test/privacy-matrix` (stacked on P0.4): one table says who sees which conversation and task, and the doors, lists, search and policy must agree; proved by breaking the oversight rule on purpose. Gates green; database suite 3470/3470. Unread counts, notification audience, live gate, digest and attachments are not in the table yet | — | `pr/P0.5.md` |
