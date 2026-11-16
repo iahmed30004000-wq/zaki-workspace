@@ -13,6 +13,8 @@ const schema = z.object({
   title: z.string().trim().max(280).optional(),
   assigneeId: z.string().min(1).nullable().optional(),
   priority: z.enum(priorities).optional(),
+  visibility: z.enum(["SPACE", "PARTICIPANTS"]).optional(),
+  confirmPublic: z.boolean().optional(),
 });
 
 /** POST: «اعمل منها مهمة» — a task in a project the caller works in (a space's ADMIN or MEMBER), from a message they read. */

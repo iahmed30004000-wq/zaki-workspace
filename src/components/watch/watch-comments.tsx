@@ -155,7 +155,9 @@ export function WatchComments({
   async function make(kind: "idea" | "project", draft: Draft, messageId?: string) {
     try {
       // a comment's own idea or project keeps the comment it came from; the whole session's has none
-      const source = messageId ? { sourceMessageId: messageId } : {};
+      // a comment of the session is its people's alone: an idea or a project made from it is for others, so ask first (P0.3)
+      if (messageId && !window.confirm(t("taskpriv.from_private_warn"))) return;
+      const source = messageId ? { sourceMessageId: messageId, confirmPublic: true } : {};
       if (kind === "idea") {
         await apiPost("/api/ideas", { title: draft.title, description: draft.description, ...source });
       } else {
@@ -302,6 +304,7 @@ export function WatchComments({
       <MakeWorkDialog
         message={taskFrom}
         kind="task"
+        privateSource
         onClose={() => setTaskFrom(null)}
         titleMax={200}
         onDone={() => {

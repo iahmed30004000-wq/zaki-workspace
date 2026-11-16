@@ -70,9 +70,15 @@ describe("«حوّل»: the comment shows what it became", () => {
     const { project, board } = await makeProject(w.ws.id);
 
     await as(w.member.id, w.ws.id);
-    const idea = await call(ideasRoute.POST, { body: { title: "نعمل فيديو متله", description: "d", sourceMessageId: w.commentId } });
+    // the session's talk is its people's alone: an idea or a project made from it is for others, so the person confirms (P0.3)
+    const unconfirmed = await call(ideasRoute.POST, { body: { title: "نعمل فيديو متله", description: "d", sourceMessageId: w.commentId } });
+    expect(unconfirmed.status).toBe(422);
+    expect(JSON.stringify(unconfirmed.json)).toContain("work.confirm_public_required");
+    expect((await call(projectsRoute.POST, { body: { workspaceId: w.ws.id, name: "مشروع الفيديو", sourceMessageId: w.commentId } })).status).toBe(422);
+    expect(await db.idea.count({ where: { title: "نعمل فيديو متله" } })).toBe(0);
+    const idea = await call(ideasRoute.POST, { body: { title: "نعمل فيديو متله", description: "d", sourceMessageId: w.commentId, confirmPublic: true } });
     expect(idea.status).toBe(201);
-    const made = await call(projectsRoute.POST, { body: { workspaceId: w.ws.id, name: "مشروع الفيديو", sourceMessageId: w.commentId } });
+    const made = await call(projectsRoute.POST, { body: { workspaceId: w.ws.id, name: "مشروع الفيديو", sourceMessageId: w.commentId, confirmPublic: true } });
     expect(made.status).toBe(201);
     const task = await call(taskRoute.POST, { params: { id: w.commentId }, body: { workspaceId: w.ws.id, projectId: project.id, boardId: board.id } });
     expect(task.status).toBe(201);
@@ -84,7 +90,8 @@ describe("«حوّل»: the comment shows what it became", () => {
       const list = await conversionsFor(who.id, w.ws.id, w.id);
       expect(list.status).toBe(200);
       const kinds = ((list.json?.["conversions"] as Record<string, { kind: string; id: string }[]>)[w.commentId] ?? []).map((c) => c.kind).sort();
-      expect(kinds, who.name).toEqual(["idea", "project", "task"]);
+      // the task came from the session's private talk, so it is «المعنيين بس» (P0.3): its maker sees it in the list, the colleague sees the idea and the project the maker confirmed to share
+      expect(kinds, who.name).toEqual(who.id === w.member.id ? ["idea", "project", "task"] : ["idea", "project"]);
     }
     // somebody the session was not started for: the session does not exist for them
     expect((await conversionsFor(w.outsider.id, w.ws.id, w.id)).status).toBe(404);
@@ -149,7 +156,7 @@ describe("«حوّل»: the comment shows what it became", () => {
     // the idea box off too: no idea offered, and the door refuses
     await db.organizationMember.update({ where: { organizationId_userId: { organizationId: w.org.id, userId: w.member.id } }, data: { revokedCapabilities: ["projects.edit", "ideas.edit"] } });
     expect((await offered()).idea).toBe(false);
-    expect((await call(ideasRoute.POST, { body: { title: "فكرة ممنوعة", sourceMessageId: w.commentId } })).status).toBe(403);
+    expect((await call(ideasRoute.POST, { body: { title: "فكرة ممنوعة", sourceMessageId: w.commentId, confirmPublic: true } })).status).toBe(403);
   });
 
   it("«الشركة» holds no projects: a session there offers no «مشروع»", async () => {
@@ -167,7 +174,7 @@ describe("«حوّل»: the comment shows what it became", () => {
   it("switched off: no action offered, the doors refuse a link to a comment, nothing is listed; ordinary ideas and the room are untouched", async () => {
     const w = await world();
     await as(w.member.id, w.ws.id);
-    const idea = await call(ideasRoute.POST, { body: { title: "فكرة قبل الإطفاء", sourceMessageId: w.commentId } });
+    const idea = await call(ideasRoute.POST, { body: { title: "فكرة قبل الإطفاء", sourceMessageId: w.commentId, confirmPublic: true } });
     expect(idea.status).toBe(201);
 
     await setFeature(w.org.id, "watchConvert", false);

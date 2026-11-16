@@ -9,6 +9,7 @@ const schema = z.object({
   departmentId: z.string().min(1),
   title: z.string().trim().max(200).optional(),
   priority: z.enum(["URGENT", "HIGH", "NORMAL", "LOW"]).optional(),
+  confirmPublic: z.boolean().optional(),
 });
 
 /** POST: «اعمل منها تذكرة» — a ticket to a department, from a message the caller reads (never a guest). */

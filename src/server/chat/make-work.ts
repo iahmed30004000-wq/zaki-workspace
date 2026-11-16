@@ -1,5 +1,6 @@
 import { db } from "@/server/db";
-import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
+import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
+import type { TaskVisibility } from "@/server/services/team-scope";
 import { canRead, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 import { createTask, type ActorContext } from "@/server/services/tasks";
 import { createTicket } from "@/server/services/tickets";
@@ -27,7 +28,16 @@ async function sourceOf(ctx: OrgAccessContext, messageId: string) {
   if (!facts || !canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
   if (org?.role === "GUEST") throw new ForbiddenError("chat.guest_forbidden");
   if (msg.deletedAt || msg.kind === "SYSTEM") throw new ForbiddenError("chat.work_not_from_this");
-  return msg;
+  // a DM, a group, a restricted topic or a team's topic is somebody's private talk: what is made from it is private
+  // unless the person says, and confirms, that it is for everybody (P0.3). The server decides; the dialog only explains.
+  return { ...msg, privateSource: facts.kind !== "TOPIC" || facts.restricted || !!facts.teamId };
+}
+
+/** The rule above, in one place: private sources need an explicit, confirmed «للمساحة كلها». */
+function assertConfirmed(privateSource: boolean, wantsPublic: boolean, confirmPublic: boolean | undefined): void {
+  if (privateSource && wantsPublic && confirmPublic !== true) {
+    throw new ValidationError([{ path: "confirmPublic", message: "work.confirm_public_required" }]);
+  }
 }
 
 /**
@@ -54,10 +64,23 @@ export async function messageToTask(
   ctx: OrgAccessContext,
   actor: ActorContext,
   messageId: string,
-  input: { workspaceId: string; projectId: string; boardId: string; title?: string; assigneeId?: string | null; priority?: TaskPriority },
+  input: {
+    workspaceId: string;
+    projectId: string;
+    boardId: string;
+    title?: string;
+    assigneeId?: string | null;
+    priority?: TaskPriority;
+    /** «مين بيشوفها؟»: from a private conversation the default is «المعنيين بس»; SPACE needs `confirmPublic`. */
+    visibility?: TaskVisibility;
+    confirmPublic?: boolean;
+  },
 ): Promise<{ taskId: string }> {
   const msg = await sourceOf(ctx, messageId);
+  assertConfirmed(msg.privateSource, input.visibility === "SPACE", input.confirmPublic);
+  const visibility: TaskVisibility | undefined = msg.privateSource ? (input.visibility ?? "PARTICIPANTS") : input.visibility;
   const task = await createTask(actor, {
+    ...(visibility ? { visibility } : {}),
     workspaceId: input.workspaceId,
     projectId: input.projectId,
     boardId: input.boardId,
@@ -73,9 +96,11 @@ export async function messageToTask(
 export async function messageToTicket(
   ctx: OrgAccessContext,
   messageId: string,
-  input: { departmentId: string; title?: string; priority?: "URGENT" | "HIGH" | "NORMAL" | "LOW" },
+  input: { departmentId: string; title?: string; priority?: "URGENT" | "HIGH" | "NORMAL" | "LOW"; confirmPublic?: boolean },
 ): Promise<{ ticketId: string }> {
   const msg = await sourceOf(ctx, messageId);
+  // a ticket is read by its department: from a private conversation that is «for others» and must be confirmed
+  assertConfirmed(msg.privateSource, true, input.confirmPublic);
   const title = (input.title?.trim() || titleFrom(msg.body, 190)).slice(0, 200);
   const ticket = await createTicket(ctx, input.departmentId, {
     title: title.length >= 3 ? title : `${title}…`.padEnd(3, "…"),
