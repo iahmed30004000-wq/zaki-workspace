@@ -17,7 +17,7 @@ import { hqSpaceId } from "@/server/chat/hq";
  *   (`unreadBySpace`).
  */
 export async function unreadTotal(ctx: OrgAccessContext, spaceId: string | null = null, legacyHere = false): Promise<number> {
-  const isOwner = ctx.orgRole === "OWNER";
+  const isOwner = ctx.orgRole === "OWNER"; // oversight-ok: the rank is a space ADMIN of every space; only conversations with HIS row are counted
   const isGuest = ctx.orgRole === "GUEST";
   const rows = await db.$queryRaw<Array<{ total: number }>>`
     SELECT COUNT(*)::int AS total
@@ -55,7 +55,7 @@ export async function unreadTotal(ctx: OrgAccessContext, spaceId: string | null 
  * nothing waiting left out.
  */
 export async function unreadBySpace(ctx: OrgAccessContext): Promise<Record<string, number>> {
-  const isOwner = ctx.orgRole === "OWNER";
+  const isOwner = ctx.orgRole === "OWNER"; // oversight-ok: same as unreadTotal — his own rows only
   const isGuest = ctx.orgRole === "GUEST";
   const hq = await hqSpaceId(ctx.orgId);
   const rows = await db.$queryRaw<Array<{ spaceId: string | null; total: number }>>`

@@ -71,14 +71,16 @@ export function pollIsClosed(poll: { closesAt: Date | null; closedAt: Date | nul
 export type PollViewer = {
   userId: string;
   role: string;
+  /** the viewer holds silent oversight (`archive.view`); absent: an OWNER-rank viewer is read as holding it */
+  oversight?: boolean;
   /** the viewer is a row of the conversation (the owner only where he joined) */
   isMember: boolean;
   canModerateHere: boolean;
 };
 
 /** The owner reading without a row is in silent oversight: he neither votes nor closes (that would leave a trace). */
-export function isSilentOwner(viewer: Pick<PollViewer, "role" | "isMember">): boolean {
-  return viewer.role === "OWNER" && !viewer.isMember;
+export function isSilentOwner(viewer: Pick<PollViewer, "role" | "isMember"> & { oversight?: boolean }): boolean {
+  return (viewer.oversight ?? viewer.role === "OWNER") && !viewer.isMember; // oversight-ok: the fallback of a hand-made viewer
 }
 
 /**

@@ -18,6 +18,7 @@ import { canManageDepartments } from "@/server/services/departments";
 import { activeMember } from "@/server/services/active-people";
 import { assignedTo } from "@/server/services/tasks";
 import { pushNotification } from "@/server/notify";
+import { emitRealtime } from "@/server/realtime/emit";
 import { getServerT } from "@/lib/i18n/server";
 import { addPersonToHq, removePersonAudit, removePersonFromHq } from "@/server/chat/hq";
 import { ROLE_KEYS } from "@/lib/i18n/roles";
@@ -481,6 +482,10 @@ export async function updateAccount(actor: Actor, userId: string, input: UpdateA
         await assertManager(tx, actor.orgId, managerId, userId);
       }
       if (Object.keys(membership).length) await tx.organizationMember.update({ where: { id: target.id }, data: membership });
+      // a rank or a permission changed (archive.view above all): the live line forgets who may see what, at once
+      if (membership.role || membership.capabilities || membership.revokedCapabilities) {
+        await emitRealtime(tx, actor.orgId, "membership.changed", { userId: actor.userId, targetUserId: userId });
+      }
       if (passwordHash) await endSessions(tx, userId, { ...user, passwordHash, mustChangePassword: true });
       else if (Object.keys(user).length) await tx.user.update({ where: { id: userId }, data: user, select: { id: true } });
       if (roleChanged) await alignSpaceRoles(tx, actor.orgId, userId, target.role, role);

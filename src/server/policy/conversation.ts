@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { effectiveCapabilities } from "@/server/policy/capabilities";
 
 /**
  * The chat policy: pure `can*` functions over a facts object, plus the DB loaders that
@@ -8,8 +9,11 @@ import { db } from "@/server/db";
  *  - a topic's audience is every ACTIVE member of its space (a WorkspaceMember row; guests
  *    included as GUEST) unless the topic is `restricted`, then only the ConversationMember rows;
  *  - a DM's audience is its two ACTIVE people;
- *  - the OWNER reads everything silently, without being in any row; he may WRITE only where he
- *    has joined (a ConversationMember row of his own) and never in somebody else's DM;
+ *  - whoever HOLDS OVERSIGHT (an OWNER-rank person who has the capability `archive.view`: the primary owner, and a
+ *    partner unless the primary owner took it away) reads everything silently, without being in any row; he may
+ *    WRITE only where he has joined (a ConversationMember row of his own) and never in somebody else's DM. The rank
+ *    alone reads nothing private: an OWNER-rank person WITHOUT the capability is a space ADMIN of every space
+ *    (open topics, no silence) and reads a restricted topic or a DM only like anybody else, through his own rows;
  *  - a GUEST reads the topics of the spaces they are in, never DMs, never HQ;
  *  - a topic of a «مقطع» (`teamId`, a team of its space) is read by that مقطع's people and the space's managers
  *    (its ADMINs, an org ADMIN who is in it) — and by the OWNER, silently, like everything;
@@ -46,6 +50,11 @@ export type OrgFacts = {
   orgId: string;
   role: "OWNER" | "ADMIN" | "LEAD" | "MEMBER" | "GUEST";
   status: "ACTIVE" | "SUSPENDED" | "OFFBOARDED";
+  /**
+   * Silent oversight: the person holds the capability `archive.view` (same rule as `holdsArchiveView`). `loadOrgFacts`
+   * always sets it; a hand-made fact without it is read as "an OWNER holds it", as before this field existed.
+   */
+  oversight?: boolean;
 };
 
 export const isSpaceAdmin = (role: string | null): boolean => role === "ADMIN";
@@ -55,8 +64,21 @@ export function isActiveOf(org: OrgFacts | null): boolean {
   return !!org && org.status === "ACTIVE";
 }
 
-export function isOwnerOf(org: OrgFacts | null): boolean {
-  return isActiveOf(org) && org!.role === "OWNER";
+export function isOwnerOf(org: OrgFacts | null): boolean { // oversight-ok: the rank alone (management); reading uses hasOversight
+  return isActiveOf(org) && org!.role === "OWNER"; // oversight-ok: the rank alone
+}
+
+/** Silent oversight: an OWNER-rank person who still holds `archive.view`. The rank alone is not enough. */
+export function hasOversight(org: OrgFacts | null): boolean {
+  return isOwnerOf(org) && org!.oversight !== false; // oversight-ok: rank AND the capability
+}
+
+/**
+ * The viewer's role in the conversation's space. An OWNER-rank person needs no `WorkspaceMember` row: he is a space
+ * ADMIN of every space (as `requireWorkspace` already treats him) — with or without oversight.
+ */
+function spaceRoleOf(facts: ConversationFacts, org: OrgFacts | null): ConversationFacts["viewerSpaceRole"] {
+  return facts.viewerSpaceRole ?? (isOwnerOf(org) ? "ADMIN" : null); // oversight-ok: the rank is a space ADMIN everywhere
 }
 
 export function isOrgAdminOf(org: OrgFacts | null): boolean {
@@ -74,12 +96,13 @@ export function isOrgOf(facts: ConversationFacts | null, org: OrgFacts | null): 
 /** May the viewer READ the conversation (they exist in the audience, or the OWNER silently)? */
 export function canRead(facts: ConversationFacts | null, org: OrgFacts | null): boolean {
   if (!facts || !isActiveOf(org) || !isOrgOf(facts, org)) return false;
-  if (isOwnerOf(org)) return true; // the owner's silent eye reads everything
+  if (hasOversight(org)) return true; // the silent eye (archive.view) reads everything
   if (facts.kind === "DM") return facts.viewerIsMember && facts.dmOtherActive;
   if (facts.kind === "GROUP") return facts.viewerIsMember && org!.role !== "GUEST";
-  if (!facts.viewerSpaceRole) return false; // not in the space, not in the topic
+  const spaceRole = spaceRoleOf(facts, org);
+  if (!spaceRole) return false; // not in the space, not in the topic
   // a مقطع's topic: its people and the space's managers (the space's ADMIN, an org ADMIN who is in it)
-  if (facts.teamId && !facts.viewerInTeam && !(isSpaceAdmin(facts.viewerSpaceRole) || org!.role === "ADMIN")) return false;
+  if (facts.teamId && !facts.viewerInTeam && !(isSpaceAdmin(spaceRole) || org!.role === "ADMIN")) return false;
   if (!facts.restricted) return true; // the space's people are the audience
   return facts.viewerIsMember; // a restricted topic takes its own rows
 }
@@ -95,8 +118,8 @@ export function canPost(
   if (facts.kind === "GROUP") return facts.viewerIsMember && org!.role !== "GUEST";
   if (facts.closedAt) return false; // a closed topic takes no messages until an admin reopens it
   const role = org!.role;
-  if (role === "OWNER") return opts.ownerJoined; // the owner posts only where he joined
-  if (isSpaceAdmin(facts.viewerSpaceRole)) return true; // the mute never binds the space's admins
+  if (hasOversight(org)) return opts.ownerJoined; // the silent eye posts only where he joined
+  if (isSpaceAdmin(spaceRoleOf(facts, org))) return true; // the mute never binds the space's admins
   if (facts.mutedUntil && facts.mutedUntil > new Date()) return false; // muted in the space
   if (facts.postingPolicy === "ADMINS") return false; // only space admins (or the owner) post
   if (role === "GUEST" && facts.topicType === "ANNOUNCEMENTS") return false; // guests read announcements
@@ -108,20 +131,20 @@ export function canModerate(facts: ConversationFacts | null, org: OrgFacts | nul
   if (!facts || !isActiveOf(org) || !isOrgOf(facts, org)) return false;
   // a DM is its two people's: nobody moderates it, the OWNER included (he never writes in it)
   if (facts.kind === "DM") return false;
-  if (isOwnerOf(org)) return true;
+  if (hasOversight(org)) return true;
   // nobody moderates what they may not read (a restricted topic they are not in, a space they left)
   if (!canRead(facts, org)) return false;
   if (facts.kind === "GROUP") return facts.viewerIsMember && facts.viewerGroupRole === "admin";
   // design §26: "space ADMIN or OWNER". The org rank ADMIN gives no space by itself (AGENTS.md access
   // model): an org admin moderates the spaces where they are a space ADMIN — HQ included, where the
   // space role follows the org rank (accounts.ts alignSpaceRoles)
-  return isSpaceAdmin(facts.viewerSpaceRole);
+  return isSpaceAdmin(spaceRoleOf(facts, org));
 }
 
 /** May the viewer PIN this message's conversation? Topics: moderators; DMs: either participant. */
 export function canPin(facts: ConversationFacts | null, org: OrgFacts | null): boolean {
   if (!facts || !isActiveOf(org) || !isOrgOf(facts, org)) return false;
-  if (facts.kind === "DM") return facts.viewerIsMember && (isOwnerOf(org) || org!.role !== "GUEST");
+  if (facts.kind === "DM") return facts.viewerIsMember && (isOwnerOf(org) || org!.role !== "GUEST"); // oversight-ok: pinning in his own DM
   return canModerate(facts, org);
 }
 
@@ -139,7 +162,7 @@ export function canModifyMessage(opts: {
 
 /** May the viewer read the archive (the owner's archive + oversight)? `archive.view`, OWNER only. */
 export function canArchive(role: string | null | undefined): boolean {
-  return role === "OWNER";
+  return role === "OWNER"; // oversight-ok: the rank half of the archive rule (the capability is the other half)
 }
 
 /**
@@ -149,8 +172,8 @@ export function canArchive(role: string | null | undefined): boolean {
 export function canModerateTarget(actor: { role: string; spaceRole?: string | null }, target: { role: string; spaceRole?: string | null }): boolean {
   // nobody mutes the OWNER, whoever asks: the standing below gives every other rank 1, so without this
   // line a space admin (3) outranked the owner and could silence him in a space
-  if (target.role === "OWNER") return false;
-  if (actor.role === "OWNER") return true;
+  if (target.role === "OWNER") return false; // oversight-ok: nobody mutes an OWNER-rank person
+  if (actor.role === "OWNER") return true; // oversight-ok: muting is management by rank
   const standing = (r: string, s?: string | null): number => {
     if (r === "ADMIN") return s === "ADMIN" ? 3 : 2;
     if (r === "LEAD") return 2;
@@ -165,9 +188,12 @@ export function canModerateTarget(actor: { role: string; spaceRole?: string | nu
 export async function loadOrgFacts(userId: string, orgId: string): Promise<OrgFacts | null> {
   const m = await db.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: orgId, userId } },
-    select: { role: true, status: true },
+    select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
   });
-  return m ? { orgId, role: m.role, status: m.status } : null;
+  if (!m) return null;
+  // oversight is a capability, not a rank: the same rule as `holdsArchiveView` (src/server/chat/archive-access.ts)
+  const oversight = m.status === "ACTIVE" && canArchive(m.role) && effectiveCapabilities(m).has("archive.view");
+  return { orgId, role: m.role, status: m.status, oversight };
 }
 
 /**

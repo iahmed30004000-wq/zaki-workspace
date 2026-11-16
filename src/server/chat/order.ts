@@ -55,7 +55,7 @@ async function candidatesOf(ctx: OrgAccessContext, scope: string, ids: string[])
     const space = await db.workspace.findFirst({ where: { id: spaceId, organizationId: ctx.orgId }, select: { id: true } });
     if (!space) throw new NotFoundError("chat.e.not_found");
     // the OWNER needs no row (he reads every space silently); everybody else must be in the space
-    if (!isOwnerOf(org)) {
+    if (!isOwnerOf(org) /* oversight-ok: the OWNER rank is a space ADMIN of every space */) {
       const member = await db.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: spaceId, userId: ctx.userId } }, select: { id: true } });
       if (!member) throw new NotFoundError("chat.e.not_found");
     }

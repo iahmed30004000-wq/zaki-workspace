@@ -231,7 +231,7 @@ export function offeredActions(actor: ActorInfo, target: ContractMember): Offere
 
 // ---------------------------------------------------------------------------------- capabilities
 
-export type CapabilityGroupId = "people" | "customers" | "money" | "admin" | "board" | "development" | "manufacturing";
+export type CapabilityGroupId = "oversight" | "people" | "customers" | "money" | "admin" | "board" | "development" | "manufacturing";
 
 /**
  * The whole catalogue, grouped by the area of the product it touches (`archive.view` is owner-only and
@@ -326,11 +326,22 @@ export function capabilityGroups(member: CapabilityTarget, actor: ActorInfo, edi
     actor.sectionGrid === false
       ? CAPABILITY_GROUPS.map((g) => (g.id === "customers" ? { ...g, capabilities: ["crm.view", "crm.edit", ...g.capabilities] as Capability[] } : g))
       : CAPABILITY_GROUPS;
-  const groups = groupsShown.map((group) => ({
+  const groups: CapabilityGroupRows[] = groupsShown.map((group) => ({
     id: group.id,
     rows: group.capabilities.filter(isOffered).map(rowOf),
   }));
+  // silent oversight (`archive.view`): a switch only the PRIMARY owner sees, and only on a PARTNER's sheet
+  // (P0.1): turned off, that partner stops reading private topics and DMs and the archive, but keeps working like a manager
+  if (editable && canSwitchOversight(member, actor)) {
+    const row = rowOf("archive.view");
+    groups.unshift({ id: "oversight", rows: [{ ...row, customized: !row.on, sensitive: true }] });
+  }
   return groups.filter((group) => group.rows.length > 0);
+}
+
+/** May this actor switch silent oversight (`archive.view`) for this person? The primary owner, for a partner — nobody else, no other rank. */
+export function canSwitchOversight(member: CapabilityTarget, actor: ActorInfo): boolean {
+  return actor.role === "OWNER" && actor.primaryOwner !== false && partnerOf(member);
 }
 
 /** One switch's state and lock for this person, as the server would judge it (shared by the switches and the grid). */

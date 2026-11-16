@@ -203,13 +203,16 @@ One model, in `src/server/policy/` and `src/server/auth.ts`. A route that decide
 other way is a bug.
 
 - **Ranks** `OWNER > ADMIN > LEAD > MEMBER > GUEST` (`rank.ts`; the order of the database enum
-  means nothing). There is exactly one OWNER. A GUEST is an external partner: no prices, no
+  means nothing). There is one primary owner plus partners («شريك (مالك)»: OWNER rank,
+  `primaryOwner = false`) who hold every capability the primary owner did not take away. Silent
+  oversight — reading every private topic and DM without a trace — is the capability `archive.view`
+  (`holdsArchiveView` / `hasOversight`), never the rank. A GUEST is an external partner: no prices, no
   staff directory, never writes.
 - **Capabilities** are per-person switches on top of the rank (`capabilities.ts`: `spaces.create`,
   `users.manage`, `directory.view`, `crm.view`, `crm.edit`, `prices.view`, `integrations.manage`,
   `announce.send`, `escalation.configure`, `cash.view`, `penalties.view`, `archive.view`). The rank
   gives the defaults, the owner switches single ones on or off (`OrganizationMember.capabilities`
-  / `revokedCapabilities`). A guest holds none; `archive.view` is the owner's alone. Check with
+  / `revokedCapabilities`). A guest holds none; `archive.view` is the OWNER rank's alone (the primary owner always, a partner unless it was taken away). Check with
   `requireActor()` + `assertCan(actor, "…")`, never by comparing a role name.
 - **The manufacturing stock ledger** («مخزون التصنيع», `src/server/services/manufacturing*.ts`) lives in a space of layout
   `MANUFACTURING` and is gated by `manufacturing.view` / `.edit` / `.cost` plus a row in that space (the owner reads silently). It

@@ -5,6 +5,7 @@ import {
   canPost,
   canRead,
   isActiveOf,
+  hasOversight,
   isOwnerOf,
   isSpaceAdmin,
   loadConversationFacts,
@@ -67,7 +68,7 @@ export function canStartMeeting(org: OrgFacts | null, inSpace: boolean): boolean
 export function canJoinCall(call: CallFacts | null, org: OrgFacts | null): boolean {
   if (!ofThisOrg(call, org)) return false;
   if (call.endedAt) return false;
-  if (isOwnerOf(org)) return true; // nobody takes the owner out, and he may join any call
+  if (hasOversight(org)) return true; // nobody takes the silent eye out, and he may join any call
   if (call.seat?.removed) return false;
   if (call.conversationId) return call.readsConversation || (!!call.seat?.invited && call.inSpace);
   return call.inSpace;

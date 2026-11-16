@@ -3,7 +3,7 @@ import { MENTION_ALL_ID } from "@/lib/chat/conversation/mentions";
 import { isAssistantChatKey } from "@/lib/chat/assistant-chat";
 import { isFeatureOn } from "@/server/services/features";
 import type { OrgAccessContext } from "@/server/auth";
-import { loadOrgFacts, isSpaceAdmin } from "@/server/policy/conversation";
+import { hasOversight, loadOrgFacts, isSpaceAdmin } from "@/server/policy/conversation";
 import { listDms } from "@/server/chat/dm";
 import type { DmSummaryDto, HomeDto, SpaceSummaryDto, TopicSummaryDto } from "@/server/chat/dto";
 import { previewOf } from "@/server/chat/redact";
@@ -19,9 +19,12 @@ import { applySavedOrder, dmScope, spaceScope } from "@/lib/chat/order";
 
 export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string | null } = {}): Promise<HomeDto> {
   const org = await loadOrgFacts(ctx.userId, ctx.orgId);
-  const isOwner = org?.role === "OWNER";
+  // oversight-ok: the OWNER RANK manages every space (a space ADMIN of each, no row needed); what he reads in
+  // silence is `oversight` — the capability archive.view — and nothing else
+  const isOwner = org?.role === "OWNER"; // oversight-ok: the rank manages every space; reading in silence is `oversight`
+  const oversight = hasOversight(org);
 
-  // my spaces: the rows I am in, plus (for the OWNER) every space — he reads silently
+  // my spaces: the rows I am in, plus (for the OWNER rank) every space
   const mySpaceRows = await db.workspaceMember.findMany({
     where: { userId: ctx.userId, workspace: { organizationId: ctx.orgId } },
     select: { workspaceId: true, role: true, mutedUntil: true },
@@ -80,7 +83,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
 
   const spaces: SpaceSummaryDto[] = [];
   for (const s of spacesRows) {
-    const spaceRole = mySpaceRows.find((r) => r.workspaceId === s.id)?.role ?? null;
+    const spaceRole = mySpaceRows.find((r) => r.workspaceId === s.id)?.role ?? (isOwner ? ("ADMIN" as const) : null);
     const spaceMuted = mySpaceRows.find((r) => r.workspaceId === s.id)?.mutedUntil ?? null;
     const topics: TopicSummaryDto[] = [];
     let spaceUnread = 0;
@@ -93,9 +96,9 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
     for (const t of s.conversations) {
       // somebody's conversation with the assistant is listed for that person only (the owner reads it by its link, his list is not filled with them)
       if (isAssistantChatKey(t.dmKey) && t.members.length === 0) continue;
-      // a restricted topic is read by its own rows (and by the OWNER); a guest sees what everyone sees
+      // a restricted topic is read by its own rows (and by whoever holds oversight); a guest sees what everyone sees
       const passes =
-        isOwner || (!t.restricted && spaceRole !== null) || (t.restricted && t.members.length > 0);
+        oversight || (!t.restricted && spaceRole !== null) || (t.restricted && t.members.length > 0);
       if (!passes) continue;
       // a مقطع's topic is its people's (and the managers')
       if (t.teamId && !seen.has(t.teamId)) continue;
@@ -107,7 +110,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
       // a system line («انضم»، «ثبّت») is not a message to read: it never counts
       const countable = { conversationId: t.id, authorId: { not: ctx.userId }, deletedAt: null, kind: { not: "SYSTEM" as const } };
       // the OWNER's oversight never marks anything read, so a count there could never clear: 0
-      const silentOversight = (isOwner && t.members.length === 0) || archived;
+      const silentOversight = (oversight && t.members.length === 0) || archived;
       const [last, unread, mentions] = await Promise.all([
         db.chatMessage.findFirst({
           where: { conversationId: t.id },
@@ -126,7 +129,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
 
       const canPost =
         !t.closedAt &&
-        (isOwner
+        (oversight
           ? t.members.length > 0
           : isSpaceAdmin(spaceRole)
             ? true
@@ -187,5 +190,5 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
   const ordered = [...spaces.map((sp) => spaceScope(sp.id)), ...(dms.length ? [myDmScope] : [])].filter((sc) => savedOrders.has(sc));
 
   const rowMenu = await isFeatureOn(ctx.orgId, "chatRowMenu");
-  return { spaces, dms, canOversee: isOwner, rowMenu, canPurge: rowMenu && isOwner, ordered, dmScope: myDmScope };
+  return { spaces, dms, canOversee: oversight, rowMenu, canPurge: rowMenu && isOwner /* oversight-ok: «حذف نهائي» stays the owner rank (D-A4) */, ordered, dmScope: myDmScope };
 }
