@@ -64,6 +64,15 @@ Fixed blockers for any PR: CI red or an old test red · a secret exposed · a de
 migration or a production write · a published contract broken · customer data to an external
 model · money logic changed without the owner · a feature removed instead of marked.
 
+### The restructure plan (2026-11-16)
+
+The big restructure (privacy first, then the Telegram-style chat, product sheets, work, permissions) is planned in
+`docs/restructure/`. A session told «كمّل البناء» follows `docs/restructure/BUILD-PROMPTS.md` and builds the step cards
+of `docs/restructure/BUILD-STEPS.md` in order. The plan never overrides this file. One difference from step 2 above,
+because the owner asked for the build to continue without waiting for merges: while he has not said «ارفع», a step
+branch starts from the last finished step branch (one straight stack) and a ticked box counts for the next step once it
+is ticked there; once everything is merged, a step branch starts from an up-to-date `main` as usual.
+
 ## Zaki ecosystem — the repositories
 
 | System | Repository | Role |
