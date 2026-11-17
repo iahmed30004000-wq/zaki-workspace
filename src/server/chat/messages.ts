@@ -20,9 +20,10 @@ import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "
 import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, DELETED_PREVIEW } from "@/server/chat/notify";
 import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
 import { afterMessageSent } from "@/server/services/chat-assistant";
-import { assertFeatureOn } from "@/server/services/features";
+import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { queueSync } from "@/server/services/search-embed-index";
 import { applyAutoTicketRules } from "@/server/services/problem-tickets";
+import { canMark } from "@/server/chat/must-read-policy";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
 import type { Prisma } from "@prisma/client";
 import type { MessageDto } from "@/server/chat/dto";
@@ -51,6 +52,8 @@ export const sendSchema = z
     mentions: z.array(z.string().min(1)).max(50).optional(),
     // «@الكل»: honoured only with the word in the body, in a topic, for somebody who is not a guest
     mentionAll: z.boolean().optional(),
+    // «لازم ينقرأ» (Q1.6): a moderator or a holder of «إعلانات للجميع» sends the message as one that must be acknowledged
+    mustRead: z.boolean().optional(),
     attachmentIds: z.array(z.string().min(1)).max(MAX_ATTACHMENTS_PER_MESSAGE).optional(),
     clientId: z.string().min(1).max(64).optional(),
     // a voice note: exactly one recorded audio attachment (the schema used to drop this flag, so
@@ -153,6 +156,13 @@ export async function sendMessage(
     if (!pollOptions) throw new ValidationError([{ path: "poll.options", message: "chat.e.poll_options" }]);
   }
 
+  // «لازم ينقرأ»: only where the switch is on, in a topic, for somebody who may mark a message; a plain member's flag is refused, never dropped silently
+  let mustRead = false;
+  if (input.mustRead === true) {
+    if (!(await isFeatureOn(ctx.orgId, "mustRead")) || internal.card || input.poll || input.voice === true || !(await canMark(ctx, facts, org))) throw new ForbiddenError("chat.e.must_read_denied");
+    mustRead = true;
+  }
+
   // a card stands alone: no files, no voice, no poll
   if (internal.card && (attachments.length > 0 || input.voice === true || input.poll)) throw new ValidationError([{ path: "card", message: "chat.e.card_alone" }]);
   const kind = internal.card ? "CARD" : input.poll ? "POLL" : input.voice === true && isVoice ? "VOICE" : "TEXT";
@@ -198,6 +208,7 @@ export async function sendMessage(
         replyToId: input.replyToId ?? null,
         mentions: wantsAll ? [...mentionIds, MENTION_ALL_ID] : mentionIds,
         ...(input.clientId ? { clientId: input.clientId } : {}),
+        ...(mustRead ? { ackRequired: true } : {}),
         ...(videoAtSec !== null ? { videoAtSec } : {}),
         ...(internal.card ? { card: internal.card as unknown as Prisma.InputJsonValue } : {}),
         ...(input.poll && pollOptions ? { poll: { create: pollCreateData(input.poll, pollOptions) } } : {}),

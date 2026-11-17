@@ -22,7 +22,7 @@
  *
  * Nothing at all on a deleted message, a system line, or for the owner in silent oversight.
  */
-export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "remind" | "translate";
+export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate";
 
 export interface MessageMenuContext {
   mine: boolean;
@@ -41,6 +41,9 @@ export interface MessageMenuContext {
   canMakeTicket?: boolean;
   /** «🎫 مشكلة» is offered (`me.problemKinds` is there: the switch `autoTickets` is on and the person is staff) */
   canProblem?: boolean;
+  /** may mark this message «لازم ينقرأ» (`me.canMustRead`), and whether it already is (the menu says the opposite) */
+  canMustRead?: boolean;
+  mustReadOn?: boolean;
   /** may set a reminder on this message (`me.canRemind`: the «ذكّرني» switch is on; absent: no) */
   canRemind?: boolean;
   /** may translate this message (`me.canTranslate`; absent: no) */
@@ -60,6 +63,7 @@ export const messageMenuItems: MessageMenuAction[] = [
   { id: "task", labelKey: () => "chatc.menu.task", available: (c) => c.hasText && !!c.canMakeWork && c.canMakeTask !== false },
   { id: "ticket", labelKey: () => "chatc.menu.ticket", available: (c) => c.hasText && !!c.canMakeWork && c.canMakeTicket !== false },
   { id: "problem", labelKey: () => "tickets.menu.problem", available: (c) => c.hasText && c.kind === "TEXT" && !!c.canProblem },
+  { id: "mustread", labelKey: (c) => (c.mustReadOn ? "mustread.menu.off" : "mustread.menu.on"), available: (c) => c.hasText && c.kind === "TEXT" && !!c.canMustRead },
   { id: "remind", labelKey: () => "chatc.menu.remind", available: (c) => !!c.canRemind },
   { id: "translate", labelKey: () => "translate.menu", available: (c) => !!c.canTranslate && c.kind === "TEXT" && c.hasText },
   { id: "delete", labelKey: () => "chatc.menu.delete", danger: true, available: (c) => c.mine || c.canModerate },

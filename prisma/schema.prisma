@@ -513,6 +513,9 @@ model ChatMessage {
   // the name, the one line and the price chips are resolved for each VIEWER when the card is opened. `viaApp` names the app that made a message (I1.1).
   card            Json?
   viaApp          String?
+  // «لازم ينقرأ» (Q1.6): an instruction post people must acknowledge (a ✅ reaction); `ackMeta` remembers the reminders sent and the day the author was given the late list
+  ackRequired     Boolean   @default(false)
+  ackMeta         Json?
   createdAt       DateTime  @default(now())
 
   organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)

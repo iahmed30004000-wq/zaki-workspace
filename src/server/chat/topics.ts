@@ -12,6 +12,8 @@ import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { oversightReaderExists } from "@/server/chat/archive-access";
 import { isFeatureOn } from "@/server/services/features";
+import { decorateMustRead } from "@/server/services/must-read";
+import { canMark } from "@/server/chat/must-read-policy";
 import { autoRulesOf, ruleMode } from "@/lib/tickets/auto-rules";
 import { problemKindsOf } from "@/lib/tickets/problem-kinds";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
@@ -398,6 +400,8 @@ export async function conversationDetail(
       facts.kind === "DM" && row.authorId === ctx.userId ? dmStatusFor(otherMember, row.createdAt) : undefined,
     ),
   );
+  // «لازم ينقرأ»: the count and the viewer's own state, for the messages of this page that must be read
+  await decorateMustRead(ctx, facts, org!, conversationId, page as never, messages);
 
   const members: MemberDto[] = conv.members.map((m) => ({
     id: m.userId,
@@ -467,6 +471,7 @@ export async function conversationDetail(
       // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
       ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
       ...(await problemOffer(ctx.orgId, org!.role !== "GUEST", facts)),
+      canMustRead: org!.role !== "GUEST" && (await isFeatureOn(ctx.orgId, "mustRead")) && (await canMark(ctx, facts, org!)),
       id: ctx.userId,
     },
     pinnedMessages: (
