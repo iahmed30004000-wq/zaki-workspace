@@ -26,8 +26,10 @@ Making a page native is adding a screen in `android/app/src/main/java/io/zakiai/
 On the phone, open the link above, allow installs from the browser when asked, open the file. Every build is signed with the SAME key, so a newer build installs over the old one. The one exception is the first build with this key:
 remove an app installed from an earlier build (it was signed with a throw-away key) once.
 
-The key is a **repository secret**, never a file in git: `ANDROID_KEYSTORE_B64` (the key file, base64). The workflow writes it to
-`android/zaki.p12` before building; without the secret it falls back to the debug key and warns. `.gitignore` keeps the file out of git.
+The key is a **repository secret**, never a file in git: `ANDROID_KEYSTORE_B64` (the key file, base64), with its two passwords
+`ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_PASSWORD` (also repository secrets: this repository is public, so no password is ever written in a
+file, and `npm run scan:secrets` fails on a Gradle file that does). The workflow writes the key file to
+`android/zaki.p12` before building and hands the passwords to Gradle through the environment; without the file or either password it falls back to the debug key and warns. `.gitignore` keeps the file out of git.
 Only the key's public fingerprint is in the repository (`public/.well-known/assetlinks.json`).
 
 ## Checked on an emulator

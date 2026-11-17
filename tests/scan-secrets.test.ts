@@ -487,3 +487,38 @@ describe("scan-secrets: inside the real repository", () => {
     expect(`${r.stdout}${r.stderr}`).toMatch(/Secret scan clean|potential secret/);
   });
 });
+
+describe("scan-secrets: a signing password written in a Gradle file (P0.6)", () => {
+  const PASSWORD = "Qm4Zx8Lp2Vn6"; // twelve characters, nothing fake about it
+  const gradle = (line: string) => `android {\n    signingConfigs {\n        zaki {\n            ${line}\n        }\n    }\n}\n`;
+
+  it.each([
+    ["Groovy, single quotes", `storePassword '${PASSWORD}'`],
+    ["Groovy, double quotes", `keyPassword "${PASSWORD}"`],
+    ["an assignment", `storePassword = "${PASSWORD}"`],
+    ["a fallback next to an environment read", `keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: "${PASSWORD}"`],
+  ])("catches %s, names file:line and never prints the value", (_what, line) => {
+    const r = scan({ "android/app/build.gradle": gradle(line) });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("SECRET?? Signing password in a Gradle file at android/app/build.gradle:4");
+    expect(r.stderr).not.toContain(PASSWORD);
+    expect(r.stdout).not.toContain(PASSWORD);
+  });
+
+  it("also in a Kotlin script", () => {
+    const r = scan({ "android/app/build.gradle.kts": gradle(`storePassword = "${PASSWORD}"`) });
+    expect(r.status).toBe(1);
+  });
+
+  it("lets the environment read through: the value is a secret of the repository, not a line of the file", () => {
+    expect(scan({ "android/app/build.gradle": gradle(`storePassword System.getenv("ANDROID_KEYSTORE_PASSWORD")`) }).status).toBe(0);
+    expect(scan({ "android/app/build.gradle": gradle(`keyPassword = System.getenv("ANDROID_KEY_PASSWORD") ?: ""`) }).status).toBe(0);
+  });
+
+  it("the Android project of THIS repository passes: no signing password is written in it", () => {
+    const real = resolve(__dirname, "../android");
+    const r = spawnSync(process.execPath, [SCRIPT, real], { encoding: "utf8", timeout: 20_000 });
+    expect(`${r.stdout}${r.stderr}`).toMatch(/Secret scan clean/);
+    expect(r.status).toBe(0);
+  });
+});
