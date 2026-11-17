@@ -109,6 +109,9 @@ export async function saveOmsConfig(actor: Actor, input: OmsInput): Promise<void
   const token = input.token?.trim() ? input.token.trim() : null;
   const existing = await db.integration.findUnique({ where: { orgId_type: { orgId: actor.orgId, type: "OMS" } }, select: { secretEnc: true, config: true } });
   if (!existing?.secretEnc && token === null) refuse("token", "oms.err.token_required");
+  // the saved token belongs to the address it was saved for: a NEW address needs a new token, so it can never be sent somewhere else
+  const before = existing && isObj(existing.config) && typeof existing.config["baseUrl"] === "string" ? existing.config["baseUrl"] : null;
+  if (token === null && before !== null && before !== baseUrl) refuse("token", "oms.err.token_required_new_address");
   const expires = input.tokenExpiresAt ?? null;
   if (expires !== null && !Number.isFinite(Date.parse(`${expires}T00:00:00Z`))) refuse("tokenExpiresAt", "oms.err.bad_date");
   const config = { ...(existing && isObj(existing.config) ? existing.config : {}), baseUrl, tokenExpiresAt: expires, connectedById: actor.userId } as Prisma.InputJsonValue;

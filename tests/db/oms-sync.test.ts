@@ -350,10 +350,10 @@ describe("the card of «التكاملات»", () => {
     await loginAs(w.owner.id);
     expect((await put({ baseUrl: good.baseUrl })).status).toBe(422);
     expect((await put(good)).status).toBe(200);
-    expect((await put({ baseUrl: "https://oms2.example.test" })).status).toBe(200);
+    expect((await put({ baseUrl: "https://oms.example.test", tokenExpiresAt: "2031-01-01" })).status).toBe(200);
     const integ = await db.integration.findUniqueOrThrow({ where: { orgId_type: { orgId: w.org.id, type: "OMS" } } });
     expect(decryptSecrets<{ token: string }>(integ.secretEnc)?.token).toBe(TOKEN);
-    expect((integ.config as { baseUrl: string }).baseUrl).toBe("https://oms2.example.test");
+    expect((integ.config as { tokenExpiresAt: string }).tokenExpiresAt).toBe("2031-01-01");
   });
   it("refuses an address on a private network, plain http, and a missing key", async () => {
     const w = await world({ connected: false });

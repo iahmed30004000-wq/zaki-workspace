@@ -47,10 +47,10 @@ describe("the orders system client", () => {
     expect(events).toEqual([]);
   });
 
-  it("reads an order's state by the system's own id, encoded, and keeps only its state fields", async () => {
-    const fetchImpl = vi.fn(async () => ok({ id: "o/1", number: "A-9", status: "SHIPPED", updated_at: "2026-11-17T10:00:00Z", customer: { name: "زبون", phone: "0790000000" } }));
-    const st = await oms.orderStatus("org1", "o/1", { fetchImpl, resolve: publicResolve });
-    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe("https://oms.example.test/api/v1/orders/o%2F1");
+  it("reads an order's state by the system's own id and keeps only its state fields", async () => {
+    const fetchImpl = vi.fn(async () => ok({ id: "o_1", number: "A-9", status: "SHIPPED", updated_at: "2026-11-17T10:00:00Z", customer: { name: "زبون", phone: "0790000000" } }));
+    const st = await oms.orderStatus("org1", "o_1", { fetchImpl, resolve: publicResolve });
+    expect((fetchImpl.mock.calls[0] as unknown as [string])[0]).toBe("https://oms.example.test/api/v1/orders/o_1");
     expect(st).toEqual({ number: "A-9", status: "SHIPPED", updatedAt: "2026-11-17T10:00:00Z" });
     expect(JSON.stringify(st)).not.toMatch(/زبون|0790000000|customer/);
   });

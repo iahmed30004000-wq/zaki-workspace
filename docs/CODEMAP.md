@@ -544,7 +544,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `message-translate` | 181 | 2 | «ترجمة رسالة» — one tap turns a text message into Arabic (or, when it is mostly Arabic, into English). |
 | `move-to-space` | 106 | 2 | «انقل لمساحة» (the plan, 2026-10-25: each space is like a separate site). |
 | `nav-order` | 73 | 2 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
-| `oms-link` | 148 | 2 | «ربط نظام الطلبات» — the card under «التكاملات» (Q1.0). |
+| `oms-link` | 151 | 2 | «ربط نظام الطلبات» — the card under «التكاملات» (Q1.0). |
 | `onboarding` | 88 | 2 | The one-time onboarding every account goes through (the owner creates accounts with a temporary password and nobody has accepted the transparency notice yet): choose your own pa… |
 | `org-members` | 205 | 2 | Organization members: the rank rules of account management and the roster. |
 | `orgs` | 154 | 2 | no header comment — exports `JOIN_CODE_ALPHABET`, `generateJoinCode`, `registrationOpen`, `registerOrganization`, `canManageOrg` |

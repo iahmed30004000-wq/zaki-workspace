@@ -28,10 +28,13 @@ interface OmsAnswer {
 type TFn = (key: string, vars?: Record<string, string | number>) => string;
 
 /** The dictionary key that explains a failure's code (every 5xx shares one). */
+const KNOWN_CODES = new Set(["no_base_url", "url_invalid", "url_https_only", "url_credentials", "url_private", "url_unresolvable", "no_token", "timeout", "network", "redirect", "bad_body", "bad_id", "too_big", "not_connected", "unknown", "http_401", "http_403", "http_404", "http_429", "http_4xx", "http_5xx"]);
 export function omsErrorKey(code: string | null | undefined): string {
   if (!code) return "common.error";
+  if (KNOWN_CODES.has(code)) return `oms.error.${code}`;
   if (/^http_5\d\d$/.test(code)) return "oms.error.http_5xx";
-  return `oms.error.${code}`;
+  if (/^http_4\d\d$/.test(code)) return "oms.error.http_4xx";
+  return "oms.error.unknown";
 }
 
 /**

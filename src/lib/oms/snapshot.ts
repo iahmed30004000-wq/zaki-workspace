@@ -63,11 +63,29 @@ export function staleNote(snapshot: ProductSnapshot | null | undefined, now: Dat
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const str = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v.trim() : undefined);
 const num = (v: unknown): number | undefined => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+/** A price or a quantity must be a real number above zero: a zero or a negative one is never taken as truth. */
+const positive = (v: unknown): number | undefined => {
+  const n = num(v);
+  return n !== undefined && n > 0 ? n : undefined;
+};
+/** An id or a code may come as a number: it is kept as text. */
+const idText = (v: unknown): string | undefined => (typeof v === "number" && Number.isFinite(v) ? String(v) : str(v));
+/** A link is kept only when it is an http or https address (never javascript: or data:). */
+function safeLink(v: unknown): string | undefined {
+  const s = str(v);
+  if (!s) return undefined;
+  try {
+    const u = new URL(s);
+    return u.protocol === "https:" || u.protocol === "http:" ? s : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function readOffer(raw: unknown): OfferSnapshot | null {
   if (!isObj(raw)) return null;
-  const price = num(raw["price"]);
-  const quantity = num(raw["quantity"]);
+  const price = positive(raw["price"]);
+  const quantity = positive(raw["quantity"]);
   if (price === undefined || quantity === undefined) return null;
   const free = num(raw["free_quantity"]);
   const expires = str(raw["expires_at"]);
@@ -86,20 +104,43 @@ function readOffer(raw: unknown): OfferSnapshot | null {
  * list gives an empty list (the caller treats a sync that read nothing as «not reachable», never as «all products are gone»).
  */
 export function normalizeProducts(body: unknown, now: Date = new Date()): ProductSnapshot[] {
-  const list = Array.isArray(body) ? body : isObj(body) ? (Array.isArray(body["data"]) ? body["data"] : Array.isArray(body["products"]) ? body["products"] : []) : [];
-  const out: ProductSnapshot[] = [];
-  for (const raw of list) {
-    if (!isObj(raw)) continue;
-    const code = str(raw["code"]);
+  return readProducts(body, now).products;
+}
+
+export interface ProductsRead {
+  /** `list` = the answer is a list of products (it may be empty); `other` = anything else (an error object, a page of HTML). */
+  shape: "list" | "other";
+  products: ProductSnapshot[];
+  /** The codes and ids of the rows that were there but could not be read: a sheet of one of them is NOT «gone». */
+  unreadable: { codes: Set<string>; ids: Set<string> };
+  /** How many rows were dropped. */
+  dropped: number;
+}
+
+/** Like `normalizeProducts`, and it also says what it could not read, so the sync never marks a sheet gone for a row that is still there. */
+export function readProducts(body: unknown, now: Date = new Date()): ProductsRead {
+  const found = Array.isArray(body) ? body : isObj(body) ? (Array.isArray(body["data"]) ? body["data"] : Array.isArray(body["products"]) ? body["products"] : null) : null;
+  const out: ProductsRead = { shape: found ? "list" : "other", products: [], unreadable: { codes: new Set(), ids: new Set() }, dropped: 0 };
+  for (const raw of found ?? []) {
+    if (!isObj(raw)) {
+      out.dropped += 1;
+      continue;
+    }
+    const code = idText(raw["code"]);
     const name = str(raw["name"]);
-    const price = num(raw["price"]);
-    if (!code || !name || price === undefined) continue;
-    const id = str(raw["id"]);
+    const price = positive(raw["price"]);
+    const id = idText(raw["id"]);
+    if (!code || !name || price === undefined) {
+      out.dropped += 1;
+      if (code) out.unreadable.codes.add(code);
+      if (id) out.unreadable.ids.add(id);
+      continue;
+    }
     const store = str(raw["store"]);
     const category = str(raw["category"]);
-    const link = str(raw["link"]);
+    const link = safeLink(raw["link"]);
     const offers = (Array.isArray(raw["offers"]) ? raw["offers"] : []).map(readOffer).filter((o): o is OfferSnapshot => o !== null);
-    out.push({
+    out.products.push({
       ...(id ? { id } : {}),
       code,
       name,
@@ -126,7 +167,8 @@ const offerKey = (o: OfferSnapshot): string => JSON.stringify([o.title, o.quanti
 export function priceChanged(previous: ProductSnapshot | null | undefined, next: ProductSnapshot): boolean {
   if (!previous) return false;
   if (previous.price !== next.price) return true;
-  const a = (previous.offers ?? []).map(offerKey).sort();
-  const b = next.offers.map(offerKey).sort();
+  // a sheet whose saved offers are not a list is read as having none: it never stops the others
+  const a = (Array.isArray(previous.offers) ? previous.offers : []).map(offerKey).sort();
+  const b = (Array.isArray(next.offers) ? next.offers : []).map(offerKey).sort();
   return a.length !== b.length || a.some((k, i) => k !== b[i]);
 }
