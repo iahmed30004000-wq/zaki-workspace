@@ -103,4 +103,15 @@ describe("the Android app (native: Kotlin + Compose)", () => {
     expect(links[0].target.sha256_cert_fingerprints).toHaveLength(1);
     expect(links[0].target.sha256_cert_fingerprints[0]).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
   });
+
+  it("never builds a debug-signed APK over the real one: a key file without both passwords stops the workflow, and the passwords come from the environment", () => {
+    const flow = read(".github/workflows/android.yml");
+    const keyStep = flow.slice(flow.indexOf("Put the signing key in place"), flow.indexOf("Build the signed APK"));
+    expect(keyStep).toContain("secrets.ANDROID_KEYSTORE_PASSWORD");
+    expect(keyStep).toContain("secrets.ANDROID_KEY_PASSWORD");
+    expect(keyStep).toMatch(/-z "\$KEYSTORE_PASSWORD"[\s\S]*exit 1/);
+    const gradle = read("android/app/build.gradle");
+    expect(gradle).toContain("System.getenv('ANDROID_KEYSTORE_PASSWORD')");
+    expect(gradle).toContain("System.getenv('ANDROID_KEY_PASSWORD')");
+  });
 });

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { requireWorkspace, audit, ForbiddenError } from "@/server/auth";
 import { withApi } from "@/server/api";
-import { teamFilterInSpace } from "@/server/services/team-scope";
+import { taskParticipantFilter, teamFilterInSpace } from "@/server/services/team-scope";
 import { assertMayCreateInTeam } from "@/server/services/teams";
 import { parse, parseJson } from "@/server/validation";
 import { assertWatchComment } from "@/server/watch/convert";
@@ -35,6 +35,8 @@ export async function GET(req: Request) {
     await assertMemberCan(ctx, "projects.view", "section.view_denied", { spaceGuestsPass: true });
     // inside a space with teams: the space's own projects and the caller's teams' (a manager sees all)
     const team = await teamFilterInSpace(ctx.userId, workspaceId, ctx.spaceManager === true);
+    // the count of a project is the tasks the caller may open: a private one of somebody else is not counted (P0 review)
+    const participants = await taskParticipantFilter(ctx.userId);
     const projects = await db.project.findMany({
       where: { workspaceId, ...team },
       orderBy: { updatedAt: "desc" },
@@ -48,7 +50,7 @@ export async function GET(req: Request) {
         targetDate: true,
         ownerId: true,
         updatedAt: true,
-        _count: { select: { tasks: { where: { archived: false } }, boards: true } },
+        _count: { select: { tasks: { where: { archived: false, AND: [participants] } }, boards: true } },
       },
     });
     return NextResponse.json({ projects, orgId: ctx.orgId });

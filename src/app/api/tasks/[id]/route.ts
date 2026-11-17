@@ -79,6 +79,8 @@ const patchSchema = z.object({
   reward: rewardBodySchema.optional(),
   /** «مين بيشوفها؟»: its creator, a manager of its space or of its assignee, or oversight (403 `task.visibility_denied`). */
   visibility: z.enum(["SPACE", "PARTICIPANTS"]).optional(),
+  /** publishing a task made from a private conversation: the person confirmed (422 `work.confirm_public_required` otherwise) */
+  confirmPublic: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -128,6 +130,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       archived: input.archived,
       labelIds: input.labelIds,
       visibility: input.visibility,
+      confirmPublic: input.confirmPublic,
     });
     await audit("task.updated", { actorId: ctx.userId, orgId: ctx.orgId, target: params.id });
     // only the people the task REALLY went to are told: a person of a higher rank was asked instead (task-assign.ts)

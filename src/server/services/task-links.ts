@@ -1,6 +1,7 @@
 import type { TaskDependencyKind } from "@prisma/client";
 import { assertMemberCan } from "@/server/policy/actor";
 import { db } from "@/server/db";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 import { ForbiddenError, NotFoundError, requireTaskAccess } from "@/server/auth";
 import { activity } from "@/server/activity";
 
@@ -65,15 +66,17 @@ function toDto(row: {
 }
 
 /** Every link of one task, both directions. The caller has already passed the task's own guard. */
-export async function listTaskLinks(taskId: string): Promise<TaskLinksDto> {
+export async function listTaskLinks(taskId: string, viewerId: string): Promise<TaskLinksDto> {
+  // the other end of a link is a task like any other: a private one the person may not open is not named (P0 review)
+  const rule = await taskParticipantFilter(viewerId);
   const [out, incoming] = await Promise.all([
     db.taskDependency.findMany({
-      where: { taskId },
+      where: { taskId, dependsOn: rule },
       orderBy: { id: "asc" },
       select: { id: true, kind: true, dependsOn: { select: OTHER } },
     }),
     db.taskDependency.findMany({
-      where: { dependsOnId: taskId },
+      where: { dependsOnId: taskId, task: rule },
       orderBy: { id: "asc" },
       select: { id: true, kind: true, task: { select: OTHER } },
     }),

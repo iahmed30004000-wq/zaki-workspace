@@ -5,7 +5,7 @@ import { assertMemberCan, requireActor, type Actor } from "@/server/policy/actor
 import { isSpaceManager } from "@/server/workspace-role";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { orgTimeZone } from "@/server/services/org-day";
-import { loadWorkScope, projectVisibleWhere, taskVisibleWhere } from "@/server/services/team-scope";
+import { loadWorkScope, projectVisibleWhere, taskParticipantFilter, taskVisibleWhere } from "@/server/services/team-scope";
 import {
   MAX_ENTRY_SECONDS,
   MAX_NOTE,
@@ -602,6 +602,8 @@ export async function timeReport(query: ReportQuery, now: Date = new Date()): Pr
     ...(query.userId ? { userId: query.userId } : {}),
     ...(query.taskId ? { taskId: query.taskId } : {}),
     ...(query.projectId ? { task: { projectId: query.projectId } } : {}),
+    // a private task's entries are read by the task's own people, its managers and oversight, not by every OWNER-rank person (P0 review)
+    AND: [{ OR: [{ taskId: null }, { task: await taskParticipantFilter(actor.userId) }] }],
   };
   const found = await db.timeEntry.findMany({
     where,

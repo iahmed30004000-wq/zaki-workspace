@@ -43,8 +43,10 @@ export interface WorkScope {
    * holds oversight or has an ADMIN row: the rank alone reads nothing private, P0.1): they read the space's private tasks.
    */
   managedSpaces: ReadonlySet<string>;
-  /** Everybody below the person in the reporting line: their private tasks are read by the person too. */
-  reportIds: ReadonlySet<string>;
+  /** Everybody below the person in the reporting line, PER COMPANY: their private tasks are read by the person too. */
+  reportIds: ReadonlyMap<string, ReadonlySet<string>>;
+  /** The company of each space the person is in (a task's company is its space's). */
+  spaceOrg: ReadonlyMap<string, string>;
   /** Spaces of the companies where the person holds silent oversight (`archive.view`): every task, private ones included. */
   oversightSpaces: ReadonlySet<string>;
 }
@@ -60,7 +62,7 @@ export async function loadWorkScope(userId: string): Promise<WorkScope> {
   const teamIds = new Set<string>();
   const managedSpaces = new Set<string>();
   const oversightSpaces = new Set<string>();
-  if (memberships.length === 0) return { full, partial, teamIds, userId, managedSpaces, reportIds: new Set<string>(), oversightSpaces };
+  if (memberships.length === 0) return { full, partial, teamIds, userId, managedSpaces, reportIds: new Map(), spaceOrg: new Map(), oversightSpaces };
 
   const orgRole = new Map(memberships.map((m) => [m.organizationId, m.role]));
   // silent oversight is the capability archive.view, held by an OWNER-rank person only (P0.1: the rank alone is not enough)
@@ -72,8 +74,11 @@ export async function loadWorkScope(userId: string): Promise<WorkScope> {
       where: { userId, workspace: { organizationId: { in: [...orgRole.keys()] } } },
       select: { workspaceId: true, role: true, workspace: { select: { organizationId: true } } },
     }),
-    loadReportIds(userId),
+    Promise.all(memberships.map(async (m) => [m.organizationId, await loadReportIds(userId, m.organizationId)] as const)).then((pairs) => new Map(pairs.filter(([, ids]) => ids.size > 0))),
   ]);
+  const spaceOrg = new Map<string, string>();
+  for (const w of owned) spaceOrg.set(w.id, w.organizationId);
+  for (const row of rows) spaceOrg.set(row.workspaceId, row.workspace.organizationId);
   for (const w of owned) {
     full.add(w.id);
     if (oversightOrgs.has(w.organizationId)) {
@@ -103,8 +108,15 @@ export async function loadWorkScope(userId: string): Promise<WorkScope> {
     for (const id of candidates) (withTeams.has(id) ? partial : full).add(id);
     for (const t of teams) if (t.members.length) teamIds.add(t.id);
   }
-  return { full, partial, teamIds, userId, managedSpaces, reportIds, oversightSpaces };
+  return { full, partial, teamIds, userId, managedSpaces, reportIds, spaceOrg, oversightSpaces };
 }
+
+/** The people below the person in the company that owns `workspaceId` (empty for a space the person is not in). */
+export function reportsOfSpace(scope: WorkScope, workspaceId: string): ReadonlySet<string> {
+  const org = scope.spaceOrg.get(workspaceId);
+  return (org && scope.reportIds.get(org)) || NO_PEOPLE;
+}
+const NO_PEOPLE: ReadonlySet<string> = new Set<string>();
 
 /**
  * The scope inside ONE space: the space the person is in (src/server/services/current-space.ts). Lists read
@@ -149,7 +161,6 @@ export function taskVisibleWhere(scope: WorkScope): Prisma.TaskWhereInput {
 
 /** The participants rule alone: a public task, or one the person is a participant of (or manages, or oversees). */
 export function taskParticipantWhere(scope: WorkScope): Prisma.TaskWhereInput {
-  const reports = [...scope.reportIds];
   const or: Prisma.TaskWhereInput[] = [
     { visibility: "SPACE" },
     { creatorId: scope.userId },
@@ -158,7 +169,11 @@ export function taskParticipantWhere(scope: WorkScope): Prisma.TaskWhereInput {
   ];
   if (scope.managedSpaces.size) or.push({ workspaceId: { in: [...scope.managedSpaces] } });
   if (scope.oversightSpaces.size) or.push({ workspaceId: { in: [...scope.oversightSpaces] } });
-  if (reports.length) or.push({ assigneeId: { in: reports } }, { coAssignees: { some: { userId: { in: reports } } } });
+  // the reporting line counts inside its own company only
+  for (const [orgId, ids] of scope.reportIds) {
+    const reports = [...ids];
+    or.push({ orgId, assigneeId: { in: reports } }, { orgId, coAssignees: { some: { userId: { in: reports } } } });
+  }
   return { OR: or };
 }
 
@@ -188,8 +203,9 @@ export function canSeeTaskParticipants(
   const co = task.coAssigneeIds ?? [];
   if (co.includes(me)) return true;
   if (scope.managedSpaces.has(task.workspaceId) || scope.oversightSpaces.has(task.workspaceId)) return true;
-  if (task.assigneeId && scope.reportIds.has(task.assigneeId)) return true;
-  return co.some((id) => scope.reportIds.has(id));
+  const reports = reportsOfSpace(scope, task.workspaceId);
+  if (task.assigneeId && reports.has(task.assigneeId)) return true;
+  return co.some((id) => reports.has(id));
 }
 
 /**
@@ -198,15 +214,18 @@ export function canSeeTaskParticipants(
  */
 export function taskVisibleSql(scope: WorkScope, alias = "t"): Prisma.Sql {
   const a = Prisma.raw(`"${alias.replace(/[^A-Za-z0-9_]/g, "")}"`);
-  const reports = [...scope.reportIds];
   const managed = [...scope.managedSpaces, ...scope.oversightSpaces];
+  // the reporting line counts inside its own company only
+  const lines = [...scope.reportIds].map(
+    ([orgId, ids]) => Prisma.sql`OR (${a}."orgId" = ${orgId} AND (${a}."assigneeId" = ANY(${[...ids]}::text[])
+      OR EXISTS (SELECT 1 FROM "TaskCoAssignee" cb WHERE cb."taskId" = ${a}."id" AND cb."userId" = ANY(${[...ids]}::text[]))))`,
+  );
   return Prisma.sql`(${a}."visibility" = 'SPACE'
     OR ${a}."creatorId" = ${scope.userId}
     OR ${a}."assigneeId" = ${scope.userId}
     OR EXISTS (SELECT 1 FROM "TaskCoAssignee" ca WHERE ca."taskId" = ${a}."id" AND ca."userId" = ${scope.userId})
     OR ${a}."workspaceId" = ANY(${managed}::text[])
-    OR ${a}."assigneeId" = ANY(${reports}::text[])
-    OR EXISTS (SELECT 1 FROM "TaskCoAssignee" cb WHERE cb."taskId" = ${a}."id" AND cb."userId" = ANY(${reports}::text[])))`;
+    ${lines.length ? Prisma.join(lines, " ") : Prisma.empty})`;
 }
 
 /** One project (or anything that hangs off one) against the scope. */

@@ -53,8 +53,15 @@ jobs:
       - name: Put the signing key in place (only when the repository has it)
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           if [ -n "$KEYSTORE_B64" ]; then
+            # a key file without both passwords would be built with the debug key and published over the real one: phones could no longer update
+            if [ -z "$KEYSTORE_PASSWORD" ] || [ -z "$KEY_PASSWORD" ]; then
+              echo "::error::ANDROID_KEYSTORE_B64 is set but ANDROID_KEYSTORE_PASSWORD or ANDROID_KEY_PASSWORD is not: stopping before a debug-signed APK is published (see docs/ANDROID.md)"
+              exit 1
+            fi
             echo "$KEYSTORE_B64" | base64 -d > android/zaki.p12
           else
             echo "::warning::ANDROID_KEYSTORE_B64 is not set: this build is signed with the debug key (see docs/ANDROID.md)"
