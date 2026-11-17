@@ -14,6 +14,7 @@ import { OrgNameForm } from "@/components/org-name-form";
 import { IntegrationBadge } from "@/components/integration-badge";
 import { FeatureSwitches } from "@/components/feature-switches";
 import { ServerHealthCard } from "@/components/server-health-card";
+import { SystemTokensCard } from "@/components/system-tokens-card";
 import { listFeatures } from "@/server/services/features";
 import { embedServer } from "@/server/services/search-embeddings";
 
@@ -78,6 +79,9 @@ export default async function SettingsPage() {
 
       {/* «حال السيرفر»: the owner's read-only look at the box (src/server/services/server-health.ts), above the switches it advises on */}
       {actor.isOwner ? <ServerHealthCard /> : null}
+
+      {/* «توكنات الأنظمة» (W1): the owner's tokens for the systems that call Zaki Workspace */}
+      {actor.isOwner ? <SystemTokensCard /> : null}
 
       {/* «الميزات»: the owner's on/off switch for each feature (src/lib/features.ts) */}
       {actor.isOwner ? (
