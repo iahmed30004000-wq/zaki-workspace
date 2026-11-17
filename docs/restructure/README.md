@@ -159,7 +159,7 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 - [ ] ✋ Owner live check
 
 ### F0 — connection hotfixes
-- [ ] F0.1 Listener cursor (and the reconnect test rewritten) · [ ] F0.2 Close ended streams · [ ] F0.3 Visible heartbeat + jitter + pause
+- [x] F0.1 Listener cursor (and the reconnect test rewritten) · [ ] F0.2 Close ended streams · [ ] F0.3 Visible heartbeat + jitter + pause
 - [ ] F0.4 One list of event kinds · [ ] F0.5 Read only when seen; push when not viewing
 - [ ] F0.6 Debounce the old chat list · [ ] F0.7 Retries don't eat the rate limit · [ ] F0.8 `(createdAt,id)` paging
 - [ ] F0.9 Health shows the live line
@@ -245,3 +245,4 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 | 2026-11-17 | P0.5 done on `test/privacy-matrix` (stacked on P0.4): one table says who sees which conversation and task, and the doors, lists, search and policy must agree; proved by breaking the oversight rule on purpose. Gates green; database suite 3470/3470. Unread counts, notification audience, live gate, digest and attachments are not in the table yet | — | `pr/P0.5.md` |
 | 2026-11-17 | P0.6 done on `fix/android-signing-secret` (stacked on P0.5): the Gradle file reads the two signing passwords from the environment, the workflow passes the repository secrets, the secret scan fails on a literal in a Gradle file. Gates green (database suite not rerun: nothing under `src/` changed). ⚠️ The owner must change both passwords and add the secrets BEFORE merging | — | `pr/P0.6.md` |
 | 2026-11-17 | P0.R: the independent review of P0 found five real holes (publishing a private-chat task in one click, the reporting line across companies, link titles, the time report, counts), all reproduced by a failing test and fixed on `fix/p0-review-findings`; the Android workflow now stops on a half-set key; the rest is recorded in the PR file. Gates green; database suite green except two load-only flakes that pass alone | — | `pr/P0.R.md` |
+| 2026-11-17 | F0 done on `fix/realtime-reliability` (stacked on P0.R): the live line starts at the newest event, says bye, pings, jitters, pauses when hidden; messages are marked read only when seen; a hidden tab still gets the push; the chat list does not storm; retries do not eat the quota; paging never skips; health shows the live line. Gates green; database suite 3491/3491 | — | `pr/F0.md` |
