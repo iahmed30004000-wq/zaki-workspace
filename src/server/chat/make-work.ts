@@ -18,10 +18,10 @@ import { momentLink } from "@/lib/watch/convert";
  * Only a message one may read, never a deleted message or a system line, never by a guest.
  */
 
-async function sourceOf(ctx: OrgAccessContext, messageId: string) {
+export async function sourceOf(ctx: OrgAccessContext, messageId: string) {
   const msg = await db.chatMessage.findFirst({
     where: { id: messageId, orgId: ctx.orgId },
-    select: { id: true, body: true, kind: true, deletedAt: true, conversationId: true, videoAtSec: true, author: { select: { name: true } } },
+    select: { id: true, body: true, kind: true, deletedAt: true, conversationId: true, videoAtSec: true, mentions: true, authorId: true, attachments: { select: { kind: true } }, author: { select: { name: true } } },
   });
   if (!msg) throw new NotFoundError("chat.e.not_found");
   const [facts, org] = await Promise.all([loadConversationFacts(ctx.userId, msg.conversationId), loadOrgFacts(ctx.userId, ctx.orgId)]);
@@ -34,7 +34,7 @@ async function sourceOf(ctx: OrgAccessContext, messageId: string) {
 }
 
 /** The rule above, in one place: private sources need an explicit, confirmed «للمساحة كلها». */
-function assertConfirmed(privateSource: boolean, wantsPublic: boolean, confirmPublic: boolean | undefined): void {
+export function assertConfirmed(privateSource: boolean, wantsPublic: boolean, confirmPublic: boolean | undefined): void {
   if (privateSource && wantsPublic && confirmPublic !== true) {
     throw new ValidationError([{ path: "confirmPublic", message: "work.confirm_public_required" }]);
   }
@@ -44,7 +44,7 @@ function assertConfirmed(privateSource: boolean, wantsPublic: boolean, confirmPu
  * The message's text, then where it came from (a link that opens the conversation at it); a comment of a «نتفرّج سوا»
  * session also links to the same moment of its video.
  */
-async function describe(msg: { id: string; body: string; conversationId: string; videoAtSec: number | null; author: { name: string } }): Promise<string> {
+export async function describe(msg: { id: string; body: string; conversationId: string; videoAtSec: number | null; author: { name: string } }): Promise<string> {
   const from = interpolate(AR["chat.work.from"] ?? "{name}", { name: msg.author.name });
   const watch = msg.videoAtSec !== null ? await db.watchSession.findUnique({ where: { conversationId: msg.conversationId }, select: { id: true } }) : null;
   const moment = watch ? `\n🎬 ${momentLink(watch.id, msg.videoAtSec!)}` : "";

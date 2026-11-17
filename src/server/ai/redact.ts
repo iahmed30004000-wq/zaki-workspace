@@ -57,6 +57,9 @@ interface Rule {
   pattern: RegExp;
 }
 
+/** A phone number or any long number (7+ digits, at most two separators between them; a calendar day is not one). Exported: Q1.5 finds a customer's number with THIS pattern, it does not write a second one. */
+export const PHONE_PATTERN = /(?<!\d)(?!\d{4}-\d{2}-\d{2}(?!\d))\(?\+?\d(?:[\s\-.()]{0,2}\d){6,}(?!\d)/g;
+
 /**
  * The rules, in order. Each one runs over the text the earlier ones left (their markers contain no digit and no Latin letter,
  * so they cannot be matched again). The text is matched with its digits normalised to 0-9, so «٠٧٩١٢٣٤٥٦٧٨» is a phone number too.
@@ -84,7 +87,7 @@ const RULES: readonly Rule[] = [
   { kind: "secret", pattern: /(?<![\w-])(?=[A-Za-z0-9_+/=-]*[A-Za-z])(?=[A-Za-z0-9_+/=-]*\d)[A-Za-z0-9_+/=-]{24,}(?![\w-])/g },
   { kind: "id", pattern: /(?<![\w-])(?=[A-Za-z0-9_-]*[A-Za-z])(?=[A-Za-z0-9_-]*\d)[A-Za-z0-9_-]{12,23}(?![\w-])/g },
   // a phone number or any long number: seven digits or more, with at most two separators between them. A calendar day (2026-10-30) is not one.
-  { kind: "phone", pattern: /(?<!\d)(?!\d{4}-\d{2}-\d{2}(?!\d))\(?\+?\d(?:[\s\-.()]{0,2}\d){6,}(?!\d)/g },
+  { kind: "phone", pattern: PHONE_PATTERN },
 ];
 
 const emptyMasked = (): Record<MaskKind, number> => ({ phone: 0, email: 0, url: 0, handle: 0, id: 0, secret: 0 });

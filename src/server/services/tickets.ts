@@ -9,6 +9,7 @@ import { pushNotificationToMany } from "@/server/notify";
 import { assertMemberCan } from "@/server/policy/actor";
 import { assertCanWrite } from "@/server/services/guest-guard";
 import { assertActiveAssignee } from "@/server/services/active-people";
+import { decryptSecrets } from "@/server/crypto";
 
 /**
  * IT tickets live inside a department. Access policy:
@@ -227,6 +228,8 @@ export async function ticketDetail(ctx: OrgAccessContext, ticketId: string) {
       creatorId: true, assigneeId: true,
       id: true, orgId: true, departmentId: true, number: true, title: true,
       description: true, status: true, priority: true, resolvedAt: true, createdAt: true,
+      // Q1.5: the problem's order number and kind, and the customer's number (encrypted: opened below, only after the reader check)
+      externalRef: true, kindKey: true, followUpAt: true, customerRefCipher: true,
       creator: { select: { id: true, name: true } },
       assignee: { select: { id: true, name: true } },
       comments: {
@@ -245,7 +248,9 @@ export async function ticketDetail(ctx: OrgAccessContext, ticketId: string) {
   if (ticket.creatorId !== ctx.userId && ticket.assigneeId !== ctx.userId && !(await seesDepartment(ctx, ticket.departmentId))) {
     throw new NotFoundError("ticket.not_found");
   }
-  return ticket;
+  // the customer's number is shown in full here and nowhere else: this is the ticket's own readers (checked just above)
+  const { customerRefCipher, ...rest } = ticket;
+  return { ...rest, customerNumber: decryptSecrets<{ n?: string }>(customerRefCipher)?.n ?? null };
 }
 
 /** Comments: any org member except a guest may comment; author or org admin may edit/delete. */
