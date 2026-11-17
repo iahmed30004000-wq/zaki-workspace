@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { Prisma } from "@prisma/client";
 import * as problemRoute from "@/app/api/chat/messages/[id]/problem/route";
 import * as detailRoute from "@/app/api/tickets/[id]/detail/route";
+import * as ticketPatch from "@/app/api/tickets/[id]/route";
+import * as conversationRoute from "@/app/api/chat/conversations/[id]/route";
 import { withFeature } from "@/lib/features";
 import { wipeCustomerNumbers } from "@/server/services/problem-tickets";
 import { call, db, loginAs, makeUser, makeWorkspace, uid } from "./helpers";
@@ -206,6 +208,55 @@ describe("private sources and the screen recording", () => {
     const file = await db.storedFile.create({ data: { orgId: w.org.id, uploaderId: w.bob.id, familyId: `f-${uid()}`, name: "rec.mp4", path: `p/${uid()}`, mimeType: "video/mp4", size: 1000, purpose: "CHAT" } });
     await db.messageAttachment.create({ data: { messageId: withFile.id, fileId: file.id, kind: "VIDEO", name: "rec.mp4" } });
     expect((await report(withFile.id, { kindKey: "website", departmentId: w.dept.id })).status).toBe(201);
+  });
+});
+
+describe("back in the chat", () => {
+  it("the message shows a live chip of its ticket: number, state and who holds it", async () => {
+    const w = await world();
+    const m = await w.say("@Alice الطلب ZK-2026-000123 رقم غلط", w.bob.id, { mentions: [w.alice.id] });
+    await loginAs(w.carol.id);
+    const r = await report(m.id, { kindKey: "wrong_number" });
+    const ticket = await db.ticket.findUniqueOrThrow({ where: { id: r.json!["ticketId"] as string } });
+    const conv = await call(conversationRoute.GET, { params: { id: w.open.id } });
+    const mine = (conv.json!["messages"] as Array<{ id: string; work?: Array<Record<string, unknown>> }>).find((x) => x.id === m.id);
+    expect(mine?.work).toEqual([{ kind: "ticket", id: ticket.id, number: ticket.number, status: "OPEN", assigneeName: "Alice" }]);
+  });
+  it("a change of state is announced to the chat (ids only), and resolving replies to the message: «✅ انحلّت» with the note, numbers masked", async () => {
+    const w = await world();
+    const m = await w.say("@Alice الطلب ZK-2026-000123 رقم غلط", w.bob.id, { mentions: [w.alice.id] });
+    await loginAs(w.carol.id);
+    const r = await report(m.id, { kindKey: "wrong_number" });
+    const id = r.json!["ticketId"] as string;
+    await loginAs(w.alice.id);
+    const before = await db.realtimeEvent.count({ where: { orgId: w.org.id, kind: "ticket.changed" } });
+    const done = await call(ticketPatch.PATCH, { method: "PATCH", params: { id }, body: { status: "RESOLVED", resolution: `اتصلنا بالزبون على ${PHONE} وصحّحنا الرقم` } });
+    expect(done.status, done.text).toBe(200);
+    expect(await db.realtimeEvent.count({ where: { orgId: w.org.id, kind: "ticket.changed" } })).toBe(before + 1);
+    const ev = await db.realtimeEvent.findFirstOrThrow({ where: { orgId: w.org.id, kind: "ticket.changed" }, orderBy: { createdAt: "desc" } });
+    expect(JSON.stringify(ev.ids)).not.toContain("رقم");
+    const reply = await db.chatMessage.findFirstOrThrow({ where: { conversationId: w.open.id, replyToId: m.id } });
+    expect(reply.authorId).toBe(w.alice.id);
+    expect(reply.kind).toBe("TEXT");
+    expect(reply.body).toBe("✅ انحلّت: اتصلنا بالزبون على 07••••••67 وصحّحنا الرقم");
+  });
+  it("resolving without a note still replies; reopening and resolving again replies once more; a ticket not made here, or the switch off, replies nothing", async () => {
+    const w = await world();
+    const m = await w.say("@Alice الطلب ZK-2026-000123", w.bob.id, { mentions: [w.alice.id] });
+    await loginAs(w.carol.id);
+    const id = (await report(m.id, { kindKey: "other" })).json!["ticketId"] as string;
+    await loginAs(w.alice.id);
+    await call(ticketPatch.PATCH, { method: "PATCH", params: { id }, body: { status: "RESOLVED" } });
+    expect((await db.chatMessage.findFirstOrThrow({ where: { replyToId: m.id } })).body).toBe("✅ انحلّت");
+    // a plain ticket (made on the tickets screen, no kind) says nothing in the chat
+    const plain = await db.ticket.create({ data: { orgId: w.org.id, number: 9001, title: "عادية", creatorId: w.carol.id, assigneeId: w.alice.id, sourceMessageId: m.id } });
+    await call(ticketPatch.PATCH, { method: "PATCH", params: { id: plain.id }, body: { status: "RESOLVED" } });
+    expect(await db.chatMessage.count({ where: { replyToId: m.id } })).toBe(1);
+    // the switch off: nothing
+    await call(ticketPatch.PATCH, { method: "PATCH", params: { id }, body: { status: "IN_PROGRESS" } });
+    await setSwitch(w.org.id, false);
+    await call(ticketPatch.PATCH, { method: "PATCH", params: { id }, body: { status: "RESOLVED" } });
+    expect(await db.chatMessage.count({ where: { replyToId: m.id } })).toBe(1);
   });
 });
 

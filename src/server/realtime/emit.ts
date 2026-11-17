@@ -24,6 +24,8 @@ export const REALTIME_KINDS = [
   "call.ring",
   // the remote of a «نتفرّج سوا» session was pressed or handed over (its people fetch the new state)
   "watch.changed",
+  // a ticket made from a message of this conversation changed state or hands (ids only: its chip under the message refreshes)
+  "ticket.changed",
 ] as const;
 
 export type RealtimeKind = (typeof REALTIME_KINDS)[number];

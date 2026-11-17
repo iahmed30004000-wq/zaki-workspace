@@ -52,7 +52,7 @@ type MessageRow = {
   revisions?: { body: string; createdAt: Date }[];
   notes?: { id: string; authorId: string; author: { name: string }; body: string; createdAt: Date }[];
   tasks?: { id: string; visibility?: string; creatorId?: string; assigneeId?: string | null }[];
-  tickets?: { id: string }[];
+  tickets?: { id: string; number?: number; status?: string; assignee?: { name: string } | null }[];
   poll?: PollRow | null;
 };
 
@@ -169,7 +169,7 @@ export function presentMessage(
     // (Managers up the reporting line and of the space open the task itself; the chip needs no database, so it is stricter.)
     const seesTask = (t: { visibility?: string; creatorId?: string; assigneeId?: string | null }): boolean =>
       t.visibility !== "PARTICIPANTS" || (viewer.oversight ?? viewer.role === "OWNER") /* oversight-ok: hand-made viewers */ || t.creatorId === viewer.userId || t.assigneeId === viewer.userId || viewer.canModerateHere;
-    const work = [...(row.tasks ?? []).filter(seesTask).map((t) => ({ kind: "task" as const, id: t.id })), ...(row.tickets ?? []).map((t) => ({ kind: "ticket" as const, id: t.id }))];
+    const work = [...(row.tasks ?? []).filter(seesTask).map((t) => ({ kind: "task" as const, id: t.id })), ...(row.tickets ?? []).map((t) => ({ kind: "ticket" as const, id: t.id, ...(t.number !== undefined ? { number: t.number, status: t.status, assigneeName: t.assignee?.name ?? null } : {}) }))];
     if (work.length) dto.work = work;
   }
 

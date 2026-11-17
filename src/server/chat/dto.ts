@@ -105,7 +105,7 @@ export interface MessageDto {
   /** A CARD message: the card it points at. */
   card?: CardRefDto;
   /** the tasks and tickets made from this message («صارت مهمة»). */
-  work?: { kind: "task" | "ticket"; id: string }[];
+  work?: { kind: "task" | "ticket"; id: string; /** a ticket: its number, state and who holds it (the live chip, Q1.5) */ number?: number; status?: string; assigneeName?: string | null }[];
   /** «نتفرّج سوا»: the second of the video it was written at. */
   videoAtSec?: number | null;
 }

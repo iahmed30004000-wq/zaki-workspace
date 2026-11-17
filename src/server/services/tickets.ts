@@ -10,6 +10,7 @@ import { assertMemberCan } from "@/server/policy/actor";
 import { assertCanWrite } from "@/server/services/guest-guard";
 import { assertActiveAssignee } from "@/server/services/active-people";
 import { decryptSecrets } from "@/server/crypto";
+import { announceTicketChange } from "@/server/services/ticket-chat";
 
 /**
  * IT tickets live inside a department. Access policy:
@@ -48,6 +49,8 @@ export const updateTicketSchema = z
     status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
     priority: z.enum(["URGENT", "HIGH", "NORMAL", "LOW"]).optional(),
     assigneeId: z.string().nullable().optional(),
+    /** Q1.5: the note that goes back to the chat with «✅ انحلّت» when a ticket made from a message is resolved */
+    resolution: z.string().trim().max(300).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: "ticket.no_change" });
 
@@ -385,7 +388,7 @@ export async function updateTicket(
     });
     const events: { event: string; meta?: Record<string, unknown> }[] = [];
     if (input.title !== undefined || input.description !== undefined || input.priority !== undefined) {
-      events.push({ event: "edited", meta: { fields: Object.keys(input).filter((k) => k !== "status" && k !== "assigneeId") } });
+      events.push({ event: "edited", meta: { fields: Object.keys(input).filter((k) => k !== "status" && k !== "assigneeId" && k !== "resolution") } });
     }
     if (statusChanged) events.push({ event: "status_changed", meta: { from: ticket.status, to: input.status } });
     const assigneeChanged = input.assigneeId !== undefined && input.assigneeId !== ticket.assigneeId;
@@ -397,6 +400,10 @@ export async function updateTicket(
     }
     return row;
   });
+  // Q1.5: a ticket made from a message tells its conversation (a refresh of its chip; on resolve, the reply)
+  if (statusChanged || (input.assigneeId && input.assigneeId !== ticket.assigneeId)) {
+    await announceTicketChange(ctx, ticket.id, { resolved: statusChanged && input.status === "RESOLVED", note: input.resolution });
+  }
   if (input.assigneeId && input.assigneeId !== ticket.assigneeId) {
     const org = await db.organization.findUnique({ where: { id: ctx.orgId }, select: { keyPrefix: true } });
     await pushNotificationToMany([input.assigneeId], {
