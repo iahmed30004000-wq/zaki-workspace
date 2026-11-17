@@ -325,6 +325,8 @@ export interface ViewTask {
   assigneeIds: string[];
   assigneeNames: string[];
   creatorId: string;
+  /** «مين بيشوفها؟»: SPACE or PARTICIPANTS (a lock is drawn on the second). */
+  visibility: string;
   labelIds: string[];
   updatedAt: Date;
   /** «تثبيت»: when it was pinned (only when the query asked for pins). */
@@ -355,6 +357,7 @@ function fieldFilterWhere(orgId: string, f: FieldFilter): Prisma.TaskWhereInput 
 async function sortedPool(q: ViewQuery, s: FieldSort): Promise<string[]> {
   const col = s.column === "valueDate" ? Prisma.raw('v."valueDate"') : Prisma.raw('v."valueNumber"');
   const dir = s.dir === "desc" ? Prisma.raw("DESC") : Prisma.raw("ASC");
+  // task-visibility: read through the caller's own `where` (ctx.visible = taskVisibleWhere)
   const rows = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT t."id" FROM "Task" t
     LEFT JOIN "TaskFieldValue" v ON v."taskId" = t."id" AND v."fieldId" = ${s.fieldId} AND v."orgId" = ${q.orgId}
@@ -371,6 +374,7 @@ async function loadByFieldSort<I extends Prisma.TaskInclude>(
   orderBy: Prisma.TaskOrderByWithRelationInput[],
 ) {
   const pool = await sortedPool(q, q.fieldSort as FieldSort);
+  // task-visibility: read through the caller's own `where` (ctx.visible = taskVisibleWhere)
   const found = await db.task.findMany({ where: { ...where, id: { in: pool } }, orderBy, include });
   const at = new Map(pool.map((id, i) => [id, i]));
   const sorted = [...found].sort((a, b) => (at.get(a.id) ?? 0) - (at.get(b.id) ?? 0));
@@ -446,10 +450,12 @@ export async function queryTasksForView(q: ViewQuery): Promise<ViewTask[]> {
           order: Prisma.sql`"dueDate" ASC NULLS LAST, "updatedAt" DESC`,
         },
         take,
+        // task-visibility: read through the caller's own `where` (ctx.visible = taskVisibleWhere)
         load: (ids) => db.task.findMany({ where: { ...where, id: { in: ids } }, orderBy, include }),
       })
     : q.fieldSort
       ? await loadByFieldSort(q, where, include, orderBy)
+      // task-visibility: read through the caller's own `where` (ctx.visible = taskVisibleWhere)
       : await db.task.findMany({ where, orderBy, take, include });
 
   return rows.map((t): ViewTask => {
@@ -473,6 +479,7 @@ export async function queryTasksForView(q: ViewQuery): Promise<ViewTask[]> {
       assigneeIds: [...(t.assignee ? [t.assignee.id] : []), ...co.map((u) => u.id)],
       assigneeNames: [...(t.assignee ? [t.assignee.name] : []), ...co.map((u) => u.name)],
       creatorId: t.creatorId,
+      visibility: t.visibility,
       labelIds: t.labels.map((l) => l.label.id),
       updatedAt: t.updatedAt,
       ...(q.pinnedFirst ? { pinnedAt: t.pinnedAt } : {}),

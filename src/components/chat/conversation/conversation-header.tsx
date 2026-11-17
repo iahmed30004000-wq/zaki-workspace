@@ -48,6 +48,7 @@ export function ConversationHeader({
   onBack,
   whiteboard = true,
   summarize = false,
+  privacy,
 }: {
   conversationId: string;
   title: string;
@@ -63,6 +64,8 @@ export function ConversationHeader({
   whiteboard?: boolean;
   /** «لخّصلي» (the company's «شو فاتني؟» switch): a button that summarises this topic for the person */
   summarize?: boolean;
+  /** «🔒 خاص · 4 أشخاص» (P0.4): a button that opens the sheet saying who reads this conversation; absent for an open topic */
+  privacy?: { label: string; onOpen: () => void };
 }) {
   const board = `/chat/${encodeURIComponent(conversationId)}/whiteboard`;
   const pill = "inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-sm hover:bg-surface-2";
@@ -74,7 +77,17 @@ export function ConversationHeader({
       </button>
       <div className="min-w-0 flex-1">
         <h1 className="truncate font-semibold leading-tight">{title}</h1>
-        {subtitle ? <p className="truncate text-xs text-fg-muted">{subtitle}</p> : null}
+        {privacy || subtitle ? (
+          <p className="flex min-w-0 items-center gap-1.5 text-xs text-fg-muted">
+            {privacy ? (
+              <button type="button" data-privacy aria-label={ct("chatp.open_sheet")} onClick={privacy.onOpen} className="shrink-0 rounded-md px-1 text-accent hover:bg-surface-2">
+                {privacy.label}
+              </button>
+            ) : null}
+            {privacy && subtitle ? <span aria-hidden="true">·</span> : null}
+            {subtitle ? <span className="truncate">{subtitle}</span> : null}
+          </p>
+        ) : null}
       </div>
       <SoundToggle />
       {summarize ? <TopicSummaryButton conversationId={conversationId} className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center gap-1 rounded-lg px-2 text-sm text-info hover:bg-surface-2" labelClassName="hidden md:inline" /> : null}

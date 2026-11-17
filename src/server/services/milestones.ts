@@ -4,6 +4,7 @@ import { ForbiddenError, NotFoundError, audit, requireTeamWork } from "@/server/
 import { assertMemberCan } from "@/server/policy/actor";
 import { assertFeatureOn } from "@/server/services/features";
 import { orgDayStart } from "@/server/services/org-day";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 import { dueInstantForDay } from "@/lib/due-day";
 
 /**
@@ -91,22 +92,25 @@ function toDto(
 }
 
 /** The milestones of one project, oldest day first — what the project page and the picker read. */
-export async function listMilestones(projectId: string, orgId: string): Promise<MilestoneDto[]> {
+export async function listMilestones(projectId: string, orgId: string, viewerId?: string): Promise<MilestoneDto[]> {
   const dayStart = await orgDayStart(orgId);
+  // with a viewer, the open count leaves out a private task of somebody else (P0 review)
+  const rule = viewerId ? { AND: [await taskParticipantFilter(viewerId)] } : {};
   const rows = await db.milestone.findMany({
     where: { projectId },
     orderBy: [{ targetDate: "asc" }, { createdAt: "asc" }],
-    select: { ...SELECT, _count: { select: { tasks: { where: { archived: false, completedAt: null } } } } },
+    select: { ...SELECT, _count: { select: { tasks: { where: { archived: false, completedAt: null, ...rule } } } } },
   });
   return rows.map((r) => toDto(r, dayStart));
 }
 
 /** One milestone of a project the caller may read (the project page's own guard is the caller's). */
-export async function getMilestone(milestoneId: string, orgId: string): Promise<MilestoneDto> {
+export async function getMilestone(milestoneId: string, orgId: string, viewerId?: string): Promise<MilestoneDto> {
   const dayStart = await orgDayStart(orgId);
+  const rule = viewerId ? { AND: [await taskParticipantFilter(viewerId)] } : {};
   const row = await db.milestone.findUnique({
     where: { id: milestoneId },
-    select: { ...SELECT, _count: { select: { tasks: { where: { archived: false, completedAt: null } } } } },
+    select: { ...SELECT, _count: { select: { tasks: { where: { archived: false, completedAt: null, ...rule } } } } },
   });
   if (!row) throw new NotFoundError("milestone.not_found");
   return toDto(row, dayStart);
@@ -159,6 +163,7 @@ export async function updateMilestone(
 export async function deleteMilestone(milestoneId: string): Promise<void> {
   const target = await milestoneForWrite(milestoneId);
   const { orgId, userId } = await assertMayEditProject(target.projectId);
+  // task-visibility: a number for a manager's own decision (delete / confirm); no task is shown
   const attached = await db.task.count({ where: { milestoneId, archived: false } });
   if (attached > 0) throw new ForbiddenError("milestone.has_tasks");
   await db.milestone.delete({ where: { id: milestoneId } });

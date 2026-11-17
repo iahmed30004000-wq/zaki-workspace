@@ -151,24 +151,24 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 ### P0 — privacy & security
 - [ ] P0.0 Owner actions today: who keeps the OWNER rank; no owner-rank account on a temporary password; test with a plain member
 - [x] P0.1 Oversight follows `archive.view` (partners lose it when revoked) + the switch for it on a partner's sheet
-- [ ] P0.2 Private tasks («المعنيين بس») applied to every read
-- [ ] P0.3 Work made from a private chat stays private
-- [ ] P0.4 Privacy visible on screen (who can see a topic / a task)
-- [ ] P0.5 Privacy test matrix
-- [ ] P0.6 Android signing passwords out of the repository (owner rotates first)
+- [x] P0.2 Private tasks («المعنيين بس») applied to every read (the create-form picker and the lock on board cards, the calendar and search hits are still open: see `pr/P0.2.md`)
+- [x] P0.3 Work made from a private chat stays private
+- [x] P0.4 Privacy visible on screen (who can see a topic / a task)
+- [x] P0.5 Privacy test matrix
+- [x] P0.6 Android signing passwords out of the repository — the code is done; ✋ the owner still rotates both passwords and adds the two secrets BEFORE it is merged (`pr/P0.6.md`)
 - [ ] ✋ Owner live check
 
 ### F0 — connection hotfixes
-- [ ] F0.1 Listener cursor (and the reconnect test rewritten) · [ ] F0.2 Close ended streams · [ ] F0.3 Visible heartbeat + jitter + pause
-- [ ] F0.4 One list of event kinds · [ ] F0.5 Read only when seen; push when not viewing
-- [ ] F0.6 Debounce the old chat list · [ ] F0.7 Retries don't eat the rate limit · [ ] F0.8 `(createdAt,id)` paging
-- [ ] F0.9 Health shows the live line
+- [x] F0.1 Listener cursor (and the reconnect test rewritten) · [x] F0.2 Close ended streams · [x] F0.3 Visible heartbeat + jitter + pause
+- [x] F0.4 One list of event kinds · [x] F0.5 Read only when seen; push when not viewing
+- [x] F0.6 Debounce the old chat list · [x] F0.7 Retries don't eat the rate limit · [x] F0.8 `(createdAt,id)` paging
+- [x] F0.9 Health shows the live line
 
 ### Q1 — product sheets, quick recall, tickets, must-read
-- [ ] Q1.0 The link to the orders system (token, client, sync, ONE ordered prompt for its repository)
-- [ ] Q1.1 Product sheets by category: live prices, copy buttons on every part, offer message, optional caution, questions and answers, «الصقي كرت قديم»
+- [x] Q1.0 The link to the orders system (token, client, sync, ONE ordered prompt for its repository)
+- [x] Q1.1 Product sheets by category: live prices, copy buttons on every part, offer message, optional caution, questions and answers, «الصقي كرت قديم»
 - [ ] Q1.2 Photos and feedback pictures: copy, download, share, one by one, merge into one picture; cover + consent; the Android app's three bridges (new APK)
-- [ ] Q1.3 «/» in the composer + the CARD message · [ ] Q1.4 An order's state (chips, «/طلب»)
+- [x] Q1.3 «/» in the composer + the CARD message · [x] Q1.4 An order's state (chips, «/طلب»)
 - [ ] Q1.5 Problems → tickets (kinds, rules, assignee from the mention, one ticket per order, protected customer number, chip, «✅ انحلّت», escalation, «اسألي مشرفتك»)
 - [ ] Q1.6 «لازم ينقرأ» · [ ] Q1.7 Customer data hints · [ ] Q1.8 (optional) Product assistant
 - [ ] ✋ Owner check
@@ -239,3 +239,15 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 | 2026-11-16 | the owner approved the preview («مزبوط»); build instructions written (`BUILD-PROMPTS.md`, `BUILD-STEPS.md`) | — | `mockup/`, the two files |
 | 2026-11-16 | S0 done on `docs/restructure-plan`: the plan is tracked, `AGENTS.md` points at it. Base gates: typecheck, lint, migration lint, secret scan, build green; unit tests 4262 passed, 2 files could not load under Node 26 (pre-existing); database tests not completed on the base | — | `pr/S0.md` |
 | 2026-11-16 | P0.1 done on `fix/chat-oversight-capability` (stacked on S0): silent oversight = the capability, not the rank; the switch on a partner's sheet; the live line told. Gates: typecheck, lint, migration lint, secret scan, build green; unit tests 4267 passed, the same 2 pre-existing files cannot load under Node 26; full database suite 240 files / 3442 tests passed | — | `pr/P0.1.md` |
+| 2026-11-17 | P0.2 gates closed on `feat/task-visibility`: build green, full DB suite green after `tests/db/features.test.ts` learned the new switch | — | `pr/P0.2.md` |
+| 2026-11-17 | P0.3 done on `fix/private-chat-work` (stacked on P0.2): a task made from a private conversation is «المعنيين بس»; public, a ticket, an idea or a project from a private source need the person's confirmation, enforced on the server; the dialog explains. Gates: typecheck, lint, migration lint, secret scan, build green; DB suite green except two load-only flakes that pass alone | — | `pr/P0.3.md` |
+| 2026-11-17 | P0.4 done on `feat/privacy-visible` (stacked on P0.3): a private conversation says so in its head and row, the sheet names its people and says honestly when the owner may read silently, «رح يشوفه: …» before saving settings, the banner reworded. Gates: typecheck, lint, migration lint, secret scan, build green; unit tests green except the two Node 26 files; database suite 3462/3462 | — | `pr/P0.4.md` |
+| 2026-11-17 | P0.5 done on `test/privacy-matrix` (stacked on P0.4): one table says who sees which conversation and task, and the doors, lists, search and policy must agree; proved by breaking the oversight rule on purpose. Gates green; database suite 3470/3470. Unread counts, notification audience, live gate, digest and attachments are not in the table yet | — | `pr/P0.5.md` |
+| 2026-11-17 | P0.6 done on `fix/android-signing-secret` (stacked on P0.5): the Gradle file reads the two signing passwords from the environment, the workflow passes the repository secrets, the secret scan fails on a literal in a Gradle file. Gates green (database suite not rerun: nothing under `src/` changed). ⚠️ The owner must change both passwords and add the secrets BEFORE merging | — | `pr/P0.6.md` |
+| 2026-11-17 | P0.R: the independent review of P0 found five real holes (publishing a private-chat task in one click, the reporting line across companies, link titles, the time report, counts), all reproduced by a failing test and fixed on `fix/p0-review-findings`; the Android workflow now stops on a half-set key; the rest is recorded in the PR file. Gates green; database suite green except two load-only flakes that pass alone | — | `pr/P0.R.md` |
+| 2026-11-17 | F0 done on `fix/realtime-reliability` (stacked on P0.R): the live line starts at the newest event, says bye, pings, jitters, pauses when hidden; messages are marked read only when seen; a hidden tab still gets the push; the chat list does not storm; retries do not eat the quota; paging never skips; health shows the live line. Gates green; database suite 3491/3491 | — | `pr/F0.md` |
+| 2026-11-17 | F0.R: the independent review of F0 found eight real holes in the live line (a ghost heartbeat swallowing pushes, a lost failed replay, a late commit missed, a duplicate during a long replay, a failed connect never retried, one tab changing another's state, online-while-hidden reopening the stream, a lost eviction note) plus smaller ones; all fixed on `fix/f0-review-findings` with failing tests first. Gates green; database suite 3496/3496 | — | `pr/F0.R.md` |
+| 2026-11-17 | Q1.0 done on `feat/oms-link` (stacked on F0.R): the orders system is read every 5 minutes into the snapshot beside each linked sheet (no revision, no price typed), the owner's card (write-only token, end date, read now), the stale rule, the ordered prompt for that system; the independent review found seven real holes (the token sendable to a new address, a path traversal through an order id, a non-list answer counted as good, an unreadable row marking a sheet gone, zero or negative prices, two processes, raw keys in the card) — all fixed with failing tests first. Gates green; database suite 3535/3535 | 🔧 token + ordered prompt (owner) | `pr/Q1.0.md` |
+| 2026-11-17 | Q1.1 done on `feat/product-sheets` (stacked on Q1.0): a product sheet per product (PRODUCT and REPLY kinds kept out of the ordinary cards), the approved-version serving rule with the live price, who writes and who approves, copy buttons on every part, an offer message that refuses a stale or missing price, the pasted-old-card parser, «اسألي مشرفتك» as an instant ticket, draft sheets made by the sync, the library tab «المنتجات»; the independent review found nine real holes (an archived sheet still visible, deleting an approved sheet by a plain editor, an unapproved title in a reader's ticket, a category named «constructor» crashing reads, prices rounded to one decimal, an offer message that ignored a gone product, approving content not seen, a save without a version, the sheets orphaned by a new space) — all fixed with failing tests first. Gates green; database suite 3591/3591 | 🔧 knowledge space, editors, approvers (owner) | `pr/Q1.1.md` |
+| 2026-11-17 | Q1.3 done on `feat/quick-recall` (stacked on Q1.1): the CARD message kind (address only, no price in the row), «/» and «+» → «من المنتجات» in the composer, «منتج» sends the approved card and «رد» inserts an approved answer; every reader's screen asks for the card itself. The independent review found five small holes (a repeated tap posting twice, «/constructor» swallowing the draft, a pasted text swallowed, a wrong saved draft after insert, a stale error) — fixed with failing tests first. Gates green; database suite 3602/3602 | 🔧 switch `quickRecall` after «المنتجات» | `pr/Q1.3.md` |
+| 2026-11-17 | Q1.4 done on `feat/order-status` (stacked on Q1.3): an order number in a message becomes a chip and «/طلب» sends an order card (the number only); the state is read from the orders system by number inside a conversation the person can read, kept 60 seconds in the new table `OmsOrderState` with only the contract's fields, an unknown state shows «حالة غير معروفة». The independent review found no serious hole and three small ones (a mistyped number showing a failure on the owner's card, chips shown while the system is not connected, repeated lookups) — fixed with failing tests first. Until the orders system adds the by-number door every chip says «تتفعّل بعد تحديث نظام الطلبات» | 🔧 switch `orderStatus` after «ربط نظام الطلبات»; the orders system's item 3 | `pr/Q1.4.md` |

@@ -2,6 +2,7 @@ import { pageActor } from "@/app/(app)/_access";
 import { Card, CardBody } from "@/components/ui/card";
 import { WorkspaceEditButton } from "@/components/workspace-edit-button";
 import { WorkspaceMembersButton } from "@/components/workspace-members-button";
+import { TaskPrivacyBulkButton } from "@/components/task-privacy-bulk-button";
 import { getServerT } from "@/lib/i18n/server";
 import { db } from "@/server/db";
 import { currentSpace } from "@/server/services/current-space";
@@ -47,6 +48,12 @@ export default async function CurrentSpacePage() {
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
           <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("spaces.manage.members_hint")}</p>
           <WorkspaceMembersButton workspaceId={space.id} />
+        </CardBody>
+      </Card>
+      <Card>
+        <CardBody className="flex flex-wrap items-center justify-between gap-3">
+          <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("taskpriv.bulk_hint")}</p>
+          <TaskPrivacyBulkButton workspaceId={space.id} />
         </CardBody>
       </Card>
     </div>

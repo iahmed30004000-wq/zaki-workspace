@@ -20,23 +20,31 @@ android {
     // ONE fixed key for every build, so a new build installs over the old app. The key file is NOT in git: the workflow writes android/zaki.p12
     // from the repository secret ANDROID_KEYSTORE_B64. Without it (a pull request from a fork, a build on a computer) the build falls back to the debug key.
     def zakiKey = file('../zaki.p12')
+    // The two passwords are repository secrets (ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_PASSWORD), read from the environment: this file is
+    // public, so it never carries them. The fixed key is used only when the key file AND both passwords are there; otherwise the debug key.
+    def zakiStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
+    def zakiKeyPassword = System.getenv('ANDROID_KEY_PASSWORD')
+    def zakiSigns = zakiKey.exists() && zakiStorePassword && zakiKeyPassword
+    if (zakiKey.exists() && !zakiSigns) {
+        logger.warn('The key file is there but ANDROID_KEYSTORE_PASSWORD / ANDROID_KEY_PASSWORD are not set: this build is signed with the debug key.')
+    }
     signingConfigs {
         zaki {
             storeFile zakiKey
             storeType 'pkcs12'
-            storePassword 'zakiworkspace'
+            storePassword zakiStorePassword
             keyAlias 'zaki'
-            keyPassword 'zakiworkspace'
+            keyPassword zakiKeyPassword
         }
     }
 
     buildTypes {
         release {
             minifyEnabled false
-            signingConfig zakiKey.exists() ? signingConfigs.zaki : signingConfigs.debug
+            signingConfig zakiSigns ? signingConfigs.zaki : signingConfigs.debug
         }
         debug {
-            signingConfig zakiKey.exists() ? signingConfigs.zaki : signingConfigs.debug
+            signingConfig zakiSigns ? signingConfigs.zaki : signingConfigs.debug
         }
     }
 

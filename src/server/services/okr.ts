@@ -178,6 +178,7 @@ async function resolveLinks(
     if (!project) refuse("projectId", "okr.link_not_found");
   }
   if (taskIds.length > 0) {
+    // task-visibility: the progress of a shared goal: counts only, no task is named
     const found = await db.task.count({ where: { id: { in: taskIds }, orgId: ctx.orgId, workspaceId: { in: spaces } } });
     if (found !== taskIds.length) refuse("taskIds", "okr.link_not_found");
   }
@@ -188,14 +189,18 @@ async function resolveLinks(
 async function linkTotals(projectId: string | null, taskIds: string[]): Promise<{ total: number; done: number }> {
   if (projectId) {
     const [total, done] = await Promise.all([
+      // task-visibility: the progress of a shared goal: counts only, no task is named
       db.task.count({ where: { projectId, archived: false } }),
+      // task-visibility: the progress of a shared goal: counts only, no task is named
       db.task.count({ where: { projectId, archived: false, completedAt: { not: null } } }),
     ]);
     return { total, done };
   }
   if (taskIds.length === 0) return { total: 0, done: 0 };
   const [total, done] = await Promise.all([
+    // task-visibility: the progress of a shared goal: counts only, no task is named
     db.task.count({ where: { id: { in: taskIds } } }),
+    // task-visibility: the progress of a shared goal: counts only, no task is named
     db.task.count({ where: { id: { in: taskIds }, completedAt: { not: null } } }),
   ]);
   return { total, done };
@@ -243,7 +248,9 @@ export async function keyResultsOf(goalIds: string[]): Promise<Map<string, KeyRe
   const projectIds = [...new Set(rows.map((r) => r.linkedProjectId).filter((id): id is string => id !== null))];
   const [totals, dones] = projectIds.length
     ? await Promise.all([
+        // task-visibility: the progress of a shared goal: counts only, no task is named
         db.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds }, archived: false }, _count: { _all: true } }),
+        // task-visibility: the progress of a shared goal: counts only, no task is named
         db.task.groupBy({ by: ["projectId"], where: { projectId: { in: projectIds }, archived: false, completedAt: { not: null } }, _count: { _all: true } }),
       ])
     : [[], []];

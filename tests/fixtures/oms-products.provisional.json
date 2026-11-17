@@ -1,0 +1,36 @@
+{
+  "_note": "PROVISIONAL: written from the Q1.0 spec, NOT copied from the orders system. It is replaced by the verbatim copy of contracts/oms-workspace.v1/ once the owner brings it. Invented names and prices only.",
+  "data": [
+    {
+      "id": "p_1001",
+      "code": "TS-100",
+      "name": "جهاز تجريبي أ",
+      "store": "متجر تجريبي",
+      "category": "أجهزة العناية",
+      "price": 25,
+      "currency": "JOD",
+      "offers": [
+        { "title": "قطعة وحدة", "quantity": 1, "price": 25 },
+        { "title": "اشتري 2 والتالتة هدية", "quantity": 2, "free_quantity": 1, "price": 50, "expires_at": "2026-12-31T00:00:00.000Z" }
+      ],
+      "stock_status": "in_stock",
+      "delivery_included": true,
+      "link": "https://shop.example.test/p/ts-100"
+    },
+    {
+      "id": "p_1002",
+      "code": "TS-200",
+      "name": "منتج تجريبي ب",
+      "price": 12.5,
+      "currency": "JOD",
+      "offers": [],
+      "stock_status": "out_of_stock"
+    },
+    {
+      "code": "TS-300",
+      "name": "منتج بلا رقم داخلي",
+      "price": 7,
+      "currency": "JOD"
+    }
+  ]
+}

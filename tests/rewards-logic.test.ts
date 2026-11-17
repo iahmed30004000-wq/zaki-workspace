@@ -235,6 +235,7 @@ describe("every writer of a task is accounted for", () => {
     "src/server/chat/make-work.ts": "links a new task to its message (sourceMessageId)",
     "src/server/services/recurrence-spawn.ts": "links a task to its series (recurrenceId); an occurrence is a NEW plain task: a reward is never copied into it",
     "src/server/services/task-recurrence.ts": "links a task to its series (recurrenceId): no locked field is touched",
+    "src/server/services/task-privacy-bulk.ts": "the space managers' one-click «المعنيين بس»: writes `visibility` only (who sees a task), never a locked field",
   };
   it("a `task.update/updateMany/delete/deleteMany` outside the list is a new door: guard it with assertRewardEditable and add it above", () => {
     const found = new Set<string>();

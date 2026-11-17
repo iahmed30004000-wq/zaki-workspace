@@ -12,9 +12,10 @@ const editSchema = z.object({
 });
 
 async function loadTaskComment(taskId: string, commentId: string) {
+  // task-visibility: the callers pass this task to requireTeamWork(…, task) before anything is shown
   const task = await db.task.findFirst({
     where: { id: taskId },
-    select: { id: true, workspaceId: true, project: { select: { teamId: true } } },
+    select: { id: true, workspaceId: true, project: { select: { teamId: true } }, visibility: true, creatorId: true, assigneeId: true, coAssignees: { select: { userId: true } }, },
   });
   if (!task) throw new NotFoundError("task.not_found");
   const comment = await db.taskComment.findFirst({
@@ -30,7 +31,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; co
   return withApi(async () => {
     const input = await parseJson(editSchema, req);
     const { task, comment } = await loadTaskComment(params.id, params.commentId);
-    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found");
+    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found", task);
     await assertMemberCan(ctx, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
     if (comment.authorId !== ctx.userId) throw new ForbiddenError("comment.not_yours");
     const updated = await db.taskComment.update({
@@ -48,7 +49,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string; co
 export async function DELETE(_req: Request, { params }: { params: { id: string; commentId: string } }) {
   return withApi(async () => {
     const { task, comment } = await loadTaskComment(params.id, params.commentId);
-    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found");
+    const ctx = await requireTeamWork(task.workspaceId, task.project.teamId, ["ADMIN", "MEMBER"], "task.not_found", task);
     await assertMemberCan(ctx, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
     if (comment.authorId !== ctx.userId) throw new ForbiddenError("comment.not_yours");
     await db.taskComment.delete({ where: { id: comment.id } });

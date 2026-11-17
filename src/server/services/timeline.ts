@@ -1,10 +1,11 @@
 import { db } from "@/server/db";
 import { NotFoundError } from "@/server/auth";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 /**
  * Microsoft-Project-style timeline data for one project: dated tasks become
  * bars, milestones become diamonds, undated tasks are reported separately.
  */
-export async function getProjectTimeline(projectId: string) {
+export async function getProjectTimeline(projectId: string, userId: string) {
   const project = await db.project.findUnique({
     where: { id: projectId },
     select: {
@@ -19,7 +20,7 @@ export async function getProjectTimeline(projectId: string) {
 
   const [tasks, milestones] = await Promise.all([
     db.task.findMany({
-      where: { projectId, archived: false },
+      where: { projectId, archived: false, AND: [await taskParticipantFilter(userId)] },
       orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
       select: {
         id: true,

@@ -40,6 +40,11 @@ import cardsNav from "./ar.cards-nav.json";
 import taskRewards from "./ar.task-rewards.json";
 import calendarFeed from "./ar.calendar-feed.json";
 import ownerBoard from "./ar.owner-board.json";
+import taskPrivacy from "./ar.task-privacy.json";
+import chatPrivacy from "./ar.chat-privacy.json";
+import oms from "./ar.oms.json";
+import knowledge from "./ar.knowledge.json";
+import quickRecall from "./ar.quick-recall.json";
 import controlPanel from "./ar.control-panel.json";
 import ownerAssistant from "./ar.owner-assistant.json";
 import chatAssistant from "./ar.chat-assistant.json";
@@ -53,6 +58,8 @@ import teamDevelopment from "./ar.team-development.json";
 import documents from "./ar.documents.json";
 import okr from "./ar.okr.json";
 import apiDoor from "./ar.api-door.json";
+import systemTokens from "./ar.system-tokens.json";
+import autoTickets from "./ar.auto-tickets.json";
 import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
@@ -134,6 +141,11 @@ export const AR: Record<string, string> = {
   ...taskRewards,
   ...calendarFeed,
   ...ownerBoard,
+  ...taskPrivacy,
+  ...chatPrivacy,
+  ...oms,
+  ...knowledge,
+  ...quickRecall,
   ...controlPanel,
   ...ownerAssistant,
   ...chatAssistant,
@@ -147,6 +159,8 @@ export const AR: Record<string, string> = {
   ...documents,
   ...okr,
   ...apiDoor,
+  ...systemTokens,
+  ...autoTickets,
   ...spaceLibrary,
   ...manufacturing,
   ...localModel,

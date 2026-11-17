@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     if (!project) throw new NotFoundError("project.not_found");
     const access = await requireTeamWork(project.workspaceId, project.teamId, undefined, "project.not_found");
     await assertMemberCan(access, "projects.view", "section.view_denied", { spaceGuestsPass: true });
-    const data = await getProjectTimeline(params.id);
+    const data = await getProjectTimeline(params.id, access.userId);
     return NextResponse.json(data);
   });
 }

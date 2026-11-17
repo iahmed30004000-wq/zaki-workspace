@@ -163,8 +163,17 @@ model Ticket {
   // Made from a chat message («اعمل منها تذكرة»): the message it came from.
   sourceMessageId String?
   sourceMessage   ChatMessage? @relation("MessageTickets", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  // Q1.5 «المشاكل تصير تذاكر»: the order number the problem is about, the kind (src/lib/tickets/problem-kinds.ts), the day to call back,
+  // and the customer's number kept ENCRYPTED (customerRefCipher) with a keyed hash (customerRefHash) only for matching; wiped 30 days after resolvedAt
+  externalRef       String?
+  kindKey           String?
+  followUpAt        DateTime?
+  customerRefCipher String?
+  customerRefHash   String?
 
   @@unique([orgId, number])
+  @@index([orgId, externalRef])
+  @@index([orgId, customerRefHash])
   @@index([departmentId, status])
   @@index([sourceMessageId])
   @@index([orgId])
@@ -488,7 +497,7 @@ model ChatMessage {
   // Deleting a message KEEPS its text from Phase 3 on (the owner reads the original in the archive);
   // what people see is decided in one place: src/server/chat/redact.ts.
   body            String
-  kind            String    @default("TEXT") // TEXT | VOICE | SYSTEM | POLL
+  kind            String    @default("TEXT") // TEXT | VOICE | SYSTEM | POLL | CARD
   replyToId       String?
   pinned          Boolean   @default(false)
   editedAt        DateTime?
@@ -500,6 +509,10 @@ model ChatMessage {
   clientId        String?
   // «نتفرّج سوا»: the second of the video the comment was written at (only in a watching session's topic)
   videoAtSec      Float?
+  // «/» in the composer (Q1.3): a CARD message stores ONLY what it points at — `{ type: "product", cardId }` — and a readable body WITHOUT a price;
+  // the name, the one line and the price chips are resolved for each VIEWER when the card is opened. `viaApp` names the app that made a message (I1.1).
+  card            Json?
+  viaApp          String?
   createdAt       DateTime  @default(now())
 
   organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -841,6 +854,7 @@ model Organization {
   recipes          Recipe[]
   productionOrders ProductionOrder[]
   integrations     Integration[]
+  omsOrderStates   OmsOrderState[]
   backupRuns       BackupRun[]
   conversations    Conversation[]
   IntegrationEvent IntegrationEvent[]
@@ -1264,7 +1278,12 @@ model Task {
   apiToken           ApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
   externalRef        String?
 
+  // «مين بيشوفها؟»: SPACE (everybody who sees the space, the default) or PARTICIPANTS («المعنيين بس»: its creator, its
+  // assignees, their managers, the space's managers, and whoever holds oversight). Read through team-scope.ts, never by hand.
+  visibility         String   @default("SPACE")
+
   @@unique([orgId, number])
+  @@index([workspaceId, visibility])
   @@index([orgId, rewardStatus])
   @@index([workspaceId, pinnedAt])
   @@index([apiTokenId, createdAt])
@@ -1663,6 +1682,7 @@ enum IntegrationType {
   TELEGRAM
   N8N
   GOOGLE_DRIVE
+  OMS // the orders system (Q1.0): products, an order's state, a note on an order
 }
 
 model Integration {
@@ -1682,6 +1702,31 @@ model Integration {
   events       IntegrationEvent[]
 
   @@unique([orgId, type])
+}
+
+// The state of an order of the linked orders system (Q1.4): a small cache, written by a lookup (kept 60 seconds fresh) and later by the events of I1.1.
+// Only what the orders system's door sends: no customer name, phone, address or city exists here. No other table holds another system's order state.
+model OmsOrderState {
+  id                String   @id @default(cuid())
+  orgId             String
+  orderNumber       String
+  // the orders system's internal id (a note on the order needs it, Q1.5); null until the door sends it
+  orderId           String?
+  status            String?
+  confirmationState String?
+  shippingState     String?
+  productName       String?
+  quantity          Int?
+  // when the order last moved, as the orders system says
+  movedAt           DateTime?
+  // when we last asked
+  fetchedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, orderNumber])
 }
 
 model TelegramChat {
@@ -1846,6 +1891,12 @@ model Card {
   status      String    @default("DRAFT")
   version     Int       @default(1)
   coverFileId String?
+  // The orders system's snapshot of the product this sheet is about (price, offers, stock): written ONLY by the sync job (src/server/integrations/oms-sync.ts), never
+  // through saveCardEdit, so a refreshed price never writes a CardRevision. A price is never typed here.
+  external    Json?
+  // PRODUCT and REPLY cards (Q1.1): the version a moderator approved. A reader who is not an editor is served THAT version (the card itself when
+  // `version` equals it, else its CardRevision), together with the live `external`; null = never approved = invisible to non-editors.
+  approvedVersion Int?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
@@ -2554,6 +2605,8 @@ model ApiToken {
   tokenHash      String
   /// Named permissions: ideas.read, ideas.write, tasks.read, tasks.write. None = it can read nothing and write nothing.
   permissions    String[]  @default([])
+  /// The consuming system this token was made for on «الإعدادات ← توكنات الأنظمة» (W1; src/lib/door/systems.ts), null for a token made on «الأتمتة».
+  system         String?
   /// The one space the token writes to.
   workspaceId    String
   createdById    String

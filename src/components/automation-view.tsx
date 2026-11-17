@@ -56,7 +56,7 @@ interface DriveFile {
   link: string | null;
 }
 
-export function AutomationView({ ctx, doorCard = null, backupCard = null, mailCard = null }: { ctx: { orgRole: string }; doorCard?: ReactNode; backupCard?: ReactNode; mailCard?: ReactNode }) {
+export function AutomationView({ ctx, doorCard = null, backupCard = null, mailCard = null, omsCard = null }: { ctx: { orgRole: string }; doorCard?: ReactNode; backupCard?: ReactNode; mailCard?: ReactNode; omsCard?: ReactNode }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -416,6 +416,7 @@ x-zaki-signature: sha256=HMAC_SHA256(secret, "{timestamp}.{raw body}")`}
 
       {/* ---------------- «بريد يصير مهمة»: the OWNER's card alone ---------------- */}
       {mailCard}
+      {omsCard}
     </div>
   );
 }

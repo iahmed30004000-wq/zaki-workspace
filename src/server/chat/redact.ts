@@ -38,6 +38,8 @@ type MessageRow = {
   forwardedFromId?: string | null;
   forwardedFrom?: { author: { name: string } } | null;
   mentions?: unknown;
+  /** a CARD message: what it points at (Q1.3) */
+  card?: unknown;
   pinned: boolean;
   editedAt: Date | null;
   deletedAt: Date | null;
@@ -49,8 +51,8 @@ type MessageRow = {
   attachments?: (Parameters<typeof attachmentView>[0] & { id: string })[];
   revisions?: { body: string; createdAt: Date }[];
   notes?: { id: string; authorId: string; author: { name: string }; body: string; createdAt: Date }[];
-  tasks?: { id: string }[];
-  tickets?: { id: string }[];
+  tasks?: { id: string; visibility?: string; creatorId?: string; assigneeId?: string | null }[];
+  tickets?: { id: string; number?: number; status?: string; assignee?: { name: string } | null }[];
   poll?: PollRow | null;
 };
 
@@ -135,6 +137,13 @@ export function presentMessage(
     dto.poll = presentPoll(row.poll, { userId: viewer.userId, role: viewer.role, oversight: viewer.oversight, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere }, row.authorId, deleted);
   }
 
+  // a card message points at a product sheet: only its address travels, whatever the reader may see of the sheet is decided when it is opened
+  if (row.kind === "CARD" && !deleted) {
+    const ref = row.card as { type?: unknown; cardId?: unknown; number?: unknown } | null;
+    if (ref && ref.type === "product" && typeof ref.cardId === "string") dto.card = { type: "product", cardId: ref.cardId };
+    else if (ref && ref.type === "order" && typeof ref.number === "string") dto.card = { type: "order", number: ref.number };
+  }
+
   // reply preview: a deleted parent shows the placeholder, never its text
   if (row.replyTo) {
     dto.replyTo = {
@@ -156,7 +165,11 @@ export function presentMessage(
 
   // what the message became (a guest never learns of the company's tasks and tickets)
   if (viewer.role !== "GUEST" && !deleted) {
-    const work = [...(row.tasks ?? []).map((t) => ({ kind: "task" as const, id: t.id })), ...(row.tickets ?? []).map((t) => ({ kind: "ticket" as const, id: t.id }))];
+    // a private task («المعنيين بس») is not even named to a person it does not concern: its existence is private too.
+    // (Managers up the reporting line and of the space open the task itself; the chip needs no database, so it is stricter.)
+    const seesTask = (t: { visibility?: string; creatorId?: string; assigneeId?: string | null }): boolean =>
+      t.visibility !== "PARTICIPANTS" || (viewer.oversight ?? viewer.role === "OWNER") /* oversight-ok: hand-made viewers */ || t.creatorId === viewer.userId || t.assigneeId === viewer.userId || viewer.canModerateHere;
+    const work = [...(row.tasks ?? []).filter(seesTask).map((t) => ({ kind: "task" as const, id: t.id })), ...(row.tickets ?? []).map((t) => ({ kind: "ticket" as const, id: t.id, ...(t.number !== undefined ? { number: t.number, status: t.status, assigneeName: t.assignee?.name ?? null } : {}) }))];
     if (work.length) dto.work = work;
   }
 

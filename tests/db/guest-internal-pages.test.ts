@@ -40,6 +40,7 @@ import OwnerBoardPage from "@/app/(app)/owner/page";
 import OwnerAssistantPage from "@/app/(app)/owner/assistant/page";
 import CheckinsPage from "@/app/(app)/checkins/page";
 import DocumentsPage from "@/app/(app)/documents/page";
+import KnowledgePage from "@/app/(app)/knowledge/page";
 import ApprovalsPage from "@/app/(app)/approvals/page";
 import StructurePage from "@/app/(app)/structure/page";
 import DevelopmentPage from "@/app/(app)/development/page";
@@ -98,8 +99,8 @@ async function companyWorld() {
   const team = await makeTeam();
   const orgId = team.org.id;
   const orgName = `Company ${uid()}`;
-  // «مساعد المالك» is OFF by default; its tab is on the owner's map only while its switch is on, and the loop below opens every offered tab
-  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true } } } });
+  // «مساعد المالك» and «المنتجات» are OFF by default; their tabs are on the owner's map only while their switch is on, and the loop below opens every offered tab
+  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true, knowledgeCards: true } } } });
   const lead = await makeUser({ orgId, role: "LEAD", name: "Lead" });
   const staffer = await makeUser({ orgId, role: "MEMBER", name: `Staffer ${secret}` });
   await db.user.update({ where: { id: staffer.id }, data: { jobTitle: `Title ${secret}` } });
@@ -399,6 +400,7 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   crm: () => CrmPage(),
   files: () => FilesPage(),
   documents: () => DocumentsPage(),
+  knowledge: () => KnowledgePage(),
   team: () => MembersPage(),
   space: () => CurrentSpacePage(),
   reports: () => AnalyticsPage(),

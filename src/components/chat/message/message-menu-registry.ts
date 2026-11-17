@@ -22,12 +22,12 @@
  *
  * Nothing at all on a deleted message, a system line, or for the owner in silent oversight.
  */
-export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "remind" | "translate";
+export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "remind" | "translate";
 
 export interface MessageMenuContext {
   mine: boolean;
   deleted: boolean;
-  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL";
+  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD";
   hasText: boolean;
   pinned: boolean;
   conversationKind: "DM" | "GROUP" | "TOPIC";
@@ -39,6 +39,8 @@ export interface MessageMenuContext {
   /** …and holds the tasks / tickets «يضيف ويعدّل» box of the section grid (absent: yes) */
   canMakeTask?: boolean;
   canMakeTicket?: boolean;
+  /** «🎫 مشكلة» is offered (`me.problemKinds` is there: the switch `autoTickets` is on and the person is staff) */
+  canProblem?: boolean;
   /** may set a reminder on this message (`me.canRemind`: the «ذكّرني» switch is on; absent: no) */
   canRemind?: boolean;
   /** may translate this message (`me.canTranslate`; absent: no) */
@@ -57,6 +59,7 @@ export const messageMenuItems: MessageMenuAction[] = [
   { id: "copy", labelKey: () => "chatc.menu.copy", available: (c) => c.hasText },
   { id: "task", labelKey: () => "chatc.menu.task", available: (c) => c.hasText && !!c.canMakeWork && c.canMakeTask !== false },
   { id: "ticket", labelKey: () => "chatc.menu.ticket", available: (c) => c.hasText && !!c.canMakeWork && c.canMakeTicket !== false },
+  { id: "problem", labelKey: () => "tickets.menu.problem", available: (c) => c.hasText && c.kind === "TEXT" && !!c.canProblem },
   { id: "remind", labelKey: () => "chatc.menu.remind", available: (c) => !!c.canRemind },
   { id: "translate", labelKey: () => "translate.menu", available: (c) => !!c.canTranslate && c.kind === "TEXT" && c.hasText },
   { id: "delete", labelKey: () => "chatc.menu.delete", danger: true, available: (c) => c.mine || c.canModerate },

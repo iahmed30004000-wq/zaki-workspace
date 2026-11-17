@@ -62,6 +62,7 @@ async function isStaff(orgId: string, userId: string): Promise<boolean> {
 
 /** An open task of this company that carries no reward (what a proposal may touch). */
 async function touchableTask(orgId: string, taskId: string): Promise<{ id: string; workspaceId: string }> {
+  // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
   const t = await db.task.findFirst({ where: { id: taskId, orgId }, select: { id: true, workspaceId: true, completedAt: true, archived: true, rewardStatus: true } });
   if (!t) throw new AssistantError("assistant.exec_task_missing", "not_found");
   // money is never touched by the assistant, whoever approves
@@ -305,6 +306,7 @@ async function execute(actor: DecideActor, type: ActionType, params: Record<stri
       const p = params as StoredParams["create_task"] & { boardId: string };
       const dueDate = p.dueDate ? dueInstantForDay(p.dueDate, tz) : null;
       const made = await createTask(ctx, {
+      visibility: "SPACE",
         workspaceId: p.workspaceId,
         projectId: p.projectId,
         boardId: p.boardId,

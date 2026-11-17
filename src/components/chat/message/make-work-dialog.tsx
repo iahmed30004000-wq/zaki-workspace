@@ -32,6 +32,7 @@ export function MakeWorkDialog({
   onClose,
   onDone,
   titleMax = 120,
+  privateSource = false,
 }: {
   message: Pick<MessageDto, "id" | "body"> | null;
   kind: WorkKind;
@@ -39,6 +40,8 @@ export function MakeWorkDialog({
   onDone: (made: { kind: WorkKind; id: string }) => void;
   /** how long the first line may be as a title (a comment of «نتفرّج سوا»: 200) */
   titleMax?: number;
+  /** The message is somebody's private talk (a DM, a group, a restricted or a team's topic): see `taskpriv.*` (P0.3). */
+  privateSource?: boolean;
 }) {
   const [title, setTitle] = useState("");
   const [spaces, setSpaces] = useState<Space[] | null>(null);
@@ -52,6 +55,8 @@ export function MakeWorkDialog({
   const [priority, setPriority] = useState<"URGENT" | "HIGH" | "NORMAL" | "LOW">("NORMAL");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // a task from a private talk stays «المعنيين بس» unless this is ticked; a ticket is read by its department, so it must be
+  const [makePublic, setMakePublic] = useState(false);
   const open = message !== null;
 
   // every time it opens: the message's first line, and the places to send it
@@ -60,6 +65,7 @@ export function MakeWorkDialog({
     setTitle(titleOf(message.body, titleMax));
     setError("");
     setBusy(false);
+    setMakePublic(false);
     let alive = true;
     if (kind === "task") {
       getJson<{ currentSpaceId: string | null; organizations: { workspaces: Space[] }[] }>("/api/workspaces")
@@ -118,7 +124,7 @@ export function MakeWorkDialog({
     };
   }, [projectId]);
 
-  const ready = kind === "task" ? !!boardId : !!departmentId;
+  const ready = (kind === "task" ? !!boardId : !!departmentId) && (kind === "task" || !privateSource || makePublic);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -129,8 +135,15 @@ export function MakeWorkDialog({
       const at = `/api/chat/messages/${encodeURIComponent(message.id)}/${kind}`;
       const body =
         kind === "task"
-          ? { workspaceId: spaceId, projectId, boardId, title: title.trim() || undefined, priority }
-          : { departmentId, title: title.trim() || undefined, priority };
+          ? {
+              workspaceId: spaceId,
+              projectId,
+              boardId,
+              title: title.trim() || undefined,
+              priority,
+              ...(privateSource ? { visibility: makePublic ? "SPACE" : "PARTICIPANTS", ...(makePublic ? { confirmPublic: true } : {}) } : {}),
+            }
+          : { departmentId, title: title.trim() || undefined, priority, ...(privateSource ? { confirmPublic: true } : {}) };
       const r = await fetch(at, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error("work");
       const data = (await r.json()) as { taskId?: string; ticketId?: string };
@@ -208,6 +221,23 @@ export function MakeWorkDialog({
                 ))}
               </select>
             </div>
+
+            {privateSource && (
+              <div className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm">
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" checked={makePublic} onChange={(e) => setMakePublic(e.currentTarget.checked)} className="mt-1 h-4 w-4" />
+                  <span>{ct("taskpriv.make_public")}</span>
+                </label>
+                {makePublic ? (
+                  <>
+                    <p className="mt-2">{ct("taskpriv.from_private_warn")}</p>
+                    {kind === "task" && <p className="mt-1">{ct("taskpriv.from_private_fix")}</p>}
+                  </>
+                ) : kind === "task" ? (
+                  <p className="mt-2 text-fg-muted">{ct("taskpriv.private_default")}</p>
+                ) : null}
+              </div>
+            )}
 
             {error && <p role="alert" className="text-sm text-danger">{error}</p>}
             <button type="submit" disabled={busy || !ready} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-accent px-3 text-sm font-semibold text-accent-fg disabled:opacity-60">

@@ -5,7 +5,7 @@ import { pageUser } from "@/server/auth";
 import { actorCanWork, requireActor } from "@/server/policy/actor";
 import { SectionOffNotice } from "@/app/(app)/_access";
 import { keepInSpace } from "@/server/services/current-space";
-import { loadWorkScope, projectVisibleWhere } from "@/server/services/team-scope";
+import { loadWorkScope, projectVisibleWhere, taskParticipantFilter, taskParticipantWhere } from "@/server/services/team-scope";
 import { canWriteInWorkspace, isSpaceManager } from "@/server/workspace-role";
 import { Card, CardBody, CardHeader, Badge } from "@/components/ui/card";
 import { BoardCreateButton } from "@/components/board-create-button";
@@ -34,8 +34,9 @@ export default async function ProjectPage({ params }: { params: { id: string } }
   const project = await db.project.findFirst({
     where: { id: params.id, AND: [projectVisibleWhere(scope)] },
     include: {
-      boards: { where: { archived: false }, select: { id: true, name: true, _count: { select: { tasks: true } } } },
-      _count: { select: { tasks: { where: { archived: false } } } },
+      // what is counted is what the person may open: a private task of somebody else is not (P0 review)
+      boards: { where: { archived: false }, select: { id: true, name: true, _count: { select: { tasks: { where: { AND: [taskParticipantWhere(scope)] } } } } } },
+      _count: { select: { tasks: { where: { archived: false, AND: [taskParticipantWhere(scope)] } } } },
       workspace: { select: { id: true, organizationId: true } },
     },
   });
@@ -62,7 +63,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     membership != null &&
     canWriteInWorkspace(membership.role, spaceRow?.role) &&
     actorCanWork(actor, "projects.edit");
-  const milestones = milestonesOn ? await listMilestones(project.id, actor.orgId) : [];
+  const milestones = milestonesOn ? await listMilestones(project.id, actor.orgId, user.id) : [];
 
   // «حقول مخصصة»: «إدارة الحقول» is drawn while the company's switch is on and never for an external partner (no field is
   // theirs to read); the controls are the space's ADMIN's and the owner's (the server decides again on every request)
@@ -96,7 +97,7 @@ export default async function ProjectPage({ params }: { params: { id: string } }
     select: { id: true },
   });
   const doneCount = doneColumnIds.length
-    ? await db.task.count({ where: { projectId: project.id, archived: false, columnId: { in: doneColumnIds.map((c) => c.id) } } })
+    ? await db.task.count({ where: { projectId: project.id, archived: false, columnId: { in: doneColumnIds.map((c) => c.id) }, AND: [await taskParticipantFilter(actor.userId)] } })
     : 0;
   const open = project._count.tasks;
   const pct = open + doneCount > 0 ? Math.round((doneCount / (open + doneCount)) * 100) : 0;

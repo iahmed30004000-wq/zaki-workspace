@@ -9,6 +9,9 @@ import { pushNotificationToMany } from "@/server/notify";
 import { assertMemberCan } from "@/server/policy/actor";
 import { assertCanWrite } from "@/server/services/guest-guard";
 import { assertActiveAssignee } from "@/server/services/active-people";
+import { decryptSecrets } from "@/server/crypto";
+import { log } from "@/server/log";
+import { announceTicketChange } from "@/server/services/ticket-chat";
 
 /**
  * IT tickets live inside a department. Access policy:
@@ -47,6 +50,8 @@ export const updateTicketSchema = z
     status: z.enum(["OPEN", "IN_PROGRESS", "RESOLVED", "CLOSED"]).optional(),
     priority: z.enum(["URGENT", "HIGH", "NORMAL", "LOW"]).optional(),
     assigneeId: z.string().nullable().optional(),
+    /** Q1.5: the note that goes back to the chat with «✅ انحلّت» when a ticket made from a message is resolved */
+    resolution: z.string().trim().max(300).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: "ticket.no_change" });
 
@@ -150,10 +155,19 @@ export async function listDepartmentTickets(departmentId: string, viewer?: OrgAc
   });
 }
 
+/** What a ticket made from a problem carries in the SAME write that creates it (Q1.5): never a ticket without its kind, source message or protected number. */
+export type TicketExtra = { sourceMessageId?: string; kindKey?: string; externalRef?: string; followUpAt?: Date; customerRefCipher?: string; customerRefHash?: string };
+
+/** May this person read this ticket? The rule of `ticketDetail`: whoever raised or holds it, the department's people, the OWNER and the ADMINs. */
+export async function canReadTicket(ctx: OrgAccessContext, t: { creatorId: string; assigneeId: string | null; departmentId: string | null }): Promise<boolean> {
+  return t.creatorId === ctx.userId || t.assigneeId === ctx.userId || (await seesDepartment(ctx, t.departmentId));
+}
+
 export async function createTicket(
   ctx: OrgAccessContext,
   departmentId: string,
   input: z.infer<typeof createTicketSchema>,
+  extra: TicketExtra = {},
 ) {
   assertCanWrite(ctx);
   await assertMemberCan(ctx, "tickets.edit", "section.edit_denied");
@@ -176,6 +190,7 @@ export async function createTicket(
         priority: input.priority,
         creatorId: ctx.userId,
         assigneeId: input.assigneeId ?? null,
+        ...extra,
       },
       select: { id: true, number: true, title: true },
     });
@@ -227,6 +242,8 @@ export async function ticketDetail(ctx: OrgAccessContext, ticketId: string) {
       creatorId: true, assigneeId: true,
       id: true, orgId: true, departmentId: true, number: true, title: true,
       description: true, status: true, priority: true, resolvedAt: true, createdAt: true,
+      // Q1.5: the problem's order number and kind, and the customer's number (encrypted: opened below, only after the reader check)
+      externalRef: true, kindKey: true, followUpAt: true, customerRefCipher: true,
       creator: { select: { id: true, name: true } },
       assignee: { select: { id: true, name: true } },
       comments: {
@@ -245,7 +262,9 @@ export async function ticketDetail(ctx: OrgAccessContext, ticketId: string) {
   if (ticket.creatorId !== ctx.userId && ticket.assigneeId !== ctx.userId && !(await seesDepartment(ctx, ticket.departmentId))) {
     throw new NotFoundError("ticket.not_found");
   }
-  return ticket;
+  // the customer's number is shown in full here and nowhere else: this is the ticket's own readers (checked just above)
+  const { customerRefCipher, ...rest } = ticket;
+  return { ...rest, customerNumber: decryptSecrets<{ n?: string }>(customerRefCipher)?.n ?? null };
 }
 
 /** Comments: any org member except a guest may comment; author or org admin may edit/delete. */
@@ -380,7 +399,7 @@ export async function updateTicket(
     });
     const events: { event: string; meta?: Record<string, unknown> }[] = [];
     if (input.title !== undefined || input.description !== undefined || input.priority !== undefined) {
-      events.push({ event: "edited", meta: { fields: Object.keys(input).filter((k) => k !== "status" && k !== "assigneeId") } });
+      events.push({ event: "edited", meta: { fields: Object.keys(input).filter((k) => k !== "status" && k !== "assigneeId" && k !== "resolution") } });
     }
     if (statusChanged) events.push({ event: "status_changed", meta: { from: ticket.status, to: input.status } });
     const assigneeChanged = input.assigneeId !== undefined && input.assigneeId !== ticket.assigneeId;
@@ -392,6 +411,15 @@ export async function updateTicket(
     }
     return row;
   });
+  // Q1.5: a ticket made from a message tells its conversation (a refresh of its chip; on resolve, the reply)
+  if (statusChanged || (input.assigneeId && input.assigneeId !== ticket.assigneeId)) {
+    // the ticket is already saved: a failure to tell the chat is logged, never turned into an error of the save
+    try {
+      await announceTicketChange(ctx, ticket.id, { resolved: statusChanged && input.status === "RESOLVED", note: input.resolution });
+    } catch (err) {
+      log.warn("ticket_chat.skipped", { message: err instanceof Error ? err.message : String(err) });
+    }
+  }
   if (input.assigneeId && input.assigneeId !== ticket.assigneeId) {
     const org = await db.organization.findUnique({ where: { id: ctx.orgId }, select: { keyPrefix: true } });
     await pushNotificationToMany([input.assigneeId], {
@@ -444,7 +472,7 @@ export const instantTicketSchema = z.object({
  * «تذكرة فورية»: a ticket with no department, straight to one active person of the company, with its priority. The
  * same rules as any ticket (not a guest, the tickets row's «يضيف ويعدّل» box); the person is told at once.
  */
-export async function createInstantTicket(ctx: OrgAccessContext, input: z.infer<typeof instantTicketSchema>) {
+export async function createInstantTicket(ctx: OrgAccessContext, input: z.infer<typeof instantTicketSchema>, extra: TicketExtra = {}) {
   assertCanWrite(ctx);
   await assertMemberCan(ctx, "tickets.edit", "section.edit_denied");
   await assertActiveAssignee(ctx.orgId, input.assigneeId);
@@ -460,6 +488,7 @@ export async function createInstantTicket(ctx: OrgAccessContext, input: z.infer<
         priority: input.priority,
         creatorId: ctx.userId,
         assigneeId: input.assigneeId,
+        ...extra,
       },
       select: { id: true, number: true, title: true },
     });

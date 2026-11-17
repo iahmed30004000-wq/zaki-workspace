@@ -84,6 +84,7 @@ export type TabKey =
   | "checkins"
   | "files"
   | "documents"
+  | "knowledge"
   | "team"
   | "space"
   | "reports"
@@ -204,6 +205,8 @@ export const PLACES: readonly PlaceDef[] = [
       // «المستندات» (the owner's backlog, 2026-11-01): the text documents of the space. Behind its switch in «الميزات»; the page and
       // /api/documents decide again on the server (a person outside the space, or a document not shared with a partner: not found).
       { key: "documents", href: "/documents", labelKey: "nav.tab.documents", requires: "everyone", feature: "spaceDocs" },
+      // «المنتجات» (Q1.1): the product sheets. Staff only (an external partner never comes in), behind its switch in «الميزات».
+      { key: "knowledge", href: "/knowledge", labelKey: "nav.tab.knowledge", requires: "staff", feature: "knowledgeCards" },
     ],
   },
   // «نتفرّج سوا» (the owner's ask, 2026-10-26: «الشغل، تحتها المكتبة، الإدارة، ثم نتفرّج سوا»; «الإدارة» was moved after it on 2026-10-30): a place of its own,

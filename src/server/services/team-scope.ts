@@ -1,6 +1,8 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { isSpaceManager } from "@/server/workspace-role";
+import { effectiveCapabilities } from "@/server/policy/capabilities";
+import { loadReportIds } from "@/server/services/reporting-line";
 
 /**
  * TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see.
@@ -14,9 +16,18 @@ import { isSpaceManager } from "@/server/workspace-role";
  * A space with NO team is unchanged: everybody in it sees all of it, exactly as before teams existed.
  *
  * Every list reads through `projectVisibleWhere` / `taskVisibleWhere`; every single row through
- * `canSeeProject` (or `requireProjectAccess` / `requireTaskAccess` in src/server/auth.ts). A miss is "not
+ * `canSeeProject` / `canSeeTask` (or `requireProjectAccess` / `requireTaskAccess` in src/server/auth.ts). A miss is "not
  * found", never "forbidden", so a link to another team's work does not even say it exists.
+ *
+ * A TASK can also be private to the people it concerns (`Task.visibility = "PARTICIPANTS"`, «المعنيين بس»): then, on
+ * top of the space and the team, only its creator, its assignees, their managers up the reporting line, the managers
+ * of its space, and whoever holds silent oversight (`archive.view`) see it. A raw-SQL reader uses `taskVisibleSql`.
  */
+
+/** The two values of `Task.visibility`. */
+export const TASK_VISIBILITY = ["SPACE", "PARTICIPANTS"] as const;
+export type TaskVisibility = (typeof TASK_VISIBILITY)[number];
+export const isTaskVisibility = (v: unknown): v is TaskVisibility => (TASK_VISIBILITY as readonly string[]).includes(v as string);
 
 export interface WorkScope {
   /** Spaces whose every project the person sees (they manage it, or it has no team at all). */
@@ -25,29 +36,62 @@ export interface WorkScope {
   partial: ReadonlySet<string>;
   /** The person's teams inside the `partial` spaces. */
   teamIds: ReadonlySet<string>;
+  /** Who is asking: a private task is theirs when they made it or are assigned to it. */
+  userId: string;
+  /**
+   * The spaces the person manages (the space's ADMIN, an org ADMIN who is in it — and the OWNER RANK only where he
+   * holds oversight or has an ADMIN row: the rank alone reads nothing private, P0.1): they read the space's private tasks.
+   */
+  managedSpaces: ReadonlySet<string>;
+  /** Everybody below the person in the reporting line, PER COMPANY: their private tasks are read by the person too. */
+  reportIds: ReadonlyMap<string, ReadonlySet<string>>;
+  /** The company of each space the person is in (a task's company is its space's). */
+  spaceOrg: ReadonlyMap<string, string>;
+  /** Spaces of the companies where the person holds silent oversight (`archive.view`): every task, private ones included. */
+  oversightSpaces: ReadonlySet<string>;
 }
 
 /** Everything a person may open, with the teams taken into account. Three queries. */
 export async function loadWorkScope(userId: string): Promise<WorkScope> {
   const memberships = await db.organizationMember.findMany({
     where: { userId, status: "ACTIVE" },
-    select: { role: true, organizationId: true },
+    select: { role: true, organizationId: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
   });
   const full = new Set<string>();
   const partial = new Set<string>();
   const teamIds = new Set<string>();
-  if (memberships.length === 0) return { full, partial, teamIds };
+  const managedSpaces = new Set<string>();
+  const oversightSpaces = new Set<string>();
+  if (memberships.length === 0) return { full, partial, teamIds, userId, managedSpaces, reportIds: new Map(), spaceOrg: new Map(), oversightSpaces };
 
   const orgRole = new Map(memberships.map((m) => [m.organizationId, m.role]));
+  // silent oversight is the capability archive.view, held by an OWNER-rank person only (P0.1: the rank alone is not enough)
+  const oversightOrgs = new Set(memberships.filter((m) => m.role === "OWNER" && effectiveCapabilities(m).has("archive.view")).map((m) => m.organizationId));
   const ownedOrgIds = memberships.filter((m) => m.role === "OWNER").map((m) => m.organizationId);
-  const [owned, rows] = await Promise.all([
-    ownedOrgIds.length ? db.workspace.findMany({ where: { organizationId: { in: ownedOrgIds } }, select: { id: true } }) : Promise.resolve([]),
+  const [owned, rows, reportIds] = await Promise.all([
+    ownedOrgIds.length ? db.workspace.findMany({ where: { organizationId: { in: ownedOrgIds } }, select: { id: true, organizationId: true } }) : Promise.resolve([]),
     db.workspaceMember.findMany({
       where: { userId, workspace: { organizationId: { in: [...orgRole.keys()] } } },
       select: { workspaceId: true, role: true, workspace: { select: { organizationId: true } } },
     }),
+    Promise.all(memberships.map(async (m) => [m.organizationId, await loadReportIds(userId, m.organizationId)] as const)).then((pairs) => new Map(pairs.filter(([, ids]) => ids.size > 0))),
   ]);
-  for (const w of owned) full.add(w.id);
+  const spaceOrg = new Map<string, string>();
+  for (const w of owned) spaceOrg.set(w.id, w.organizationId);
+  for (const row of rows) spaceOrg.set(row.workspaceId, row.workspace.organizationId);
+  for (const w of owned) {
+    full.add(w.id);
+    if (oversightOrgs.has(w.organizationId)) {
+      oversightSpaces.add(w.id);
+      managedSpaces.add(w.id);
+    }
+  }
+  // an explicit space-ADMIN row (or an org ADMIN who is in the space) manages it, whatever the rank
+  for (const row of rows) {
+    const rank = orgRole.get(row.workspace.organizationId);
+    if (rank !== "OWNER" && isSpaceManager(rank, row.role)) managedSpaces.add(row.workspaceId);
+    else if (rank === "OWNER" && row.role === "ADMIN") managedSpaces.add(row.workspaceId);
+  }
 
   const candidates: string[] = [];
   for (const row of rows) {
@@ -64,8 +108,15 @@ export async function loadWorkScope(userId: string): Promise<WorkScope> {
     for (const id of candidates) (withTeams.has(id) ? partial : full).add(id);
     for (const t of teams) if (t.members.length) teamIds.add(t.id);
   }
-  return { full, partial, teamIds };
+  return { full, partial, teamIds, userId, managedSpaces, reportIds, spaceOrg, oversightSpaces };
 }
+
+/** The people below the person in the company that owns `workspaceId` (empty for a space the person is not in). */
+export function reportsOfSpace(scope: WorkScope, workspaceId: string): ReadonlySet<string> {
+  const org = scope.spaceOrg.get(workspaceId);
+  return (org && scope.reportIds.get(org)) || NO_PEOPLE;
+}
+const NO_PEOPLE: ReadonlySet<string> = new Set<string>();
 
 /**
  * The scope inside ONE space: the space the person is in (src/server/services/current-space.ts). Lists read
@@ -73,7 +124,7 @@ export async function loadWorkScope(userId: string): Promise<WorkScope> {
  */
 export function narrowScope(scope: WorkScope, spaceId: string | null | undefined): WorkScope {
   const only = (ids: ReadonlySet<string>) => new Set(spaceId && ids.has(spaceId) ? [spaceId] : []);
-  return { full: only(scope.full), partial: only(scope.partial), teamIds: scope.teamIds };
+  return { ...scope, full: only(scope.full), partial: only(scope.partial), managedSpaces: only(scope.managedSpaces), oversightSpaces: only(scope.oversightSpaces) };
 }
 
 /** Every space id of the scope (what `accessibleWorkspaceIds` answers). */
@@ -91,7 +142,10 @@ export function projectVisibleWhere(scope: WorkScope): Prisma.ProjectWhereInput 
   return or.length ? { OR: or } : { id: { in: [] } };
 }
 
-/** Tasks the person may see: the task's space and its project's team. */
+/**
+ * Tasks the person may see: the task's space and its project's team, AND — for a private task («المعنيين بس») — being
+ * one of the people it concerns (the participants rule below).
+ */
 export function taskVisibleWhere(scope: WorkScope): Prisma.TaskWhereInput {
   const or: Prisma.TaskWhereInput[] = [];
   if (scope.full.size) or.push({ workspaceId: { in: [...scope.full] } });
@@ -101,7 +155,77 @@ export function taskVisibleWhere(scope: WorkScope): Prisma.TaskWhereInput {
       project: { OR: [{ teamId: null }, ...(scope.teamIds.size ? [{ teamId: { in: [...scope.teamIds] } }] : [])] },
     });
   }
-  return or.length ? { OR: or } : { id: { in: [] } };
+  if (!or.length) return { id: { in: [] } };
+  return { AND: [{ OR: or }, taskParticipantWhere(scope)] };
+}
+
+/** The participants rule alone: a public task, or one the person is a participant of (or manages, or oversees). */
+export function taskParticipantWhere(scope: WorkScope): Prisma.TaskWhereInput {
+  const or: Prisma.TaskWhereInput[] = [
+    { visibility: "SPACE" },
+    { creatorId: scope.userId },
+    { assigneeId: scope.userId },
+    { coAssignees: { some: { userId: scope.userId } } },
+  ];
+  if (scope.managedSpaces.size) or.push({ workspaceId: { in: [...scope.managedSpaces] } });
+  if (scope.oversightSpaces.size) or.push({ workspaceId: { in: [...scope.oversightSpaces] } });
+  // the reporting line counts inside its own company only
+  for (const [orgId, ids] of scope.reportIds) {
+    const reports = [...ids];
+    or.push({ orgId, assigneeId: { in: reports } }, { orgId, coAssignees: { some: { userId: { in: reports } } } });
+  }
+  return { OR: or };
+}
+
+/** The participants rule for a caller that has only the person's id (a few queries: use `loadWorkScope` once when several readers share a request). */
+export async function taskParticipantFilter(userId: string): Promise<Prisma.TaskWhereInput> {
+  return taskParticipantWhere(await loadWorkScope(userId));
+}
+
+/** One task row against the scope (the same rule as `taskVisibleWhere`, for a row already loaded). */
+export function canSeeTask(
+  scope: WorkScope,
+  task: { workspaceId: string; teamId: string | null; visibility: string; creatorId: string; assigneeId: string | null; coAssigneeIds?: readonly string[] },
+): boolean {
+  const inSpace = scope.full.has(task.workspaceId) || (scope.partial.has(task.workspaceId) && (task.teamId === null || scope.teamIds.has(task.teamId)));
+  if (!inSpace) return false;
+  return canSeeTaskParticipants(scope, task);
+}
+
+/** Only the participants half (when the space and team were already checked, as `requireTaskAccess` does). */
+export function canSeeTaskParticipants(
+  scope: WorkScope,
+  task: { workspaceId: string; visibility: string; creatorId: string; assigneeId: string | null; coAssigneeIds?: readonly string[] },
+): boolean {
+  if (task.visibility !== "PARTICIPANTS") return true;
+  const me = scope.userId;
+  if (task.creatorId === me || task.assigneeId === me) return true;
+  const co = task.coAssigneeIds ?? [];
+  if (co.includes(me)) return true;
+  if (scope.managedSpaces.has(task.workspaceId) || scope.oversightSpaces.has(task.workspaceId)) return true;
+  const reports = reportsOfSpace(scope, task.workspaceId);
+  if (task.assigneeId && reports.has(task.assigneeId)) return true;
+  return co.some((id) => reports.has(id));
+}
+
+/**
+ * The participants rule as a SQL fragment for a raw query on "Task" aliased `alias` (the space and team part stays the
+ * caller's, as it always was; this adds the participants part). Ids go in as parameters, never as text.
+ */
+export function taskVisibleSql(scope: WorkScope, alias = "t"): Prisma.Sql {
+  const a = Prisma.raw(`"${alias.replace(/[^A-Za-z0-9_]/g, "")}"`);
+  const managed = [...scope.managedSpaces, ...scope.oversightSpaces];
+  // the reporting line counts inside its own company only
+  const lines = [...scope.reportIds].map(
+    ([orgId, ids]) => Prisma.sql`OR (${a}."orgId" = ${orgId} AND (${a}."assigneeId" = ANY(${[...ids]}::text[])
+      OR EXISTS (SELECT 1 FROM "TaskCoAssignee" cb WHERE cb."taskId" = ${a}."id" AND cb."userId" = ANY(${[...ids]}::text[]))))`,
+  );
+  return Prisma.sql`(${a}."visibility" = 'SPACE'
+    OR ${a}."creatorId" = ${scope.userId}
+    OR ${a}."assigneeId" = ${scope.userId}
+    OR EXISTS (SELECT 1 FROM "TaskCoAssignee" ca WHERE ca."taskId" = ${a}."id" AND ca."userId" = ${scope.userId})
+    OR ${a}."workspaceId" = ANY(${managed}::text[])
+    ${lines.length ? Prisma.join(lines, " ") : Prisma.empty})`;
 }
 
 /** One project (or anything that hangs off one) against the scope. */

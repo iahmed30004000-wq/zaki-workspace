@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -228,6 +228,28 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // never a conversation or space a guest can reach) is sent to the embeddings service of the server (env EMBED_URL, EMBED_MODEL, EMBED_API_KEY); the
   // vectors stay in the database. OFF by default: text leaves the app. Off: the search is the word search exactly as before, nothing is sent,
   // indexed or queried; the vectors already made stay and come back with the switch.
+  // «المعنيين بس» (src/server/services/team-scope.ts, tasks.ts): a task can be private to the people it concerns. The read rule of a
+  // private task ALWAYS applies, whatever this says (a private row never leaks because a switch was flipped); this switch only
+  // makes a NEW task that somebody holds private by default. OFF until the owner answers D-P2: new tasks stay «المساحة كلها»
+  // and the person may choose «المعنيين بس» on each one (or the space's manager does it in one click for the open ones).
+  taskPrivacy: false,
+  // «ربط نظام الطلبات» (src/server/integrations/oms.ts, oms-sync.ts, Q1.0): the company's orders system is read — the products (name, price,
+  // offers, stock) into the snapshot beside each linked sheet (`Card.external`), every 5 minutes. A price is never typed here, only read; one older
+  // than 30 minutes is shown as stale and never copied or sent. OFF by default: the token and the system's address are set in «التكاملات»
+  // first. Off: the integration card says it is off, the job reads nothing, the snapshots already kept stay as they were.
+  omsLink: false,
+  // «المنتجات» (src/server/services/knowledge.ts, Q1.1): a product sheet per product, with copy buttons, an offer message built from the live price,
+  // questions and answers. Written by the space's managers and the people the owner named; a sheet nobody approved is invisible to the rest;
+  // an external partner never comes in. OFF by default: off, the page and its doors answer «not found» and the sheets already made stay.
+  knowledgeCards: false,
+  // «/» في صندوق الكتابة (src/server/chat/recall.ts, Q1.3): a menu in the composer — «منتج» sends an approved product sheet into the conversation as a card
+  // (no price in the message: each reader's screen asks for the card), «رد» inserts an approved answer for the person to edit and send. Needs
+  // «المنتجات». OFF by default: off, the menu and its two doors do not exist; the cards already sent stay.
+  quickRecall: false,
+  orderStatus: false,
+  // «المشاكل تصير تذاكر» (src/server/services/problem-tickets.ts, Q1.5): «🎫 مشكلة» on a message makes a ticket where the message is, one ticket per order,
+  // the customer's number kept encrypted and wiped 30 days after resolve. OFF by default: off, the door answers not found.
+  autoTickets: false,
   semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
   // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),

@@ -13,6 +13,8 @@ import { uploadWithProgress } from "@/lib/chat/upload-with-progress";
 import { VoiceRecorder, type VoiceTake } from "@/lib/chat/voice-recorder";
 import { barsFor, formatDuration } from "@/lib/chat/waveform";
 import { PollDialog } from "@/components/chat/composer/poll-dialog";
+import { RecallDialog } from "@/components/chat/composer/recall-dialog";
+import { slashCommand, type RecallKind } from "@/lib/chat/recall-client";
 import type { Outbox } from "@/lib/chat/outbox/queue";
 import { postChatMessage, SEND_TIMEOUT_MS, type ChatSendPayload } from "@/lib/chat/outbox/send";
 import { clearComposerDraft, loadComposerDraft, saveComposerDraft } from "@/lib/chat/composer-draft";
@@ -46,6 +48,8 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
  const fileInput = React.useRef<HTMLInputElement | null>(null);
  const [clientId, setClientId] = React.useState(() => messageClientId());
  const [pollOpen, setPollOpen] = React.useState(false);
+ // «/» (Q1.3): the menu of approved products and answers
+ const [recall, setRecall] = React.useState<{ kind: RecallKind | null; q: string } | null>(null);
  // who «@» offers: everybody the conversation reaches (an open topic: its whole space), never myself; «@الكل» first where I may use it
  const memberOptions=(detail.mentionables??detail.members??[]).filter(m=>m.id!==detail.me.id); const activeMention=findMentionQuery(body); const query=activeMention?.query??"";
  const canAll=Boolean(detail.me.canMentionAll);
@@ -419,6 +423,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
       <DropdownMenuItem onSelect={() => fileInput.current?.click()}>{t("chat.f.attach_file")}</DropdownMenuItem>
       {voiceOn && <DropdownMenuItem onSelect={() => void startRecording(false)}>{t("chat.f.voice_label")}</DropdownMenuItem>}
       {detail.me.canPoll && <DropdownMenuItem onSelect={() => setPollOpen(true)}>{t("chatc.poll.menu")}</DropdownMenuItem>}
+      {detail.me.canRecall && <DropdownMenuItem onSelect={() => setRecall({ kind: null, q: "" })}>{t("recall.menu")}</DropdownMenuItem>}
      </DropdownMenuContent>
     </DropdownMenu>}
     <input ref={mediaInput} type="file" accept="image/*,video/*" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={event => { addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
@@ -429,7 +434,12 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
      ref={textRef}
      rows={1}
      value={body}
-     onChange={event => { setClientId(messageClientId()); setBody(event.currentTarget.value); keepDraft(event.currentTarget.value, mentions); if (!editing && event.currentTarget.value.trim()) notifyTyping(); }}
+     onChange={event => {
+      const text = event.currentTarget.value;
+      // a finished «/» command opens the menu and leaves the box empty (what was typed is the command, not a message)
+      const command = !editing && detail.me.canRecall ? slashCommand(text, detail.me.recallKinds) : null;
+      if (command) { setRecall(command); setBody(""); keepDraft("", mentions); return; }
+      setClientId(messageClientId()); setBody(text); keepDraft(text, mentions); if (!editing && text.trim()) notifyTyping(); }}
      // Enter sends (the owner, 2026-10-26), Shift+Enter is a new line; never while an input method is composing a word
      onKeyDown={event => {
       // while the list of people is open the keys drive IT: arrows move, Enter or Tab picks, Escape closes it
@@ -465,6 +475,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
    </div>
    {busy && files.length === 0 && progress.length > 0 && <p className="text-xs text-fg-muted" role="status">{t("chat.f.uploading")}</p>}
    {error && <p role="alert">{error}</p>}
+   {detail.me.canRecall && <RecallDialog open={recall !== null} conversationId={conversationId} kinds={detail.me.recallKinds ?? []} initialKind={recall?.kind ?? null} initialQuery={recall?.q ?? ""} onClose={() => setRecall(null)} onSent={message => { setRecall(null); onMessage(message); }} onInsert={text => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); }} />}
    {detail.me.canPoll && <PollDialog open={pollOpen} conversationId={conversationId} onClose={() => setPollOpen(false)} onCreated={message => { setPollOpen(false); onMessage(message); }} />}
   </form>
  );

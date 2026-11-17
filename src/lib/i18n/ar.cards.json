@@ -131,5 +131,7 @@
   "cards.e.link": "الرابط يجب أن يبدأ بـ https:// وأن يكون عنوانًا صحيحًا",
   "cards.e.table": "بيانات الجدول غير صالحة",
   "cards.ledger_notice": "أرقام المخزون والكلف ما بتنكتب هون بالإيد: بتنعرض من الدفتر الرسمي لما يجهز.",
-  "cards.space_type.MANUFACTURING": "تصنيع"
+  "cards.space_type.MANUFACTURING": "تصنيع",
+  "cards.kind.PRODUCT": "كرت منتج",
+  "cards.kind.REPLY": "رد جاهز"
 }

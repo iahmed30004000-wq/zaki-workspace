@@ -77,6 +77,10 @@ const patchSchema = z.object({
   labelIds: z.array(z.string().min(1)).max(15).optional(),
   /** «مهمة بمكافأة»: the OWNER's alone (403 `reward.owner_only`); a day must exist (the task's or `dueDate` here). */
   reward: rewardBodySchema.optional(),
+  /** «مين بيشوفها؟»: its creator, a manager of its space or of its assignee, or oversight (403 `task.visibility_denied`). */
+  visibility: z.enum(["SPACE", "PARTICIPANTS"]).optional(),
+  /** publishing a task made from a private conversation: the person confirmed (422 `work.confirm_public_required` otherwise) */
+  confirmPublic: z.boolean().optional(),
 });
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -125,6 +129,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       milestoneId: input.milestoneId === null ? null : input.milestoneId,
       archived: input.archived,
       labelIds: input.labelIds,
+      visibility: input.visibility,
+      confirmPublic: input.confirmPublic,
     });
     await audit("task.updated", { actorId: ctx.userId, orgId: ctx.orgId, target: params.id });
     // only the people the task REALLY went to are told: a person of a higher rank was asked instead (task-assign.ts)

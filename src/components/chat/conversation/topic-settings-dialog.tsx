@@ -6,6 +6,7 @@ import type { ConversationDto } from "@/server/chat/dto";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ct } from "@/lib/chat/text";
 import { Avatar } from "@/components/ui/avatar";
+import { visibleToLine } from "@/lib/chat/privacy";
 
 type TopicType = NonNullable<ConversationDto["topicType"]>;
 type Audience = "space" | "section" | "people";
@@ -154,6 +155,18 @@ export function TopicSettingsDialog({
     }
   }
 
+  // «رح يشوفه: …»: who will read the topic once it is saved as it stands on the screen (P0.4)
+  const pickedNames = (people ?? (topic.members ?? []).map((m) => ({ id: m.id, name: m.name }))).filter((p) => picked.has(p.id)).map((p) => p.name);
+  const sectionName = (sections ?? []).find((s) => s.id === sectionId)?.name;
+  const visibleTo =
+    audience === "people"
+      ? visibleToLine({ audience: "people", names: pickedNames })
+      : audience === "section"
+        ? sectionName
+          ? visibleToLine({ audience: "section", sectionName })
+          : null
+        : visibleToLine({ audience: "space", spaceName: topic.space?.name ?? "" });
+
   const field = "h-11 w-full rounded-lg border border-muted bg-surface px-3 text-base md:h-9 md:text-sm";
   const manage = "inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-border px-3 text-sm hover:bg-surface-2 disabled:opacity-60";
   const choice = "flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border border-border px-3 text-sm has-[:checked]:border-accent has-[:checked]:bg-accent/10";
@@ -234,6 +247,12 @@ export function TopicSettingsDialog({
                   ))}
                 </ul>
               </div>
+            )}
+
+            {visibleTo && (
+              <p data-visible-to role="status" className="rounded-lg border border-border bg-surface-2 p-3 text-sm">
+                {visibleTo}
+              </p>
             )}
 
             <fieldset>

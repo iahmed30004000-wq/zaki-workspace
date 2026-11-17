@@ -1,12 +1,14 @@
 import { Prisma, type Task } from "@prisma/client";
 import { assertMemberCan } from "@/server/policy/actor";
-import { userSeesProject } from "./team-scope";
+import { featureOn } from "@/lib/features";
+import { loadWorkScope, reportsOfSpace, taskParticipantFilter, userSeesProject, type TaskVisibility } from "./team-scope";
 import { orgDayStart } from "./org-day";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/auth";
 import { AR } from "@/lib/i18n/dict";
 import { prepareReward, REWARD_EVENTS, type RewardRequest } from "./rewards";
 import { assertRewardEditable } from "./reward-guard";
+import { sourceIsPrivate } from "@/server/chat/private-source";
 import {
   assertNoPendingRequest,
   judgeAssignment,
@@ -48,6 +50,12 @@ export interface CreateTaskInput {
   reward?: RewardRequest;
   /** «الباب»: a task sent in through /api/v1: the token that made it and the sender's own opaque reference (src/server/services/api-door.ts). */
   door?: { apiTokenId: string; externalRef: string | null };
+  /**
+   * «مين بيشوفها؟»: SPACE (everybody who sees the space) or PARTICIPANTS («المعنيين بس»). Absent: the company's default
+   * (the switch `taskPrivacy`, off until the owner answers D-P2): private when somebody is assigned.
+   * A task born from a private conversation is decided by its caller (P0.3).
+   */
+  visibility?: TaskVisibility;
 }
 
 export interface MoveTaskInput {
@@ -138,6 +146,7 @@ async function positionAt(
   index: number | undefined,
   tx: Tx,
 ): Promise<Prisma.Decimal | number> {
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const rows = await tx.$queryRaw<PositionRow[]>`
     SELECT "position"::text FROM "Task"
     WHERE "columnId" = ${columnId} AND archived = false
@@ -166,14 +175,20 @@ interface ScopedTask {
   archived: boolean;
   /** «مهمة بمكافأة»: null/NONE = a plain task; OPEN, AWARDED or CANCELLED = a reward task (locked for everybody but the owner). */
   rewardStatus: string | null;
+  visibility: string;
+  creatorId: string;
+  /** the chat message it was made from (P0.3): publishing a task made from a private conversation is confirmed */
+  sourceMessageId: string | null;
 }
 
 /** Takes the task's row for the rest of the transaction (`FOR UPDATE`): what is read after this is what the last writer left. */
 async function lockTask(tx: Tx, taskId: string): Promise<void> {
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   await tx.$queryRaw`SELECT 1 FROM "Task" WHERE "id" = ${taskId} FOR UPDATE`;
 }
 
 async function assertTaskScope(taskId: string, orgId: string, tx: Tx): Promise<ScopedTask> {
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const task = await tx.task.findFirst({
     where: { id: taskId, orgId },
     select: {
@@ -191,6 +206,9 @@ async function assertTaskScope(taskId: string, orgId: string, tx: Tx): Promise<S
       completedAt: true,
       archived: true,
       rewardStatus: true,
+      visibility: true,
+      creatorId: true,
+      sourceMessageId: true,
     },
   });
   if (!task) throw new NotFoundError("task.not_found");
@@ -221,6 +239,12 @@ export async function notifyCreatedRequests(made: TaskWithRequest, actor: ActorC
  * the section grid's `tasks.edit` door and sends the bell for a request AFTER its commit (`notifyCreatedRequests`).
  * Every rule (the project chain, the team, the labels, the rank judge) is here, once.
  */
+/** The company's default for a new task that has somebody assigned: the switch «المعنيين بس» (the owner's answer to D-P2 turns it on). */
+async function privateByDefault(tx: Tx, orgId: string): Promise<boolean> {
+  const row = await tx.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
+  return featureOn(row?.settings, "taskPrivacy");
+}
+
 export async function createTaskInTx(tx: Tx, actor: ActorContext, input: CreateTaskInput): Promise<TaskWithRequest> {
   // «مهمة بمكافأة»: the owner only, with a due date and an amount: refused BEFORE anything is written
   const rewardData = input.reward ? await prepareReward(actor, input.reward, input.dueDate ?? null, tx) : null;
@@ -283,11 +307,14 @@ export async function createTaskInTx(tx: Tx, actor: ActorContext, input: CreateT
   for (const userId of [...others.direct, ...others.request]) await assertInTeam(userId);
   const coIds = others.direct;
 
+  // «مين بيشوفها؟»: what the caller said; else the company's default (private when somebody holds it, once the owner turns it on)
+  const visibility: TaskVisibility = input.visibility ?? ((await privateByDefault(tx, actor.orgId)) && (assigneeId || requestTo) ? "PARTICIPANTS" : "SPACE");
   const number = await nextTaskNumber(actor.orgId, tx);
   const task = await tx.task.create({
     data: {
       number,
       orgId: actor.orgId,
+      visibility,
       workspaceId: input.workspaceId,
       projectId: input.projectId,
       boardId: input.boardId,
@@ -409,6 +436,10 @@ export interface TaskUpdateData {
   archived?: boolean;
   /** Replaces the full label set when provided. */
   labelIds?: string[];
+  /** «مين بيشوفها؟»: its creator, a manager of its space, a manager of its assignee, or whoever holds oversight may change it. */
+  visibility?: TaskVisibility;
+  /** with visibility "SPACE" on a task made from a private conversation: the person confirmed (else 422 work.confirm_public_required) */
+  confirmPublic?: boolean;
 }
 
 export async function updateTask(
@@ -476,6 +507,16 @@ export async function updateTask(
       };
       coSetChanged = finalIds.length !== heldIds.size || finalIds.some((id) => !heldIds.has(id));
     }
+    let visibilityChange: { from: string; to: string } | null = null;
+    if (data.visibility !== undefined && data.visibility !== before.visibility) {
+      if (!(await mayChangeVisibility(actor.userId, before))) throw new ForbiddenError("task.visibility_denied");
+      // a task made from a private conversation holds that conversation's words: publishing it is confirmed, like making it (P0.3)
+      if (data.visibility === "SPACE" && before.sourceMessageId && data.confirmPublic !== true && (await sourceIsPrivate(actor.orgId, before.sourceMessageId))) {
+        throw new ValidationError([{ path: "confirmPublic", message: "work.confirm_public_required" }]);
+      }
+      updateData.visibility = data.visibility;
+      visibilityChange = { from: before.visibility, to: data.visibility };
+    }
     if (data.dueDate !== undefined) updateData.dueDate = data.dueDate;
     if (data.startDate !== undefined) updateData.startDate = data.startDate;
     if (data.milestoneId !== undefined) {
@@ -529,6 +570,11 @@ export async function updateTask(
         },
       });
     }
+    if (visibilityChange) {
+      await tx.taskActivity.create({
+        data: { taskId, actorId: actor.userId, event: "task.visibility_changed", meta: visibilityChange },
+      });
+    }
     const assignRequest = requestTo
       ? await storeAssignRequest(tx, { orgId: actor.orgId, taskId, fromUserId: actor.userId, toUserId: requestTo })
       : null;
@@ -542,6 +588,18 @@ export async function updateTask(
   // «بحث بالمعنى»: the vector follows the new words (or goes when the task is archived)
   if (data.title !== undefined || data.description !== undefined || data.archived !== undefined) queueSync(actor.orgId, "task", taskId);
   return saved;
+}
+
+/**
+ * Who may switch a task between «المساحة كلها» and «المعنيين بس»: its creator, a manager of its space, the manager of
+ * its assignee up the reporting line, and whoever holds oversight (the same people who always see a private task,
+ * except a plain assignee: the person given the work does not decide who else sees it).
+ */
+async function mayChangeVisibility(userId: string, task: { workspaceId: string; creatorId: string; assigneeId: string | null }): Promise<boolean> {
+  if (task.creatorId === userId) return true;
+  const scope = await loadWorkScope(userId);
+  if (scope.managedSpaces.has(task.workspaceId) || scope.oversightSpaces.has(task.workspaceId)) return true;
+  return !!task.assigneeId && reportsOfSpace(scope, task.workspaceId).has(task.assigneeId);
 }
 
 export async function deleteTask(actor: ActorContext, taskId: string): Promise<void> {
@@ -576,6 +634,7 @@ export async function setTaskCompletion(
       throw new ForbiddenError(complete ? "board.no_done_column" : "board.no_open_column");
     }
     const alreadyDone = task.completedAt != null;
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     if (alreadyDone === complete) return tx.task.findFirstOrThrow({ where: { id: taskId }, include: TASK_INCLUDE });
     // «حقول مخصصة»: the same door as `moveTask`: finishing asks for the project's required fields
     if (complete) await assertRequiredFilled(tx, { id: taskId, projectId: task.projectId, orgId: actor.orgId });
@@ -629,6 +688,8 @@ export async function listTasks(actor: ActorContext, filters: ListFilters): Prom
   await assertMemberCan(actor, "tasks.view", "section.view_denied", { spaceGuestsPass: true });
   const where: Prisma.TaskWhereInput = {
     orgId: actor.orgId,
+    // a private task («المعنيين بس») only to the people it concerns
+    AND: [await taskParticipantFilter(actor.userId)],
     // before teams this listed the whole company's tasks for anyone in ANY one space: now only that space
     workspaceId: filters.workspaceId,
     ...(filters.project && Object.keys(filters.project).length ? { project: filters.project } : {}),

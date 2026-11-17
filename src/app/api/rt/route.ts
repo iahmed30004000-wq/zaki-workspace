@@ -7,6 +7,7 @@ import { log } from "@/server/log";
 import { requireActor } from "@/server/policy/actor";
 import {
   addClient,
+  refreshStreamViewing,
   filterVisible,
   frameOf,
   removeClient,
@@ -14,36 +15,30 @@ import {
   type RtEvent,
 } from "@/server/realtime/hub";
 import { ensureListener } from "@/server/realtime/listener";
+import { REALTIME_KINDS } from "@/server/realtime/emit";
+import { heartbeatInterval } from "@/server/realtime/stream-config";
 import { touchPresence } from "@/server/realtime/presence";
 
 /**
  * GET /api/rt — the one SSE stream per tab.
  *
  * Node runtime, never cached, never buffered: `X-Accel-Buffering: no` tells nginx
- * (and Traefik honours the same header) to flush every frame at once. A heartbeat
- * comment every 25 s keeps intermediaries from timing the connection out and
- * doubles as the re-check point: a suspended/offboarded person or a session whose
- * token version moved stops being served within one heartbeat.
+ * (and Traefik honours the same header) to flush every frame at once. A `ping` event
+ * every 25 s keeps intermediaries from timing the connection out, lets the page see a
+ * half-open connection (a comment frame is invisible to a browser), and doubles as the
+ * re-check point: a suspended/offboarded person or a session whose token version moved
+ * stops being served within one heartbeat. A stream that ends says why (`event: bye`)
+ * and closes: `evicted` (a newer stream of the same person took its place) or
+ * `signed_out`.
  */
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const HEARTBEAT_MS = 25_000;
 const REPLAY_WINDOW_MS = 48 * 3600_000;
 
-const RT_KINDS: ReadonlySet<string> = new Set([
-  "message.created",
-  "message.edited",
-  "message.deleted",
-  "message.reacted",
-  "message.pinned",
-  "poll.voted",
-  "conversation.read",
-  "conversation.delivered",
-  "conversation.changed",
-  "membership.changed",
-]);
+// ONE list of kinds: a kind added to REALTIME_KINDS survives a replay under its own name (F0.4)
+const RT_KINDS: ReadonlySet<string> = new Set<string>(REALTIME_KINDS);
 
 function kindOf(kind: string): RtEvent["kind"] {
   return RT_KINDS.has(kind) ? (kind as RtEvent["kind"]) : "conversation.changed";
@@ -79,6 +74,23 @@ async function sse(req: NextRequest): Promise<Response> {
     let client: RtClient | null = null;
     let heartbeat: ReturnType<typeof setInterval> | null = null;
     let done = false;
+    let ctrl: ReadableStreamDefaultController<Uint8Array> | null = null;
+
+    /** The stream ends here and says why, so the page neither waits in silence nor reconnects into a loop (F0.2). */
+    function end(reason: "evicted" | "signed_out"): void {
+      if (done) return;
+      try {
+        ctrl?.enqueue(encoder.encode(`event: bye\ndata: ${JSON.stringify({ reason })}\n\n`));
+      } catch {
+        // the consumer is gone already
+      }
+      cleanup();
+      try {
+        ctrl?.close();
+      } catch {
+        // closed already
+      }
+    }
 
     function cleanup(): void {
       if (done) return;
@@ -95,6 +107,7 @@ async function sse(req: NextRequest): Promise<Response> {
 
     const stream = new ReadableStream<Uint8Array>({
       async start(controller) {
+        ctrl = controller;
         const write = (text: string) => {
           if (done) return;
           try {
@@ -112,7 +125,8 @@ async function sse(req: NextRequest): Promise<Response> {
           userId: actor.userId,
           orgId: actor.orgId,
           send,
-          close: cleanup,
+          tabId: req.nextUrl.searchParams.get("tab")?.slice(0, 64) || undefined,
+          close: () => end("evicted"),
         });
         // a stream that opens counts the DMs that reached this person while away as delivered (✓✓)
         void import("@/server/chat/read-state")
@@ -166,19 +180,22 @@ async function sse(req: NextRequest): Promise<Response> {
               },
             });
             const active = user?.memberships.some((m) => m.status === "ACTIVE") ?? false;
-            if (!user || user.tokenVersion !== sessionTv || !active) cleanup();
+            if (!user || user.tokenVersion !== sessionTv || !active) end("signed_out");
           } catch {
             // a transient DB error must not kill a healthy stream
           }
         };
 
+        // the stream may have ended while the replay above was running (evicted, aborted): no heartbeat for a ghost
+        if (done) return;
         heartbeat = setInterval(() => {
-          write(`: hb ${Date.now()}\n\n`);
+          write(`event: ping\ndata: ${Date.now()}\n\n`);
           // an open stream IS presence: without this, everybody counted as offline 30 s after
           // connecting, and every message turned into a notification for them (review A3)
           touchPresence(actor.userId, undefined, actor.orgId);
+          if (client) refreshStreamViewing(client);
           void recheckSession();
-        }, HEARTBEAT_MS);
+        }, heartbeatInterval());
       },
       cancel() {
         cleanup();

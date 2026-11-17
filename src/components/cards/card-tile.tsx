@@ -16,6 +16,7 @@ import {
   Pin,
   PinOff,
   RotateCcw,
+  PackageOpen,
   Send,
   Sparkles,
   StickyNote,
@@ -45,6 +46,8 @@ export const KIND_ICON: Record<CardKind, React.ComponentType<{ className?: strin
   LINK: Link2,
   FILE: Paperclip,
   TABLE: Table2,
+  PRODUCT: PackageOpen,
+  REPLY: Send,
 };
 
 /** What a tile can ask for. The screen above decides what each one does (and asks the server again). */

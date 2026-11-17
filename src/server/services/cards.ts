@@ -15,7 +15,8 @@ import { recordCard } from "@/server/services/card-audit";
 import { AR } from "@/lib/i18n/dict";
 import {
   CARD_COLORS,
-  CARD_KINDS,
+  GENERIC_CARD_KINDS,
+  KNOWLEDGE_KINDS,
   LIMITS,
   cardMessageText,
   cardTaskDescription,
@@ -107,6 +108,8 @@ export const CARD_SELECT = {
   status: true,
   version: true,
   coverFileId: true,
+  external: true,
+  approvedVersion: true,
   createdAt: true,
   updatedAt: true,
   createdById: true,
@@ -148,7 +151,7 @@ export function dataOf(kind: CardKind, raw: unknown): CardData {
   const cleaned = cleanCardData(kind, raw);
   if (cleaned.ok) return cleaned.value;
   // a damaged row shows as an empty one of its kind (a link with a bad address shows no link at all)
-  return kind === "LIST" ? { items: [] } : kind === "TABLE" ? { columns: [""], rows: [] } : null;
+  return kind === "LIST" ? { items: [] } : kind === "TABLE" ? { columns: [""], rows: [] } : null; // a damaged PRODUCT row reads as none
 }
 
 export const jsonOf = (data: CardData): Prisma.InputJsonValue | typeof Prisma.DbNull =>
@@ -160,7 +163,7 @@ const text = (max: number) => z.string().max(max);
 
 export const createCardSchema = z.object({
   spaceId: z.string().min(1),
-  kind: z.enum(CARD_KINDS),
+  kind: z.enum(GENERIC_CARD_KINDS),
   title: z.string().trim().min(1, "cards.e.title").max(LIMITS.title),
   body: text(LIMITS.body).nullable().optional(),
   data: z.unknown().optional(),
@@ -248,7 +251,8 @@ export async function listCards(actor: Actor, spaceId: string, opts: { archived?
       orgId: actor.orgId,
       workspaceId: spaceId,
       archivedAt: opts.archived ? { not: null } : null,
-      ...(scope.seesFiles ? {} : { kind: { not: "FILE" } }),
+      // the company's knowledge (PRODUCT, REPLY) is not an ordinary card of the space: it has its own door (services/knowledge.ts)
+      kind: { notIn: scope.seesFiles ? [...KNOWLEDGE_KINDS] : ["FILE", ...KNOWLEDGE_KINDS] },
     },
     orderBy: opts.archived ? [{ archivedAt: "desc" }, { id: "asc" }] : [{ pinned: "desc" }, { position: "asc" }, { id: "asc" }],
     take: LIMITS.cards,
@@ -258,9 +262,11 @@ export async function listCards(actor: Actor, spaceId: string, opts: { archived?
 }
 
 /** A card the caller may touch: its space is theirs, its kind is one they see, and an archived one is the owner's. */
-export async function loadCard(actor: Actor, cardId: string): Promise<{ scope: CardScope; row: CardRow }> {
+export async function loadCard(actor: Actor, cardId: string, opts: { knowledge?: boolean } = {}): Promise<{ scope: CardScope; row: CardRow }> {
   const row = await db.card.findFirst({ where: { id: cardId, orgId: actor.orgId }, select: CARD_SELECT });
   if (!row) throw new NotFoundError("cards.not_found");
+  // a product sheet or a general answer is read and written only through the knowledge door, which knows who may see an unapproved one
+  if (!opts.knowledge && (row.kind === "PRODUCT" || row.kind === "REPLY")) throw new NotFoundError("cards.not_found");
   const scope = await cardScope(actor, row.workspaceId);
   if (row.kind === "FILE" && !scope.seesFiles) throw new NotFoundError("cards.not_found");
   if (row.archivedAt && !scope.owner) throw new NotFoundError("cards.not_found");
@@ -352,7 +358,7 @@ export async function saveCardEdit(
   actor: Actor,
   cardId: string,
   patch: Partial<CardSnapshot>,
-  opts: { baseVersion?: number | null; pinned?: boolean } = {},
+  opts: { baseVersion?: number | null; pinned?: boolean; alsoOnApply?: (fresh: CardRow) => Prisma.CardUpdateInput } = {},
 ): Promise<SavedEdit> {
   return db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Card" WHERE "id" = ${cardId} AND "orgId" = ${actor.orgId} FOR UPDATE`;
@@ -391,6 +397,8 @@ export async function saveCardEdit(
         else if (field === "fileId") data.file = patch.fileId ? { connect: { id: patch.fileId } } : { disconnect: true };
       }
       data.version = { increment: 1 };
+      // what the same transaction must also write when the edit is applied (the knowledge door's status and approved version)
+      if (opts.alsoOnApply) Object.assign(data, opts.alsoOnApply(fresh));
     }
     if (Object.keys(data).length === 0) return { card: toItem(fresh), applied: false, changed, pinChanged };
     const updated = await tx.card.update({ where: { id: cardId }, data, select: CARD_SELECT });

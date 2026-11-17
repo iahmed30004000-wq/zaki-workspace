@@ -3,9 +3,9 @@
 import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
-import { CalendarDays, Pencil, Trash2, User, Flag, Type as TypeIcon, Send } from "lucide-react";
+import { CalendarDays, Lock, Pencil, Trash2, User, Flag, Type as TypeIcon, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiDelete, apiPost, apiPatch } from "@/lib/api-client";
+import { apiDelete, apiPost, apiPatch, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -41,6 +41,8 @@ export interface TaskDetailData {
   boardName: string;
   dueDate: string | null;
   creatorName: string;
+  /** «مين بيشوفها؟»: SPACE or PARTICIPANTS. */
+  visibility: string;
   assigneeId: string | null;
   assigneeName: string | null;
   /** Every person the task is for, in order (the first is `assigneeId`); absent means one person. */
@@ -111,6 +113,7 @@ export function TaskDetail({
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [priority, setPriority] = useState(task.priority);
+  const [visibility, setVisibility] = useState(task.visibility);
   const [dueDate, setDueDate] = useState(task.dueDate?.slice(0, 10) ?? "");
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     task.assigneeIds ?? (task.assigneeId ? [task.assigneeId] : []),
@@ -148,7 +151,16 @@ export function TaskDetail({
       }
       router.refresh();
     },
-    onError: () => {
+    onError: (err, sent) => {
+      // publishing a task made from a private conversation: ask once, then send it again with the confirmation (P0 review)
+      if (sent["visibility"] === "SPACE" && err instanceof ApiError && JSON.stringify([err.details, err.body]).includes("work.confirm_public_required")) {
+        if (window.confirm(t("taskpriv.from_private_warn"))) {
+          save.mutate({ visibility: "SPACE", confirmPublic: true });
+          return;
+        }
+        setVisibility(task.visibility);
+        return;
+      }
       toast(t("common.error"), "error");
       setError("common.error");
     },
@@ -310,6 +322,33 @@ export function TaskDetail({
               ) : (
                 <p className="text-sm text-fg">{enumLabel("TaskPriority", task.priority)}</p>
               )}
+            </div>
+            <div>
+              <span className="mb-1 flex items-center gap-1 text-xs text-fg-muted">
+                <Lock className="h-3 w-3" /> {t("taskpriv.label")}
+              </span>
+              {fieldsEdit ? (
+                <Select
+                  value={visibility}
+                  onChange={(e) => {
+                    setVisibility(e.target.value);
+                    save.mutate({ visibility: e.target.value });
+                  }}
+                  className="h-8"
+                >
+                  <option value="SPACE">{t("taskpriv.space")}</option>
+                  <option value="PARTICIPANTS">{t("taskpriv.participants")}</option>
+                </Select>
+              ) : (
+                <p className="text-sm text-fg">{visibility === "PARTICIPANTS" ? t("taskpriv.participants") : t("taskpriv.space")}</p>
+              )}
+              {visibility === "SPACE" && task.assigneeId ? (
+                <p className="mt-1 text-xs text-warn">
+                  {t("taskpriv.warn_public")} {t("taskpriv.fix_public")}
+                </p>
+              ) : visibility === "PARTICIPANTS" ? (
+                <p className="mt-1 text-xs text-fg-muted">{t("taskpriv.hint_private")}</p>
+              ) : null}
             </div>
             <div>
               <span className="mb-1 flex items-center gap-1 text-xs text-fg-muted">

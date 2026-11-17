@@ -1,0 +1,23 @@
+{
+  "chatp.people.one": "شخص واحد",
+  "chatp.people.two": "شخصان",
+  "chatp.people.few": "{n} أشخاص",
+  "chatp.people.many": "{n} شخصًا",
+  "chatp.label.restricted": "🔒 خاص · {people}",
+  "chatp.label.team": "👥 للمقطع · {people}",
+  "chatp.label.dm": "🔒 بينكم بس",
+  "chatp.open_sheet": "مين بيشوف هالمحادثة",
+  "chatp.sheet.title": "مين بيشوف هالمحادثة",
+  "chatp.sheet.open": "الموضوع مفتوح: بيشوفه كل أعضاء المساحة.",
+  "chatp.sheet.restricted": "الموضوع خاص: بيشوفه بس الناس اللي بالقائمة.",
+  "chatp.sheet.team": "الموضوع لأعضاء المقطع: بيشوفه بس أعضاء المقطع.",
+  "chatp.sheet.dm": "المحادثة بين أصحابها بس.",
+  "chatp.sheet.people": "الناس",
+  "chatp.sheet.oversight": "والمالك بصفة رقابة: بيقدر يقرأ بدون ما حدا يعرف.",
+  "chatp.sheet.close": "تمام",
+  "chatp.visible_to": "رح يشوفه: {names}",
+  "chatp.visible_space": "رح يشوفه: كل أعضاء مساحة {name}",
+  "chatp.visible_section": "رح يشوفه: أعضاء مقطع {name}",
+  "chatp.visible_none": "ما حدا رح يشوفه: اختار ناس.",
+  "chath.team_topic": "موضوع مقطع"
+}

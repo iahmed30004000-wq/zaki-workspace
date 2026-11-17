@@ -38,6 +38,7 @@ async function check(actor: Who, fact: Fact): Promise<boolean> {
       return isChosenTheme(me?.theme);
     }
     case "task-created": {
+      // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
       const row = await db.task.findFirst({ where: { orgId: actor.orgId, creatorId: actor.userId }, select: { id: true } });
       return row !== null;
     }
@@ -45,6 +46,7 @@ async function check(actor: Who, fact: Fact): Promise<boolean> {
       // a task that is THEIRS (assigned to them) and finished, archived or not. A task row does not say
       // who finished it (there is no `completedById`), so what counts is "it was given to this person and
       // it is done": a task they only CREATED, finished by a colleague, never ticks the step for them.
+      // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
       const row = await db.task.findFirst({
         where: { orgId: actor.orgId, completedAt: { not: null }, assigneeId: actor.userId },
         select: { id: true },

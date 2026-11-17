@@ -22,6 +22,8 @@ export type ApiTokenStatus = "active" | "revoked" | "expired";
 export interface ApiTokenDTO {
   id: string;
   name: string;
+  /** The system it was made for on «توكنات الأنظمة» (W1), or null for a token made on «الأتمتة». */
+  system: string | null;
   /** The public part (`zws_ab12…`): enough to recognise a token on the screen, useless to use it. */
   hint: string;
   permissions: DoorPermission[];
@@ -39,6 +41,7 @@ export interface ApiTokenDTO {
 const TOKEN_SELECT = {
   id: true,
   name: true,
+  system: true,
   prefix: true,
   permissions: true,
   createdAt: true,
@@ -55,6 +58,7 @@ function toDTO(row: Prisma.ApiTokenGetPayload<{ select: typeof TOKEN_SELECT }>, 
   return {
     id: row.id,
     name: row.name,
+    system: row.system,
     hint: `zws_${row.prefix}…`,
     permissions: row.permissions.filter(isDoorPermission),
     space: row.workspace,
@@ -79,11 +83,11 @@ async function maker(actor: Actor): Promise<void> {
   await assertFeatureOn(actor.orgId, "apiDoor");
 }
 
-export async function listApiTokens(actor: Actor): Promise<{ tokens: ApiTokenDTO[]; spaces: { id: string; name: string }[]; switchOn: boolean }> {
+export async function listApiTokens(actor: Actor, opts: { systemsOnly?: boolean } = {}): Promise<{ tokens: ApiTokenDTO[]; spaces: { id: string; name: string }[]; switchOn: boolean }> {
   manager(actor);
   const reach = await accessibleWorkspaceIds(actor.userId);
   const [rows, spaces, switchOn] = await Promise.all([
-    db.apiToken.findMany({ where: { organizationId: actor.orgId }, orderBy: { createdAt: "desc" }, take: 200, select: TOKEN_SELECT }),
+    db.apiToken.findMany({ where: { organizationId: actor.orgId, ...(opts.systemsOnly ? { system: { not: null } } : {}) }, orderBy: { createdAt: "desc" }, take: 200, select: TOKEN_SELECT }),
     db.workspace.findMany({ where: { organizationId: actor.orgId, id: { in: reach } }, orderBy: { name: "asc" }, select: { id: true, name: true } }),
     isFeatureOn(actor.orgId, "apiDoor"),
   ]);
@@ -97,6 +101,8 @@ export interface CreateApiTokenInput {
   workspaceId: string;
   /** Days until it expires; null: it does not expire (the owner chose that, and the screen says what it costs). */
   expiresInDays: number | null;
+  /** Set only by `createSystemToken` (W1). */
+  system?: string;
 }
 
 export async function createApiToken(actor: Actor, input: CreateApiTokenInput): Promise<{ token: string; item: ApiTokenDTO }> {
@@ -123,6 +129,7 @@ export async function createApiToken(actor: Actor, input: CreateApiTokenInput): 
         prefix: fresh.prefix,
         tokenHash: fresh.hash,
         permissions,
+        ...(input.system ? { system: input.system } : {}),
         workspaceId: space.id,
         createdById: actor.userId,
         expiresAt,
@@ -136,7 +143,7 @@ export async function createApiToken(actor: Actor, input: CreateApiTokenInput): 
         orgId: actor.orgId,
         target: made.id,
         workspaceId: space.id,
-        meta: { name, permissions, expiresAt: expiresAt?.toISOString() ?? null },
+        meta: { name, permissions, expiresAt: expiresAt?.toISOString() ?? null, ...(input.system ? { system: input.system } : {}) },
       },
     });
     return made;

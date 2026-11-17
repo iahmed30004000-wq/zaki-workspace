@@ -23,6 +23,8 @@ export interface RtClient {
   send: (frame: string) => void;
   /** Close the stream (the route's abort handler does the rest). */
   close: () => void;
+  /** The browser tab that opened the stream (a random id it sends with the stream and with its visibility reports). */
+  tabId?: string;
   /** Serial number, for "close the OLDEST stream" decisions. */
   cid: number;
 }
@@ -31,6 +33,10 @@ interface RegistryEntry {
   client: RtClient;
   /** Per-client visibility cache: conversationId -> allowed (30 s TTL). */
   cache: Map<string, { ok: boolean; at: number }>;
+  /** Is the tab looking at the app (`document.visibilityState`)? It says so itself; a new stream is taken as visible until it says otherwise. */
+  viewing: boolean;
+  /** When the tab last said it was visible, or the heartbeat last found it so: a stuck «visible» goes stale after 60 s (F0.5). */
+  viewingAt: number;
 }
 
 const VISIBILITY_CACHE_MS = 30_000;
@@ -93,9 +99,36 @@ export function addClient(client: Omit<RtClient, "cid">): RtClient {
       // already gone
     }
   }
-  hub().registry.push({ client: full, cache: new Map() });
+  hub().registry.push({ client: full, cache: new Map(), viewing: true, viewingAt: Date.now() });
   touchPresence(client.userId, undefined, client.orgId);
   return full;
+}
+
+/**
+ * A tab says whether it is being looked at (F0.5). With a `tabId` only that tab's streams change; without one (an old page),
+ * all of the person's. Memory only — nothing is written anywhere.
+ */
+export function setStreamViewing(userId: string, viewing: boolean, tabId?: string, now: number = Date.now()): void {
+  const mine = hub().registry.filter((r) => r.client.userId === userId);
+  // a tab that names itself changes ITS streams only: an evicted or paused tab (no stream) must not change another tab's state
+  const target = tabId ? mine.filter((r) => r.client.tabId === tabId) : mine;
+  for (const r of target) {
+    r.viewing = viewing;
+    if (viewing) r.viewingAt = now;
+  }
+}
+
+/** The heartbeat of an open stream: a tab that is still visible stays fresh for the push check. */
+export function refreshStreamViewing(client: RtClient, now: number = Date.now()): void {
+  const entry = hub().registry.find((r) => r.client.cid === client.cid);
+  if (entry?.viewing) entry.viewingAt = now;
+}
+
+/** The person's streams as the push check needs them (read-only). */
+export function streamsViewingOf(userId: string): { viewing: boolean; viewingAt: number }[] {
+  return hub()
+    .registry.filter((r) => r.client.userId === userId)
+    .map((r) => ({ viewing: r.viewing, viewingAt: r.viewingAt }));
 }
 
 export function removeClient(client: RtClient): void {

@@ -238,6 +238,15 @@ function isLocalHostName(host) {
 // ---------------------------------------------------------------- scanning
 
 /**
+ * A signing password written into a Gradle file (`storePassword 'x'`, `keyPassword = "x"`, or a literal after `?:`).
+ * The key's password is a secret of the repository (the workflow passes it from the environment), never a line of the file,
+ * so ANY non-empty literal is a finding, however harmless it looks: the generic rules miss it because the word the
+ * password is made of reads like a placeholder. An environment read (`System.getenv("NAME")`) is the right shape and passes.
+ */
+const IS_GRADLE = /\.gradle(?:\.kts)?$/i;
+const GRADLE_SIGNING_LITERAL = /(?:store|key)Password\b(?:\s*[=(]?\s*|[^\n]*\?:\s*)(['"])([^'"\r\n]+)\1/i;
+
+/**
  * Scan one file's text. Returns `[{ rule, line }]` - never the matched value.
  * `file` is a repository-relative path with forward slashes.
  */
@@ -253,12 +262,13 @@ export function scanText(text, file) {
   const shapeGuesses = !IS_TEST.test(unix) && !IS_LOCKFILE.test(unix);
   const isEnvLike = IS_ENV_LIKE.test(unix);
   const isDoc = IS_DOC.test(unix);
+  const isGradle = IS_GRADLE.test(unix);
   const lines = text.split(/\r?\n/);
 
   for (let i = 0; i < lines.length; i += 1) {
     const line = lines[i];
     if (!line || line.includes("scan-secrets:ignore")) continue;
-    const hit = scanLine(line, { shapeGuesses, isEnvLike, isDoc });
+    const hit = (isGradle && GRADLE_SIGNING_LITERAL.test(line) ? "Signing password in a Gradle file" : null) ?? scanLine(line, { shapeGuesses, isEnvLike, isDoc });
     if (hit) findings.push({ rule: hit, line: i + 1 });
   }
   return findings;

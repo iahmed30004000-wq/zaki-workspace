@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Check } from "lucide-react";
+import { Check, Lock } from "lucide-react";
 import { apiPatch, apiPost, ApiError } from "@/lib/api-client";
 import { PRIORITY_STYLES, fmtDMY, fmtRelative } from "@/lib/format";
 import { dayOfInstant } from "@/lib/due-day";
@@ -49,6 +49,8 @@ export interface RowTask {
   reward?: { status: string; amountMinor: number; currency: string } | null;
   /** «تثبيت»: when it was pinned (absent: not pinned, or the switch is off). */
   pinnedAt?: Date | string | null;
+  /** «مين بيشوفها؟»: PARTICIPANTS draws a lock. */
+  visibility?: string;
   /** «حقول مخصصة»: the task's answers as chips, by field id; absent for a partner or while the switch is off (the person's own choice picks which to draw). */
   fields?: Record<string, FieldCell>;
 }
@@ -169,6 +171,7 @@ export function TaskRow({
         <span className={cn("truncate text-sm", done ? "text-muted line-through" : "text-fg")}>
           {task.title}
         </span>
+        {task.visibility === "PARTICIPANTS" ? <Lock className="h-3 w-3 shrink-0 text-fg-muted" aria-label={t("taskpriv.lock")} /> : null}
         {showProject && task.projectName ? (
           <span className="hidden shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted md:inline">
             {task.projectName}

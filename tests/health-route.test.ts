@@ -3,13 +3,29 @@ import path from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const queryRaw = vi.hoisted(() => vi.fn());
+const live = vi.hoisted(() => ({ connected: true, ensure: vi.fn() }));
 vi.mock("@/server/db", () => ({ db: { $queryRaw: queryRaw } }));
+vi.mock("@/server/realtime/listener", () => ({ ensureListener: live.ensure, listenerConnected: () => live.connected }));
 
 import * as health from "../src/app/api/health/route";
 
 describe("/api/health", () => {
   beforeEach(() => {
     queryRaw.mockReset(); // (not returned: vitest would run a returned function as cleanup)
+    live.connected = true;
+    live.ensure.mockReset();
+  });
+
+  it("F0.9: shows the live line — `realtime: ok` when the listener is connected, `down` when not — and never changes the status because of it", async () => {
+    queryRaw.mockResolvedValue([{ "?column?": 1 }]);
+    const up = await health.GET();
+    expect(up.status).toBe(200);
+    expect(await up.json()).toMatchObject({ status: "ok", realtime: "ok" });
+    live.connected = false;
+    const down = await health.GET();
+    expect(down.status).toBe(200); // the database stays the only reason for a 503
+    expect(await down.json()).toMatchObject({ status: "ok", realtime: "down", checks: { app: "ok", database: "ok" } });
+    expect(live.ensure).toHaveBeenCalled(); // asking brings the listener up after a deploy
   });
 
   it("is evaluated per request (a build-time snapshot made the Docker health check blind to a database outage)", () => {

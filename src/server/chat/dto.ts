@@ -6,7 +6,10 @@
 export type TopicType = "DISCUSSION" | "ANNOUNCEMENTS" | "TASKS" | "IDEAS" | "FOLLOWUP";
 export type PostingPolicy = "ALL" | "ADMINS";
 export type ConversationKind = "DM" | "GROUP" | "TOPIC";
-export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL";
+export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD";
+
+/** What a CARD message points at (Q1.3): never a price, never a name — each reader's screen asks for the card. */
+export type CardRefDto = { type: "product"; cardId: string } | { type: "order"; number: string };
 
 /** `{k, p}` of a system message — the client composes the Arabic sentence from it. */
 export interface SystemMeta {
@@ -99,8 +102,10 @@ export interface MessageDto {
   system?: SystemMeta | null;
   /** a POLL message's poll (absent on any other message and on a deleted one). */
   poll?: PollDto;
+  /** A CARD message: the card it points at. */
+  card?: CardRefDto;
   /** the tasks and tickets made from this message («صارت مهمة»). */
-  work?: { kind: "task" | "ticket"; id: string }[];
+  work?: { kind: "task" | "ticket"; id: string; /** a ticket: its number, state and who holds it (the live chip, Q1.5) */ number?: number; status?: string; assigneeName?: string | null }[];
   /** «نتفرّج سوا»: the second of the video it was written at. */
   videoAtSec?: number | null;
 }
@@ -190,6 +195,11 @@ export interface ConversationDto {
   restricted?: boolean;
   /** The «مقطع» the topic belongs to (null: the whole space's, or not a topic). */
   teamId?: string | null;
+  /**
+   * A private conversation only (a DM, a group, a restricted or a «مقطع»'s topic): true when somebody who is not in it
+   * holds silent oversight (`archive.view`), false when nobody does. ABSENT for an open topic. The sheet says so honestly (P0.4).
+   */
+  oversightNotice?: boolean;
   pinned?: boolean;
   archived?: boolean;
   closed: boolean;
@@ -222,6 +232,15 @@ export interface ConversationDto {
     canMentionAll?: boolean;
     /** may start a poll here: a topic, not a guest, and may post */
     canPoll?: boolean;
+    /** may open the «/» menu here (Q1.3): staff who may post, with `quickRecall` and `knowledgeCards` on */
+    canRecall?: boolean;
+    /** what the «/» menu offers here (Q1.3, Q1.4): «منتج» and «رد» need `knowledgeCards`, «طلب» needs `orderStatus` and `omsLink` */
+    recallKinds?: Array<"product" | "reply" | "order">;
+    /** an order number in a message may be a chip here (Q1.4): staff, `orderStatus` and `omsLink` on */
+    canOrderState?: boolean;
+    /** «🎫 مشكلة» (Q1.5): the kinds of problem, and the company's rules for this open topic so the screen can offer «بدك تعمليها تذكرة؟» (absent: the switch is off or a guest) */
+    problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>;
+    problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }>;
     id?: string;
   };
   /** the pinned messages, newest first (the bar on top of the conversation) */

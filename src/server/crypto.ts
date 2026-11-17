@@ -95,6 +95,16 @@ export function decryptSecrets<T>(blob: string | null | undefined): T | null {
 }
 
 /**
+ * A keyed hash for MATCHING a value without keeping it (Q1.5: a customer's number): HMAC-SHA256 under a key derived from the company's encryption key
+ * for this `purpose` only. The same value gives the same hash; nobody can go back from the hash, and a hash of one purpose is useless for another.
+ */
+export function keyedHash(purpose: string, value: string): string {
+  const raw = process.env["ENCRYPTION_KEY"] && process.env["ENCRYPTION_KEY"]!.trim() !== "" ? process.env["ENCRYPTION_KEY"]! : (process.env["AUTH_SECRET"] ?? "");
+  const key = Buffer.from(hkdfSync("sha256", raw, "zaki-workspace", `keyed-hash:${purpose}`, 32));
+  return createHmac("sha256", key).update(value).digest("hex");
+}
+
+/**
  * A fresh shared secret for webhook signing: 256 bits from the OS CSPRNG, as 64 hex
  * characters (safe in a header, a URL and a double-click selection).
  */

@@ -75,12 +75,13 @@ describe("use-realtime shared stream", () => {
     vi.useFakeTimers();
     mod.subscribeForTests(() => undefined);
     const first = FakeEventSource.instances[0]!;
-    expect(first.url).toBe("/api/rt");
+    // the stream carries this tab's own id (F0.5); nothing else until there is an event id to resume from
+    expect(first.url).toMatch(/^\/api\/rt\?tab=[^&]+$/);
     frame(first, { kind: "message.created", conversationId: "cv1" }, "42");
     first.onerror?.();
     vi.advanceTimersByTime(1000);
     const second = FakeEventSource.instances[1]!;
-    expect(second.url).toBe("/api/rt?lastEventId=42");
+    expect(second.url).toMatch(/^\/api\/rt\?tab=[^&]+&lastEventId=42$/);
   });
 
   it("after three failed streams it polls, with a synthetic conversation.changed every 15 s", () => {

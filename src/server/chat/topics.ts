@@ -10,7 +10,10 @@ import { writeSystemMessage } from "@/server/chat/system";
 import type { ConversationDto, MemberDto, MessageDto, ReaderDto } from "@/server/chat/dto";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
+import { oversightReaderExists } from "@/server/chat/archive-access";
 import { isFeatureOn } from "@/server/services/features";
+import { autoRulesOf, ruleMode } from "@/lib/tickets/auto-rules";
+import { problemKindsOf } from "@/lib/tickets/problem-kinds";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { ocrAvailable } from "@/server/services/image-ocr";
 import { chatAssistantOffered, conversationHasGuest } from "@/server/services/chat-assistant";
@@ -58,6 +61,28 @@ export async function assertPeopleOfSpace(orgId: string, spaceId: string, ids: s
 }
 
 /** The «مقطع» must be one of the space's own (a miss reads as «not found», like everything of another space). */
+/** What the «/» menu offers a person here (Q1.3, Q1.4): the kinds whose switches are on, only to staff who may post; chips of order numbers need no posting. */
+async function recallOffer(orgId: string, staff: boolean, mayPost: boolean): Promise<{ canRecall: boolean; recallKinds: Array<"product" | "reply" | "order">; canOrderState: boolean }> {
+  // the same rule as the door (`assertOrderStatusOn`): both switches AND the orders system linked and connected
+  const orderOn = staff && (await isFeatureOn(orgId, "orderStatus")) && (await isFeatureOn(orgId, "omsLink")) && Boolean((await db.integration.findUnique({ where: { orgId_type: { orgId, type: "OMS" } }, select: { connected: true } }))?.connected);
+  const recallOn = staff && mayPost && (await isFeatureOn(orgId, "quickRecall"));
+  const knowledge = recallOn && (await isFeatureOn(orgId, "knowledgeCards"));
+  const recallKinds: Array<"product" | "reply" | "order"> = [...(knowledge ? (["product", "reply"] as const) : []), ...(recallOn && orderOn ? (["order"] as const) : [])];
+  return { canRecall: recallKinds.length > 0, recallKinds, canOrderState: orderOn };
+}
+
+/** «🎫 مشكلة» (Q1.5): the kinds of problem for staff while `autoTickets` is on, and the rules of an OPEN topic so the screen can offer «بدك تعمليها تذكرة؟» (a private conversation has none: only by hand). */
+async function problemOffer(orgId: string, staff: boolean, facts: { kind: string; restricted?: boolean | null; teamId?: string | null; spaceId?: string | null }): Promise<{ problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>; problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }> }> {
+  if (!staff || !(await isFeatureOn(orgId, "autoTickets"))) return {};
+  const org = await db.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
+  const openTopic = facts.kind === "TOPIC" && !facts.restricted && !facts.teamId && Boolean(facts.spaceId);
+  const rules = openTopic ? autoRulesOf(org?.settings).filter((r) => r.spaceId === facts.spaceId) : [];
+  return {
+    problemKinds: problemKindsOf(org?.settings).map((k) => ({ key: k.key, label: k.label, ...(k.needsFollowUp ? { needsFollowUp: true } : {}), ...(k.needsRecording ? { needsRecording: true } : {}) })),
+    problemRules: rules.map((r) => ({ id: r.id, type: r.type, spaceId: r.spaceId, ...(r.conversationId ? { conversationId: r.conversationId } : {}), kindKey: r.kindKey, mode: ruleMode(r), ...(r.problemWords ? { problemWords: r.problemWords } : {}) })),
+  };
+}
+
 async function assertTeamOfSpace(spaceId: string, teamId: string | null | undefined): Promise<void> {
   if (!teamId) return;
   const team = await db.team.findFirst({ where: { id: teamId, workspaceId: spaceId }, select: { id: true } });
@@ -281,30 +306,37 @@ export async function conversationDetail(
 
   const limit = Math.min(Math.max(opts.limit ?? PAGE, 1), PAGE);
   const where: Prisma.ChatMessageWhereInput = { conversationId };
+  // Paging is by (createdAt, id): two messages written in the same instant are ordered by id, so a page boundary can fall between
+  // them and neither is skipped nor shown twice (F0.8). `before` is a message's id.
   if (opts.before) {
-    const anchor = await db.chatMessage.findUnique({ where: { id: opts.before }, select: { createdAt: true } });
+    const anchor = await db.chatMessage.findFirst({ where: { id: opts.before, conversationId }, select: { id: true, createdAt: true } });
     if (!anchor) throw new NotFoundError("chat.e.not_found");
-    where.createdAt = { lt: anchor.createdAt };
+    where.OR = [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lt: anchor.id } }];
   }
 
   // around one message: its newer half (oldest first, turned round below), then it and its older half
   let newer: Awaited<ReturnType<typeof newerThan>> = [];
   let olderLimit = limit;
-  async function newerThan(at: Date, take: number) {
-    return db.chatMessage.findMany({ where: { conversationId, createdAt: { gt: at } }, orderBy: { createdAt: "asc" }, take, include: messageInclude() });
+  async function newerThan(at: Date, anchorId: string, take: number) {
+    return db.chatMessage.findMany({
+      where: { conversationId, OR: [{ createdAt: { gt: at } }, { createdAt: at, id: { gt: anchorId } }] },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take,
+      include: messageInclude(),
+    });
   }
   if (opts.around) {
-    const anchor = await db.chatMessage.findFirst({ where: { id: opts.around, conversationId }, select: { createdAt: true } });
+    const anchor = await db.chatMessage.findFirst({ where: { id: opts.around, conversationId }, select: { id: true, createdAt: true } });
     if (!anchor) throw new NotFoundError("chat.e.not_found");
     olderLimit = limit - Math.floor(limit / 2);
-    newer = await newerThan(anchor.createdAt, Math.floor(limit / 2));
-    where.createdAt = { lte: anchor.createdAt };
+    newer = await newerThan(anchor.createdAt, anchor.id, Math.floor(limit / 2));
+    where.OR = [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lte: anchor.id } }];
   }
 
   const [older, conv] = await Promise.all([
     db.chatMessage.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: olderLimit + 1, // one extra: is there an older page?
       include: messageInclude(),
     }),
@@ -406,6 +438,10 @@ export async function conversationDetail(
     postingPolicy: conv.postingPolicy as ConversationDto["postingPolicy"],
     restricted: conv.restricted,
     teamId: conv.teamId,
+    // P0.4: a private conversation tells its people whether somebody outside it may read it silently
+    ...(facts.kind !== "TOPIC" || conv.restricted || conv.teamId
+      ? { oversightNotice: await oversightReaderExists(ctx.orgId, conv.members.map((m) => m.userId)) }
+      : {}),
     closed: !!conv.closedAt,
     pinned: !!conv.pinnedAt,
     archived: !!conv.archivedAt,
@@ -428,6 +464,9 @@ export async function conversationDetail(
       canTranslate: await translateOffered({ orgId: ctx.orgId, role: org!.role, facts, conversationId }),
       canMentionAll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       canPoll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
+      // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
+      ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
+      ...(await problemOffer(ctx.orgId, org!.role !== "GUEST", facts)),
       id: ctx.userId,
     },
     pinnedMessages: (
