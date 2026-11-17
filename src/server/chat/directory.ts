@@ -98,6 +98,6 @@ export async function companyDirectory(orgId: string, viewerId: string, spaceId:
     // no space at all (a company without spaces): the DM is opened company-wide, so nobody is fenced off
     inSpace: spaceId ? space.has(r.userId) : true,
     // «إخفاء المالك من متصل»: the owner does not light up for anybody but himself
-    online: r.userId === viewerId || (atScreen.has(r.userId) && !(hideOwner && r.role === "OWNER")),
+    online: r.userId === viewerId || (atScreen.has(r.userId) && !(hideOwner && r.role === "OWNER" /* oversight-ok: presence of the OWNER rank, not reading */)),
   }));
 }

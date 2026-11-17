@@ -48,7 +48,7 @@ export async function muteInSpace(
   ]);
   if (!theirs) throw new NotFoundError("chat.e.not_found");
 
-  const may = org?.role === "OWNER" || isSpaceAdmin(mine?.role ?? null);
+  const may = org?.role === "OWNER" /* oversight-ok: muting is management by rank */ || isSpaceAdmin(mine?.role ?? null);
   if (!may) throw new ForbiddenError("chat.e.moderator_only");
 
   // nobody mutes the OWNER; nobody mutes an equal or a higher standing
@@ -98,7 +98,7 @@ export async function spaceModerationLog(
       select: { role: true },
     }),
   ]);
-  if (!(org?.role === "OWNER" || isSpaceAdmin(mine?.role ?? null))) throw new ForbiddenError("chat.e.moderator_only");
+  if (!(org?.role === "OWNER" /* oversight-ok: management by rank */ || isSpaceAdmin(mine?.role ?? null))) throw new ForbiddenError("chat.e.moderator_only");
 
   const limit = Math.min(Math.max(opts.limit ?? 30, 1), 100);
   const rows = await db.auditLog.findMany({

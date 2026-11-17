@@ -2,7 +2,8 @@ import { z } from "zod";
 import { memberCan } from "@/server/policy/actor";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
-import { canModerate, canPost, canRead, loadConversationFacts, loadOrgFacts, type ConversationFacts } from "@/server/policy/conversation";
+import { effectiveCapabilities } from "@/server/policy/capabilities";
+import { canModerate, canPost, canRead, hasOversight, loadConversationFacts, loadOrgFacts, type ConversationFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
 import { isSpaceAdmin } from "@/server/policy/conversation";
 import { writeSystemMessage } from "@/server/chat/system";
@@ -72,7 +73,7 @@ export async function createTopic(ctx: OrgAccessContext, input: z.infer<typeof c
   });
   const ws = await db.workspace.findFirst({ where: { id: input.spaceId, organizationId: ctx.orgId }, select: { id: true } });
   if (!ws) throw new NotFoundError("chat.e.not_found");
-  if (!(org?.role === "OWNER" || isSpaceAdmin(sm?.role ?? null))) throw new ForbiddenError("chat.e.moderator_only");
+  if (!(org?.role === "OWNER" /* oversight-ok: opening a topic is management by rank, not reading */ || isSpaceAdmin(sm?.role ?? null))) throw new ForbiddenError("chat.e.moderator_only");
   await assertTeamOfSpace(input.spaceId, input.teamId);
 
   // a topic for named people: they must be people of the space (nobody is pulled in from outside it)
@@ -331,17 +332,22 @@ export async function conversationDetail(
   const online = new Set(await onlineUserIds(ctx.orgId));
 
   const canModerateHere = canModerate(facts, org!);
-  const viewer: Viewer = { userId: ctx.userId, role: org!.role, canModerateHere, isMember: facts.viewerIsMember };
+  const silent = hasOversight(org); // reading with no row of his own: the capability archive.view, never the rank
+  const viewer: Viewer = { userId: ctx.userId, role: org!.role, oversight: silent, canModerateHere, isMember: facts.viewerIsMember };
   const hideOwnerOnline = await isFeatureOn(ctx.orgId, "ownerHiddenOnline");
 
   // the OWNER's reading is silent: his read mark never shows, in ticks or reader avatars
   const ownerIds = new Set(
     (
       await db.organizationMember.findMany({ // all-statuses: the owner's silence holds whatever his status
+        // oversight-ok: whose read marks are hidden — the OWNER rank who still holds archive.view (filtered below)
         where: { organizationId: ctx.orgId, role: "OWNER", userId: { in: conv.members.map((m) => m.userId) } },
-        select: { userId: true },
+        select: { userId: true, role: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
       })
-    ).map((o) => o.userId),
+    )
+      // a partner whose archive.view was taken away is a normal participant: his reading shows like anybody's
+      .filter((o) => effectiveCapabilities(o).has("archive.view"))
+      .map((o) => o.userId),
   );
   // «إخفاء المالك من متصل»: the owner does not light up for anybody but himself
   if (hideOwnerOnline) for (const id of ownerIds) if (id !== ctx.userId) online.delete(id);
@@ -409,15 +415,15 @@ export async function conversationDetail(
       canPost: canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       canModerate: canModerateHere,
       muted: !!(facts.mutedUntil && facts.mutedUntil > new Date()),
-      oversight: org!.role === "OWNER" && !facts.viewerIsMember,
+      oversight: silent && !facts.viewerIsMember,
       // a topic only (a DM is never his to enter), and not a closed one (it takes no messages)
-      canJoin: org!.role === "OWNER" && !facts.viewerIsMember && facts.kind === "TOPIC" && !conv.closedAt,
-      canMakeWork: org!.role !== "GUEST" && !(org!.role === "OWNER" && !facts.viewerIsMember),
+      canJoin: silent && !facts.viewerIsMember && facts.kind === "TOPIC" && !conv.closedAt,
+      canMakeWork: org!.role !== "GUEST" && !(silent && !facts.viewerIsMember),
       canCall: (await memberCan(ctx, "calls.edit", { spaceGuestsPass: true })) === true,
       canMakeTask: (await memberCan(ctx, "tasks.edit")) === true,
       canMakeTicket: (await memberCan(ctx, "tickets.edit")) === true,
       // «ذكّرني» on a message: the company's switch, and never in silent oversight (a reminder is his own trace; he joins first)
-      canRemind: !(org!.role === "OWNER" && !facts.viewerIsMember) && (await isFeatureOn(ctx.orgId, "reminders")),
+      canRemind: !(silent && !facts.viewerIsMember) && (await isFeatureOn(ctx.orgId, "reminders")),
       // «ترجم» on a text message: the switches, a ready model, staff only, and no guest among the conversation's people (src/server/services/message-translate.ts)
       canTranslate: await translateOffered({ orgId: ctx.orgId, role: org!.role, facts, conversationId }),
       canMentionAll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
@@ -462,7 +468,7 @@ export async function conversationDetail(
     imageOcr: (await ocrAvailable(ctx.orgId)) && ctx.orgRole !== "GUEST" && !(await conversationHasGuest(facts, conversationId, ctx.orgId)),
     // «لخّصلي»: a topic only (never a private chat or somebody's conversation with the assistant), never for a partner, while «شو فاتني؟» is offered
     // the owner in his OWN conversation with the assistant: the call button rings the assistant (only while the guide, which owns the voice call, is on)
-    assistantCall: org!.role === "OWNER" && isAssistantChatOf(conv.dmKey, ctx.userId) && (await isFeatureOn(ctx.orgId, "siteGuide")) && (await isFeatureOn(ctx.orgId, "ownerAssistant")),
+    assistantCall: org!.role === "OWNER" /* oversight-ok: the owner's own assistant, not reading */ && isAssistantChatOf(conv.dmKey, ctx.userId) && (await isFeatureOn(ctx.orgId, "siteGuide")) && (await isFeatureOn(ctx.orgId, "ownerAssistant")),
     digest: org!.role !== "GUEST" && facts.kind === "TOPIC" && conv.dmKey === null && (await digestOffered(ctx.orgId)),
   };
 }

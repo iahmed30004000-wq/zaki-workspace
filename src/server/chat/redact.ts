@@ -15,6 +15,11 @@ export type Viewer = {
   userId: string;
   /** the organization rank, for the owner's privileges and the guest's blindness */
   role: string;
+  /**
+   * the viewer holds silent oversight (the capability `archive.view`): the edit history, the originals of deleted
+   * messages. Absent: read as "an OWNER-rank viewer holds it" (hand-made viewers); the server always sets it.
+   */
+  oversight?: boolean;
   /** true: the viewer moderates the conversation's space (or is the org ADMIN/OWNER) */
   canModerateHere: boolean;
   /** the viewer is a row of the conversation (the owner only where he joined); absent: not */
@@ -94,7 +99,7 @@ export function presentMessage(
   viewer: Viewer,
   dmStatus?: "sent" | "delivered" | "read",
 ): MessageDto {
-  const isOwner = viewer.role === "OWNER";
+  const isOwner = viewer.oversight ?? viewer.role === "OWNER"; // oversight-ok: the fallback of a hand-made viewer
   const deleted = !!row.deletedAt;
   const isMine = row.authorId === viewer.userId;
   const isSystem = row.kind === "SYSTEM";
@@ -127,7 +132,7 @@ export function presentMessage(
 
   // a poll: a deleted message hides it like any message (the owner reads the question in `original`)
   if (row.kind === "POLL" && row.poll && !deleted) {
-    dto.poll = presentPoll(row.poll, { userId: viewer.userId, role: viewer.role, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere }, row.authorId, deleted);
+    dto.poll = presentPoll(row.poll, { userId: viewer.userId, role: viewer.role, oversight: viewer.oversight, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere }, row.authorId, deleted);
   }
 
   // reply preview: a deleted parent shows the placeholder, never its text

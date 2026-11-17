@@ -125,9 +125,9 @@ export async function addOrgToHq(orgId: string): Promise<void> {
 
 /** Puts one person in HQ (a reactivated member comes back this way). */
 export async function addPersonToHq(orgId: string, userId: string, role: string, tx: Prisma.TransactionClient | typeof db = db): Promise<void> {
-  if (role === "OWNER" || role === "GUEST") return;
+  if (role === "OWNER" /* oversight-ok: HQ membership by rank */ || role === "GUEST") return;
   const membership = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: orgId, userId } }, select: { status: true, role: true } });
-  if (!membership || membership.status !== "ACTIVE" || membership.role === "OWNER" || membership.role === "GUEST") return;
+  if (!membership || membership.status !== "ACTIVE" || membership.role === "OWNER" /* oversight-ok: HQ membership by rank */ || membership.role === "GUEST") return;
   const spaceId = await ensureHqSpace(orgId, "الشركة", tx);
   await tx.workspaceMember.upsert({
     where: { workspaceId_userId: { workspaceId: spaceId, userId } },

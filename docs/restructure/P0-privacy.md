@@ -49,48 +49,48 @@ must never leak because a switch was flipped).
 
 ### P0.1 Oversight follows the capability — branch `fix/chat-oversight-capability`
 
-- [ ] Failing DB test first: `tests/db/chat-partner-oversight.test.ts`. World: primary owner O, partner P, members A and
+- [x] Failing DB test first: `tests/db/chat-partner-oversight.test.ts`. World: primary owner O, partner P, members A and
       B, a space S with A and B, a restricted topic T with A only, a DM A↔B, an open topic U.
       P with `archive.view`: reads T and the DM silently (no read row, no event). After the primary owner revokes it:
       `GET /api/chat/conversations/<T>` and `<DM>` → 404; `GET /api/chat/home` lists neither; `GET /api/chat/unread`
       does not count them; conversation and global search find nothing in them; `canReadConversation(P, T)` false; posting
       refused; a live stream of P stops receiving T's event ids immediately (see the cache step). O unchanged everywhere.
-- [ ] `src/server/policy/conversation.ts`: extend `OrgFacts` with `oversight: boolean`, computed in `loadOrgFacts` with
+- [x] `src/server/policy/conversation.ts`: extend `OrgFacts` with `oversight: boolean`, computed in `loadOrgFacts` with
       the SAME rule as `holdsArchiveView` (`effectiveCapabilities(member).has("archive.view")` — read `primaryOwner`,
       `capabilities`, `revokedCapabilities` in that query; export one helper and make `holdsArchiveView` call it, so there
       is ONE definition). Add `export function hasOversight(org)`.
-- [ ] `canRead`: the first-line owner shortcut becomes `if (hasOversight(org)) return true;`. An OWNER-rank person
+- [x] `canRead`: the first-line owner shortcut becomes `if (hasOversight(org)) return true;`. An OWNER-rank person
       WITHOUT oversight is treated as a space ADMIN of every space (they need no `WorkspaceMember` row, as
       `requireWorkspace` already says): `const spaceRole = facts.viewerSpaceRole ?? (isOwnerOf(org) ? "ADMIN" : null)`.
       Open topics yes; restricted topics they are not in and other people's DMs no.
-- [ ] `canPost` / `canModerate` / `canPin`: oversight holders keep today's owner rules ("posts only where joined", never in
+- [x] `canPost` / `canModerate` / `canPin`: oversight holders keep today's owner rules ("posts only where joined", never in
       someone else's DM). An OWNER-rank person WITHOUT oversight follows the space-ADMIN rules with the `spaceRole`
       fallback: reading an open topic leaves a normal read row (`markRead`), they may post there, they get its
       notifications — they are a normal participant, not a silent reader (recorded under D-P1).
-- [ ] Replace every READ decision by rank with `hasOversight`: `home.ts` (and `canOversee` = `hasOversight`), both SQL
+- [x] Replace every READ decision by rank with `hasOversight`: `home.ts` (and `canOversee` = `hasOversight`), both SQL
       queries in `unread.ts` (a boolean `oversight` parameter instead of `isOwner`), `search.ts`, `digest.ts`, `notify.ts`,
       `messages.ts` (`markRead` is silent only for `hasOversight && !viewerIsMember`), `redact.ts:97`, `topics.ts:412-420`,
       `poll-shared.ts:81`, `order.ts:58`, `moderation.ts:51,101`. Posting/purge rules that are about the OWNER rank and not
       about reading keep their check with `// oversight-ok: <reason>`.
-- [ ] **The switch itself:** on a partner's sheet in the people screen (`src/components/members/member-sheet.tsx`,
+- [x] **The switch itself:** on a partner's sheet in the people screen (`src/components/members/member-sheet.tsx`,
       `capability-panel.tsx`), shown to the primary owner only: «الأرشيف والرقابة — بيقرأ كل المحادثات الخاصة بصمت», with ⚠️
       «لما تطفّيها، هالشريك ما عاد يشوف الخاص ولا الأرشيف» and what stays (he reads and writes open topics like a manager).
       It writes `revokedCapabilities` through the existing members route (the API already accepts it:
       `tests/db/archive-capability.test.ts`); for everybody else `archive.view` stays un-grantable. UI test: the switch
       is offered for a partner to the primary owner, to nobody else, and for no other rank.
-- [ ] Live line: changing a person's rank or capabilities (`src/server/services/accounts.ts` / `org-members.ts` update
+- [x] Live line: changing a person's rank or capabilities (`src/server/services/accounts.ts` / `org-members.ts` update
       paths) emits `membership.changed` with `{ userId, targetUserId }` so the hub clears that org's visibility caches
       (`src/server/realtime/hub.ts` already clears on that kind). Test: revoke → the next event of T is not delivered to P.
-- [ ] Guard test `tests/chat-oversight-guard.test.ts` (source text): no `role === "OWNER"` / `orgRole === "OWNER"` /
+- [x] Guard test `tests/chat-oversight-guard.test.ts` (source text): no `role === "OWNER"` / `orgRole === "OWNER"` /
       `isOwnerOf(` in `src/server/chat/**` and `src/server/policy/conversation.ts` except lines carrying
       `// oversight-ok: <reason>`.
-- [ ] Keep green: `tests/db/partners.test.ts` (a partner reads like an owner, private DMs too — true while he holds
+- [x] Keep green: `tests/db/partners.test.ts` (a partner reads like an owner, private DMs too — true while he holds
       `archive.view`, which partners hold by default), `chat-owner-reads-dms`, `archive-capability`, `topic-privacy`,
       `realtime-replay-gate`.
-- [ ] Noticed, not fixed here (A1.3 fixes them): `isOwner` checks that ignore a partner's revocation in
+- [x] Noticed, not fixed here (A1.3 fixes them): `isOwner` checks that ignore a partner's revocation in
       `policy/board.ts`, `policy/team-development.ts`, `services/features.ts`, `chat/purge.ts`, `policy/reward.ts`,
       `api/workspaces/route.ts` (`canCreateSpaces`).
-- [ ] `AGENTS.md` «Access model»: "silent oversight = the capability `archive.view` (`holdsArchiveView`), never the rank"
+- [x] `AGENTS.md` «Access model»: "silent oversight = the capability `archive.view` (`holdsArchiveView`), never the rank"
       and "one primary owner plus partners («شريك (مالك)») who hold every capability the primary owner did not take away"
       (replaces "There is exactly one OWNER").
 

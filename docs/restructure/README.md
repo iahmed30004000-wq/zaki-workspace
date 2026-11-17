@@ -150,7 +150,7 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 
 ### P0 — privacy & security
 - [ ] P0.0 Owner actions today: who keeps the OWNER rank; no owner-rank account on a temporary password; test with a plain member
-- [ ] P0.1 Oversight follows `archive.view` (partners lose it when revoked) + the switch for it on a partner's sheet
+- [x] P0.1 Oversight follows `archive.view` (partners lose it when revoked) + the switch for it on a partner's sheet
 - [ ] P0.2 Private tasks («المعنيين بس») applied to every read
 - [ ] P0.3 Work made from a private chat stays private
 - [ ] P0.4 Privacy visible on screen (who can see a topic / a task)
@@ -238,3 +238,4 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 | 2026-11-16 | plan written, reviewed; live site and orders system visited; team work analysed (T1); Q1 rebuilt on it; coverage table added | — | this folder |
 | 2026-11-16 | the owner approved the preview («مزبوط»); build instructions written (`BUILD-PROMPTS.md`, `BUILD-STEPS.md`) | — | `mockup/`, the two files |
 | 2026-11-16 | S0 done on `docs/restructure-plan`: the plan is tracked, `AGENTS.md` points at it. Base gates: typecheck, lint, migration lint, secret scan, build green; unit tests 4262 passed, 2 files could not load under Node 26 (pre-existing); database tests not completed on the base | — | `pr/S0.md` |
+| 2026-11-16 | P0.1 done on `fix/chat-oversight-capability` (stacked on S0): silent oversight = the capability, not the rank; the switch on a partner's sheet; the live line told. Gates: typecheck, lint, migration lint, secret scan, build green; unit tests 4267 passed, the same 2 pre-existing files cannot load under Node 26; full database suite 240 files / 3442 tests passed | — | `pr/P0.1.md` |

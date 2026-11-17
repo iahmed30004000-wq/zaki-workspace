@@ -9,7 +9,7 @@ import { isOfSpace } from "@/server/chat/space-people";
 import { writeSystemMessage } from "@/server/chat/system";
 import { emitRealtime } from "@/server/realtime/emit";
 import { pushNotificationToMany } from "@/server/notify";
-import { loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
+import { hasOversight, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 import { canEndWatch, canHandOverWatch, canSeeWatch, canStartWatch } from "@/server/policy/watch";
 import { canPress, type RemoteState } from "@/lib/watch/sync";
 import { videoTitle } from "@/server/watch/title";
@@ -220,7 +220,7 @@ export async function listWatch(ctx: OrgAccessContext, spaceId: string): Promise
     where: {
       orgId: ctx.orgId,
       spaceId,
-      ...(org.role === "OWNER"
+      ...(hasOversight(org)
         ? {}
         : { conversation: { members: { some: { userId: ctx.userId } } }, space: { members: { some: { userId: ctx.userId } } } }),
     },
