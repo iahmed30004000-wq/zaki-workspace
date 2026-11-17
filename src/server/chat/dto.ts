@@ -6,7 +6,13 @@
 export type TopicType = "DISCUSSION" | "ANNOUNCEMENTS" | "TASKS" | "IDEAS" | "FOLLOWUP";
 export type PostingPolicy = "ALL" | "ADMINS";
 export type ConversationKind = "DM" | "GROUP" | "TOPIC";
-export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL";
+export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD";
+
+/** What a CARD message points at (Q1.3): never a price, never a name — each reader's screen asks for the card. */
+export interface CardRefDto {
+  type: "product";
+  cardId: string;
+}
 
 /** `{k, p}` of a system message — the client composes the Arabic sentence from it. */
 export interface SystemMeta {
@@ -99,6 +105,8 @@ export interface MessageDto {
   system?: SystemMeta | null;
   /** a POLL message's poll (absent on any other message and on a deleted one). */
   poll?: PollDto;
+  /** A CARD message: the card it points at. */
+  card?: CardRefDto;
   /** the tasks and tickets made from this message («صارت مهمة»). */
   work?: { kind: "task" | "ticket"; id: string }[];
   /** «نتفرّج سوا»: the second of the video it was written at. */
@@ -227,6 +235,8 @@ export interface ConversationDto {
     canMentionAll?: boolean;
     /** may start a poll here: a topic, not a guest, and may post */
     canPoll?: boolean;
+    /** may open the «/» menu here (Q1.3): staff who may post, with `quickRecall` and `knowledgeCards` on */
+    canRecall?: boolean;
     id?: string;
   };
   /** the pinned messages, newest first (the bar on top of the conversation) */

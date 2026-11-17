@@ -440,6 +440,8 @@ export async function conversationDetail(
       canTranslate: await translateOffered({ orgId: ctx.orgId, role: org!.role, facts, conversationId }),
       canMentionAll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       canPoll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
+      // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
+      canRecall: org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }) && (await isFeatureOn(ctx.orgId, "quickRecall")) && (await isFeatureOn(ctx.orgId, "knowledgeCards")),
       id: ctx.userId,
     },
     pinnedMessages: (

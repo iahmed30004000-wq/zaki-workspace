@@ -38,6 +38,8 @@ type MessageRow = {
   forwardedFromId?: string | null;
   forwardedFrom?: { author: { name: string } } | null;
   mentions?: unknown;
+  /** a CARD message: what it points at (Q1.3) */
+  card?: unknown;
   pinned: boolean;
   editedAt: Date | null;
   deletedAt: Date | null;
@@ -133,6 +135,12 @@ export function presentMessage(
   // a poll: a deleted message hides it like any message (the owner reads the question in `original`)
   if (row.kind === "POLL" && row.poll && !deleted) {
     dto.poll = presentPoll(row.poll, { userId: viewer.userId, role: viewer.role, oversight: viewer.oversight, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere }, row.authorId, deleted);
+  }
+
+  // a card message points at a product sheet: only its address travels, whatever the reader may see of the sheet is decided when it is opened
+  if (row.kind === "CARD" && !deleted) {
+    const ref = row.card as { type?: unknown; cardId?: unknown } | null;
+    if (ref && ref.type === "product" && typeof ref.cardId === "string") dto.card = { type: "product", cardId: ref.cardId };
   }
 
   // reply preview: a deleted parent shows the placeholder, never its text

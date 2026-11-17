@@ -27,7 +27,7 @@ export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "n
 export interface MessageMenuContext {
   mine: boolean;
   deleted: boolean;
-  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL";
+  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD";
   hasText: boolean;
   pinned: boolean;
   conversationKind: "DM" | "GROUP" | "TOPIC";

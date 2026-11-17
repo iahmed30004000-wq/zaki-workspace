@@ -94,10 +94,16 @@ export function withViewer(viewer: Viewer, userId: string): Viewer {
 
 // ---------- send ----------
 
+/** What only the server's own callers may add to a message (the public schema has no such field): a card the message points at. */
+export interface SendInternal {
+  card?: { type: "product"; cardId: string };
+}
+
 export async function sendMessage(
   ctx: OrgAccessContext,
   conversationId: string,
   input: SendInput,
+  internal: SendInternal = {},
 ): Promise<MessageDto> {
   // a retry of a message that already went (the phone's outbox re-sends until it hears back) is answered with that message and does
   // not use the quota: the same `clientId` of the same author, in this conversation, checked BEFORE the limiter (F0.7). It still goes
@@ -146,7 +152,9 @@ export async function sendMessage(
     if (!pollOptions) throw new ValidationError([{ path: "poll.options", message: "chat.e.poll_options" }]);
   }
 
-  const kind = input.poll ? "POLL" : input.voice === true && isVoice ? "VOICE" : "TEXT";
+  // a card stands alone: no files, no voice, no poll
+  if (internal.card && (attachments.length > 0 || input.voice === true || input.poll)) throw new ValidationError([{ path: "card", message: "chat.e.card_alone" }]);
+  const kind = internal.card ? "CARD" : input.poll ? "POLL" : input.voice === true && isVoice ? "VOICE" : "TEXT";
 
   // a moment of the video means something only in a «نتفرّج سوا» session's talk; anywhere else it is dropped
   const videoAtSec =
@@ -190,6 +198,7 @@ export async function sendMessage(
         mentions: wantsAll ? [...mentionIds, MENTION_ALL_ID] : mentionIds,
         ...(input.clientId ? { clientId: input.clientId } : {}),
         ...(videoAtSec !== null ? { videoAtSec } : {}),
+        ...(internal.card ? { card: internal.card as unknown as Prisma.InputJsonValue } : {}),
         ...(input.poll && pollOptions ? { poll: { create: pollCreateData(input.poll, pollOptions) } } : {}),
       },
       include: messageInclude(),
@@ -280,6 +289,7 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
   if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
   if (msg.kind === "SYSTEM") throw new ForbiddenError("chat.e.system_immutable");
   if (msg.kind === "POLL") throw new ForbiddenError("chat.e.poll_immutable"); // people voted on these words
+  if (msg.kind === "CARD") throw new ForbiddenError("chat.e.card_immutable"); // its words are the card's name
   if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
 
   const updated = await db.$transaction(async (tx) => {
@@ -436,6 +446,8 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
         authorId: ctx.userId,
         body: msg.body,
         kind: msg.kind,
+        // a forwarded card is resolved again for its new readers
+        ...(msg.card ? { card: msg.card as Prisma.InputJsonValue } : {}),
         forwardedFromId: msg.id,
       },
       include: messageInclude(),
