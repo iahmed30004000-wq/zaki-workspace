@@ -30,9 +30,17 @@ function withoutOrderNumbers(text: string): string {
   return out;
 }
 
+/** Invisible direction marks sit between digit groups in text pasted from a phone book: each becomes a space (one for one, so the indexes stay). */
+const INVISIBLE = /[‎‏‪-‮⁦-⁩]/g;
+
+/** `15-11-2026`, `30.10.2026`, `2026/10/30`: a date written with its own separators is not a phone number. */
+const DATE_SHAPES = [/^\d{1,2}[\s.\-/]\d{1,2}[\s.\-/]\d{4}$/, /^\d{4}[\s.\-/]\d{1,2}[\s.\-/]\d{1,2}$/];
+
 function phoneMatches(text: string): Array<{ index: number; text: string }> {
-  const norm = normalizeDigits(withoutOrderNumbers(text));
-  return [...norm.matchAll(new RegExp(PHONE_PATTERN.source, "g"))].map((m) => ({ index: m.index ?? 0, text: m[0] }));
+  const norm = normalizeDigits(withoutOrderNumbers(text).replace(INVISIBLE, " "));
+  return [...norm.matchAll(new RegExp(PHONE_PATTERN.source, "g"))]
+    .map((m) => ({ index: m.index ?? 0, text: m[0] }))
+    .filter((m) => !DATE_SHAPES.some((re) => re.test(m.text.replace(/[()+]/g, ""))));
 }
 
 /** The customer numbers written in a text, normalised, each once, in order. */

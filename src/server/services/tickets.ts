@@ -10,6 +10,7 @@ import { assertMemberCan } from "@/server/policy/actor";
 import { assertCanWrite } from "@/server/services/guest-guard";
 import { assertActiveAssignee } from "@/server/services/active-people";
 import { decryptSecrets } from "@/server/crypto";
+import { log } from "@/server/log";
 import { announceTicketChange } from "@/server/services/ticket-chat";
 
 /**
@@ -154,10 +155,19 @@ export async function listDepartmentTickets(departmentId: string, viewer?: OrgAc
   });
 }
 
+/** What a ticket made from a problem carries in the SAME write that creates it (Q1.5): never a ticket without its kind, source message or protected number. */
+export type TicketExtra = { sourceMessageId?: string; kindKey?: string; externalRef?: string; followUpAt?: Date; customerRefCipher?: string; customerRefHash?: string };
+
+/** May this person read this ticket? The rule of `ticketDetail`: whoever raised or holds it, the department's people, the OWNER and the ADMINs. */
+export async function canReadTicket(ctx: OrgAccessContext, t: { creatorId: string; assigneeId: string | null; departmentId: string | null }): Promise<boolean> {
+  return t.creatorId === ctx.userId || t.assigneeId === ctx.userId || (await seesDepartment(ctx, t.departmentId));
+}
+
 export async function createTicket(
   ctx: OrgAccessContext,
   departmentId: string,
   input: z.infer<typeof createTicketSchema>,
+  extra: TicketExtra = {},
 ) {
   assertCanWrite(ctx);
   await assertMemberCan(ctx, "tickets.edit", "section.edit_denied");
@@ -180,6 +190,7 @@ export async function createTicket(
         priority: input.priority,
         creatorId: ctx.userId,
         assigneeId: input.assigneeId ?? null,
+        ...extra,
       },
       select: { id: true, number: true, title: true },
     });
@@ -402,7 +413,12 @@ export async function updateTicket(
   });
   // Q1.5: a ticket made from a message tells its conversation (a refresh of its chip; on resolve, the reply)
   if (statusChanged || (input.assigneeId && input.assigneeId !== ticket.assigneeId)) {
-    await announceTicketChange(ctx, ticket.id, { resolved: statusChanged && input.status === "RESOLVED", note: input.resolution });
+    // the ticket is already saved: a failure to tell the chat is logged, never turned into an error of the save
+    try {
+      await announceTicketChange(ctx, ticket.id, { resolved: statusChanged && input.status === "RESOLVED", note: input.resolution });
+    } catch (err) {
+      log.warn("ticket_chat.skipped", { message: err instanceof Error ? err.message : String(err) });
+    }
   }
   if (input.assigneeId && input.assigneeId !== ticket.assigneeId) {
     const org = await db.organization.findUnique({ where: { id: ctx.orgId }, select: { keyPrefix: true } });
@@ -456,7 +472,7 @@ export const instantTicketSchema = z.object({
  * «تذكرة فورية»: a ticket with no department, straight to one active person of the company, with its priority. The
  * same rules as any ticket (not a guest, the tickets row's «يضيف ويعدّل» box); the person is told at once.
  */
-export async function createInstantTicket(ctx: OrgAccessContext, input: z.infer<typeof instantTicketSchema>) {
+export async function createInstantTicket(ctx: OrgAccessContext, input: z.infer<typeof instantTicketSchema>, extra: TicketExtra = {}) {
   assertCanWrite(ctx);
   await assertMemberCan(ctx, "tickets.edit", "section.edit_denied");
   await assertActiveAssignee(ctx.orgId, input.assigneeId);
@@ -472,6 +488,7 @@ export async function createInstantTicket(ctx: OrgAccessContext, input: z.infer<
         priority: input.priority,
         creatorId: ctx.userId,
         assigneeId: input.assigneeId,
+        ...extra,
       },
       select: { id: true, number: true, title: true },
     });

@@ -58,15 +58,27 @@ export async function saveProblemSettings(actor: Actor, input: z.infer<typeof pr
   await assertFeatureOn(actor.orgId, "autoTickets");
   const org = await db.organization.findUniqueOrThrow({ where: { id: actor.orgId }, select: { settings: true } });
   const current = (typeof org.settings === "object" && org.settings !== null ? org.settings : {}) as Record<string, unknown>;
-  const kinds = input.kinds !== undefined ? problemKindsOf({ ticketKinds: input.kinds }) : problemKindsOf(current);
+  let kinds = input.kinds !== undefined ? problemKindsOf({ ticketKinds: input.kinds }) : problemKindsOf(current);
   const keys = new Set(kinds.map((k) => k.key));
   let rules = input.rules !== undefined ? autoRulesOf({ autoTicketRules: input.rules }) : autoRulesOf(current);
+  // a rule whose kind is gone goes with it (also when only the kinds were saved)
+  rules = rules.filter((r) => keys.has(r.kindKey));
   if (input.rules !== undefined) {
     // only the company's own spaces and topics, and only kinds that exist
     const spaces = new Set((await db.workspace.findMany({ where: { organizationId: actor.orgId }, select: { id: true } })).map((s) => s.id));
     const topics = new Map((await db.conversation.findMany({ where: { orgId: actor.orgId, kind: "TOPIC" }, select: { id: true, spaceId: true } })).map((c) => [c.id, c.spaceId]));
     rules = rules.filter((r) => spaces.has(r.spaceId) && keys.has(r.kindKey) && (r.type === "content" || topics.get(r.conversationId ?? "") === r.spaceId));
   }
+  // the departments and people named by a kind or a rule must be this company's: a department of another company, a guest or a person who is not active is dropped
+  const deptIds = new Set((await db.department.findMany({ where: { orgId: actor.orgId }, select: { id: true } })).map((d) => d.id));
+  const named = [...kinds.map((k) => k.assigneeId), ...rules.map((r) => r.assigneeId)].filter((v): v is string => typeof v === "string");
+  const okPeople = new Set((await db.organizationMember.findMany({ where: { organizationId: actor.orgId, userId: { in: named }, status: "ACTIVE", role: { not: "GUEST" } }, select: { userId: true } })).map((m) => m.userId));
+  const clean = <T extends { departmentId?: string | null | undefined; assigneeId?: string | null | undefined }>(o: T): T => {
+    const { departmentId, assigneeId, ...rest } = o;
+    return { ...rest, ...(departmentId && deptIds.has(departmentId) ? { departmentId } : {}), ...(assigneeId && okPeople.has(assigneeId) ? { assigneeId } : {}) } as T;
+  };
+  kinds = kinds.map(clean);
+  rules = rules.map(clean);
   const hours = input.workHours ? { from: input.workHours.from, to: input.workHours.to, daysOff: input.workHours.daysOff ?? DEFAULT_WORK_HOURS.daysOff } : workHoursOf(current);
   if (hours.from >= hours.to) throw new ValidationError([{ path: "workHours", message: "tickets.e.hours" }]);
   const next = { ...current, ticketKinds: kinds, autoTicketRules: rules, workHours: hours };

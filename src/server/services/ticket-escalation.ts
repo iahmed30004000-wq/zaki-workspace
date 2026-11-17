@@ -33,21 +33,25 @@ export async function runTicketEscalation(now: Date = new Date()): Promise<{ rem
     const hours = workHoursOf(org.settings);
     const tz = resolveTimeZone(org.timezone);
     const tickets = await db.ticket.findMany({
-      where: { orgId: org.id, kindKey: { not: null }, status: { in: ["OPEN", "IN_PROGRESS"] }, createdAt: { gt: new Date(now.getTime() - NEW_ENOUGH_DAYS * 86_400_000), lte: now } },
+      // a ticket whose last step (the escalation) is done is never read again: a backlog cannot starve the newer ones
+      where: { orgId: org.id, kindKey: { not: null }, status: { in: ["OPEN", "IN_PROGRESS"] }, activities: { none: { event: "escalated" } }, createdAt: { gt: new Date(now.getTime() - NEW_ENOUGH_DAYS * 86_400_000), lte: now } },
       orderBy: { createdAt: "asc" },
       take: PER_ORG_LIMIT,
-      select: { id: true, number: true, title: true, kindKey: true, creatorId: true, assigneeId: true, createdAt: true, department: { select: { leadId: true } }, activities: { where: { event: { in: ["reminded", "escalated"] } }, select: { event: true } } },
+      select: { id: true, number: true, title: true, kindKey: true, creatorId: true, assigneeId: true, createdAt: true, followUpAt: true, department: { select: { leadId: true } }, activities: { where: { event: { in: ["reminded", "escalated"] } }, select: { event: true } } },
     });
     for (const t of tickets) {
       const kind = problemKind(kinds, t.kindKey);
       if (!kind) continue;
+      // waiting for its follow-up day (a «حجز موعد»): it is not late until then
+      if (t.followUpAt && t.followUpAt.getTime() > now.getTime()) continue;
       const need = kind.reminderHours * 60;
       const waited = workedMinutes(t.createdAt, now, hours, tz);
       const done = new Set(t.activities.map((a) => a.event));
       const label = `${org.keyPrefix}-T${t.number} · ${t.title}`;
       if (!done.has("reminded") && waited >= need) {
         await db.ticketActivity.create({ data: { ticketId: t.id, actorId: t.creatorId, event: "reminded", meta: { to: t.assigneeId ?? null, waitedMinutes: waited } } });
-        if (t.assigneeId) {
+        // a holder who is no longer active is not "reminded": nobody was told
+        if (t.assigneeId && (await firstActive(org.id, [t.assigneeId]))) {
           await pushNotificationToMany([t.assigneeId], { type: "ticket_reminder", title: AR["notif.type.ticket_reminder"] ?? "تذكير", body: label, linkUrl: "/tickets", organizationId: org.id });
           reminded += 1;
         }

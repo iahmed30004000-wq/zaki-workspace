@@ -4,7 +4,7 @@
   "tickets.e.kind": "نوع المشكلة غير معروف",
   "tickets.e.recording_required": "هالنوع بدّه تسجيل شاشة مرفق بالرسالة",
   "tickets.e.customer_number": "رقم الزبون غير صالح",
-  "tickets.e.no_target": "لم نجد من نسند إليه التذكرة: اختر شخصًا أو قسمًا",
+  "tickets.e.no_target": "لم نجد من نسند إليه التذكرة: اختر شخصًا",
   "notif.type.ticket_reminder": "تذكير بتذكرة لسا مفتوحة",
   "tickets.e.hours": "ساعات الدوام غير صالحة",
   "tickets.menu.problem": "🎫 مشكلة",
@@ -30,5 +30,7 @@
   "tickets.chip.in_progress": "قيد الشغل",
   "tickets.chip.resolved": "محلولة",
   "tickets.chip.closed": "مسكّرة",
-  "tickets.chip.with": "مع"
+  "tickets.chip.with": "مع",
+  "tickets.e.assignee": "هذا الشخص لا يمكنه استلام التذاكر",
+  "tickets.e.follow_up": "يوم المتابعة غير صالح"
 }

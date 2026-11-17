@@ -52,3 +52,17 @@ describe("masking", () => {
     expect(maskPhonesIn("")).toBe("");
   });
 });
+
+describe("review fixes", () => {
+  it("a date is not a customer's number, written any way", () => {
+    for (const d of ["15-11-2026", "30.10.2026", "30/10/2026", "30 10 2026", "2026/10/30"]) {
+      expect(findCustomerNumbers(`تأجيل لـ ${d}`), d).toEqual([]);
+      expect(maskPhonesIn(`تأجيل لـ ${d}`), d).toBe(`تأجيل لـ ${d}`);
+    }
+  });
+  it("invisible direction marks between the digits do not hide a number", () => {
+    const text = "الزبون 0791‎234567 ما بيرد";
+    expect(findCustomerNumbers(text)).toEqual(["0791234567"]);
+    expect(maskPhonesIn(text)).not.toContain("234567");
+  });
+});
