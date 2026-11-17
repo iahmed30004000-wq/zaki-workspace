@@ -84,6 +84,7 @@ async function target(
   kind: { departmentId?: string | null | undefined; assigneeId?: string | null | undefined },
   msg: { mentions: string[]; authorId: string; conversationId: string },
 ): Promise<{ departmentId: string } | { assigneeId: string } | null> {
+  // all-statuses: only the asker's own supervisor link is read (the asker is an ACTIVE member: the door checked), and the supervisor is checked ACTIVE just below
   const me = await db.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: ctx.orgId, userId: ctx.userId } }, select: { managerId: true } });
   const conv = await db.conversation.findUnique({ where: { id: msg.conversationId }, select: { spaceId: true } });
   const leads = conv?.spaceId ? await db.workspaceMember.findMany({ where: { workspaceId: conv.spaceId, role: "ADMIN", userId: { not: ctx.userId } }, orderBy: { createdAt: "asc" }, select: { userId: true } }) : [];

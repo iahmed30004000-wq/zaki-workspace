@@ -2,7 +2,7 @@ import { nextZonedDayStart, zonedParts, zonedWallTime } from "@/lib/zoned-time";
 
 /**
  * The minutes between two instants that fall inside the company's working hours (Q1.5: a ticket's «hours before a reminder» are working hours, not
- * clock hours). The window is `from`–`to` (`HH:MM`) in the company's time zone, every day except the days off (0 = Sunday … 6 = Saturday). Pure.
+ * clock hours). The window is `from`–`to` (`HH:MM`) in the company's time zone, every day except the days off (0 is the first day of the week, as `Date#getDay` counts). Pure.
  */
 export interface WorkWindow {
   from: string;

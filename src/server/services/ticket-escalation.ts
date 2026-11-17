@@ -9,7 +9,7 @@ import { workHoursOf } from "@/server/services/problem-settings";
 
 /**
  * Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). A kind has its hours before a reminder, counted INSIDE the company's working hours
- * (`Organization.settings.workHours`, default 09:00–18:00, Friday off, in its time zone): the first time they pass, the holder is reminded; the same
+ * (`Organization.settings.workHours`, default 09:00–18:00, the sixth day of the week off, in its time zone): the first time they pass, the holder is reminded; the same
  * time again, the department's lead (else the holder's manager) is told. Whoever is not ACTIVE is skipped — the next one is tried; with nobody active the
  * step is recorded and nobody is bothered. Each step happens once (a `TicketActivity` row, `reminded` / `escalated`).
  */
@@ -57,6 +57,7 @@ export async function runTicketEscalation(now: Date = new Date()): Promise<{ rem
         }
       }
       if (!done.has("escalated") && waited >= need * 2) {
+        // all-statuses: only the holder's supervisor link is read; whoever receives it is checked ACTIVE by `firstActive`
         const manager = t.assigneeId ? (await db.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: org.id, userId: t.assigneeId } }, select: { managerId: true } }))?.managerId : null;
         const to = await firstActive(org.id, [t.department?.leadId, manager]);
         await db.ticketActivity.create({ data: { ticketId: t.id, actorId: t.creatorId, event: "escalated", meta: { to, waitedMinutes: waited } } });
