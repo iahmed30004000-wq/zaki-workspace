@@ -19,6 +19,8 @@ const createSchema = z.object({
   teamId: z.string().min(1).optional().nullable(),
   /** «حوّل» in «نتفرّج سوا»: the comment this project is made from (checked by `assertWatchComment`) */
   sourceMessageId: z.string().min(1).optional(),
+  /** a source that is somebody's private talk: the person confirms the project is for the space (400 `work.confirm_public_required` otherwise) */
+  confirmPublic: z.boolean().optional(),
 });
 
 /** Projects visible to the caller in the given workspace. */
@@ -63,7 +65,7 @@ export async function POST(req: Request) {
     const space = await db.workspace.findUnique({ where: { id: input.workspaceId }, select: { kind: true } });
     if (space?.kind === "HQ") throw new ForbiddenError("projects.not_in_hq");
     await assertMayCreateInTeam(ctx, input.workspaceId, input.teamId);
-    const source = input.sourceMessageId ? await assertWatchComment(ctx, input.sourceMessageId) : null;
+    const source = input.sourceMessageId ? await assertWatchComment(ctx, input.sourceMessageId, input.confirmPublic) : null;
     const project = await db.project.create({
       data: {
         workspaceId: input.workspaceId,

@@ -162,13 +162,13 @@ Tests:
 
 ### P0.3 Private conversation → private work — branch `fix/private-chat-work`
 
-- [ ] `make-work.ts`: from a DM, a restricted topic or a team topic, the new task's default visibility is PARTICIPANTS;
+- [x] `make-work.ts`: from a DM, a restricted topic or a team topic, the new task's default visibility is PARTICIPANTS;
       SPACE requires `confirmPublic: true` — **enforced on the server** (400 `work.confirm_public_required` without it);
       the dialog asks with «⚠️ الرسالة من محادثة خاصة؛ إذا خليتها للمساحة كلها رح يشوفها الكل» / 🔧 «خليها للمعنيين بس».
-- [ ] Same server rule for ideas and projects made from a private source: `app/api/ideas/route.ts` and
+- [x] Same server rule for ideas and projects made from a private source: `app/api/ideas/route.ts` and
       `app/api/projects/route.ts` (watch topics are restricted; `watch/convert.ts` validates the source) and tickets from
       a private message (`make-work.ts` ticket path): `confirmPublic` required.
-- [ ] DB tests for each path (default private; public without `confirmPublic` → 400).
+- [x] DB tests for each path (default private; public without `confirmPublic` → 400).
 
 ### P0.4 Say who can see it — branch `feat/privacy-visible`
 

@@ -15,6 +15,8 @@ const createSchema = z.object({
   description: z.string().max(2000).nullable().optional(),
   /** «حوّل» in «نتفرّج سوا»: the comment this idea is made from (checked by `assertWatchComment`) */
   sourceMessageId: z.string().min(1).optional(),
+  /** a source that is somebody's private talk: the person confirms the idea is for the space (400 `work.confirm_public_required` otherwise) */
+  confirmPublic: z.boolean().optional(),
 });
 
 const querySchema = z.object({
@@ -58,8 +60,8 @@ export async function POST(req: Request) {
     const input = await parseJson(createSchema, req);
     // born in the space the person is in
     const space = await currentSpace({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole });
-    const { sourceMessageId, ...text } = input;
-    const source = sourceMessageId ? await assertWatchComment(ctx, sourceMessageId) : null;
+    const { sourceMessageId, confirmPublic, ...text } = input;
+    const source = sourceMessageId ? await assertWatchComment(ctx, sourceMessageId, confirmPublic) : null;
     const idea = await createIdea(ctx.orgId, ctx, text, space?.id ?? null, source ? { sourceMessageId: source.id } : {});
     await dispatchEvent(ctx.orgId, "idea.created", { ideaId: idea.id, title: idea.title });
     return NextResponse.json({ idea }, { status: 201 });
