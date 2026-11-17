@@ -267,6 +267,22 @@ export const PAGE_HELP: readonly PageHelp[] = [
     guestNextKey: "guide.page.card.next_guest",
   },
   {
+    id: "knowledge",
+    pattern: "/knowledge",
+    whatKey: "guide.page.knowledge.what",
+    nextKey: "guide.page.knowledge.next",
+    guestNextKey: INTERNAL,
+    tour: "shell",
+    article: "places",
+  },
+  {
+    id: "knowledge-sheet",
+    pattern: "/knowledge/:id",
+    whatKey: "guide.page.knowledge-sheet.what",
+    nextKey: "guide.page.knowledge-sheet.next",
+    guestNextKey: INTERNAL,
+  },
+  {
     id: "manufacturing",
     pattern: "/manufacturing",
     whatKey: "guide.page.manufacturing.what",

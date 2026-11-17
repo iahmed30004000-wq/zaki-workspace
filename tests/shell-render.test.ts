@@ -328,10 +328,10 @@ describe("the frame for a plain member", () => {
     expect(linkTo(bottomBar(settings), "/members")).toContain('aria-current="true"');
   });
 
-  it("the library has two tabs now (الملفات and المستندات), so it shows its strip", () => {
+  it("the library has three tabs now (الملفات and المستندات and المنتجات), so it shows its strip", () => {
     const html = shell("MEMBER", "/files");
     expect(html).toContain('data-tour="tabs"');
-    expect(hrefs(tabStrip(html))).toEqual(["/files", "/documents"]);
+    expect(hrefs(tabStrip(html))).toEqual(["/files", "/documents", "/knowledge"]);
   });
 });
 

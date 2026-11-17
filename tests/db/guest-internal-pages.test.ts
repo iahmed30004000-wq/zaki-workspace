@@ -99,8 +99,8 @@ async function companyWorld() {
   const team = await makeTeam();
   const orgId = team.org.id;
   const orgName = `Company ${uid()}`;
-  // «مساعد المالك» is OFF by default; its tab is on the owner's map only while its switch is on, and the loop below opens every offered tab
-  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true } } } });
+  // «مساعد المالك» and «المنتجات» are OFF by default; their tabs are on the owner's map only while their switch is on, and the loop below opens every offered tab
+  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true, knowledgeCards: true } } } });
   const lead = await makeUser({ orgId, role: "LEAD", name: "Lead" });
   const staffer = await makeUser({ orgId, role: "MEMBER", name: `Staffer ${secret}` });
   await db.user.update({ where: { id: staffer.id }, data: { jobTitle: `Title ${secret}` } });

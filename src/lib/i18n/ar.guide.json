@@ -2,23 +2,19 @@
   "guide.title": "الدليل",
   "guide.subtitle": "شروحات قصيرة بالعربي، بتمشّيك بالنظام خطوة خطوة.",
   "guide.back": "العودة إلى الدليل",
-
   "guide.search.label": "ابحث في الدليل",
   "guide.search.placeholder": "ابحث… مثلًا: مهمة أو ثيم",
   "guide.search.clear": "مسح البحث",
   "guide.search.empty": "ما لقينا شي بهالكلمة. جرّب كلمة تانية، أو افتح «ابدأ من هون».",
   "guide.search.results": "عدد النتائج: {n}",
-
   "guide.badge.managers": "لمن يدير الحسابات",
   "guide.hint.help_button": "اضغط علامة «؟» اللي فوق بأي صفحة: بتشرح لك الصفحة وبتفرجيك جولة.",
   "guide.hint.dismiss": "فهمت",
-
   "guide.article.prev": "المقال السابق",
   "guide.article.next": "المقال التالي",
   "guide.article.warn": "تنبيه",
   "guide.article.fix": "الحل",
   "guide.article.tip": "نصيحة",
-
   "guide.help.open": "مساعدة عن هذه الصفحة",
   "guide.help.title": "مساعدة الصفحة",
   "guide.help.what": "شو هاي الصفحة؟",
@@ -28,13 +24,11 @@
   "guide.help.guide": "افتح الدليل",
   "guide.help.close": "إغلاق",
   "guide.help.tour_unavailable": "ما قدرنا نبدأ الجولة هون. جرّب من صفحة «اليوم».",
-
   "guide.tour.next": "التالي",
   "guide.tour.prev": "السابق",
   "guide.tour.done": "تمام",
   "guide.tour.close": "إغلاق",
   "guide.tour.progress": "{{current}} من {{total}}",
-
   "guide.tour.shell.places.title": "الأماكن",
   "guide.tour.shell.places.body": "هون أماكن النظام. اضغط على أي مكان لتنتقل له.",
   "guide.tour.shell.tabs.title": "التبويبات",
@@ -55,7 +49,6 @@
   "guide.tour.today.quick-add.body": "اضغط هون لتضيف مهمة جديدة بسرعة.",
   "guide.tour.today.first-steps.title": "خطواتك الأولى",
   "guide.tour.today.first-steps.body": "بطاقة بتمشّيك على أهم الأشياء، وكل خطوة بتتعلّم لحالها لما تخلّصها.",
-
   "guide.first.title": "أول خطواتك",
   "guide.first.progress": "{done} من {total}",
   "guide.first.collapse": "طيّ البطاقة",
@@ -69,7 +62,6 @@
   "guide.first.restore": "رجّع بطاقة «خطواتك الأولى»",
   "guide.first.restore_hint": "أخفيتها من هاد الجهاز. هاد الزر بيرجّعها لصفحة اليوم.",
   "guide.first.restored": "رجعت البطاقة. بتلاقيها بصفحة اليوم.",
-
   "guide.first.install.title": "ثبّت التطبيق على موبايلك",
   "guide.first.install.hint": "بتفتحه بضغطة من الشاشة الرئيسية مثل أي تطبيق.",
   "guide.first.theme.title": "اختار ثيمك",
@@ -86,9 +78,7 @@
   "guide.first.add-person.hint": "من «الإدارة» ← «الفريق»: اسم ومستخدم ورتبة، وبتطلع لك كلمة مرور مؤقتة.",
   "guide.first.review-spaces.title": "افتح أول مساحة",
   "guide.first.review-spaces.hint": "المساحة غرفة شغل لفريقك، وكل مساحة بيشوفها بس اللي انضافوا لها.",
-
   "guide.page.internal.next": "هالصفحة للفريق الداخلي. ارجع لـ«الشغل» لتكمّل شغلك.",
-
   "guide.page.home.what": "هاي صفحة «اليوم»: مهامك اللي لازم تخلّصها اليوم، وبطاقة خطواتك الأولى.",
   "guide.page.home.next": "افتح أول مهمة وخلّصها، أو كمّل خطوة من بطاقة «خطواتك الأولى».",
   "guide.page.home.next_guest": "كمّل خطواتك الأولى من البطاقة، أو افتح «الدليل» من دائرة اسمك.",
@@ -214,9 +204,7 @@
   "guide.page.guide.next": "اختار مقال، أو دوّر بكلمة مثل «مهمة» أو «ثيم».",
   "guide.page.guide-article.what": "هاي صفحة من الدليل: خطوات قصيرة لموضوع واحد.",
   "guide.page.guide-article.next": "كمّل للمقال اللي بعده، أو ارجع للدليل.",
-
   "guide.page.internal.what": "هاي صفحة للفريق الداخلي، وما بتنفتح لحساب الشريك الخارجي.",
-
   "guide.card.title": "أهلين! أنا زاكي، دليلك هون.",
   "guide.card.body": "بدك جولة سريعة؟ نص دقيقة وبتعرف وين كل إشي.",
   "guide.card.start": "يلا",
@@ -226,5 +214,9 @@
   "guide.page.manufacturing_orders.what": "هاي أوامر التصنيع: كمية مخططة من وصفة، وصرف المواد من المخزون، والناتج الفعلي والكلفة.",
   "guide.page.manufacturing_orders.next": "اعمل أمر جديد، اصرف مواده (الصرف بينقص المخزون فورًا)، وسجّل الناتج لما يخلص.",
   "guide.page.manufacturing_reports.what": "هاي تقارير المخزون: تقييم المخزون، الاستهلاك، كلفة الأوامر، والمواد اللي قربت تخلص.",
-  "guide.page.manufacturing_reports.next": "غيّر الفترة، ونزّل أي تقرير كملف."
+  "guide.page.manufacturing_reports.next": "غيّر الفترة، ونزّل أي تقرير كملف.",
+  "guide.page.knowledge.what": "هاي صفحة المنتجات: كرت لكل منتج فيه كل اللي بتحتاجيه تحكي مع الزبون، من السعر الحالي لأسئلة الزباين.",
+  "guide.page.knowledge.next": "افتحي كرت المنتج، واضغطي «انسخي رسالة العرض» أو زر النسخ جنب أي قسم، وبعدين الصقيها بالمحادثة.",
+  "guide.page.knowledge-sheet.what": "هاد كرت منتج: السعر والعروض بيتقروا من نظام الطلبات، والباقي معلومات الفريق مقسّمة بأقسام.",
+  "guide.page.knowledge-sheet.next": "اضغطي «انسخي» جنب القسم اللي بدك ياه، أو «انسخي الكل» وحددي شو تاخدي. إذا ما لقيتي جواب اسألي مشرفتك."
 }
