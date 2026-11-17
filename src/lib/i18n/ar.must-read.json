@@ -13,5 +13,7 @@
   "mustread.acked": "قرأت ✓ — اضغط للتراجع",
   "mustread.count": "قرأ {read} من {total}",
   "mustread.missing": "ما قرأ:",
-  "mustread.done": "الكل قرأ"
+  "mustread.done": "الكل قرأ",
+  "mustread.attachment": "رسالة مرفقة",
+  "chat.e.reserved_reaction": "هذا الرمز مخصص لتأكيد القراءة"
 }

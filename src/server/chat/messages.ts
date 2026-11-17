@@ -208,7 +208,7 @@ export async function sendMessage(
         replyToId: input.replyToId ?? null,
         mentions: wantsAll ? [...mentionIds, MENTION_ALL_ID] : mentionIds,
         ...(input.clientId ? { clientId: input.clientId } : {}),
-        ...(mustRead ? { ackRequired: true } : {}),
+        ...(mustRead ? { ackRequired: true, ackMeta: { markedAt: new Date().toISOString() } } : {}),
         ...(videoAtSec !== null ? { videoAtSec } : {}),
         ...(internal.card ? { card: internal.card as unknown as Prisma.InputJsonValue } : {}),
         ...(input.poll && pollOptions ? { poll: { create: pollCreateData(input.poll, pollOptions) } } : {}),
@@ -374,6 +374,8 @@ export async function toggleReact(ctx: OrgAccessContext, messageId: string, inpu
   if (hasOversight(org) && !facts.viewerIsMember) throw new ForbiddenError("chat.e.join_first");
   if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
   if (!isSingleEmoji(input.emoji)) throw new ValidationError([{ path: "emoji", message: "chat.e.bad_reaction" }]);
+  // the ✅ is «قرأت ✓» (Q1.6, written only by its own door): the reaction bar never writes it, so it counts for nobody by accident
+  if (input.emoji === "✅") throw new ValidationError([{ path: "emoji", message: "chat.e.reserved_reaction" }]);
 
   const distinct = await db.chatReaction.findMany({ where: { messageId }, select: { emoji: true }, distinct: ["emoji"] });
   const existing = await db.chatReaction.findUnique({
