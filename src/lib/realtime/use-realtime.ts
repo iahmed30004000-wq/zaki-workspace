@@ -69,6 +69,7 @@ function reportVisibility(): void {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ visible: document.visibilityState !== "hidden" && !document.hidden, tab: tab() }),
+      keepalive: true,
     }),
   ).catch(() => undefined);
 }
@@ -235,7 +236,11 @@ function connect(): void {
     dispatch({ kind: "conversation.changed" });
   });
   // The server's heartbeat: a real event (a browser never surfaces an SSE comment), so any silence is noticed.
-  es.addEventListener("ping", () => armWatchdog());
+  // and the page says again whether it is looked at, so one report that was lost never leaves the server believing a stale state
+  es.addEventListener("ping", () => {
+    armWatchdog();
+    reportVisibility();
+  });
   // The server ended this stream and said why.
   es.addEventListener("bye", (m) => {
     let reason = "";
@@ -308,6 +313,9 @@ function onOfflineOnline(): void {
       stream.es.close();
       stream.es = null;
     }
+  } else if (typeof document !== "undefined" && document.hidden) {
+    // back online but nobody is looking: stay paused (the return of the tab reconnects), do not take a stream slot
+    stream.paused = true;
   } else {
     stream.paused = false;
     connect();
@@ -363,9 +371,14 @@ export function streamStateForTests(): { refs: number; failures: number; lastEve
   return { refs: stream.refs, failures: stream.failures, lastEventId: stream.lastEventId, polling: stream.pollTimer !== null, evicted: stream.evicted };
 }
 
+/** Was this tab's stream taken over by another tab (a screen opened later still needs to know)? */
+export function streamEvictedNow(): boolean {
+  return stream?.evicted ?? false;
+}
+
 /** True while this tab's live stream was taken over by another tab of the same person (F0.2): the screen says so once. */
 export function useStreamEvicted(): boolean {
-  const [evicted, setValue] = useState(false);
+  const [evicted, setValue] = useState(() => streamEvictedNow());
   useEffect(() => {
     const h = (v: boolean) => setValue(v);
     evictedHandlers.add(h);

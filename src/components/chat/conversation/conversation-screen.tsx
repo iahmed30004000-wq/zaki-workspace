@@ -67,7 +67,6 @@ export function ConversationScreen({ conversationId, onBack, focusMessageId }: C
  // a message is marked read only while the tab is visible and focused; what could not be marked then waits here and is marked once on return (F0.5)
  const pendingRead=React.useRef<string|null>(null);
  const markReadNow=React.useCallback((id:string)=>{lastMarked.current=id;pendingRead.current=null;void fetch(`/api/chat/conversations/${encodeURIComponent(conversationId)}/read?upTo=${encodeURIComponent(id)}`,{method:"POST"}).then(r=>{if(r.ok)announceChatRead();},()=>undefined);},[conversationId]);
- React.useEffect(()=>{const back=()=>{const id=pendingRead.current;if(id&&canMarkReadNow())markReadNow(id);};document.addEventListener("visibilitychange",back);window.addEventListener("focus",back);return()=>{document.removeEventListener("visibilitychange",back);window.removeEventListener("focus",back);};},[markReadNow]);
  // the message the page is opened around (a search hit): older messages, until «رجوع لآخر الرسائل»
  const [anchor,setAnchor]=React.useState<string|null>(focusMessageId??null);
  const [searching,setSearching]=React.useState(false);
@@ -77,6 +76,7 @@ export function ConversationScreen({ conversationId, onBack, focusMessageId }: C
  // the pinned bar: each tap goes to the next pinned message (newest first), like a messaging app
  const [pinIndex,setPinIndex]=React.useState(0);
  // `silent`: a live update (another person's message, an edit, a reaction) refetches without the loading line
+ React.useEffect(()=>{const back=()=>{const id=pendingRead.current;if(id&&!anchor&&canMarkReadNow())markReadNow(id);};document.addEventListener("visibilitychange",back);window.addEventListener("focus",back);return()=>{document.removeEventListener("visibilitychange",back);window.removeEventListener("focus",back);};},[markReadNow,anchor]);
  const refresh=React.useCallback(async(opts:{silent?:boolean}={})=>{if(!opts.silent)setLoading(true);setError("");try{const response=await fetch(conversationDetailUrl(conversationId,undefined,anchor??undefined),{cache:"no-store"});/* a message that is gone (an old link): open the conversation at its newest instead */if(!response.ok&&anchor&&response.status===404){setAnchor(null);return;}
 if(!response.ok)throw new Error(ct("chatc.load_failed"));const data=await response.json() as ConversationDto;setDetail(data);setMessages(data.messages);const last=data.messages.at(-1);/* mark read only for a message not marked yet: a read mark is itself a live event, and re-marking on it would loop
    (and never while reading older messages around a search hit: the newest are not on the screen) */if(!anchor&&!data.me.oversight&&last&&lastMarked.current!==last.id){if(canMarkReadNow())markReadNow(last.id);else pendingRead.current=last.id;}}catch(e){setError(e instanceof Error?e.message:ct("chatc.failed"));}finally{setLoading(false);}},[conversationId,anchor,markReadNow]);
