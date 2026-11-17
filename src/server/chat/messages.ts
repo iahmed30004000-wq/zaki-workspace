@@ -97,10 +97,21 @@ export async function sendMessage(
   conversationId: string,
   input: SendInput,
 ): Promise<MessageDto> {
-  if (!sendLimiter.check(`chat.send.${ctx.userId}`).ok) {
-    throw new RateLimitedError(60, "chat.e.rate_limited");
+  // a retry of a message that already went (the phone's outbox re-sends until it hears back) is answered with that message and does
+  // not use the quota: the same `clientId` of the same author, in this conversation, checked BEFORE the limiter (F0.7). It still goes
+  // through the guard below, so nobody is handed a message they may not read.
+  const retry =
+    input.clientId !== undefined &&
+    (await db.chatMessage.findUnique({
+      where: { authorId_clientId: { authorId: ctx.userId, clientId: input.clientId } },
+      select: { conversationId: true },
+    }))?.conversationId === conversationId;
+  if (!retry) {
+    if (!sendLimiter.check(`chat.send.${ctx.userId}`).ok) {
+      throw new RateLimitedError(60, "chat.e.rate_limited");
+    }
+    sendLimiter.hit(`chat.send.${ctx.userId}`);
   }
-  sendLimiter.hit(`chat.send.${ctx.userId}`);
 
   const { facts, org } = await guard(ctx, conversationId);
   const joined = facts.viewerIsMember;
