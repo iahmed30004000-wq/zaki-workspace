@@ -40,6 +40,7 @@ import OwnerBoardPage from "@/app/(app)/owner/page";
 import OwnerAssistantPage from "@/app/(app)/owner/assistant/page";
 import CheckinsPage from "@/app/(app)/checkins/page";
 import DocumentsPage from "@/app/(app)/documents/page";
+import KnowledgePage from "@/app/(app)/knowledge/page";
 import ApprovalsPage from "@/app/(app)/approvals/page";
 import StructurePage from "@/app/(app)/structure/page";
 import DevelopmentPage from "@/app/(app)/development/page";
@@ -399,6 +400,7 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   crm: () => CrmPage(),
   files: () => FilesPage(),
   documents: () => DocumentsPage(),
+  knowledge: () => KnowledgePage(),
   team: () => MembersPage(),
   space: () => CurrentSpacePage(),
   reports: () => AnalyticsPage(),

@@ -6,6 +6,7 @@ import * as statusRoute from "@/app/api/knowledge/[id]/status/route";
 import * as copyRoute from "@/app/api/knowledge/[id]/copy/route";
 import * as settingsRoute from "@/app/api/knowledge/settings/route";
 import * as parseRoute from "@/app/api/knowledge/parse/route";
+import * as askRoute from "@/app/api/knowledge/[id]/ask/route";
 import * as cardRoute from "@/app/api/cards/[id]/route";
 import * as cardsRoute from "@/app/api/cards/route";
 import { withFeature } from "@/lib/features";
@@ -334,6 +335,34 @@ describe("the settings are the owner's", () => {
     await call(settingsRoute.PUT, { method: "PUT", url: URL_S, body: { spaceId: w.space.id } });
     const org = await db.organization.findUniqueOrThrow({ where: { id: w.org.id }, select: { settings: true } });
     expect(JSON.stringify(org.settings)).toContain("knowledgeCards");
+  });
+});
+
+describe("«اسألي مشرفتك»", () => {
+  const ask = (id: string, question: string) => call(askRoute.POST, { method: "POST", url: `${BASE}/${id}/ask`, params: { id }, body: { question } });
+  it("a question nothing answers becomes a ticket for the named approver", async () => {
+    const w = await world();
+    await setSettings(w.org.id, { knowledgeApproverIds: [w.named.id] });
+    const id = await approved(w);
+    await loginAs(w.admin.id);
+    const r = await ask(id, "هل بينفع للحوامل؟");
+    expect(r.status, r.text).toBe(201);
+    const t = await db.ticket.findUniqueOrThrow({ where: { id: r.json!["ticketId"] as string } });
+    expect(t.assigneeId).toBe(w.named.id);
+    expect(t.title).toContain("حراك");
+    expect(t.description).toBe("هل بينفع للحوامل؟");
+  });
+  it("without a named approver it goes to the owner; a guest cannot ask (404)", async () => {
+    const w = await world();
+    const id = await approved(w);
+    await loginAs(w.admin.id);
+    const r = await ask(id, "كم مدة الكفالة؟");
+    expect(r.status, r.text).toBe(201);
+    expect((await db.ticket.findUniqueOrThrow({ where: { id: r.json!["ticketId"] as string } })).assigneeId).toBe(w.owner.id);
+    await loginAs(w.guest.id);
+    expect((await ask(id, "كم مدة الكفالة؟")).status).toBe(404);
+    await loginAs(w.admin.id);
+    expect((await ask(id, "ab")).status).toBe(422);
   });
 });
 

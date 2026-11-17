@@ -151,7 +151,11 @@ describe("the five places, for each kind of person", () => {
   it("GUEST: with «المستندات» switched off the library is gone for them, as before", () => {
     expect(keys(buildNav({ ...who("GUEST"), off: ["spaceDocs"] }))).toEqual(["today", "chat", "work"]);
     // a member keeps the files tab when only the documents are off
-    expect(tabs(buildNav({ ...who("MEMBER"), off: ["spaceDocs"] }), "library")).toEqual(["files"]);
+    // (the product sheets are a staff tab behind their own switch: this model switches off only what it is told)
+    expect(tabs(buildNav({ ...who("MEMBER"), off: ["spaceDocs", "knowledgeCards"] }), "library")).toEqual(["files"]);
+    expect(tabs(buildNav({ ...who("MEMBER"), off: ["spaceDocs"] }), "library")).toEqual(["files", "knowledge"]);
+    // a guest is never offered the product sheets, whatever is switched on
+    expect(keys(buildNav({ ...who("GUEST"), off: ["spaceDocs"] }))).not.toContain("library");
   });
 
   it("GUEST: a capability somebody stored for them changes nothing (a guest holds none)", () => {
@@ -182,7 +186,7 @@ describe("the five places, for each kind of person", () => {
 
   it("the single-tab name rule is the admin place's alone: the library keeps «المكتبة» with its one tab", () => {
     const nav = buildNav(who("MEMBER"));
-    expect(tabs(nav, "library")).toEqual(["files", "documents"]);
+    expect(tabs(nav, "library")).toEqual(["files", "documents", "knowledge"]);
     expect(place(nav, "library").labelKey).toBe("nav.place.library");
   });
 
@@ -278,9 +282,9 @@ describe("canOpenTab / offeredToGuests: the one rule behind «is this tab offere
     ["an unknown rank with every capability", { role: "SUPERUSER" as unknown as NavSubject["role"], caps: [...CAPABILITIES] }],
   ];
 
-  it("the tabs are the twenty-six of the map, each once", () => {
-    expect(ALL_TABS).toHaveLength(26);
-    expect(new Set(ALL_TABS).size).toBe(26);
+  it("the tabs are the twenty-seven of the map, each once", () => {
+    expect(ALL_TABS).toHaveLength(27);
+    expect(new Set(ALL_TABS).size).toBe(27);
   });
 
   it("agrees with buildNav for every tab and every kind of person: a tab is open exactly when the map draws it", () => {
@@ -303,7 +307,7 @@ describe("canOpenTab / offeredToGuests: the one rule behind «is this tab offere
   it("offeredToGuests: exactly my work, projects, list, calendar and the documents shared with partners", () => {
     expect(ALL_TABS.filter((key) => offeredToGuests(key))).toEqual([...WORK_GUEST, "documents"]);
     expect(ALL_TABS.filter((key) => !offeredToGuests(key))).toEqual(
-      ["goals", "ideas", "production", "departments", "tickets", "campaigns", "crm", "approvals", "checkins", "files", "team", "space", "board", "assistant", "structure", "development", "reports", "automation", "telegram", "settings", "archive"],
+      ["goals", "ideas", "production", "departments", "tickets", "campaigns", "crm", "approvals", "checkins", "files", "knowledge", "team", "space", "board", "assistant", "structure", "development", "reports", "automation", "telegram", "settings", "archive"],
     );
   });
 
@@ -434,6 +438,7 @@ describe("the words", () => {
       approvals: "الموافقات",
       files: "مكتبة مساحة العمل",
       documents: "المستندات",
+      knowledge: "المنتجات",
       team: "الفريق",
       space: "المساحة",
       board: "لوحة المالك",

@@ -15,6 +15,7 @@ import { cleanSpecs, emptyProductData, templateFor, type TemplateOverrides } fro
 import { applyOldCard, parseOldCard } from "@/lib/cards/old-card-parser";
 import { isStale, type OfferSnapshot, type ProductSnapshot } from "@/lib/oms/snapshot";
 import { foldForSearch } from "@/lib/search/arabic";
+import { createInstantTicket } from "@/server/services/tickets";
 
 /**
  * «المنتجات» — the company's product sheets (Q1.1): ONE door for the PRODUCT cards of the knowledge space.
@@ -379,6 +380,30 @@ export async function logCopy(actor: Actor, cardId: string, what: string): Promi
   const ctx = await context(actor);
   const row = await loadSheet(ctx, cardId);
   await recordCard(actor, row, "copied", { what });
+}
+
+// ---------- «اسألي مشرفتك» ----------
+
+export const askSchema = z.object({ question: z.string().trim().min(3, "title.too_short").max(300) });
+
+/**
+ * Nothing in the sheet answers the question: it becomes a «تذكرة فورية» (the existing door; Q1.5 extends it) for the supervisor the owner
+ * named as approver, or for the primary owner when he named none. The question is what the person typed: no customer data is added.
+ */
+export async function askSupervisor(actor: Actor, cardId: string, input: z.infer<typeof askSchema>): Promise<{ ticketId: string }> {
+  const ctx = await context(actor);
+  const row = await loadSheet(ctx, cardId);
+  let assigneeId = ctx.settings.approverIds[0] ?? null;
+  if (!assigneeId) {
+    const owner = await db.organizationMember.findFirst({ where: { organizationId: actor.orgId, status: "ACTIVE", role: "OWNER" }, orderBy: [{ primaryOwner: "desc" }, { createdAt: "asc" }], select: { userId: true } });
+    assigneeId = owner?.userId ?? null;
+  }
+  if (!assigneeId) throw new NotFoundError("knowledge.no_supervisor");
+  const ticket = await createInstantTicket(
+    { orgId: actor.orgId, orgRole: actor.role, userId: actor.userId },
+    { title: `سؤال عن منتج: ${row.title} — ${input.question}`.slice(0, 200), description: input.question, priority: "NORMAL", assigneeId },
+  );
+  return { ticketId: ticket.id };
 }
 
 // ---------- «الصقي كرت قديم» ----------
