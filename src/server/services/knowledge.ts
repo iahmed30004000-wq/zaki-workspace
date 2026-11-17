@@ -15,6 +15,7 @@ import { cleanSpecs, emptyProductData, templateFor, type TemplateOverrides } fro
 import { applyOldCard, parseOldCard } from "@/lib/cards/old-card-parser";
 import { isStale, type OfferSnapshot, type ProductSnapshot } from "@/lib/oms/snapshot";
 import { foldForSearch } from "@/lib/search/arabic";
+import { searchFaq } from "@/lib/cards/copy-text";
 import { createInstantTicket } from "@/server/services/tickets";
 
 /**
@@ -218,15 +219,17 @@ export interface SheetList {
   sheets: SheetListItem[];
 }
 
-export async function listSheets(actor: Actor, opts: { q?: string; category?: string } = {}, now: Date = new Date()): Promise<SheetList> {
+export async function listSheets(actor: Actor, opts: { q?: string; category?: string; asReader?: boolean } = {}, now: Date = new Date()): Promise<SheetList> {
   assertStaff(actor);
   await assertFeatureOn(actor.orgId, "knowledgeCards");
   const settings = await settingsOfOrg(actor.orgId);
   if (!settings.spaceId) return { configured: false, canEdit: false, canApprove: false, isOwner: actor.isOwner, sheets: [] };
-  const ctx = await context(actor).catch((err) => {
+  const full = await context(actor).catch((err) => {
     if (err instanceof NotFoundError) return null;
     throw err;
   });
+  // `asReader`: what is SENT is always the approved version, even by an editor
+  const ctx = full && opts.asReader ? { ...full, editor: false } : full;
   if (!ctx) return { configured: true, canEdit: false, canApprove: false, isOwner: actor.isOwner, sheets: [] };
   const rows = await db.card.findMany({
     where: { orgId: actor.orgId, workspaceId: ctx.spaceId, kind: "PRODUCT", archivedAt: null, ...(ctx.editor ? {} : { approvedVersion: { not: null }, status: { not: "ARCHIVED" } }) },
@@ -506,4 +509,47 @@ export async function saveKnowledgeSettings(actor: Actor, input: z.infer<typeof 
     await tx.organization.update({ where: { id: actor.orgId }, data: { settings: next as Prisma.InputJsonValue } });
   });
   return getKnowledgeSettings(actor);
+}
+
+// ---------- what the «/» menu sends and inserts (Q1.3) ----------
+
+/**
+ * The name of a sheet AS APPROVED, for whoever may read the knowledge space: what is sent into a chat is always the approved version, even by an
+ * editor, and only a sheet that is approved and not archived can be sent at all (anything else: «not found»).
+ */
+export async function approvedHead(actor: Actor, cardId: string): Promise<{ name: string }> {
+  const ctx = await context(actor);
+  const row = await db.card.findFirst({ where: { id: cardId, orgId: actor.orgId, workspaceId: ctx.spaceId, kind: "PRODUCT", archivedAt: null }, select: CARD_SELECT });
+  if (!row || row.approvedVersion === null || statusOf(row.status) === "ARCHIVED") throw new NotFoundError("cards.not_found");
+  const served = await servedOf(row);
+  if (!served) throw new NotFoundError("cards.not_found");
+  return { name: served.title };
+}
+
+export interface RecalledAnswer {
+  sheetId: string;
+  sheetName: string;
+  question: string;
+  answer: string;
+}
+
+/** The questions and answers of the APPROVED versions of the sheets that match what was typed (Arabic folding): for «/رد». Newest edits that wait for review are never found. */
+export async function searchApprovedAnswers(actor: Actor, q: string): Promise<RecalledAnswer[]> {
+  const ctx = await context(actor);
+  const rows = await db.card.findMany({
+    where: { orgId: actor.orgId, workspaceId: ctx.spaceId, kind: "PRODUCT", archivedAt: null, approvedVersion: { not: null }, status: { not: "ARCHIVED" } },
+    orderBy: [{ pinned: "desc" }, { position: "asc" }, { id: "asc" }],
+    take: LIMITS.cards,
+    select: CARD_SELECT,
+  });
+  const out: RecalledAnswer[] = [];
+  for (const row of rows) {
+    const served = await servedOf(row);
+    if (!served?.data) continue;
+    for (const f of searchFaq(served.data.faq, q)) {
+      out.push({ sheetId: row.id, sheetName: served.title, question: f.q, answer: f.a });
+      if (out.length >= 30) return out;
+    }
+  }
+  return out;
 }

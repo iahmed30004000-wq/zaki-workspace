@@ -488,7 +488,7 @@ model ChatMessage {
   // Deleting a message KEEPS its text from Phase 3 on (the owner reads the original in the archive);
   // what people see is decided in one place: src/server/chat/redact.ts.
   body            String
-  kind            String    @default("TEXT") // TEXT | VOICE | SYSTEM | POLL
+  kind            String    @default("TEXT") // TEXT | VOICE | SYSTEM | POLL | CARD
   replyToId       String?
   pinned          Boolean   @default(false)
   editedAt        DateTime?
@@ -500,6 +500,10 @@ model ChatMessage {
   clientId        String?
   // «نتفرّج سوا»: the second of the video the comment was written at (only in a watching session's topic)
   videoAtSec      Float?
+  // «/» in the composer (Q1.3): a CARD message stores ONLY what it points at — `{ type: "product", cardId }` — and a readable body WITHOUT a price;
+  // the name, the one line and the price chips are resolved for each VIEWER when the card is opened. `viaApp` names the app that made a message (I1.1).
+  card            Json?
+  viaApp          String?
   createdAt       DateTime  @default(now())
 
   organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
