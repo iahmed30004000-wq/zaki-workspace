@@ -2,7 +2,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { assertNotGuest } from "@/server/services/guest-guard";
-import { loadWorkScope, projectVisibleWhere, scopeSpaceIds } from "@/server/services/team-scope";
+import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere } from "@/server/services/team-scope";
 import { assertCapability } from "@/server/services/active-people";
 import { alignDepartmentSpace, syncDepartmentSpace } from "@/server/services/department-space";
 import { resolveTimeZone, zonedDayStart } from "@/lib/zoned-time";
@@ -111,7 +111,7 @@ export async function listDepartments(ctx: OrgAccessContext, now: Date = new Dat
       },
       projects: {
         where: { workspaceId: { in: wsIds }, AND: [projectVisibleWhere(scope)] },
-        select: { id: true, tasks: { select: { completedAt: true, dueDate: true } } },
+        select: { id: true, tasks: { where: taskParticipantWhere(scope), select: { completedAt: true, dueDate: true } } },
       },
       tickets: { where: { status: { in: ["OPEN", "IN_PROGRESS"] } }, select: { id: true } },
     },
@@ -155,7 +155,7 @@ export async function getDepartment(ctx: OrgAccessContext, id: string) {
       name: true,
       status: true,
       priority: true,
-      tasks: { select: { completedAt: true, dueDate: true } },
+      tasks: { where: taskParticipantWhere(scope), select: { completedAt: true, dueDate: true } },
       workspace: { select: { name: true } },
     },
   });

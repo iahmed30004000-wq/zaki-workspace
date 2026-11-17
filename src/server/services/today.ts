@@ -1,7 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { actorCan, actorCanWork, type Actor } from "@/server/policy/actor";
-import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
+import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere, taskVisibleWhere } from "@/server/services/team-scope";
 import { assignedTo } from "@/server/services/tasks";
 import { canWriteInWorkspace } from "@/server/workspace-role";
 import { fmtLongDate, fmtRelative } from "@/lib/format";
@@ -176,9 +176,10 @@ export async function getToday(actor: Actor, opts: { now?: Date; spaceId?: strin
   async function loadProjects(): Promise<TodayProject[]> {
     // a partner's own tasks are the only thing of a project that is theirs to see counted (the primary
     // person and the ones beside them, the same rule as `mine`)
+    // and never a private task of somebody else (P0 review)
     const counted = actor.isExternal
-      ? { archived: false, completedAt: null, ...assignedTo(actor.userId) }
-      : { archived: false, completedAt: null };
+      ? { archived: false, completedAt: null, ...assignedTo(actor.userId), AND: [taskParticipantWhere(scope)] }
+      : { archived: false, completedAt: null, AND: [taskParticipantWhere(scope)] };
     const found = await db.project.findMany({
       where: {
         workspaceId: { in: projectSpaces },

@@ -3,7 +3,7 @@ import { actorCanWork } from "@/server/policy/actor";
 import { redirect } from "next/navigation";
 import { db } from "@/server/db";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
-import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds } from "@/server/services/team-scope";
+import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere } from "@/server/services/team-scope";
 import { currentSpace } from "@/server/services/current-space";
 import { goHref } from "@/lib/space-link";
 import { Card, CardBody, Badge, EmptyState } from "@/components/ui/card";
@@ -60,7 +60,7 @@ export default async function ProjectsPage({
       priority: true,
       targetDate: true,
       workspace: { select: { name: true } },
-      _count: { select: { tasks: { where: { archived: false } }, boards: true } },
+      _count: { select: { tasks: { where: { archived: false, AND: [taskParticipantWhere(everything)] } }, boards: true } },
     },
   });
   const wsInfo =

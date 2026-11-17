@@ -27,7 +27,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     await assertMemberCan(access, "tasks.view", "section.view_denied", { spaceGuestsPass: true });
     // «التبعيات» switched off: the card is not drawn and this door answers «not found»
     await assertFeatureOn(access.orgId, "taskLinks");
-    return NextResponse.json(await listTaskLinks(params.id));
+    return NextResponse.json(await listTaskLinks(params.id, access.userId));
   });
 }
 

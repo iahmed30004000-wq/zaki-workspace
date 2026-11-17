@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { CalendarDays, Lock, Pencil, Trash2, User, Flag, Type as TypeIcon, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiDelete, apiPost, apiPatch } from "@/lib/api-client";
+import { apiDelete, apiPost, apiPatch, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -151,7 +151,16 @@ export function TaskDetail({
       }
       router.refresh();
     },
-    onError: () => {
+    onError: (err, sent) => {
+      // publishing a task made from a private conversation: ask once, then send it again with the confirmation (P0 review)
+      if (sent["visibility"] === "SPACE" && err instanceof ApiError && JSON.stringify([err.details, err.body]).includes("work.confirm_public_required")) {
+        if (window.confirm(t("taskpriv.from_private_warn"))) {
+          save.mutate({ visibility: "SPACE", confirmPublic: true });
+          return;
+        }
+        setVisibility(task.visibility);
+        return;
+      }
       toast(t("common.error"), "error");
       setError("common.error");
     },

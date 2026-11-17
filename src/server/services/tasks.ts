@@ -1,13 +1,14 @@
 import { Prisma, type Task } from "@prisma/client";
 import { assertMemberCan } from "@/server/policy/actor";
 import { featureOn } from "@/lib/features";
-import { loadWorkScope, taskParticipantFilter, userSeesProject, type TaskVisibility } from "./team-scope";
+import { loadWorkScope, reportsOfSpace, taskParticipantFilter, userSeesProject, type TaskVisibility } from "./team-scope";
 import { orgDayStart } from "./org-day";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/auth";
 import { AR } from "@/lib/i18n/dict";
 import { prepareReward, REWARD_EVENTS, type RewardRequest } from "./rewards";
 import { assertRewardEditable } from "./reward-guard";
+import { sourceIsPrivate } from "@/server/chat/private-source";
 import {
   assertNoPendingRequest,
   judgeAssignment,
@@ -176,6 +177,8 @@ interface ScopedTask {
   rewardStatus: string | null;
   visibility: string;
   creatorId: string;
+  /** the chat message it was made from (P0.3): publishing a task made from a private conversation is confirmed */
+  sourceMessageId: string | null;
 }
 
 /** Takes the task's row for the rest of the transaction (`FOR UPDATE`): what is read after this is what the last writer left. */
@@ -205,6 +208,7 @@ async function assertTaskScope(taskId: string, orgId: string, tx: Tx): Promise<S
       rewardStatus: true,
       visibility: true,
       creatorId: true,
+      sourceMessageId: true,
     },
   });
   if (!task) throw new NotFoundError("task.not_found");
@@ -434,6 +438,8 @@ export interface TaskUpdateData {
   labelIds?: string[];
   /** «مين بيشوفها؟»: its creator, a manager of its space, a manager of its assignee, or whoever holds oversight may change it. */
   visibility?: TaskVisibility;
+  /** with visibility "SPACE" on a task made from a private conversation: the person confirmed (else 422 work.confirm_public_required) */
+  confirmPublic?: boolean;
 }
 
 export async function updateTask(
@@ -504,6 +510,10 @@ export async function updateTask(
     let visibilityChange: { from: string; to: string } | null = null;
     if (data.visibility !== undefined && data.visibility !== before.visibility) {
       if (!(await mayChangeVisibility(actor.userId, before))) throw new ForbiddenError("task.visibility_denied");
+      // a task made from a private conversation holds that conversation's words: publishing it is confirmed, like making it (P0.3)
+      if (data.visibility === "SPACE" && before.sourceMessageId && data.confirmPublic !== true && (await sourceIsPrivate(actor.orgId, before.sourceMessageId))) {
+        throw new ValidationError([{ path: "confirmPublic", message: "work.confirm_public_required" }]);
+      }
       updateData.visibility = data.visibility;
       visibilityChange = { from: before.visibility, to: data.visibility };
     }
@@ -589,7 +599,7 @@ async function mayChangeVisibility(userId: string, task: { workspaceId: string; 
   if (task.creatorId === userId) return true;
   const scope = await loadWorkScope(userId);
   if (scope.managedSpaces.has(task.workspaceId) || scope.oversightSpaces.has(task.workspaceId)) return true;
-  return !!task.assigneeId && scope.reportIds.has(task.assigneeId);
+  return !!task.assigneeId && reportsOfSpace(scope, task.workspaceId).has(task.assigneeId);
 }
 
 export async function deleteTask(actor: ActorContext, taskId: string): Promise<void> {

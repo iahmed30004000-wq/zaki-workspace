@@ -35,7 +35,7 @@ async function projectFor(projectId: string, capability: "projects.view" | "proj
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   return withApi(async () => {
     const { access } = await projectFor(params.id, "projects.view");
-    return NextResponse.json({ milestones: await listMilestones(params.id, access.orgId) });
+    return NextResponse.json({ milestones: await listMilestones(params.id, access.orgId, access.userId) });
   });
 }
 

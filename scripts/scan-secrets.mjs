@@ -244,7 +244,7 @@ function isLocalHostName(host) {
  * password is made of reads like a placeholder. An environment read (`System.getenv("NAME")`) is the right shape and passes.
  */
 const IS_GRADLE = /\.gradle(?:\.kts)?$/i;
-const GRADLE_SIGNING_LITERAL = /\b(?:storePassword|keyPassword)\b(?:\s*=?\s*|[^\n]*\?:\s*)(['"])([^'"\r\n]+)\1/;
+const GRADLE_SIGNING_LITERAL = /(?:store|key)Password\b(?:\s*[=(]?\s*|[^\n]*\?:\s*)(['"])([^'"\r\n]+)\1/i;
 
 /**
  * Scan one file's text. Returns `[{ rule, line }]` - never the matched value.

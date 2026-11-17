@@ -497,6 +497,8 @@ describe("scan-secrets: a signing password written in a Gradle file (P0.6)", () 
     ["Groovy, double quotes", `keyPassword "${PASSWORD}"`],
     ["an assignment", `storePassword = "${PASSWORD}"`],
     ["a fallback next to an environment read", `keyPassword System.getenv("ANDROID_KEY_PASSWORD") ?: "${PASSWORD}"`],
+    ["the call form", `storePassword("${PASSWORD}")`],
+    ["a setter", `setKeyPassword("${PASSWORD}")`],
   ])("catches %s, names file:line and never prints the value", (_what, line) => {
     const r = scan({ "android/app/build.gradle": gradle(line) });
     expect(r.status).toBe(1);
