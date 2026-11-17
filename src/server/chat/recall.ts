@@ -1,5 +1,7 @@
 import { z } from "zod";
-import type { OrgAccessContext } from "@/server/auth";
+import { NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
+import { isOrderNumber } from "@/lib/oms/order-ref";
+import { assertOrderStatusOn } from "@/server/services/order-state";
 import type { Actor } from "@/server/policy/actor";
 import { assertFeatureOn } from "@/server/services/features";
 import { approvedHead, listSheets, searchApprovedAnswers, type RecalledAnswer } from "@/server/services/knowledge";
@@ -17,7 +19,10 @@ import type { MessageDto } from "@/server/chat/dto";
  *    that they may post in the conversation (and its rate limit). `sendCard` of the cards service (words only) is not touched.
  */
 
-export const recallSchema = z.object({ cardId: z.string().min(1).max(64), clientId: z.string().min(1).max(64).optional() });
+// exactly one of: a product sheet (`cardId`) or an order number (`order`, «/طلب»)
+export const recallSchema = z
+  .object({ cardId: z.string().min(1).max(64).optional(), order: z.string().min(1).max(40).optional(), clientId: z.string().min(1).max(64).optional() })
+  .refine((v) => (v.cardId === undefined) !== (v.order === undefined), { message: "recall.e.one", path: ["cardId"] });
 export const recallQuerySchema = z.object({ q: z.string().max(100).default(""), kind: z.enum(["product", "reply"]).default("product") });
 
 export interface RecalledProduct {
@@ -41,6 +46,19 @@ export async function recallSearch(actor: Actor, input: z.infer<typeof recallQue
     kind: "product",
     results: list.sheets.slice(0, 20).map((s) => ({ id: s.id, name: s.name, category: s.category, tagline: s.tagline, price: s.price, currency: s.currency, stale: s.stale, stockStatus: s.stockStatus })),
   };
+}
+
+/**
+ * «/طلب» (Q1.4): an order number goes into a conversation as a CARD message holding ONLY `{ type: "order", number }` and the line «طلب <number>». The
+ * state is asked for by each reader's screen (the door of `lookupOrderState`), so the message never holds a state, and a person who cannot read the
+ * conversation never gets one. The orders system is not asked here.
+ */
+export async function orderToConversation(ctx: OrgAccessContext, actor: Actor, conversationId: string, number: string, clientId?: string): Promise<MessageDto> {
+  if (actor.isExternal || actor.role === "GUEST") throw new NotFoundError("features.off");
+  await assertFeatureOn(ctx.orgId, "quickRecall");
+  await assertOrderStatusOn(ctx.orgId);
+  if (!isOrderNumber(number)) throw new ValidationError([{ path: "order", message: "orders.e.number" }]);
+  return sendMessage(ctx, conversationId, { body: `طلب ${number}`, ...(clientId ? { clientId } : {}) }, { card: { type: "order", number } });
 }
 
 export async function recallToConversation(ctx: OrgAccessContext, actor: Actor, conversationId: string, cardId: string, clientId?: string): Promise<MessageDto> {

@@ -437,7 +437,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
      onChange={event => {
       const text = event.currentTarget.value;
       // a finished «/» command opens the menu and leaves the box empty (what was typed is the command, not a message)
-      const command = !editing && detail.me.canRecall ? slashCommand(text) : null;
+      const command = !editing && detail.me.canRecall ? slashCommand(text, detail.me.recallKinds) : null;
       if (command) { setRecall(command); setBody(""); keepDraft("", mentions); return; }
       setClientId(messageClientId()); setBody(text); keepDraft(text, mentions); if (!editing && text.trim()) notifyTyping(); }}
      // Enter sends (the owner, 2026-10-26), Shift+Enter is a new line; never while an input method is composing a word
@@ -475,7 +475,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
    </div>
    {busy && files.length === 0 && progress.length > 0 && <p className="text-xs text-fg-muted" role="status">{t("chat.f.uploading")}</p>}
    {error && <p role="alert">{error}</p>}
-   {detail.me.canRecall && <RecallDialog open={recall !== null} conversationId={conversationId} initialKind={recall?.kind ?? null} initialQuery={recall?.q ?? ""} onClose={() => setRecall(null)} onSent={message => { setRecall(null); onMessage(message); }} onInsert={text => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); }} />}
+   {detail.me.canRecall && <RecallDialog open={recall !== null} conversationId={conversationId} kinds={detail.me.recallKinds ?? []} initialKind={recall?.kind ?? null} initialQuery={recall?.q ?? ""} onClose={() => setRecall(null)} onSent={message => { setRecall(null); onMessage(message); }} onInsert={text => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); }} />}
    {detail.me.canPoll && <PollDialog open={pollOpen} conversationId={conversationId} onClose={() => setPollOpen(false)} onCreated={message => { setPollOpen(false); onMessage(message); }} />}
   </form>
  );

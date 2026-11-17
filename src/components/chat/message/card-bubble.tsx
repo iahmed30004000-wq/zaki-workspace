@@ -14,7 +14,7 @@ import type { SheetDTO } from "@/server/services/knowledge";
  * sheet AS THE READER MAY SEE IT (the approved version, the live price, never to an external partner), so each reader's screen shows what is
  * theirs and a forward is resolved again for its new readers. Somebody who may not open the sheet is told so and keeps the line of the message.
  */
-export function CardBubble({ card }: { card: CardRefDto }) {
+export function CardBubble({ card }: { card: Extract<CardRefDto, { type: "product" }> }) {
   const sheet = useQuery({
     queryKey: ["knowledge-sheet", card.cardId],
     queryFn: () => apiGet<{ sheet: SheetDTO }>(`/api/knowledge/${encodeURIComponent(card.cardId)}`).then((r) => r.sheet),

@@ -96,7 +96,7 @@ export function withViewer(viewer: Viewer, userId: string): Viewer {
 
 /** What only the server's own callers may add to a message (the public schema has no such field): a card the message points at. */
 export interface SendInternal {
-  card?: { type: "product"; cardId: string };
+  card?: { type: "product"; cardId: string } | { type: "order"; number: string };
 }
 
 export async function sendMessage(
