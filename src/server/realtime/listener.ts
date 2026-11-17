@@ -222,6 +222,11 @@ function scheduleReconnect(): void {
   }, delay).unref?.();
 }
 
+/** Is the LISTEN connection up right now? (the health check shows it as `realtime`) */
+export function listenerConnected(): boolean {
+  return state().client !== null;
+}
+
 /** Idempotent: every caller awaits the same connection attempt. */
 export async function ensureListener(): Promise<void> {
   const s = state();
