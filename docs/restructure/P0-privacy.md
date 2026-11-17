@@ -198,11 +198,11 @@ changed (AGENTS.md «Security»).
 - [ ] 🔧 Owner action first: change BOTH passwords of the existing keystore (`keytool -storepasswd`, `keytool -keypasswd`
       — same key, so phones keep updating; never a new key), re-encode into `ANDROID_KEYSTORE_B64`, add
       `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_PASSWORD` as repository secrets.
-- [ ] `build.gradle` reads them with `System.getenv(...)`; `.github/workflows/android.yml` passes them; without them the
+- [x] `build.gradle` reads them with `System.getenv(...)`; `.github/workflows/android.yml` passes them; without them the
       build falls back to the debug key and warns.
-- [ ] `scripts/scan-secrets.mjs`: a rule for `storePassword|keyPassword` followed by a quoted literal in `*.gradle` /
+- [x] `scripts/scan-secrets.mjs`: a rule for `storePassword|keyPassword` followed by a quoted literal in `*.gradle` /
       `*.gradle.kts` + tests in `tests/scan-secrets.test.ts` (the current file must fail the scan before the fix).
-- [ ] Never write the old value anywhere (PR text, docs, commits).
+- [x] Never write the old value anywhere (PR text, docs, commits).
 
 ## Definition of done for P0
 
