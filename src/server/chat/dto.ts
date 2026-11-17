@@ -238,6 +238,9 @@ export interface ConversationDto {
     recallKinds?: Array<"product" | "reply" | "order">;
     /** an order number in a message may be a chip here (Q1.4): staff, `orderStatus` and `omsLink` on */
     canOrderState?: boolean;
+    /** «🎫 مشكلة» (Q1.5): the kinds of problem, and the company's rules for this open topic so the screen can offer «بدك تعمليها تذكرة؟» (absent: the switch is off or a guest) */
+    problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>;
+    problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }>;
     id?: string;
   };
   /** the pinned messages, newest first (the bar on top of the conversation) */

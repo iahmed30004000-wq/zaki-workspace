@@ -12,6 +12,8 @@ import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { oversightReaderExists } from "@/server/chat/archive-access";
 import { isFeatureOn } from "@/server/services/features";
+import { autoRulesOf, ruleMode } from "@/lib/tickets/auto-rules";
+import { problemKindsOf } from "@/lib/tickets/problem-kinds";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { ocrAvailable } from "@/server/services/image-ocr";
 import { chatAssistantOffered, conversationHasGuest } from "@/server/services/chat-assistant";
@@ -67,6 +69,18 @@ async function recallOffer(orgId: string, staff: boolean, mayPost: boolean): Pro
   const knowledge = recallOn && (await isFeatureOn(orgId, "knowledgeCards"));
   const recallKinds: Array<"product" | "reply" | "order"> = [...(knowledge ? (["product", "reply"] as const) : []), ...(recallOn && orderOn ? (["order"] as const) : [])];
   return { canRecall: recallKinds.length > 0, recallKinds, canOrderState: orderOn };
+}
+
+/** «🎫 مشكلة» (Q1.5): the kinds of problem for staff while `autoTickets` is on, and the rules of an OPEN topic so the screen can offer «بدك تعمليها تذكرة؟» (a private conversation has none: only by hand). */
+async function problemOffer(orgId: string, staff: boolean, facts: { kind: string; restricted?: boolean | null; teamId?: string | null; spaceId?: string | null }): Promise<{ problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>; problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }> }> {
+  if (!staff || !(await isFeatureOn(orgId, "autoTickets"))) return {};
+  const org = await db.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
+  const openTopic = facts.kind === "TOPIC" && !facts.restricted && !facts.teamId && Boolean(facts.spaceId);
+  const rules = openTopic ? autoRulesOf(org?.settings).filter((r) => r.spaceId === facts.spaceId) : [];
+  return {
+    problemKinds: problemKindsOf(org?.settings).map((k) => ({ key: k.key, label: k.label, ...(k.needsFollowUp ? { needsFollowUp: true } : {}), ...(k.needsRecording ? { needsRecording: true } : {}) })),
+    problemRules: rules.map((r) => ({ id: r.id, type: r.type, spaceId: r.spaceId, ...(r.conversationId ? { conversationId: r.conversationId } : {}), kindKey: r.kindKey, mode: ruleMode(r), ...(r.problemWords ? { problemWords: r.problemWords } : {}) })),
+  };
 }
 
 async function assertTeamOfSpace(spaceId: string, teamId: string | null | undefined): Promise<void> {
@@ -452,6 +466,7 @@ export async function conversationDetail(
       canPoll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
       ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
+      ...(await problemOffer(ctx.orgId, org!.role !== "GUEST", facts)),
       id: ctx.userId,
     },
     pinnedMessages: (

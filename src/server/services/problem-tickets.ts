@@ -1,7 +1,9 @@
 import { z } from "zod";
 import { db } from "@/server/db";
 import { ValidationError, type OrgAccessContext } from "@/server/auth";
-import { assertFeatureOn } from "@/server/services/features";
+import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
+import { log } from "@/server/log";
+import { autoRulesOf, matchRule, ruleMode } from "@/lib/tickets/auto-rules";
 import { createInstantTicket, createTicket, addTicketComment } from "@/server/services/tickets";
 import { assertConfirmed, describe, sourceOf, titleFrom } from "@/server/chat/make-work";
 import { encryptSecrets, keyedHash } from "@/server/crypto";
@@ -138,4 +140,27 @@ export async function wipeCustomerNumbers(now: Date = new Date(), days = WIPE_AF
     data: { customerRefCipher: null, customerRefHash: null },
   });
   return { wiped: r.count };
+}
+
+/**
+ * The rules at send time (Q1.5). Called after a human TEXT message was stored, never before: whatever happens here never stops the message. Only
+ * OPEN topics are read (a private conversation, a restricted topic or a team's topic gets a ticket by hand only). A rule in mode «تلقائي» makes the
+ * ticket as the author through `reportProblem`; a rule in mode «اقترح» does nothing here (the screen offers the one tap). The first matching rule wins.
+ */
+export async function applyAutoTicketRules(
+  ctx: OrgAccessContext,
+  message: { id: string; body: string; conversationId: string },
+  conversation: { spaceId: string | null; kind: string; restricted: boolean; teamId: string | null },
+): Promise<void> {
+  try {
+    if (conversation.kind !== "TOPIC" || conversation.restricted || conversation.teamId || !conversation.spaceId) return;
+    if (!(await isFeatureOn(ctx.orgId, "autoTickets"))) return;
+    const org = await db.organization.findUnique({ where: { id: ctx.orgId }, select: { settings: true } });
+    const rule = autoRulesOf(org?.settings).find((r) => matchRule(r, { body: message.body, conversationId: message.conversationId, spaceId: conversation.spaceId }));
+    if (!rule || ruleMode(rule) !== "auto") return;
+    await reportProblem(ctx, message.id, { kindKey: rule.kindKey, ...(rule.departmentId ? { departmentId: rule.departmentId } : {}), ...(rule.assigneeId ? { assigneeId: rule.assigneeId } : {}) });
+  } catch (err) {
+    // a rule that cannot make its ticket (nobody to give it to, a switch turned off meanwhile) is logged and forgotten: the message is already sent
+    log.warn("auto_tickets.skipped", { message: err instanceof Error ? err.message : String(err) });
+  }
 }
