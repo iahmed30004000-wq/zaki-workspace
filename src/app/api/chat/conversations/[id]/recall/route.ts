@@ -11,6 +11,6 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const input = await parseJson(recallSchema, req);
     const actor = await requireActor();
     const ctx = await activeOrgCtx();
-    return NextResponse.json(await recallToConversation(ctx, actor, params.id, input.cardId), { status: 201 });
+    return NextResponse.json(await recallToConversation(ctx, actor, params.id, input.cardId, input.clientId), { status: 201 });
   });
 }

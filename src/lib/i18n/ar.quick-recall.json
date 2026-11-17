@@ -13,6 +13,6 @@
   "recall.menu": "من المنتجات",
   "recall.card.open": "افتحي الكرت",
   "recall.card.closed": "كرت منتج (ما بتقدري تفتحيه)",
-  "chat.e.card_immutable": "كرت المنتج ما بينعدّل",
-  "chat.e.card_alone": "كرت المنتج بيتبعت لحاله"
+  "chat.e.card_immutable": "لا يمكن تعديل كرت المنتج",
+  "chat.e.card_alone": "يُرسل كرت المنتج وحده"
 }

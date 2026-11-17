@@ -24,4 +24,13 @@ describe("the slash command of the composer", () => {
     expect(slashCommand("/home/user")).toBeNull();
     expect(slashCommand("https://x.test/منتج a")).toBeNull();
   });
+  it("names of the language itself («constructor», «toString») are not commands", () => {
+    expect(slashCommand("/constructor x")).toBeNull();
+    expect(slashCommand("/toString ")).toBeNull();
+    expect(slashCommand("/__proto__ x")).toBeNull();
+  });
+  it("a pasted or long text that starts with a command word is a message, not a command", () => {
+    expect(slashCommand("/رد\nشكرا على التواصل\nمع السلام")).toBeNull();
+    expect(slashCommand("/رد " + "كلام ".repeat(40))).toBeNull();
+  });
 });

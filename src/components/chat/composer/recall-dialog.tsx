@@ -40,7 +40,7 @@ export function RecallDialog({ open, conversationId, initialKind, initialQuery, 
           if (!r.ok) throw new Error(String(r.status));
           return (await r.json()) as RecallResults;
         })
-        .then((d) => alive && setData(d))
+        .then((d) => alive && (setData(d), setError("")))
         .catch(() => alive && (setData(null), setError(ct("recall.failed"))));
     }, 250);
     return () => {
@@ -49,13 +49,22 @@ export function RecallDialog({ open, conversationId, initialKind, initialQuery, 
     };
   }, [open, kind, q]);
 
+  // one id per card until it has gone through: a tap repeated after a lost answer is the same send to the server, so the card is posted once
+  const sends = React.useRef(new Map<string, string>());
+  function attempt(cardId: string): string {
+    let id = sends.current.get(cardId);
+    if (!id) sends.current.set(cardId, (id = messageClientId()));
+    return id;
+  }
+
   async function send(cardId: string) {
     if (busy) return;
     setBusy(cardId);
     setError("");
     try {
-      const r = await fetch(`/api/chat/conversations/${encodeURIComponent(conversationId)}/recall`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId, clientId: messageClientId() }) });
+      const r = await fetch(`/api/chat/conversations/${encodeURIComponent(conversationId)}/recall`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ cardId, clientId: attempt(cardId) }) });
       if (!r.ok) throw new Error(String(r.status));
+      sends.current.delete(cardId);
       onSent((await r.json()) as MessageDto);
     } catch {
       setError(ct("recall.send_failed"));

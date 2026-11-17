@@ -50,7 +50,7 @@ async function world(opts: { on?: boolean } = {}) {
 type World = Awaited<ReturnType<typeof world>>;
 
 const BASE = "http://localhost/api/chat";
-const send = (w: World, cardId: string, convId = w.topic.id) => call(sendRecallRoute.POST, { method: "POST", url: `${BASE}/conversations/${convId}/recall`, params: { id: convId }, body: { cardId } });
+const send = (w: World, cardId: string, convId = w.topic.id, clientId?: string) => call(sendRecallRoute.POST, { method: "POST", url: `${BASE}/conversations/${convId}/recall`, params: { id: convId }, body: { cardId, ...(clientId ? { clientId } : {}) } });
 const search = (q: string, kind = "product") => call(recallRoute.GET, { url: `${BASE}/recall?q=${encodeURIComponent(q)}&kind=${kind}` });
 
 describe("the switch and who may send", () => {
@@ -164,5 +164,18 @@ describe("the search of the composer", () => {
     const answers = r.json!["results"] as Array<{ answer: string; sheetName: string }>;
     expect(answers.map((a) => a.answer)).toEqual(["لا، للكبار بس."]);
     expect(r.text).not.toContain("غير معتمد");
+  });
+});
+
+describe("a repeated tap", () => {
+  it("the same clientId sends the card once (a lost answer then a second tap does not post it twice)", async () => {
+    const w = await world();
+    await loginAs(w.member.id);
+    const a = await send(w, w.sheet.id, w.topic.id, "recall-client-1");
+    const b = await send(w, w.sheet.id, w.topic.id, "recall-client-1");
+    expect(a.status, a.text).toBe(201);
+    expect(b.status, b.text).toBeLessThan(300);
+    expect(b.json!["id"]).toBe(a.json!["id"]);
+    expect(await db.chatMessage.count({ where: { conversationId: w.topic.id, kind: "CARD" } })).toBe(1);
   });
 });

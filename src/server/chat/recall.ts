@@ -17,7 +17,7 @@ import type { MessageDto } from "@/server/chat/dto";
  *    that they may post in the conversation (and its rate limit). `sendCard` of the cards service (words only) is not touched.
  */
 
-export const recallSchema = z.object({ cardId: z.string().min(1).max(64) });
+export const recallSchema = z.object({ cardId: z.string().min(1).max(64), clientId: z.string().min(1).max(64).optional() });
 export const recallQuerySchema = z.object({ q: z.string().max(100).default(""), kind: z.enum(["product", "reply"]).default("product") });
 
 export interface RecalledProduct {
@@ -43,8 +43,8 @@ export async function recallSearch(actor: Actor, input: z.infer<typeof recallQue
   };
 }
 
-export async function recallToConversation(ctx: OrgAccessContext, actor: Actor, conversationId: string, cardId: string): Promise<MessageDto> {
+export async function recallToConversation(ctx: OrgAccessContext, actor: Actor, conversationId: string, cardId: string, clientId?: string): Promise<MessageDto> {
   await assertFeatureOn(ctx.orgId, "quickRecall");
   const head = await approvedHead(actor, cardId);
-  return sendMessage(ctx, conversationId, { body: `كرت منتج: ${head.name}` }, { card: { type: "product", cardId } });
+  return sendMessage(ctx, conversationId, { body: `كرت منتج: ${head.name}`, ...(clientId ? { clientId } : {}) }, { card: { type: "product", cardId } });
 }

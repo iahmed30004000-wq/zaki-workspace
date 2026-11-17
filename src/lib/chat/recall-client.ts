@@ -17,10 +17,15 @@ export interface SlashCommand {
   q: string;
 }
 
+/** A command is a short single line; a pasted or long text that merely starts with a command word is a message and is never swallowed. */
+const MAX_COMMAND = 120;
+
 export function slashCommand(text: string): SlashCommand | null {
   if (text === "/") return { kind: null, q: "" };
+  if (text.length > MAX_COMMAND || /[\r\n]/.test(text)) return null;
   const m = /^\/(\S+)\s(.*)$/su.exec(text);
   if (!m) return null;
-  const kind = RECALL_WORDS[m[1] ?? ""];
+  const word = m[1] ?? "";
+  const kind = Object.hasOwn(RECALL_WORDS, word) ? RECALL_WORDS[word] : undefined;
   return kind ? { kind, q: (m[2] ?? "").trim() } : null;
 }

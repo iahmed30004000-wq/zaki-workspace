@@ -475,7 +475,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
    </div>
    {busy && files.length === 0 && progress.length > 0 && <p className="text-xs text-fg-muted" role="status">{t("chat.f.uploading")}</p>}
    {error && <p role="alert">{error}</p>}
-   {detail.me.canRecall && <RecallDialog open={recall !== null} conversationId={conversationId} initialKind={recall?.kind ?? null} initialQuery={recall?.q ?? ""} onClose={() => setRecall(null)} onSent={message => { setRecall(null); onMessage(message); }} onInsert={text => { setBody(prev => (prev ? `${prev} ${text}` : text)); keepDraft(text, mentions); textRef.current?.focus(); }} />}
+   {detail.me.canRecall && <RecallDialog open={recall !== null} conversationId={conversationId} initialKind={recall?.kind ?? null} initialQuery={recall?.q ?? ""} onClose={() => setRecall(null)} onSent={message => { setRecall(null); onMessage(message); }} onInsert={text => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); }} />}
    {detail.me.canPoll && <PollDialog open={pollOpen} conversationId={conversationId} onClose={() => setPollOpen(false)} onCreated={message => { setPollOpen(false); onMessage(message); }} />}
   </form>
  );
