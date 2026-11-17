@@ -10,6 +10,8 @@ import { setPolicyStubs } from "@/server/realtime/policy-gate";
 import { resetPresenceForTests } from "@/server/realtime/presence";
 import {
   connectListenerForTests,
+  dropListenerConnectionForTests,
+  ensureListener,
   purgeRealtimeEvents,
   stopRealtimeListenerForTests,
 } from "@/server/realtime/listener";
@@ -84,12 +86,13 @@ describe("Postgres LISTEN/NOTIFY realtime (real database)", () => {
     await connectListenerForTests();
     const firstId = await insertEvent("conversation.changed", { conversationId: "cv-db-2" });
     await vi_waitFor(() => member.frames.length >= 1, PG_TIMEOUT_MS);
-    await stopRealtimeListenerForTests();
+    // F0.1: a lost connection keeps the cursor (a process boot no longer replays the table), so the reconnect replays only the gap
+    await dropListenerConnectionForTests();
     const before = member.frames.length;
     // rows written while nobody is listening
     const secondId = await insertEvent("message.edited", { conversationId: "cv-db-2", messageId: "m-db-2" });
     expect(secondId).toBeGreaterThan(firstId);
-    await connectListenerForTests();
+    await ensureListener();
     await vi_waitFor(() => member.frames.length >= before + 1, PG_TIMEOUT_MS);
     const seen = frames(member).map((p) => p["messageId"]);
     expect(seen).toContain("m-db-2");
