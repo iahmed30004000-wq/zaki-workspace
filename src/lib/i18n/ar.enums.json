@@ -43,6 +43,7 @@
   "enum.IntegrationType.TELEGRAM": "تيليجرام",
   "enum.IntegrationType.N8N": "n8n",
   "enum.IntegrationType.GOOGLE_DRIVE": "Google Drive",
+  "enum.IntegrationType.OMS": "نظام الطلبات",
   "enum.IntegrationDirection.OUT": "صادر",
   "enum.IntegrationDirection.IN": "وارد",
   "enum.IntegrationEventStatus.OK": "تم",

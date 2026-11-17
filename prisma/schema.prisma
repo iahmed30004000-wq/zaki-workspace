@@ -1668,6 +1668,7 @@ enum IntegrationType {
   TELEGRAM
   N8N
   GOOGLE_DRIVE
+  OMS // the orders system (Q1.0): products, an order's state, a note on an order
 }
 
 model Integration {
@@ -1851,6 +1852,9 @@ model Card {
   status      String    @default("DRAFT")
   version     Int       @default(1)
   coverFileId String?
+  // The orders system's snapshot of the product this sheet is about (price, offers, stock): written ONLY by the sync job (src/server/integrations/oms-sync.ts), never
+  // through saveCardEdit, so a refreshed price never writes a CardRevision. A price is never typed here.
+  external    Json?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
