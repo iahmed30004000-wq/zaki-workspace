@@ -85,7 +85,7 @@ describe("«الميزات»: the owner's switches", () => {
     expect(FEATURES).toContain("lastSeen");
     expect(FEATURE_DEFAULTS.lastSeen).toBe(true);
     expect(featureOn({}, "lastSeen")).toBe(true);
-    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true, dbBackup: true, voiceTranscript: true, externalGateway: true, messageTranslate: true, imageOcr: true, semanticSearch: true, emailToTask: true, assistantInMeetings: true, taskPrivacy: true, omsLink: true, knowledgeCards: true, lastSeen: false } })).toEqual(["lastSeen", "morningDigest"]);
+    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true, dbBackup: true, voiceTranscript: true, externalGateway: true, messageTranslate: true, imageOcr: true, semanticSearch: true, emailToTask: true, assistantInMeetings: true, taskPrivacy: true, omsLink: true, knowledgeCards: true, quickRecall: true, lastSeen: false } })).toEqual(["lastSeen", "morningDigest"]);
     expect(AR["features.lastSeen.name"]).toBe("آخر ظهور");
   });
 
