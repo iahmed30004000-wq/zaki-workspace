@@ -159,13 +159,13 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 - [ ] ✋ Owner live check
 
 ### F0 — connection hotfixes
-- [x] F0.1 Listener cursor (and the reconnect test rewritten) · [ ] F0.2 Close ended streams · [ ] F0.3 Visible heartbeat + jitter + pause
-- [ ] F0.4 One list of event kinds · [ ] F0.5 Read only when seen; push when not viewing
-- [ ] F0.6 Debounce the old chat list · [ ] F0.7 Retries don't eat the rate limit · [ ] F0.8 `(createdAt,id)` paging
-- [ ] F0.9 Health shows the live line
+- [x] F0.1 Listener cursor (and the reconnect test rewritten) · [x] F0.2 Close ended streams · [x] F0.3 Visible heartbeat + jitter + pause
+- [x] F0.4 One list of event kinds · [x] F0.5 Read only when seen; push when not viewing
+- [x] F0.6 Debounce the old chat list · [x] F0.7 Retries don't eat the rate limit · [x] F0.8 `(createdAt,id)` paging
+- [x] F0.9 Health shows the live line
 
 ### Q1 — product sheets, quick recall, tickets, must-read
-- [ ] Q1.0 The link to the orders system (token, client, sync, ONE ordered prompt for its repository)
+- [x] Q1.0 The link to the orders system (token, client, sync, ONE ordered prompt for its repository)
 - [ ] Q1.1 Product sheets by category: live prices, copy buttons on every part, offer message, optional caution, questions and answers, «الصقي كرت قديم»
 - [ ] Q1.2 Photos and feedback pictures: copy, download, share, one by one, merge into one picture; cover + consent; the Android app's three bridges (new APK)
 - [ ] Q1.3 «/» in the composer + the CARD message · [ ] Q1.4 An order's state (chips, «/طلب»)
@@ -247,3 +247,4 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 | 2026-11-17 | P0.R: the independent review of P0 found five real holes (publishing a private-chat task in one click, the reporting line across companies, link titles, the time report, counts), all reproduced by a failing test and fixed on `fix/p0-review-findings`; the Android workflow now stops on a half-set key; the rest is recorded in the PR file. Gates green; database suite green except two load-only flakes that pass alone | — | `pr/P0.R.md` |
 | 2026-11-17 | F0 done on `fix/realtime-reliability` (stacked on P0.R): the live line starts at the newest event, says bye, pings, jitters, pauses when hidden; messages are marked read only when seen; a hidden tab still gets the push; the chat list does not storm; retries do not eat the quota; paging never skips; health shows the live line. Gates green; database suite 3491/3491 | — | `pr/F0.md` |
 | 2026-11-17 | F0.R: the independent review of F0 found eight real holes in the live line (a ghost heartbeat swallowing pushes, a lost failed replay, a late commit missed, a duplicate during a long replay, a failed connect never retried, one tab changing another's state, online-while-hidden reopening the stream, a lost eviction note) plus smaller ones; all fixed on `fix/f0-review-findings` with failing tests first. Gates green; database suite 3496/3496 | — | `pr/F0.R.md` |
+| 2026-11-17 | Q1.0 done on `feat/oms-link` (stacked on F0.R): the orders system is read every 5 minutes into the snapshot beside each linked sheet (no revision, no price typed), the owner's card (write-only token, end date, read now), the stale rule, the ordered prompt for that system; the independent review found seven real holes (the token sendable to a new address, a path traversal through an order id, a non-list answer counted as good, an unreadable row marking a sheet gone, zero or negative prices, two processes, raw keys in the card) — all fixed with failing tests first. Gates green; database suite 3535/3535 | 🔧 token + ordered prompt (owner) | `pr/Q1.0.md` |

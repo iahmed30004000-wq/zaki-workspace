@@ -50,19 +50,19 @@ out with «لازم ينقرأ»; sees which sheets are incomplete, which answer
       `orders.read`, `orders.note`; paste it in «التكاملات». Stored encrypted (`Integration.secretEnc`,
       `src/server/crypto.ts`), never returned. ⚠️ Such a token lives 90 days. 🔧 The integration card shows the day it
       ends and warns 14 days before; the owner issues a new one.
-- [ ] Migration, alone in its own folder (AGENTS.md: a new enum value is a migration of its own):
+- [x] Migration, alone in its own folder (AGENTS.md: a new enum value is a migration of its own):
       `ALTER TYPE "IntegrationType" ADD VALUE 'OMS';`. Non-secret settings in `Integration.config` (base URL, the person
       who connected it); the last sync in the existing `Integration.lastSyncAt`.
-- [ ] Client (NEW) `src/server/integrations/oms.ts`: `listProducts()` → `GET /api/v1/products`; `orderStatus(orderId)` →
+- [x] Client (NEW) `src/server/integrations/oms.ts`: `listProducts()` → `GET /api/v1/products`; `orderStatus(orderId)` →
       `GET /api/v1/orders/{id}` (the orders system's INTERNAL id); `addOrderNote(orderId, text)` →
       `POST /api/v1/orders/{id}/notes` with an `Idempotency-Key` header and the body `{ note }`. Bearer token, base URL
       checked by `src/server/net-guard.ts` (public https), 5 s timeout, no redirects; failures written as
       `IntegrationEvent` rows (FAILED) and shown as ⚠️ with 🔧 on the integration card. Never logs a response body.
-- [ ] The snapshot is kept OUTSIDE the versioned sheet: `Card.external JSONB NULL` (additive), written only by the sync,
+- [x] The snapshot is kept OUTSIDE the versioned sheet: `Card.external JSONB NULL` (additive), written only by the sync,
       never through `saveCardEdit` — a refreshed price must not create a `CardRevision`. Shape:
       `{ id?, code, name, store?, category?, price, currency, offers: [{ title, quantity, freeQuantity?, price, expiresAt? }],
       stockStatus, deliveryIncluded?, link?, fetchedAt }`.
-- [ ] Sync job in `src/server/jobs/` (the in-app runner, every 5 minutes, idempotent): reads the products; writes
+- [x] Sync job in `src/server/jobs/` (the in-app runner, every 5 minutes, idempotent): reads the products; writes
       `Card.external` of each linked sheet; creates a DRAFT sheet for a product that has none; marks a sheet whose product
       disappeared as «مش موجود بنظام الطلبات» (never deletes). A row made by a job is authored by the person who connected
       the integration (if no longer ACTIVE: the primary owner).
@@ -75,7 +75,7 @@ out with «لازم ينقرأ»; sees which sheets are incomplete, which answer
 - [ ] **The price notice:** when the price or the offers of an APPROVED sheet differ from the previous snapshot (never
       on the first sync of a product), ONE notice goes to the knowledge space's announcements topic, with «لازم ينقرأ»
       (Q1.6). It is a CARD that points at the sheet (Q1.3): no price is written into a message.
-- [ ] ONE ordered prompt for the orders system's repository (written in the PR, never executed from here):
+- [x] ONE ordered prompt for the orders system's repository (written in the PR, never executed from here):
       (1) a token preset «زاكي ووركسبيس» with the three scopes; (2) optional `?fields=` additions to `GET /api/v1/products`,
       in that door's own additive style: `id`, `store`, `category` (name), `images` (public URLs, the main one first),
       `free_quantity` and `delivery_included` on each offer, `link` (the product's shop page) — and NOT reviews (first
@@ -86,7 +86,7 @@ out with «لازم ينقرأ»; sees which sheets are incomplete, which answer
 - [ ] Until (2) lands: the category of a sheet is picked by hand from the company's category list; the price of one
       piece inside an offer is shown only when the gift units are known; the delivery line («توصيل مجاني · دفع عند
       الاستلام») is one sentence the owner sets in the knowledge settings.
-- [ ] Tests: contract test against the copied example; the token never in a response, a log or an error; the sync is
+- [x] Tests: contract test against the copied example; the token never in a response, a log or an error; the sync is
       idempotent and creates no revision; two products with one code are not linked; an unreachable orders system leaves
       the last snapshot and a visible ⚠️; a stale snapshot refuses to build an offer message.
 
