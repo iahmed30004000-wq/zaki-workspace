@@ -139,8 +139,9 @@ export function presentMessage(
 
   // a card message points at a product sheet: only its address travels, whatever the reader may see of the sheet is decided when it is opened
   if (row.kind === "CARD" && !deleted) {
-    const ref = row.card as { type?: unknown; cardId?: unknown } | null;
+    const ref = row.card as { type?: unknown; cardId?: unknown; number?: unknown } | null;
     if (ref && ref.type === "product" && typeof ref.cardId === "string") dto.card = { type: "product", cardId: ref.cardId };
+    else if (ref && ref.type === "order" && typeof ref.number === "string") dto.card = { type: "order", number: ref.number };
   }
 
   // reply preview: a deleted parent shows the placeholder, never its text

@@ -59,6 +59,15 @@ export async function assertPeopleOfSpace(orgId: string, spaceId: string, ids: s
 }
 
 /** The «مقطع» must be one of the space's own (a miss reads as «not found», like everything of another space). */
+/** What the «/» menu offers a person here (Q1.3, Q1.4): the kinds whose switches are on, only to staff who may post; chips of order numbers need no posting. */
+async function recallOffer(orgId: string, staff: boolean, mayPost: boolean): Promise<{ canRecall: boolean; recallKinds: Array<"product" | "reply" | "order">; canOrderState: boolean }> {
+  const orderOn = staff && (await isFeatureOn(orgId, "orderStatus")) && (await isFeatureOn(orgId, "omsLink"));
+  const recallOn = staff && mayPost && (await isFeatureOn(orgId, "quickRecall"));
+  const knowledge = recallOn && (await isFeatureOn(orgId, "knowledgeCards"));
+  const recallKinds: Array<"product" | "reply" | "order"> = [...(knowledge ? (["product", "reply"] as const) : []), ...(recallOn && orderOn ? (["order"] as const) : [])];
+  return { canRecall: recallKinds.length > 0, recallKinds, canOrderState: orderOn };
+}
+
 async function assertTeamOfSpace(spaceId: string, teamId: string | null | undefined): Promise<void> {
   if (!teamId) return;
   const team = await db.team.findFirst({ where: { id: teamId, workspaceId: spaceId }, select: { id: true } });
@@ -441,7 +450,7 @@ export async function conversationDetail(
       canMentionAll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       canPoll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
-      canRecall: org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }) && (await isFeatureOn(ctx.orgId, "quickRecall")) && (await isFeatureOn(ctx.orgId, "knowledgeCards")),
+      ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
       id: ctx.userId,
     },
     pinnedMessages: (

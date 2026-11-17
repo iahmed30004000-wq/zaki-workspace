@@ -34,3 +34,11 @@ describe("the slash command of the composer", () => {
     expect(slashCommand("/رد " + "كلام ".repeat(40))).toBeNull();
   });
 });
+
+describe("«/طلب»", () => {
+  it("opens the order tab once the word is finished, with the number after it", () => {
+    expect(slashCommand("/طلب ")).toEqual({ kind: "order", q: "" });
+    expect(slashCommand("/طلب ZK-2026-000123")).toEqual({ kind: "order", q: "ZK-2026-000123" });
+    expect(slashCommand("/طلب")).toBeNull();
+  });
+});

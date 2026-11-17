@@ -7,9 +7,9 @@
  *
  * A word still being typed («/منت») is not a command: nothing opens while somebody writes a message that happens to start with a slash.
  */
-export type RecallKind = "product" | "reply";
+export type RecallKind = "product" | "reply" | "order";
 
-export const RECALL_WORDS: Record<string, RecallKind> = { "منتج": "product", "رد": "reply" };
+export const RECALL_WORDS: Record<string, RecallKind> = { "منتج": "product", "رد": "reply", "طلب": "order" };
 
 export interface SlashCommand {
   /** null: the bare «/» — the menu opens and the person picks. */

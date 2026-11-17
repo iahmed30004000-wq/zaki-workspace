@@ -1,6 +1,8 @@
 import { assertPublicHttpsUrl, UnsafeUrlError, type HostResolver } from "@/server/net-guard";
 import { logEvent, requireConnected } from "@/server/services/integrations";
 import { readProducts, type ProductsRead, type ProductSnapshot } from "@/lib/oms/snapshot";
+import { isOrderNumber } from "@/lib/oms/order-ref";
+import { readOrderAnswer, type OrderStateRead } from "@/lib/oms/order-state";
 
 /**
  * THE CLIENT OF THE ORDERS SYSTEM (Q1.0): three calls, nothing else.
@@ -21,7 +23,7 @@ export const OMS_MAX_BODY_CHARS = 4_000_000;
 /** The orders system's own ids are plain tokens: anything that could leave the path (`..`, a slash, a query) is refused before a request. */
 const ORDER_ID = /^[A-Za-z0-9_-]{1,64}$/;
 
-export type OmsErrorCode = "no_base_url" | "url_invalid" | "url_https_only" | "url_credentials" | "url_private" | "url_unresolvable" | "no_token" | "timeout" | "network" | "redirect" | "bad_body" | "bad_id" | "too_big" | `http_${number}`;
+export type OmsErrorCode = "unsupported" | "no_base_url" | "url_invalid" | "url_https_only" | "url_credentials" | "url_private" | "url_unresolvable" | "no_token" | "timeout" | "network" | "redirect" | "bad_body" | "bad_id" | "too_big" | `http_${number}`;
 
 /** A failure of a call. `code` is the whole story: it is also the key of the ⚠️ the integration card shows. */
 export class OmsError extends Error {
@@ -176,4 +178,22 @@ export async function addOrderNote(orgId: string, orderId: string, text: string,
     { method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": idempotencyKey }, body: JSON.stringify({ note: text }), badId: !ORDER_ID.test(orderId) },
     opts,
   );
+}
+
+/**
+ * An order by its NUMBER (Q1.4): `GET /api/v1/orders?number=` — item 3 of the ordered prompt. Until the orders system has it the door answers 404/400/405
+ * and this throws `OmsError("unsupported")`, which the screen tells as «حالة الطلب بتتفعّل بعد تحديث نظام الطلبات». Only the fields of
+ * `readOrderAnswer` survive the reading.
+ */
+export async function orderByNumber(orgId: string, number: string, opts: OmsCallOptions = {}): Promise<OrderStateRead> {
+  let body: unknown;
+  try {
+    body = await call(orgId, "oms.order_by_number", `/api/v1/orders?number=${encodeURIComponent(number)}`, { method: "GET", badId: !isOrderNumber(number) }, opts);
+  } catch (err) {
+    if (err instanceof OmsError && ["http_400", "http_405", "http_501"].includes(err.code)) throw new OmsError("unsupported");
+    throw err;
+  }
+  const read = readOrderAnswer(body, number);
+  if (!read) throw new OmsError("bad_body");
+  return read;
 }

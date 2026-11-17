@@ -845,6 +845,7 @@ model Organization {
   recipes          Recipe[]
   productionOrders ProductionOrder[]
   integrations     Integration[]
+  omsOrderStates   OmsOrderState[]
   backupRuns       BackupRun[]
   conversations    Conversation[]
   IntegrationEvent IntegrationEvent[]
@@ -1692,6 +1693,31 @@ model Integration {
   events       IntegrationEvent[]
 
   @@unique([orgId, type])
+}
+
+// The state of an order of the linked orders system (Q1.4): a small cache, written by a lookup (kept 60 seconds fresh) and later by the events of I1.1.
+// Only what the orders system's door sends: no customer name, phone, address or city exists here. No other table holds another system's order state.
+model OmsOrderState {
+  id                String   @id @default(cuid())
+  orgId             String
+  orderNumber       String
+  // the orders system's internal id (a note on the order needs it, Q1.5); null until the door sends it
+  orderId           String?
+  status            String?
+  confirmationState String?
+  shippingState     String?
+  productName       String?
+  quantity          Int?
+  // when the order last moved, as the orders system says
+  movedAt           DateTime?
+  // when we last asked
+  fetchedAt         DateTime @default(now())
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, orderNumber])
 }
 
 model TelegramChat {
