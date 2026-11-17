@@ -186,6 +186,8 @@ async function sse(req: NextRequest): Promise<Response> {
           }
         };
 
+        // the stream may have ended while the replay above was running (evicted, aborted): no heartbeat for a ghost
+        if (done) return;
         heartbeat = setInterval(() => {
           write(`event: ping\ndata: ${Date.now()}\n\n`);
           // an open stream IS presence: without this, everybody counted as offline 30 s after

@@ -285,7 +285,7 @@ export async function conversationDetail(
   // Paging is by (createdAt, id): two messages written in the same instant are ordered by id, so a page boundary can fall between
   // them and neither is skipped nor shown twice (F0.8). `before` is a message's id.
   if (opts.before) {
-    const anchor = await db.chatMessage.findUnique({ where: { id: opts.before }, select: { id: true, createdAt: true } });
+    const anchor = await db.chatMessage.findFirst({ where: { id: opts.before, conversationId }, select: { id: true, createdAt: true } });
     if (!anchor) throw new NotFoundError("chat.e.not_found");
     where.OR = [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lt: anchor.id } }];
   }

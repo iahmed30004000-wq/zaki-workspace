@@ -110,7 +110,8 @@ export function addClient(client: Omit<RtClient, "cid">): RtClient {
  */
 export function setStreamViewing(userId: string, viewing: boolean, tabId?: string, now: number = Date.now()): void {
   const mine = hub().registry.filter((r) => r.client.userId === userId);
-  const target = tabId && mine.some((r) => r.client.tabId === tabId) ? mine.filter((r) => r.client.tabId === tabId) : mine;
+  // a tab that names itself changes ITS streams only: an evicted or paused tab (no stream) must not change another tab's state
+  const target = tabId ? mine.filter((r) => r.client.tabId === tabId) : mine;
   for (const r of target) {
     r.viewing = viewing;
     if (viewing) r.viewingAt = now;

@@ -15,6 +15,13 @@ import { isRealtimeKind, type RealtimeIds } from "./emit";
 
 const CHANNEL = "zaki_rt";
 const REPLAY_CHUNK = 500;
+/**
+ * A reconnect replays from this many ids BEFORE the cursor, not from the cursor itself: an id is taken when its row is inserted but
+ * published when its transaction commits, so a lower id can become visible after a higher one was delivered. Anything delivered
+ * already is skipped by `firstSight`.
+ */
+const REPLAY_OVERLAP = 500n;
+const REPLAY_ATTEMPTS = 5;
 
 interface ListenerState {
   client: Client | null;
@@ -22,8 +29,14 @@ interface ListenerState {
   lastId: bigint;
   /** the first connect of this process has set the cursor */
   booted: boolean;
+  /** the newest id when this process booted: what is older was never this process's to deliver, so no replay reaches below it */
+  floor: bigint;
   /** ids delivered lately (live or replay), so an event that arrives both ways is delivered once */
   recent: Set<bigint>;
+  /** while a replay runs: every id delivered live in the meantime, kept without a cap so the replay never delivers one twice */
+  replaying: Set<bigint> | null;
+  /** test hook: how many of the next replay attempts throw */
+  replayFailures: number;
   attempts: number;
   stopped: boolean;
   url: string;
@@ -41,7 +54,10 @@ function state(): ListenerState {
       connecting: null,
       lastId: 0n,
       booted: false,
+      floor: 0n,
       recent: new Set<bigint>(),
+      replaying: null,
+      replayFailures: 0,
       attempts: 0,
       stopped: false,
       url: "",
@@ -70,10 +86,16 @@ export async function stopRealtimeListenerForTests(): Promise<void> {
 export async function connectListenerForTests(): Promise<void> {
   const s = state();
   s.lastId = 0n;
+  s.floor = 0n;
   s.booted = false;
   s.recent.clear();
   s.stopped = false;
   await ensureListener();
+}
+
+/** Test hook: make the next `n` replay attempts throw, to prove a failed replay is retried (never call from server code). */
+export function failNextReplaysForTests(n: number): void {
+  state().replayFailures = n;
 }
 
 /** Test hook: drop ONLY the pg connection and keep the cursor, as a lost connection would (never call from server code). */
@@ -144,6 +166,7 @@ async function loadAndDeliver(id: string): Promise<void> {
   const row = await db.realtimeEvent.findUnique({ where: { id: BigInt(id) } });
   if (!row) return; // purged before delivery: the client's periodic refetch covers it
   if (!firstSight(row.id)) return;
+  state().replaying?.add(row.id);
   const ids = (row.ids ?? {}) as RealtimeIds;
   const event: RtEvent = {
     id: row.id.toString(),
@@ -167,7 +190,8 @@ async function replaySince(lastId: bigint): Promise<void> {
     if (!rows.length) break;
     for (const row of rows) {
       cursor = row.id;
-      if (!firstSight(row.id)) continue; // already delivered live
+      if (state().replaying?.has(row.id)) continue; // delivered live while this replay was running
+      if (!firstSight(row.id)) continue; // already delivered
       const ids = (row.ids ?? {}) as RealtimeIds;
       await deliverEvent({
         id: row.id.toString(),
@@ -177,6 +201,32 @@ async function replaySince(lastId: bigint): Promise<void> {
       });
     }
     if (rows.length < REPLAY_CHUNK) break;
+  }
+}
+
+/**
+ * The replay of a gap, retried: the live events that arrive meanwhile have already moved the cursor, so a replay that failed once
+ * and was not repeated would lose the gap for good.
+ */
+async function replayGap(from: bigint): Promise<void> {
+  const s = state();
+  s.replaying = new Set();
+  try {
+    for (let attempt = 0; attempt < REPLAY_ATTEMPTS; attempt++) {
+      try {
+        if (s.replayFailures > 0) {
+          s.replayFailures--;
+          throw new Error("replay failed (test hook)");
+        }
+        await replaySince(from);
+        return;
+      } catch (err) {
+        log.error("rt.replay_failed", { message: err instanceof Error ? err.message : String(err), attempt: attempt + 1 });
+        await new Promise((r) => setTimeout(r, 100 * 2 ** attempt));
+      }
+    }
+  } finally {
+    s.replaying = null;
   }
 }
 
@@ -196,18 +246,31 @@ async function connectOnce(): Promise<void> {
     scheduleReconnect();
   });
   await client.connect();
-  await client.query(`LISTEN ${CHANNEL}`);
-  s.client = client;
-  s.attempts = 0;
-  if (!s.booted) {
-    // the first connect of this process: start at the newest row, replay nothing (and do not make every stream wait for a walk)
-    s.lastId = await newestId();
-    s.booted = true;
-  } else {
-    // a reconnect: what was written while away is replayed in the background; the stream is ready as soon as LISTEN is on
-    void replaySince(s.lastId).catch((err) => {
-      log.error("rt.replay_failed", { message: err instanceof Error ? err.message : String(err) });
-    });
+  try {
+    await client.query(`LISTEN ${CHANNEL}`);
+    s.client = client;
+    s.attempts = 0;
+    if (!s.booted) {
+      // the first connect of this process: start at the newest row, replay nothing (and do not make every stream wait for a walk)
+      s.lastId = await newestId();
+      s.floor = s.lastId;
+      s.booted = true;
+    } else {
+      // a reconnect: what was written while away is replayed in the background (retried, from a little before the cursor); the
+      // stream is ready as soon as LISTEN is on
+      const back = s.lastId > REPLAY_OVERLAP ? s.lastId - REPLAY_OVERLAP : 0n;
+      const from = back > s.floor ? back : s.floor;
+      void replayGap(from);
+    }
+  } catch (err) {
+    // a half-made connection must not stay open and keep delivering
+    s.client = null;
+    try {
+      await client.end();
+    } catch {
+      // already closed
+    }
+    throw err;
   }
   log.info("rt.listening", { channel: CHANNEL });
 }
@@ -240,10 +303,11 @@ export async function ensureListener(): Promise<void> {
         attempts: s.attempts + 1,
       });
       s.client = null;
-      scheduleReconnect();
     } finally {
       s.connecting = null;
     }
+    // after the attempt is over (scheduling inside it returned early: `connecting` was still set, so a failed connect never retried)
+    if (!s.client) scheduleReconnect();
   })();
   return s.connecting;
 }

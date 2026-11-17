@@ -25,10 +25,14 @@ export async function GET() {
   const allOk = Object.values(checks).every((v) => v === "ok");
   // the live line (F0.9): shown, never a reason for a 503 — the database stays the only one. Asking also brings the listener
   // up after a deploy, so the first health check is what starts it rather than the first person who opens a stream.
+  let wait: ReturnType<typeof setTimeout> | undefined;
   try {
-    await ensureListener();
+    // a hung connect must not slow or time out the health check: at most 2 s, then the answer says what it knows
+    await Promise.race([ensureListener(), new Promise((resolve) => (wait = setTimeout(resolve, 2_000)))]);
   } catch {
     // ensureListener reports its own failures; the answer below says "down"
+  } finally {
+    if (wait) clearTimeout(wait);
   }
   const realtime: "ok" | "down" = listenerConnected() ? "ok" : "down";
   return NextResponse.json(

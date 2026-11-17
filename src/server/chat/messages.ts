@@ -30,6 +30,8 @@ import type { MessageDto } from "@/server/chat/dto";
 
 /** 30 sends per minute per user, process-wide (the design's number). */
 export const sendLimiter = new FixedWindowLimiter({ limit: 30, windowMs: 60_000 });
+/** Retries of a message already sent are free of the send quota, but not unlimited: each still costs a few queries. */
+const retryLimiter = new FixedWindowLimiter({ limit: 300, windowMs: 60_000 });
 
 const MAX_BODY = 4000;
 
@@ -106,7 +108,10 @@ export async function sendMessage(
       where: { authorId_clientId: { authorId: ctx.userId, clientId: input.clientId } },
       select: { conversationId: true },
     }))?.conversationId === conversationId;
-  if (!retry) {
+  if (retry) {
+    if (!retryLimiter.check(`chat.retry.${ctx.userId}`).ok) throw new RateLimitedError(60, "chat.e.rate_limited");
+    retryLimiter.hit(`chat.retry.${ctx.userId}`);
+  } else {
     if (!sendLimiter.check(`chat.send.${ctx.userId}`).ok) {
       throw new RateLimitedError(60, "chat.e.rate_limited");
     }
