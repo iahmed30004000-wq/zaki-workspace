@@ -78,14 +78,18 @@ async function ownWork(
   const open = { orgId: who.orgId, completedAt: null, archived: false, AND: [mine, noReward] };
   const limit = options.local ? Math.min(WORK_TASKS_MAX, LOCAL_CONTEXT_LIMITS.maxTasks) : WORK_TASKS_MAX;
   const [rows, openTotal, overdue, finished] = await Promise.all([
+    // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
     db.task.findMany({
       where: open,
       select: { title: true, priority: true, dueDate: true },
       orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { createdAt: "asc" }],
       take: limit,
     }),
+    // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
     db.task.count({ where: open }),
+    // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
     db.task.count({ where: { ...open, dueDate: { lt: todayStart } } }),
+    // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
     db.task.count({ where: { orgId: who.orgId, completedAt: { gte: new Date(now.getTime() - WEEK_MS) }, AND: [mine, noReward] } }),
   ]);
   let masked = 0;

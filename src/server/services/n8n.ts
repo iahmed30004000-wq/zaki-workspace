@@ -255,6 +255,7 @@ export async function handleInbound(
     const task = await createTask(
       { userId: owner.userId, orgId },
       {
+        visibility: "SPACE",
         workspaceId: parsed.data.workspaceId,
         projectId: parsed.data.projectId,
         boardId: parsed.data.boardId,

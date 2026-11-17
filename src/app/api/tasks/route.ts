@@ -26,6 +26,8 @@ const createSchema = z.object({
   labels: z.array(z.string().min(1)).max(10).optional(),
   /** «مهمة بمكافأة»: the OWNER's alone; needs `dueDate` (src/server/services/rewards.ts). */
   reward: rewardBodySchema.optional(),
+  /** «مين بيشوفها؟»: the whole space, or «المعنيين بس». Absent: the company's default. */
+  visibility: z.enum(["SPACE", "PARTICIPANTS"]).optional(),
 });
 
 export interface ListFilters {
@@ -93,6 +95,7 @@ export async function POST(req: Request) {
       dueDate,
       labelIds: reqLabels(input),
       reward: input.reward ? toRewardRequest(input.reward) : undefined,
+      visibility: input.visibility,
     });
     await audit("task.created", {
       actorId: ctx.userId,

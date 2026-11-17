@@ -39,6 +39,7 @@ export async function loadNames(orgId: string, wanted: WantedIds): Promise<NameB
           select: { userId: true, user: { select: { name: true } } },
         })
       : [],
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     tasks.length ? db.task.findMany({ where: { orgId, id: { in: tasks } }, select: { id: true, number: true, title: true } }) : [],
     spaces.length ? db.workspace.findMany({ where: { organizationId: orgId, id: { in: spaces } }, select: { id: true, name: true } }) : [],
     projects.length ? db.project.findMany({ where: { workspace: { organizationId: orgId }, id: { in: projects } }, select: { id: true, name: true } }) : [],

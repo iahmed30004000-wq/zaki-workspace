@@ -57,6 +57,7 @@ export async function seriesObstacle(tx: Tx, rec: SeriesRow): Promise<StopReason
   const project = home?.projects[0];
   const board = project?.boards[0];
   if (!home || home.archivedAt || !project || project.status === "ARCHIVED" || !board || board.archived) return "ARCHIVED";
+  // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
   const template = await tx.task.findUnique({ where: { id: rec.templateTaskId }, select: { id: true } });
   if (!template) return "ARCHIVED";
   return null;
@@ -82,6 +83,7 @@ export async function spawnOccurrence(tx: Tx, rec: SeriesRow, dueDate: Date | nu
   // the same door a hand-made task passes: the tasks row of the maker's section grid
   await assertMemberCan(actor, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
 
+  // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
   const template = await tx.task.findUnique({
     where: { id: rec.templateTaskId },
     include: {
@@ -116,6 +118,8 @@ export async function spawnOccurrence(tx: Tx, rec: SeriesRow, dueDate: Date | nu
     dueDate,
     startDate,
     labelIds: template.labels.map((l) => l.labelId),
+    // a private series stays private: every occurrence is as visible as its template
+    visibility: template.visibility === "PARTICIPANTS" ? "PARTICIPANTS" : "SPACE",
   });
   await tx.task.update({ where: { id: made.id }, data: { recurrenceId: rec.id } });
   if (template.steps.length) {
@@ -181,6 +185,7 @@ export async function onTaskCompleted(
       await tx.$executeRaw`RELEASE SAVEPOINT recurrence_hook`;
       return null;
     }
+    // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
     const open = await tx.task.count({ where: { recurrenceId: rec.id, id: { not: task.id }, completedAt: null, archived: false } });
     if (open > 0) {
       await tx.$executeRaw`RELEASE SAVEPOINT recurrence_hook`;
@@ -195,6 +200,7 @@ export async function onTaskCompleted(
     const rule = parseStoredRule(rec.rule) as RecurrenceRule;
     const org = await tx.organization.findUnique({ where: { id: rec.orgId }, select: { timezone: true } });
     const zone = resolveTimeZone(org?.timezone);
+    // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
     const template = await tx.task.findUnique({ where: { id: rec.templateTaskId }, select: { dueDate: true } });
     // the next one is the first occurrence after BOTH the day this one was due and now: finishing a daily task early
     // does not make today's again, finishing it late does not replay the days that passed

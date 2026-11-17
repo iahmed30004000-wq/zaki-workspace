@@ -1264,7 +1264,12 @@ model Task {
   apiToken           ApiToken? @relation(fields: [apiTokenId], references: [id], onDelete: SetNull)
   externalRef        String?
 
+  // «مين بيشوفها؟»: SPACE (everybody who sees the space, the default) or PARTICIPANTS («المعنيين بس»: its creator, its
+  // assignees, their managers, the space's managers, and whoever holds oversight). Read through team-scope.ts, never by hand.
+  visibility         String   @default("SPACE")
+
   @@unique([orgId, number])
+  @@index([workspaceId, visibility])
   @@index([orgId, rewardStatus])
   @@index([workspaceId, pinnedAt])
   @@index([apiTokenId, createdAt])

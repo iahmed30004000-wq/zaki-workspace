@@ -325,7 +325,9 @@ export async function setTaskFieldValue(taskId: string, fieldId: string, raw: un
   const access = await writeAccess(taskId);
   const result = await db.$transaction(async (tx) => {
     // the task's row is held for the write: a completion that is checking the required fields waits for it, then reads what is left
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     await tx.$queryRaw`SELECT 1 FROM "Task" WHERE "id" = ${taskId} FOR UPDATE`;
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     const task = await tx.task.findFirst({ where: { id: taskId, orgId: access.orgId }, select: { id: true, projectId: true, workspaceId: true, rewardStatus: true } });
     if (!task) throw new NotFoundError("task.not_found");
     // «مهمة بمكافأة»: a reward task keeps its owner-only lock for its fields too
@@ -454,6 +456,7 @@ export async function fieldCellsFor(
 export async function sumNumberField(orgId: string, projectId: string, fieldId: string, taskIds?: readonly string[]): Promise<string> {
   if (taskIds && taskIds.length === 0) return "0";
   const only = taskIds ? Prisma.sql`AND t."id" IN (${Prisma.join([...taskIds])})` : Prisma.empty;
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const rows = await db.$queryRaw<{ total: string | null }[]>(Prisma.sql`
     SELECT SUM(v."valueNumber")::text AS total
     FROM "TaskFieldValue" v

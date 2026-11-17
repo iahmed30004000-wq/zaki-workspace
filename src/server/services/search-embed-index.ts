@@ -128,6 +128,7 @@ export async function syncItems(orgId: string, kind: ItemKind, ids: readonly str
       pending.push({ id: m.id, text, hash: textHash(text, server.model), conversationId: m.conversationId, workspaceId: null });
     }
   } else {
+    // task-visibility: the search index: results are read back through taskVisibleWhere when somebody searches
     const rows = await db.task.findMany({ where: { id: { in: unique }, orgId }, select: { id: true, title: true, description: true, archived: true, workspaceId: true } });
     const found = new Set(rows.map((r) => r.id));
     drop.push(...unique.filter((id) => !found.has(id)));
@@ -256,6 +257,7 @@ async function missingMessages(orgId: string, conversations: string[], model: st
 
 async function missingTasks(orgId: string, spaces: string[], model: string, limit: number): Promise<string[]> {
   if (spaces.length === 0) return [];
+  // task-visibility: the search index: results are read back through taskVisibleWhere when somebody searches
   const rows = await db.$queryRaw<{ id: string }[]>(Prisma.sql`
     SELECT t."id" FROM "Task" t
     WHERE t."id" IN (

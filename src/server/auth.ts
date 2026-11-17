@@ -270,12 +270,47 @@ export async function requireTaskAccess(
   taskId: string,
   roles: WorkspaceRole[] = ["ADMIN", "MEMBER", "GUEST"],
 ): Promise<OrgAccessContext & { task: { id: string; workspaceId: string; projectId: string; teamId: string | null } }> {
-  const task = await db.task.findUnique({ where: { id: taskId }, select: { id: true, workspaceId: true, projectId: true, project: { select: { teamId: true } } } });
+  const task = await db.task.findUnique({
+    where: { id: taskId },
+    select: {
+      id: true,
+      workspaceId: true,
+      projectId: true,
+      visibility: true,
+      creatorId: true,
+      assigneeId: true,
+      coAssignees: { select: { userId: true } },
+      project: { select: { teamId: true } },
+    },
+  });
   if (!task) throw new NotFoundError("task.not_found");
   const ctx = await requireWorkspace(task.workspaceId, roles);
   const teamId = task.project?.teamId ?? null;
   if (!(await seesTeamOf(ctx.userId, teamId, ctx.spaceManager === true))) throw new NotFoundError("task.not_found");
+  await assertTaskParticipant(ctx.userId, task, "task.not_found");
   return { ...ctx, task: { id: task.id, workspaceId: task.workspaceId, projectId: task.projectId, teamId } };
+}
+
+/** What the private-task check needs about one task (`visibility` is `Task.visibility`). */
+export interface TaskParticipantFacts {
+  workspaceId: string;
+  visibility: string;
+  creatorId: string;
+  assigneeId: string | null;
+  coAssignees?: { userId: string }[];
+}
+
+/**
+ * A private task («المعنيين بس»): only the people it concerns, their managers up the reporting line, the space's managers
+ * and whoever holds silent oversight pass; everybody else gets "not found" — the existence of the task is private too.
+ * A public task costs nothing here (the scope is loaded only for a private one).
+ */
+export async function assertTaskParticipant(userId: string, task: TaskParticipantFacts, notFound = "task.not_found"): Promise<void> {
+  if (task.visibility !== "PARTICIPANTS") return;
+  const { loadWorkScope, canSeeTaskParticipants } = await import("@/server/services/team-scope");
+  const scope = await loadWorkScope(userId);
+  const allowed = canSeeTaskParticipants(scope, { ...task, coAssigneeIds: (task.coAssignees ?? []).map((c) => c.userId) });
+  if (!allowed) throw new NotFoundError(notFound);
 }
 
 /**
@@ -288,9 +323,12 @@ export async function requireTeamWork(
   teamId: string | null | undefined,
   roles: WorkspaceRole[] = ["ADMIN", "MEMBER", "GUEST"],
   notFound = "not_found",
+  /** when the thing opened is a TASK: its private-task facts (the check of «المعنيين بس» runs too) */
+  task?: TaskParticipantFacts,
 ): Promise<OrgAccessContext> {
   const ctx = await requireWorkspace(workspaceId, roles);
   if (!(await seesTeamOf(ctx.userId, teamId ?? null, ctx.spaceManager === true))) throw new NotFoundError(notFound);
+  if (task) await assertTaskParticipant(ctx.userId, task, notFound);
   return ctx;
 }
 

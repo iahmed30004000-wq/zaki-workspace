@@ -49,7 +49,7 @@ type MessageRow = {
   attachments?: (Parameters<typeof attachmentView>[0] & { id: string })[];
   revisions?: { body: string; createdAt: Date }[];
   notes?: { id: string; authorId: string; author: { name: string }; body: string; createdAt: Date }[];
-  tasks?: { id: string }[];
+  tasks?: { id: string; visibility?: string; creatorId?: string; assigneeId?: string | null }[];
   tickets?: { id: string }[];
   poll?: PollRow | null;
 };
@@ -156,7 +156,11 @@ export function presentMessage(
 
   // what the message became (a guest never learns of the company's tasks and tickets)
   if (viewer.role !== "GUEST" && !deleted) {
-    const work = [...(row.tasks ?? []).map((t) => ({ kind: "task" as const, id: t.id })), ...(row.tickets ?? []).map((t) => ({ kind: "ticket" as const, id: t.id }))];
+    // a private task («المعنيين بس») is not even named to a person it does not concern: its existence is private too.
+    // (Managers up the reporting line and of the space open the task itself; the chip needs no database, so it is stricter.)
+    const seesTask = (t: { visibility?: string; creatorId?: string; assigneeId?: string | null }): boolean =>
+      t.visibility !== "PARTICIPANTS" || (viewer.oversight ?? viewer.role === "OWNER") /* oversight-ok: hand-made viewers */ || t.creatorId === viewer.userId || t.assigneeId === viewer.userId || viewer.canModerateHere;
+    const work = [...(row.tasks ?? []).filter(seesTask).map((t) => ({ kind: "task" as const, id: t.id })), ...(row.tickets ?? []).map((t) => ({ kind: "ticket" as const, id: t.id }))];
     if (work.length) dto.work = work;
   }
 

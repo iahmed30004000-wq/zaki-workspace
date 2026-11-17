@@ -97,7 +97,9 @@ const ROW_SELECT = {
 
 /** The task row, locked for the rest of the transaction (two owners pressing at once are taken one after the other). */
 async function lockedTask(tx: Prisma.TransactionClient, orgId: string, taskId: string): Promise<RewardRow> {
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${taskId} AND "orgId" = ${orgId} FOR UPDATE`;
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const task = await tx.task.findFirst({ where: { id: taskId, orgId }, select: ROW_SELECT });
   if (!task) throw new NotFoundError("task.not_found");
   return task;
@@ -254,6 +256,7 @@ export async function setPinned(ctx: OrgAccessContext, taskId: string, pinned: b
   await assertFeatureOn(ctx.orgId, "taskRewards");
   await assertMemberCan(ctx, "tasks.edit", "section.edit_denied");
   return db.$transaction(async (tx) => {
+    // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
     const task = await tx.task.findFirst({ where: { id: taskId, orgId: ctx.orgId }, select: { id: true, workspaceId: true, pinnedAt: true } });
     if (!task) throw new NotFoundError("task.not_found");
     const wsRow = await tx.workspaceMember.findUnique({
@@ -288,6 +291,7 @@ export interface RewardTotal {
  */
 export async function openRewardTotals(ctx: { orgId: string; userId: string }, opts: { workspaceId?: string | null } = {}): Promise<RewardTotal[]> {
   if (!(await isOrgOwner(ctx)) || !(await rewardsOn(ctx.orgId))) return [];
+  // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const rows = await db.$queryRaw<{ currency: string; minor: bigint; count: bigint }[]>`
     SELECT "rewardCurrency" AS currency, SUM("rewardAmountMinor")::bigint AS minor, COUNT(*)::bigint AS count
     FROM "Task"

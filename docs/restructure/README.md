@@ -151,7 +151,7 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 ### P0 — privacy & security
 - [ ] P0.0 Owner actions today: who keeps the OWNER rank; no owner-rank account on a temporary password; test with a plain member
 - [x] P0.1 Oversight follows `archive.view` (partners lose it when revoked) + the switch for it on a partner's sheet
-- [ ] P0.2 Private tasks («المعنيين بس») applied to every read
+- [x] P0.2 Private tasks («المعنيين بس») applied to every read (the create-form picker and the lock on board cards, the calendar and search hits are still open: see `pr/P0.2.md`)
 - [ ] P0.3 Work made from a private chat stays private
 - [ ] P0.4 Privacy visible on screen (who can see a topic / a task)
 - [ ] P0.5 Privacy test matrix

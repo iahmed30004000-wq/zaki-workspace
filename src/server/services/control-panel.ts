@@ -67,6 +67,7 @@ interface Stats {
 
 /** What was finished in [start, end): how many (a task once), how many had a day, how many were on or before it. */
 async function completedStats(orgId: string, tz: string, start: Date, end: Date, spaces: readonly string[] | null): Promise<Stats & { avgDays: number | null }> {
+  // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
   const rows = await db.$queryRaw<{ completed: number; withDue: number; onTime: number; avgDays: number | null }[]>(Prisma.sql`
     SELECT count(*)::int AS "completed",
       (count(*) FILTER (WHERE t."dueDate" IS NOT NULL))::int AS "withDue",
@@ -95,17 +96,20 @@ async function loadFigures(orgId: string, todayStart: Date, now: Date): Promise<
   const windowStart = new Date(todayStart.getTime() - (FORECAST_DAYS - 1) * DAY_MS);
   const ideasBefore = new Date(now.getTime() - IDEA_WAIT_DAYS * DAY_MS);
   const [open, overdueBySpace, forecast, ideas] = await Promise.all([
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ open: number; overdue: number; unassigned: number; stale: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "open",
         (count(*) FILTER (WHERE t."dueDate" < ${ts(todayStart)}))::int AS "overdue",
         (count(*) FILTER (WHERE t."assigneeId" IS NULL AND NOT EXISTS (SELECT 1 FROM "TaskCoAssignee" co WHERE co."taskId" = t."id")))::int AS "unassigned",
         (count(*) FILTER (WHERE t."updatedAt" < ${ts(staleBefore)}))::int AS "stale"
       FROM "Task" t WHERE t."orgId" = ${orgId} AND t."completedAt" IS NULL AND NOT t."archived"`),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ name: string; n: number }[]>(Prisma.sql`
       SELECT w."name" AS "name", count(*)::int AS "n"
       FROM "Task" t JOIN "Workspace" w ON w."id" = t."workspaceId"
       WHERE t."orgId" = ${orgId} AND t."completedAt" IS NULL AND NOT t."archived" AND t."dueDate" < ${ts(todayStart)} AND w."archivedAt" IS NULL
       GROUP BY w."name" ORDER BY 2 DESC, 1 LIMIT 5`),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ n: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "n" FROM "Task" t WHERE t."orgId" = ${orgId} AND t."completedAt" >= ${ts(windowStart)} AND t."completedAt" < ${ts(now)}`),
     db.idea.count({ where: { orgId, status: "NEW", createdAt: { lt: ideasBefore } } }),
@@ -230,12 +234,15 @@ export async function loadPanelReports(access: BoardAccess, query: { space?: str
   const [data, avg30, created, finished, rowsBySpace] = await Promise.all([
     loadAnalytics(orgId, wsIds, now, undefined, spaceId ? { workspaceId: spaceId } : {}),
     completedStats(orgId, tz, since30, now, wsIds),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ ago: number; n: number }[]>(Prisma.sql`
       SELECT floor(extract(epoch FROM (${ts(tomorrow)} - t."createdAt")) / 604800)::int AS "ago", count(*)::int AS "n"
       FROM "Task" t WHERE t."orgId" = ${orgId} AND t."workspaceId" = ANY(${arr(wsIds)}) AND t."createdAt" >= ${ts(seriesFrom)} AND t."createdAt" < ${ts(tomorrow)} GROUP BY 1`),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ ago: number; n: number }[]>(Prisma.sql`
       SELECT floor(extract(epoch FROM (${ts(tomorrow)} - t."completedAt")) / 604800)::int AS "ago", count(*)::int AS "n"
       FROM "Task" t WHERE t."orgId" = ${orgId} AND t."workspaceId" = ANY(${arr(wsIds)}) AND t."completedAt" >= ${ts(seriesFrom)} AND t."completedAt" < ${ts(tomorrow)} GROUP BY 1`),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ id: string; open: number; overdue: number; done30: number }[]>(Prisma.sql`
       SELECT t."workspaceId" AS "id",
         (count(*) FILTER (WHERE t."completedAt" IS NULL AND NOT t."archived"))::int AS "open",

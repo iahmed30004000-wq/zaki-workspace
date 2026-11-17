@@ -93,6 +93,7 @@ interface Ctx {
 
 /** The finished tasks of the window, and the people credited with each (see the definitions above). */
 function doneAndCredit(c: Ctx, win: BoardWindow = c.win): Prisma.Sql {
+  // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
   return Prisma.sql`
     done AS (
       SELECT t."id", t."number", t."title", t."completedAt", t."dueDate", t."createdAt", t."assigneeId"
@@ -132,6 +133,7 @@ interface FactRow {
 
 /** Per person, per company day and per kind: how many, and the first and last moment. */
 async function loadFacts(c: Ctx, ids: Ids, win: BoardWindow = c.win): Promise<FactRow[]> {
+  // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
   const rows = await db.$queryRaw<{ userId: string; day: string; kind: FactKind; n: number; first: Date; last: Date }[]>(Prisma.sql`
     WITH ${doneAndCredit(c, win)},
     ev AS (
@@ -187,6 +189,7 @@ interface OpenStat {
 }
 
 async function loadOpenStats(c: Ctx, ids: Ids, todayStart: Date): Promise<OpenStat[]> {
+  // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
   return db.$queryRaw<OpenStat[]>(Prisma.sql`
     WITH open AS (
       SELECT t."id", t."assigneeId", t."dueDate" FROM "Task" t
@@ -213,12 +216,14 @@ interface CompanyTotals {
 /** The company-wide cards: over TASKS (a task counts once, whoever holds it, even nobody) and over every message. */
 async function loadCompanyTotals(c: Ctx, todayStart: Date): Promise<CompanyTotals> {
   const [done, open, msgs] = await Promise.all([
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ completed: number; late: number; avgDays: number | null }[]>(Prisma.sql`
       SELECT count(*)::int AS "completed",
         (count(*) FILTER (WHERE t."dueDate" IS NOT NULL AND ${local('t."completedAt"', c.tz)}::date > ${local('t."dueDate"', c.tz)}::date))::int AS "late",
         avg(GREATEST(extract(epoch FROM (t."completedAt" - t."createdAt")) / 86400.0, 0))::float8 AS "avgDays"
       FROM "Task" t
       WHERE t."orgId" = ${c.orgId} AND t."completedAt" >= ${ts(c.win.start)} AND t."completedAt" < ${ts(c.win.end)} ${taskScope("t", c.scope)}`),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ open: number; overdue: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "open", (count(*) FILTER (WHERE t."dueDate" < ${ts(todayStart)}))::int AS "overdue"
       FROM "Task" t WHERE t."orgId" = ${c.orgId} AND t."completedAt" IS NULL AND NOT t."archived" ${taskScope("t", c.scope)}`),
@@ -710,6 +715,7 @@ export async function loadPerson(access: BoardAccess, userId: string, query: Boa
       FROM credit cr JOIN done d ON d."id" = cr."taskId"
       WHERE cr."userId" = ${userId}
       ORDER BY d."completedAt" ASC LIMIT ${MAX_ROWS}`),
+    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ id: string; number: number; title: string; dueDate: Date | null; space: string }[]>(Prisma.sql`
       WITH open AS (
         SELECT t."id", t."number", t."title", t."dueDate", t."assigneeId", t."workspaceId" FROM "Task" t

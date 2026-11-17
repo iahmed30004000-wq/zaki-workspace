@@ -100,25 +100,25 @@ must never leak because a switch was flipped).
 > app container and send the output; this is the plan's first new migration.
 
 Data (additive):
-- [ ] Migration A: `ALTER TABLE "Task" ADD COLUMN "visibility" TEXT NOT NULL DEFAULT 'SPACE';` + index
+- [x] Migration A: `ALTER TABLE "Task" ADD COLUMN "visibility" TEXT NOT NULL DEFAULT 'SPACE';` + index
       `("workspaceId","visibility")`. Prisma: `visibility String @default("SPACE") // SPACE | PARTICIPANTS`. Values
       validated by zod (`TASK_VISIBILITY`). No backfill (D-P3).
 
 Policy — EXTEND the existing helper, do not create a second one:
-- [ ] `src/server/services/team-scope.ts`: `WorkScope` gains `userId`, `managedSpaces` (the spaces where
+- [x] `src/server/services/team-scope.ts`: `WorkScope` gains `userId`, `managedSpaces` (the spaces where
       `isSpaceManager` is true — computed in `loadWorkScope`, which already evaluates it), `reportIds` (everybody under the
       person through `OrganizationMember.managerId`, transitive, ACTIVE only, depth ≤ 6) and `oversight` (P0.1's helper).
       `narrowScope` carries them.
-- [ ] `taskVisibleWhere(scope)` ANDs its current space/team rule with the participant rule:
+- [x] `taskVisibleWhere(scope)` ANDs its current space/team rule with the participant rule:
       `{ OR: [ { visibility: "SPACE" }, { creatorId: me }, { assigneeId: me }, { coAssignees: { some: { userId: me } } },
       { workspaceId: { in: managedSpaces } }, { assigneeId: { in: reportIds } }, { coAssignees: { some: { userId: { in:
       reportIds } } } } ] }` — skipped entirely when `scope.oversight`. All 18 existing callers get it for free.
-- [ ] New in the same module: `canSeeTask(scope, task)` (one row, same rule) and `taskVisibleSql(scope, alias)` (a
+- [x] New in the same module: `canSeeTask(scope, task)` (one row, same rule) and `taskVisibleSql(scope, alias)` (a
       `Prisma.sql` fragment of the same rule for raw SQL). `requireTaskAccess` calls `canSeeTask` after the space/team
       check → `NotFoundError("task.not_found")` (404: existence is private too).
 
 Apply to every reader (tick each):
-- [ ] Prisma readers not yet on the helper: `services/tasks.ts`, `task-recurrence.ts`, `task-assign.ts`, `reminders.ts`,
+- [x] Prisma readers not yet on the helper: `services/tasks.ts`, `task-recurrence.ts`, `task-assign.ts`, `reminders.ts`,
       `first-steps.ts`, `time-tracking.ts`, `custom-fields*.ts`, `okr.ts`, `pinned.ts`, `rewards.ts`, `checkins.ts`,
       `task-links.ts`, `card-links.ts`, `approvals.ts` (linked task), `owner-assistant-*.ts`, `assistant-work.ts`,
       `api-door.ts` (the token's person is the actor), `search-semantic.ts`, `search-embed-index.ts`,
@@ -126,20 +126,20 @@ Apply to every reader (tick each):
       `analytics.ts`, `spaces-overview.ts`, `digest.ts`, `views.ts`, the pages `app/(app)/boards/[id]`, `projects/[id]`,
       `tasks/[id]`, routes `app/api/boards/[id]` and `app/api/boards/[id]/columns/[columnId]`, the `app/api/tasks/[id]/**`
       routes (through `requireTaskAccess`). Include the `findUniqueOrThrow` / `findFirstOrThrow` calls.
-- [ ] Raw SQL on `"Task"` (24 lines; `grep -rn 'FROM "Task"\|JOIN "Task"' src`): `owner-board.ts`, `control-panel.ts`
+- [x] Raw SQL on `"Task"` (24 lines; `grep -rn 'FROM "Task"\|JOIN "Task"' src`): `owner-board.ts`, `control-panel.ts`
       and the others — add `taskVisibleSql(...)`, or mark owner-only aggregates (oversight holders) with
       `// task-visibility: oversight-only aggregate`.
-- [ ] Nested counts and includes: `projects/page.tsx`, `api/projects/route.ts`, `departments.ts`, `org-members.ts`,
+- [x] Nested counts and includes: `projects/page.tsx`, `api/projects/route.ts`, `departments.ts`, `org-members.ts`,
       `users.ts` — count through a `where` built from the helper.
-- [ ] Chat bubbles: `presentMessage` (`src/server/chat/dto.ts` / `redact.ts`) shows «صارت مهمة» only for task ids the
+- [x] Chat bubbles: `presentMessage` (`src/server/chat/dto.ts` / `redact.ts`) shows «صارت مهمة» only for task ids the
       viewer can see (filter `message.tasks` with `canSeeTask`), so a private task's existence does not leak.
-- [ ] Jobs and system paths (`jobs/recurrence.ts`, `jobs/reminders.ts`, `recurrence-spawn.ts`, `task-rules-run.ts`,
+- [x] Jobs and system paths (`jobs/recurrence.ts`, `jobs/reminders.ts`, `recurrence-spawn.ts`, `task-rules-run.ts`,
       `space-delete.ts`, `accounts.ts` offboarding hand-over) read as the system: `// task-visibility: system (<reason>)`.
-- [ ] New tasks: `createTask` sets `visibility` from the input, else D-P2's default. Tasks created by a recurrence or a
+- [x] New tasks: `createTask` sets `visibility` from the input, else D-P2's default. Tasks created by a recurrence or a
       rule copy the template task's visibility; tasks from the door (`/api/v1/tasks`), e-mail and the assistant default to
       SPACE unless the caller sends `visibility`. `updateTask` may change it (creator, a space manager, the assignee's
       manager, oversight); each change is a `TaskActivity` line.
-- [ ] Guard test `tests/task-visibility-guard.test.ts` (source text): every task read in `src/` (`.task.findMany|findFirst|
+- [x] Guard test `tests/task-visibility-guard.test.ts` (source text): every task read in `src/` (`.task.findMany|findFirst|
       findUnique|findUniqueOrThrow|findFirstOrThrow|count|groupBy|aggregate`, `_count` selects of `tasks`, raw SQL
       containing `"Task"`) either calls `taskVisibleWhere(` / `canSeeTask(` / `taskVisibleSql(` / `requireTaskAccess(` in the
       same statement, or carries `// task-visibility: <reason>` on its line. It must FAIL on today's code (paste it).
@@ -150,11 +150,11 @@ UI (strings in `src/lib/i18n/ar.task-privacy.json`):
       «⚠️ كل أعضاء المساحة رح يشوفوها» + 🔧 «اختار المعنيين بس» under «المساحة كلها» when an assignee is set.
 - [ ] A lock icon (lucide `Lock`, `text-fg-muted`) on private tasks in `task-row`, `board-view`, calendar cells, search
       hits; tooltip «بيشوفها: فلان، علّان، مدراء المساحة».
-- [ ] Space settings (`/spaces/current`): «خلّي المهام المسندة المفتوحة خاصة» → a confirmation with the count → bulk
+- [x] Space settings (`/spaces/current`): «خلّي المهام المسندة المفتوحة خاصة» → a confirmation with the count → bulk
       `updateTask` (audited).
 
 Tests:
-- [ ] `tests/db/task-visibility.test.ts`: a private task of assignee A is visible to A, its creator, a co-assignee, A's
+- [x] `tests/db/task-visibility.test.ts`: a private task of assignee A is visible to A, its creator, a co-assignee, A's
       manager and the manager's manager, a space manager, the primary owner; invisible (404 / absent / not counted) to
       another member of the same space on: task GET, comments, board, list, calendar, timeline, Today, global and semantic
       search, digest, `GET /api/v1/tasks`, the calendar feed, counts, owner-board/control-panel aggregates for non-oversight

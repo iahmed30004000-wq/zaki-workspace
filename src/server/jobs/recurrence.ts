@@ -62,6 +62,7 @@ async function fireOne(id: string, now: Date): Promise<keyof RecurrencesRun | nu
 
     const org = await tx.organization.findUnique({ where: { id: rec.orgId }, select: { timezone: true } });
     const zone = resolveTimeZone(org?.timezone);
+    // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
     const template = await tx.task.findUnique({ where: { id: rec.templateTaskId }, select: { dueDate: true } });
 
     // the latest occurrence that has passed (and falls on or before the end date): one task, not one per missed day
@@ -74,7 +75,9 @@ async function fireOne(id: string, now: Date): Promise<keyof RecurrencesRun | nu
     // an open occurrence that is not yet due is already the one to do: no second one on top (no due dates at all: any open
     // occurrence other than the template counts)
     const open = template?.dueDate
+      // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
       ? await tx.task.count({ where: { recurrenceId: rec.id, completedAt: null, archived: false, dueDate: { gt: now } } })
+      // task-visibility: a system job: it works on the tasks of its own series or rules and shows no row to anybody
       : await tx.task.count({ where: { recurrenceId: rec.id, id: { not: rec.templateTaskId }, completedAt: null, archived: false } });
 
     let result: keyof RecurrencesRun = "skipped";
