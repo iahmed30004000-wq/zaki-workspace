@@ -22,6 +22,7 @@ import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/co
 import { afterMessageSent } from "@/server/services/chat-assistant";
 import { assertFeatureOn } from "@/server/services/features";
 import { queueSync } from "@/server/services/search-embed-index";
+import { applyAutoTicketRules } from "@/server/services/problem-tickets";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
 import type { Prisma } from "@prisma/client";
 import type { MessageDto } from "@/server/chat/dto";
@@ -233,6 +234,8 @@ export async function sendMessage(
   if (kind === "TEXT") afterMessageSent({ orgId: ctx.orgId, conversationId, messageId: created.id, body });
   // «بحث بالمعنى»: its vector is made in the background (a no-op without the switch and a service)
   if (kind === "TEXT") queueSync(ctx.orgId, "message", created.id);
+  // «المشاكل تصير تذاكر»: the rules of the company, after the message is stored (a failure there never stops a message)
+  if (kind === "TEXT" && !internal.card) await applyAutoTicketRules(ctx, { id: created.id, body, conversationId }, { spaceId: facts.spaceId ?? null, kind: facts.kind, restricted: Boolean(facts.restricted), teamId: facts.teamId ?? null });
   return dto;
 }
 
@@ -552,7 +555,7 @@ export function messageInclude() {
     revisions: { orderBy: { createdAt: "asc" as const } },
     notes: { orderBy: { createdAt: "asc" as const }, include: { author: { select: { name: true } } } },
     tasks: { select: { id: true, visibility: true, creatorId: true, assigneeId: true } },
-    tickets: { select: { id: true } },
+    tickets: { select: { id: true, number: true, status: true, assignee: { select: { name: true } } } },
     poll: { include: pollInclude },
   } satisfies Prisma.ChatMessageInclude;
 }

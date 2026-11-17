@@ -163,8 +163,17 @@ model Ticket {
   // Made from a chat message («اعمل منها تذكرة»): the message it came from.
   sourceMessageId String?
   sourceMessage   ChatMessage? @relation("MessageTickets", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  // Q1.5 «المشاكل تصير تذاكر»: the order number the problem is about, the kind (src/lib/tickets/problem-kinds.ts), the day to call back,
+  // and the customer's number kept ENCRYPTED (customerRefCipher) with a keyed hash (customerRefHash) only for matching; wiped 30 days after resolvedAt
+  externalRef       String?
+  kindKey           String?
+  followUpAt        DateTime?
+  customerRefCipher String?
+  customerRefHash   String?
 
   @@unique([orgId, number])
+  @@index([orgId, externalRef])
+  @@index([orgId, customerRefHash])
   @@index([departmentId, status])
   @@index([sourceMessageId])
   @@index([orgId])

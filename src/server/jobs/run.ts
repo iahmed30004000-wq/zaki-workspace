@@ -9,6 +9,8 @@ import { runDueBackups, type BackupsRun } from "./db-backup";
 import { runMailToTask, type MailTasksRun } from "./mail-to-task";
 import { runSearchEmbed, type SearchEmbedRun } from "./search-embed";
 import { runOmsSync, type OmsSyncRun } from "@/server/integrations/oms-sync";
+import { wipeCustomerNumbers } from "@/server/services/problem-tickets";
+import { runTicketEscalation } from "@/server/services/ticket-escalation";
 
 /**
  * Every background job of the app, in one place: `runDueJobs(now)` runs whatever is due at `now`.
@@ -37,12 +39,16 @@ export interface JobsRun {
   searchEmbed: SearchEmbedRun | null;
   /** «ربط نظام الطلبات»: the products read (every 5 minutes per company, while its switch is on) into the snapshot of each linked sheet. */
   omsSync: OmsSyncRun | null;
+  /** Q1.5: customer numbers wiped from tickets resolved more than 30 days ago */
+  customerWipe: { wiped: number } | null;
+  /** Q1.5: reminders and escalations of the tickets made from problems */
+  ticketEscalation: { reminded: number; escalated: number } | null;
   /** The names of the jobs that threw. */
   failed: string[];
 }
 
 export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
-  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, mailTasks: null, searchEmbed: null, omsSync: null, failed: [] };
+  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, mailTasks: null, searchEmbed: null, omsSync: null, customerWipe: null, ticketEscalation: null, failed: [] };
   try {
     result.reminders = await fireDueReminders(now);
   } catch (err) {
@@ -84,6 +90,18 @@ export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
   } catch (err) {
     result.failed.push("backups");
     log.error("jobs.failed", { job: "backups", message: err instanceof Error ? err.message : String(err) });
+  }
+  try {
+    result.ticketEscalation = await runTicketEscalation(now);
+  } catch (err) {
+    result.failed.push("ticketEscalation");
+    log.error("jobs.failed", { job: "ticketEscalation", message: err instanceof Error ? err.message : String(err) });
+  }
+  try {
+    result.customerWipe = await wipeCustomerNumbers(now);
+  } catch (err) {
+    result.failed.push("customerWipe");
+    log.error("jobs.failed", { job: "customerWipe", message: err instanceof Error ? err.message : String(err) });
   }
   try {
     result.omsSync = await runOmsSync(now);

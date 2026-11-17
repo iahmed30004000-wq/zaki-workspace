@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 341 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 343 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 63 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 64 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 341 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 343 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 148 services — the business rules (§6) |
+| `src/server/services/` | 152 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 159 · `activeOrgCtx` 84 · `(none)` 36 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 160 · `activeOrgCtx` 85 · `(none)` 36 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -172,6 +172,7 @@ Doors in use: `requireActor` 159 · `activeOrgCtx` 84 · `(none)` 36 · `require
 | POST | `/api/chat/messages/[id]/pin` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/messages/[id]/poll/close` | activeOrgCtx | `integrations`: activeOrgCtx |
 | PUT | `/api/chat/messages/[id]/poll/vote` | activeOrgCtx | `integrations`: activeOrgCtx |
+| POST | `/api/chat/messages/[id]/problem` | activeOrgCtx | `integrations`: activeOrgCtx<br>`problem-tickets`: problemSchema, reportProblem |
 | POST | `/api/chat/messages/[id]/react` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/messages/[id]/task` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/messages/[id]/ticket` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -406,6 +407,7 @@ Doors in use: `requireActor` 159 · `activeOrgCtx` 84 · `(none)` 36 · `require
 | GET, POST | `/api/tickets/[id]/detail` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`tickets`: addTicketComment, ticketCommentSchema, ticketDetail |
 | GET | `/api/tickets/instant` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`tickets`: listInstantTickets |
 | GET | `/api/tickets/mine` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`tickets`: myTickets |
+| GET, PUT | `/api/tickets/problem-settings` | requireActor | `problem-settings`: problemSettingsSchema, readProblemSettings, saveProblemSettings |
 | PATCH, DELETE | `/api/time/[id]` | **none** (public by design) | `time-tracking`: deleteEntry, updateEntry |
 | GET | `/api/time/me` | **none** (public by design) | `time-tracking`: myTimeToday |
 | GET | `/api/time/report` | **none** (public by design) | `time-tracking`: timeReport |
@@ -435,7 +437,7 @@ Doors in use: `requireActor` 159 · `activeOrgCtx` 84 · `(none)` 36 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 341. Each one is a door that cannot have a session, or one that is closed.
+Six of 343. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -456,8 +458,8 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 56 | 106 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
-| `integrations` | 180 | 96 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
+| `features` | 56 | 109 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `integrations` | 180 | 97 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 128 | 58 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `team-scope` | 273 | 38 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -480,10 +482,10 @@ high count is a wide surface: changing its signature reaches all of them.
 | `approvals` | 789 | 11 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
 | `documents` | 465 | 11 | «المستندات» — the text documents of a space. |
 | `manufacturing` | 450 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
+| `tickets` | 530 | 10 | IT tickets live inside a department. |
 | `custom-fields` | 545 | 9 | «حقول مخصصة» — the custom fields of a project's tasks. |
 | `space-place` | 30 | 9 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
-| `tickets` | 501 | 9 | IT tickets live inside a department. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `chat-assistant` | 495 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
@@ -539,6 +541,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `order-state` | 118 | 3 | AN ORDER'S STATE (Q1.4): what the chip and the «/طلب» card show. |
 | `owner-assistant-names` | 85 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
 | `pinned` | 70 | 3 | «مثبّتة» — the pinned tasks a person may be shown, for the strip at the top of a project and the compact card of «اليوم». |
+| `problem-tickets` | 218 | 3 | «🎫 مشكلة» (Q1.5): a ticket made where the message is. |
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
 | `reward-guard` | 39 | 3 | «مهمة بمكافأة» — the guard every writer of a task goes through (tasks.ts `updateTask` / `deleteTask` / `createTask`, the reward routes). |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
@@ -564,9 +567,11 @@ high count is a wide surface: changing its signature reaches all of them.
 | `org-members` | 205 | 2 | Organization members: the rank rules of account management and the roster. |
 | `orgs` | 154 | 2 | no header comment — exports `JOIN_CODE_ALPHABET`, `generateJoinCode`, `registrationOpen`, `registerOrganization`, `canManageOrg` |
 | `owner-assistant-data` | 124 | 2 | «مساعد المالك» — WHAT THE MODEL MAY LEARN FROM, as raw material for `buildContext` (src/server/ai/redact.ts). |
+| `problem-settings` | 88 | 2 | The kinds of problem, the rules and the working hours of «المشاكل تصير تذاكر» (Q1.5): who edits them is «ضبط التصعيد» (`escalation.configure`), a capability that was checked now… |
 | `storage` | 300 | 2 | THE STORAGE OF THE COMPANY'S FILES — what the owner sees and does about the server's disk filling up (his decision, 2026-11-01). |
 | `task-links` | 173 | 2 | «التبعيات» — the links between two tasks (the owner, 2026-10-30: the table existed and nothing wrote it). |
 | `team-people` | 115 | 2 | «الأداء والتطوير» — the front door: the people the viewer reads, and the header of one person's file. |
+| `ticket-chat` | 37 | 2 | A ticket made from a message tells its conversation (Q1.5): `ticket.changed` (ids only) so the chip under the message refreshes, and when the ticket is RESOLVED a reply to the o… |
 | `time-section` | 50 | 2 | «الوقت المسجّل» — ONE section for two screens: the owner board's people table (registered in `BOARD_SECTIONS`) and the number beside a person's score (registered in `SCORE_SECTI… |
 | `timeline` | 77 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
 | `voice-transcript` | 201 | 2 | «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine. |
@@ -596,6 +601,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `task-privacy-bulk` | 38 | 1 | «خلّي المهام المسندة المفتوحة خاصة»: one click for the whole space (P0.2). |
 | `task-rules-run` | 298 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
+| `ticket-escalation` | 73 | 1 | Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). |
 | `today` | 299 | 1 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
 | `today-dashboard` | 113 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
 | `approval-notify` | 65 | 0 | The bell of «طلبات الموافقة». |
@@ -615,9 +621,9 @@ to be added to, and the places a bug can leave the row half-written.
 |---|---|---|
 | `User` | 15 | `server/services/accounts.ts`: 3<br>`server/services/avatars.ts`: 2<br>`server/services/nav-order.ts`: 2<br>`server/services/onboarding.ts`: 2<br>+6 more |
 | `Department` | 4 | `server/services/departments.ts`: 3<br>`server/services/accounts.ts`: 1 |
-| `Ticket` | 6 | `server/services/tickets.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1 |
+| `Ticket` | 7 | `server/services/tickets.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1<br>`server/services/problem-tickets.ts`: 1 |
 | `TicketComment` | 3 | `server/services/tickets.ts`: 3 |
-| `TicketActivity` | 7 | `server/services/tickets.ts`: 6<br>`server/services/accounts.ts`: 1 |
+| `TicketActivity` | 10 | `server/services/tickets.ts`: 6<br>`server/services/ticket-escalation.ts`: 2<br>`server/services/accounts.ts`: 1<br>`server/services/ticket-chat.ts`: 1 |
 | `Campaign` | 4 | `server/services/campaigns.ts`: 3<br>`server/services/accounts.ts`: 1 |
 | `CampaignItem` | 3 | `server/services/campaigns.ts`: 3 |
 | `Routine` | 6 | `server/services/production.ts`: 3<br>`server/services/accounts.ts`: 1<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
@@ -626,9 +632,9 @@ to be added to, and the places a bug can leave the row half-written.
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 12 | `server/services/files.ts`: 7<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>`server/services/move-to-space.ts`: 1<br>+2 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
-| `Conversation` | 20 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/messages.ts`: 2<br>`server/chat/hq.ts`: 1<br>+8 more |
+| `Conversation` | 21 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/messages.ts`: 2<br>`server/chat/hq.ts`: 1<br>+9 more |
 | `ConversationMember` | 19 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 3<br>`server/services/workspaces.ts`: 2<br>+4 more |
-| `ChatMessage` | 7 | `server/chat/messages.ts`: 5<br>`server/chat/system.ts`: 1<br>`server/services/chat-assistant.ts`: 1 |
+| `ChatMessage` | 8 | `server/chat/messages.ts`: 5<br>`server/chat/system.ts`: 1<br>`server/services/chat-assistant.ts`: 1<br>`server/services/ticket-chat.ts`: 1 |
 | `ChatReaction` | 2 | `server/chat/messages.ts`: 2 |
 | `Poll` | 2 | `components/chat/composer/poll-dialog.tsx`: 1<br>`server/chat/polls.ts`: 1 |
 | `PollVote` | 2 | `server/chat/polls.ts`: 2 |
@@ -643,7 +649,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `PushSubscription` | 4 | `server/calls/push.ts`: 4 |
 | `AppDevice` | 4 | `server/devices/devices.ts`: 4 |
 | `WatchSession` | 4 | `server/services/watch.ts`: 4 |
-| `Organization` | 7 | `server/services/google.ts`: 2<br>`app/api/organizations/[id]/route.ts`: 1<br>`server/services/db-backup.ts`: 1<br>`server/services/features.ts`: 1<br>+2 more |
+| `Organization` | 8 | `server/services/google.ts`: 2<br>`app/api/organizations/[id]/route.ts`: 1<br>`server/services/db-backup.ts`: 1<br>`server/services/features.ts`: 1<br>+3 more |
 | `OrganizationMember` | 6 | `server/services/accounts.ts`: 4<br>`server/services/last-seen.ts`: 1<br>`server/services/team-lines.ts`: 1 |
 | `Workspace` | 9 | `server/services/department-space.ts`: 2<br>`server/services/space-manage.ts`: 2<br>`server/services/workspaces.ts`: 2<br>`app/api/workspaces/[id]/route.ts`: 1<br>+2 more |
 | `WorkspaceMember` | 17 | `server/services/accounts.ts`: 6<br>`server/services/workspaces.ts`: 5<br>`server/services/department-space.ts`: 3<br>`server/chat/hq.ts`: 2<br>+1 more |
@@ -802,6 +808,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `knowledgeCards` | 6 — `app/(app)/knowledge/[cardId]/page.tsx`, `app/(app)/knowledge/page.tsx`, `lib/nav/places.ts`, `server/chat/topics.ts`, `server/integrations/oms-sync.ts`, `server/services/knowledge.ts` |
 | `quickRecall` | 2 — `server/chat/recall.ts`, `server/chat/topics.ts` |
 | `orderStatus` | 2 — `server/chat/topics.ts`, `server/services/order-state.ts` |
+| `autoTickets` | 5 — `server/chat/topics.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
 | `semanticSearch` | 4 — `app/(app)/settings/page.tsx`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 4 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
@@ -812,8 +819,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 335 of 341 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 243 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 337 of 343 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 245 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **17 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 5 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
-- **19 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
+- **22 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 
