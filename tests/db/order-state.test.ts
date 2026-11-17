@@ -7,6 +7,7 @@ import * as editRoute from "@/app/api/chat/messages/[id]/route";
 import { withFeature } from "@/lib/features";
 import { encryptSecrets } from "@/server/crypto";
 import { setOmsOptionsForTests } from "@/server/integrations/oms";
+import { clearOrderNegativeCache } from "@/server/services/order-state";
 import { call, db, loginAs, makeTeam, makeWorkspace } from "./helpers";
 
 /**
@@ -155,6 +156,7 @@ describe("the lookup and the cache", () => {
     answer = () => new Response("down", { status: 503 });
     expect((await state(w)).json).toMatchObject({ state: "unreachable" });
     answer = () => ok(door());
+    clearOrderNegativeCache();
     await state(w);
     await db.omsOrderState.update({ where: { orgId_orderNumber: { orgId: w.org.id, orderNumber: NUMBER } }, data: { fetchedAt: new Date(Date.now() - 120_000) } });
     answer = () => new Response("down", { status: 503 });
@@ -165,8 +167,10 @@ describe("the lookup and the cache", () => {
     await loginAs(w.member.id);
     answer = () => new Response("", { status: 501 });
     expect((await state(w)).json).toMatchObject({ state: "waits_update" });
+    clearOrderNegativeCache();
     answer = () => ok([door(), door({ number: "ZK-2026-000124" })]);
     expect((await state(w)).json).toMatchObject({ state: "waits_update" });
+    clearOrderNegativeCache();
     answer = () => new Response("", { status: 404 });
     expect((await state(w)).json).toMatchObject({ state: "not_found" });
   });
@@ -220,5 +224,48 @@ describe("«/طلب» sends a card with the number only", () => {
     expect(r.text).toContain("ZK-2026-000123");
     expect(r.text).not.toContain("shipped");
     expect((await state(w)).status).toBe(404);
+  });
+});
+
+describe("review fixes", () => {
+  it("a lookup the orders system cannot answer leaves no failure on the owner's integration card", async () => {
+    const w = await world();
+    await loginAs(w.member.id);
+    for (const code of [404, 400, 405, 501]) {
+      clearOrderNegativeCache();
+      answer = () => new Response("", { status: code });
+      await state(w);
+    }
+    expect(await db.integrationEvent.count({ where: { orgId: w.org.id, status: "FAILED", type: { startsWith: "oms." } } })).toBe(0);
+    // a real failure (the system is down) is still recorded
+    clearOrderNegativeCache();
+    answer = () => new Response("", { status: 503 });
+    await state(w);
+    expect(await db.integrationEvent.count({ where: { orgId: w.org.id, status: "FAILED", type: { startsWith: "oms." } } })).toBe(1);
+  });
+  it("the screen offers chips and the «طلب» tab only while the orders system is connected", async () => {
+    const w = await world();
+    await loginAs(w.member.id);
+    const detail = () => call(conversationRoute.GET, { url: `http://localhost/api/chat/conversations/${w.topic.id}`, params: { id: w.topic.id } });
+    const on = await detail();
+    expect((on.json!["me"] as Record<string, unknown>)["canOrderState"]).toBe(true);
+    expect((on.json!["me"] as Record<string, unknown>)["recallKinds"]).toContain("order");
+    await db.integration.updateMany({ where: { orgId: w.org.id, type: "OMS" }, data: { connected: false } });
+    const off = await detail();
+    expect((off.json!["me"] as Record<string, unknown>)["canOrderState"]).toBe(false);
+    expect((off.json!["me"] as Record<string, unknown>)["recallKinds"]).not.toContain("order");
+  });
+  it("a failed or unknown lookup is remembered for a short while: tapping again does not ask the orders system again", async () => {
+    const w = await world();
+    await loginAs(w.member.id);
+    clearOrderNegativeCache();
+    answer = () => new Response("", { status: 404 });
+    await state(w);
+    await state(w);
+    await state(w);
+    expect(fetchCalls).toHaveLength(1);
+    clearOrderNegativeCache();
+    await state(w);
+    expect(fetchCalls).toHaveLength(2);
   });
 });

@@ -82,7 +82,7 @@ async function connect(orgId: string, opts: OmsCallOptions): Promise<Conn> {
   return { base: new URL(await assertOmsBaseUrl(baseUrl, opts)), token };
 }
 
-async function call(orgId: string, eventType: string, path: string, init: { method: "GET" | "POST"; headers?: Record<string, string>; body?: string; badId?: boolean }, given: OmsCallOptions): Promise<unknown> {
+async function call(orgId: string, eventType: string, path: string, init: { method: "GET" | "POST"; headers?: Record<string, string>; body?: string; badId?: boolean; /** codes that are an ANSWER, not a failure of the link: no event (a mistyped number must not show a warning on the owner's card) */ quiet?: string[] }, given: OmsCallOptions): Promise<unknown> {
   const opts: OmsCallOptions = { ...testOptions, ...given };
   try {
     if (init.badId) throw new OmsError("bad_id");
@@ -129,7 +129,7 @@ async function call(orgId: string, eventType: string, path: string, init: { meth
       clearTimeout(timer);
     }
   } catch (err) {
-    if (err instanceof OmsError) {
+    if (err instanceof OmsError && !init.quiet?.includes(err.code)) {
       await logEvent(orgId, { direction: "OUT", type: eventType, status: "FAILED", detail: `oms.${err.code}` });
     }
     throw err;
@@ -188,7 +188,7 @@ export async function addOrderNote(orgId: string, orderId: string, text: string,
 export async function orderByNumber(orgId: string, number: string, opts: OmsCallOptions = {}): Promise<OrderStateRead> {
   let body: unknown;
   try {
-    body = await call(orgId, "oms.order_by_number", `/api/v1/orders?number=${encodeURIComponent(number)}`, { method: "GET", badId: !isOrderNumber(number) }, opts);
+    body = await call(orgId, "oms.order_by_number", `/api/v1/orders?number=${encodeURIComponent(number)}`, { method: "GET", badId: !isOrderNumber(number), quiet: ["http_404", "http_400", "http_405", "http_501"] }, opts);
   } catch (err) {
     if (err instanceof OmsError && ["http_400", "http_405", "http_501"].includes(err.code)) throw new OmsError("unsupported");
     throw err;

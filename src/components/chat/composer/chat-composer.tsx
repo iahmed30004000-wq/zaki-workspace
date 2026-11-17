@@ -437,7 +437,7 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
      onChange={event => {
       const text = event.currentTarget.value;
       // a finished «/» command opens the menu and leaves the box empty (what was typed is the command, not a message)
-      const command = !editing && detail.me.canRecall ? slashCommand(text) : null;
+      const command = !editing && detail.me.canRecall ? slashCommand(text, detail.me.recallKinds) : null;
       if (command) { setRecall(command); setBody(""); keepDraft("", mentions); return; }
       setClientId(messageClientId()); setBody(text); keepDraft(text, mentions); if (!editing && text.trim()) notifyTyping(); }}
      // Enter sends (the owner, 2026-10-26), Shift+Enter is a new line; never while an input method is composing a word

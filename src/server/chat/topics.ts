@@ -61,7 +61,8 @@ export async function assertPeopleOfSpace(orgId: string, spaceId: string, ids: s
 /** The «مقطع» must be one of the space's own (a miss reads as «not found», like everything of another space). */
 /** What the «/» menu offers a person here (Q1.3, Q1.4): the kinds whose switches are on, only to staff who may post; chips of order numbers need no posting. */
 async function recallOffer(orgId: string, staff: boolean, mayPost: boolean): Promise<{ canRecall: boolean; recallKinds: Array<"product" | "reply" | "order">; canOrderState: boolean }> {
-  const orderOn = staff && (await isFeatureOn(orgId, "orderStatus")) && (await isFeatureOn(orgId, "omsLink"));
+  // the same rule as the door (`assertOrderStatusOn`): both switches AND the orders system linked and connected
+  const orderOn = staff && (await isFeatureOn(orgId, "orderStatus")) && (await isFeatureOn(orgId, "omsLink")) && Boolean((await db.integration.findUnique({ where: { orgId_type: { orgId, type: "OMS" } }, select: { connected: true } }))?.connected);
   const recallOn = staff && mayPost && (await isFeatureOn(orgId, "quickRecall"));
   const knowledge = recallOn && (await isFeatureOn(orgId, "knowledgeCards"));
   const recallKinds: Array<"product" | "reply" | "order"> = [...(knowledge ? (["product", "reply"] as const) : []), ...(recallOn && orderOn ? (["order"] as const) : [])];

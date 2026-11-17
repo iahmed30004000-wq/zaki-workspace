@@ -64,6 +64,12 @@ export function RecallDialog({ open, conversationId, kinds, initialKind, initial
 
   // «/طلب»: the number typed (the state is shown under it before it is sent)
   const orderNumber = q.trim().toUpperCase();
+  // the state is asked for only once the number has stopped changing (a typed prefix of a number is a number too)
+  const [settled, setSettled] = React.useState("");
+  React.useEffect(() => {
+    const timer = setTimeout(() => setSettled(orderNumber), 500);
+    return () => clearTimeout(timer);
+  }, [orderNumber]);
   async function sendOrder() {
     if (busy || !isOrderNumber(orderNumber)) return;
     setBusy(orderNumber);
@@ -118,7 +124,7 @@ export function RecallDialog({ open, conversationId, kinds, initialKind, initial
                 {isOrderNumber(orderNumber) ? (
                   <div className="space-y-2 rounded-lg border border-border p-2">
                     <bdi dir="ltr" className="block text-sm font-semibold tabular-nums">{orderNumber}</bdi>
-                    <OrderStateView number={orderNumber} conversationId={conversationId} />
+                    {settled === orderNumber ? <OrderStateView number={orderNumber} conversationId={conversationId} /> : null}
                     <button type="button" disabled={busy !== null} onClick={() => void sendOrder()} className="rounded-lg bg-accent px-3 py-1.5 text-sm text-accent-fg disabled:opacity-60">
                       {busy === orderNumber ? "…" : ct("recall.send")}
                     </button>

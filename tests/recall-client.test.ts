@@ -42,3 +42,11 @@ describe("«/طلب»", () => {
     expect(slashCommand("/طلب")).toBeNull();
   });
 });
+
+describe("a command whose tab is not offered here", () => {
+  it("is plain text: «/طلب» with the orders switch off is a message, not a menu", () => {
+    expect(slashCommand("/طلب xyz ", ["product", "reply"])).toBeNull();
+    expect(slashCommand("/طلب xyz ", ["order"])).toEqual({ kind: "order", q: "xyz" });
+    expect(slashCommand("/", ["order"])).toEqual({ kind: null, q: "" });
+  });
+});
