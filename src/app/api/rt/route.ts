@@ -7,6 +7,7 @@ import { log } from "@/server/log";
 import { requireActor } from "@/server/policy/actor";
 import {
   addClient,
+  refreshStreamViewing,
   filterVisible,
   frameOf,
   removeClient,
@@ -124,6 +125,7 @@ async function sse(req: NextRequest): Promise<Response> {
           userId: actor.userId,
           orgId: actor.orgId,
           send,
+          tabId: req.nextUrl.searchParams.get("tab")?.slice(0, 64) || undefined,
           close: () => end("evicted"),
         });
         // a stream that opens counts the DMs that reached this person while away as delivered (✓✓)
@@ -189,6 +191,7 @@ async function sse(req: NextRequest): Promise<Response> {
           // an open stream IS presence: without this, everybody counted as offline 30 s after
           // connecting, and every message turned into a notification for them (review A3)
           touchPresence(actor.userId, undefined, actor.orgId);
+          if (client) refreshStreamViewing(client);
           void recheckSession();
         }, heartbeatInterval());
       },

@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { pushNotification } from "@/server/notify";
-import { isOnline } from "@/server/realtime/presence";
+import { isViewing } from "@/server/realtime/viewing";
 import { canReadConversation, type ConversationFacts } from "@/server/policy/conversation";
 import { hqSpaceId } from "@/server/chat/hq";
 
@@ -31,7 +31,8 @@ export async function notifyMessageToAudience(opts: {
   const everyone = new Set(opts.allIds ?? []);
   for (const userId of targets) {
     const addressed = named.has(userId) || everyone.has(userId);
-    if (!addressed && (await isOnline(userId))) continue;
+    // held back only for a person who is LOOKING at the app (a visible tab); an open but hidden tab still gets the push (F0.5)
+    if (!addressed && (await isViewing(userId))) continue;
     if (!addressed && opts.kind === "DM") {
       const unread = await db.notification.findFirst({
         where: { userId, readAt: null, type: "chat_message", linkUrl: { contains: opts.conversationId } },
