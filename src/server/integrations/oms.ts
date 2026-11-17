@@ -36,6 +36,12 @@ export interface OmsCallOptions {
   timeoutMs?: number;
 }
 
+let testOptions: OmsCallOptions | null = null;
+/** Tests only: the fake orders system and a name resolver that never touches DNS, for calls that pass no options (the job, the routes). */
+export function setOmsOptionsForTests(options: OmsCallOptions | null): void {
+  testOptions = options;
+}
+
 export interface OrderState {
   number?: string;
   status?: string;
@@ -47,6 +53,18 @@ interface Conn {
   token: string;
 }
 
+/** The base URL as the owner typed it, judged by the SSRF guard (public https only): the address to keep, or an `OmsError` `url_*`. */
+export async function assertOmsBaseUrl(raw: string, options: OmsCallOptions = {}): Promise<string> {
+  const opts = { ...testOptions, ...options };
+  try {
+    const url = await assertPublicHttpsUrl(raw.trim(), opts.resolve ? { resolve: opts.resolve } : {});
+    // only the origin is kept: the three doors are absolute paths of the orders system
+    return url.origin;
+  } catch (err) {
+    throw new OmsError(err instanceof UnsafeUrlError ? (`url_${err.code}` as OmsErrorCode) : "url_invalid");
+  }
+}
+
 async function connect(orgId: string, opts: OmsCallOptions): Promise<Conn> {
   // not connected / unreadable secret: the caller's problem, not an event (nothing was attempted)
   const { row, secrets } = await requireConnected(orgId, "OMS");
@@ -54,15 +72,12 @@ async function connect(orgId: string, opts: OmsCallOptions): Promise<Conn> {
   if (typeof token !== "string" || !token) throw new OmsError("no_token");
   const baseUrl = ((row.config ?? {}) as { baseUrl?: unknown }).baseUrl;
   if (typeof baseUrl !== "string" || !baseUrl.trim()) throw new OmsError("no_base_url");
-  try {
-    const base = await assertPublicHttpsUrl(baseUrl.trim(), opts.resolve ? { resolve: opts.resolve } : {});
-    return { base, token };
-  } catch (err) {
-    throw new OmsError(err instanceof UnsafeUrlError ? (`url_${err.code}` as OmsErrorCode) : "url_invalid");
-  }
+  // judged again on EVERY call: a name's address changes and an old saved row is not trusted
+  return { base: new URL(await assertOmsBaseUrl(baseUrl, opts)), token };
 }
 
-async function call(orgId: string, eventType: string, path: string, init: { method: "GET" | "POST"; headers?: Record<string, string>; body?: string }, opts: OmsCallOptions): Promise<unknown> {
+async function call(orgId: string, eventType: string, path: string, init: { method: "GET" | "POST"; headers?: Record<string, string>; body?: string }, given: OmsCallOptions): Promise<unknown> {
+  const opts: OmsCallOptions = { ...testOptions, ...given };
   try {
     const { base, token } = await connect(orgId, opts);
     const doFetch = opts.fetchImpl ?? fetch;
