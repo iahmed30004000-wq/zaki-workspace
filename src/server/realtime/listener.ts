@@ -7,9 +7,10 @@ import { isRealtimeKind, type RealtimeIds } from "./emit";
  * The ONE Postgres LISTEN client per server process (module singleton on
  * `globalThis` so hot reload and several imports share it): LISTEN zaki_rt,
  * automatic reconnect with backoff, and on each notification the RealtimeEvent
- * row is loaded by id and handed to the hub. On (re)connect it replays events
- * with an id greater than the last seen one so a gap during the disconnect
- * loses nothing.
+ * row is loaded by id and handed to the hub. The FIRST connect of a process starts at the newest row (a deploy replays nothing: a
+ * client that was away resumes from its own `lastEventId`, which the route replays per client); a RECONNECT replays, in the
+ * background, the events with an id greater than the last one delivered, so a gap during the disconnect loses nothing. An event
+ * is handed to the hub once, however it reached us (live or replay).
  */
 
 const CHANNEL = "zaki_rt";
@@ -19,6 +20,10 @@ interface ListenerState {
   client: Client | null;
   connecting: Promise<void> | null;
   lastId: bigint;
+  /** the first connect of this process has set the cursor */
+  booted: boolean;
+  /** ids delivered lately (live or replay), so an event that arrives both ways is delivered once */
+  recent: Set<bigint>;
   attempts: number;
   stopped: boolean;
   url: string;
@@ -35,6 +40,8 @@ function state(): ListenerState {
       client: null,
       connecting: null,
       lastId: 0n,
+      booted: false,
+      recent: new Set<bigint>(),
       attempts: 0,
       stopped: false,
       url: "",
@@ -59,12 +66,28 @@ export async function stopRealtimeListenerForTests(): Promise<void> {
   globalThis.__zkRtListener = undefined;
 }
 
-/** Test hook: reset and return the singleton (never call from server code). */
+/** Test hook: a process boot — the state is reset, so the cursor starts at the newest row (never call from server code). */
 export async function connectListenerForTests(): Promise<void> {
   const s = state();
   s.lastId = 0n;
+  s.booted = false;
+  s.recent.clear();
   s.stopped = false;
   await ensureListener();
+}
+
+/** Test hook: drop ONLY the pg connection and keep the cursor, as a lost connection would (never call from server code). */
+export async function dropListenerConnectionForTests(): Promise<void> {
+  const s = state();
+  const client = s.client;
+  s.client = null;
+  if (client) {
+    try {
+      await client.end();
+    } catch {
+      // already closed
+    }
+  }
 }
 
 /**
@@ -98,10 +121,29 @@ function pgUrl(): string {
 
 const isKind = isRealtimeKind;
 
+const RECENT_LIMIT = 2000;
+
+/** True the first time an id is seen: the cursor moves forward and the id is remembered for a while. */
+function firstSight(id: bigint): boolean {
+  const s = state();
+  if (s.recent.has(id)) return false;
+  s.recent.add(id);
+  if (s.recent.size > RECENT_LIMIT) s.recent.delete(s.recent.values().next().value as bigint);
+  if (id > s.lastId) s.lastId = id;
+  return true;
+}
+
+async function newestId(): Promise<bigint> {
+  const { db } = await import("@/server/db");
+  const row = await db.realtimeEvent.findFirst({ orderBy: { id: "desc" }, select: { id: true } });
+  return row?.id ?? 0n;
+}
+
 async function loadAndDeliver(id: string): Promise<void> {
   const { db } = await import("@/server/db");
   const row = await db.realtimeEvent.findUnique({ where: { id: BigInt(id) } });
   if (!row) return; // purged before delivery: the client's periodic refetch covers it
+  if (!firstSight(row.id)) return;
   const ids = (row.ids ?? {}) as RealtimeIds;
   const event: RtEvent = {
     id: row.id.toString(),
@@ -124,6 +166,8 @@ async function replaySince(lastId: bigint): Promise<void> {
     });
     if (!rows.length) break;
     for (const row of rows) {
+      cursor = row.id;
+      if (!firstSight(row.id)) continue; // already delivered live
       const ids = (row.ids ?? {}) as RealtimeIds;
       await deliverEvent({
         id: row.id.toString(),
@@ -131,11 +175,9 @@ async function replaySince(lastId: bigint): Promise<void> {
         kind: isKind(row.kind) ? row.kind : "conversation.changed",
         ids,
       });
-      cursor = row.id;
     }
     if (rows.length < REPLAY_CHUNK) break;
   }
-  state().lastId = cursor;
 }
 
 async function connectOnce(): Promise<void> {
@@ -157,7 +199,16 @@ async function connectOnce(): Promise<void> {
   await client.query(`LISTEN ${CHANNEL}`);
   s.client = client;
   s.attempts = 0;
-  await replaySince(s.lastId);
+  if (!s.booted) {
+    // the first connect of this process: start at the newest row, replay nothing (and do not make every stream wait for a walk)
+    s.lastId = await newestId();
+    s.booted = true;
+  } else {
+    // a reconnect: what was written while away is replayed in the background; the stream is ready as soon as LISTEN is on
+    void replaySince(s.lastId).catch((err) => {
+      log.error("rt.replay_failed", { message: err instanceof Error ? err.message : String(err) });
+    });
+  }
   log.info("rt.listening", { channel: CHANNEL });
 }
 
@@ -169,6 +220,11 @@ function scheduleReconnect(): void {
   setTimeout(() => {
     void ensureListener();
   }, delay).unref?.();
+}
+
+/** Is the LISTEN connection up right now? (the health check shows it as `realtime`) */
+export function listenerConnected(): boolean {
+  return state().client !== null;
 }
 
 /** Idempotent: every caller awaits the same connection attempt. */

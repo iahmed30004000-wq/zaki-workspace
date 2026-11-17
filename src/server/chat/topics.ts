@@ -282,30 +282,37 @@ export async function conversationDetail(
 
   const limit = Math.min(Math.max(opts.limit ?? PAGE, 1), PAGE);
   const where: Prisma.ChatMessageWhereInput = { conversationId };
+  // Paging is by (createdAt, id): two messages written in the same instant are ordered by id, so a page boundary can fall between
+  // them and neither is skipped nor shown twice (F0.8). `before` is a message's id.
   if (opts.before) {
-    const anchor = await db.chatMessage.findUnique({ where: { id: opts.before }, select: { createdAt: true } });
+    const anchor = await db.chatMessage.findUnique({ where: { id: opts.before }, select: { id: true, createdAt: true } });
     if (!anchor) throw new NotFoundError("chat.e.not_found");
-    where.createdAt = { lt: anchor.createdAt };
+    where.OR = [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lt: anchor.id } }];
   }
 
   // around one message: its newer half (oldest first, turned round below), then it and its older half
   let newer: Awaited<ReturnType<typeof newerThan>> = [];
   let olderLimit = limit;
-  async function newerThan(at: Date, take: number) {
-    return db.chatMessage.findMany({ where: { conversationId, createdAt: { gt: at } }, orderBy: { createdAt: "asc" }, take, include: messageInclude() });
+  async function newerThan(at: Date, anchorId: string, take: number) {
+    return db.chatMessage.findMany({
+      where: { conversationId, OR: [{ createdAt: { gt: at } }, { createdAt: at, id: { gt: anchorId } }] },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take,
+      include: messageInclude(),
+    });
   }
   if (opts.around) {
-    const anchor = await db.chatMessage.findFirst({ where: { id: opts.around, conversationId }, select: { createdAt: true } });
+    const anchor = await db.chatMessage.findFirst({ where: { id: opts.around, conversationId }, select: { id: true, createdAt: true } });
     if (!anchor) throw new NotFoundError("chat.e.not_found");
     olderLimit = limit - Math.floor(limit / 2);
-    newer = await newerThan(anchor.createdAt, Math.floor(limit / 2));
-    where.createdAt = { lte: anchor.createdAt };
+    newer = await newerThan(anchor.createdAt, anchor.id, Math.floor(limit / 2));
+    where.OR = [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lte: anchor.id } }];
   }
 
   const [older, conv] = await Promise.all([
     db.chatMessage.findMany({
       where,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: olderLimit + 1, // one extra: is there an older page?
       include: messageInclude(),
     }),
