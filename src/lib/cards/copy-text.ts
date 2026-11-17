@@ -31,15 +31,19 @@ export function answerText(item: FaqItem): string {
 
 const CURRENCY_WORD: Record<string, string> = { USD: "$", JOD: "دينار", SYP: "ليرة", EUR: "€", SAR: "ريال", AED: "درهم", TRY: "ليرة تركية" };
 
-/** 20 → «20», 13.333 → «13.3», 13.05 → «13.1»: one decimal at most, Western digits. */
+/** A price as the orders system gave it: 20 → «20», 12.99 → «12.99», 12.5 → «12.5» (cents are never rounded away), Western digits. */
 export function fmtMoney(value: number): string {
-  const r = Math.round(value * 10) / 10;
-  return String(Number.isInteger(r) ? r : r.toFixed(1));
+  return String(Math.round(value * 100) / 100);
 }
 
-function withCurrency(value: number, currency: string): string {
+/** A price DERIVED for one piece (an offer divided by its pieces): one decimal at most, 13.333 → «13.3». */
+export function fmtPiece(value: number): string {
+  return String(Math.round(value * 10) / 10);
+}
+
+function withCurrency(value: number, currency: string, format: (v: number) => string = fmtMoney): string {
   const word = CURRENCY_WORD[currency] ?? currency;
-  const n = fmtMoney(value);
+  const n = format(value);
   return word === "$" || word === "€" ? `${n}${word}` : word ? `${n} ${word}` : n;
 }
 
@@ -64,34 +68,48 @@ export function offerLine(offer: ProductSnapshot["offers"][number], currency: st
   const price = withCurrency(offer.price, currency);
   if (free === undefined) return `${head} — ${price}`;
   const pieces = offer.quantity + free;
-  return pieces > 0 ? `${head} — ${price} · ${unit === "عبوة" ? "العبوة" : "القطعة"} ${withCurrency(offer.price / pieces, currency)}` : `${head} — ${price}`;
+  return pieces > 0 ? `${head} — ${price} · ${unit === "عبوة" ? "العبوة" : "القطعة"} ${withCurrency(offer.price / pieces, currency, fmtPiece)}` : `${head} — ${price}`;
 }
 
 /**
- * «انسخي رسالة العرض»: the template filled from the LIVE snapshot. With no snapshot or no price → `no_price`; with a snapshot older than
- * 30 minutes → `stale` (the screen shows «⚠️ السعر مش محدّث» and «حدّثي هلّق» instead of copying). Placeholders: `{الاسم}` `{الوصف}`
- * `{سعر_الواحدة}` `{العروض}` `{سعر_القطعة_بالعرض}` (the cheapest piece among the offers whose gift units are known) `{التوصيل}`.
+ * «انسخي رسالة العرض»: the template filled from the LIVE snapshot. With no snapshot, no price, or a product that is gone from the orders system →
+ * `no_price`; with a snapshot older than 30 minutes → `stale` (the screen shows «⚠️ السعر مش محدّث» and «حدّثي هلّق» instead of copying). An offer whose
+ * end date has passed is left out. Placeholders: `{الاسم}` `{الوصف}` `{سعر_الواحدة}` `{العروض}` `{سعر_القطعة_بالعرض}` (the cheapest piece among the
+ * offers whose gift units are known) `{التوصيل}`. The template is read in ONE pass: a value that looks like a placeholder is never expanded again,
+ * and a line whose placeholder has nothing behind it is dropped whole.
  */
 export function buildOfferMessage(input: OfferMessageInput): OfferMessage {
   const snap = input.snapshot;
-  if (!snap || !(snap.price > 0)) return { ok: false, reason: "no_price" };
-  if (isStale(snap, input.now ?? new Date())) return { ok: false, reason: "stale" };
-  const known = snap.offers.filter((o) => o.freeQuantity !== undefined && o.quantity + (o.freeQuantity ?? 0) > 0);
+  // a product that is gone from the orders system has no price to give, however fresh its last snapshot is
+  if (!snap || !(snap.price > 0) || snap.missingSince) return { ok: false, reason: "no_price" };
+  const now = input.now ?? new Date();
+  if (isStale(snap, now)) return { ok: false, reason: "stale" };
+  const live = snap.offers.filter((o) => !o.expiresAt || !(Date.parse(o.expiresAt) <= now.getTime()));
+  const known = live.filter((o) => o.freeQuantity !== undefined && o.quantity + (o.freeQuantity ?? 0) > 0);
   const cheapest = known.length ? Math.min(...known.map((o) => o.price / (o.quantity + (o.freeQuantity ?? 0)))) : null;
   const delivery = snap.deliveryIncluded && input.deliveryLine ? input.deliveryLine : "";
   const values: Record<string, string> = {
     "{الاسم}": input.name,
     "{الوصف}": input.tagline,
     "{سعر_الواحدة}": `${input.unit === "عبوة" ? "العبوة" : "القطعة"} ${withCurrency(snap.price, snap.currency)}`,
-    "{العروض}": snap.offers.map((o) => offerLine(o, snap.currency, input.unit)).join("\n"),
-    "{سعر_القطعة_بالعرض}": cheapest === null ? "" : withCurrency(cheapest, snap.currency),
+    "{العروض}": live.map((o) => offerLine(o, snap.currency, input.unit)).join("\n"),
+    "{سعر_القطعة_بالعرض}": cheapest === null ? "" : withCurrency(cheapest, snap.currency, fmtPiece),
     "{التوصيل}": delivery,
   };
-  let text = input.template?.trim() ? input.template : DEFAULT_OFFER_TEMPLATE;
-  for (const [k, v] of Object.entries(values)) text = text.split(k).join(v);
+  const template = input.template?.trim() ? input.template : DEFAULT_OFFER_TEMPLATE;
+  const lines: string[] = [];
+  for (const line of template.split("\n")) {
+    let empty = false;
+    const filled = line.replace(/\{[^{}\n]+\}/g, (token) => {
+      if (!Object.prototype.hasOwnProperty.call(values, token)) return token;
+      const v = values[token] ?? "";
+      if (v === "") empty = true;
+      return v;
+    });
+    if (!empty) lines.push(filled);
+  }
   // a placeholder with nothing behind it leaves no empty line behind
-  text = text.replace(/\n{3,}/g, "\n\n").trim();
-  return { ok: true, text };
+  return { ok: true, text: lines.join("\n").replace(/\n{3,}/g, "\n\n").trim() };
 }
 
 // ---------- «انسخي الكل» ----------

@@ -83,7 +83,9 @@ export const CATEGORY_TEMPLATE: Record<string, TemplateId> = {
 };
 
 export function templateIdOf(category: string | null | undefined): TemplateId {
-  return (category && CATEGORY_TEMPLATE[category.trim()]) || "other";
+  const key = category?.trim();
+  // an OWN key only: a category called «constructor» or «toString» is an ordinary category, never a member of Object
+  return key && Object.prototype.hasOwnProperty.call(CATEGORY_TEMPLATE, key) ? (CATEGORY_TEMPLATE[key] as TemplateId) : "other";
 }
 
 /** What the owner saved as templates: a list of sections per category name. Anything broken is ignored (the default applies). */
@@ -107,7 +109,8 @@ export function cleanSpecs(raw: unknown): SectionSpec[] | null {
 /** The template of a category: the owner's if he saved a valid one for that name, else the default of its group. */
 export function templateFor(category: string | null | undefined, overrides?: TemplateOverrides | null): ProductTemplate {
   const base = DEFAULT_TEMPLATES[templateIdOf(category)];
-  const own = category && overrides ? cleanSpecs(overrides[category.trim()]) : null;
+  const key = category?.trim();
+  const own = key && overrides && Object.prototype.hasOwnProperty.call(overrides, key) ? cleanSpecs(overrides[key]) : null;
   return own ? { ...base, sections: own } : base;
 }
 

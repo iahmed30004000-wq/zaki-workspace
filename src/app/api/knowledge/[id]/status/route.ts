@@ -9,6 +9,6 @@ export async function PUT(req: Request, { params }: { params: { id: string } }) 
   return withApi(async () => {
     const actor = await requireActor();
     const input = await parseJson(sheetStatusSchema, req);
-    return NextResponse.json({ sheet: await setSheetStatus(actor, params.id, input.status) });
+    return NextResponse.json({ sheet: await setSheetStatus(actor, params.id, input.status, input.version) });
   });
 }

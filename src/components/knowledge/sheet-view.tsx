@@ -94,7 +94,7 @@ export function SheetView({ initial, userId, isOwner }: { initial: SheetDTO; use
 
   const setStatus = async (status: string) => {
     try {
-      await apiPut(`/api/knowledge/${sheet.id}/status`, { status });
+      await apiPut(`/api/knowledge/${sheet.id}/status`, { status, version: sheet.version });
       router.refresh();
     } catch (err) {
       toast(err instanceof ApiError && err.messageKey ? t(err.messageKey) : t("common.error"), "error");

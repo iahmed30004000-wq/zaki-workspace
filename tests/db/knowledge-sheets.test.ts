@@ -69,7 +69,11 @@ const list = (q = "") => call(listRoute.GET, { url: `${BASE}${q}` });
 const get = (id: string) => call(sheetRoute.GET, { url: `${BASE}/${id}`, params: { id } });
 const patch = (id: string, body: unknown) => call(sheetRoute.PATCH, { method: "PATCH", url: `${BASE}/${id}`, params: { id }, body });
 const del = (id: string) => call(sheetRoute.DELETE, { method: "DELETE", url: `${BASE}/${id}`, params: { id } });
-const status = (id: string, to: string) => call(statusRoute.PUT, { method: "PUT", url: `${BASE}/${id}/status`, params: { id }, body: { status: to } });
+// the screen always sends the version it shows: so does the helper (the one it reads now), unless a test passes another
+const status = async (id: string, to: string, version?: number) => {
+  const seen = version ?? (await db.card.findUniqueOrThrow({ where: { id }, select: { version: true } })).version;
+  return call(statusRoute.PUT, { method: "PUT", url: `${BASE}/${id}/status`, params: { id }, body: { status: to, version: seen } });
+};
 
 const data = (over: Record<string, unknown> = {}) => ({
   tagline: "زيت مساج دافي",
@@ -261,10 +265,12 @@ describe("approval", () => {
     expect((await del(id)).status).toBe(403);
     expect((await patch(id, { version: 1, title: "x" })).status).toBe(403);
   });
-  it("deleting hides the sheet from everybody and removes nothing", async () => {
+  it("deleting an approved sheet (an approver's act) hides it from everybody and removes nothing", async () => {
     const w = await world();
     const id = await approved(w);
     await loginAs(w.admin.id);
+    expect((await del(id)).status).toBe(403);
+    await loginAs(w.owner.id);
     expect((await del(id)).status).toBe(200);
     await loginAs(w.member.id);
     expect((await get(id)).status).toBe(404);

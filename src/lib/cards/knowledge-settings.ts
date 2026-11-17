@@ -24,6 +24,7 @@ export function knowledgeSettingsOf(orgSettings: unknown): KnowledgeSettings {
   const raw = s["productTemplates"];
   if (typeof raw === "object" && raw !== null && !Array.isArray(raw)) {
     for (const [category, specs] of Object.entries(raw as Record<string, unknown>)) {
+      if (category === "__proto__") continue;
       const clean = cleanSpecs(specs);
       if (clean) templates[category] = clean;
     }

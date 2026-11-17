@@ -466,7 +466,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `time-tracking` | 664 | 16 | «حساب وقت الشغل» — the time people log on tasks (the owner, 2026-10-30: «حساب وقت الشغل: نعم»). |
 | `checkins` | 625 | 14 | «التسجيل اليومي» — a short stand-up per space (the owner's approved backlog, 2026-10-31). |
 | `approval-access` | 144 | 13 | «طلبات الموافقة» — WHO MAY DO WHAT, in one place. |
-| `knowledge` | 491 | 13 | «المنتجات» — the company's product sheets (Q1.1): ONE door for the PRODUCT cards of the knowledge space. |
+| `knowledge` | 510 | 13 | «المنتجات» — the company's product sheets (Q1.1): ONE door for the PRODUCT cards of the knowledge space. |
 | `owner-assistant-access` | 29 | 13 | «مساعد المالك» — WHO MAY OPEN IT, in one place. |
 | `team-skills` | 302 | 13 | «المهارات» — the company's skills checklist and each person's level in it. |
 | `manufacturing-production` | 791 | 12 | «مخزون التصنيع», slice 2 — recipes and production orders. |
@@ -670,7 +670,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `Customer` | 5 | `server/services/crm.ts`: 3<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `Opportunity` | 7 | `server/services/crm.ts`: 3<br>`server/services/move-to-space.ts`: 2<br>`server/services/accounts.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `PendingRegistration` | 4 | `server/services/registration.ts`: 4 |
-| `Card` | 14 | `server/services/cards.ts`: 6<br>`server/integrations/oms-sync.ts`: 3<br>`server/services/knowledge.ts`: 3<br>`server/services/card-attachments.ts`: 1<br>+1 more |
+| `Card` | 15 | `server/services/cards.ts`: 6<br>`server/services/knowledge.ts`: 4<br>`server/integrations/oms-sync.ts`: 3<br>`server/services/card-attachments.ts`: 1<br>+1 more |
 | `CardRevision` | 1 | `server/services/cards.ts`: 1 |
 | `CardNote` | 3 | `server/services/card-notes.ts`: 3 |
 | `CardRating` | 1 | `server/services/card-ratings.ts`: 1 |

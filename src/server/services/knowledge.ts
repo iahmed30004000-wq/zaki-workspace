@@ -6,7 +6,7 @@ import type { Actor } from "@/server/policy/actor";
 import { assertFeatureOn } from "@/server/services/features";
 import { CARD_SELECT, cardScope, saveCardEdit, CardConflictError, type CardRow, type CardScope } from "@/server/services/cards";
 import { recordCard } from "@/server/services/card-audit";
-import { LIMITS, cleanCardData, cleanCategory } from "@/lib/cards/shared";
+import { KNOWLEDGE_KINDS, LIMITS, cleanCardData, cleanCategory } from "@/lib/cards/shared";
 import { positionOnTop } from "@/lib/cards/order";
 import { canMoveStatus, statusOf, CARD_STATUSES, type CardStatus } from "@/lib/cards/status";
 import { cleanProductData, sheetGaps, type GapKey, type ProductBadge, type ProductData } from "@/lib/cards/knowledge";
@@ -168,7 +168,8 @@ async function loadSheet(ctx: Ctx, cardId: string): Promise<CardRow> {
   const row = await db.card.findFirst({ where: { id: cardId, orgId: ctx.actor.orgId, workspaceId: ctx.spaceId, kind: "PRODUCT" }, select: CARD_SELECT });
   if (!row || row.archivedAt) throw new NotFoundError("cards.not_found");
   // a reader who is not an editor never knows a sheet nobody approved exists
-  if (!ctx.editor && row.approvedVersion === null) throw new NotFoundError("cards.not_found");
+  // (an archived sheet is taken away from readers too, and returns with its approved version when it is un-archived)
+  if (!ctx.editor && (row.approvedVersion === null || statusOf(row.status) === "ARCHIVED")) throw new NotFoundError("cards.not_found");
   return row;
 }
 
@@ -191,7 +192,8 @@ async function toSheet(ctx: Ctx, row: CardRow, now: Date): Promise<SheetDTO> {
     category,
     data,
     external: externalOf(row.external, now),
-    status: statusOf(row.status),
+    // a reader is never told that a newer edit waits for review: what they hold is approved
+    status: ctx.editor ? statusOf(row.status) : "APPROVED",
     version: ctx.editor ? row.version : (row.approvedVersion ?? row.version),
     approvedVersion: row.approvedVersion,
     canEdit: ctx.editor,
@@ -227,7 +229,7 @@ export async function listSheets(actor: Actor, opts: { q?: string; category?: st
   });
   if (!ctx) return { configured: true, canEdit: false, canApprove: false, isOwner: actor.isOwner, sheets: [] };
   const rows = await db.card.findMany({
-    where: { orgId: actor.orgId, workspaceId: ctx.spaceId, kind: "PRODUCT", archivedAt: null, ...(ctx.editor ? {} : { approvedVersion: { not: null } }), ...(opts.category ? {} : {}) },
+    where: { orgId: actor.orgId, workspaceId: ctx.spaceId, kind: "PRODUCT", archivedAt: null, ...(ctx.editor ? {} : { approvedVersion: { not: null }, status: { not: "ARCHIVED" } }) },
     orderBy: [{ pinned: "desc" }, { position: "asc" }, { id: "asc" }],
     take: LIMITS.cards,
     select: CARD_SELECT,
@@ -259,7 +261,7 @@ export async function listSheets(actor: Actor, opts: { q?: string; category?: st
       currency: ext?.currency ?? null,
       stale: ext ? ext.stale : true,
       missing: !!ext?.missingSince,
-      status: statusOf(row.status),
+      status: ctx.editor ? statusOf(row.status) : "APPROVED",
       ...(ctx.editor ? { gaps: sheetGaps(data, { hasPhoto: !!row.coverFileId }) } : {}),
     });
   }
@@ -278,15 +280,15 @@ export const createSheetSchema = z.object({
   category: z.string().max(200).nullable().optional(),
   data: z.unknown().optional(),
 });
-export const updateSheetSchema = z
-  .object({
-    version: z.number().int().min(1),
-    title: z.string().trim().min(1, "cards.e.title").max(LIMITS.title),
-    category: z.string().max(200).nullable(),
-    data: z.unknown(),
-  })
-  .partial();
-export const sheetStatusSchema = z.object({ status: z.enum(CARD_STATUSES) });
+// the version the editor opened is REQUIRED: a save without it would overwrite what somebody else just wrote
+export const updateSheetSchema = z.object({
+  version: z.number().int().min(1),
+  title: z.string().trim().min(1, "cards.e.title").max(LIMITS.title).optional(),
+  category: z.string().max(200).nullable().optional(),
+  data: z.unknown().optional(),
+});
+// approving names the version the approver saw (the server refuses to approve what he did not read)
+export const sheetStatusSchema = z.object({ status: z.enum(CARD_STATUSES), version: z.number().int().min(1).optional() });
 export const copySchema = z.object({ what: z.string().trim().min(1).max(40) });
 
 function dataOrRefuse(raw: unknown): ProductData {
@@ -346,7 +348,7 @@ export async function updateSheet(actor: Actor, cardId: string, input: z.infer<t
   return toSheet(ctx, await loadSheet(ctx, cardId), now);
 }
 
-export async function setSheetStatus(actor: Actor, cardId: string, to: CardStatus, now: Date = new Date()): Promise<SheetDTO> {
+export async function setSheetStatus(actor: Actor, cardId: string, to: CardStatus, seenVersion?: number, now: Date = new Date()): Promise<SheetDTO> {
   const ctx = await context(actor);
   assertEditor(ctx);
   const row = await loadSheet(ctx, cardId);
@@ -357,8 +359,13 @@ export async function setSheetStatus(actor: Actor, cardId: string, to: CardStatu
   // an approver approves a draft in one move
   const allowed = canMoveStatus(from, to, { moderator: true }) || (to === "APPROVED" && from === "DRAFT");
   if (!allowed) throw new ValidationError([{ path: "status", message: "cards.e.status_move" }]);
+  // approving is of the version the approver SAW: if the sheet moved on, nothing is approved; the write also holds only at that version
+  if (to === "APPROVED") {
+    if (seenVersion === undefined) throw new ValidationError([{ path: "version", message: "knowledge.version_required" }]);
+    if (seenVersion !== row.version) throw new ValidationError([{ path: "version", message: "knowledge.conflict" }]);
+  }
   const moved = await db.card.updateMany({
-    where: { id: cardId, orgId: actor.orgId, status: from },
+    where: { id: cardId, orgId: actor.orgId, status: from, ...(to === "APPROVED" ? { version: row.version } : {}) },
     data: { status: to, ...(to === "APPROVED" ? { approvedVersion: row.version } : {}) },
   });
   if (moved.count === 0) throw new ValidationError([{ path: "status", message: "cards.e.status_move" }]);
@@ -371,6 +378,8 @@ export async function archiveSheet(actor: Actor, cardId: string): Promise<void> 
   const ctx = await context(actor);
   assertEditor(ctx);
   const row = await loadSheet(ctx, cardId);
+  // taking an approved sheet away from everybody is the approvers' act, like archiving it: it is no way around the approval
+  if (row.approvedVersion !== null && !ctx.approver) throw new ForbiddenError("knowledge.approve_only");
   await db.card.update({ where: { id: cardId }, data: { archivedAt: new Date() } });
   await recordCard(actor, row, "archived");
 }
@@ -393,7 +402,11 @@ export const askSchema = z.object({ question: z.string().trim().min(3, "title.to
 export async function askSupervisor(actor: Actor, cardId: string, input: z.infer<typeof askSchema>): Promise<{ ticketId: string }> {
   const ctx = await context(actor);
   const row = await loadSheet(ctx, cardId);
-  let assigneeId = ctx.settings.approverIds[0] ?? null;
+  // the first named approver who is still active; the primary owner when there is none
+  const active = ctx.settings.approverIds.length
+    ? await db.organizationMember.findMany({ where: { organizationId: actor.orgId, status: "ACTIVE", role: { not: "GUEST" }, userId: { in: ctx.settings.approverIds } }, select: { userId: true } })
+    : [];
+  let assigneeId = ctx.settings.approverIds.find((id) => active.some((a) => a.userId === id)) ?? null;
   if (!assigneeId) {
     const owner = await db.organizationMember.findFirst({ where: { organizationId: actor.orgId, status: "ACTIVE", role: "OWNER" }, orderBy: [{ primaryOwner: "desc" }, { createdAt: "asc" }], select: { userId: true } });
     assigneeId = owner?.userId ?? null;
@@ -401,7 +414,8 @@ export async function askSupervisor(actor: Actor, cardId: string, input: z.infer
   if (!assigneeId) throw new NotFoundError("knowledge.no_supervisor");
   const ticket = await createInstantTicket(
     { orgId: actor.orgId, orgRole: actor.role, userId: actor.userId },
-    { title: `سؤال عن منتج: ${row.title} — ${input.question}`.slice(0, 200), description: input.question, priority: "NORMAL", assigneeId },
+    // the name a reader holds, never a title nobody approved
+    { title: `سؤال عن منتج: ${(ctx.editor ? null : (await servedOf(row))?.title) ?? row.title} — ${input.question}`.slice(0, 200), description: input.question, priority: "NORMAL", assigneeId },
   );
   return { ticketId: ticket.id };
 }
@@ -469,6 +483,7 @@ export async function saveKnowledgeSettings(actor: Actor, input: z.infer<typeof 
   if (input.templates) {
     templates = {};
     for (const [category, specs] of Object.entries(input.templates)) {
+      if (category === "__proto__") continue;
       const clean = cleanSpecs(specs);
       if (!clean) refuse("templates", "knowledge.e.section");
       templates[category] = clean as never;
@@ -479,7 +494,11 @@ export async function saveKnowledgeSettings(actor: Actor, input: z.infer<typeof 
     await tx.$queryRaw`SELECT 1 FROM "Organization" WHERE id = ${actor.orgId} FOR UPDATE`;
     const org = await tx.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } });
     const next: Record<string, unknown> = { ...(isObj(org?.settings) ? org.settings : {}) };
-    if (input.spaceId !== undefined) next["knowledgeSpaceId"] = input.spaceId;
+    if (input.spaceId !== undefined) {
+      // the sheets move with the space: changing it never leaves them where nobody looks
+      if (input.spaceId && input.spaceId !== next["knowledgeSpaceId"]) await tx.card.updateMany({ where: { orgId: actor.orgId, kind: { in: [...KNOWLEDGE_KINDS] } }, data: { workspaceId: input.spaceId } });
+      next["knowledgeSpaceId"] = input.spaceId;
+    }
     if (input.editorIds !== undefined) next["knowledgeEditorIds"] = [...new Set(input.editorIds)];
     if (input.approverIds !== undefined) next["knowledgeApproverIds"] = [...new Set(input.approverIds)];
     if (input.deliveryLine !== undefined) next["knowledgeDeliveryLine"] = input.deliveryLine.trim();

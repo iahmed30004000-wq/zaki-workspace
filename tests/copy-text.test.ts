@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerText, buildCopyAll, buildOfferMessage, fmtMoney, offerLine, searchFaq, sectionText } from "../src/lib/cards/copy-text";
+import { answerText, buildCopyAll, buildOfferMessage, fmtMoney, fmtPiece, offerLine, searchFaq, sectionText } from "../src/lib/cards/copy-text";
 import type { ProductData } from "../src/lib/cards/knowledge";
 import type { ProductSnapshot } from "../src/lib/oms/snapshot";
 
@@ -44,11 +44,12 @@ describe("a section", () => {
 });
 
 describe("money", () => {
-  it("one decimal at most, Western digits", () => {
+  it("a price keeps its cents (two decimals at most), a price derived for one piece has one decimal, Western digits", () => {
     expect(fmtMoney(20)).toBe("20");
-    expect(fmtMoney(13.333)).toBe("13.3");
+    expect(fmtMoney(13.333)).toBe("13.33");
     expect(fmtMoney(12.5)).toBe("12.5");
-    expect(fmtMoney(0.04)).toBe("0");
+    expect(fmtPiece(13.333)).toBe("13.3");
+    expect(fmtPiece(20)).toBe("20");
   });
   it("the price of one piece in an offer shows only when the gift units are known", () => {
     expect(offerLine({ title: "عبوتين + هدية", quantity: 2, freeQuantity: 1, price: 40 }, "USD", "عبوة")).toBe("عبوتين + هدية — 40$ · العبوة 13.3$");
