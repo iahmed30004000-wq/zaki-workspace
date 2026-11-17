@@ -24,6 +24,7 @@ const ACTIONS: ReadonlySet<string> = new Set<LogAction>([
   "image_added",
   "image_removed",
   "cover",
+  "copied",
 ]);
 
 const LOG_LIMIT = 200;
@@ -49,6 +50,8 @@ function detailOf(action: LogAction, meta: unknown): Detail {
       return { name: str(m["name"]) };
     case "cover":
       return { name: str(m["name"]), removed: m["removed"] === true };
+    case "copied":
+      return { what: str(m["what"]) };
     default:
       return {};
   }

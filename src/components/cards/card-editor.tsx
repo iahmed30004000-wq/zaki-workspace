@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Modal } from "@/components/ui/modal";
 import {
   CARD_COLORS,
-  CARD_KINDS,
+  GENERIC_CARD_KINDS,
   LIMITS,
   cleanTags,
   isSafeHttpsUrl,
@@ -156,7 +156,7 @@ export function CardEditorForm({ card, initialKind = "NOTE", categories, onSave,
         <div>
           <Label>{t("cards.f.kind")}</Label>
           <div role="radiogroup" aria-label={t("cards.f.kind")} className="grid grid-cols-3 gap-2">
-            {CARD_KINDS.map((k) => {
+            {GENERIC_CARD_KINDS.map((k) => {
               const Icon = KIND_ICON[k];
               return (
                 <button

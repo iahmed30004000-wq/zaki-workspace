@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/card";
 import { useToast } from "@/components/ui/toast";
-import { CARD_COLORS, CARD_KINDS, type CardItem, type SpaceLayout } from "@/lib/cards/shared";
+import { CARD_COLORS, GENERIC_CARD_KINDS, type CardItem, type SpaceLayout } from "@/lib/cards/shared";
 import { positionBetween } from "@/lib/cards/order";
 import {
   CARD_SORTS,
@@ -304,7 +304,7 @@ export function CardsView({ spaceId, spaceName, userId, initial, canWrite, owner
               {t("cards.f.kind")}
               <Select value={filter.kind} onChange={(e) => setFilter({ ...filter, kind: e.target.value as CardFilter["kind"] })}>
                 <option value="ALL">{t("cards.all")}</option>
-                {CARD_KINDS.map((k) => (
+                {GENERIC_CARD_KINDS.map((k) => (
                   <option key={k} value={k}>
                     {t(`cards.kind.${k}`)}
                   </option>

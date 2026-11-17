@@ -24,7 +24,7 @@ import { CardTile, type TileActions } from "@/components/cards/card-tile";
 import { CardGrid } from "@/components/cards/card-grid";
 import { CardEditorForm } from "@/components/cards/card-editor";
 import { CardsView } from "@/components/cards/cards-view";
-import { CARD_KINDS, type CardItem } from "@/lib/cards/shared";
+import { CARD_KINDS, GENERIC_CARD_KINDS, KNOWLEDGE_KINDS, type CardItem } from "@/lib/cards/shared";
 import { CARD_VIEWS } from "@/lib/cards/view";
 import { PALETTE_COLOUR, PHYSICAL_UTILITY, classTokens, textOf } from "./ui-render";
 
@@ -200,7 +200,9 @@ describe("the editor", () => {
 
   it("a new card offers the six kinds, colours, category, tags and pin", () => {
     const html = editor(null);
-    for (const kind of CARD_KINDS) expect(html).toContain(AR[`cards.kind.${kind}`]!);
+    for (const kind of GENERIC_CARD_KINDS) expect(html).toContain(AR[`cards.kind.${kind}`]!);
+    // the company's knowledge (a product sheet, a general answer) is made at «المنتجات», never from the ordinary card menu
+    for (const kind of KNOWLEDGE_KINDS) expect(html).not.toContain(AR[`cards.kind.${kind}`]!);
     expect(html).toContain('role="radiogroup"');
     expect(html).toContain(AR["cards.f.category"]!);
     expect(html).toContain(AR["cards.f.tags"]!);

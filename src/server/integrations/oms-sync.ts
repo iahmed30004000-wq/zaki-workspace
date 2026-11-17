@@ -2,6 +2,9 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
 import { isFeatureOn } from "@/server/services/features";
+import { knowledgeSettingsOf } from "@/lib/cards/knowledge-settings";
+import { emptyProductData, templateFor } from "@/lib/cards/product-templates";
+import { positionOnTop } from "@/lib/cards/order";
 import { priceChanged, type ProductSnapshot, type ProductsRead } from "@/lib/oms/snapshot";
 import { OmsError, readProductList } from "./oms";
 
@@ -16,6 +19,10 @@ import { OmsError, readProductList } from "./oms";
  *    share it and the sheet has no id, nothing is linked by itself (counted as `ambiguous`).
  *  - A product that is gone from the answer marks its sheet (`missingSince`), keeping the last price and its old `fetchedAt` (so it
  *    reads as stale); it comes back clean. An EMPTY answer marks nothing: it is never read as «every product is gone».
+ *  - DRAFT SHEETS (Q1.1): while `knowledgeCards` is on and a knowledge space is set, each product that has NO sheet gets one: a DRAFT PRODUCT card
+ *    in that space (the template of its category, no caution), its snapshot in `external`, authored by the person who connected the orders system
+ *    (the primary owner when he is no longer active). Never for a product whose code another product shares (an editor chooses), never twice,
+ *    and never again for a sheet an editor deleted (the deleted card still carries its snapshot, so the product counts as having one).
  *  - A row the door sent but that could not be READ (a price that is text, a code that is missing) never marks its sheet gone: the sheet
  *    is only marked when its product is truly absent from the answer. An answer that is not a LIST at all is a failed read (`bad_body`).
  *  - Two processes: the five-minute claim is ONE conditional write (the integration row's `updatedAt` must still be the one that was read),
@@ -40,6 +47,8 @@ export interface OmsSyncRun {
   ambiguous: number;
   /** Sheets whose price or offers differ from the snapshot before. */
   changed: number;
+  /** Draft sheets made for products that had none. */
+  drafts: number;
   /** Companies whose read failed. */
   failed: number;
 }
@@ -52,6 +61,8 @@ export interface OrgSyncResult {
   missing: number;
   ambiguous: number;
   changed: number;
+  /** Draft sheets made for products that had none. */
+  drafts?: number;
   /** True when another process had already claimed this round: nothing was read. */
   skipped?: boolean;
 }
@@ -64,6 +75,56 @@ function readExternal(raw: unknown): ProductSnapshot | null {
   return typeof raw["code"] === "string" && typeof raw["name"] === "string" ? (raw as unknown as ProductSnapshot) : null;
 }
 
+/** Does a sheet already stand for this product? By id when the sheet has one, else by code and name. */
+function hasSheet(product: ProductSnapshot, sheets: ProductSnapshot[]): boolean {
+  return sheets.some((s) => (s.id ? s.id === product.id : s.code === product.code && s.name === product.name));
+}
+
+/** A DRAFT sheet for each product that has none (see the header). Returns how many were made. */
+async function makeDrafts(orgId: string, products: ProductSnapshot[], sheets: ProductSnapshot[], connectedById: unknown): Promise<number> {
+  if (products.length === 0 || !(await isFeatureOn(orgId, "knowledgeCards"))) return 0;
+  const org = await db.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
+  const settings = knowledgeSettingsOf(org?.settings ?? {});
+  if (!settings.spaceId) return 0;
+  const space = await db.workspace.findFirst({ where: { id: settings.spaceId, organizationId: orgId, archivedAt: null }, select: { id: true } });
+  if (!space) return 0;
+  // the author: the person who connected the system if he is still active, else the primary owner
+  let authorId: string | null = null;
+  if (typeof connectedById === "string") {
+    const m = await db.organizationMember.findFirst({ where: { organizationId: orgId, userId: connectedById, status: "ACTIVE" }, select: { userId: true } });
+    authorId = m?.userId ?? null;
+  }
+  if (!authorId) {
+    const owner = await db.organizationMember.findFirst({ where: { organizationId: orgId, status: "ACTIVE", role: "OWNER" }, orderBy: [{ primaryOwner: "desc" }, { createdAt: "asc" }], select: { userId: true } });
+    authorId = owner?.userId ?? null;
+  }
+  if (!authorId) return 0;
+  const codeCount = new Map<string, number>();
+  for (const p of products) codeCount.set(p.code, (codeCount.get(p.code) ?? 0) + 1);
+  let made = 0;
+  for (const p of products) {
+    if ((codeCount.get(p.code) ?? 0) > 1 || hasSheet(p, sheets)) continue;
+    const first = await db.card.findFirst({ where: { workspaceId: space.id, archivedAt: null }, orderBy: [{ position: "asc" }, { id: "asc" }], select: { position: true } });
+    const category = p.category ?? null;
+    await db.card.create({
+      data: {
+        orgId,
+        workspaceId: space.id,
+        createdById: authorId,
+        kind: "PRODUCT",
+        title: p.name.slice(0, 140),
+        category: category ? category.slice(0, 40) : null,
+        data: emptyProductData(templateFor(category, settings.templates)) as unknown as Prisma.InputJsonValue,
+        external: p as unknown as Prisma.InputJsonValue,
+        status: "DRAFT",
+        position: positionOnTop(first?.position),
+      },
+    });
+    made += 1;
+  }
+  return made;
+}
+
 /** The sheet's product was in the answer but could not be read (by id, or by code): it is not gone. */
 function stillThere(prev: ProductSnapshot, read: ProductsRead): boolean {
   return (!!prev.id && read.unreadable.ids.has(prev.id)) || (!prev.id && read.unreadable.codes.has(prev.code));
@@ -71,7 +132,7 @@ function stillThere(prev: ProductSnapshot, read: ProductsRead): boolean {
 
 /** Reads the products of one company now and refreshes its linked sheets. No due-time and no switch check: the callers do those. */
 export async function syncOrg(orgId: string, now: Date, claim?: { updatedAt: Date }): Promise<OrgSyncResult> {
-  const out: OrgSyncResult = { ok: false, refreshed: 0, missing: 0, ambiguous: 0, changed: 0 };
+  const out: OrgSyncResult = { ok: false, refreshed: 0, missing: 0, ambiguous: 0, changed: 0, drafts: 0 };
   // the attempt is noted BEFORE the call, so a failure also waits its five minutes
   const integ = await db.integration.findUnique({ where: { orgId_type: { orgId, type: "OMS" } }, select: { id: true, config: true } });
   if (!integ) return { ...out, errorCode: "not_connected" };
@@ -117,13 +178,19 @@ export async function syncOrg(orgId: string, now: Date, claim?: { updatedAt: Dat
       if (done.count > 0) out.missing += 1;
     }
   }
+  try {
+    out.drafts = await makeDrafts(orgId, stamped, cards.map((c) => readExternal(c.external)).filter((e): e is ProductSnapshot => e !== null), isObj(integ.config) ? integ.config["connectedById"] : null);
+  } catch (err) {
+    // a draft that could not be made never fails the read: the snapshots above are already written, the next round tries again
+    log.error("oms.drafts_failed", { org: orgId, name: err instanceof Error ? err.name : "error" });
+  }
   await db.integration.update({ where: { id: integ.id }, data: { lastSyncAt: now } });
   return { ...out, ok: true };
 }
 
 /** The job: each connected company whose switch is on and whose five minutes have passed. */
 export async function runOmsSync(now: Date = new Date()): Promise<OmsSyncRun> {
-  const run: OmsSyncRun = { orgs: 0, refreshed: 0, missing: 0, ambiguous: 0, changed: 0, failed: 0 };
+  const run: OmsSyncRun = { orgs: 0, refreshed: 0, missing: 0, ambiguous: 0, changed: 0, drafts: 0, failed: 0 };
   const rows = await db.integration.findMany({ where: { type: "OMS", connected: true }, select: { orgId: true, lastSyncAt: true, config: true, updatedAt: true } });
   const dueBefore = now.getTime() - OMS_SYNC_EVERY_MS;
   for (const row of rows) {
@@ -139,6 +206,7 @@ export async function runOmsSync(now: Date = new Date()): Promise<OmsSyncRun> {
       run.missing += r.missing;
       run.ambiguous += r.ambiguous;
       run.changed += r.changed;
+      run.drafts += r.drafts ?? 0;
       if (!r.ok) run.failed += 1;
     } catch (err) {
       run.orgs += 1;

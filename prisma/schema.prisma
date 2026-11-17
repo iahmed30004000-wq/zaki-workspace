@@ -1855,6 +1855,9 @@ model Card {
   // The orders system's snapshot of the product this sheet is about (price, offers, stock): written ONLY by the sync job (src/server/integrations/oms-sync.ts), never
   // through saveCardEdit, so a refreshed price never writes a CardRevision. A price is never typed here.
   external    Json?
+  // PRODUCT and REPLY cards (Q1.1): the version a moderator approved. A reader who is not an editor is served THAT version (the card itself when
+  // `version` equals it, else its CardRevision), together with the live `external`; null = never approved = invisible to non-editors.
+  approvedVersion Int?
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 

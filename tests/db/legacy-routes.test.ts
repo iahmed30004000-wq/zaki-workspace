@@ -51,6 +51,8 @@ import GoalsPage from "@/app/(app)/goals/page";
 import IdeasPage from "@/app/(app)/ideas/page";
 import CardsPage from "@/app/(app)/cards/page";
 import CardPageRoute from "@/app/(app)/cards/[id]/page";
+import KnowledgePage from "@/app/(app)/knowledge/page";
+import KnowledgeSheetRoute from "@/app/(app)/knowledge/[cardId]/page";
 import ProductionPage from "@/app/(app)/production/page";
 import DepartmentsPage from "@/app/(app)/departments/page";
 import TeamsPage from "@/app/(app)/teams/page";
@@ -121,7 +123,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -201,6 +203,8 @@ const PAGES: Record<string, PageCall> = {
   "/ideas": () => IdeasPage(),
   "/cards": () => CardsPage(),
   "/cards/[id]": (args) => CardPageRoute({ params: idOf(args) }),
+  "/knowledge": () => KnowledgePage(),
+  "/knowledge/[cardId]": (args) => KnowledgeSheetRoute({ params: { cardId: args.params["cardId"] ?? "" } }),
   "/production": () => ProductionPage(),
   "/departments": () => DepartmentsPage(),
   "/teams": () => TeamsPage(),
@@ -342,7 +346,7 @@ async function linkWorld() {
   const team = await makeTeam();
   const orgId = team.org.id;
   // «مساعد المالك» is OFF by default and its pages are «not found» while it is off; the owner opens every page of the shell below
-  await db.organization.update({ where: { id: orgId }, data: { settings: { features: { ownerAssistant: true } } } });
+  await db.organization.update({ where: { id: orgId }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true } } } });
   const lead = await makeUser({ orgId, role: "LEAD", name: "Lead" });
 
   async function spaceWithWork(members: { userId: string; role?: "ADMIN" | "MEMBER" | "GUEST" }[], name: string, assigneeId: string | null) {
@@ -411,6 +415,9 @@ function addressesOf(route: string, w: World): string[] {
     case "/cards/[id]":
       // a card of the team's space, one of the space shared with the partner, one of the space nobody is in, and one that is gone
       return [...spaces.map((s) => s.card.id), GONE].map((id) => `/cards/${id}`);
+    case "/knowledge/[cardId]":
+      // a product sheet only exists through the knowledge door, which this world does not set up: the only address is one that is gone (every rank gets «not found»)
+      return [`/knowledge/${GONE}`];
     case "/documents/[id]":
       // a document of the team's space, one of the space shared with the partner (shared with partners, so the partner opens it), one of the space nobody is in, and one that is gone
       return [...spaces.map((s) => s.doc.id), GONE].map((id) => `/documents/${id}`);

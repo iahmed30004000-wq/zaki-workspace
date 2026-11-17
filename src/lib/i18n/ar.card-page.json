@@ -118,6 +118,7 @@
   "cards.log.image_removed": "أزال من المعرض: {name}",
   "cards.log.cover": "عيّن غلافًا: {name}",
   "cards.log.cover_removed": "أزال الغلاف",
+  "cards.log.copied": "نسخ من الكرت: {what}",
 
   "cards.p.gallery_empty": "لا توجد صور في المعرض بعد.",
   "cards.p.gallery_hint": "تُرفع الصور إلى مكتبة هذه المساحة، ويفحص النظام نوع كل ملف قبل قبوله.",
