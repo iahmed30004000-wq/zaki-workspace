@@ -5,9 +5,18 @@
  */
 
 import type { CardStatus } from "./status";
+import { cleanProductData, type KnowledgeError, type ProductData } from "./knowledge";
 
-export const CARD_KINDS = ["NOTE", "PROMPT", "LIST", "LINK", "FILE", "TABLE"] as const;
+/** The kinds of the ordinary cards of a space: what its «بطاقة جديدة» menu offers. */
+export const GENERIC_CARD_KINDS = ["NOTE", "PROMPT", "LIST", "LINK", "FILE", "TABLE"] as const;
+/** The kinds of the company's knowledge (Q1.1): a product sheet and a general approved answer. They are NOT in a space's ordinary cards. */
+export const KNOWLEDGE_KINDS = ["PRODUCT", "REPLY"] as const;
+export const CARD_KINDS = [...GENERIC_CARD_KINDS, ...KNOWLEDGE_KINDS] as const;
 export type CardKind = (typeof CARD_KINDS)[number];
+
+export function isKnowledgeKind(v: unknown): v is (typeof KNOWLEDGE_KINDS)[number] {
+  return v === "PRODUCT" || v === "REPLY";
+}
 
 export function isCardKind(v: unknown): v is CardKind {
   return typeof v === "string" && (CARD_KINDS as readonly string[]).includes(v);
@@ -68,7 +77,7 @@ export interface TableData {
   columns: string[];
   rows: string[][];
 }
-export type CardData = ListData | LinkData | TableData | null;
+export type CardData = ListData | LinkData | TableData | ProductData | null;
 
 /** A card as the screen holds it (dates are ISO strings: it travels as JSON). */
 export interface CardItem {
@@ -118,7 +127,7 @@ export function isSafeHttpsUrl(value: unknown): value is string {
 // ---------- normalising what a person typed ----------
 
 /** The machine keys of the refusals (each has an Arabic sentence in ar.cards.json). */
-export type CardDataError = "cards.e.list" | "cards.e.link" | "cards.e.table";
+export type CardDataError = "cards.e.list" | "cards.e.link" | "cards.e.table" | KnowledgeError;
 
 export type Cleaned<T> = { ok: true; value: T } | { ok: false; error: CardDataError };
 
@@ -177,6 +186,10 @@ export function cleanCardData(kind: CardKind, raw: unknown): Cleaned<CardData> {
       return cleanLink(raw);
     case "TABLE":
       return cleanTable(raw ?? { columns: [""], rows: [] });
+    case "PRODUCT": {
+      const product = cleanProductData(raw ?? {});
+      return product.ok ? { ok: true, value: product.value } : { ok: false, error: product.error };
+    }
     default:
       return { ok: true, value: null };
   }

@@ -68,6 +68,8 @@ export function logText(entry: Pick<LogEntry, "action" | "actorName" | "detail">
     case "image_added":
     case "image_removed":
       return t(`cards.log.${entry.action}`, { name: typeof d["name"] === "string" ? d["name"] : "" });
+    case "copied":
+      return t("cards.log.copied", { what: typeof d["what"] === "string" ? d["what"] : "" });
     case "cover":
       return d["removed"] === true ? t("cards.log.cover_removed") : t("cards.log.cover", { name: typeof d["name"] === "string" ? d["name"] : "" });
     default:

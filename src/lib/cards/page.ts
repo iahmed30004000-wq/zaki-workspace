@@ -110,7 +110,8 @@ export type LogAction =
   | "rated"
   | "image_added"
   | "image_removed"
-  | "cover";
+  | "cover"
+  | "copied";
 
 export interface LogEntry {
   id: string;

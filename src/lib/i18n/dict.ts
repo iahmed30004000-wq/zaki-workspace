@@ -43,6 +43,7 @@ import ownerBoard from "./ar.owner-board.json";
 import taskPrivacy from "./ar.task-privacy.json";
 import chatPrivacy from "./ar.chat-privacy.json";
 import oms from "./ar.oms.json";
+import knowledge from "./ar.knowledge.json";
 import controlPanel from "./ar.control-panel.json";
 import ownerAssistant from "./ar.owner-assistant.json";
 import chatAssistant from "./ar.chat-assistant.json";
@@ -140,6 +141,7 @@ export const AR: Record<string, string> = {
   ...taskPrivacy,
   ...chatPrivacy,
   ...oms,
+  ...knowledge,
   ...controlPanel,
   ...ownerAssistant,
   ...chatAssistant,

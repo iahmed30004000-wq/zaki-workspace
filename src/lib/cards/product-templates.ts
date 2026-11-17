@@ -89,7 +89,7 @@ export function templateIdOf(category: string | null | undefined): TemplateId {
 /** What the owner saved as templates: a list of sections per category name. Anything broken is ignored (the default applies). */
 export type TemplateOverrides = Record<string, Array<{ key?: unknown; title?: unknown; kind?: unknown }>>;
 
-function cleanSpecs(raw: unknown): SectionSpec[] | null {
+export function cleanSpecs(raw: unknown): SectionSpec[] | null {
   if (!Array.isArray(raw) || raw.length === 0 || raw.length > KNOWLEDGE_LIMITS.sections) return null;
   const out: SectionSpec[] = [];
   for (const s of raw) {
