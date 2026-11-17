@@ -160,12 +160,20 @@ function stopPolling(): void {
   }
 }
 
-function startPolling(every: number = POLL_MS): void {
+function startPolling(): void {
   if (!stream || stream.pollTimer) return;
   stream.pollTimer = setInterval(() => {
     // A synthetic event: the UI refetches through the normal APIs (authorization applies there).
     dispatch({ kind: "conversation.changed" });
-  }, pollMs(every));
+  }, pollMs(POLL_MS));
+}
+
+/** The slow fallback of a tab whose live stream another tab took over: a refetch every 60 s, no stream (F0.2). */
+function startEvictedPolling(): void {
+  if (!stream || stream.pollTimer) return;
+  stream.pollTimer = setInterval(() => {
+    dispatch({ kind: "conversation.changed" });
+  }, pollMs(EVICTED_POLL_MS));
 }
 
 function teardown(): void {
@@ -247,7 +255,7 @@ function connect(): void {
     if (reason === "evicted") {
       // reconnecting would evict another of this person's streams (ping-pong): stay quiet, refetch every 60 s, say so
       setEvicted(true);
-      startPolling(EVICTED_POLL_MS);
+      startEvictedPolling();
       return;
     }
     stream.failures++;
