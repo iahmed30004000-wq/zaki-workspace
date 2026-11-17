@@ -4,5 +4,7 @@
   "tickets.e.kind": "نوع المشكلة غير معروف",
   "tickets.e.recording_required": "هالنوع بدّه تسجيل شاشة مرفق بالرسالة",
   "tickets.e.customer_number": "رقم الزبون غير صالح",
-  "tickets.e.no_target": "لم نجد من نسند إليه التذكرة: اختر شخصًا أو قسمًا"
+  "tickets.e.no_target": "لم نجد من نسند إليه التذكرة: اختر شخصًا أو قسمًا",
+  "notif.type.ticket_reminder": "تذكير بتذكرة لسا مفتوحة",
+  "tickets.e.hours": "ساعات الدوام غير صالحة"
 }
