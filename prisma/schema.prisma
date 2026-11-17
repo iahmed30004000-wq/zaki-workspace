@@ -2596,6 +2596,8 @@ model ApiToken {
   tokenHash      String
   /// Named permissions: ideas.read, ideas.write, tasks.read, tasks.write. None = it can read nothing and write nothing.
   permissions    String[]  @default([])
+  /// The consuming system this token was made for on «الإعدادات ← توكنات الأنظمة» (W1; src/lib/door/systems.ts), null for a token made on «الأتمتة».
+  system         String?
   /// The one space the token writes to.
   workspaceId    String
   createdById    String

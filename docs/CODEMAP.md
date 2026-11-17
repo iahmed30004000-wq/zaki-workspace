@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 339 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 341 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 63 feature switches and every place that reads them (§8).
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 339 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 341 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 147 services — the business rules (§6) |
+| `src/server/services/` | 148 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 157 · `activeOrgCtx` 84 · `(none)` 36 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 159 · `activeOrgCtx` 84 · `(none)` 36 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -356,6 +356,8 @@ Doors in use: `requireActor` 157 · `activeOrgCtx` 84 · `(none)` 36 · `require
 | POST | `/api/site-guide/step` | requireActor † | `site-guide`: guideStep |
 | GET | `/api/spaces/unplaced` | requireActor | `move-to-space`: listUnplaced |
 | POST | `/api/spaces/unplaced/move` | requireActor | `move-to-space`: moveSchema, moveToSpace |
+| GET, POST | `/api/system-tokens` | requireActor | `system-tokens`: createSystemToken, listSystemTokens<br>`api-tokens`: TOKEN_EXPIRY_DAYS |
+| DELETE | `/api/system-tokens/[id]` | requireActor | `system-tokens`: revokeSystemToken |
 | GET, POST | `/api/tasks` | requireWorkspace | `team-scope`: teamFilterInSpace<br>`tasks`: createTask, listTasks<br>`org-day`: orgTimeZone<br>`n8n`: dispatchEvent<br>`rewards`: rewardsVisibleTo<br>`reward-input`: rewardBodySchema, toRewardRequest |
 | GET, PATCH, DELETE | `/api/tasks/[id]` | requireTaskAccess | `team-scope`: userSeesProject<br>`tasks`: updateTask, deleteTask<br>`active-people`: assertActiveAssignee<br>`org-day`: orgTimeZone<br>`rewards`: rewardsVisibleTo, setReward<br>`reward-input`: rewardBodySchema, toRewardRequest |
 | POST, GET | `/api/tasks/[id]/comments` | requireTeamWork ‡ | `n8n`: dispatchEvent |
@@ -433,7 +435,7 @@ Doors in use: `requireActor` 157 · `activeOrgCtx` 84 · `(none)` 36 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 339. Each one is a door that cannot have a session, or one that is closed.
+Six of 341. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -502,6 +504,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
 | `checkins-space` | 18 | 6 | The space a check-in request is about: the one the request names (`workspaceId`, which the guards in src/server/services/checkins.ts check against the person), or else the space… |
 | `owner-board-io` | 78 | 6 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
+| `api-tokens` | 204 | 5 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `campaigns` | 235 | 5 | Campaigns live inside a department (marketing calendars). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
 | `owner-assistant-chat` | 306 | 5 | «مساعد المالك» — THE CONVERSATION. |
@@ -528,7 +531,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `search-embeddings` | 276 | 4 | «بحث بالمعنى» — the connector and the pure rules. |
 | `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
-| `api-tokens` | 197 | 3 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
@@ -541,6 +543,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `reward-guard` | 39 | 3 | «مهمة بمكافأة» — the guard every writer of a task goes through (tasks.ts `updateTask` / `deleteTask` / `createTask`, the reward routes). |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
 | `spaces-overview` | 73 | 3 | «كل المساحات» — the owner's and the admins' one look over every space they can open (the owner's decision, 2026-10-25): each space stays a separate site, and this page only coun… |
+| `system-tokens` | 59 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
 | `team-score-io` | 28 | 3 | `?kind=` as a period kind (anything else: the month). |
 | `analytics` | 66 | 2 | Numbers behind the analytics page. |
 | `assistant-chat` | 73 | 2 | «المساعد» كجهة اتصال — the assistant as a name in the chat's people lists, with a private conversation of its own for each person. |
@@ -809,8 +812,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 333 of 339 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 241 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 335 of 341 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 243 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **17 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 5 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **19 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

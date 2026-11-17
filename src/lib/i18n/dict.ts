@@ -58,6 +58,7 @@ import teamDevelopment from "./ar.team-development.json";
 import documents from "./ar.documents.json";
 import okr from "./ar.okr.json";
 import apiDoor from "./ar.api-door.json";
+import systemTokens from "./ar.system-tokens.json";
 import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
@@ -157,6 +158,7 @@ export const AR: Record<string, string> = {
   ...documents,
   ...okr,
   ...apiDoor,
+  ...systemTokens,
   ...spaceLibrary,
   ...manufacturing,
   ...localModel,
