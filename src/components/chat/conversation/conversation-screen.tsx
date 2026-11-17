@@ -26,6 +26,7 @@ import { dmSubtitle } from "@/lib/chat/conversation/last-seen-line";
 import { ConversationSearch } from "./conversation-search";
 import { PrivacySheet } from "./privacy-sheet";
 import { privacyLabel, privacyState } from "@/lib/chat/privacy";
+import { canMarkReadNow } from "@/lib/chat/read-gate";
 import { CallButton } from "@/components/calls/call-button";
 import { MakeWorkDialog, titleOf, type WorkKind } from "@/components/chat/message/make-work-dialog";
 import { RemindDialog } from "@/components/reminders/remind-dialog";
@@ -63,6 +64,10 @@ export function pendingToDraw(items: readonly OutboxItem[], conversationId: stri
 export function ConversationScreen({ conversationId, onBack, focusMessageId }: ConversationScreenProps) {
  const [detail,setDetail]=React.useState<ConversationDto|null>(null); const [messages,setMessages]=React.useState<MessageDto[]>([]); const [reply,setReply]=React.useState<MessageDto|null>(null); const [editing,setEditing]=React.useState<MessageDto|null>(null); const [loading,setLoading]=React.useState(true); const [error,setError]=React.useState("");
  const lastMarked=React.useRef<string|null>(null);
+ // a message is marked read only while the tab is visible and focused; what could not be marked then waits here and is marked once on return (F0.5)
+ const pendingRead=React.useRef<string|null>(null);
+ const markReadNow=React.useCallback((id:string)=>{lastMarked.current=id;pendingRead.current=null;void fetch(`/api/chat/conversations/${encodeURIComponent(conversationId)}/read?upTo=${encodeURIComponent(id)}`,{method:"POST"}).then(r=>{if(r.ok)announceChatRead();},()=>undefined);},[conversationId]);
+ React.useEffect(()=>{const back=()=>{const id=pendingRead.current;if(id&&canMarkReadNow())markReadNow(id);};document.addEventListener("visibilitychange",back);window.addEventListener("focus",back);return()=>{document.removeEventListener("visibilitychange",back);window.removeEventListener("focus",back);};},[markReadNow]);
  // the message the page is opened around (a search hit): older messages, until «رجوع لآخر الرسائل»
  const [anchor,setAnchor]=React.useState<string|null>(focusMessageId??null);
  const [searching,setSearching]=React.useState(false);
@@ -74,7 +79,7 @@ export function ConversationScreen({ conversationId, onBack, focusMessageId }: C
  // `silent`: a live update (another person's message, an edit, a reaction) refetches without the loading line
  const refresh=React.useCallback(async(opts:{silent?:boolean}={})=>{if(!opts.silent)setLoading(true);setError("");try{const response=await fetch(conversationDetailUrl(conversationId,undefined,anchor??undefined),{cache:"no-store"});/* a message that is gone (an old link): open the conversation at its newest instead */if(!response.ok&&anchor&&response.status===404){setAnchor(null);return;}
 if(!response.ok)throw new Error(ct("chatc.load_failed"));const data=await response.json() as ConversationDto;setDetail(data);setMessages(data.messages);const last=data.messages.at(-1);/* mark read only for a message not marked yet: a read mark is itself a live event, and re-marking on it would loop
-   (and never while reading older messages around a search hit: the newest are not on the screen) */if(!anchor&&!data.me.oversight&&last&&lastMarked.current!==last.id){lastMarked.current=last.id;void fetch(`/api/chat/conversations/${encodeURIComponent(conversationId)}/read?upTo=${encodeURIComponent(last.id)}`,{method:"POST"}).then(r=>{if(r.ok)announceChatRead();},()=>undefined);}}catch(e){setError(e instanceof Error?e.message:ct("chatc.failed"));}finally{setLoading(false);}},[conversationId,anchor]);
+   (and never while reading older messages around a search hit: the newest are not on the screen) */if(!anchor&&!data.me.oversight&&last&&lastMarked.current!==last.id){if(canMarkReadNow())markReadNow(last.id);else pendingRead.current=last.id;}}catch(e){setError(e instanceof Error?e.message:ct("chatc.failed"));}finally{setLoading(false);}},[conversationId,anchor,markReadNow]);
  // around a search hit: bring it into view and mark it for a moment
  React.useEffect(()=>{if(!anchor||loading)return;const el=document.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(anchor)}"]`);if(!el)return;el.scrollIntoView({block:"center"});el.classList.add("ring-2","ring-accent");const t=setTimeout(()=>el.classList.remove("ring-2","ring-accent"),2500);return()=>clearTimeout(t);},[anchor,loading]); React.useEffect(()=>{void refresh();},[refresh]);
  // where the newest message leaves the view: down to it on opening, on one's own message and when already there;

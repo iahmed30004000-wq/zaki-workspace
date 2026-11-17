@@ -56,6 +56,7 @@ describe("the page's side of the live line", () => {
     assign.mockClear();
     docHandlers.clear();
     doc.hidden = false;
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: true }));
     mod = await import("@/lib/realtime/use-realtime");
     mod.resetRealtimeForTests();
   });
@@ -134,7 +135,7 @@ describe("the page's side of the live line", () => {
     doc.hidden = false;
     docHandlers.get("visibilitychange")?.();
     const second = FakeEventSource.instances[1]!;
-    expect(second.url).toBe("/api/rt?lastEventId=42");
+    expect(second.url).toMatch(/^\/api\/rt\?tab=[^&]+&lastEventId=42$/);
     expect(seen).toEqual(["conversation.changed"]);
   });
 });

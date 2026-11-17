@@ -52,6 +52,27 @@ interface SharedStream {
 // eslint-disable-next-line init-declarations
 let stream: SharedStream | null = null;
 
+/** This tab's own id: the server keeps the visibility each tab reports under it (F0.5). One per page load, kept across reconnects. */
+let tabId = "";
+function tab(): string {
+  if (!tabId) {
+    tabId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `t${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`;
+  }
+  return tabId;
+}
+
+/** Tell the server whether this tab is being looked at: it holds a push back only for a person who has a visible tab. */
+function reportVisibility(): void {
+  if (typeof document === "undefined" || typeof fetch === "undefined") return;
+  void Promise.resolve(
+    fetch("/api/rt/visibility", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ visible: document.visibilityState !== "hidden" && !document.hidden, tab: tab() }),
+    }),
+  ).catch(() => undefined);
+}
+
 const POLL_MS = 15_000;
 const EVICTED_POLL_MS = 60_000;
 const HIDDEN_PAUSE_MS = 60_000;
@@ -170,14 +191,15 @@ function connect(): void {
   if (!stream.online || stream.paused || stream.evicted) return;
   // A reconnect asks for what it missed: the route replays the visible events after this id (or
   // sends `reload`). EventSource cannot set the Last-Event-ID header on a new object, so a query.
-  const since = stream.lastEventId ? `?lastEventId=${encodeURIComponent(stream.lastEventId)}` : "";
-  const es = new EventSource(`/api/rt${since}`);
+  const since = stream.lastEventId ? `&lastEventId=${encodeURIComponent(stream.lastEventId)}` : "";
+  const es = new EventSource(`/api/rt?tab=${encodeURIComponent(tab())}${since}`);
   stream.es = es;
   armWatchdog();
   es.onopen = () => {
     if (stream) stream.failures = 0;
     stopPolling();
     armWatchdog();
+    reportVisibility(); // a tab opened in the background says so from the start
   };
   es.onmessage = (m) => {
     armWatchdog();
@@ -240,6 +262,7 @@ function refetchAfterHidden(): void {
 function onVisibility(): void {
   if (!stream) return;
   if (typeof document === "undefined") return;
+  reportVisibility();
   if (document.hidden) {
     stream.hiddenSince = Date.now();
     // hidden for 60 s: really pause (close the stream, free the server's slot); the return below resumes it
