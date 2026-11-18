@@ -7,6 +7,40 @@ export function conversationDetailUrl(id: string, before?: string, around?: stri
   return `/api/chat/conversations/${encodeURIComponent(id)}?${query.toString()}`;
 }
 
+/**
+ * C1.2: the URLs of the new chat endpoints, in one place (the client cache of C1.4 builds every request here).
+ * `conversationDetailUrl` above is the old screen's and stays as it is.
+ */
+export function chatListUrl(spaceId?: string): string {
+  return spaceId ? `/api/chat/list?spaceId=${encodeURIComponent(spaceId)}` : "/api/chat/list";
+}
+
+export function spaceTopicsUrl(spaceId: string): string {
+  return `/api/chat/spaces/${encodeURIComponent(spaceId)}/topics`;
+}
+
+export function conversationHeaderUrl(id: string): string {
+  return `/api/chat/conversations/${encodeURIComponent(id)}/header`;
+}
+
+/** One window of messages: the newest, or ONE of `before` / `after` / `around` (a message id). */
+export function conversationMessagesUrl(id: string, opts: { before?: string; after?: string; around?: string; limit?: number } = {}): string {
+  const query = new URLSearchParams({ limit: String(opts.limit ?? 50) });
+  if (opts.before) query.set("before", opts.before);
+  else if (opts.after) query.set("after", opts.after);
+  else if (opts.around) query.set("around", opts.around);
+  return `/api/chat/conversations/${encodeURIComponent(id)}/messages?${query.toString()}`;
+}
+
+/** The delta feed: `after` is the `cursor` of the last answer (none: «where is now?»). */
+export function chatSyncUrl(after?: string, limit?: number): string {
+  const query = new URLSearchParams();
+  if (after) query.set("after", after);
+  if (limit) query.set("limit", String(limit));
+  const q = query.toString();
+  return q ? `/api/chat/sync?${q}` : "/api/chat/sync";
+}
+
 export function createChatUploadFormData(file: File, kind: FileKind): FormData {
   const form = new FormData();
   form.append("file", file);

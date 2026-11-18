@@ -3,11 +3,13 @@ import { memberCan } from "@/server/policy/actor";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
-import { canModerate, canPost, canRead, hasOversight, loadConversationFacts, loadOrgFacts, type ConversationFacts } from "@/server/policy/conversation";
+import { canModerate, canPost, canRead, hasOversight, loadConversationFacts, loadOrgFacts, type ConversationFacts, type OrgFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
 import { isSpaceAdmin } from "@/server/policy/conversation";
 import { writeSystemMessage } from "@/server/chat/system";
-import type { ConversationDto, MemberDto, MessageDto, ReaderDto } from "@/server/chat/dto";
+import type { AudienceDto, ConversationDto, ConversationHeaderDto, MemberDto, MessageDto, MessagesPageDto, ReaderDto } from "@/server/chat/dto";
+import { chatScope, silentOwnerIds, type ChatScope } from "@/server/chat/list";
+import type { FeatureKey } from "@/lib/features";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { oversightReaderExists } from "@/server/chat/archive-access";
@@ -64,19 +66,19 @@ export async function assertPeopleOfSpace(orgId: string, spaceId: string, ids: s
 
 /** The «مقطع» must be one of the space's own (a miss reads as «not found», like everything of another space). */
 /** What the «/» menu offers a person here (Q1.3, Q1.4): the kinds whose switches are on, only to staff who may post; chips of order numbers need no posting. */
-async function recallOffer(orgId: string, staff: boolean, mayPost: boolean): Promise<{ canRecall: boolean; recallKinds: Array<"product" | "reply" | "order">; canOrderState: boolean }> {
+async function recallOffer(orgId: string, staff: boolean, mayPost: boolean, feature: (key: FeatureKey) => Promise<boolean> = (key) => isFeatureOn(orgId, key)): Promise<{ canRecall: boolean; recallKinds: Array<"product" | "reply" | "order">; canOrderState: boolean }> {
   // the same rule as the door (`assertOrderStatusOn`): both switches AND the orders system linked and connected
-  const orderOn = staff && (await isFeatureOn(orgId, "orderStatus")) && (await isFeatureOn(orgId, "omsLink")) && Boolean((await db.integration.findUnique({ where: { orgId_type: { orgId, type: "OMS" } }, select: { connected: true } }))?.connected);
-  const recallOn = staff && mayPost && (await isFeatureOn(orgId, "quickRecall"));
-  const knowledge = recallOn && (await isFeatureOn(orgId, "knowledgeCards"));
+  const orderOn = staff && (await feature("orderStatus")) && (await feature("omsLink")) && Boolean((await db.integration.findUnique({ where: { orgId_type: { orgId, type: "OMS" } }, select: { connected: true } }))?.connected);
+  const recallOn = staff && mayPost && (await feature("quickRecall"));
+  const knowledge = recallOn && (await feature("knowledgeCards"));
   const recallKinds: Array<"product" | "reply" | "order"> = [...(knowledge ? (["product", "reply"] as const) : []), ...(recallOn && orderOn ? (["order"] as const) : [])];
   return { canRecall: recallKinds.length > 0, recallKinds, canOrderState: orderOn };
 }
 
 /** «🎫 مشكلة» (Q1.5): the kinds of problem for staff while `autoTickets` is on, and the rules of an OPEN topic so the screen can offer «بدك تعمليها تذكرة؟» (a private conversation has none: only by hand). */
-async function problemOffer(orgId: string, staff: boolean, facts: { kind: string; restricted?: boolean | null; teamId?: string | null; spaceId?: string | null }): Promise<{ problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>; problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }> }> {
-  if (!staff || !(await isFeatureOn(orgId, "autoTickets"))) return {};
-  const org = await db.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
+async function problemOffer(orgId: string, staff: boolean, facts: { kind: string; restricted?: boolean | null; teamId?: string | null; spaceId?: string | null }, feature: (key: FeatureKey) => Promise<boolean> = (key) => isFeatureOn(orgId, key), settingsOf?: () => Promise<unknown>): Promise<{ problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>; problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }> }> {
+  if (!staff || !(await feature("autoTickets"))) return {};
+  const org = { settings: settingsOf ? await settingsOf() : (await db.organization.findUnique({ where: { id: orgId }, select: { settings: true } }))?.settings };
   const openTopic = facts.kind === "TOPIC" && !facts.restricted && !facts.teamId && Boolean(facts.spaceId);
   const rules = openTopic ? autoRulesOf(org?.settings).filter((r) => r.spaceId === facts.spaceId) : [];
   return {
@@ -575,4 +577,280 @@ async function mentionablesOf(
     .filter((m) => !seen.has(m.user.id))
     .map((m) => ({ id: m.user.id, name: m.user.name, online: online.has(m.user.id), role: m.role, avatarUrl: m.user.avatarUrl }));
   return [...rows, ...extra];
+}
+
+
+/**
+ * ---------- C1.2: the header and the pages, split from `conversationDetail` ----------
+ * `conversationDetail` (the old screen, the Android app) is left exactly as it was. These two answer the new screens: the header
+ * (everything about the conversation, no messages, no member list) and one window of messages (cursor `(createdAt, id)`). Both read
+ * the company's settings ONCE for the request (`chatScope`) and run what does not depend on each other together.
+ */
+
+/** The conversation exists in this company and the person reads it. A guest has topics only. Always «not found» for anything unreadable. */
+async function openConversation(ctx: OrgAccessContext, conversationId: string, scope: ChatScope): Promise<{ facts: ConversationFacts; org: OrgFacts }> {
+  const [facts, org] = await Promise.all([loadConversationFacts(ctx.userId, conversationId), scope.org()]);
+  if (!facts || !org || facts.orgId !== ctx.orgId || !canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
+  if (org.role === "GUEST" && facts.kind !== "TOPIC") throw new ForbiddenError("chat.guest_forbidden");
+  return { facts, org };
+}
+
+export async function conversationHeader(ctx: OrgAccessContext, conversationId: string): Promise<ConversationHeaderDto> {
+  const scope = chatScope(ctx);
+  const { facts, org } = await openConversation(ctx, conversationId, scope);
+  const staff = org.role !== "GUEST";
+  const silent = hasOversight(org); // reading with no row of his own: the capability archive.view, never the rank
+  const joined = facts.viewerIsMember;
+  const mayPost = canPost(facts, org, { ownerJoined: joined });
+  const canModerateHere = canModerate(facts, org);
+  const feature = (key: FeatureKey) => scope.feature(key);
+
+  const [conv, pinned, audienceCount, caps] = await Promise.all([
+    db.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        space: { select: { id: true, name: true } },
+        // a suspended or offboarded person is nobody: their leftover row is not counted among the people (the policy's own rule)
+        members: { where: { user: { memberships: { some: { organizationId: ctx.orgId, status: "ACTIVE" } } } }, select: { userId: true, user: { select: { id: true, name: true, avatarUrl: true } } }, orderBy: { joinedAt: "asc" } },
+      },
+    }),
+    db.chatMessage.findMany({
+      where: { conversationId, pinned: true, deletedAt: null, kind: { not: "SYSTEM" } },
+      orderBy: { createdAt: "desc" },
+      take: 20,
+      select: { id: true, body: true, deletedAt: true, author: { select: { name: true } } },
+    }),
+    // an open topic reaches its whole space, a «مقطع»'s topic its team; a restricted topic, a group and a private chat count their own rows below
+    facts.kind === "TOPIC" && !facts.restricted && facts.spaceId
+      ? facts.teamId
+        ? db.teamMember.count({ where: { teamId: facts.teamId, user: { memberships: { some: { organizationId: ctx.orgId, status: "ACTIVE" } } } } })
+        : db.workspaceMember.count({ where: { workspaceId: facts.spaceId, user: { memberships: { some: { organizationId: ctx.orgId, status: "ACTIVE" } } } } })
+      : Promise.resolve(null),
+    Promise.all([scope.can("calls.edit", { spaceGuestsPass: true }), scope.can("tasks.edit"), scope.can("tickets.edit"), scope.can("announce.send")]),
+  ]);
+  if (!conv) throw new NotFoundError("chat.e.not_found");
+  const [canCall, canMakeTask, canMakeTicket, canAnnounce] = caps;
+  const peerRow = facts.kind === "DM" ? (conv.members.find((m) => m.userId !== ctx.userId) ?? null) : null;
+
+  // «آخر ظهور» of the OTHER person of a private chat (a DM only, and only for one of its two people); same rule as the old detail
+  let peerSeen: { peerLastSeenAt?: string | null; timeZone?: string } = {};
+  if (facts.kind === "DM" && facts.viewerIsMember && peerRow && (await feature("lastSeen"))) {
+    const reader = await lastSeenReader(ctx.orgId, ctx.userId);
+    if (reader.enabled) {
+      const row = await db.organizationMember.findUnique({
+        // all-statuses: the reader answers null for anybody who is not ACTIVE
+        where: { organizationId_userId: { organizationId: ctx.orgId, userId: peerRow.userId } },
+        select: { userId: true, role: true, status: true, lastSeenAt: true, hideLastSeen: true },
+      });
+      if (row) peerSeen = { peerLastSeenAt: reader.read(row) ?? null, timeZone: reader.timeZone };
+    }
+  }
+
+  // the switches: ONE read of the settings. A service that decides "is it offered" by itself (a ready model, a service address) is asked only
+  // while its own switches are on, so a company that never turned them on pays no read for them.
+  const [chatBubbles, chatOutbox, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn] = await Promise.all([
+    feature("chatBubbles"),
+    feature("chatOutbox"),
+    feature("calls"),
+    feature("whiteboard"),
+    feature("voiceNotes"),
+    feature("reminders"),
+    feature("voiceTranscript"),
+    feature("imageOcr"),
+    Promise.all([feature("messageTranslate"), feature("ownerAssistant"), feature("chatAssistant")]).then((f) => f.every(Boolean)),
+    Promise.all([feature("morningDigest"), feature("ownerAssistant"), feature("chatAssistant")]).then((f) => f.every(Boolean)),
+    feature("siteGuide"),
+    feature("orderTemplateHint"),
+    feature("mustRead"),
+  ]);
+  const hidden = silent && !joined;
+  const [recall, problem, canTranslate, hasGuest] = await Promise.all([
+    recallOffer(ctx.orgId, staff, mayPost, feature),
+    problemOffer(ctx.orgId, staff, facts, feature, () => scope.settings()),
+    translateOn ? translateOffered({ orgId: ctx.orgId, role: org.role, facts, conversationId }) : Promise.resolve(false),
+    imageOcrOn && staff ? conversationHasGuest(facts, conversationId, ctx.orgId) : Promise.resolve(true),
+  ]);
+  const voiceTranscript = voiceTranscriptOn && (await transcriptAvailable(ctx.orgId));
+  const imageOcr = imageOcrOn && staff && !hasGuest && (await ocrAvailable(ctx.orgId));
+  const digest = digestOn && staff && facts.kind === "TOPIC" && conv.dmKey === null && (await digestOffered(ctx.orgId));
+
+  const memberCount = facts.kind === "DM" ? 2 : (audienceCount ?? conv.members.length);
+  const audience: AudienceDto =
+    facts.kind === "DM"
+      ? { type: "PAIR", count: 2 }
+      : facts.kind === "GROUP"
+        ? { type: "GROUP", count: conv.members.length }
+        : facts.restricted
+          ? { type: "PEOPLE", count: conv.members.length }
+          : facts.teamId
+            ? { type: "TEAM", count: memberCount }
+            : { type: "SPACE", count: memberCount };
+
+  return {
+    id: conv.id,
+    kind: facts.kind,
+    title: facts.kind === "DM" ? (peerRow?.user.name ?? conv.title ?? "") : (conv.title ?? ""),
+    emoji: conv.emoji,
+    topicType: conv.topicType as ConversationDto["topicType"],
+    postingPolicy: conv.postingPolicy as ConversationDto["postingPolicy"],
+    restricted: conv.restricted,
+    teamId: conv.teamId,
+    // P0.4: a private conversation tells its people whether somebody outside it may read it silently
+    ...(facts.kind !== "TOPIC" || conv.restricted || conv.teamId ? { oversightNotice: await oversightReaderExists(ctx.orgId, conv.members.map((m) => m.userId)) } : {}),
+    closed: !!conv.closedAt,
+    pinned: !!conv.pinnedAt,
+    archived: !!conv.archivedAt,
+    space: conv.space ? { id: conv.space.id, name: conv.space.name, hasExternal: false } : null,
+    audience,
+    memberCount,
+    ...(peerRow ? { peer: { id: peerRow.userId, name: peerRow.user.name, avatarUrl: org.role === "GUEST" ? null : peerRow.user.avatarUrl } } : {}),
+    ...peerSeen,
+    me: {
+      canPost: mayPost,
+      canModerate: canModerateHere,
+      muted: !!(facts.mutedUntil && facts.mutedUntil > new Date()),
+      oversight: silent && !joined,
+      // a topic only (a DM is never his to enter), and not a closed one (it takes no messages)
+      canJoin: silent && !joined && facts.kind === "TOPIC" && !conv.closedAt,
+      canMakeWork: staff && !hidden,
+      canCall: canCall === true,
+      canMakeTask: canMakeTask === true,
+      canMakeTicket: canMakeTicket === true,
+      // «ذكّرني» on a message: the company's switch, and never in silent oversight (a reminder is his own trace; he joins first)
+      canRemind: !hidden && reminders,
+      canTranslate,
+      canMentionAll: facts.kind === "TOPIC" && staff && mayPost,
+      canPoll: facts.kind === "TOPIC" && staff && mayPost,
+      ...recall,
+      ...problem,
+      orderHints: staff && hintOn,
+      // the same rule as `canMark` (must-read-policy.ts), from the one read of the person's box
+      canMustRead: staff && mustReadOn && facts.kind === "TOPIC" && (canModerateHere || canAnnounce),
+      id: ctx.userId,
+    },
+    pinnedMessages: pinned.map((m) => ({ id: m.id, authorName: m.author.name, preview: previewOf(m.body, m.deletedAt) })),
+    chatBubbles,
+    chatOutbox,
+    calls,
+    whiteboard,
+    voiceNotes,
+    voiceTranscript,
+    imageOcr,
+    assistantCall: org.role === "OWNER" /* oversight-ok: the owner's own assistant, not reading */ && isAssistantChatOf(conv.dmKey, ctx.userId) && siteGuide && (await feature("ownerAssistant")),
+    digest,
+  };
+}
+
+const PAGE_MAX = 50;
+
+/** At most one of `before`, `after`, `around` (a message id); `limit` up to 50. */
+export const messagesQuerySchema = z
+  .object({
+    before: z.string().min(1).max(64).optional(),
+    after: z.string().min(1).max(64).optional(),
+    around: z.string().min(1).max(64).optional(),
+    limit: z.coerce.number().int().min(1).max(PAGE_MAX).optional(),
+  })
+  .refine((q) => [q.before, q.after, q.around].filter((v) => v !== undefined).length <= 1, { message: "chat.e.page_one_cursor", path: ["before"] });
+
+type PageRow = Awaited<ReturnType<typeof pageRows>>[number];
+async function pageRows(where: Prisma.ChatMessageWhereInput, order: "asc" | "desc", take: number) {
+  return db.chatMessage.findMany({ where, orderBy: [{ createdAt: order }, { id: order }], take, include: messageInclude() });
+}
+
+/**
+ * One window of a conversation for one person, oldest first. Without a cursor: the newest `limit`. `before=<id>`: the ones older than it.
+ * `after=<id>`: the ones newer than it. `around=<id>`: it, half a window of older ones and half of newer ones. The cursor is the message's
+ * `(createdAt, id)`: two messages written in the same instant are ordered by id, so a window boundary can fall between them and neither is
+ * skipped nor shown twice (F0.8). Every message leaves through `presentMessage`.
+ */
+export async function conversationMessages(
+  ctx: OrgAccessContext,
+  conversationId: string,
+  opts: { before?: string; after?: string; around?: string; limit?: number } = {},
+): Promise<MessagesPageDto> {
+  const scope = chatScope(ctx);
+  const { facts, org } = await openConversation(ctx, conversationId, scope);
+  const limit = Math.min(Math.max(opts.limit ?? PAGE_MAX, 1), PAGE_MAX);
+  const anchorId = opts.before ?? opts.after ?? opts.around;
+
+  const [anchor, people] = await Promise.all([
+    anchorId ? db.chatMessage.findFirst({ where: { id: anchorId, conversationId }, select: { id: true, createdAt: true } }) : Promise.resolve(null),
+    // a suspended or offboarded person is nobody: not a reader, not a tick (the policy's own rule)
+    db.conversationMember.findMany({
+      where: { conversationId, user: { memberships: { some: { organizationId: ctx.orgId, status: "ACTIVE" } } } },
+      select: { userId: true, lastReadAt: true, lastDeliveredAt: true, user: { select: { name: true, avatarUrl: true } } },
+    }),
+  ]);
+  if (anchorId && !anchor) throw new NotFoundError("chat.e.not_found");
+
+  const olderThan = (a: { id: string; createdAt: Date }, inclusive: boolean): Prisma.ChatMessageWhereInput => ({
+    conversationId,
+    OR: [{ createdAt: { lt: a.createdAt } }, { createdAt: a.createdAt, id: inclusive ? { lte: a.id } : { lt: a.id } }],
+  });
+  const newerThan = (a: { id: string; createdAt: Date }): Prisma.ChatMessageWhereInput => ({
+    conversationId,
+    OR: [{ createdAt: { gt: a.createdAt } }, { createdAt: a.createdAt, id: { gt: a.id } }],
+  });
+
+  let rows: PageRow[]; // newest first
+  let hasOlder = false;
+  let hasNewer = false;
+  if (opts.after && anchor) {
+    const newer = await pageRows(newerThan(anchor), "asc", limit + 1);
+    hasNewer = newer.length > limit;
+    hasOlder = true;
+    rows = newer.slice(0, limit).reverse();
+  } else if (opts.around && anchor) {
+    const half = Math.floor(limit / 2);
+    const olderLimit = limit - half;
+    const [newer, older] = await Promise.all([pageRows(newerThan(anchor), "asc", half + 1), pageRows(olderThan(anchor, true), "desc", olderLimit + 1)]);
+    hasNewer = newer.length > half;
+    hasOlder = older.length > olderLimit;
+    rows = [...newer.slice(0, half).reverse(), ...older.slice(0, olderLimit)];
+  } else {
+    const older = await pageRows(anchor ? olderThan(anchor, false) : { conversationId }, "desc", limit + 1);
+    hasOlder = older.length > limit;
+    hasNewer = !!anchor;
+    rows = older.slice(0, limit);
+  }
+
+  const me = people.find((m) => m.userId === ctx.userId) ?? null;
+  const [silentOwners, firstUnread] = await Promise.all([
+    silentOwnerIds(ctx.orgId, people.map((m) => m.userId)),
+    // a person with no read mark here has nothing «unread» to land on
+    me
+      ? db.chatMessage.findFirst({
+          where: { conversationId, createdAt: { gt: me.lastReadAt }, authorId: { not: ctx.userId }, deletedAt: null, kind: { not: "SYSTEM" } },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  const silent = hasOversight(org);
+  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember };
+  // DM ticks: the OTHER person's marks decide my own messages' status; the owner's silent reading never shows as «قرأ»
+  let other: { lastDeliveredAt: Date | null; lastReadAt: Date | null } | null = null;
+  if (facts.kind === "DM") {
+    const o = people.find((m) => m.userId !== ctx.userId) ?? null;
+    other = o && silentOwners.has(o.userId) ? { lastDeliveredAt: o.lastDeliveredAt, lastReadAt: null } : o;
+  }
+  const messages: MessageDto[] = rows.map((row) => presentMessage(row as never, viewer, facts.kind === "DM" && row.authorId === ctx.userId ? dmStatusFor(other, row.createdAt) : undefined));
+  // «لازم ينقرأ»: the count and the viewer's own state, for the messages of this window that must be read
+  await decorateMustRead(ctx, facts, org, conversationId, rows as never, messages);
+
+  return {
+    messages: messages.reverse(), // oldest first in the payload
+    hasOlder,
+    hasNewer,
+    firstUnreadId: firstUnread?.id ?? null,
+    readers:
+      facts.kind === "DM"
+        ? []
+        : readersOf(
+            rows,
+            people.filter((m) => m.userId !== ctx.userId && !silentOwners.has(m.userId)).map((m) => ({ userId: m.userId, name: m.user.name, avatarUrl: m.user.avatarUrl, lastReadAt: m.lastReadAt })),
+          ),
+  };
 }
