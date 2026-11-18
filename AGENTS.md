@@ -345,13 +345,19 @@ other way is a bug.
   "Zaki Digits" draws them (`src/lib/digits.ts`, `<html data-digits>`) — never convert a number.
 - **Colours come from the theme tokens**, never from Tailwind's default palette or a hex value:
   `text-danger`, `bg-ok/10`, `border-warn/40`, `text-info`, `bg-cat-3/10` (and `bg-surface-1`,
-  `text-fg-muted`, `border-border`, `bg-accent` ...). Four themes (`night` default,
-  `day`, `islamic-epic`, `neon-coast`; the retired `islamic-calm` is read as `night` by `themeOf`) define the tokens in `src/lib/themes/palettes.ts`;
+  `text-fg-muted`, `border-border`, `bg-accent` ...). Six themes (`night` default,
+  `day`, `islamic-epic`, `neon-coast`, and the flat `sky` and `blue-night` of D1; the retired `islamic-calm` is read as `night` by `themeOf`) define the tokens in `src/lib/themes/palettes.ts`;
   `src/app/themes.css` and `src/components/theme/decor.css` are generated
   (`node scripts/build-themes-css.mjs`, `node scripts/build-decor-css.mjs`) and a test fails when
   they drift. Decoration (ornament, photographs) appears only on the login door, empty states, the
   sidebar header and the Today strip — never behind a number, an amount or a table. The Today strip
   is the mission card: its two buttons sit INSIDE the `zk-scrim` panel, never on the picture.
+- **The five principles of the interface (D1, `docs/restructure/D1-design-system.md`):** (1) lists, not cards — working screens (chat, tasks, people, files) are full-width
+  lists with thin dividers; cards only for dashboards and empty states; (2) one accent per theme, used for the primary button, links, selection, unread badges and own
+  bubbles — everything else is neutral surfaces and greys, status colours only for status; (3) flat: no gradients or blur behind content, one soft shadow level for
+  floating things; (4) decoration only where it was allowed (login door, empty states, sidebar header, Today strip), and the flat themes use the plain identity there;
+  (5) motion is short and purposeful (120–200 ms), always off under `prefers-reduced-motion`. The button set is `src/components/ui/button.tsx` (`primary`,
+  `tonal`, `secondary`, `ghost`, `danger`, `link`, `fab`); a screen does not invent its own button style.
 - **The look is «نجمة وطريق»** (the owner's adopted mock-up, 2026-10-24): the gold of `accent-2` is
   the star (a shape colour, 3:1 — its label is `text-scrim`, held to 4.5:1 by the gate), the
   wordmark «زاكي» is Lalezar (`font-brand`), the shell's shapes are the `.zk-*` rules at the end

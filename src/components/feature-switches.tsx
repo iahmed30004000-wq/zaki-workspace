@@ -8,6 +8,7 @@ import { useOptionalToast } from "@/components/ui/toast";
 import { ECONOMY_FORCED_OFF, ECONOMY_POLL_FACTOR, type FeatureKey } from "@/lib/features";
 import { showModelWarning } from "@/lib/chat/customer-data-hint";
 import { cn } from "@/lib/utils";
+import { Switch } from "@/components/ui/switch";
 
 /**
  * «الميزات»: the owner switches each feature on or off. Off, the feature is gone from every screen and its doors
@@ -41,22 +42,7 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
   const held = new Set<FeatureKey>(economy ? ECONOMY_FORCED_OFF.filter((key) => items.find((f) => f.key === key)?.on) : []);
 
   function toggle(item: { key: FeatureKey; on: boolean }) {
-    return (
-      <button
-        type="button"
-        role="switch"
-        aria-checked={item.on}
-        aria-label={t(`features.${item.key}.name`)}
-        disabled={busy === item.key}
-        onClick={() => flip(item.key, !item.on)}
-        className={cn(
-          "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors disabled:opacity-60",
-          item.on ? "border-accent bg-accent" : "border-border bg-surface-2",
-        )}
-      >
-        <span className={cn("inline-block size-5 rounded-full bg-surface shadow transition-transform", item.on ? "-translate-x-6" : "-translate-x-1")} />
-      </button>
-    );
+    return <Switch checked={item.on} onChange={(on) => flip(item.key, on)} label={t(`features.${item.key}.name`)} disabled={busy === item.key} />;
   }
 
   return (

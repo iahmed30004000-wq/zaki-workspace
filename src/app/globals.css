@@ -15,6 +15,43 @@ body {
   height: 100%;
 }
 
+/*
+ * Typography of the working screens (D1 §3): 15 px body in chat and lists, 13 px secondary, 12 px meta (time, ticks), 17 px titles in app bars, 20/24 px
+ * page titles; line height 1.45 for Arabic text; numbers tabular in times and counters. `--chat-font-scale` is the person's text-size setting (C4): it scales
+ * the chat and list sizes only.
+ */
+:root {
+  --chat-font-scale: 1;
+}
+.text-chat {
+  font-size: calc(15px * var(--chat-font-scale));
+  line-height: 1.45;
+}
+.text-chat-secondary {
+  font-size: calc(13px * var(--chat-font-scale));
+  line-height: 1.45;
+}
+.text-chat-meta {
+  font-size: calc(12px * var(--chat-font-scale));
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.text-bar-title {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+.text-page-title {
+  font-size: 20px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+@media (min-width: 768px) {
+  .text-page-title {
+    font-size: 24px;
+  }
+}
+
 html {
   /* the phone's browser never re-sizes the text of a page by itself (that read as the page growing and shrinking), and a double tap is a tap, not a zoom */
   -webkit-text-size-adjust: 100%;

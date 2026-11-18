@@ -125,6 +125,28 @@ const FALLBACK: Record<ThemeKey, Record<keyof Tokens, string>> = {
     "accent-fg": "#FFFFFF",
     "accent-2": "#A8761F",
   },
+  sky: {
+    surface: "#E9EFF5",
+    "surface-1": "#FFFFFF",
+    "surface-2": "#EEF2F7",
+    fg: "#0F1B2A",
+    "fg-muted": "#44546A",
+    muted: "#566676",
+    accent: "#1D5BB0",
+    "accent-fg": "#FFFFFF",
+    "accent-2": "#A8761F",
+  },
+  "blue-night": {
+    surface: "#0E1621",
+    "surface-1": "#17212B",
+    "surface-2": "#202D3B",
+    fg: "#E8EEF4",
+    "fg-muted": "#A9BBCC",
+    muted: "#8EA3B8",
+    accent: "#5AA9F0",
+    "accent-fg": "#04182B",
+    "accent-2": "#E3B04B",
+  },
 };
 
 const TOKEN_NAMES = Object.keys(FALLBACK[DEFAULT_THEME]) as Array<keyof Tokens>;
