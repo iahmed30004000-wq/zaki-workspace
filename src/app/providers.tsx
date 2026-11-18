@@ -5,6 +5,7 @@ import { I18nProvider } from "@/lib/i18n";
 import { ToastProvider } from "@/components/ui/toast";
 import { ThemeProvider } from "@/components/theme/theme-provider";
 import { DigitsProvider } from "@/components/theme/digits-provider";
+import { ChatCacheDriver } from "@/lib/chat/cache/driver";
 import type { DecorLevel, ThemeKey } from "@/lib/themes/registry";
 import { useState } from "react";
 
@@ -25,6 +26,8 @@ export function Providers({ children, theme, decor, digits }: { children: React.
       <DigitsProvider initialDigits={digits}>
       <I18nProvider initial="ar">
         <QueryClientProvider client={queryClient}>
+          {/* C1.4/C1.5: wakes the chat cache only on a device that already keeps one (sign-out wipe, a different person, the instant start) */}
+          <ChatCacheDriver />
           <ToastProvider>{children}</ToastProvider>
         </QueryClientProvider>
       </I18nProvider>

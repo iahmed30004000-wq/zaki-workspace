@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input, Label } from "@/components/ui/input";
 import { apiPost, ApiError } from "@/lib/api-client";
+import { wipeChatCache } from "@/lib/chat/cache/wipe";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 
@@ -144,6 +145,8 @@ export function OnboardingForm({
     try {
       await apiPost("/api/auth/logout");
     } finally {
+      // nothing of this person stays on the device for the next one to sign in (C1.5; never throws)
+      await wipeChatCache();
       window.location.replace("/login");
     }
   }

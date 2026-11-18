@@ -178,8 +178,8 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 
 ### C1 — chat engine
 - [x] C1.1 `lastMessageAt` + indexes · [x] C1.2 list / topics / header / messages / sync endpoints
-- [x] C1.3 Live line: parallel fan-out, one line per browser, badges from frames (the bell keeps its poll, see `pr/C1.3.md`) · [ ] C1.4 Cache module (one writer)
-- [ ] C1.5 IndexedDB start cache (wiped at sign-out) · [ ] C1.6 History, unread landing, jump
+- [x] C1.3 Live line: parallel fan-out, one line per browser, badges from frames (the bell keeps its poll, see `pr/C1.3.md`) · [x] C1.4 Cache module (one writer, see `pr/C1.4.md`)
+- [x] C1.5 IndexedDB start cache (wiped at sign-out, see `pr/C1.4.md`) · [ ] C1.6 History, unread landing, jump
 - [ ] C1.7 Virtualized viewport · [ ] C1.8 Optimistic send, receipts as deltas, cheap typing · [x] C1.9 Per-request efficiency (or in F1)
 
 ### F1 — platform speed
