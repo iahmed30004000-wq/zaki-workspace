@@ -1984,6 +1984,9 @@ model CardAttachment {
   caption   String?
   addedById String
   createdAt DateTime @default(now())
+  // Q1.2: GALLERY (the product's photos) or FEEDBACK («آراء الزباين»); `meta` of a FEEDBACK item: { kind, consent, covered, approvedById?, approvedAt?, source? }
+  role      String   @default("GALLERY")
+  meta      Json?
 
   card    Card       @relation(fields: [cardId], references: [id], onDelete: Cascade)
   file    StoredFile @relation("CardAttachmentFile", fields: [fileId], references: [id], onDelete: Cascade)

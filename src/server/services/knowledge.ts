@@ -66,6 +66,12 @@ async function context(actor: Actor): Promise<Ctx> {
   return { actor, scope, settings, spaceId: settings.spaceId, editor, approver: approver && scope.canWrite };
 }
 
+/** The person's place in the knowledge space (Q1.2: the media door asks who edits and who approves). Staff only, like every door of the sheets. */
+export async function knowledgeAccess(actor: Actor): Promise<{ editor: boolean; approver: boolean; spaceId: string }> {
+  const c = await context(actor);
+  return { editor: c.editor, approver: c.approver, spaceId: c.spaceId };
+}
+
 function assertEditor(ctx: Ctx): void {
   if (!ctx.editor) throw new ForbiddenError("knowledge.readonly");
 }

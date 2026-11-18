@@ -1,0 +1,3 @@
+# The scripts are run by node and read by the tests: a CRLF after the shebang line breaks them, so they are always LF.
+scripts/*.mjs text eol=lf
+scripts/*.mts text eol=lf
