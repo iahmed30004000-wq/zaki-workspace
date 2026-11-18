@@ -92,25 +92,25 @@ ticket chip of a message, and `ackRequired` with who has read; `ticket.changed` 
 
 ## C1.4 The client cache (TanStack Query — already the app's data library)
 
-- [ ] Keys: `["chat","list"]`, `["chat","space",spaceId]`, `["chat","conv",id,"header"]`,
+- [x] Keys: `["chat","list"]`, `["chat","space",spaceId]`, `["chat","conv",id,"header"]`,
       `["chat","conv",id,"messages"]` (an infinite query: pages are windows of 50; `getPreviousPageParam` = older
       cursor, `getNextPageParam` = newer cursor when opened around a message).
-- [ ] ONE module owns every write to these keys: `src/lib/chat/cache/` (`applySync(sync)`, `appendMessage`,
+- [x] ONE module owns every write to these keys: `src/lib/chat/cache/` (`applySync(sync)`, `appendMessage`,
       `replaceMessage`, `tombstone`, `applyReads`, `upsertRows`, `removeConversation`). Components never call
       `setQueryData` on chat keys (guard test `tests/chat-cache-writer.test.ts`, source text).
-- [ ] Frames → `scheduleSync()` (coalesces frames for 120 ms, one `GET /api/chat/sync?after=cursor` at a time, chains
+- [x] Frames → `scheduleSync()` (coalesces frames for 120 ms, one `GET /api/chat/sync?after=cursor` at a time, chains
       while `messages.length === limit`). Reconnect, focus after > 60 s hidden, and coming online also call it.
-- [ ] Unread counts per row, per folder and per space are derived from the cache; the server's numbers win whenever a
+- [x] Unread counts per row, per folder and per space are derived from the cache; the server's numbers win whenever a
       list refresh arrives.
-- [ ] Prefetch: hovering a row for 150 ms (computer) prefetches header + first page; at startup the first page of the 3
+- [x] Prefetch: hovering a row for 150 ms (computer) prefetches header + first page; at startup the first page of the 3
       most recent unread chats.
 
 ## C1.5 Persistence for an instant start
 
-- [ ] IndexedDB database `zaki-chat-<userId>` (pattern: `src/lib/chat/outbox/storage.ts`): the list, the header + last
+- [x] IndexedDB database `zaki-chat-<userId>` (pattern: `src/lib/chat/outbox/storage.ts`): the list, the header + last
       50 messages of the 30 most recent conversations, the sync cursor. Hydrate on start (the list shows at once), then
       sync. Cap 20 MB, least-recently-opened evicted.
-- [ ] ⚠️ Message text is kept on the device. 🔧 Wiped on sign-out (`/api/auth/logout` client path), on a different user
+- [x] ⚠️ Message text is kept on the device. 🔧 Wiped on sign-out (`/api/auth/logout` client path), on a different user
       signing in, and by «امسح ذاكرة المحادثات» in C4; never kept for a guest (external partner) account.
 
 ## C1.6 History, unread landing, jump
