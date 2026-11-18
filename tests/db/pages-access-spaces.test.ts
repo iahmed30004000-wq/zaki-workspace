@@ -238,7 +238,7 @@ describe("a person who has not finished onboarding is refused everywhere, and no
     await makePending(team.member.id);
     await loginAs(team.member.id);
     await expect(IdeasPage()).rejects.toThrow(/NEXT_REDIRECT.*\/onboarding|auth\.onboarding_required/);
-    await expect(HomePage()).rejects.toThrow(/NEXT_REDIRECT.*\/onboarding|auth\.onboarding_required/);
+    await expect(HomePage({})).rejects.toThrow(/NEXT_REDIRECT.*\/onboarding|auth\.onboarding_required/);
   });
 });
 

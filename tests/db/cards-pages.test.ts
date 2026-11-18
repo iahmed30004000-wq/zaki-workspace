@@ -39,11 +39,11 @@ describe("a space of cards opens on its cards", () => {
     const w = await world();
     await loginAs(w.member.id);
     enter(w.cardsSpace.id);
-    await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/cards");
+    await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/cards");
     await expect(ChatPage()).rejects.toThrow("NEXT_REDIRECT:/cards");
     enter(w.general.id);
     // the general space still renders «اليوم» and the chat (nothing is removed from anyone)
-    await expect(HomePage()).resolves.toBeTruthy();
+    await expect(HomePage({})).resolves.toBeTruthy();
     await expect(ChatPage()).resolves.toBeTruthy();
   });
 
@@ -52,7 +52,7 @@ describe("a space of cards opens on its cards", () => {
     await db.workspace.update({ where: { id: w.cardsSpace.id }, data: { layout: "MANUFACTURING" } });
     await loginAs(w.member.id);
     enter(w.cardsSpace.id);
-    await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/cards");
+    await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/cards");
     await expect(ChatPage()).rejects.toThrow("NEXT_REDIRECT:/cards");
     const page = (await CardsPage()) as PageElement;
     expect(page.props).toMatchObject({ layout: "MANUFACTURING", canWrite: true });
@@ -63,7 +63,7 @@ describe("a space of cards opens on its cards", () => {
     for (const who of [w.owner, w.guest]) {
       await loginAs(who.id);
       enter(w.cardsSpace.id);
-      await expect(HomePage(), who.email).rejects.toThrow("NEXT_REDIRECT:/cards");
+      await expect(HomePage({}), who.email).rejects.toThrow("NEXT_REDIRECT:/cards");
     }
   });
 });

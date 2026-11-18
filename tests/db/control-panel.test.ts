@@ -144,12 +144,12 @@ describe("who may open the control panel", () => {
   it("with «لوحة التحكم» off, or «لوحة المالك» under it, even the owner gets «not found» and the pages are as they were", async () => {
     const w = await world();
     await loginAs(w.owner.id);
-    expect(await html(await HomePage())).toContain('data-testid="control-panel"');
+    expect(await html(await HomePage({}))).toContain('data-testid="control-panel"');
 
     await setFeature(w.org.id, "controlPanel", false);
     await expect(controlPanelAccess(await requireActor())).rejects.toMatchObject({ name: "NotFoundError" });
     expect((await call(aiRoute.GET)).status).toBe(404);
-    expect(await html(await HomePage())).not.toContain('data-testid="control-panel"');
+    expect(await html(await HomePage({}))).not.toContain('data-testid="control-panel"');
     const old = await html(await OwnerPage({ searchParams: {} }));
     expect(old).toContain(AR["ownerboard.title.owner"]);
     expect(old).not.toContain('data-testid="cp-nav"');
@@ -159,7 +159,7 @@ describe("who may open the control panel", () => {
     await setFeature(w.org.id, "controlPanel", true);
     await setFeature(w.org.id, "ownerBoard", false);
     await expect(controlPanelAccess(await requireActor())).rejects.toMatchObject({ name: "NotFoundError" });
-    expect(await html(await HomePage())).not.toContain('data-testid="control-panel"');
+    expect(await html(await HomePage({}))).not.toContain('data-testid="control-panel"');
     await expect(AnalyticsPage()).resolves.toBeTruthy();
   });
 
@@ -167,11 +167,11 @@ describe("who may open the control panel", () => {
     const w = await world();
     for (const person of [w.admin, w.lead, w.member, w.guest]) {
       await loginAs(person.id);
-      expect(await html(await HomePage()), person.name).not.toContain('data-testid="control-panel"');
+      expect(await html(await HomePage({})), person.name).not.toContain('data-testid="control-panel"');
     }
     for (const owner of [w.owner, w.partner]) {
       await loginAs(owner.id);
-      const page = await html(await HomePage());
+      const page = await html(await HomePage({}));
       expect(page, owner.name).toContain('data-testid="control-panel"');
       expect(page).toContain(AR["cp.title"]);
       expect(page).toContain('data-testid="zaki-ai-chip"');

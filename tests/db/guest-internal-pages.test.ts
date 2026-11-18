@@ -420,7 +420,7 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
 
 /** The places that are one page and have no tabs (Today, the chat). */
 const PLACE_PAGES: Partial<Record<PlaceKey, PageCall>> = {
-  today: () => TodayPage(),
+  today: () => TodayPage({}),
   chat: () => ChatPage(),
   watch: () => WatchPage(),
 };

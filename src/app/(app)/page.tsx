@@ -53,7 +53,7 @@ export const metadata = { title: getServerT().t("today.title") };
  * «/» alone sends the person to the chat; the menu's «اليوم» is «/?view=today», which is this page. With `navV2` OFF (as merged) nothing changes:
  * «/» is «اليوم» for everybody. The manifest's `start_url` is M1a's, not read here.
  */
-export default async function TodayPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function TodayPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = getServerT();
   const { actor } = await pageActor();
   // the space the person is in: its «اليوم» only (entering a space opens here)
