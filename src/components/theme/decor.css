@@ -421,6 +421,13 @@
   animation-play-state: paused !important;
 }
 
+/* «وضع التوفير» switches the layer off, like the level «off» (the attribute is set by syncDecorEconomy): no picture is drawn, nothing moves, no compositor layer is kept. */
+[data-decor-economy] .zk-decor,
+[data-decor-economy] [data-art-slot="login-door"],
+[data-decor-economy] [data-art-slot="today-strip"] {
+  display: none !important;
+}
+
 /* Reduced motion REMOVES the animation outright, and the fade of a picture; it does not slow them. */
 @media (prefers-reduced-motion: reduce) {
   .zk-decor,

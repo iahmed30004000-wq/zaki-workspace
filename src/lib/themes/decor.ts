@@ -72,6 +72,8 @@ export const DECOR_DIR_URL = "/brand/decor";
 export const ART_DIR_URL = "/brand/art";
 /** Set on <html> by `watchDecorVisibility` while the tab is hidden; the stylesheet pauses on it. */
 export const DECOR_HIDDEN_ATTR = "data-decor-hidden";
+/** Set on <html> while the company's «وضع التوفير» is on (`syncDecorEconomy`); the stylesheet hides every decoration layer on it. */
+export const DECOR_ECONOMY_ATTR = "data-decor-economy";
 
 // ───────────────────────────────────────── the numbers ─────────────────────────────────────────
 
@@ -366,6 +368,39 @@ export function watchDecorVisibility(doc: VisibilityTarget): () => void {
   };
 }
 
+export interface EconomyRoot {
+  setAttribute(name: string, value: string): void;
+  removeAttribute(name: string): void;
+}
+
+/**
+ * «وضع التوفير» (the company's switch, `economyActive()` on the screen): the decoration layers are off, as at the level «off».
+ * The old themes keep their look for everybody else; the flat themes of D1 draw nothing either way (the stylesheet's economy stop reads this attribute).
+ * Writing the same state twice changes nothing.
+ */
+export function syncDecorEconomy(root: EconomyRoot, on: boolean): void {
+  if (on) root.setAttribute(DECOR_ECONOMY_ATTR, "1");
+  else root.removeAttribute(DECOR_ECONOMY_ATTR);
+}
+
+const economyHolds = new WeakMap<object, number>();
+
+/**
+ * A layer's claim on the economy attribute: the LAST layer to go takes it off <html>, so a mark made for a shell does not outlive
+ * every layer of it. The returned function is harmless to call twice (React strict mode mounts, unmounts and mounts again).
+ */
+export function holdDecorEconomy(root: EconomyRoot): () => void {
+  economyHolds.set(root, (economyHolds.get(root) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const left = (economyHolds.get(root) ?? 1) - 1;
+    economyHolds.set(root, left);
+    if (left <= 0) root.removeAttribute(DECOR_ECONOMY_ATTR);
+  };
+}
+
 // ───────────────────────────────────── the stylesheet ─────────────────────────────────────
 
 type Decl = readonly [prop: string, value: string];
@@ -627,6 +662,8 @@ function stopRules(): string[] {
     banner("THE STOPS — they come last, and they are !important"),
     comment("A hidden tab pauses every layer (the attribute is set by watchDecorVisibility)."),
     rule(layers.map((s) => `[${DECOR_HIDDEN_ATTR}] ${s}`), [d("animation-play-state", "paused !important")]),
+    comment("«وضع التوفير» switches the layer off, like the level «off» (the attribute is set by syncDecorEconomy): no picture is drawn, nothing moves, no compositor layer is kept."),
+    rule([`[${DECOR_ECONOMY_ATTR}] .${DECOR_CLASS}`, ...ART_SCENES.map((slot) => `[${DECOR_ECONOMY_ATTR}] [data-art-slot="${slot}"]`)], [d("display", "none !important")]),
     comment("Reduced motion REMOVES the animation outright, and the fade of a picture; it does not slow them."),
     atRule("@media (prefers-reduced-motion: reduce)", [
       rule(layers, [d("animation", "none !important")]),

@@ -2,6 +2,7 @@
 
 import { setEconomy } from "@/lib/economy";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
 import type { Audience } from "@/lib/guide/audience";
@@ -14,8 +15,6 @@ import type { AvatarUser } from "@/components/shell/avatar-menu";
 import { ZakiMark } from "@/components/logo";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { PeopleDock } from "@/components/shell/people-dock";
-import { QuickChat } from "@/components/shell/quick-chat";
-import { SiteGuide } from "@/components/site-guide/site-guide";
 import { PlaceTabs } from "@/components/shell/place-tabs";
 import { Sidebar } from "@/components/shell/sidebar";
 import { SpaceSwitcher, useCurrentSpace, type ShellSpace } from "@/components/shell/space-switcher";
@@ -24,6 +23,15 @@ import { SwitchFxProvider } from "@/components/theme/switch-fx-provider";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/components/shell/sidebar-state";
 import { useChatUnread } from "@/lib/chat/use-chat-unread";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
+
+/**
+ * F1.3 — the two floating helpers are their own chunks, fetched after the page is up and only by somebody who may have them
+ * (the quick chat's round button, the owner's guide). Client only: both read the browser (events, voice, the live line), and both
+ * are `position: fixed`, so a frame without them first moves nothing. The people row stays in the first paint (it is a row of the
+ * page, and a late row would push the page up). The reorder code (`nav-sort`) is imported by the three lists themselves.
+ */
+const QuickChat = dynamic(() => import("@/components/shell/quick-chat").then((m) => m.QuickChat), { ssr: false, loading: () => null });
+const SiteGuide = dynamic(() => import("@/components/site-guide/site-guide").then((m) => m.SiteGuide), { ssr: false, loading: () => null });
 
 export interface AppShellProps {
   user: AvatarUser;
@@ -234,8 +242,9 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
 
       {/* the round quick chat in the corner (the owner's ask, 2026-10-30); the chat page itself is the full
           conversation, so the button stays out of its way, and never for a guest (no DMs at all) */}
-      <QuickChat enabled={!isGuest && quickChat && place?.key !== "chat"} />
-      <SiteGuide enabled={!isGuest && siteGuide} />
+      {/* the outer condition decides whether the chunk is fetched at all; the prop is the component's own rule, worded as the tests of quick-chat and site-guide pin it */}
+      {!isGuest && quickChat ? <QuickChat enabled={!isGuest && quickChat && place?.key !== "chat"} /> : null}
+      {!isGuest && siteGuide ? <SiteGuide enabled={!isGuest && siteGuide} /> : null}
     </div>
   );
 }

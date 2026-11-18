@@ -3,13 +3,12 @@
 import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AudioPresets, Room, RoomEvent, ScreenSharePresets, Track, VideoPresets, type DisconnectReason, type LocalAudioTrack, type LocalTrack, type Participant, type Track as LkTrack } from "livekit-client";
+import type { DisconnectReason, LocalAudioTrack, LocalTrack, Participant, Room, Track as LkTrack } from "livekit-client";
 import { ct } from "@/lib/chat/text";
 import { AWAY_TOPIC, decodeAway, encodeAway, micHeld, type MicFacts } from "@/lib/calls/mic";
 import { isDrop, isFresh, MAX_REJOINS, miniVisible, rejoinDelayMs } from "@/lib/calls/session";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, callErrorText, type CallView } from "./call-api";
-import { AudioOut, mainPicture, nameOf, PersonPicture } from "./call-media";
 import { ensurePush } from "./push-client";
 
 /**
@@ -19,6 +18,10 @@ import { ensurePush } from "./push-client";
  * the call, leave), with picture-in-picture where the browser has it. A drop by the network (the phone asleep, a
  * changed network) is joined again quietly, a few times with a growing pause. The voices play from here, so they never
  * stop when a page changes.
+ *
+ * The calls library (`livekit-client`) and the picture code that uses it are NOT part of the page: they are one lazy chunk,
+ * fetched by `loadCallLibs()` when a call starts (`join`) or rings (`prefetch`), so a signed-in page that never calls carries none
+ * of it (F1.3). Everything below that touches the library runs after that load: there is a room only after it.
  *
  * The connection favours the voice: adaptive stream and dynacast, simulcast layers, Opus speech with DTX and RED, a
  * muted microphone kept open; the picture degrades first when the network weakens.
@@ -74,6 +77,37 @@ export function useOptionalCall(): CallApi | null {
   return React.useContext(CallContext);
 }
 
+type LiveKit = typeof import("livekit-client");
+type Media = typeof import("./call-media");
+interface CallLibs {
+  lk: LiveKit;
+  media: Media;
+}
+
+let callLibs: CallLibs | null = null;
+let callLibsLoading: Promise<CallLibs> | null = null;
+
+/** The calls library and the call screen's picture code, loaded once, on demand. A failed load can be tried again. */
+export function loadCallLibs(): Promise<CallLibs> {
+  if (callLibs) return Promise.resolve(callLibs);
+  if (!callLibsLoading) {
+    callLibsLoading = Promise.all([import("livekit-client"), import("./call-media")]).then(
+      ([lk, media]) => (callLibs = { lk, media }),
+      (e: unknown) => {
+        callLibsLoading = null;
+        throw e;
+      },
+    );
+  }
+  return callLibsLoading;
+}
+
+/** The calls library, for code that only runs once a room exists (a room is made after `loadCallLibs()`). */
+function livekit(): LiveKit {
+  if (!callLibs) throw new Error("the calls library is not loaded yet");
+  return callLibs.lk;
+}
+
 const MEMO_KEY = "zk-active-call";
 
 /** The call this tab is in, kept across a reload of the page (switching space reloads it): {id, video}. */
@@ -96,7 +130,8 @@ function remembered(): { id: string; video: boolean } | null {
   }
 }
 
-function newRoom(): Room {
+function newRoom(lk: LiveKit): Room {
+  const { AudioPresets, Room, ScreenSharePresets, VideoPresets } = lk;
   return new Room({
     adaptiveStream: true,
     dynacast: true,
@@ -131,7 +166,7 @@ interface Pass {
  * the page otherwise), and anything that fails leaves the voice as the browser captured it.
  */
 async function cleanMic(track: LocalTrack | undefined): Promise<void> {
-  if (!track || track.kind !== Track.Kind.Audio) return;
+  if (!track || track.kind !== livekit().Track.Kind.Audio) return;
   const { canFilterNoise, noiseFilter, NOISE_FILTER_NAME } = await import("./noise-filter");
   if (!canFilterNoise() || track.getProcessor()?.name === NOISE_FILTER_NAME) return;
   await (track as LocalAudioTrack).setProcessor(noiseFilter()).catch(() => undefined);
@@ -139,7 +174,7 @@ async function cleanMic(track: LocalTrack | undefined): Promise<void> {
 
 /** What the phone did to this call's microphone, read for the rules in src/lib/calls/mic.ts. */
 function micFactsOf(room: Room): MicFacts {
-  const pub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+  const pub = room.localParticipant.getTrackPublication(livekit().Track.Source.Microphone);
   const track = pub?.track as LocalTrack | undefined;
   // the microphone itself, not the noise filter's output (which stays «live» when the phone takes the microphone)
   const filtered = track?.getProcessor() as { sourceTrack?: MediaStreamTrack } | undefined;
@@ -214,7 +249,21 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     if (old) await old.disconnect().catch(() => undefined);
     setState({ callId, phase: "connecting", error: "", reconnecting: false, needsAudioTap: false, micHeld: false });
     setAway(new Set());
-    const room = newRoom();
+    // the pass is asked for while the calls library arrives (its own chunk: no page carries it until a call starts or rings)
+    const passAsked = passFor(callId);
+    passAsked.catch(() => undefined);
+    let libs: CallLibs;
+    try {
+      libs = await loadCallLibs();
+    } catch {
+      // the chunk did not arrive (offline): the same words as a line that did not open, and the quiet rejoin tries again
+      joining.current = false;
+      patch({ phase: "lost", error: ct("calls.failed") });
+      return;
+    }
+    const { lk } = libs;
+    const { RoomEvent } = lk;
+    const room = newRoom(lk);
     for (const ev of [
       RoomEvent.ParticipantConnected,
       RoomEvent.ParticipantDisconnected,
@@ -266,7 +315,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     try {
       let pass: Pass;
       try {
-        pass = await passFor(callId);
+        pass = await passAsked;
       } catch (e) {
         // the server's refusal, already in Arabic (ended, not yours, no calls server)
         remember(null);
@@ -277,7 +326,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       // every microphone this call publishes (the first, or a new one after a change) is cleaned of noise
       if (pass.noiseFilter) {
         room.on(RoomEvent.LocalTrackPublished, (pub) => {
-          if (pub.source === Track.Source.Microphone) void cleanMic(pub.track);
+          if (pub.source === lk.Track.Source.Microphone) void cleanMic(pub.track);
         });
       }
       try {
@@ -331,7 +380,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const room = roomRef.current;
     if (!room) return true;
     if (micHeld(micFactsOf(room))) {
-      const track = room.localParticipant.getTrackPublication(Track.Source.Microphone)?.track as LocalTrack | undefined;
+      const track = room.localParticipant.getTrackPublication(livekit().Track.Source.Microphone)?.track as LocalTrack | undefined;
       try {
         if (track) {
           await track.restartTrack();
@@ -357,7 +406,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       void room.localParticipant.publishData(encodeAway(hidden), { reliable: true, topic: AWAY_TOPIC }).catch(() => undefined);
       clearTimeout(later);
       if (hidden) return;
-      const camera = room.localParticipant.getTrackPublication(Track.Source.Camera)?.track;
+      const camera = room.localParticipant.getTrackPublication(livekit().Track.Source.Camera)?.track;
       if (camera && !camera.isMuted && camera.mediaStreamTrack.readyState === "ended") void camera.restartTrack().catch(() => undefined);
       const wasHeld = micHeld(micFactsOf(room));
       // a moment for the phone to hand the microphone back by itself (the calls library tries too)
@@ -456,10 +505,17 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 
   const prefetch = React.useCallback((callId: string) => {
     if (roomRef.current) return; // already in a call: «ردّ» will switch anyway
+    // the library starts arriving at once, in step with the pass
+    const loaded = loadCallLibs();
+    loaded.catch(() => undefined);
     void callApi<Pass>(`/api/calls/${encodeURIComponent(callId)}/token`, {}).then(
-      (pass) => {
+      async (pass) => {
         prefetched.current = { callId, pass, at: Date.now() };
-        void newRoom().prepareConnection(pass.url, pass.token).catch(() => undefined);
+        try {
+          await newRoom((await loaded).lk).prepareConnection(pass.url, pass.token);
+        } catch {
+          // no warm line: «ردّ» opens it the ordinary way
+        }
       },
       () => undefined,
     );
@@ -501,39 +557,44 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     }
   }, [inCall, micOn, camOn]);
 
+  // a room exists only after the library was loaded, so `libs` is there whenever there is anything to draw from it
+  const libs = callLibs;
   const everyone: Participant[] = room ? [room.localParticipant, ...room.remoteParticipants.values()] : [];
   const api: CallApi = { state, room, everyone, away, reviveMic, canPip, pip, join, leave, toggle, startAudio, prefetch };
-  const sounds = everyone
-    .filter((p) => p !== room?.localParticipant)
-    .flatMap((p) => [p.getTrackPublication(Track.Source.Microphone)?.track, p.getTrackPublication(Track.Source.ScreenShareAudio)?.track])
-    .filter((t): t is LkTrack => !!t);
+  const sounds = libs
+    ? everyone
+        .filter((p) => p !== room?.localParticipant)
+        .flatMap((p) => [p.getTrackPublication(libs.lk.Track.Source.Microphone)?.track, p.getTrackPublication(libs.lk.Track.Source.ScreenShareAudio)?.track])
+        .filter((t): t is LkTrack => !!t)
+    : [];
   const showMini = miniVisible(pathname, state.callId) && (state.phase === "in" || state.phase === "connecting" || state.phase === "lost");
 
   return (
     <CallContext.Provider value={api}>
       {children}
-      {sounds.map((t) => (
-        <AudioOut key={t.sid} track={t} />
-      ))}
-      {showMini && <MiniCall api={api} />}
-      {room && (state.phase === "in" || state.phase === "lost") && <PipFeed ref={pipRef} everyone={everyone} me={me} />}
+      {libs &&
+        sounds.map((t) => (
+          <libs.media.AudioOut key={t.sid} track={t} />
+        ))}
+      {showMini && <MiniCall api={api} libs={libs} />}
+      {libs && room && (state.phase === "in" || state.phase === "lost") && <PipFeed ref={pipRef} libs={libs} everyone={everyone} me={me} />}
     </CallContext.Provider>
   );
 }
 
 /** The call while the person is on another page: a small window in the corner. */
-function MiniCall({ api }: { api: CallApi }) {
+function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
   const { state, room, everyone } = api;
   const me = room?.localParticipant;
-  const main = mainPicture(everyone, me);
+  const main = libs && room ? libs.media.mainPicture(everyone, me) : null;
   const href = `/calls/${encodeURIComponent(state.callId ?? "")}`;
   const micOn = !!me?.isMicrophoneEnabled && !state.micHeld;
 
   return (
     <aside dir="rtl" lang="ar" aria-label={ct("calls.mini")} className="fixed bottom-20 end-3 z-[55] w-44 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-lg md:bottom-4">
       <Link href={href} className="relative block aspect-video bg-surface-2" aria-label={ct("calls.back_to_call")}>
-        {main && room ? (
-          <PersonPicture p={main.p} me={me} source={main.source} fit={main.source === Track.Source.ScreenShare ? "contain" : "cover"} small />
+        {main && room && libs ? (
+          <libs.media.PersonPicture p={main.p} me={me} source={main.source} fit={main.source === libs.lk.Track.Source.ScreenShare ? "contain" : "cover"} small />
         ) : (
           <span className="flex h-full items-center justify-center text-xs text-fg-muted">{ct("calls.connecting")}</span>
         )}
@@ -577,9 +638,10 @@ function tokenColour(name: string, fallback: string): string {
  * (an iPhone: the video's own automatic picture-in-picture; Chrome: the media session's action), keeping the call in
  * front so the phone has less reason to take the microphone.
  */
-const PipFeed = React.forwardRef<HTMLVideoElement, { everyone: Participant[]; me: Participant | undefined }>(function PipFeed({ everyone, me }, outer) {
+const PipFeed = React.forwardRef<HTMLVideoElement, { libs: CallLibs; everyone: Participant[]; me: Participant | undefined }>(function PipFeed({ libs, everyone, me }, outer) {
   const inner = React.useRef<HTMLVideoElement | null>(null);
   const since = React.useRef(Date.now());
+  const { mainPicture, nameOf } = libs.media;
   const main = mainPicture(everyone, me);
   const track = main ? main.p.getTrackPublication(main.source)?.track : undefined;
   const others = everyone.filter((p) => p !== me);
