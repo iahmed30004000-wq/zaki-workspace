@@ -61,7 +61,7 @@ function dictionaryFiles(): { file: string; data: Record<string, string> }[] {
   const dir = path.join(SRC, "lib", "i18n");
   return readdirSync(dir)
     // hyphenated fragments too (ar.chat-errors.json, ar.chat-files.json …): the old [a-z]+ skipped every one
-    .filter((f) => /^ar(\.[a-z-]+)?\.json$/.test(f))
+    .filter((f) => /^ar(\.[a-z0-9-]+)?\.json$/.test(f))
     .map((file) => ({ file, data: JSON.parse(readFileSync(path.join(dir, file), "utf8")) as Record<string, string> }));
 }
 

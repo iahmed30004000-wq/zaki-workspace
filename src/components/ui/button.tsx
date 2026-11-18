@@ -6,7 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 
 /**
  * THE BUTTON SET (D1 §4). One accent per theme: the `primary` button is the ONE main action of a screen or a dialog; `tonal` stands beside it; `ghost` is for
- * toolbars and list actions; `danger` only confirms a destruction; `link` is inline text; `icon` is a round 40 px ghost for app bars and the composer;
+ * toolbars and list actions; `danger` only confirms a destruction; `link` is inline text; `icon` is a round 44 px (32 px on a wide screen) ghost for app bars and the composer;
  * `fab` is the 56 px round accent button (a phone's «new message» / «new task»). The API of the component is the old one: `variant` and `size`.
  */
 const button = cva(
@@ -24,8 +24,8 @@ const button = cva(
       },
       size: {
         sm: "h-10 md:h-8 px-3",
-        md: "h-11 md:h-10 px-4",
-        icon: "size-11 rounded-full md:size-10",
+        md: "h-11 md:h-9 px-4",
+        icon: "size-11 md:size-8 rounded-full",
       },
     },
     compoundVariants: [
