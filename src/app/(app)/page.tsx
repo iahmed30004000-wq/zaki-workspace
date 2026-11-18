@@ -16,9 +16,7 @@ import { currentSpace } from "@/server/services/current-space";
 import { missionOf } from "@/lib/today";
 import { opensOnCards } from "@/lib/cards/shared";
 import { actorFeatureOn } from "@/server/services/features";
-import { db } from "@/server/db";
-import { landingOf } from "@/server/policy/org-settings";
-import { featureOn } from "@/lib/features";
+import { landsOnChat } from "@/server/services/landing";
 import { MyRemindersCard } from "@/components/reminders/my-reminders-card";
 import { PinnedStrip } from "@/components/rewards/pinned-strip";
 import { pinnedTasks } from "@/server/services/pinned";
@@ -65,8 +63,7 @@ export default async function TodayPage({ searchParams }: { searchParams?: Recor
   // the company's landing page: «/» alone follows it, «/?view=today» is always «اليوم»
   const view = searchParams?.["view"];
   if ((Array.isArray(view) ? view[0] : view) !== "today") {
-    const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } });
-    if (featureOn(org?.settings, "navV2") && landingOf(org?.settings) === "chat") redirect("/chat");
+    if (await landsOnChat(actor)) redirect("/chat");
   }
   const [data, dashboard] = await Promise.all([
     getToday(actor, { spaceId: space?.id ?? null }),
