@@ -26,6 +26,7 @@ import { SpaceSwitcher, useCurrentSpace, useSpaces, type ShellSpace } from "@/co
 import { TopBar } from "@/components/shell/top-bar";
 import { SwitchFxProvider } from "@/components/theme/switch-fx-provider";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/components/shell/sidebar-state";
+import { ListSlotProvider } from "@/components/chat/v2/shell/list-slot";
 import { useChatUnread } from "@/lib/chat/use-chat-unread";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
 
@@ -113,6 +114,10 @@ export function AppShell(props: AppShellProps) {
 function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, siteGuide = false, economy = false, navV2 = false, orderLocked = false, noWorkSpace = false, listSlot, children }: AppShellProps) {
   // set while rendering, on purpose: the shell renders before its children, so every timer below reads the right period
   setEconomy(economy);
+  // C2.1 — the chat's list column: the chat's layout hands it up through `ListSlotProvider` (a page cannot pass a prop to the frame above it) and the ONE rail
+  // (or, with `navV2` off, the old side menu) draws it beside itself. A `listSlot` prop of the server layout, when there is one, wins.
+  const [chatColumn, setChatColumn] = useState<ReactNode>(null);
+  const columnSlot = listSlot ?? chatColumn;
   const { t } = useI18n();
   const toast = useOptionalToast();
   // «ترتيبي»: the person's own order, drawn over the map they may see (never adds or hides anything)
@@ -194,6 +199,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   };
 
   return (
+    <ListSlotProvider value={setChatColumn}>
     <div className="relative flex h-dvh overflow-clip bg-surface">
       <a
         href="#zk-main"
@@ -219,7 +225,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
           onReorder={reorderPlaces}
           orderLocked={orderLocked}
           settingsHref={settings?.href}
-          listSlot={listSlot}
+          listSlot={columnSlot}
         />
       ) : (
         <Sidebar
@@ -244,6 +250,12 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
           canReset={hasOrder(order)}
         />
       )}
+      {/* the old side menu has no slot of its own: the chat's column sits right next to it (the rail draws the same wrapper itself) */}
+      {!navV2 && columnSlot ? (
+        <div data-shell="list-slot" className="hidden h-full min-h-0 shrink-0 border-e border-border bg-surface md:flex">
+          {columnSlot}
+        </div>
+      ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
         {navV2 ? (
@@ -351,5 +363,6 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
       {!isGuest && quickChat ? <QuickChat enabled={!isGuest && quickChat && place?.key !== "chat"} /> : null}
       {!isGuest && siteGuide ? <SiteGuide enabled={!isGuest && siteGuide} /> : null}
     </div>
+    </ListSlotProvider>
   );
 }

@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ChatHome } from "@/components/chat/home/chat-home";
 import { filterTopics } from "@/components/chat/home/space-topics";
+import { RowMenu, rowMenuOffers } from "@/components/chat/home/row-menu";
 
 // the dialogs open the new chat inside the app (router.push): rendered on its own, the page has no app router
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => undefined, refresh: () => undefined }), usePathname: () => "/chat" }));
@@ -73,5 +74,24 @@ describe("the topic filters", () => {
     expect(ids({ show: "all", kind: "TASKS", section: "" })).toEqual(["c"]);
     expect(ids({ show: "all", kind: "", section: "x" })).toEqual(["c"]);
     expect(ids({ show: "all", kind: "", section: "space" })).toEqual(["a", "b", "d"]);
+  });
+});
+
+describe("the old «⋯» after C2.2 split its logic into pieces (the new list's menu is built from the same ones)", () => {
+  it("the same items for the same people: managers pin, archive and delete an empty topic; the owner's purge replaces the plain delete; a system topic is never archived or purged", () => {
+    expect(rowMenuOffers({ kind: "topic", canModerate: true })).toEqual({ manage: true, purge: false, pin: true, archive: true, delete: true, any: true });
+    expect(rowMenuOffers({ kind: "topic", canModerate: true, canPurge: true })).toEqual({ manage: true, purge: true, pin: true, archive: true, delete: false, any: true });
+    expect(rowMenuOffers({ kind: "topic", canModerate: true, archived: true })).toMatchObject({ pin: false, archive: true });
+    expect(rowMenuOffers({ kind: "topic", canModerate: true, canPurge: true, system: true })).toMatchObject({ archive: false, purge: false, delete: false, pin: true });
+    expect(rowMenuOffers({ kind: "dm", canModerate: true })).toMatchObject({ manage: false, any: false });
+    expect(rowMenuOffers({ kind: "dm", canPurge: true })).toMatchObject({ manage: false, purge: true, any: true });
+    expect(rowMenuOffers({ kind: "topic" })).toMatchObject({ any: false });
+  });
+
+  it("draws the same button for somebody who has an item, and nothing for somebody who has none", () => {
+    const shown = renderToStaticMarkup(createElement(RowMenu, { id: "t1", title: "عام", kind: "topic", canModerate: true, onChanged: () => undefined }));
+    expect(shown).toContain('aria-label="خيارات «عام»"');
+    expect(shown).toContain("size-11");
+    expect(renderToStaticMarkup(createElement(RowMenu, { id: "t1", title: "عام", kind: "topic", onChanged: () => undefined }))).toBe("");
   });
 });

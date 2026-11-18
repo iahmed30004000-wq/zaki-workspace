@@ -240,10 +240,10 @@ allows exactly those key names and caps its allow-list below 14 entries. 🔧 Wr
 
 ## 11. Steps (step IDs are NOT the section numbers above; one branch each, small commits, each green)
 
-- [ ] C2.1 `ChatShell` + `layout.tsx` + empty state, behind `chatLayoutV2` (old screen when off).
-- [ ] C2.2 `ChatListColumn` with virtual rows reading C1's list cache; folders «الكل/غير مقروء/خاص/المساحات/ذكروني», plus
+- [x] C2.1 `ChatShell` + `layout.tsx` + empty state, behind `chatLayoutV2` (old screen when off).
+- [x] C2.2 `ChatListColumn` with virtual rows reading C1's list cache; folders «الكل/غير مقروء/خاص/المساحات/ذكروني», plus
       «كل الشركة» for oversight holders only (today's «كل الشركة» toggle, `canOversee`).
-- [ ] C2.3 Forum view `/chat/s/[spaceId]`.
+- [x] C2.3 Forum view `/chat/s/[spaceId]`.
 - [ ] C2.4 `ConversationPane` header + viewport (virtualized, reverse) + bubbles + service lines + sticky dates + unread
       separator + jump buttons.
 - [ ] C2.5 Composer (emoji, attach menu, paste/drop, mic/send toggle) — reuse the existing upload/outbox code.
