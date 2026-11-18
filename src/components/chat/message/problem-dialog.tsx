@@ -20,7 +20,7 @@ const field = "h-11 w-full rounded-lg border border-muted bg-surface px-3 text-b
  * Who gets it is the server's rule (the person named here, one @-mentioned person, the kind's department, the supervisor); the server decides again, and
  * a private conversation needs the confirmation.
  */
-export function ProblemDialog({ message, kinds, people, privateSource, defaultKind, onClose, onDone }: { message: MessageDto | null; kinds: ProblemKindDto[]; people: MemberDto[]; privateSource: boolean; defaultKind?: string | null; onClose: () => void; onDone: (merged: boolean) => void }) {
+export function ProblemDialog({ message, kinds, people, privateSource, defaultKind, defaultCustomer, onClose, onDone }: { message: MessageDto | null; kinds: ProblemKindDto[]; people: MemberDto[]; privateSource: boolean; defaultKind?: string | null; /** the customer's number found in the message (the hint «حطّيها بتذكرة»): the form opens with it */ defaultCustomer?: string | null; onClose: () => void; onDone: (merged: boolean) => void }) {
   const [kindKey, setKindKey] = React.useState("");
   const [order, setOrder] = React.useState("");
   const [useCustomer, setUseCustomer] = React.useState(false);
@@ -35,8 +35,8 @@ export function ProblemDialog({ message, kinds, people, privateSource, defaultKi
     if (!message) return;
     setKindKey(defaultKind && kinds.some((k) => k.key === defaultKind) ? defaultKind : (kinds[0]?.key ?? ""));
     setOrder(findOrderNumbers(message.body ?? "")[0]?.number ?? "");
-    setUseCustomer(false);
-    setCustomer("");
+    setUseCustomer(Boolean(defaultCustomer));
+    setCustomer(defaultCustomer ?? "");
     setFollowUp("");
     setAssignee("");
     setConfirm(false);

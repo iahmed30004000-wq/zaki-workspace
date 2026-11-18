@@ -6,6 +6,7 @@ import { apiPatch } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { useOptionalToast } from "@/components/ui/toast";
 import { ECONOMY_FORCED_OFF, ECONOMY_POLL_FACTOR, type FeatureKey } from "@/lib/features";
+import { showModelWarning } from "@/lib/chat/customer-data-hint";
 import { cn } from "@/lib/utils";
 
 /**
@@ -104,6 +105,7 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
                   {held.has(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("economy.held")}</span> : null}
                 </p>
                 <p className="text-xs text-muted">{t(`features.${f.key}.hint`)}</p>
+                {showModelWarning(items, f.key) ? <p data-model-warning className="text-xs leading-6 text-warn">{t("features.model_warn")}</p> : null}
                 {notReady.includes(f.key) ? <p className="text-xs text-warn">{t("semantic.not_ready_hint")}</p> : null}
               </div>
               <div className={cn(held.has(f.key) && "opacity-50")}>

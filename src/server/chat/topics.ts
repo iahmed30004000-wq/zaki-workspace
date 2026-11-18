@@ -471,6 +471,7 @@ export async function conversationDetail(
       // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
       ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
       ...(await problemOffer(ctx.orgId, org!.role !== "GUEST", facts)),
+      orderHints: org!.role !== "GUEST" && (await isFeatureOn(ctx.orgId, "orderTemplateHint")),
       canMustRead: org!.role !== "GUEST" && (await isFeatureOn(ctx.orgId, "mustRead")) && (await canMark(ctx, facts, org!)),
       id: ctx.userId,
     },

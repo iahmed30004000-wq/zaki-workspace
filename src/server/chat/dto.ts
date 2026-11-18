@@ -242,6 +242,8 @@ export interface ConversationDto {
     canOrderState?: boolean;
     /** may mark a message «لازم ينقرأ» here (Q1.6): the switch is on, a topic, a moderator or a holder of «إعلانات للجميع» */
     canMustRead?: boolean;
+    /** the hint line for customer data typed into an open topic is on (Q1.7): the switch is on and the person is staff */
+    orderHints?: boolean;
     /** «🎫 مشكلة» (Q1.5): the kinds of problem, and the company's rules for this open topic so the screen can offer «بدك تعمليها تذكرة؟» (absent: the switch is off or a guest) */
     problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>;
     problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }>;
