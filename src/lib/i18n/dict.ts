@@ -60,6 +60,7 @@ import okr from "./ar.okr.json";
 import apiDoor from "./ar.api-door.json";
 import systemTokens from "./ar.system-tokens.json";
 import autoTickets from "./ar.auto-tickets.json";
+import integrationsFit from "./ar.integrations-fit.json";
 import mustRead from "./ar.must-read.json";
 import customerHints from "./ar.customer-hints.json";
 import knowledgeMedia from "./ar.knowledge-media.json";
@@ -166,6 +167,7 @@ export const AR: Record<string, string> = {
   ...apiDoor,
   ...systemTokens,
   ...autoTickets,
+  ...integrationsFit,
   ...mustRead,
   ...customerHints,
   ...knowledgeMedia,

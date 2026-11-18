@@ -15,7 +15,8 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 export const TOKEN_LABEL = "zws";
 
 /** The permissions a token can hold. A token with none can read nothing and write nothing. */
-export const DOOR_PERMISSIONS = ["ideas.read", "ideas.write", "tasks.read", "tasks.write"] as const;
+/** `messages.write` (I1.1b) belongs to `POST /api/v2/messages` only (docs/contracts/workspace-door.v2.md); v1 never asks for it. */
+export const DOOR_PERMISSIONS = ["ideas.read", "ideas.write", "tasks.read", "tasks.write", "messages.write"] as const;
 export type DoorPermission = (typeof DOOR_PERMISSIONS)[number];
 
 export function isDoorPermission(value: unknown): value is DoorPermission {

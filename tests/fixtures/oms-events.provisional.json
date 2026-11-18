@@ -1,0 +1,115 @@
+{
+  "_provisional": "PROVISIONAL. Written from the spec in docs/restructure/I1-integrations-and-fit.md, NOT copied from the orders system. The real contract files (oms-app-events.v1) replace this file once the owner brings them; until then no test may call this a copy of the contract.",
+  "secret": "provisional-events-secret-0001-not-real",
+  "events": {
+    "order.created": {
+      "event": "order.created",
+      "at": "2030-01-02T10:00:00.000Z",
+      "data": {
+        "order_id": "ord_77",
+        "order_number": "ZK-2026-000123",
+        "total": 149.5,
+        "currency": "USD",
+        "city": "Amman",
+        "source": "shop",
+        "store": "main",
+        "tracking_number": "TRK0001",
+        "confirmation_state": "pending",
+        "product_id": "prod_9",
+        "product_name": "حراك",
+        "quantity": 2,
+        "items": 1,
+        "pieces": 2
+      }
+    },
+    "order.confirmed": {
+      "event": "order.confirmed",
+      "at": "2030-01-02T10:00:00.000Z",
+      "data": {
+        "order_id": "ord_77",
+        "order_number": "ZK-2026-000123",
+        "total": 149.5,
+        "currency": "USD",
+        "city": "Amman",
+        "source": "shop",
+        "store": "main",
+        "tracking_number": "TRK0001",
+        "confirmation_state": "confirmed",
+        "previous_state": "pending"
+      }
+    },
+    "order.shipped": {
+      "event": "order.shipped",
+      "at": "2030-01-02T10:00:00.000Z",
+      "data": {
+        "order_id": "ord_77",
+        "order_number": "ZK-2026-000123",
+        "total": 149.5,
+        "currency": "USD",
+        "city": "Amman",
+        "source": "shop",
+        "store": "main",
+        "tracking_number": "TRK0001",
+        "shipping_state": "shipped",
+        "previous_state": "confirmed"
+      }
+    },
+    "order.delivered": {
+      "event": "order.delivered",
+      "at": "2030-01-02T10:00:00.000Z",
+      "data": {
+        "order_id": "ord_77",
+        "order_number": "ZK-2026-000123",
+        "total": 149.5,
+        "currency": "USD",
+        "city": "Amman",
+        "source": "shop",
+        "store": "main",
+        "tracking_number": "TRK0001",
+        "shipping_state": "delivered",
+        "previous_state": "shipped"
+      }
+    },
+    "order.returned": {
+      "event": "order.returned",
+      "at": "2030-01-02T10:00:00.000Z",
+      "data": {
+        "order_id": "ord_77",
+        "order_number": "ZK-2026-000123",
+        "total": 149.5,
+        "currency": "USD",
+        "city": "Amman",
+        "source": "shop",
+        "store": "main",
+        "tracking_number": "TRK0001",
+        "shipping_state": "returned",
+        "previous_state": "shipped",
+        "product_name": "حراك",
+        "quantity": 2
+      }
+    },
+    "order.cancelled": {
+      "event": "order.cancelled",
+      "at": "2030-01-02T10:00:00.000Z",
+      "data": {
+        "order_id": "ord_77",
+        "order_number": "ZK-2026-000123",
+        "total": 149.5,
+        "currency": "USD",
+        "city": "Amman",
+        "source": "shop",
+        "store": "main",
+        "tracking_number": "TRK0001",
+        "status": "cancelled",
+        "previous_state": "pending"
+      }
+    }
+  },
+  "signedExample": {
+    "timestamp": "1893578400",
+    "deliveryId": "11111111-2222-4333-8444-555555555555",
+    "event": "order.confirmed",
+    "body": "{\"event\":\"order.confirmed\",\"at\":\"2030-01-02T10:00:00.000Z\",\"data\":{\"order_id\":\"ord_77\",\"order_number\":\"ZK-2026-000123\",\"total\":149.5,\"currency\":\"USD\",\"city\":\"Amman\",\"source\":\"shop\",\"store\":\"main\",\"tracking_number\":\"TRK0001\",\"confirmation_state\":\"confirmed\",\"previous_state\":\"pending\"}}",
+    "signature": "sha256=63990b953da43bac0676f031c30ab65de632f689e11f8b85bbd6f508e692a5e4"
+  }
+}
