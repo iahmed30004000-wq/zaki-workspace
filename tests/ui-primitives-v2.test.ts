@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { Button, BUTTON_VARIANTS } from "../src/components/ui/button";
 import { Badge, BADGE_TONES } from "../src/components/ui/badge";
 import { ListRow } from "../src/components/ui/list-row";
-import { Segmented } from "../src/components/ui/segmented";
+import { Segmented, nextSegment } from "../src/components/ui/segmented";
 import { Switch } from "../src/components/ui/switch";
 import { Avatar, markAvatarFailed, resetFailedAvatars } from "../src/components/ui/avatar";
 
@@ -20,7 +20,8 @@ describe("the button set", () => {
   });
   it("primary is the filled accent, tonal a tint of it, danger is for destruction", () => {
     expect(html(React.createElement(Button, { variant: "primary" }, "x"))).toMatch(/bg-accent text-accent-fg/);
-    expect(html(React.createElement(Button, { variant: "tonal" }, "x"))).toMatch(/bg-accent\/12 text-accent/);
+    // the tint is written in brackets: Tailwind has no `/12` step, a class it cannot build draws nothing
+    expect(html(React.createElement(Button, { variant: "tonal" }, "x"))).toMatch(/bg-accent\/\[0\.08\] text-accent/);
     expect(html(React.createElement(Button, { variant: "danger" }, "x"))).toMatch(/bg-danger text-danger-fg/);
   });
   it("a link is inline text, an icon button is a round ghost, a fab is a 56 px round accent with a shadow", () => {
@@ -30,6 +31,14 @@ describe("the button set", () => {
     expect(fab).toMatch(/size-14/);
     expect(fab).toMatch(/rounded-full/);
     expect(fab).toMatch(/shadow-card/);
+  });
+  it("a link and a fab keep their own geometry on a wide screen too (the size classes of md: do not survive them)", () => {
+    const link = html(React.createElement(Button, { variant: "link" }, "x"));
+    expect(link).not.toMatch(/md:h-10|md:h-8/);
+    expect(link).toMatch(/md:h-auto/);
+    const fab = html(React.createElement(Button, { variant: "fab", size: "sm" }, "x"));
+    expect(fab).not.toMatch(/md:h-10|md:h-8/);
+    expect(fab).toMatch(/md:size-14/);
   });
   it("every button is at least 44 px on a phone and has a visible focus ring", () => {
     for (const v of ["primary", "tonal", "secondary", "ghost", "danger"] as const) {
@@ -53,7 +62,21 @@ describe("the primitives", () => {
     expect(row).toContain("مرحبا");
     expect(row).toContain("10:30");
     expect(row).toMatch(/bg-selected-row text-selected-row-fg/);
-    expect(html(React.createElement(ListRow, { title: "x" }))).not.toMatch(/bg-selected-row/);
+    expect(row).toMatch(/aria-current="true"/);
+    expect(html(React.createElement(ListRow, { title: "x" }))).not.toMatch(/bg-selected-row|aria-current/);
+  });
+  it("a segmented control has ONE tab stop (the checked option) and the arrows move between the options, the other way round in a right-to-left page", () => {
+    const m = html(React.createElement(Segmented, { value: "b", label: "العرض", onChange: () => undefined, options: [{ value: "a", label: "أ" }, { value: "b", label: "ب" }] }));
+    expect(m.match(/tabindex="0"/g)).toHaveLength(1);
+    expect(m.match(/tabindex="-1"/g)).toHaveLength(1);
+    expect(nextSegment(3, 0, "ArrowDown", true)).toBe(1);
+    expect(nextSegment(3, 0, "ArrowUp", true)).toBe(2);
+    expect(nextSegment(3, 1, "ArrowLeft", true)).toBe(2);
+    expect(nextSegment(3, 1, "ArrowRight", true)).toBe(0);
+    expect(nextSegment(3, 1, "ArrowLeft", false)).toBe(0);
+    expect(nextSegment(3, 2, "Home", true)).toBe(0);
+    expect(nextSegment(3, 0, "End", true)).toBe(2);
+    expect(nextSegment(3, 0, "a", true)).toBeNull();
   });
   it("a segmented control is a radio group with one checked option", () => {
     const m = html(React.createElement(Segmented, { value: "b", label: "العرض", onChange: () => undefined, options: [{ value: "a", label: "أ" }, { value: "b", label: "ب" }] }));
@@ -89,6 +112,20 @@ describe("the typography of the working screens", () => {
     for (const c of [".text-chat", ".text-chat-secondary", ".text-chat-meta", ".text-bar-title", ".text-page-title"]) expect(css, c).toContain(c);
     expect(css).toMatch(/font-size: calc\(15px \* var\(--chat-font-scale\)\)/);
     expect(css).toMatch(/line-height: 1\.45/);
+  });
+});
+
+describe("the guard: a colour class the build can make", () => {
+  // Tailwind builds an opacity step only when it is on its scale (or in brackets): `bg-accent/12` draws NOTHING, silently.
+  const STEPS = new Set(["0", "5", "10", "15", "20", "25", "30", "35", "40", "45", "50", "55", "60", "65", "70", "75", "80", "85", "90", "95", "100"]);
+  it("the primitives only use opacity steps that exist", () => {
+    const dir = path.join(process.cwd(), "src", "components", "ui");
+    const bad: string[] = [];
+    for (const f of readdirSync(dir).filter((n) => n.endsWith(".tsx"))) {
+      const src = readFileSync(path.join(dir, f), "utf8");
+      for (const m of src.matchAll(/\b(?:bg|text|border|ring|outline|fill|stroke)-[a-z0-9-]+\/(\d+)\b/g)) if (!STEPS.has(m[1]!)) bad.push(`${f}: ${m[0]}`);
+    }
+    expect(bad).toEqual([]);
   });
 });
 

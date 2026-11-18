@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * A row of a list (D1: working screens are full-width lists with thin dividers, not cards). A leading picture, a title with an optional second line, a
- * trailing slot (a time, a badge); the selected row uses the `selected-row` tokens. Pass `href`-like behaviour through `as`/`onClick`; the row itself is a plain
- * element so a link or a button can wrap it.
+ * trailing slot (a time, a badge); the selected row uses the `selected-row` tokens and says `aria-current`. The row itself is a plain element (no behaviour of its
+ * own): wrap it in a link or a button, which is what makes it reachable by the keyboard.
  */
 export function ListRow({
   leading,
@@ -25,6 +25,7 @@ export function ListRow({
     <div
       {...rest}
       data-selected={selected ? "true" : undefined}
+      aria-current={selected ? "true" : undefined}
       className={cn(
         "flex min-h-14 w-full items-center gap-3 border-b border-border px-3 py-2 text-start transition-colors",
         selected ? "bg-selected-row text-selected-row-fg" : "hover:bg-surface-2",

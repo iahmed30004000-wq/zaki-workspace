@@ -126,6 +126,9 @@ describe("the sky: time of day <-> light/dark theme", () => {
     expect(themeForMinute(720, "islamic-epic")).toBe("day");
     expect(themeForMinute(30, "islamic-epic")).toBe("islamic-epic");
     expect(themeForMinute(1200, "night")).toBe("night");
+    // the flat pair stays the flat pair: «ليل أزرق» at night, «سماء» (not «نهار») by day
+    expect(themeForMinute(720, "blue-night")).toBe("sky");
+    expect(themeForMinute(30, "blue-night")).toBe("blue-night");
   });
 
   it("a theme rests at noon (light) or midnight (dark)", () => {

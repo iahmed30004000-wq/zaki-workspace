@@ -127,6 +127,8 @@ export const FIELD_BORDER_MIN = AA_UI;
 
 /** The opacity of the tinted ground a status chip is drawn on: `bg-ok/10 text-ok`. */
 export const CHIP_TINT = 0.1;
+/** The hover tint of the tonal button: `hover:bg-accent/10` (its rest tint, 8%, is lighter still). */
+export const TONAL_HOVER_TINT = 0.1;
 /**
  * The scrim is a DARK veil in every theme. Laid at this opacity (at least) under a light caption
  * that sits on a picture, the caption reads over the worst picture there is: pure white.
@@ -161,6 +163,14 @@ export function checkPalette(colors: Readonly<Record<ColorToken, string>>): Gate
     for (const text of ["fg", "fg-muted", "muted", ...TEXT_COLOURS] as const) {
       need("text", `${text} on ${ground}`, contrastRatio(colors[text], colors[ground]), AA_TEXT);
     }
+  }
+  // D1 review: what is written INSIDE a selected row (a link, a muted line, a status word) sits on the selected-row ground, not on a page level
+  for (const text of ["fg-muted", "muted", "accent", "warn", "danger"] as const) {
+    need("text", `${text} on selected-row`, contrastRatio(colors[text], colors["selected-row"]), AA_TEXT);
+  }
+  // the tonal button under the finger or the mouse (`bg-accent/10 text-accent`) on each page level
+  for (const ground of GROUNDS) {
+    need("chip", `accent on accent/${TONAL_HOVER_TINT * 100} (the tonal button hovered) over ${ground}`, contrastRatio(colors.accent, blend(colors.accent, TONAL_HOVER_TINT, colors[ground])), AA_TEXT);
   }
   for (const [text, ground] of ON) need("text", `${text} on ${ground}`, contrastRatio(colors[text], colors[ground]), AA_TEXT);
   // the gold button («جديد») and a wheel action under the finger are labelled in the scrim's dark

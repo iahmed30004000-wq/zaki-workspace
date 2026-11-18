@@ -375,7 +375,7 @@ export const PALETTES: Record<ThemeKey, Palette> = {
       "bubble-in-fg": "#E8EEF4",
       "chat-wallpaper": "#0E1621",
       "chat-pattern": "#1F2E3F",
-      "selected-row": "#26405A",
+      "selected-row": "#1F3550",
       "selected-row-fg": "#E8EEF4",
       "badge-muted": "#8EA3B8",
     },

@@ -15,7 +15,7 @@ const button = cva(
     variants: {
       variant: {
         primary: "bg-accent text-accent-fg hover:bg-accent/90",
-        tonal: "bg-accent/12 text-accent hover:bg-accent/20",
+        tonal: "bg-accent/[0.08] text-accent hover:bg-accent/10",
         secondary: "bg-surface text-fg hover:bg-surface-2 border border-border",
         ghost: "text-fg-muted hover:bg-surface-2 hover:text-fg",
         danger: "bg-danger text-danger-fg hover:bg-danger/90",
@@ -30,8 +30,9 @@ const button = cva(
     },
     compoundVariants: [
       // a link and a fab have their own geometry: the size does not apply to them
-      { variant: "link", size: ["sm", "md", "icon"], className: "h-auto w-auto px-0" },
-      { variant: "fab", size: ["sm", "md", "icon"], className: "size-14 px-0" },
+      // (the `md:` size classes are cancelled too, or a wide screen would still size them)
+      { variant: "link", size: ["sm", "md", "icon"], className: "h-auto w-auto px-0 md:h-auto md:w-auto" },
+      { variant: "fab", size: ["sm", "md", "icon"], className: "size-14 px-0 md:size-14" },
     ],
     defaultVariants: { variant: "primary", size: "md" },
   },

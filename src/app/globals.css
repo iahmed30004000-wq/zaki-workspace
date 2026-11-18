@@ -20,7 +20,7 @@ body {
  * page titles; line height 1.45 for Arabic text; numbers tabular in times and counters. `--chat-font-scale` is the person's text-size setting (C4): it scales
  * the chat and list sizes only.
  */
-:root {
+html {
   --chat-font-scale: 1;
 }
 .text-chat {

@@ -123,7 +123,9 @@ export function isDayMinute(minute: number): boolean {
 }
 
 export function themeForMinute(minute: number, dark: ThemeKey): ThemeKey {
-  return isDayMinute(minute) ? "day" : darkThemeOf(dark);
+  const night = darkThemeOf(dark);
+  // the flat pair keeps its own light half
+  return isDayMinute(minute) ? (night === "blue-night" ? "sky" : "day") : night;
 }
 
 /** Where the sky rests for a theme: noon for the light one, midnight for a dark one. */

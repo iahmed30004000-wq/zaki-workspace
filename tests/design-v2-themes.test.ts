@@ -25,7 +25,6 @@ describe("the default theme", () => {
       expect(AR[`theme.${k}`]).toBeTruthy();
       expect(AR[`theme.${k}.mood`]).toBeTruthy();
     }
-    expect(AR["features.themeV2Default.name"]).toBeTruthy();
   });
 });
 
