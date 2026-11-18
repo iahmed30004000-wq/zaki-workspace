@@ -32,6 +32,8 @@ const HEX_ALLOWED = [
   "server/services/tasks.ts", // the colour a new board column is created with (stored in the database)
   "app/api/labels/route.ts", // the colour a new label is created with (stored in the database)
   "app/api/boards/[id]/columns/route.ts", // the colour a new column is created with (stored in the database)
+  "lib/cards/collage-layout.ts", // the white of the collage canvas: the colour of the exported picture, not of the screen
+  "lib/cards/media-client.ts", // the canvas the browser draws the exported picture on
 ];
 const HEX = /#[0-9a-fA-F]{6}\b|#[0-9a-fA-F]{3}\b/;
 const RAW_RGB = /\brgba?\(\s*\d/;

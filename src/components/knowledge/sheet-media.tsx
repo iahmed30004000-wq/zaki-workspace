@@ -148,7 +148,7 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
                   <img src={f.url} alt={t("media.feedback_item")} className="h-28 w-full object-cover" loading="lazy" />
                 </button>
                 {f.state ? (
-                  <div className="space-y-1 text-[11px]">
+                  <div className="space-y-1 text-xs">
                     <label className="flex items-center gap-1">
                       <input type="checkbox" checked={f.state.consent} onChange={(e) => void setState(f, { consent: e.target.checked })} />
                       {t("media.consent")}
@@ -251,14 +251,14 @@ function CoverTool({ file, onCancel, onDone }: { file: File; onCancel: () => voi
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt="" draggable={false} className="block max-h-96 max-w-full" />
         {[...rects, ...(now ? [now] : [])].map((r, i) => (
-          <span key={i} className="absolute bg-black" style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` }} />
+          <span key={i} className="absolute" style={{ backgroundColor: "black" /* the colour the exported picture gets, so the preview is the truth */, left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%` }} />
         ))}
       </div>
       <div className="flex flex-wrap items-center gap-2">
         <button type="button" className={btn} disabled={rects.length === 0} onClick={() => setRects((r) => r.slice(0, -1))}>{t("media.cover_undo")}</button>
         <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />{t("media.consent")}</label>
       </div>
-      <p className="text-[11px] text-fg-muted">{t("media.cover_note")}</p>
+      <p className="text-xs text-fg-muted">{t("media.cover_note")}</p>
       <div className="flex gap-2">
         <button type="button" className={`${btn} bg-accent text-accent-fg`} disabled={busy || rects.length === 0} onClick={async () => { setBusy(true); try { await onDone(await coverPicture(file, rects), consent); } finally { setBusy(false); } }}>{busy ? "…" : t("media.upload_covered")}</button>
         <button type="button" className={btn} onClick={() => { URL.revokeObjectURL(url); onCancel(); }}>{t("media.cancel")}</button>

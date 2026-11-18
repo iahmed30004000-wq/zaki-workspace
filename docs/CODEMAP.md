@@ -514,7 +514,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `api-tokens` | 204 | 5 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `campaigns` | 235 | 5 | Campaigns live inside a department (marketing calendars). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
-| `knowledge-media` | 213 | 5 | Product photos and feedback pictures (Q1.2). |
+| `knowledge-media` | 236 | 5 | Product photos and feedback pictures (Q1.2). |
 | `owner-assistant-chat` | 306 | 5 | «مساعد المالك» — THE CONVERSATION. |
 | `owner-board-sections` | 85 | 5 | «لوحة المالك» — THE EXTENSION POINT. |
 | `production` | 262 | 5 | Daily production. |
@@ -637,7 +637,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `RoutineLog` | 2 | `server/services/production.ts`: 2 |
 | `Goal` | 6 | `server/services/goals.ts`: 3<br>`server/services/move-to-space.ts`: 1<br>`server/services/okr.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
-| `StoredFile` | 13 | `server/services/files.ts`: 7<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>`server/services/knowledge-media.ts`: 1<br>+3 more |
+| `StoredFile` | 14 | `server/services/files.ts`: 7<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>+3 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
 | `Conversation` | 21 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/messages.ts`: 2<br>`server/chat/hq.ts`: 1<br>+9 more |
 | `ConversationMember` | 19 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 3<br>`server/services/workspaces.ts`: 2<br>+4 more |
