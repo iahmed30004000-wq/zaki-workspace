@@ -258,7 +258,7 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   orderTemplateHint: false,
   // «القائمة الجديدة» (src/lib/nav/places.ts, N1.1): the new map of places - الدردشة · اليوم · الشغل · المكتبة · نتفرّج سوا · الإدارة (or «الناس»), at most four tabs and «المزيد»
   // in each place, the landing page the company chose (`Organization.settings.landing`) and the glossary's names. OFF by default: off, the old map (PLACES_V1) is drawn and «/» is «اليوم»,
-  // exactly as before. Nothing is removed by either map: every old address is still a page.
+  // as before (the glossary's words are renamed for everybody). Nothing is removed by either map: every old address is still a page.
   navV2: false,
   semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the

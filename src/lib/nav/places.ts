@@ -631,7 +631,9 @@ function buildPlaceV2(def: PlaceDef, subject: NavSubject): NavPlace | null {
       if (tab) pinned.push(tab);
     }
   }
-  const drawn = [...core, ...pinned].slice(0, MAX_TABS);
+  // a person with none of the core tabs but some tools still gets tabs (the tools come up), never an empty strip with a link to a page they cannot open
+  const head = core.length > 0 ? [...core, ...pinned] : [...optional];
+  const drawn = head.slice(0, MAX_TABS);
   const rest = [...core, ...optional].filter((tab) => !drawn.includes(tab));
 
   const first = drawn[0];

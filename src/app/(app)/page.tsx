@@ -63,7 +63,8 @@ export default async function TodayPage({ searchParams }: { searchParams?: Recor
   // a space of «لوحات» opens on its cards (decided here, on the server; the sidebar is not touched)
   if (opensOnCards(space?.layout)) redirect("/cards");
   // the company's landing page: «/» alone follows it, «/?view=today» is always «اليوم»
-  if (searchParams?.["view"] !== "today") {
+  const view = searchParams?.["view"];
+  if ((Array.isArray(view) ? view[0] : view) !== "today") {
     const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } });
     if (featureOn(org?.settings, "navV2") && landingOf(org?.settings) === "chat") redirect("/chat");
   }

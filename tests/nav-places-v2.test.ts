@@ -242,6 +242,17 @@ describe("at most four tabs plus «المزيد», and the owner's two pinned to
     expect(tabs(noCrm, "work")).toEqual(["my-work", "projects", "goals"]);
   });
 
+  it("a person who may open none of the core tabs but an optional tool still gets a place with a tab (never an empty strip with a dead link)", () => {
+    // staff with the work boxes switched off and «الطلبات» off: only the optional tools are left
+    const nav = buildNav(v2("MEMBER", { revokedCapabilities: ["tasks.view", "projects.view"] }, { off: ["approvals"] }));
+    const work = place(nav, "work");
+    expect(work.tabs.length).toBeGreaterThan(0);
+    expect(work.tabs[0]?.key).toBe("goals");
+    expect(work.href).toBe(work.tabs[0]?.href);
+    expect(work.tabs.length).toBeLessThanOrEqual(4);
+    expect([...work.tabs, ...(work.more ?? [])].map((t) => t.key)).toEqual(WORK_OPTIONAL);
+  });
+
   it("WORK_OPTIONAL_TABS is the eight optional tools", () => {
     expect([...WORK_OPTIONAL_TABS]).toEqual(WORK_OPTIONAL);
   });
@@ -282,6 +293,9 @@ describe("every tab offered is a page that serves that person, and a tab not off
     expect(offeredToGuests("requests")).toBe(false);
     for (const key of ALL_V2.filter((k) => !["my-work", "projects", "documents", "list", "calendar"].includes(k))) expect(offeredToGuests(key), key).toBe(false);
   });
+
+  // N1.2 wires the switch: navSubjectOf (src/server/services/nav-order.ts) must spread navExtrasOf(settings) into the subject. Until then navV2 is OFF everywhere.
+  it.todo("navSubjectOf hands navV2 and workTabs to the map (N1.2)");
 
   it("the same menu for two members of the same rank", () => {
     const a = buildNav(v2("MEMBER"));
