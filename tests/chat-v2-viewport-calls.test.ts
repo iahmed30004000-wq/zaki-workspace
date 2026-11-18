@@ -89,7 +89,8 @@ describe("the rows of the virtual list", () => {
     const calls = rows.filter((r) => r.type === "calls");
     expect(calls).toHaveLength(1);
     const chip = calls[0] as Extract<(typeof rows)[number], { type: "calls" }>;
-    expect(chip.key).toBe(`calls:${messages[3]!.id}`);
+    // keyed by its LAST line: an older page that grows the run upward must not change the key of a row that is on screen
+    expect(chip.key).toBe(`calls:${messages[14]!.id}`);
     expect(chip.messages).toHaveLength(12);
     expect(chip.index).toBe(3);
     expect(rows.filter((r) => r.type === "message")).toHaveLength(6);
@@ -103,7 +104,7 @@ describe("the rows of the virtual list", () => {
     expect(rows.filter((r) => r.type === "calls")).toHaveLength(2);
     const at = rows.findIndex((r) => r.type === "unread");
     expect(rows[at + 1]!.type).toBe("calls");
-    expect((rows[at + 1] as { key: string }).key).toBe(`calls:${messages[9]!.id}`);
+    expect((rows[at + 1] as { key: string }).key).toBe(`calls:${messages[14]!.id}`);
   });
 
   it("a message inside a folded run is found at the chip's row (a jump to it scrolls to the chip)", () => {
@@ -113,6 +114,21 @@ describe("the rows of the virtual list", () => {
     expect(rowIndexOfMessage(rows, messages[8]!.id)).toBe(chipAt);
     expect(scrollRowIndex(rows, messages[8]!.id, "center")).toBe(chipAt);
     expect(rowIndexOfMessage(rows, "missing")).toBe(-1);
+  });
+
+  it("the key of the chip survives an older page: call lines put ABOVE a run leave its key (and so its measured height and the scroll anchor) alone", () => {
+    const lines = Array.from({ length: 12 }, (_, i) => (i % 2 === 0 ? ("call_started" as const) : ("call_ended" as const)));
+    const all = withCalls(lines, 6, 3);
+    // the window that was loaded first: the first lines of the run were cut off by its boundary
+    const young = buildRows(all.slice(10), { foldCalls: true }).find((r) => r.type === "calls")!;
+    const older = buildRows(all.slice(4), { foldCalls: true }).find((r) => r.type === "calls")!;
+    expect(older.key).toBe(young.key);
+  });
+
+  it("the hook may anchor on a chip as well as on a message (a chip is a row the person can be looking at)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/lib/chat/viewport/use-message-viewport.ts", "utf8");
+    expect(src).toMatch(/type === "message" \|\| old\[i\.index\]\?\.type === "calls"/);
   });
 
   it("the chip has a fixed height for the first paint", () => {

@@ -16,11 +16,13 @@ import { isAtBottom } from "@/lib/chat/conversation/client";
 import { MENTION_ALL_NAME } from "@/lib/chat/conversation/mentions";
 import { useOutbox } from "@/lib/chat/outbox/use-outbox";
 import { playChatSound } from "@/lib/chat/sounds";
+import { runFlags } from "@/lib/chat/group";
 import { ct } from "@/lib/chat/text";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { arrivalSoundOf } from "@/lib/chat/v2/pane/arrival-sound";
 import { jumpButtonsOf, mentionTargetsOf, mentionsButtonOf } from "@/lib/chat/v2/pane/jump-model";
+import { stableReaders } from "@/lib/chat/v2/pane/readers";
 import { useReadMarking } from "@/lib/chat/v2/pane/use-read-marking";
 import { useMessageViewport } from "@/lib/chat/viewport/use-message-viewport";
 import { buildRows } from "@/lib/chat/viewport/rows";
@@ -115,15 +117,16 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
     };
   }, [qc, outbox, conversationId, commands]);
   const mentionNames = React.useMemo(() => [...(people?.mentionables ?? people?.members ?? []).map((m) => m.name), MENTION_ALL_NAME], [people]);
+  // the same array for a message whose readers did not change: a read tick elsewhere does not draw every bubble that has readers again
+  const readersRef = React.useRef<ReadonlyMap<string, ReaderDto[]>>(new Map());
   const readersByMessage = React.useMemo(() => {
-    const map = new Map<string, ReaderDto[]>();
-    for (const r of history.readers) map.set(r.messageId, [...(map.get(r.messageId) ?? []), r]);
-    return map;
+    readersRef.current = stableReaders(readersRef.current, history.readers);
+    return readersRef.current;
   }, [history.readers]);
   const menu = useMessageMenu(facts);
   const env = React.useMemo<RowEnv>(
-    () => ({ conversationId, facts, messages: history.messages, mentionNames, readersByMessage, menu, pending }),
-    [conversationId, facts, history.messages, mentionNames, readersByMessage, menu, pending],
+    () => ({ conversationId, facts, mentionNames, readersByMessage, menu, pending }),
+    [conversationId, facts, mentionNames, readersByMessage, menu, pending],
   );
 
   const stickyLabel = topId && byId.get(topId) ? dayLabelOf(byId.get(topId)!.createdAt) : null;
@@ -135,9 +138,10 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
           {v.items.map((item) => {
             const r = rows[item.index];
             if (!r) return null;
+            const flags = r.type === "message" ? runFlags(history.messages, r.index) : { start: true, end: true };
             return (
               <div key={item.key} data-index={item.index} ref={v.measureElement} className={`absolute inset-x-0 top-0 px-3 ${rowPadding(r, history.messages)}`} style={{ transform: `translateY(${item.start}px)` }}>
-                <ViewportRow row={r} env={env} highlightId={history.highlightId} />
+                <ViewportRow row={r} env={env} start={flags.start} end={flags.end} highlightId={history.highlightId} />
               </div>
             );
           })}

@@ -24,6 +24,7 @@ import { ViewportRow, rowPadding, type RowEnv } from "@/components/chat/v2/pane/
 import { ApiError } from "@/lib/api-client";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { installChatDefaults } from "@/lib/chat/cache/share";
+import { runFlags } from "@/lib/chat/group";
 import { ctCount } from "@/lib/chat/text";
 import { bubbleFactsOf } from "@/lib/chat/v2/pane/bubble-facts";
 import { jumpButtonsOf, mentionsButtonOf } from "@/lib/chat/v2/pane/jump-model";
@@ -59,7 +60,6 @@ describe("the rows of the log", () => {
   const env = (over: Partial<RowEnv> = {}): RowEnv => ({
     conversationId: "c1",
     facts: bubbleFactsOf(header),
-    messages: [],
     mentionNames: [],
     readersByMessage: new Map(),
     menu: () => createElement("i", { "data-menu-slot": "" }),
@@ -67,18 +67,22 @@ describe("the rows of the log", () => {
     ...over,
   });
   const row = (rows: Row[], type: Row["type"], at = 0): Row => rows.filter((r) => r.type === type)[at]!;
-  const draw = (r: Row, e: RowEnv, highlightId: string | null = null) => inPane(header, createElement(ViewportRow, { row: r, env: e, highlightId }));
+  // the run flags of a message row are the viewport's to give (`runFlags` of the loaded messages); a test asks for them the same way
+  const draw = (r: Row, e: RowEnv, highlightId: string | null = null, messages: MessageDto[] = []) => {
+    const flags = r.type === "message" ? runFlags(messages, r.index) : { start: true, end: true };
+    return inPane(header, createElement(ViewportRow, { row: r, env: e, start: flags.start, end: flags.end, highlightId }));
+  };
   const call = (k: "call_started" | "call_ended"): Partial<MessageDto> => ({ kind: "SYSTEM", body: null, system: { k } });
 
   it("a day is the quiet chip «اليوم / أمس / التاريخ»", () => {
     const messages = makeConversation(2);
-    const html = draw(row(buildRows(messages), "day"), env({ messages }));
+    const html = draw(row(buildRows(messages), "day"), env());
     expect(html).toContain("data-day-separator");
   });
 
   it("the unread line says «رسائل غير مقروءة» and is a separator", () => {
     const messages = makeConversation(3);
-    const html = draw(row(buildRows(messages, { unreadBeforeId: messages[1]!.id }), "unread"), env({ messages }));
+    const html = draw(row(buildRows(messages, { unreadBeforeId: messages[1]!.id }), "unread"), env());
     expect(html).toContain("data-unread-line");
     expect(html).toContain('role="separator"');
     expect(html).toContain("رسائل غير مقروءة");
@@ -87,7 +91,7 @@ describe("the rows of the log", () => {
   it("a dozen call lines are ONE chip «6 مكالمات» (a button that opens the list), never twelve lines", () => {
     const messages = makeConversation(14, 1, (i) => (i >= 1 && i <= 12 ? call(i % 2 === 1 ? "call_started" : "call_ended") : {}));
     const rows = buildRows(messages, { foldCalls: true });
-    const html = draw(row(rows, "calls"), env({ messages }));
+    const html = draw(row(rows, "calls"), env());
     expect(html).toContain("data-calls-chip");
     expect(html).toContain("6 مكالمات");
     expect(html).toContain('aria-haspopup="dialog"');
@@ -96,7 +100,7 @@ describe("the rows of the log", () => {
 
   it("a system line is a quiet sentence made from its key — never the JSON, never an empty bubble", () => {
     const messages = makeConversation(1, 1, () => ({ kind: "SYSTEM", body: JSON.stringify({ k: "join" }), authorName: "سلمى", system: { k: "join" } }));
-    const html = draw(row(buildRows(messages), "message"), env({ messages }));
+    const html = draw(row(buildRows(messages), "message"), env(), null, messages);
     expect(html).toContain("data-service-line=\"join\"");
     expect(html).toContain("انضمام سلمى إلى المحادثة");
     expect(html).not.toContain("{&quot;k&quot;");
@@ -105,14 +109,14 @@ describe("the rows of the log", () => {
 
   it("a message of mine the server does not have yet is the PENDING bubble (retry, delete) — never a bubble with a menu", () => {
     const messages = makeConversation(1, 1, () => ({ id: "pending:abc", clientId: "abc", mine: true, body: "عم بتبعت", pending: { state: "sending" } }));
-    const html = draw(row(buildRows(messages), "message"), env({ messages }));
+    const html = draw(row(buildRows(messages), "message"), env(), null, messages);
     expect(html).toContain('data-pending-message="abc"');
     expect(html).toContain('data-outbox-state="pending"');
     expect(html).toContain(AR["outbox.retry"]);
     expect(html).not.toContain("data-menu-slot");
     expect(html).not.toContain("data-message-id");
     const failed = makeConversation(1, 1, () => ({ id: "pending:abc", clientId: "abc", mine: true, body: "x", pending: { state: "failed", reason: "outbox.reason.other" } }));
-    const bad = draw(row(buildRows(failed), "message"), env({ messages: failed }));
+    const bad = draw(row(buildRows(failed), "message"), env(), null, failed);
     expect(bad).toContain('data-outbox-state="failed"');
     expect(bad).toContain("data-outbox-bang");
   });
@@ -120,11 +124,11 @@ describe("the rows of the log", () => {
   it("a person's message is a bubble with its menu; the target of a jump has the ring", () => {
     const messages = makeConversation(3);
     const rows = buildRows(messages);
-    const html = draw(row(rows, "message", 1), env({ messages }), messages[1]!.id);
+    const html = draw(row(rows, "message", 1), env(), messages[1]!.id, messages);
     expect(html).toContain(`data-message-id="${messages[1]!.id}"`);
     expect(html).toContain("data-menu-slot");
     expect(html).toContain("ring-accent");
-    expect(draw(row(rows, "message", 0), env({ messages }), messages[1]!.id)).not.toContain("ring-accent");
+    expect(draw(row(rows, "message", 0), env(), messages[1]!.id, messages)).not.toContain("ring-accent");
   });
 
   it("the run's last bubble leaves a gap and the ones inside it sit close", () => {

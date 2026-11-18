@@ -13,7 +13,6 @@ import { TicketDetailModal } from "@/components/ticket-detail-modal";
 import type { MessageMenuSlotApi } from "@/components/chat/v2/message-bubble";
 import { usePaneActions, usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
-import { findCustomerNumbers } from "@/lib/tickets/customer-number";
 
 /**
  * C2.4 — SEAM 3: the message menu and what it opens. C2.6 OWNS THIS FILE AFTERWARDS (quick reactions on top, the new registry items, hover actions,
@@ -66,7 +65,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         else if (id === "copy") commands.copy(message);
       },
       openTicket: setTicketOpen,
-      problem: (message, opts = {}) => setProblemFor({ message, kindKey: opts.kindKey ?? null, customer: opts.customer ?? findCustomerNumbers(message.body ?? "")[0] ?? null }),
+      problem: (message, opts = {}) => setProblemFor({ message, kindKey: opts.kindKey ?? null, customer: opts.customer ?? null }),
     }),
     [commands],
   );

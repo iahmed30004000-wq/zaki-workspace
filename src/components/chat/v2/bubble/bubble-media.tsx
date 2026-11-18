@@ -28,9 +28,9 @@ export function BubbleMedia({ attachments, kind, canTranscribe, canReadImages }:
         const url = safeMediaUrl(file.url);
         if (!url) {
           return (
-            <a key={file.id} href="#" aria-disabled="true" className="text-xs text-fg-muted">
+            <span key={file.id} aria-disabled="true" className="block text-xs text-fg-muted">
               {file.name}
-            </a>
+            </span>
           );
         }
         if (kind === "VOICE" && file.mime.startsWith("audio/")) {
@@ -48,16 +48,14 @@ export function BubbleMedia({ attachments, kind, canTranscribe, canReadImages }:
         return (
           <div key={file.id} className="my-1.5">
             {file.kind === "IMAGE" && file.mime.startsWith("image/") ? (
-              <a href={url} download={file.name} data-image-box className="block overflow-hidden rounded-lg bg-surface-2" style={reserved}>
+              <span data-image-box className="block overflow-hidden rounded-lg bg-surface-2" style={reserved}>
                 {/* eslint-disable-next-line @next/next/no-img-element -- our own attachment address (checked above), already boxed from its own size: next/image would need a loader for a private route */}
                 <img src={url} alt={file.name} loading="lazy" width={box.width} height={box.height} className="size-full object-cover" />
-                <span className="sr-only">{ct("chatc.download", { name: file.name })}</span>
-              </a>
-            ) : (
-              <a href={url} download={file.name} className="text-xs underline">
-                {ct("chatc.download", { name: file.name })}
-              </a>
-            )}
+              </span>
+            ) : null}
+            <a href={url} download={file.name} className="mt-0.5 block text-xs underline">
+              {ct("chatc.download", { name: file.name })}
+            </a>
             {canReadImages && file.kind === "IMAGE" && OCR_MIMES.has(file.mime) && <ImageText endpoint={`/api/chat/attachments/${encodeURIComponent(file.id)}/text`} />}
             {file.kind === "VIDEO" && file.mime.startsWith("video/") && <video src={url} controls preload="metadata" className="mt-1 rounded-lg bg-surface-2" style={reserved} />}
             {file.kind === "AUDIO" && file.mime.startsWith("audio/") && <audio src={url} controls preload="metadata" className="mt-1 w-full" />}

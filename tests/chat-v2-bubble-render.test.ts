@@ -147,6 +147,9 @@ describe("files reserve their box", () => {
     expect(html).toContain(`width="${box.width}" height="${box.height}"`);
     expect(html).toContain(`aspect-ratio:${box.width} / ${box.height}`);
     expect(html).toContain('loading="lazy"');
+    // the picture is a box, not a link (a tap must not start a download: the viewer is C3's); the download is a visible line under it, as on the old screen
+    expect(html).not.toMatch(/<a[^>]*data-image-box/);
+    expect(html).toContain("تنزيل صورة.png");
   });
 
   it("an older picture with no size gets the ONE fixed 4:3 box", () => {

@@ -90,7 +90,7 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
       <section dir="rtl" lang="ar" data-chat-pane-root data-pane-state="ready" className="relative flex h-full min-h-0 flex-col bg-surface" aria-label={header.title}>
         <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
         <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
-        <CallBar conversationId={header.id} enabled={header.calls !== false && header.me.canCall !== false} />
+        <CallBar conversationId={header.id} enabled={header.calls !== false} />
         <SearchPanel conversationId={header.id} />
         {header.me.oversight ? <p className="border-b border-border p-2 text-center text-sm">{ct("chatc.oversight_banner")}</p> : null}
         {header.space?.hasExternal ? <p className="p-2 text-sm">{ct("chatc.external")}</p> : null}
@@ -120,7 +120,7 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
 export function ConversationPane({ conversationId, focusMessageId, watch = false }: ConversationPaneProps) {
   const headerQuery = useChatHeader(conversationId);
   const history = useConversationHistory(conversationId, { around: focusMessageId ?? null });
-  const people = usePeople(conversationId);
+  const people = usePeople(conversationId, headerQuery.data?.memberCount);
   const header = headerQuery.data;
   return (
     // one provider per conversation: reply, edit, forward, search and the info panel of the last conversation are never this one's

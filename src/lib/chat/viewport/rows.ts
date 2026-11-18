@@ -10,7 +10,7 @@ import { callRuns } from "@/lib/chat/viewport/calls";
  * is `unread`. When an older page is put in front, no row that was there changes its key (the one day row that no longer opens a day
  * goes away) — so the list keeps every measured height and the scroll anchor finds its row.
  *
- * C2.4: with `foldCalls` a run of call lines is ONE `calls` row (key `calls:<its first line>`), see `calls.ts`. Off by default: C1.7's rows are
+ * C2.4: with `foldCalls` a run of call lines is ONE `calls` row (key `calls:<its LAST line>`: an older page that grows the run upward leaves the key alone), see `calls.ts`. Off by default: C1.7's rows are
  * exactly what they were.
  */
 export type Row =
@@ -34,7 +34,7 @@ export function buildRows(messages: readonly MessageDto[], opts: { unreadBeforeI
     if (opts.unreadBeforeId && message.id === opts.unreadBeforeId) rows.push({ type: "unread", key: "unread" });
     const to = runs.get(index);
     if (to !== undefined) {
-      rows.push({ type: "calls", key: `calls:${message.id}`, messages: messages.slice(index, to), index });
+      rows.push({ type: "calls", key: `calls:${messages[to - 1]!.id}`, messages: messages.slice(index, to), index });
       previous = messages[to - 1]!;
       index = to - 1;
       continue;

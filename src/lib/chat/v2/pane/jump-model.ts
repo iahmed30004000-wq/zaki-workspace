@@ -43,6 +43,8 @@ export interface MentionsButton {
 export function mentionsButtonOf(s: { mentionsUnread: number; targets: readonly string[]; visited: readonly string[] }): MentionsButton {
   if (s.mentionsUnread <= 0) return { show: false, count: 0, target: null };
   const remaining = s.targets.filter((id) => !s.visited.includes(id));
-  const count = Math.max(remaining.length, s.mentionsUnread - s.visited.length);
+  // only a visited message that is STILL among the unread ones is taken off the number: one the server has marked read since is already out of it
+  const visitedStillUnread = s.targets.filter((id) => s.visited.includes(id)).length;
+  const count = Math.max(remaining.length, s.mentionsUnread - visitedStillUnread);
   return { show: count > 0, count, target: remaining[0] ?? null };
 }

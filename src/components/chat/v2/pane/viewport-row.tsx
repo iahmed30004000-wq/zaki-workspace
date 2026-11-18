@@ -14,12 +14,10 @@ import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { Row } from "@/lib/chat/viewport/rows";
 import { findCustomerNumbers } from "@/lib/tickets/customer-number";
 
-/** What every row of the log shares; one object per render of the viewport (a row that did not change does not draw again). */
+/** What every row of the log shares; it changes only when the header's flags, the people, the readers, the menu or the pending handlers do. */
 export interface RowEnv {
   conversationId: string;
   facts: BubbleFacts;
-  /** the messages in order, for the runs (`runFlags`) */
-  messages: readonly MessageDto[];
   mentionNames: readonly string[];
   readersByMessage: ReadonlyMap<string, ReaderDto[]>;
   /** the message menu (seam 3) and the hover slot (C2.6) */
@@ -29,10 +27,9 @@ export interface RowEnv {
   pending: { retry: (item: OutboxItem) => void; discard: (item: OutboxItem) => void; copy: (item: OutboxItem) => void; edit: (item: OutboxItem) => void };
 }
 
-function BubbleRow({ message, index, env, highlighted }: { message: MessageDto; index: number; env: RowEnv; highlighted: boolean }) {
+function BubbleRow({ message, start, end, env, highlighted }: { message: MessageDto; start: boolean; end: boolean; env: RowEnv; highlighted: boolean }) {
   const commands = usePaneCommands();
   const dialogs = useMenuDialogs();
-  const { start, end } = runFlags(env.messages, index);
   const onOpenWork = React.useCallback((kind: "task" | "ticket", id: string) => (kind === "ticket" ? dialogs.openTicket(id) : undefined), [dialogs]);
   const onHintTicket = React.useCallback((m: MessageDto) => dialogs.problem(m, { customer: findCustomerNumbers(m.body ?? "")[0] ?? null }), [dialogs]);
   const onSuggest = React.useCallback((m: MessageDto, kindKey: string) => dialogs.problem(m, { kindKey }), [dialogs]);
@@ -62,8 +59,11 @@ function BubbleRow({ message, index, env, highlighted }: { message: MessageDto; 
  * C2.4 — ONE ROW of the virtual log. A day, the unread line, a folded run of calls and a system line are the centred chips of `service-rows.tsx`; a
  * person's message is a `MessageBubble`; a message of mine that the server does not have yet (its id starts with `pending:`) is the `PendingBubble` with
  * retry / discard — NEVER a `MessageBubble`, whose menu would act on an id the server does not know.
+ *
+ * `start` / `end` are the run flags of a message row (the viewport asks `runFlags` per row): the env holds no message list, so a new message does not make
+ * every row draw again — only the row whose flags changed (the one that stopped being the last of its run).
  */
-function ViewportRowView({ row, env, highlightId }: { row: Row; env: RowEnv; highlightId: string | null }) {
+function ViewportRowView({ row, env, start, end, highlightId }: { row: Row; env: RowEnv; start: boolean; end: boolean; highlightId: string | null }) {
   if (row.type === "day") return <DaySeparator at={row.at} />;
   if (row.type === "unread") return <UnreadLine />;
   if (row.type === "calls") return <CallsChip messages={row.messages} />;
@@ -73,7 +73,7 @@ function ViewportRowView({ row, env, highlightId }: { row: Row; env: RowEnv; hig
     return <PendingBubble item={item} onRetry={env.pending.retry} onDelete={env.pending.discard} onCopy={env.pending.copy} onEdit={env.pending.edit} />;
   }
   if (message.kind === "SYSTEM") return <ServiceLine message={message} />;
-  return <BubbleRow message={message} index={row.index} env={env} highlighted={highlightId === message.id} />;
+  return <BubbleRow message={message} start={start} end={end} env={env} highlighted={highlightId === message.id} />;
 }
 
 export const ViewportRow = React.memo(ViewportRowView);

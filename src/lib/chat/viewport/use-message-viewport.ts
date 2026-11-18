@@ -96,7 +96,7 @@ export function useMessageViewport(opts: MessageViewportOptions): MessageViewpor
     const v = virtRef.current;
     const node = elRef.current;
     const old = rowsRef.current;
-    anchorRef.current = v && node ? captureAnchor(v.getVirtualItems(), node.scrollTop, (i) => old[i.index]?.type === "message") : null;
+    anchorRef.current = v && node ? captureAnchor(v.getVirtualItems(), node.scrollTop, (i) => old[i.index]?.type === "message" || old[i.index]?.type === "calls") : null;
   }
   rowsRef.current = rows;
 

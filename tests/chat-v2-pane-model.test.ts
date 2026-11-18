@@ -5,6 +5,8 @@ import { bubbleFactsOf } from "@/lib/chat/v2/pane/bubble-facts";
 import { headerMenuOf, subtitleOf } from "@/lib/chat/v2/pane/header-model";
 import { jumpButtonsOf, mentionTargetsOf, mentionsButtonOf } from "@/lib/chat/v2/pane/jump-model";
 import { newestToConsider } from "@/lib/chat/v2/pane/read-model";
+import { latestGuard } from "@/lib/chat/v2/pane/latest";
+import { stableReaders } from "@/lib/chat/v2/pane/readers";
 import { arrivalSoundOf } from "@/lib/chat/v2/pane/arrival-sound";
 import { callDoor, doors } from "@/lib/chat/v2/pane/message-actions";
 import { composerDetailOf } from "@/lib/chat/v2/pane/composer-detail";
@@ -206,12 +208,51 @@ describe("the jump buttons", () => {
     expect(mentionTargetsOf(messages, undefined, 2)).toEqual([]);
   });
 
+  it("«@» does not subtract what was visited and has since been read: only the visited ones that are still among the unread count", () => {
+    // the person went through 3 mentions (the server has marked them read since); 2 NEW ones arrived in messages that are not loaded
+    expect(mentionsButtonOf({ mentionsUnread: 2, targets: [], visited: ["a", "b", "c"] })).toEqual({ show: true, count: 2, target: null });
+    // two of the loaded unread ones are visited, one is not
+    expect(mentionsButtonOf({ mentionsUnread: 3, targets: ["x", "y", "z"], visited: ["x", "y"] })).toEqual({ show: true, count: 1, target: "z" });
+  });
+
   it("«@» shows the unread mentions and goes to the next one not visited yet; nothing when none are unread", () => {
     expect(mentionsButtonOf({ mentionsUnread: 0, targets: ["c"], visited: [] })).toEqual({ show: false, count: 0, target: null });
     expect(mentionsButtonOf({ mentionsUnread: 2, targets: ["c", "e"], visited: [] })).toEqual({ show: true, count: 2, target: "c" });
     expect(mentionsButtonOf({ mentionsUnread: 2, targets: ["c", "e"], visited: ["c"] })).toEqual({ show: true, count: 1, target: "e" });
     // the targets are not loaded: the number still shows, there is nowhere to jump yet
     expect(mentionsButtonOf({ mentionsUnread: 3, targets: [], visited: [] })).toEqual({ show: true, count: 3, target: null });
+  });
+});
+
+describe("only the newest of several requests may answer", () => {
+  it("each request gets a guard; only the last one asked says it is current (a slow old answer is dropped)", () => {
+    const guard = latestGuard();
+    const first = guard();
+    const second = guard();
+    expect(first()).toBe(false);
+    expect(second()).toBe(true);
+    const third = guard();
+    expect(second()).toBe(false);
+    expect(third()).toBe(true);
+  });
+});
+
+describe("the readers of a bubble keep their identity while they do not change", () => {
+  const r = (userId: string, messageId: string, readAt?: string) => ({ userId, name: userId, messageId, ...(readAt ? { readAt } : {}) });
+  it("a new list with the same people on the same messages gives back the SAME arrays (so a bubble is not drawn again for a read tick elsewhere)", () => {
+    const first = stableReaders(new Map(), [r("a", "m1"), r("b", "m1"), r("c", "m2")]);
+    const again = stableReaders(first, [r("a", "m1"), r("b", "m1"), r("c", "m2")]);
+    expect(again.get("m1")).toBe(first.get("m1"));
+    expect(again.get("m2")).toBe(first.get("m2"));
+  });
+
+  it("only the message whose readers changed gets a new array", () => {
+    const first = stableReaders(new Map(), [r("a", "m1"), r("c", "m2")]);
+    const next = stableReaders(first, [r("a", "m1"), r("b", "m1", "2026-11-01T09:00:00.000Z"), r("c", "m2")]);
+    expect(next.get("m1")).not.toBe(first.get("m1"));
+    expect(next.get("m1")).toHaveLength(2);
+    expect(next.get("m2")).toBe(first.get("m2"));
+    expect(stableReaders(next, []).size).toBe(0);
   });
 });
 

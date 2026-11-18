@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { callApi } from "@/components/calls/call-api";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import { ct } from "@/lib/chat/text";
+import { latestGuard } from "@/lib/chat/v2/pane/latest";
 
 /**
  * Is a call of this conversation going on right now? Asked of the same door the header's call button asks (`GET /api/chat/conversations/<id>/call`) and
@@ -14,11 +15,14 @@ import { ct } from "@/lib/chat/text";
 export function useLiveCall(conversationId: string, enabled: boolean): { id: string } | null {
   const [going, setGoing] = React.useState<{ id: string } | null>(null);
   const path = `/api/chat/conversations/${encodeURIComponent(conversationId)}/call`;
+  // a call that ended while the answer for the call that started was still on its way: only the newest answer counts
+  const guard = React.useRef(latestGuard());
   const refresh = React.useCallback(() => {
     if (!enabled) return;
+    const current = guard.current();
     void callApi<{ call: { id: string } | null }>(path).then(
-      (answer) => setGoing(answer.call ? { id: answer.call.id } : null),
-      () => setGoing(null),
+      (answer) => current() && setGoing(answer.call ? { id: answer.call.id } : null),
+      () => current() && setGoing(null),
     );
   }, [path, enabled]);
   React.useEffect(() => {

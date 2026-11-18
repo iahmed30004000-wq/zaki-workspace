@@ -130,6 +130,52 @@ describe("the rules of C1 that the pane keeps and does not copy", () => {
   });
 });
 
+describe("what the review of this package found", () => {
+  it("«🎫 مشكلة» from the menu or the suggestion chip opens the form as the old screen did (no customer filled in); only the customer-data hint passes one", () => {
+    const host = read("src/components/chat/v2/pane/seams/menu-host.tsx");
+    expect(host).not.toContain("findCustomerNumbers");
+    expect(host).toMatch(/customer: opts\.customer \?\? null/);
+    const row = read("src/components/chat/v2/pane/viewport-row.tsx");
+    expect(row).toMatch(/dialogs\.problem\(m, \{ customer: findCustomerNumbers/);
+    expect(row).toMatch(/dialogs\.problem\(m, \{ kindKey \}\)/);
+  });
+
+  it("the call button is the old one's rule (shown for whoever may start a call or join one that is going), and the call bar is not hidden from a person who cannot start", () => {
+    const header = read("src/components/chat/v2/pane/pane-header.tsx");
+    expect(header).toContain("canStart={header.me.canPost && header.me.canCall !== false}");
+    const pane = read("src/components/chat/v2/pane/conversation-pane.tsx");
+    expect(pane).toContain("enabled={header.calls !== false}");
+  });
+
+  it("the live call is asked for through a latest-only guard (a slow old answer never overwrites a newer one)", () => {
+    expect(read("src/components/chat/v2/pane/call-bar.tsx")).toContain("latestGuard()");
+  });
+
+  it("the people are asked for once the header says how many there are, and again when that number changes", () => {
+    const hook = read("src/lib/chat/v2/pane/use-people.ts");
+    expect(hook).toMatch(/export const peopleKey = \(id: string, count: number \| undefined\)/);
+    expect(hook).toContain("enabled: !!id && count !== undefined");
+    expect(read("src/components/chat/v2/pane/conversation-pane.tsx")).toContain("usePeople(conversationId, headerQuery.data?.memberCount)");
+  });
+
+  it("the rows do not hold the messages: the run flags are given per row, so a new message does not draw every row again", () => {
+    const env = /export interface RowEnv \{[\s\S]*?\n\}/.exec(read("src/components/chat/v2/pane/viewport-row.tsx"))![0];
+    expect(env).not.toMatch(/\bmessages\b/);
+    const viewport = read("src/components/chat/v2/pane/message-viewport.tsx");
+    expect(viewport).toContain("start={flags.start} end={flags.end}");
+    expect(viewport).toContain("stableReaders(");
+  });
+
+  it("an attachment that is not on our own address is a plain word, never a link that goes nowhere", () => {
+    expect(read("src/components/chat/v2/bubble/bubble-media.tsx")).not.toContain('href="#"');
+  });
+
+  it("«لخّصلي» in the menu presses the button the digest package owns by its own mark, and that mark is still there", () => {
+    expect(read("src/components/chat/v2/pane/pane-header.tsx")).toContain("[data-topic-summary]");
+    expect(read("src/components/digest/topic-summary-button.tsx")).toContain("data-topic-summary");
+  });
+});
+
 describe("what the pane takes from the server's side and what it records as not there", () => {
   it("nothing in the pane writes a chat cache key directly (the writer and the sync do)", () => {
     for (const file of paneFiles) expect(read(file), file).not.toMatch(/setQuer(?:y|ies)Data/);

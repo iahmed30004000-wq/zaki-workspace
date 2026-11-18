@@ -171,8 +171,8 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
       </button>
       {header.assistantCall ? (
         <AssistantCallButton />
-      ) : header.calls !== false && header.me.canCall !== false ? (
-        <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart={header.me.canPost} />
+      ) : header.calls !== false ? (
+        <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart={header.me.canPost && header.me.canCall !== false} />
       ) : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
