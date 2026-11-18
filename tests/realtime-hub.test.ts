@@ -10,6 +10,7 @@ import {
   clientsOfOrg,
   deliverEvent,
   filterVisible,
+  flushDeliveredForTests,
   removeClient,
   resetHubForTests,
   setTyping,
@@ -168,6 +169,8 @@ describe("hub fan-out", () => {
     connect("u2"); // ... in a second tab
     connect("u3"); // may not see it
     await deliverEvent(asEvent(ev("1", "message.created", { conversationId: "cv1", messageId: "m1" })));
+    expect(markDeliveredForUser).not.toHaveBeenCalled(); // C1.3: written a second later, once per person, not inside the fan-out
+    await flushDeliveredForTests();
 
     expect(markDeliveredForUser).toHaveBeenCalledWith("u1", "cv1");
     expect(markDeliveredForUser).toHaveBeenCalledWith("u2", "cv1");
@@ -179,6 +182,7 @@ describe("hub fan-out", () => {
     stubReads({ "u2|cv1": true });
     connect("u2");
     await deliverEvent(asEvent(ev("1", "message.created", { conversationId: "cv1", messageId: "m1" })));
+    await flushDeliveredForTests();
 
     expect(markDeliveredForUser).not.toHaveBeenCalled();
   });

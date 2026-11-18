@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRealtime } from "@/lib/realtime/use-realtime";
+import { frameDrivenQuery, useFrameRefresh } from "@/lib/realtime/live-refresh";
+import type { RealtimeEventPayload } from "@/lib/realtime/use-realtime";
 
 export const CHAT_UNREAD_KEY = ["chat-unread"] as const;
 
@@ -14,6 +15,15 @@ export function badgeText(total: number): string | null {
 
 /** The events that can move the number: a new message anywhere, my read mark, a door that opened or closed. */
 export const MOVES_UNREAD = new Set(["message.created", "message.deleted", "conversation.read", "membership.changed", "conversation.changed"]);
+
+/**
+ * Does this frame move MY number? A read mark moves it only when it is mine (the server marks the reader's own streams `self`): somebody
+ * else reading a conversation changes nothing here, and a busy chat made that a refetch every second.
+ */
+export function movesUnread(e: RealtimeEventPayload): boolean {
+  if (!MOVES_UNREAD.has(e.kind)) return false;
+  return e.kind !== "conversation.read" || e.self === true;
+}
 
 /**
  * "I just read something": the conversation screen says so right after it records a read mark. The
@@ -33,8 +43,9 @@ export function onChatRead(handler: () => void): () => void {
 }
 
 /**
- * The unread total behind «الدردشة»: fetched once, refreshed every 30 s, and at once (folded into one
- * request per 400 ms) when a realtime event that can move it arrives, or when this tab marks a read.
+ * The unread total behind «الدردشة»: fetched once, then moved by FRAMES — a realtime event that can move it refetches it (folded into
+ * one request per 400 ms), and so does this tab's own read mark. The 30 s poll is gone (C1.3 / F1.5): what is left is the safety net,
+ * one refetch every five minutes and one when the window gets focus after the number went that stale.
  */
 export function useChatUnread(enabled = true): number {
   const qc = useQueryClient();
@@ -45,18 +56,10 @@ export function useChatUnread(enabled = true): number {
       if (!r.ok) throw new Error("chat-unread");
       return (await r.json()) as { total: number };
     },
-    refetchInterval: 30_000,
+    ...frameDrivenQuery(),
     enabled,
   });
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  useRealtime((event) => {
-    if (!enabled || !MOVES_UNREAD.has(event.kind)) return;
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      void qc.invalidateQueries({ queryKey: CHAT_UNREAD_KEY });
-    }, 400);
-  });
+  useFrameRefresh({ enabled, matches: movesUnread, delayMs: 400, onRefresh: () => void qc.invalidateQueries({ queryKey: CHAT_UNREAD_KEY }) });
   useEffect(() => onChatRead(() => void qc.invalidateQueries({ queryKey: CHAT_UNREAD_KEY })), [qc]);
   return query.data?.total ?? 0;
 }

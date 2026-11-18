@@ -27,6 +27,11 @@ import { listOversight } from "@/server/chat/oversight";
 import { searchChat } from "@/server/chat/search";
 import { canReadConversation } from "@/server/policy/conversation";
 import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorkspace } from "./helpers";
+import { NextRequest } from "next/server";
+import * as rtRoute from "@/app/api/rt/route";
+import { addClient, deliverEvent, resetHubForTests, type RtEvent } from "@/server/realtime/hub";
+import { setPolicyStubs } from "@/server/realtime/policy-gate";
+import { stopRealtimeListenerForTests } from "@/server/realtime/listener";
 
 // ───────────────────────────── the expected matrix (the owner's decisions) ─────────────────────────────
 const PERSONAS = [
@@ -222,4 +227,101 @@ describe("privacy matrix — the C1.2 surfaces", () => {
       expect(wrong, kind).toEqual([]);
     });
   }
+});
+
+// ───────────────────────────── C1.3: the live line ─────────────────────────────
+// WHO receives a frame on an open stream. The live gate is the same question as the door: a frame of a conversation reaches exactly the people the
+// table above lets read it (the silent eye included — it reads everything, and a frame carries ids only). So the expected cells are the SAME table,
+// not a new one: a live gate that disagreed with the door would be a leak or a lost message. A second table is for the people dock's nudge
+// (`presence.changed`): everybody on the staff roster hears it, a guest never.
+// A colleague of THE SPACE comes online: the owners (in every space), the space's people hear it; an org admin who is not in the space does not (their
+// roster could not show the person), and a guest never does.
+const PRESENCE_NUDGE = "1 1 1 0 1 1 1 1 0"; // owner pW pWo oAO sA mIn mOut tM guest
+
+describe("privacy matrix — the C1.3 live gate", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: a message frame reaches exactly the people the table lets read it, in every one of their streams`, async () => {
+      const w = await getWorld();
+      setPolicyStubs({}); // the real policy
+      resetHubForTests();
+      const got = new Map<string, string[]>();
+      for (const who of PERSONAS) {
+        for (let tab = 0; tab < 2; tab++) {
+          const frames: string[] = [];
+          got.set(`${who}#${tab}`, frames);
+          addClient({ userId: w.people[who].id, orgId: w.orgId, send: (f) => frames.push(f), close: () => undefined });
+        }
+      }
+      await deliverEvent({ id: "900", orgId: w.orgId, kind: "message.created", ids: { conversationId: w.ids[kind]!, messageId: "m-live" } } as unknown as RtEvent);
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        for (let tab = 0; tab < 2; tab++) {
+          const reached = got.get(`${who}#${tab}`)!.some((f) => f.includes('"kind":"message.created"'));
+          const want = expected(CONVERSATIONS, kind, who);
+          if (reached !== want) wrong.push(`${who} (tab ${tab}): expected ${want ? "receives" : "does not receive"}`);
+        }
+      }
+      resetHubForTests();
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("a frame never carries content: ids only, whatever the message says", async () => {
+    const w = await getWorld();
+    resetHubForTests();
+    const frames: string[] = [];
+    addClient({ userId: w.people.memberIn.id, orgId: w.orgId, send: (f) => frames.push(f), close: () => undefined });
+    await deliverEvent({ id: "901", orgId: w.orgId, kind: "message.created", ids: { conversationId: w.ids["open"]!, messageId: "m-live" } } as unknown as RtEvent);
+    resetHubForTests();
+    expect(frames).toHaveLength(1);
+    expect(frames[0]).not.toContain(WORD);
+    expect(Object.keys(JSON.parse(frames[0]!.split("\n").find((l) => l.startsWith("data: "))!.slice(6)) as object).sort()).toEqual(["conversationId", "kind", "messageId"]);
+  });
+});
+
+describe("privacy matrix — the C1.3 presence nudge", () => {
+  it("a colleague of the space coming online nudges the owners and the space's people, never an admin outside it, never a guest (a frame with no id and no person)", async () => {
+    const w = await getWorld();
+    setPolicyStubs({});
+    resetHubForTests();
+    const newcomer = await makeUser({ orgId: w.orgId, role: "MEMBER" });
+    await db.workspaceMember.create({ data: { workspaceId: w.space.id, userId: newcomer.id, role: "MEMBER" } });
+    const streams = new Map<Persona, { text: () => string; cancel: () => Promise<void> }>();
+    for (const who of PERSONAS) {
+      await loginAs(w.people[who].id);
+      const res = await rtRoute.GET(new NextRequest("http://localhost/api/rt"));
+      const reader = res.body!.getReader();
+      const decoder = new TextDecoder();
+      let text = "";
+      void (async () => {
+        for (;;) {
+          const next = await reader.read().catch(() => ({ done: true, value: undefined }));
+          if (next.done) return;
+          text += decoder.decode(next.value);
+        }
+      })();
+      streams.set(who, { text: () => text, cancel: () => reader.cancel().catch(() => undefined) });
+    }
+    await new Promise((r) => setTimeout(r, 300));
+    const base = new Map([...streams].map(([who, s]) => [who, (s.text().match(/presence\.changed/g) ?? []).length]));
+    await loginAs(newcomer.id);
+    const mine = await rtRoute.GET(new NextRequest("http://localhost/api/rt"));
+    await new Promise((r) => setTimeout(r, 400));
+    const wrong: string[] = [];
+    for (const who of PERSONAS) {
+      const nudged = (streams.get(who)!.text().match(/presence\.changed/g) ?? []).length - base.get(who)!;
+      const want = cells(PRESENCE_NUDGE)[PERSONAS.indexOf(who)]!;
+      if ((nudged > 0) !== want) wrong.push(`${who}: expected ${want ? "nudged" : "not nudged"}`);
+      expect(streams.get(who)!.text(), who).not.toContain(newcomer.id);
+    }
+    await mine.body?.cancel().catch(() => undefined);
+    for (const s of streams.values()) await s.cancel();
+    resetHubForTests();
+    await stopRealtimeListenerForTests();
+    expect(wrong).toEqual([]);
+  });
+
+  it("the table has one cell per persona", () => {
+    expect(cells(PRESENCE_NUDGE)).toHaveLength(PERSONAS.length);
+  });
 });

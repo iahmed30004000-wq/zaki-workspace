@@ -90,7 +90,9 @@ describe("the floating quick chat", () => {
     expect(source).toContain('"/api/chat/directory?scope=company"');
     expect(source).toContain('"/api/chat/dm"');
     expect(source).toContain("/api/chat/conversations/${vars.id}/messages");
-    expect(source).toContain("refetchInterval: 4_000");
+    // C1.3: the 4 s poll is gone — the window follows the frames of its own conversation (pinned in tests/live-line-badges.test.ts)
+    expect(source).not.toContain("refetchInterval: 4_000");
+    expect(source).toContain("touchesConversation(e, conversationId)");
     // no new dependency: the movement is CSS
     expect(source).not.toMatch(/framer-motion|@radix-ui/);
   });

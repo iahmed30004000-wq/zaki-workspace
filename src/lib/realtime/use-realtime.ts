@@ -6,7 +6,16 @@ import { pollMs } from "@/lib/economy";
 /**
  * The one realtime seam for every UI agent: useRealtime / useTyping / useOnline.
  *
- * ONE shared EventSource per tab (module singleton with ref counting), automatic
+ * C1.3 - ONE line per BROWSER. The tabs of a browser race for the Web Lock "zk-rt"; the winner (the LEADER) owns the EventSource and
+ * re-broadcasts every frame on a BroadcastChannel "zk-rt"; the others (FOLLOWERS) open no stream and hear the leader. When the leader
+ * closes or dies another tab takes the lock, resumes from the last event id it heard and asks the screens to refetch. A browser without
+ * Web Locks or BroadcastChannel keeps the old way: one stream per tab ("solo"). What the leader must do for everybody:
+ *  - tell the server the OR of every tab's visibility (F0.5: a hidden leader must not swallow the push of a visible follower);
+ *  - pause the stream only when EVERY tab has been hidden for 60 s (F0.3), and wake when any tab is shown;
+ *  - say `evicted` and `signed_out` to every tab (F0.2), and send its refetch signals (reload, polling, resume) to every tab.
+ * A follower that hears nothing from the leader for 60 s polls every 15 s, like a stream that is down.
+ *
+ * One shared stream per tab (module singleton with ref counting), automatic
  * reconnect with jitter, a polling fallback after 3 failed stream attempts (synthetic
  * `conversation.changed` events make the UI refetch through the normal APIs),
  * a 60 s watchdog (the server pings every 25 s; any frame resets it), a real pause when
@@ -23,9 +32,24 @@ export type RealtimeEventPayload = {
   spaceId?: string;
   userId?: string;
   callId?: string;
+  /** Set by the server on the reader's OWN `conversation.read` frames: my other tab or device read it (my badge follows). */
+  self?: boolean;
+  /** Made by the page itself (a reconnect, a poll, a return to the tab): "ask again", not something that happened. */
+  synthetic?: boolean;
 };
 
 type Handler = (e: RealtimeEventPayload) => void;
+
+/** What the tabs of one browser say to each other over the channel. */
+type LineMessage =
+  | { t: "frame"; payload: RealtimeEventPayload; id?: string }
+  | { t: "alive" }
+  | { t: "leader" }
+  | { t: "hello" }
+  | { t: "vis"; tab: string; visible: boolean }
+  | { t: "gone"; tab: string }
+  | { t: "evicted"; value: boolean }
+  | { t: "signed_out" };
 
 interface SharedStream {
   es: EventSource | null;
@@ -47,6 +71,25 @@ interface SharedStream {
   hiddenTimer: ReturnType<typeof setTimeout> | null;
   /** the server said `bye` + `evicted`: another stream of this person took this one's place */
   evicted: boolean;
+  /** the screens that want to know when somebody comes or goes (the people dock); they also hear every refetch signal */
+  presenceHandlers: Set<Handler>;
+  /** this browser can share ONE stream between its tabs (Web Locks + BroadcastChannel); false: one stream per tab, as before */
+  useLocks: boolean;
+  /** this tab holds the lock and owns the stream */
+  leader: boolean;
+  channel: BroadcastChannel | null;
+  /** cancels a request for the lock that was not granted yet */
+  lockAbort: AbortController | null;
+  /** ends the leadership: resolves the promise that holds the lock */
+  releaseLock: (() => void) | null;
+  /** the leader's view of the other tabs: tab id -> visible (and when it said so) */
+  peers: Map<string, { visible: boolean; at: number }>;
+  /** a follower: no sign of life from the leader for LEADER_SILENCE_MS -> poll */
+  silence: ReturnType<typeof setTimeout> | null;
+  /** another tab was seen leading: so a takeover means a gap, and the screens refetch */
+  sawLeader: boolean;
+  /** what this stream's owner last told the server about the browser's visibility */
+  reported: boolean | null;
 }
 
 // eslint-disable-next-line init-declarations
@@ -62,16 +105,70 @@ function tab(): string {
 }
 
 /** Tell the server whether this tab is being looked at: it holds a push back only for a person who has a visible tab. */
-function reportVisibility(): void {
+function sendVisibility(visible: boolean): void {
   if (typeof document === "undefined" || typeof fetch === "undefined") return;
   void Promise.resolve(
     fetch("/api/rt/visibility", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ visible: document.visibilityState !== "hidden" && !document.hidden, tab: tab() }),
+      body: JSON.stringify({ visible, tab: tab() }),
       keepalive: true,
     }),
   ).catch(() => undefined);
+}
+
+/** Is THIS tab being looked at? */
+function ownVisible(): boolean {
+  return typeof document === "undefined" ? true : document.visibilityState !== "hidden" && !document.hidden;
+}
+
+/** Is ANY tab of this browser being looked at? (this one, or a follower that said so lately; the leader keeps that list) */
+function anyVisible(): boolean {
+  if (ownVisible()) return true;
+  if (!stream) return false;
+  const now = Date.now();
+  for (const p of stream.peers.values()) if (p.visible && now - p.at <= PEER_FRESH_MS) return true;
+  return false;
+}
+
+/**
+ * Tell the server whether this browser is being looked at: it holds a push back only for a person who has a visible tab. The stream
+ * belongs to the LEADER, so the leader reports - for everybody (the OR of its own tab and the followers it heard); a follower says
+ * its own state to the leader over the channel and never posts.
+ */
+function reportVisibility(onlyIfChanged = false): void {
+  const s = stream;
+  if (s?.useLocks && !s.leader) {
+    postLine({ t: "vis", tab: tab(), visible: ownVisible() });
+    return;
+  }
+  const visible = anyVisible();
+  // a follower's answer that changes nothing is not worth a request (every ping makes every tab answer; the ping's own report is the heartbeat)
+  if (onlyIfChanged && s && s.reported === visible) return;
+  if (s) s.reported = visible;
+  sendVisibility(visible);
+}
+
+function postLine(message: LineMessage): void {
+  try {
+    stream?.channel?.postMessage(message);
+  } catch {
+    // a closed channel: the tab is going away
+  }
+}
+
+const LOCK_NAME = "zk-rt";
+const CHANNEL_NAME = "zk-rt";
+/** a follower's "visible" is believed for this long without hearing it again (the leader's pings ask every 25 s) */
+const PEER_FRESH_MS = 75_000;
+/** a follower that hears nothing from the leader for this long polls, like a stream that is down */
+const LEADER_SILENCE_MS = 60_000;
+
+/** One stream for all the tabs of this browser is possible: Web Locks to elect the owner, BroadcastChannel to share what it hears. */
+function linesAvailable(): boolean {
+  if (typeof navigator === "undefined" || typeof BroadcastChannel === "undefined") return false;
+  const locks = (navigator as { locks?: { request?: unknown } }).locks;
+  return !!locks && typeof locks.request === "function";
 }
 
 const POLL_MS = 15_000;
@@ -90,6 +187,7 @@ function setEvicted(value: boolean): void {
   if (!stream || stream.evicted === value) return;
   stream.evicted = value;
   for (const h of evictedHandlers) h(value);
+  if (stream.leader) postLine({ t: "evicted", value }); // every tab of the browser shows the small line
 }
 
 function armWatchdog(): void {
@@ -130,12 +228,27 @@ function ensureStream(): SharedStream {
     watchdog: null,
     hiddenTimer: null,
     evicted: false,
+    presenceHandlers: new Set(),
+    useLocks: false,
+    leader: false,
+    channel: null,
+    lockAbort: null,
+    releaseLock: null,
+    peers: new Map(),
+    silence: null,
+    sawLeader: false,
+    reported: null,
   };
   return stream;
 }
 
 function dispatch(payload: RealtimeEventPayload): void {
   if (!stream) return;
+  if (payload.kind === "presence.changed") {
+    // stream-only, for the people dock: never a screen's handler (they would refetch a whole conversation for it)
+    for (const h of stream.presenceHandlers) h(payload);
+    return;
+  }
   if (payload.kind === "typing" && payload.conversationId && payload.userId) {
     // In-memory typing state per tab: 6 s expiry, mirroring the server's hub TTL.
     const cv = payload.conversationId;
@@ -152,6 +265,15 @@ function dispatch(payload: RealtimeEventPayload): void {
     for (const h of stream.typingHandlers) h(payload.conversationId);
   }
   for (const h of stream.handlers) h(payload);
+  // a refetch signal (reload, resume, polling) also tells the people dock to ask again
+  if (payload.synthetic) for (const h of stream.presenceHandlers) h(payload);
+}
+
+/** A refetch signal made by the page; the leader also sends it to the other tabs (they would otherwise never hear of a reconnect). */
+function dispatchSynthetic(payload: RealtimeEventPayload): void {
+  const made = { ...payload, synthetic: true };
+  dispatch(made);
+  if (stream?.leader) postLine({ t: "frame", payload: made });
 }
 
 function stopPolling(): void {
@@ -165,7 +287,7 @@ function startPolling(): void {
   if (!stream || stream.pollTimer) return;
   stream.pollTimer = setInterval(() => {
     // A synthetic event: the UI refetches through the normal APIs (authorization applies there).
-    dispatch({ kind: "conversation.changed" });
+    dispatchSynthetic({ kind: "conversation.changed" });
   }, pollMs(POLL_MS));
 }
 
@@ -173,7 +295,7 @@ function startPolling(): void {
 function startEvictedPolling(): void {
   if (!stream || stream.pollTimer) return;
   stream.pollTimer = setInterval(() => {
-    dispatch({ kind: "conversation.changed" });
+    dispatchSynthetic({ kind: "conversation.changed" });
   }, pollMs(EVICTED_POLL_MS));
 }
 
@@ -193,10 +315,31 @@ function teardown(): void {
     clearTimeout(stream.reconnectTimer);
     stream.reconnectTimer = null;
   }
+  if (stream.silence) {
+    clearTimeout(stream.silence);
+    stream.silence = null;
+  }
+  if (stream.useLocks) {
+    // the stream is closed above; now the others hear that this tab is gone, and the lock goes to the next tab in the queue
+    postLine({ t: "gone", tab: tab() });
+    stream.lockAbort?.abort();
+    stream.lockAbort = null;
+    const release = stream.releaseLock;
+    stream.releaseLock = null;
+    stream.leader = false;
+    try {
+      stream.channel?.close();
+    } catch {
+      // already closed
+    }
+    stream.channel = null;
+    release?.();
+  }
 }
 
 function connect(): void {
   if (!stream || stream.es) return;
+  if (stream.useLocks && !stream.leader) return; // a follower hears the leader; it opens no stream
   if (!stream.online || stream.paused || stream.evicted) return;
   // A reconnect asks for what it missed: the route replays the visible events after this id (or
   // sends `reload`). EventSource cannot set the Last-Event-ID header on a new object, so a query.
@@ -216,6 +359,7 @@ function connect(): void {
       const payload = JSON.parse(m.data) as RealtimeEventPayload;
       if (m.lastEventId) stream!.lastEventId = m.lastEventId;
       dispatch(payload);
+      if (stream?.leader) postLine({ t: "frame", payload, ...(m.lastEventId ? { id: m.lastEventId } : {}) });
     } catch {
       // a malformed frame never takes the tab down
     }
@@ -233,13 +377,15 @@ function connect(): void {
   // The server's named event for an unknown Last-Event-ID gap.
   es.addEventListener("reload", () => {
     armWatchdog();
-    dispatch({ kind: "conversation.changed" });
+    dispatchSynthetic({ kind: "conversation.changed" });
   });
   // The server's heartbeat: a real event (a browser never surfaces an SSE comment), so any silence is noticed.
   // and the page says again whether it is looked at, so one report that was lost never leaves the server believing a stale state
   es.addEventListener("ping", () => {
     armWatchdog();
     reportVisibility();
+    evaluatePause(); // a follower that froze without a word went stale since the last beat: nobody may be looking any more
+    postLine({ t: "alive" }); // the followers answer with how they stand, and know the leader is alive
   });
   // The server ended this stream and said why.
   es.addEventListener("bye", (m) => {
@@ -254,7 +400,8 @@ function connect(): void {
     stream.es = null;
     clearWatchdog();
     if (reason === "signed_out") {
-      if (typeof window !== "undefined") window.location.assign("/login");
+      postLine({ t: "signed_out" });
+      goToSignIn();
       return;
     }
     if (reason === "evicted") {
@@ -268,40 +415,73 @@ function connect(): void {
   });
 }
 
-function refetchAfterHidden(): void {
-  dispatch({ kind: "conversation.changed" });
+function goToSignIn(): void {
+  if (typeof window !== "undefined") window.location.assign("/login");
+}
+
+/** The screens refetch after a return from hiding; the leader tells the other tabs too when it was the one that slept. */
+function refetchAfterHidden(broadcast = true): void {
+  if (broadcast) dispatchSynthetic({ kind: "conversation.changed" });
+  else dispatch({ kind: "conversation.changed", synthetic: true });
+}
+
+/**
+ * Pause when NOBODY is looking: this tab and, for a leader, every follower have been hidden for 60 s. The stream closes and frees the
+ * server's slot; any tab being shown wakes it (a follower tells the leader over the channel). A follower never pauses: it has no stream.
+ */
+function evaluatePause(): void {
+  const s = stream;
+  if (!s || (s.useLocks && !s.leader)) return;
+  if (anyVisible()) {
+    if (s.hiddenTimer) {
+      clearTimeout(s.hiddenTimer);
+      s.hiddenTimer = null;
+    }
+    return;
+  }
+  if (s.hiddenTimer || s.paused) return;
+  s.hiddenTimer = setTimeout(() => {
+    s.hiddenTimer = null;
+    if (stream !== s || anyVisible()) return;
+    s.paused = true;
+    if (s.es) {
+      s.es.close();
+      s.es = null;
+    }
+    clearWatchdog();
+  }, HIDDEN_PAUSE_MS);
 }
 
 function onVisibility(): void {
-  if (!stream) return;
+  const s = stream;
+  if (!s) return;
   if (typeof document === "undefined") return;
   reportVisibility();
   if (document.hidden) {
-    stream.hiddenSince = Date.now();
-    // hidden for 60 s: really pause (close the stream, free the server's slot); the return below resumes it
-    if (stream.hiddenTimer) clearTimeout(stream.hiddenTimer);
-    stream.hiddenTimer = setTimeout(() => {
-      if (!stream) return;
-      stream.hiddenTimer = null;
-      stream.paused = true;
-      if (stream.es) {
-        stream.es.close();
-        stream.es = null;
-      }
-      clearWatchdog();
-    }, HIDDEN_PAUSE_MS);
-  } else {
-    if (stream.hiddenTimer) {
-      clearTimeout(stream.hiddenTimer);
-      stream.hiddenTimer = null;
-    }
-    const hiddenFor = stream.hiddenSince ? Date.now() - stream.hiddenSince : 0;
-    stream.hiddenSince = null;
-    if (hiddenFor > HIDDEN_PAUSE_MS || stream.paused) {
-      stream.paused = false;
-      connect();
-      refetchAfterHidden();
-    }
+    s.hiddenSince = Date.now();
+    evaluatePause();
+    return;
+  }
+  if (s.hiddenTimer) {
+    clearTimeout(s.hiddenTimer);
+    s.hiddenTimer = null;
+  }
+  const hiddenFor = s.hiddenSince ? Date.now() - s.hiddenSince : 0;
+  s.hiddenSince = null;
+  if (s.useLocks && !s.leader) {
+    // a follower has no stream to wake; after a long sleep its own screens refetch (it heard the leader meanwhile, so this is a safety)
+    if (hiddenFor > HIDDEN_PAUSE_MS) refetchAfterHidden(false);
+    return;
+  }
+  if (s.useLocks && !s.paused) {
+    // the leader was hidden while a follower was looking: its stream never stopped
+    if (hiddenFor > HIDDEN_PAUSE_MS) refetchAfterHidden(false);
+    return;
+  }
+  if (hiddenFor > HIDDEN_PAUSE_MS || s.paused) {
+    s.paused = false;
+    connect();
+    refetchAfterHidden();
   }
 }
 
@@ -313,13 +493,164 @@ function onOfflineOnline(): void {
       stream.es.close();
       stream.es = null;
     }
-  } else if (typeof document !== "undefined" && document.hidden) {
+  } else if (typeof document !== "undefined" && !anyVisible()) {
     // back online but nobody is looking: stay paused (the return of the tab reconnects), do not take a stream slot
     stream.paused = true;
   } else {
     stream.paused = false;
     connect();
   }
+}
+
+// ───────────────────────────── one line per browser ─────────────────────────────
+
+/** A follower waits for a sign of life from the leader; with none for LEADER_SILENCE_MS it polls, like a stream that is down. */
+function armSilence(): void {
+  const s = stream;
+  if (!s) return;
+  if (s.silence) clearTimeout(s.silence);
+  s.silence = setTimeout(() => {
+    s.silence = null;
+    if (stream !== s || !s.useLocks || s.leader) return;
+    // a tab nobody is looking at has nothing to refetch for; the leader may be paused because EVERY tab is hidden (it pings no more)
+    if (!ownVisible()) {
+      armSilence();
+      return;
+    }
+    startPolling();
+  }, LEADER_SILENCE_MS);
+}
+
+/** A follower heard the leader: its silence timer starts again, and a poll that the silence started stops. */
+function hearLeader(): void {
+  const s = stream;
+  if (!s) return;
+  s.sawLeader = true;
+  if (!s.leader) stopPolling();
+  armSilence();
+}
+
+/** The leader heard that the set of visible tabs changed: report the OR, and pause or wake as that asks. */
+function peersChanged(): void {
+  const s = stream;
+  if (!s || !s.leader) return;
+  reportVisibility(true);
+  if (anyVisible() && s.paused) {
+    s.paused = false;
+    connect();
+    refetchAfterHidden();
+  } else {
+    evaluatePause();
+  }
+}
+
+function onLine(message: LineMessage): void {
+  const s = stream;
+  if (!s || !message || typeof message !== "object") return;
+  switch (message.t) {
+    case "frame":
+      if (s.leader) return;
+      hearLeader();
+      if (message.id) s.lastEventId = message.id;
+      dispatch(message.payload);
+      return;
+    case "alive":
+    case "leader":
+      if (s.leader) return;
+      hearLeader();
+      reportVisibility(); // the leader asks how this tab stands
+      return;
+    case "hello":
+      if (s.leader) {
+        postLine({ t: "leader" });
+        if (s.evicted) postLine({ t: "evicted", value: true }); // a tab opened later shows the small line too
+      }
+      return;
+    case "vis":
+      if (!s.leader) return;
+      s.peers.set(message.tab, { visible: message.visible, at: Date.now() });
+      peersChanged();
+      return;
+    case "gone":
+      if (!s.leader) return;
+      s.peers.delete(message.tab);
+      peersChanged();
+      return;
+    case "evicted":
+      if (!s.leader) setEvicted(message.value);
+      return;
+    case "signed_out":
+      if (!s.leader) goToSignIn();
+      return;
+  }
+}
+
+/** This tab has the lock: it owns the stream from now on. */
+function becomeLeader(): void {
+  const s = stream;
+  if (!s) return;
+  s.leader = true;
+  if (s.silence) {
+    clearTimeout(s.silence);
+    s.silence = null;
+  }
+  stopPolling();
+  s.paused = false;
+  if (s.hiddenTimer) {
+    clearTimeout(s.hiddenTimer);
+    s.hiddenTimer = null;
+  }
+  s.peers.clear();
+  s.reported = null;
+  // the old leader may have been evicted by another browser: try again, it may be gone now
+  if (s.evicted) setEvicted(false);
+  postLine({ t: "leader" }); // the followers answer with how they stand
+  connect();
+  // somebody else was leading before: what came in between was never heard, so every screen asks again
+  if (s.sawLeader) dispatchSynthetic({ kind: "conversation.changed" });
+  evaluatePause();
+}
+
+function requestLeadership(s: SharedStream): void {
+  const ac = typeof AbortController !== "undefined" ? new AbortController() : null;
+  s.lockAbort = ac;
+  const locks = (navigator as unknown as { locks: { request: (name: string, options: object, cb: () => Promise<void>) => Promise<unknown> } }).locks;
+  void locks
+    .request(LOCK_NAME, ac ? { mode: "exclusive", signal: ac.signal } : { mode: "exclusive" }, () =>
+      new Promise<void>((resolve) => {
+        // the screens left (or the module was reset) while this request waited: let the next tab have it
+        if (stream !== s || s.refs <= 0) {
+          resolve();
+          return;
+        }
+        s.lockAbort = null;
+        s.releaseLock = resolve;
+        becomeLeader();
+      }),
+    )
+    .catch(() => undefined); // aborted: this tab stopped listening before it was ever leader
+}
+
+function onPageHide(): void {
+  postLine({ t: "gone", tab: tab() });
+}
+
+function onPageShow(): void {
+  if (!stream?.useLocks || stream.leader) return;
+  postLine({ t: "hello" });
+  reportVisibility();
+}
+
+function startLine(s: SharedStream): void {
+  s.useLocks = true;
+  const channel = new BroadcastChannel(CHANNEL_NAME);
+  channel.onmessage = (m: MessageEvent) => onLine(m.data as LineMessage);
+  s.channel = channel;
+  // a tab that opens while a leader is running learns it fast (the leader answers), and says how it stands
+  postLine({ t: "hello" });
+  reportVisibility();
+  armSilence(); // until a leader is heard (the lock below ends it for the first tab)
+  requestLeadership(s);
 }
 
 function acquire(): SharedStream {
@@ -331,7 +662,15 @@ function acquire(): SharedStream {
       window.addEventListener("online", onOfflineOnline);
       window.addEventListener("offline", onOfflineOnline);
     }
-    connect();
+    if (linesAvailable()) {
+      if (typeof window !== "undefined") {
+        window.addEventListener("pagehide", onPageHide);
+        window.addEventListener("pageshow", onPageShow);
+      }
+      startLine(s);
+    } else {
+      connect();
+    }
   }
   return s;
 }
@@ -345,6 +684,8 @@ function release(): void {
   if (typeof window !== "undefined") {
     window.removeEventListener("online", onOfflineOnline);
     window.removeEventListener("offline", onOfflineOnline);
+    window.removeEventListener("pagehide", onPageHide);
+    window.removeEventListener("pageshow", onPageShow);
   }
   stream = null;
 }
@@ -357,18 +698,44 @@ export function resetRealtimeForTests(): void {
 
 /** Test hook: subscribe a handler to the shared stream without React, as useRealtime does (never call from app code). */
 export function subscribeForTests(handler: Handler): () => void {
+  return subscribeRealtime(handler);
+}
+
+/**
+ * Listen to the live line without React (the hooks and `watchFrames` of live-refresh.ts are built on it). `handler` hears every
+ * frame a screen cares about; `presence` hears `presence.changed` and every refetch signal, never a screen's frames. Returns the
+ * function that stops listening (the last one to stop closes the stream, or hands the lock on).
+ */
+export function subscribeRealtime(handler: Handler | null, presence?: Handler): () => void {
   const s = acquire();
-  s.handlers.add(handler);
+  if (handler) s.handlers.add(handler);
+  if (presence) s.presenceHandlers.add(presence);
   return () => {
-    s.handlers.delete(handler);
+    if (handler) s.handlers.delete(handler);
+    if (presence) s.presenceHandlers.delete(presence);
     release();
   };
 }
 
+export type StreamRole = "solo" | "leader" | "follower";
+
 /** Test hook: the current shared stream state (never call from app code). */
-export function streamStateForTests(): { refs: number; failures: number; lastEventId: string; polling: boolean; evicted: boolean } | null {
+export function streamStateForTests(): { refs: number; failures: number; lastEventId: string; polling: boolean; evicted: boolean; role: StreamRole } | null {
   if (!stream) return null;
-  return { refs: stream.refs, failures: stream.failures, lastEventId: stream.lastEventId, polling: stream.pollTimer !== null, evicted: stream.evicted };
+  return {
+    refs: stream.refs,
+    failures: stream.failures,
+    lastEventId: stream.lastEventId,
+    polling: stream.pollTimer !== null,
+    evicted: stream.evicted,
+    role: stream.useLocks ? (stream.leader ? "leader" : "follower") : "solo",
+  };
+}
+
+/** Test hook: who is typing in a conversation, as this tab knows it (never call from app code). */
+export function typingStateForTests(conversationId: string): string[] {
+  const entry = stream?.typingByConversation.get(conversationId);
+  return entry ? [...entry.values()].map((v) => v.name) : [];
 }
 
 /** Was this tab's stream taken over by another tab (a screen opened later still needs to know)? */
@@ -402,6 +769,7 @@ export function useRealtime(handler: Handler): void {
     };
   }, []);
 }
+
 
 export interface TypingState {
   typingNames: string[];

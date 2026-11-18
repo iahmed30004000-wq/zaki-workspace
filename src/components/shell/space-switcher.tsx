@@ -3,13 +3,14 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, ChevronDown, Clock, LayoutGrid, Layers, Plus } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { goHref } from "@/lib/space-link";
 import { parseAddress, type ForeignSpace } from "@/lib/nav/shell-v2";
 import { fmtNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { frameDrivenQuery, movesSpaceCounts, useFrameRefresh } from "@/lib/realtime/live-refresh";
 import { useI18n } from "@/lib/i18n";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import {
@@ -67,15 +68,22 @@ export function fetchSpaces(): Promise<OrgsResponse> {
 export const SPACES_QUERY = { queryKey: ORGS_QUERY_KEY, queryFn: fetchSpaces, retry: false } as const;
 
 /**
- * The spaces and the one the person is in, kept fresh every minute (the numbers beside the other spaces move while the person works).
+ * The spaces and the one the person is in. The numbers beside the other spaces (unread, overdue) used to be polled every minute; now
+ * a FRAME that can move them (a message, a deletion, a door, my own read mark) asks again, folded into one request per 1.5 s, and
+ * every navigation asks too (`sync`). What is left is the safety net: one refetch every five minutes, and one on focus after that.
+ * ⚠️ The overdue count moves with tasks, and a task writes no frame: it can be up to five minutes old until the next navigation.
+ * 🔧 A task event on the live line (not part of this change) would make it live as well.
  *
  * `sync` makes THIS reader read again after every navigation (a page of another space's task is answered for the new address, and the shell's
  * layout is not drawn again on the way). Exactly ONE reader per page asks for it — the shell's `useCurrentSpace` — because two readers each
- * refetching on a navigation made two requests (F1): the switchers, «جديد» and the banner read the same query without it.
+ * refetching on a navigation made two requests (F1): the switchers, «جديد» and the banner read the same query without it. The same one
+ * reader listens to the frames, for the same reason.
  */
 export function useSpaces(sync = false) {
   const pathname = usePathname();
-  const query = useQuery({ ...SPACES_QUERY, refetchInterval: 60_000 });
+  const qc = useQueryClient();
+  const query = useQuery({ ...SPACES_QUERY, ...frameDrivenQuery() });
+  useFrameRefresh({ enabled: sync, matches: movesSpaceCounts, delayMs: 1500, onRefresh: () => void qc.invalidateQueries({ queryKey: ORGS_QUERY_KEY }) });
   const { refetch } = query;
   const first = useRef(true);
   useEffect(() => {

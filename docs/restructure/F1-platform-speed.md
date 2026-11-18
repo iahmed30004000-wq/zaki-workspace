@@ -31,7 +31,7 @@
 - [ ] F1.4 Replace `router.refresh()` with TanStack `invalidateQueries` where the data is client-fetched; keep it only
       where a server component must re-render. Remove the four `window.location.reload()` (board ones in W1.5, the space
       edit one here).
-- [ ] F1.5 Badges, presence and the space switcher's counts from the live line (C1.3) — polls become a 5-minute
+- [x] F1.5 (built with C1.3, `pr/C1.3.md`; the bell's poll stays) Badges, presence and the space switcher's counts from the live line (C1.3) — polls become a 5-minute
       safety refresh on focus.
 - [ ] F1.6 `loading.tsx` per place (skeletons shaped like the page: list rows, board columns).
 - [ ] F1.7 Decoration: no infinite animation by default in the new themes (D1); the old themes keep theirs, paused when

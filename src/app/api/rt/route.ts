@@ -20,7 +20,8 @@ import { heartbeatInterval } from "@/server/realtime/stream-config";
 import { touchPresence } from "@/server/realtime/presence";
 
 /**
- * GET /api/rt — the one SSE stream per tab.
+ * GET /api/rt — the SSE stream. One per BROWSER (C1.3: the first tab holds the Web Lock and owns it, the other tabs hear it over a
+ * BroadcastChannel; a browser without Web Locks opens one per tab, as before).
  *
  * Node runtime, never cached, never buffered: `X-Accel-Buffering: no` tells nginx
  * (and Traefik honours the same header) to flush every frame at once. A `ping` event
@@ -126,6 +127,9 @@ async function sse(req: NextRequest): Promise<Response> {
           orgId: actor.orgId,
           send,
           tabId: req.nextUrl.searchParams.get("tab")?.slice(0, 64) || undefined,
+          // C1.3: who may be nudged by `presence.changed` (the people dock is the staff directory: never a guest), and whose rank may hide
+          role: actor.role,
+          seesPresence: !actor.isExternal && actor.caps.has("directory.view"),
           close: () => end("evicted"),
         });
         // a stream that opens counts the DMs that reached this person while away as delivered (✓✓)
@@ -157,7 +161,11 @@ async function sse(req: NextRequest): Promise<Response> {
                 actor.userId,
                 rows.map((r) => ({ id: r.id.toString(), kind: r.kind, ids: (r.ids ?? {}) as RtEvent["ids"] })),
               );
-              for (const r of visible) send(frameOf({ id: r.id, orgId: actor.orgId, kind: kindOf(r.kind), ids: r.ids }));
+              // a read mark of MINE says so, as the live one does (my badge ignores the others')
+              for (const r of visible) {
+                const mine = r.kind === "conversation.read" && r.ids.userId === actor.userId;
+                send(frameOf({ id: r.id, orgId: actor.orgId, kind: kindOf(r.kind), ids: r.ids }, mine ? { self: true } : {}));
+              }
               // a full page means more was missed than one replay carries: refetch everything instead
               if (rows.length >= 500) write(`event: reload\ndata: {}\n\n`);
             }
