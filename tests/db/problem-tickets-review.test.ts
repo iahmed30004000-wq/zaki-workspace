@@ -159,11 +159,11 @@ describe("the settings door checks the people and the kinds", () => {
 });
 
 describe("escalation details", () => {
-  const MON_9 = new Date("2026-11-16T07:00:00Z");
+  const MON_9 = new Date("2030-11-11T07:00:00Z");
   it("a ticket waiting for its follow-up day is not chased; a holder who is not active is not counted as reminded", async () => {
     const w = await world();
     const make = (over: Record<string, unknown>) => db.ticket.create({ data: { orgId: w.org.id, number: Math.floor(Math.random() * 1e8), title: "t", creatorId: w.carol.id, assigneeId: w.alice.id, departmentId: w.dept.id, kindKey: "postpone", createdAt: MON_9, ...over } as never });
-    await make({ followUpAt: new Date("2026-12-01T00:00:00Z") });
+    await make({ followUpAt: new Date("2030-12-01T00:00:00Z") });
     const later = new Date(MON_9.getTime() + 12 * 3_600_000);
     expect((await runTicketEscalation(later)).reminded).toBe(0);
     await db.ticket.deleteMany({ where: { orgId: w.org.id } });

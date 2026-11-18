@@ -89,7 +89,7 @@ export async function rewriteMessagePreviews(
   preview: string,
 ): Promise<void> {
   await tx.notification.updateMany({
-    where: { type: "chat_message", linkUrl: messageLink(conversationId, messageId) },
+    where: { type: { in: ["chat_message", "must_read", "must_read_late"] }, linkUrl: messageLink(conversationId, messageId) },
     data: { body: preview },
   });
 }
