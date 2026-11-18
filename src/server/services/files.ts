@@ -209,6 +209,13 @@ export async function assertMayReadFile(ctx: OrgAccessContext, id: string): Prom
     await assertMemberCan(ctx, "files.view", "section.view_denied");
     return assertOfMySpaces(ctx.userId, f.workspaceId);
   }
+  // a product photo or a feedback picture (Q1.2): read by whoever may read its sheet (a feedback item only once approved with consent; editors always)
+  if (f.purpose === "KNOWLEDGE") {
+    const { requireActor } = await import("@/server/policy/actor");
+    const { mayReadKnowledgeFile } = await import("@/server/services/knowledge-media");
+    if (await mayReadKnowledgeFile(await requireActor(), id)) return;
+    throw new NotFoundError("files.not_found");
+  }
   const messages = f.chatLinks.flatMap((l) => (l.message ? [l.message] : []));
   if (messages.length === 0 && f.uploaderId === ctx.userId) return;
   for (const m of messages) {
@@ -382,7 +389,7 @@ export async function ingest(
   ctx: OrgAccessContext,
   input: IngestFile,
   familyOf?: { familyId: string; latestVersion: number },
-  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" = "LIBRARY",
+  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" = "LIBRARY",
   meta?: Record<string, unknown>,
   /**
    * `sniffedMime`: the chat's own sniffing (`sniffChatMedia`) already read the bytes WITH the declared
@@ -392,7 +399,7 @@ export async function ingest(
   opts: { sniffedMime?: string; workspaceId?: string | null; maxBytes?: number; checksum?: string } = {},
 ): Promise<{ id: string; version: number; mimeType: string }> {
   // a guest posts in the topics of their spaces (files and voice notes included), never in the library
-  if (ctx.orgRole === "GUEST" && purpose === "LIBRARY") throw new ForbiddenError("chat.guest_forbidden");
+  if (ctx.orgRole === "GUEST" && (purpose === "LIBRARY" || purpose === "KNOWLEDGE")) throw new ForbiddenError("chat.guest_forbidden");
   // adding to the library (a file or a new version) is its «يضيف ويعدّل» box; chat files are the topic's
   if (purpose === "LIBRARY") await assertMemberCan(ctx, "files.edit", "section.edit_denied");
   const size = isIngestPath(input) ? input.size : input.bytes.length;

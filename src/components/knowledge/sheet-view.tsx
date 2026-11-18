@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import type { SheetDTO } from "@/server/services/knowledge";
 import { SheetEditor } from "./sheet-editor";
+import { SheetMedia } from "./sheet-media";
 
 /** The word of the stock state, from what the orders system said. */
 export function stockWord(state: string | null | undefined): "in" | "out" | null {
@@ -146,6 +147,8 @@ export function SheetView({ initial, userId, isOwner }: { initial: SheetDTO; use
         {data?.tagline ? <p className="text-sm text-muted">{data.tagline}</p> : null}
         {data?.testNote ? <p className="text-xs text-warn">{data.testNote}</p> : null}
       </header>
+
+      <SheetMedia cardId={sheet.id} productName={sheet.name} />
 
       <section aria-label={t("knowledge.price")} className="space-y-2">
         {snap ? (
