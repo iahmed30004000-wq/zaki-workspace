@@ -15,6 +15,7 @@ import { IntegrationBadge } from "@/components/integration-badge";
 import { FeatureSwitches } from "@/components/feature-switches";
 import { ServerHealthCard } from "@/components/server-health-card";
 import { SystemTokensCard } from "@/components/system-tokens-card";
+import { PrimitiveSamples } from "@/components/theme/primitive-samples";
 import { listFeatures } from "@/server/services/features";
 import { embedServer } from "@/server/services/search-embeddings";
 
@@ -82,6 +83,9 @@ export default async function SettingsPage() {
 
       {/* «توكنات الأنظمة» (W1): the owner's tokens for the systems that call Zaki Workspace */}
       {actor.isOwner ? <SystemTokensCard /> : null}
+
+      {/* «معاينة المظاهر» (D1.3): every primitive in every theme, for the owner to review */}
+      {actor.isOwner ? <PrimitiveSamples /> : null}
 
       {/* «الميزات»: the owner's on/off switch for each feature (src/lib/features.ts) */}
       {actor.isOwner ? (
