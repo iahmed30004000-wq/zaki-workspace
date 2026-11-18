@@ -10,6 +10,10 @@ import { useI18n } from "@/lib/i18n";
 import { fmtAgo } from "@/lib/format";
 import { ensurePush, pushState, type PushState } from "@/components/calls/push-client";
 import { pollMs } from "@/lib/economy";
+import { useFrameRefresh } from "@/lib/realtime/live-refresh";
+
+/** The frames after which a notification of the CHAT may have been written (a mention, a private message, a ticket's answer). */
+const CHAT_NOTIFIES = new Set(["message.created", "ticket.changed"]);
 
 interface NotificationItem {
   id: string;
@@ -27,8 +31,10 @@ interface NotificationsResponse {
 }
 
 /**
- * The bell in the top bar, and the guide's «inbox» stop. It polls every 30 s (push notifications come in
- * Phase 5) and opens a panel of the latest notifications: tap one to go to it, mark it read, delete it.
+ * The bell in the top bar, and the guide's «inbox» stop. It polls every 30 s and ALSO asks again when a frame says the chat may have
+ * written a notification (C1.3). ⚠️ The poll stays: a task, an approval or a reward writes a notification row and sends no frame, so the
+ * bell cannot be live without it. 🔧 A `notification.created` frame sent by `src/server/notify.ts` (not part of this change) would let the
+ * poll become the five-minute safety net like the other badges. It opens a panel of the latest notifications: tap one to go to it, mark it read, delete it.
  *
  * The panel fits a 375px phone: pinned 8px from both edges right under the top bar (never wider than the
  * screen), and from `md` it hangs under the bell. A tap outside or Escape closes it (Escape gives focus back
@@ -49,6 +55,7 @@ export function NotificationBell({ defaultOpen = false }: { defaultOpen?: boolea
     queryFn: () => apiGet<NotificationsResponse>("/api/notifications"),
     refetchInterval: pollMs(30_000),
   });
+  useFrameRefresh({ matches: (e) => CHAT_NOTIFIES.has(e.kind), delayMs: 600, onRefresh: () => void qc.invalidateQueries({ queryKey: ["notifications"] }) });
 
   const markAll = useMutation({
     mutationFn: () => apiPost("/api/notifications/read", { all: true }),

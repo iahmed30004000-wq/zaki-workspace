@@ -178,13 +178,13 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 
 ### C1 — chat engine
 - [x] C1.1 `lastMessageAt` + indexes · [x] C1.2 list / topics / header / messages / sync endpoints
-- [ ] C1.3 Live line: parallel fan-out, one line per browser, badges from frames · [ ] C1.4 Cache module (one writer)
+- [x] C1.3 Live line: parallel fan-out, one line per browser, badges from frames (the bell keeps its poll, see `pr/C1.3.md`) · [ ] C1.4 Cache module (one writer)
 - [ ] C1.5 IndexedDB start cache (wiped at sign-out) · [ ] C1.6 History, unread landing, jump
 - [ ] C1.7 Virtualized viewport · [ ] C1.8 Optimistic send, receipts as deltas, cheap typing · [x] C1.9 Per-request efficiency (or in F1)
 
 ### F1 — platform speed
 - [x] F1.1 `cache()` + parallel layout · [x] F1.2 Settings once per request · [x] F1.3 Lazy LiveKit & shell extras
-- [ ] F1.4 Fewer `router.refresh()`, no reloads · [ ] F1.5 Badges from the live line · [ ] F1.6 Per-place skeletons
+- [ ] F1.4 Fewer `router.refresh()`, no reloads · [x] F1.5 Badges from the live line (built with C1.3) · [ ] F1.6 Per-place skeletons
 - [x] F1.7 Calm decoration · [x] F1.8 One Prisma client · [x] F1.9 Jobs in the worker (owner switch; default unchanged) · [ ] F1.10 (later) multi-instance
 
 ### N1 — navigation

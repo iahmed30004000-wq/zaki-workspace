@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { ArrowRight, ExternalLink, MessageCircle, Search, Send, UserRound, X } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api-client";
@@ -10,6 +10,7 @@ import { fmtTime } from "@/lib/format";
 import { lastSeenLabel } from "@/lib/last-seen";
 import { cn } from "@/lib/utils";
 import { foldedIncludes } from "@/lib/search/arabic";
+import { frameDrivenQuery, touchesConversation, useFrameRefresh } from "@/lib/realtime/live-refresh";
 import { Avatar } from "@/components/ui/avatar";
 import { CallButton } from "@/components/calls/call-button";
 import { AssistantRow } from "@/components/chat/assistant-row";
@@ -65,7 +66,9 @@ export interface QuickChatConversationDto {
  * directory route); one tap on a person opens the same DM the chat page opens (`POST /api/chat/dm`),
  * here, without leaving the page. It writes through the chat's own doors — no second inbox, no second
  * table — so a message sent here is the very message the chat page shows, and the other side's answer
- * arrives with the same 4 s poll.
+ * arrives as a FRAME (C1.3: the 4 s and 20 s polls are gone — the window refetches when a frame of its own conversation arrives, the
+ * list when somebody comes or goes; one refetch every five minutes is the safety net). It still reads the OLD detail route, which the
+ * phone app keeps; moving it onto the chat cache is C1.4's job.
  *
  * A person of another space is still listed (the list is the company, the owner's choice) but marked
  * and not clickable: a DM lives inside the space (`chat.dm_not_in_space`), so a button that only ever
@@ -92,11 +95,13 @@ export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: b
   const logRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
+  const qc = useQueryClient();
+  // the frames are listened to only while the window is open, so what was cached while it was closed may be old: stale after 10 s, as before
   const peopleQuery = useQuery({
     queryKey: ["quick-chat-people"],
     queryFn: () => apiGet<QuickChatPeopleDto>("/api/chat/directory?scope=company"),
     enabled: enabled && open,
-    refetchInterval: 20_000,
+    ...frameDrivenQuery(),
     staleTime: 10_000,
   });
 
@@ -104,7 +109,17 @@ export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: b
     queryKey: ["quick-chat-dm", conversationId],
     queryFn: () => apiGet<QuickChatConversationDto>(`/api/chat/conversations/${conversationId}?limit=30`),
     enabled: enabled && open && Boolean(conversationId),
-    refetchInterval: 4_000,
+    ...frameDrivenQuery(),
+    staleTime: 0,
+  });
+  // somebody came or went (or the line reconnected): the list asks again
+  useFrameRefresh({ enabled: enabled && open, presence: true, delayMs: 1000, onRefresh: () => void qc.invalidateQueries({ queryKey: ["quick-chat-people"] }) });
+  // a frame of THIS conversation (a message, an edit, a deletion, a read mark): the window asks again, once per burst
+  useFrameRefresh({
+    enabled: enabled && open && Boolean(conversationId),
+    matches: (e) => conversationId !== null && touchesConversation(e, conversationId),
+    delayMs: 300,
+    onRefresh: () => void qc.invalidateQueries({ queryKey: ["quick-chat-dm", conversationId] }),
   });
 
   const openDm = useMutation({

@@ -75,20 +75,20 @@ ticket chip of a message, and `ackRequired` with who has read; `ticket.changed` 
 
 ## C1.3 The live line
 
-- [ ] Frames stay small: `id: <eventId>` + `{kind, conversationId, messageId, spaceId, userId, callId}` (no content on
+- [x] Frames stay small: `id: <eventId>` + `{kind, conversationId, messageId, spaceId, userId, callId}` (no content on
       the wire, as today — the public repo documents the format; content only travels through authorized REST).
-- [ ] Hub fan-out: per event, compute the readers among the CONNECTED users of that org with one query, write to
+- [x] Hub fan-out (one lookup of at most four queries however many people, not literally one query: `pr/C1.3.md`): per event, compute the readers among the CONNECTED users of that org with one query, write to
       them in parallel; batch `markDeliveredForUser` (debounce 1 s per user) outside the loop; `membership.changed`
       clears the policy cache of that org only.
-- [ ] One line per browser: the first tab takes a Web Lock (`navigator.locks.request("zk-rt", …)`) and owns the
+- [x] One line per browser (⚠️ needs a real browser to see: `pr/C1.3.md` «Owner actions»): the first tab takes a Web Lock (`navigator.locks.request("zk-rt", …)`) and owns the
       EventSource; it re-broadcasts frames over `BroadcastChannel("zk-rt")`; when it closes, another tab takes the
       lock. Fallback (no Web Locks): one EventSource per tab, as today. Keep the public `useRealtime(handler)` API so
       the other features (calls, whiteboard, watch, bell) keep working unchanged.
-- [ ] Drive badges and presence from frames (unread changes come from sync; presence from a `presence.changed` frame the
+- [x] Drive badges and presence from frames (⚠️ the bell's 30 s poll stays: its non-chat notifications have no frame, `pr/C1.3.md`) (unread changes come from sync; presence from a `presence.changed` frame the
       hub sends when a user's first stream opens / last one closes — **stream-only, like `typing`**: not a
       `RealtimeEvent` row, not in `REALTIME_KINDS`, not replayed). Remove the 30 s polls only after the frame path is proven
       (keep a 5 min safety refresh on focus).
-- [ ] Quick chat (`src/components/shell/quick-chat.tsx`) stops polling every 4 s and uses the cache + frames.
+- [x] Quick chat (`src/components/shell/quick-chat.tsx`) stops polling every 4 s and uses the cache + frames (frames now; the cache is C1.4's).
 
 ## C1.4 The client cache (TanStack Query — already the app's data library)
 

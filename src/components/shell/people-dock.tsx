@@ -4,13 +4,14 @@ import type React from "react";
 import { useEffect, useId, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Users } from "lucide-react";
 import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { arabicPlural } from "@/lib/format";
 import { lastSeenLabel } from "@/lib/last-seen";
 import { cn } from "@/lib/utils";
+import { frameDrivenQuery, useFrameRefresh } from "@/lib/realtime/live-refresh";
 import { Avatar } from "@/components/ui/avatar";
 
 /** What `GET /api/presence` answers (src/server/services/presence-roster.ts). */
@@ -44,6 +45,10 @@ export interface PresenceRosterDto {
  * counted line; a tap opens the whole roster, online first, the rest dimmed. It reads the same
  * presence the chat's member pills read (`/api/presence` -> presence.ts), so the two never disagree.
  *
+ * C1.3 / F1.5 — it no longer polls every 30 s: the hub sends `presence.changed` (a frame with no id and no person) when somebody's first
+ * stream opens or their last one closes, and the dock asks `/api/presence` again (folded into one request per second). What is left is
+ * the safety net: one refetch every five minutes, and one on a refetch signal (a reconnect, a resume).
+ *
  * A row in the shell's content column, not a floating layer: it takes its own 40px and covers no
  * page — the composer of a conversation and the end of a long list stay whole. `enabled` is false
  * for a guest (the roster is the staff directory, and a guest never sees it), and the dock draws
@@ -64,13 +69,14 @@ export function PeopleDock({ enabled = true, defaultOpen = false }: { enabled?: 
   const panelId = useId();
   const headingId = useId();
 
+  const qc = useQueryClient();
   const query = useQuery({
     queryKey: ["presence-dock", scope],
     queryFn: () => apiGet<PresenceRosterDto>(scope === "company" ? "/api/presence?scope=company" : "/api/presence"),
-    refetchInterval: 30_000,
-    staleTime: 10_000,
+    ...frameDrivenQuery(),
     enabled,
   });
+  useFrameRefresh({ enabled, presence: true, delayMs: 1000, onRefresh: () => void qc.invalidateQueries({ queryKey: ["presence-dock"] }) });
 
   useEffect(() => {
     if (!open) return;

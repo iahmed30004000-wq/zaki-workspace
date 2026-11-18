@@ -13,6 +13,8 @@
 
 export interface RealtimePolicy {
   canReadConversation(userId: string, conversationId: string): Promise<boolean>;
+  /** C1.3: which of these people may read the conversation, asked ONCE for all of them (and the conversation's kind, when known). */
+  readersOf(conversationId: string, userIds: string[]): Promise<{ readers: Set<string>; kind: "DM" | "GROUP" | "TOPIC" | null }>;
 }
 
 type Stubs = Partial<RealtimePolicy>;
@@ -39,4 +41,24 @@ export async function canReadConversation(userId: string, conversationId: string
     throw new Error("not implemented: policy/canReadConversation (SERVICES)");
   }
   return real(userId, conversationId);
+}
+
+/**
+ * C1.3 — the fan-out's question: of the people connected, WHO may read this conversation? One answer for all of them
+ * (`readers.ts`: the policy's own `canRead` over facts loaded in a few queries), instead of one `canReadConversation` per stream.
+ *
+ * A test that stubs only `canReadConversation` still works: each person is then asked through the stub (a logic test of the
+ * hub proves the fan-out, not the rule — `tests/db/realtime-live-gate.test.ts` proves the two agree over a database).
+ */
+export async function readersOf(conversationId: string, userIds: string[]): Promise<{ readers: Set<string>; kind: "DM" | "GROUP" | "TOPIC" | null }> {
+  const batch = stubs.readersOf;
+  if (batch) return batch(conversationId, userIds);
+  const single = stubs.canReadConversation;
+  if (single) {
+    const readers = new Set<string>();
+    for (const userId of new Set(userIds)) if (await single(userId, conversationId)) readers.add(userId);
+    return { readers, kind: null };
+  }
+  const { readersAmong } = await import("./readers");
+  return readersAmong(conversationId, userIds);
 }
