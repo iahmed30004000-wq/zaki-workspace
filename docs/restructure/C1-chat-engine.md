@@ -115,23 +115,23 @@ ticket chip of a message, and `ackRequired` with who has read; `ticket.changed` 
 
 ## C1.6 History, unread landing, jump
 
-- [ ] Opening a conversation: if it has unread messages, load `around=firstUnreadId` and show the separator there;
+- [x] Opening a conversation: if it has unread messages, load `around=firstUnreadId` and show the separator there;
       otherwise the newest page.
-- [ ] Scrolling within one screen of the top loads the previous page; within one screen of the bottom (when not at the
+- [x] Scrolling within one screen of the top loads the previous page; within one screen of the bottom (when not at the
       newest) loads the next page.
-- [ ] Jump to a message (reply quote, pinned bar, search hit, link `?m=`): `around`, then bidirectional paging, a
+- [x] Jump to a message (reply quote, pinned bar, search hit, link `?m=`): `around`, then bidirectional paging, a
       «↓ آخر الرسائل» button returns to the newest window.
-- [ ] Memory cap: keep at most 10 pages per conversation in the cache; drop pages far from the viewport.
+- [x] Memory cap: keep at most 10 pages per conversation in the cache; drop pages far from the viewport.
 
 ## C1.7 The message viewport (virtualized)
 
-- [ ] `@tanstack/react-virtual` (already a dependency): dynamic heights with `measureElement`, `overscan: 10`,
+- [x] `@tanstack/react-virtual` (already a dependency): dynamic heights with `measureElement`, `overscan: 10`,
       stable `getItemKey = message.id`.
-- [ ] Prepending older pages keeps the visible message in place (record the first visible item's offset before the
+- [x] Prepending older pages keeps the visible message in place (record the first visible item's offset before the
       prepend, restore after measuring).
-- [ ] Keep today's "where does the newest message leave the view" rules — `onNewest()` and `isAtBottom()` in
+- [x] Keep today's "where does the newest message leave the view" rules — `onNewest()` and `isAtBottom()` in
       `src/lib/chat/conversation/client.ts` and their tests — they are correct and owner-approved.
-- [ ] Images reserve their box from `width/height`; voice/waveform rows have a fixed height.
+- [x] Images reserve their box from `width/height`; voice/waveform rows have a fixed height.
 
 ## C1.8 Sending, receipts, typing
 

@@ -63,3 +63,8 @@ export { HOVER_PREFETCH_MS, STARTUP_PREFETCH_COUNT, createHoverPrefetch, prefetc
 export { markConversationOpened } from "@/lib/chat/cache/opened";
 export { wipeChatCache } from "@/lib/chat/cache/wipe";
 export { ChatCacheDriver } from "@/lib/chat/cache/driver";
+
+// C1.6: the windows as a model, replacing them as a whole (the unread landing, the jump), and the ten-window cap
+export { fetchWindow, hasMessage, isNotFound, pageIndexOf, reachesNewest, reachesOldest, showAround, showNewest, showWindow, singleWindow } from "@/lib/chat/cache/pages";
+export { MAX_PAGES, trimMessages, trimPages, viewportPageOf } from "@/lib/chat/cache/trim";
+export type { Trimmed } from "@/lib/chat/cache/trim";
