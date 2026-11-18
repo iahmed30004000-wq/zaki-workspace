@@ -7,7 +7,9 @@ import { HQ_SYSTEM_KEY } from "@/server/chat/hq";
 import { isSpaceManager } from "@/server/workspace-role";
 
 import { goHref } from "@/lib/space-link";
+import { featureOn } from "@/lib/features";
 import { layoutOf, type SpaceLayout } from "@/lib/cards/shared";
+import { orgSummaryOf } from "@/server/services/features";
 
 export { goHref, safeNext } from "@/lib/space-link";
 
@@ -119,7 +121,16 @@ export async function keepInSpace(who: SpaceSubject, spaceId: string, path: stri
   const spaces = await spacesOf(who);
   const here = spaces.find((s) => s.id === wanted) ?? spaces[0];
   if (here?.id === spaceId || !spaces.some((s) => s.id === spaceId)) return;
+  // N1.3 (switch `navV2`): never a silent switch. The page opens where it is and the shell draws «هاد من مساحة «X» [انتقل لها]» over it
+  // (src/components/shell/space-banner.tsx); the button is the very `/go` link below, followed by the person's own tap. With the switch OFF
+  // (as merged) nothing changes: the redirect is still the answer.
+  if (await bannerInsteadOfSwitch(who)) return;
   redirect(goHref(spaceId, path));
+}
+
+/** Does this person's company show a banner instead of switching the app's space by itself (the switch `navV2`)? One settings read per render. */
+export async function bannerInsteadOfSwitch(who: Pick<SpaceSubject, "orgId">): Promise<boolean> {
+  return featureOn((await orgSummaryOf(who.orgId))?.settings, "navV2");
 }
 
 /**

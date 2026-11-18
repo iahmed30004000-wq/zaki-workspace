@@ -25,6 +25,7 @@ import {
 import { applyNavOrder, menuOrderFor, readCompanyMenuOrder, readNavOrder } from "@/lib/nav/order";
 import { DEFAULT_LANDING, LANDINGS, landingOf, navExtrasOf, orgSettingsSchema, transparencyVersionOf, workTabsOf } from "@/server/policy/org-settings";
 import { CAPABILITIES, effectiveCapabilities } from "@/server/policy/capabilities";
+import { navSubjectOf } from "@/server/services/nav-order";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -294,8 +295,17 @@ describe("every tab offered is a page that serves that person, and a tab not off
     for (const key of ALL_V2.filter((k) => !["my-work", "projects", "documents", "list", "calendar"].includes(k))) expect(offeredToGuests(key), key).toBe(false);
   });
 
-  // N1.2 wires the switch: navSubjectOf (src/server/services/nav-order.ts) must spread navExtrasOf(settings) into the subject. Until then navV2 is OFF everywhere.
-  it.todo("navSubjectOf hands navV2 and workTabs to the map (N1.2)");
+  // N1.2 wired the switch: navSubjectOf (src/server/services/nav-order.ts) spreads navExtrasOf(settings) into the subject (it was a todo until then)
+  it("navSubjectOf hands navV2 and workTabs to the map (N1.2)", () => {
+    const actor = { role: "MEMBER" as const, caps: effectiveCapabilities({ role: "MEMBER" }), isExternal: false };
+    const settings = { features: { navV2: true }, workTabs: ["goals", "ideas", "crm"] };
+    const subject = navSubjectOf(actor, settings, null);
+    expect(subject).toMatchObject({ navV2: true, workTabs: navExtrasOf(settings).workTabs });
+    expect(keys(buildNav(subject))[0]).toBe("chat");
+    // OFF (the default): the old map, whatever else the settings say
+    expect(navSubjectOf(actor, { workTabs: ["goals"] }, null).navV2).toBe(false);
+    expect(keys(buildNav(navSubjectOf(actor, {}, null)))[0]).toBe("today");
+  });
 
   it("the same menu for two members of the same rank", () => {
     const a = buildNav(v2("MEMBER"));

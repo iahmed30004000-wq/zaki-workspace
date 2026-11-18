@@ -46,6 +46,8 @@ import StructurePage from "@/app/(app)/structure/page";
 import DevelopmentPage from "@/app/(app)/development/page";
 import CurrentSpacePage from "@/app/(app)/spaces/current/page";
 import WatchPage from "@/app/(app)/watch/page";
+import TaskPage from "@/app/(app)/tasks/[id]/page";
+import * as workspacesRoute from "@/app/api/workspaces/route";
 import * as goalsRoute from "@/app/api/goals/route";
 import * as goalRoute from "@/app/api/goals/[id]/route";
 import * as ideasRoute from "@/app/api/ideas/route";
@@ -60,6 +62,7 @@ import { requireActor } from "@/server/policy/actor";
 import { listGoals } from "@/server/services/goals";
 import { listIdeas } from "@/server/services/ideas";
 import { SPACE_COOKIE } from "@/server/services/current-space";
+import { navSubjectOf } from "@/server/services/nav-order";
 import { withHq } from "./hq-helpers";
 import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorkspace, uid } from "./helpers";
 import {
@@ -562,6 +565,25 @@ describe("every tab of PLACES and PLACES_V2 × the five ranks: a tab not offered
     expect(ENTRIES.find((entry) => entry.map === "V2" && entry.tab === "requests")?.offered(guest)).toBe(false);
   });
 
+  it("N1.2: every tab the DRAWN new menu offers, «المزيد» included, is a page of the table above that serves that rank", async () => {
+    for (const rank of RANKS) {
+      const subject = await signIn(rank);
+      const actor = await requireActor();
+      // the person as the layout builds them, with the new map on (navSubjectOf spreads the company's switch)
+      const drawn = buildNav({ ...navSubjectOf(actor, { features: { navV2: true } }, null), caps: subject.caps });
+      for (const place of drawn.places) {
+        for (const tab of [...place.tabs, ...(place.more ?? [])]) {
+          const entry = ENTRIES.find((candidate) => candidate.map === "V2" && candidate.tab === tab.key);
+          expect(entry, `${rank} · ${place.key}/${tab.key} is in the table`).toBeDefined();
+          expect(entry?.offered(subject), `${rank} · ${tab.key} is offered`).toBe(true);
+          expect(entry?.href, `${rank} · ${tab.key} links to its page`).toBe(tab.href);
+        }
+      }
+      // at most four tabs in a place, and the same menu for the same rank
+      for (const place of drawn.places) expect(place.tabs.length, `${rank} · ${place.key}`).toBeLessThanOrEqual(4);
+    }
+  });
+
   for (const entry of ENTRIES) {
     for (const rank of RANKS) {
       const title = `${rank} · ${entry.map} ${entry.label} (${entry.href})`;
@@ -617,4 +639,94 @@ describe("every tab of PLACES and PLACES_V2 × the five ranks: a tab not offered
       }
     }
   }
+});
+
+// ───────────────────────────── N1.2 + N1.3: the visible space ─────────────────────────────
+// (this file is the only database test file of the package: the numbers, the banner's data and the end of the silent switch)
+
+describe("N1.3: overdue numbers, the banner's data, and no silent switch while navV2 is on", () => {
+  const jar = () => (globalThis as { __zkCookieJar?: Map<string, string> }).__zkCookieJar as Map<string, string>;
+  const enter = (spaceId: string) => jar().set(SPACE_COOKIE, spaceId);
+
+  /** A company with «الشركة», the member's spaces A and B, a space C they are not in; tasks in each. */
+  async function spacesWorld(navV2: boolean) {
+    const team = await makeTeam();
+    const orgId = team.org.id;
+    await db.organization.update({ where: { id: orgId }, data: { settings: navV2 ? { features: { navV2: true } } : {} } });
+    const hq = await withHq(orgId, [team.member.id]);
+    const a = await makeWorkspace(orgId, [{ userId: team.member.id }], `A ${uid()}`);
+    const b = await makeWorkspace(orgId, [{ userId: team.member.id }], `B ${uid()}`);
+    const c = await makeWorkspace(orgId, [], `C ${uid()}`);
+    const task = async (space: { id: string }, extra: { assigneeId?: string; dueDate?: Date | null; completedAt?: Date | null }) => {
+      const p = await makeProject(space.id, `P ${uid()}`);
+      return makeTask({ orgId, workspaceId: space.id, projectId: p.project.id, boardId: p.board.id, columnId: p.todo.id, creatorId: team.owner.id, title: `T ${uid()}`, ...extra });
+    };
+    const late = new Date(Date.now() - 3 * DAY);
+    const ta = await task(a, { assigneeId: team.member.id, dueDate: late });
+    // not counted: not late yet, already done, somebody else's
+    await task(a, { assigneeId: team.member.id, dueDate: new Date(Date.now() + 3 * DAY) });
+    await task(a, { assigneeId: team.member.id, dueDate: late, completedAt: new Date() });
+    await task(a, { assigneeId: team.owner.id, dueDate: late });
+    const tb = await task(b, { assigneeId: team.member.id, dueDate: new Date(Date.now() + 3 * DAY) });
+    const tc = await task(c, { assigneeId: team.owner.id, dueDate: late });
+    return { ...team, hq, a, b, c, ta, tb, tc };
+  }
+
+  type SpacesAnswer = { organizations: { workspaces: { id: string; overdue: number }[] }[]; foreign: { path: string; next: string; spaceId: string; name: string; emoji: string | null } | null };
+  const ask = async (path?: string) => (await call(workspacesRoute.GET, { url: `http://localhost/api/workspaces${path ? `?path=${encodeURIComponent(path)}` : ""}` })).json as unknown as SpacesAnswer;
+
+  it("/api/workspaces carries each space's overdue count: only open tasks assigned to the person that are late, never a stranger's", async () => {
+    const w = await spacesWorld(true);
+    await loginAs(w.member.id);
+    const answer = await ask();
+    const overdue = Object.fromEntries(answer.organizations.flatMap((org) => org.workspaces).map((space) => [space.id, space.overdue]));
+    expect(overdue[w.a.id]).toBe(1);
+    expect(overdue[w.b.id]).toBe(0);
+    expect(overdue[w.hq]).toBe(0);
+    // C is not the member's space: it is not listed at all
+    expect(overdue[w.c.id]).toBeUndefined();
+    // the same answer for the old shell: the number is there whatever the switch says
+    const off = await spacesWorld(false);
+    await loginAs(off.member.id);
+    expect((await ask()).organizations[0]?.workspaces.find((space) => space.id === off.a.id)?.overdue).toBe(1);
+  });
+
+  it("a task of ANOTHER space of theirs: the same answer names that space for the banner (path, next, space, name)", async () => {
+    const w = await spacesWorld(true);
+    await loginAs(w.member.id);
+    enter(w.a.id);
+    const there = `/tasks/${w.tb.id}`;
+    const answer = await ask(there);
+    expect(answer.foreign).toEqual({ path: there, next: there, spaceId: w.b.id, name: w.b.name, emoji: null });
+    // a query rides along to the button, not into the comparison path
+    expect((await ask(`${there}?x=1`)).foreign).toMatchObject({ path: there, next: `${there}?x=1`, spaceId: w.b.id });
+    // in the same space, nothing to say; in a space that is not theirs, the page answers for itself; a list is no thing
+    expect((await ask(`/tasks/${w.ta.id}`)).foreign).toBeNull();
+    expect((await ask(`/tasks/${w.tc.id}`)).foreign).toBeNull();
+    expect((await ask("/projects")).foreign).toBeNull();
+    expect((await ask("/tasks/none-such")).foreign).toBeNull();
+    expect((await ask("//evil.example/tasks/x")).foreign).toBeNull();
+    expect((await ask()).foreign).toBeNull();
+    // once they are in B the banner is gone
+    enter(w.b.id);
+    expect((await ask(there)).foreign).toBeNull();
+  });
+
+  it("with the switch OFF nothing changes: no banner data, and the page still switches the space by itself (keepInSpace redirects)", async () => {
+    const w = await spacesWorld(false);
+    await loginAs(w.member.id);
+    enter(w.a.id);
+    expect((await ask(`/tasks/${w.tb.id}`)).foreign).toBeNull();
+    await expect(TaskPage({ params: { id: w.tb.id } })).rejects.toThrow(`NEXT_REDIRECT:/go?space=${w.b.id}&next=%2Ftasks%2F${w.tb.id}`);
+  });
+
+  it("with the switch ON the page opens where it is: keepInSpace does not redirect (the banner's button is the /go link)", async () => {
+    const w = await spacesWorld(true);
+    await loginAs(w.member.id);
+    enter(w.a.id);
+    const outcome = await TaskPage({ params: { id: w.tb.id } }).then(() => "rendered", (e: Error) => e.message);
+    expect(outcome).not.toMatch(/NEXT_REDIRECT/);
+    // a task of a space that is not theirs is still «not found», never a detour
+    await expect(TaskPage({ params: { id: w.tc.id } })).rejects.toThrow("NEXT_NOT_FOUND");
+  });
 });

@@ -56,5 +56,17 @@
   "shell.theme.aria": "المظهر: ليل أو نهار",
   "shell.theme.night": "ليل",
   "shell.theme.day": "نهار",
-  "shell.guide": "دليل زاكي"
+  "shell.guide": "دليل زاكي",
+  "navv2.drawer.open": "افتح القائمة",
+  "navv2.drawer.title": "القائمة",
+  "navv2.drawer.spaces": "المساحات",
+  "navv2.more.open": "المزيد من صفحات {place}",
+  "navv2.rail.options": "خيارات القائمة",
+  "navv2.space.unread": "{name}: {n} رسالة غير مقروءة",
+  "navv2.space.overdue": "{name}: {n} مهمة متأخرة",
+  "navv2.banner.foreign": "هاد من مساحة «{name}»",
+  "navv2.banner.go": "انتقل لها",
+  "navv2.nowork.title": "لسا ما إلك مساحة شغل",
+  "navv2.nowork.hint": "اطلب من مديرك يضيفك",
+  "navv2.nowork.hint_admin": "افتح مساحة عمل من قائمة المساحات"
 }

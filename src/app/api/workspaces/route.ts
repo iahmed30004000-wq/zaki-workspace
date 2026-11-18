@@ -12,6 +12,7 @@ import { createWorkspace } from "@/server/services/workspaces";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { unreadBySpace } from "@/server/chat/unread";
 import { currentSpace } from "@/server/services/current-space";
+import { foreignSpaceOf, overdueBySpace } from "@/server/services/nav-order";
 import { SPACE_LAYOUTS } from "@/lib/cards/shared";
 
 /**
@@ -21,8 +22,12 @@ import { SPACE_LAYOUTS } from "@/lib/cards/shared";
  * Each space carries its emoji and `unread`: the messages and the notifications waiting for the person there (the number
  * beside it on the space switcher, like the accounts of a messaging app). «الشركة» comes first, then by name;
  * `currentSpaceId` is the space the person is in (the shell follows it after every navigation).
+ *
+ * N1.3 — the same ONE answer also carries `overdue` per space (the tasks assigned to the person that are late there) and, while the company's switch
+ * `navV2` is on and `?path=` names ONE thing (a task, a project, …) of another space of the person's, `foreign`: the banner's line
+ * («هاد من مساحة «X» [انتقل لها]»). The shell asks once per page (F1), so the spaces, the counts and the banner never cost a second request.
  */
-export async function GET() {
+export async function GET(req?: Request) {
   return withApi(async () => {
     const user = await requireUser();
     const orgs = await db.organizationMember.findMany({
@@ -60,20 +65,26 @@ export async function GET() {
       _count: { _all: true },
     });
     for (const b of bells) if (b.workspaceId) unread[b.workspaceId] = (unread[b.workspaceId] ?? 0) + b._count._all;
-    type Entry = { id: string; name: string; slug: string; emoji: string | null; holdsProjects: boolean; unread: number };
+    // …and the overdue tasks of the person in each space (the number beside the unread one)
+    const overdue = await overdueBySpace(user.id, orgs.map((m) => m.organization.id));
+    type Entry = { id: string; name: string; slug: string; emoji: string | null; holdsProjects: boolean; unread: number; overdue: number };
     const byOrg = new Map<string, Entry[]>();
     const hqFirst = [...workspaces.filter((w) => w.kind === "HQ"), ...workspaces.filter((w) => w.kind !== "HQ")];
     for (const w of hqFirst) {
       const list = byOrg.get(w.organizationId) ?? [];
       // «الشركة» (HQ) is for announcements and the company's talk: no project is opened there
-      list.push({ id: w.id, name: w.name, slug: w.slug, emoji: w.emoji, holdsProjects: w.kind !== "HQ", unread: unread[w.id] ?? 0 });
+      list.push({ id: w.id, name: w.name, slug: w.slug, emoji: w.emoji, holdsProjects: w.kind !== "HQ", unread: unread[w.id] ?? 0, overdue: overdue[w.id] ?? 0 });
       byOrg.set(w.organizationId, list);
     }
     // the company they work in is the oldest ACTIVE membership (`requireActor`): its current space
     const first = orgs[0];
     const here = first ? await currentSpace({ userId: user.id, orgId: first.organization.id, role: first.role }) : null;
+    // the banner: only for a page that is ONE thing of another space (`?path=`), and only while `navV2` is on
+    const asked = req ? new URL(req.url).searchParams.get("path") : null;
+    const foreign = asked ? await (async () => foreignSpaceOf(await requireActor(), asked))().catch(() => null) : null;
     return NextResponse.json({
       currentSpaceId: here?.id ?? null,
+      foreign,
       organizations: orgs.map((m) => ({
         id: m.organization.id,
         name: m.organization.name,

@@ -2,11 +2,18 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
+import { navExtrasOf } from "@/server/policy/org-settings";
 import { featuresOff } from "@/lib/features";
 import { buildNav, type NavModel, type NavSubject } from "@/lib/nav/places";
 import { firstUnseen, readNavOrder, type NavOrder } from "@/lib/nav/order";
 import type { SpaceLayout } from "@/lib/cards/shared";
-import { currentSpace } from "./current-space";
+import { parseAddress, type AddressKind, type ForeignSpace } from "@/lib/nav/shell-v2";
+import { safeNext } from "@/lib/space-link";
+import { loadCard } from "./cards";
+import { bannerInsteadOfSwitch, currentSpace, spacesOf } from "./current-space";
+import { spaceOfApproval } from "./approvals";
+import { orgDayStart } from "./org-day";
+import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "./team-scope";
 
 /**
  * «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column).
@@ -30,6 +37,8 @@ export function navSubjectOf(actor: Pick<Actor, "role" | "caps" | "isExternal">,
     supervisor: !actor.isExternal && supervisor,
     // a space of «لوحات» or «تصنيع» offers «اللوحات» and «الإدارة» only (the pure map decides: src/lib/nav/places.ts)
     ...(space?.layout ? { spaceLayout: space.layout } : {}),
+    // N1.1/N1.2: the company's switch `navV2` (the new map, OFF by default) and the work tools the owner pinned as tabs
+    ...navExtrasOf(orgSettings),
   };
 }
 
@@ -38,6 +47,89 @@ export async function hasActiveReports(actor: Pick<Actor, "orgId" | "userId" | "
   if (actor.isExternal) return false;
   const n = await db.organizationMember.count({ where: { organizationId: actor.orgId, managerId: actor.userId, status: "ACTIVE", role: { not: "GUEST" } } });
   return n > 0;
+}
+
+/**
+ * N1.3 — how many tasks assigned to this person are overdue in each space they may open, per company (`{ spaceId: count }`, spaces with none left out):
+ * the number beside every space on the switcher, next to the unread messages. «Overdue» is the same line My Work uses (before the START of the
+ * company's today, `orgDayStart`); only open, live tasks the person is assigned to (or co-assigned), through the same visibility rule as every task list
+ * (`taskVisibleWhere`), so a private task of somebody else is never counted. One grouped query per company.
+ */
+export async function overdueBySpace(userId: string, orgIds: readonly string[], now: Date = new Date()): Promise<Record<string, number>> {
+  if (orgIds.length === 0) return {};
+  const scope = await loadWorkScope(userId);
+  const spaceIds = scopeSpaceIds(scope);
+  if (spaceIds.length === 0) return {};
+  const visible = taskVisibleWhere(scope);
+  const out: Record<string, number> = {};
+  await Promise.all(
+    orgIds.map(async (orgId) => {
+      const before = await orgDayStart(orgId, now);
+      const rows = await db.task.groupBy({
+        by: ["workspaceId"],
+        where: {
+          orgId,
+          archived: false,
+          completedAt: null,
+          dueDate: { lt: before },
+          workspaceId: { in: spaceIds },
+          OR: [{ assigneeId: userId }, { coAssignees: { some: { userId } } }],
+          AND: [visible],
+        },
+        _count: { _all: true },
+      });
+      for (const row of rows) out[row.workspaceId] = row._count._all;
+    }),
+  );
+  return out;
+}
+
+/**
+ * N1.3 — the space a page's ONE thing lives in, for the banner: «هاد من مساحة «X»». `address` is the page on screen (a task, a project, a board, a card,
+ * an approval, a call, a «نتفرّج سوا» session, a chat topic: the pages that called `keepInSpace`); it answers only while the company's switch `navV2` is
+ * on, only for a thing THIS person may open (the same rules the pages apply before they keep the space), only when that space is one of theirs, and only
+ * when it is not the space they are in. Anything else — a list, a thing that is not theirs, a space that is not theirs — is `null`: the page answers for itself.
+ */
+export async function foreignSpaceOf(actor: Actor, address: string): Promise<ForeignSpace | null> {
+  const found = parseAddress(address);
+  if (!found || !(await bannerInsteadOfSwitch(actor))) return null;
+  const spaceId = await spaceOfThing(actor, found.kind, found.id);
+  if (!spaceId) return null;
+  const spaces = await spacesOf(actor);
+  const there = spaces.find((s) => s.id === spaceId);
+  if (!there) return null;
+  const here = await currentSpace(actor);
+  if (here?.id === spaceId) return null;
+  const next = safeNext(address);
+  return { path: next.split(/[?#]/, 1)[0] ?? next, next, spaceId, name: there.name, emoji: there.emoji };
+}
+
+/** The space id of one thing the person may open (null: not found for them). The same questions the pages ask before `keepInSpace`. */
+async function spaceOfThing(actor: Actor, kind: AddressKind, id: string): Promise<string | null> {
+  switch (kind) {
+    case "task": {
+      const task = await db.task.findFirst({ where: { id, orgId: actor.orgId, AND: [taskVisibleWhere(await loadWorkScope(actor.userId))] }, select: { workspaceId: true } });
+      return task?.workspaceId ?? null;
+    }
+    case "project": {
+      const project = await db.project.findFirst({ where: { id, AND: [projectVisibleWhere(await loadWorkScope(actor.userId))] }, select: { workspaceId: true } });
+      return project?.workspaceId ?? null;
+    }
+    case "board": {
+      const board = await db.board.findFirst({ where: { id, project: projectVisibleWhere(await loadWorkScope(actor.userId)) }, select: { project: { select: { workspaceId: true } } } });
+      return board?.project.workspaceId ?? null;
+    }
+    case "card":
+      return loadCard(actor, id).then(({ row }) => row.workspaceId, () => null);
+    case "approval":
+      return spaceOfApproval(actor, id).catch(() => null);
+    case "call":
+      return (await db.call.findFirst({ where: { id, orgId: actor.orgId }, select: { spaceId: true } }))?.spaceId ?? null;
+    case "watch":
+      return (await db.watchSession.findFirst({ where: { id, orgId: actor.orgId }, select: { spaceId: true } }))?.spaceId ?? null;
+    case "topic":
+      return (await db.conversation.findFirst({ where: { id, orgId: actor.orgId }, select: { spaceId: true } }))?.spaceId ?? null;
+  }
 }
 
 /** The map this person is offered right now (read from the database, the cookie decides nothing). */

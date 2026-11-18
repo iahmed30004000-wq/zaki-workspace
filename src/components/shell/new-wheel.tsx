@@ -6,13 +6,12 @@ import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useQuery } from "@tanstack/react-query";
 import { Clapperboard, FilePen, FileUp, FolderKanban, Layers, MessageCircle, Plus, SquareCheck, UserPlus, X, type LucideIcon } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
-import { apiGet } from "@/lib/api-client";
 import { browserStore } from "@/lib/guide/storage";
-import { NEW_HREF, NEW_LAST_KEY, orderByLastUsed, type NewActionKey } from "@/lib/nav/new-actions";
+import { NEW_LAST_KEY, newHrefFor, orderByLastUsed, type NewActionKey } from "@/lib/nav/new-actions";
 import { DialogOverlay } from "@/components/ui/dialog";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
-import { ORGS_QUERY_KEY, type OrgsResponse } from "./space-switcher";
+import { SPACES_QUERY } from "./space-switcher";
 
 const ICONS: Record<NewActionKey, LucideIcon> = {
   task: SquareCheck,
@@ -69,7 +68,7 @@ function writeLast(key: NewActionKey): void {
  * `actions` comes from the server (`newActionsFor`); with none, nothing is drawn. `defaultOpen` and
  * `portal={false}` are for server-render tests.
  */
-export function NewWheel({ actions, defaultOpen = false, portal = true }: { actions: readonly NewActionKey[]; defaultOpen?: boolean; portal?: boolean }) {
+export function NewWheel({ actions, v2 = false, defaultOpen = false, portal = true }: { actions: readonly NewActionKey[]; /** The new map (`navV2`): «/» alone may be the landing page, so «مهمة» goes to «اليوم» by its own address. */ v2?: boolean; defaultOpen?: boolean; portal?: boolean }) {
   const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
@@ -79,12 +78,8 @@ export function NewWheel({ actions, defaultOpen = false, portal = true }: { acti
   const items = useRef<Array<HTMLButtonElement | null>>([]);
 
   const wantsSpaces = actions.includes("space");
-  const orgs = useQuery({
-    queryKey: ORGS_QUERY_KEY,
-    queryFn: () => apiGet<OrgsResponse>("/api/workspaces"),
-    retry: false,
-    enabled: wantsSpaces,
-  });
+  // the shell's one spaces query (same key, same function: `fetchSpaces` carries the page's address for the banner)
+  const orgs = useQuery({ ...SPACES_QUERY, enabled: wantsSpaces });
 
   // the stored order is read in the browser only, after the first paint (the server knows nothing of it)
   useEffect(() => {
@@ -108,7 +103,7 @@ export function NewWheel({ actions, defaultOpen = false, portal = true }: { acti
 
   function start(key: NewActionKey) {
     writeLast(key);
-    const href = NEW_HREF[key];
+    const href = newHrefFor(key, v2);
     if (href) {
       setOpen(false);
       router.push(href);

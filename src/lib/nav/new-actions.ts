@@ -37,6 +37,15 @@ export const NEW_HREF: Record<NewActionKey, string | null> = {
   person: "/members?new=person",
 };
 
+/**
+ * Where an action goes. On the new map (`navV2`) «/» alone may be the company's landing page and send the person to the chat (N1.8), which would
+ * drop the intent of «مهمة» (`/?new=task`): there the address is «اليوم»'s own, `/?view=today&new=task`. Every other address is the same.
+ */
+export function newHrefFor(key: NewActionKey, v2 = false): string | null {
+  if (v2 && key === "task") return "/?view=today&new=task";
+  return NEW_HREF[key];
+}
+
 const staff = (s: NavSubject) => s.role !== "GUEST";
 const holds = (s: NavSubject, cap: string) => staff(s) && s.caps.includes(cap);
 

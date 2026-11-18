@@ -4,12 +4,13 @@ import { audienceOf } from "@/lib/guide/audience";
 import { buildNav } from "@/lib/nav/places";
 import { newActionsFor } from "@/lib/nav/new-actions";
 import { economyOn, featuresOf } from "@/lib/features";
-import { readNavOrder } from "@/lib/nav/order";
+import { menuOrderFor, readCompanyMenuOrder, readNavOrder } from "@/lib/nav/order";
+import { holdsNoWork } from "@/lib/nav/shell-v2";
 import { db } from "@/server/db";
 import { orgSummaryOf } from "@/server/services/features";
 import { cookies } from "next/headers";
 import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/components/shell/sidebar-cookie";
-import { currentSpace } from "@/server/services/current-space";
+import { currentSpace, spacesOf } from "@/server/services/current-space";
 import { hasActiveReports, navSubjectOf } from "@/server/services/nav-order";
 import { CallRing } from "@/components/calls/call-ring";
 import { CallProvider } from "@/components/calls/call-provider";
@@ -35,7 +36,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const sidebarCollapsed = parseSidebarCookie(cookies().get(SIDEBAR_COOKIE)?.value);
   // Everything below depends on the person only, so it is read TOGETHER (one round trip, not five): with the person and
   // the membership above that is three round trips for the whole frame (F1.1). Each reader is shared with the page.
-  const [org, me, space, supervisor] = await Promise.all([
+  const [org, me, space, supervisor, spaces] = await Promise.all([
     // the company's name under the wordmark, and its switched-off features («الميزات»: their places are not drawn)
     orgSummaryOf(actor.orgId),
     // the person's picture, for the avatar in the side menu and the phone's top bar, and their own order of the menu
@@ -46,11 +47,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     // «الإدارة» > «المساحة» is offered to whoever manages THIS space (a space role is not a capability: read here from
     // the database, never from the cookie; an external partner never does). The page decides again.
     hasActiveReports(actor),
+    // the person's spaces (shared with `currentSpace`: one read): «الشركة» keeps no projects, so only-there means no work space (D-N3)
+    spacesOf(actor),
   ]);
   const avatarUrl = me?.avatarUrl ?? null;
   // the two places the shell draws that are the owner's switches (a switched-off one is not drawn at all)
   const on = featuresOf(org?.settings);
   const subject = navSubjectOf(actor, org?.settings, space, supervisor);
+  // N1.2 — the new map is wired: `navSubjectOf` hands the switch to `buildNav`, and the shell draws the rail and the drawer when it is on
+  const navV2 = subject.navV2 === true;
+  // D-N5: the company's order wins while it is set (the person's own is only read, never written: `User.navOrder` stays stored)
+  const menu = menuOrderFor(readCompanyMenuOrder(org?.settings), readNavOrder(me?.navOrder));
+  const ownOrder = readNavOrder(me?.navOrder);
   return (
     <AppShell
       // the shell draws a name, a username and an e-mail; session facts (tv, locale, onboarding
@@ -59,7 +67,10 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       rank={actor.role}
       isGuest={actor.isExternal}
       nav={buildNav(subject)}
-      navOrder={readNavOrder(me?.navOrder)}
+      navV2={subject.navV2 === true}
+      navOrder={navV2 ? menu.order : ownOrder}
+      orderLocked={navV2 && menu.personalLocked}
+      noWorkSpace={navV2 && !actor.isExternal && holdsNoWork(spaces.map((s) => ({ holdsProjects: s.kind !== "HQ" })))}
       newActions={actor.isExternal ? [] : newActionsFor(subject)}
       orgName={org?.name}
       space={space ? { id: space.id, name: space.name, emoji: space.emoji } : null}
