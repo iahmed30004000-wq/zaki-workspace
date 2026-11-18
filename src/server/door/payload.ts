@@ -150,7 +150,7 @@ export function parseDoorBody<T>(schema: z.ZodType<T, z.ZodTypeDef, unknown>, bo
 /** The sender's `Idempotency-Key`: 8..128 of letters, digits and `. _ : -`. */
 export const IDEMPOTENCY_KEY = /^[A-Za-z0-9_.:-]{8,128}$/;
 
-export type IdempotencyType = "idea.create" | "task.create";
+export type IdempotencyType = "idea.create" | "task.create" | "message.create";
 
 /** The stored key: the COMPANY first (one company's retry can never replace another's), then the sender (the token), the kind, the key. */
 export function storedIdempotencyKey(input: { organizationId: string; tokenId: string; type: IdempotencyType; key: string }): string {

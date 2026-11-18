@@ -20,12 +20,56 @@ export interface WorkHours {
   daysOff: number[];
 }
 
+/**
+ * The FOURTH kind of rule of `autoTicketRules` (I1.1a): by EVENT. An event the orders system sends (`order.returned`, `order.cancelled`) opens a ticket of a kind, for a
+ * department or a person, made by the person who connected the integration. It lives in the same list as the three kinds of Q1.5 (`type: "event"`); `autoRulesOf`
+ * (src/lib/tickets/auto-rules.ts) does not know the kind and skips it, so message-time rules never see it, and this file reads and writes it (`eventRulesOf`).
+ */
+export const TICKET_EVENTS = ["order.returned", "order.cancelled"] as const;
+export interface EventRule {
+  id: string;
+  type: "event";
+  event: (typeof TICKET_EVENTS)[number];
+  kindKey: string;
+  departmentId?: string | null;
+  assigneeId?: string | null;
+}
+
+const idLike = (v: unknown): v is string => typeof v === "string" && v.length > 0 && v.length <= 64;
+
+/** The company's event rules: the valid ones only (a bad entry or a repeated id is dropped, never trusted). */
+export function eventRulesOf(settings: unknown): EventRule[] {
+  const raw = typeof settings === "object" && settings !== null ? (settings as Record<string, unknown>)["autoTicketRules"] : undefined;
+  if (!Array.isArray(raw)) return [];
+  const out: EventRule[] = [];
+  const seen = new Set<string>();
+  for (const r of raw) {
+    if (typeof r !== "object" || r === null || Array.isArray(r)) continue;
+    const o = r as Record<string, unknown>;
+    if (o["type"] !== "event" || !idLike(o["id"]) || seen.has(o["id"])) continue;
+    if (!(TICKET_EVENTS as readonly unknown[]).includes(o["event"])) continue;
+    if (typeof o["kindKey"] !== "string" || !/^[a-z][a-z0-9_]{1,40}$/.test(o["kindKey"])) continue;
+    seen.add(o["id"]);
+    out.push({
+      id: o["id"],
+      type: "event",
+      event: o["event"] as EventRule["event"],
+      kindKey: o["kindKey"],
+      ...(idLike(o["departmentId"]) ? { departmentId: o["departmentId"] } : {}),
+      ...(idLike(o["assigneeId"]) ? { assigneeId: o["assigneeId"] } : {}),
+    });
+  }
+  return out;
+}
+
 export const DEFAULT_WORK_HOURS: WorkHours = { from: "09:00", to: "18:00", daysOff: [5] };
 
 const hhmm = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
 export const problemSettingsSchema = z.object({
   kinds: z.array(z.unknown()).max(40).optional(),
   rules: z.array(z.unknown()).max(100).optional(),
+  /** by EVENT (I1.1a): an order that came back or was cancelled opens a ticket */
+  eventRules: z.array(z.unknown()).max(20).optional(),
   workHours: z.object({ from: hhmm, to: hhmm, daysOff: z.array(z.number().int().min(0).max(6)).max(6).optional() }).optional(),
 });
 
@@ -39,6 +83,7 @@ export function workHoursOf(settings: unknown): WorkHours {
 export interface ProblemSettings {
   kinds: ProblemKind[];
   rules: AutoRule[];
+  eventRules: EventRule[];
   workHours: WorkHours;
 }
 
@@ -50,7 +95,7 @@ export async function readProblemSettings(actor: Actor): Promise<ProblemSettings
   manager(actor);
   await assertFeatureOn(actor.orgId, "autoTickets");
   const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } });
-  return { kinds: problemKindsOf(org?.settings), rules: autoRulesOf(org?.settings), workHours: workHoursOf(org?.settings) };
+  return { kinds: problemKindsOf(org?.settings), rules: autoRulesOf(org?.settings), eventRules: eventRulesOf(org?.settings), workHours: workHoursOf(org?.settings) };
 }
 
 export async function saveProblemSettings(actor: Actor, input: z.infer<typeof problemSettingsSchema>): Promise<ProblemSettings> {
@@ -71,7 +116,8 @@ export async function saveProblemSettings(actor: Actor, input: z.infer<typeof pr
   }
   // the departments and people named by a kind or a rule must be this company's: a department of another company, a guest or a person who is not active is dropped
   const deptIds = new Set((await db.department.findMany({ where: { orgId: actor.orgId }, select: { id: true } })).map((d) => d.id));
-  const named = [...kinds.map((k) => k.assigneeId), ...rules.map((r) => r.assigneeId)].filter((v): v is string => typeof v === "string");
+  let eventRules = (input.eventRules !== undefined ? eventRulesOf({ autoTicketRules: input.eventRules }) : eventRulesOf(current)).filter((r) => keys.has(r.kindKey));
+  const named = [...kinds.map((k) => k.assigneeId), ...rules.map((r) => r.assigneeId), ...eventRules.map((r) => r.assigneeId)].filter((v): v is string => typeof v === "string");
   const okPeople = new Set((await db.organizationMember.findMany({ where: { organizationId: actor.orgId, userId: { in: named }, status: "ACTIVE", role: { not: "GUEST" } }, select: { userId: true } })).map((m) => m.userId));
   const clean = <T extends { departmentId?: string | null | undefined; assigneeId?: string | null | undefined }>(o: T): T => {
     const { departmentId, assigneeId, ...rest } = o;
@@ -79,9 +125,11 @@ export async function saveProblemSettings(actor: Actor, input: z.infer<typeof pr
   };
   kinds = kinds.map(clean);
   rules = rules.map(clean);
+  eventRules = eventRules.map(clean);
   const hours = input.workHours ? { from: input.workHours.from, to: input.workHours.to, daysOff: input.workHours.daysOff ?? DEFAULT_WORK_HOURS.daysOff } : workHoursOf(current);
   if (hours.from >= hours.to) throw new ValidationError([{ path: "workHours", message: "tickets.e.hours" }]);
-  const next = { ...current, ticketKinds: kinds, autoTicketRules: rules, workHours: hours };
+  // the event rules sit in the same list, after the three kinds of Q1.5
+  const next = { ...current, ticketKinds: kinds, autoTicketRules: [...rules, ...eventRules], workHours: hours };
   await db.organization.update({ where: { id: actor.orgId }, data: { settings: next as unknown as Prisma.InputJsonValue } });
-  return { kinds, rules, workHours: hours };
+  return { kinds, rules, eventRules, workHours: hours };
 }

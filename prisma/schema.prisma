@@ -449,6 +449,8 @@ model Conversation {
   // The time of the newest message that is not deleted (C1.1). Written in the send transaction and recomputed in the
   // transaction that deletes the newest message; NULL when the conversation has no message.
   lastMessageAt DateTime?
+  // I1.1b: the name another system uses for this topic at `POST /api/v2/messages` (`topicKey`); unique inside the space, born NULL.
+  doorKey       String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -467,6 +469,7 @@ model Conversation {
 
   @@unique([orgId, dmKey])
   @@unique([spaceId, systemKey])
+  @@unique([spaceId, doorKey])
   @@index([orgId, updatedAt])
   @@index([orgId, lastMessageAt])
   @@index([spaceId, position])
@@ -864,6 +867,7 @@ model Organization {
   productionOrders ProductionOrder[]
   integrations     Integration[]
   omsOrderStates   OmsOrderState[]
+  inboundDeliveries InboundDelivery[]
   backupRuns       BackupRun[]
   conversations    Conversation[]
   IntegrationEvent IntegrationEvent[]
@@ -1692,6 +1696,7 @@ enum IntegrationType {
   N8N
   GOOGLE_DRIVE
   OMS // the orders system (Q1.0): products, an order's state, a note on an order
+  OMS_EVENTS // the orders system's own events received here (I1.1a): the receiver's opaque id, its encrypted secret, the rules
 }
 
 model Integration {
@@ -1736,6 +1741,24 @@ model OmsOrderState {
   organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@unique([orgId, orderNumber])
+}
+
+// A delivery received from another system, once (I1.1a): keyed by that system's own delivery id (`X-Zaki-Delivery`). It holds NO body and no customer data:
+// who (company), from which source, which delivery, which event name, when. `IdempotencyRecord` cannot hold it: its `tokenId` is required and points at an API token,
+// and a signed delivery has no token. The unique triple is the whole guard: the second arrival of the same delivery finds the row and does nothing.
+model InboundDelivery {
+  id         String   @id @default(cuid())
+  orgId      String
+  source     String
+  deliveryId String
+  // the event's name (`order.confirmed`), kept for the daily counts; never a body
+  event      String?
+  receivedAt DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, source, deliveryId])
+  @@index([orgId, source, event, receivedAt])
 }
 
 model TelegramChat {
@@ -2628,6 +2651,8 @@ model ApiToken {
   revokedById    String?
   /// manual | person_suspended | person_offboarded
   revokedReason  String?
+  /// I1.1b: the hosts a card button of `POST /api/v2/messages` may point at (https only); none = no button is accepted from this token.
+  buttonHosts    String[]  @default([])
   createdAt      DateTime  @default(now())
 
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)

@@ -149,7 +149,7 @@ export const ENUM_KEYS: Record<EnumName, Readonly<Record<string, string>>> = {
     PLANNING: "ideas.status.PLANNING",
     LAUNCHED: "ideas.status.LAUNCHED",
   },
-  IntegrationType: own("IntegrationType", ["TELEGRAM", "N8N", "GOOGLE_DRIVE", "OMS"]),
+  IntegrationType: own("IntegrationType", ["TELEGRAM", "N8N", "GOOGLE_DRIVE", "OMS", "OMS_EVENTS"]),
   OpportunityStage: {
     LEAD: "crm.stage_lead",
     QUALIFIED: "crm.stage_qualified",

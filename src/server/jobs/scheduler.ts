@@ -3,6 +3,7 @@ import { bootWarnings, env, jobsInWorker } from "@/server/env";
 import { log } from "@/server/log";
 import { directPgUrl } from "@/server/realtime/listener";
 import { runDueJobs, type JobsRun } from "./run";
+import { runOmsDailyCard } from "./oms-daily-card";
 
 /**
  * THE JOB RUNNER. Background work runs INSIDE the app process by default: `instrumentation.ts` starts this once per server
@@ -62,7 +63,17 @@ export async function tickJobs(now: Date = new Date()): Promise<JobsRun | null> 
       timer = setTimeout(() => reject(new Error("jobs tick timed out")), TICK_TIMEOUT_MS);
       timer.unref?.();
     });
-    return await Promise.race([runDueJobs(now), timeout]);
+    // I1.1a: the daily numbers card of the orders system's events runs in the same tick, under the same lock (its own failure never fails the tick)
+    const work = async (): Promise<JobsRun> => {
+      const run = await runDueJobs(now);
+      try {
+        await runOmsDailyCard(now);
+      } catch (err) {
+        log.error("jobs.failed", { job: "omsDailyCard", message: err instanceof Error ? err.message : String(err) });
+      }
+      return run;
+    };
+    return await Promise.race([work(), timeout]);
   } catch (err) {
     log.error("jobs.tick_failed", { message: err instanceof Error ? err.message : String(err) });
     return null;

@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -265,6 +265,15 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // decision of 2026-10-25). Either way `?spaceId=` asks for one space. The recommended answer is built as the default while the owner has not answered D-N2 (pending);
   // nothing is stored by either shape, so flipping it back and forth loses nothing.
   chatOneList: true,
+  // «أحداث نظام الطلبات» (src/server/integrations/oms-events.ts, I1.1a) — group: التكاملات · dependsOn: none (the receiver needs only its own secret; «ربط نظام الطلبات» is a separate link):
+  // the orders system sends its own signed events (confirmed, shipped, delivered, returned, cancelled) to `POST /api/integrations/oms/events/[receiverId]`; each one refreshes the
+  // order's state, may post a CARD into the topic the owner chose and open a ticket (returned, cancelled), and a daily card counts them. total, currency and city are dropped at the door.
+  // OFF by default: off, the receiver answers «not found» for everybody, the daily card is not sent; the states and counts already kept stay.
+  omsEvents: false,
+  // «باب الرسائل» (src/server/chat/door-message.ts, docs/contracts/workspace-door.v2.md, I1.1b) — group: التكاملات · dependsOn: apiDoor:
+  // another system (the media buyer, n8n) posts a CARD into one topic of the token's space with `POST /api/v2/messages` (permission messages.write). OFF by default: off, the route answers
+  // «not found» for every token; the cards already posted stay. ⚠️ An outside system writes into a chat. 🔧 A topic must be given a door name first, a button needs its host allowed on the token, and every text is checked for phone numbers.
+  doorMessages: false,
   semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
   // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),

@@ -11,6 +11,8 @@ import { encryptSecrets, keyedHash } from "@/server/crypto";
 import { findOrderNumbers, isOrderNumber } from "@/lib/oms/order-ref";
 import { findCustomerNumbers, maskPhonesIn, normalizePhone } from "@/lib/tickets/customer-number";
 import { problemKind, problemKindsOf } from "@/lib/tickets/problem-kinds";
+import { eventRulesOf } from "@/server/services/problem-settings";
+import { AR } from "@/lib/i18n/dict";
 
 /**
  * «🎫 مشكلة» (Q1.5): a ticket made where the message is. Through the EXISTING doors (`createInstantTicket`, `createTicket`); the message keeps what it
@@ -214,4 +216,55 @@ export async function applyAutoTicketRules(
     // a rule that cannot make its ticket (nobody to give it to, a switch turned off meanwhile) is logged and forgotten: the message is already sent
     log.warn("auto_tickets.skipped", { message: err instanceof Error ? err.message : String(err) });
   }
+}
+
+/**
+ * The rules BY EVENT (I1.1a): an event of the orders system (`order.returned`, `order.cancelled`) opens a ticket of a kind, made by the person who connected the
+ * integration (`userId`), for the rule's person or department, else the kind's. Called after the event was stored; a rule that cannot make its ticket (nobody to give
+ * it to, the person is gone) is skipped and says why, it never fails the delivery. One order and one kind have ONE open ticket: a second event (or the same event
+ * delivered again under another id) while it is open makes nothing. The title and the text hold the order number and the event, no customer data.
+ */
+export async function applyEventTicketRules(input: { orgId: string; userId: string; event: string; number: string | null }): Promise<{ created: string[]; skipped: string[] }> {
+  const out = { created: [] as string[], skipped: [] as string[] };
+  if (!input.number || !isOrderNumber(input.number)) return out;
+  if (!(await isFeatureOn(input.orgId, "autoTickets"))) return out;
+  const org = await db.organization.findUnique({ where: { id: input.orgId }, select: { settings: true } });
+  const rules = eventRulesOf(org?.settings).filter((r) => r.event === input.event);
+  if (rules.length === 0) return out;
+  // the person who connected it must still be here (ACTIVE, not a guest): the ticket is theirs
+  const maker = await db.organizationMember.findFirst({ where: { organizationId: input.orgId, userId: input.userId, status: "ACTIVE", role: { not: "GUEST" } }, select: { role: true } });
+  if (!maker) return { created: [], skipped: rules.map((r) => `${r.id}:author_inactive`) };
+  const ctx: OrgAccessContext = { orgId: input.orgId, orgRole: maker.role, userId: input.userId };
+  const kinds = problemKindsOf(org?.settings);
+  for (const rule of rules) {
+    const kind = problemKind(kinds, rule.kindKey);
+    if (!kind) {
+      out.skipped.push(`${rule.id}:kind`);
+      continue;
+    }
+    await serial(`${input.orgId}:evt:${input.number}:${kind.key}`, async () => {
+      const open = await db.ticket.findFirst({ where: { orgId: input.orgId, externalRef: input.number, kindKey: kind.key, status: { in: [...OPEN_STATUSES] } }, select: { id: true } });
+      if (open) {
+        out.skipped.push(`${rule.id}:exists`);
+        return;
+      }
+      const ok = await eligible(input.orgId, [rule.assigneeId, kind.assigneeId]);
+      const personId = [rule.assigneeId, kind.assigneeId].find((id): id is string => typeof id === "string" && ok.has(id));
+      const dept = rule.departmentId ?? kind.departmentId ?? null;
+      const deptRow = dept && !personId ? await db.department.findFirst({ where: { id: dept, orgId: input.orgId }, select: { id: true } }) : null;
+      const what = AR[`oms.events.title.${input.event}`] ?? input.event;
+      const title = `${AR["oms.events.ticket.title"] ?? ""}`.replace("{number}", input.number!).replace("{what}", what).slice(0, 190);
+      const base = { title: title.length >= 3 ? title : `${title}...`, description: AR["oms.events.ticket.body"] ?? null, priority: "NORMAL" as const };
+      const extra: TicketExtra = { kindKey: kind.key, externalRef: input.number! };
+      try {
+        const ticket = personId ? await createInstantTicket(ctx, { ...base, assigneeId: personId }, extra) : deptRow ? await createTicket(ctx, deptRow.id, base, extra) : null;
+        if (ticket) out.created.push(ticket.id);
+        else out.skipped.push(`${rule.id}:no_target`);
+      } catch (err) {
+        log.warn("auto_tickets.event_skipped", { message: err instanceof Error ? err.message : String(err) });
+        out.skipped.push(`${rule.id}:failed`);
+      }
+    });
+  }
+  return out;
 }
