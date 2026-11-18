@@ -301,7 +301,7 @@ Strings: `src/lib/i18n/ar.quick-recall.json`. All switches OFF when merged; the 
 
 ## D1 — The new look and the buttons
 
-Spec: `D1-design-system.md`. Strings: `ar.design-v2.json`. Decision: D-D1 (the switch `themeV2Default` stays OFF).
+Spec: `D1-design-system.md`. Strings: `ar.design-v2.json`. Decision: D-D1 (the switch `themeV2Default` stays OFF). NOTE (D1 review): the switch is NOT added in D1 — nothing reads `systemTheme()` yet and a switch that does nothing lies; the step that connects `systemTheme()` (with the client's `prefers-color-scheme`) adds the switch, OFF, with it.
 Look: the whole preview, light and dark (the moon button on its top bar).
 
 ### D1.1 — Two themes and the chat tokens

@@ -270,6 +270,42 @@
   background: linear-gradient(to left, rgb(var(--surface) / 0.82) 0%, rgb(var(--surface) / 0.82) 55%, rgb(var(--surface) / 0.25) 100%), url(/brand/decor/neon-coast.strip.webp) right center / cover no-repeat;
 }
 
+/* ── SKY — flat: no decoration, the logo and the colour only ── */
+
+[data-theme="sky"] .zk-decor-door {
+  display: none;
+}
+
+[data-theme="sky"] .zk-decor-empty {
+  display: none;
+}
+
+[data-theme="sky"] .zk-decor-sidebar {
+  display: none;
+}
+
+[data-theme="sky"] .zk-decor-strip {
+  display: none;
+}
+
+/* ── BLUE-NIGHT — flat: no decoration, the logo and the colour only ── */
+
+[data-theme="blue-night"] .zk-decor-door {
+  display: none;
+}
+
+[data-theme="blue-night"] .zk-decor-empty {
+  display: none;
+}
+
+[data-theme="blue-night"] .zk-decor-sidebar {
+  display: none;
+}
+
+[data-theme="blue-night"] .zk-decor-strip {
+  display: none;
+}
+
 /* ── MOTION — only at the «full» level ── */
 
 /* The keyframes do nothing until a rule below uses them. */

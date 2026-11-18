@@ -63,6 +63,7 @@ import autoTickets from "./ar.auto-tickets.json";
 import mustRead from "./ar.must-read.json";
 import customerHints from "./ar.customer-hints.json";
 import knowledgeMedia from "./ar.knowledge-media.json";
+import designV2 from "./ar.design-v2.json";
 import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
@@ -167,6 +168,7 @@ export const AR: Record<string, string> = {
   ...mustRead,
   ...customerHints,
   ...knowledgeMedia,
+  ...designV2,
   ...spaceLibrary,
   ...manufacturing,
   ...localModel,

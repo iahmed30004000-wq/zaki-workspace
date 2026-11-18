@@ -51,7 +51,7 @@ describe("translations", () => {
   // ar.json plus the per-feature fragments (ar.accounts.json, ar.members.json, ...): the app merges them.
   const i18nDir = path.join(SRC, "lib/i18n");
   const parts = readdirSync(i18nDir)
-    .filter((f) => /^ar(\.[a-z-]+)?\.json$/.test(f))
+    .filter((f) => /^ar(\.[a-z0-9-]+)?\.json$/.test(f))
     .map((f) => ({ file: f, data: JSON.parse(readFileSync(path.join(i18nDir, f), "utf8")) as Record<string, string> }));
   const ar: Record<string, string> = Object.assign({}, ...parts.map((p) => p.data));
 

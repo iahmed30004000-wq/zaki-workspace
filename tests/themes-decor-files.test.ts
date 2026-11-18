@@ -2,7 +2,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { THEME_KEYS } from "@/lib/themes/registry";
-import { ART_SLOTS, COMPOSED, PATTERN, PHOTOGRAPHIC, allDecorFiles, decorFilesOf, patternTileUrl, renderDecorCss } from "@/lib/themes/decor";
+import { ART_SLOTS, COMPOSED, PATTERN, PHOTOGRAPHIC, PLAIN, allDecorFiles, decorFilesOf, patternTileUrl, renderDecorCss } from "@/lib/themes/decor";
 import { DECOR_DIR, ROOT, luminance, parseCss, read, type Rgb } from "./themes-decor-helpers";
 
 /**
@@ -30,7 +30,7 @@ describe("the files in public/brand/decor are exactly the files decor.ts lists",
     const seen = new Map<string, string>();
     for (const theme of THEME_KEYS) {
       const files = decorFilesOf(theme);
-      expect(files.length, theme).toBe(theme in PATTERN ? 0 : 3);
+      expect(files.length, theme).toBe(theme in PATTERN || (PLAIN as readonly string[]).includes(theme) ? 0 : 3);
       for (const f of files) {
         expect(seen.get(f), `${f} is owned by two themes`).toBeUndefined();
         seen.set(f, theme);
@@ -41,6 +41,8 @@ describe("the files in public/brand/decor are exactly the files decor.ts lists",
     expect(decorFilesOf("neon-coast")).toHaveLength(3);
     expect(decorFilesOf("night")).toEqual([]);
     expect(decorFilesOf("day")).toEqual([]);
+    expect(decorFilesOf("sky")).toEqual([]);
+    expect(decorFilesOf("blue-night")).toEqual([]);
   });
 
   it("— every theme has exactly one voice, and the list of themes that wear photographs is closed", () => {
@@ -49,7 +51,7 @@ describe("the files in public/brand/decor are exactly the files decor.ts lists",
      * A second photographic theme, or a theme with no voice, is a decision for the owner, taken by editing this
      * claim — not something that happens because a file was added.
      */
-    const voices = [...Object.keys(COMPOSED), ...Object.keys(PHOTOGRAPHIC), ...Object.keys(PATTERN)].sort();
+    const voices = [...Object.keys(COMPOSED), ...Object.keys(PHOTOGRAPHIC), ...Object.keys(PATTERN), ...PLAIN].sort();
     expect(voices, "every theme wears exactly one kind of decoration").toEqual([...THEME_KEYS].sort());
     expect(Object.keys(PHOTOGRAPHIC), "a second theme with photographs").toEqual(["neon-coast"]);
     expect(Object.keys(COMPOSED)).toEqual(["islamic-epic"]);

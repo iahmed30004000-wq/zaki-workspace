@@ -25,12 +25,13 @@ describe("every theme defines the whole token set", () => {
       "surface", "surface-1", "surface-2", "border", "muted", "fg", "fg-muted", "accent", "accent-fg",
       "accent-2", "ok", "warn", "danger", "info", "ok-fg", "warn-fg", "danger-fg", "info-fg", "scrim",
       "cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6", "on-photo",
+      "bubble-out", "bubble-out-fg", "bubble-in", "bubble-in-fg", "chat-wallpaper", "chat-pattern", "selected-row", "selected-row-fg", "badge-muted",
     ]);
     expect([...CAT_TOKENS]).toEqual(["cat-1", "cat-2", "cat-3", "cat-4", "cat-5", "cat-6"]);
     expect([...STYLE_TOKENS]).toEqual(["font-display", "radius-card", "shadow-card"]);
   });
 
-  it("there is a palette for each of the four themes and for nothing else", () => {
+  it("there is a palette for each of the six themes and for nothing else", () => {
     expect(Object.keys(PALETTES).sort()).toEqual([...THEME_KEYS].sort());
   });
 

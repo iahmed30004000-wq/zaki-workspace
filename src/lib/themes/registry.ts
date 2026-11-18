@@ -13,7 +13,9 @@
  * «نجمة وطريق» (the owner's adopted look, 2026-10-24): «ليل» and «نهار» replace «إسلامي هادي» and the old
  * «نهاري»; «إسلامي ملحمي» and «ساحل النيون» stay as further themes. «ليل» is everybody's default.
  */
-export const THEME_KEYS = ["night", "day", "islamic-epic", "neon-coast"] as const;
+// D1.1: «سماء» (light) and «ليل أزرق» (dark), the flat, list-first look; they are selectable like the others, and become the default of people who never chose
+// a theme only when a later step connects `systemTheme()` below (there is no switch yet: a switch that did nothing would lie); `DEFAULT_THEME` stays «ليل».
+export const THEME_KEYS = ["night", "day", "islamic-epic", "neon-coast", "sky", "blue-night"] as const;
 export type ThemeKey = (typeof THEME_KEYS)[number];
 
 /** The night: the default for everybody who has not chosen. */
@@ -32,10 +34,21 @@ export const THEMES: Record<ThemeKey, ThemeInfo> = {
   day: { key: "day", dark: false, headingFont: "reem-kufi" },
   "islamic-epic": { key: "islamic-epic", dark: true, headingFont: "reem-kufi" },
   "neon-coast": { key: "neon-coast", dark: true, headingFont: "plex" },
+  sky: { key: "sky", dark: false, headingFont: "plex" },
+  "blue-night": { key: "blue-night", dark: true, headingFont: "plex" },
 };
 
 /** The themes in the order the picker shows them. */
 export const THEME_LIST: readonly ThemeInfo[] = THEME_KEYS.map((key) => THEMES[key]);
+
+/**
+ * The theme of a person who never chose one (`User.theme = "system"`), NOT CONNECTED YET (D1 review: nothing calls it, the layout still says «ليل»): with `v2` false it
+ * is the old default for a dark device («ليل») and «نهار» for a light one; with `v2` true the flat themes take over — «ليل أزرق» for a dark device, «سماء» for a light one (D-D1). Nobody who CHOSE a theme is moved.
+ */
+export function systemTheme(opts: { dark: boolean; v2: boolean }): ThemeKey {
+  if (opts.v2) return opts.dark ? "blue-night" : "sky";
+  return opts.dark ? DEFAULT_THEME : "day";
+}
 
 export function isThemeKey(value: unknown): value is ThemeKey {
   return typeof value === "string" && (THEME_KEYS as readonly string[]).includes(value);

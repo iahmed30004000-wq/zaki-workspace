@@ -221,6 +221,15 @@ export const CAPS = {
   panelMin: 0.75,
 } as const;
 
+/**
+ * ── THE FLAT THEMES WEAR NOTHING (D1) ──
+ *
+ * «سماء» and «ليل أزرق» are the Telegram-style direction: flat, quiet, list-first, content before decoration. In the places where decoration was
+ * allowed (the login door, an empty list, the sidebar header, the Today strip) they use the plain identity — the logo and the colour — so each of the four
+ * places has a rule that draws nothing. No file, no pattern, no motion.
+ */
+export const PLAIN = ["sky", "blue-night"] as const satisfies readonly ThemeKey[];
+
 // ───────────────────────────────────── what a theme owns on the disk ─────────────────────────────────────
 
 type ComposedKey = keyof typeof COMPOSED;
@@ -537,6 +546,12 @@ function photographicRules(key: PhotographicKey): string[] {
   ];
 }
 
+/** «سماء» and «ليل أزرق»: the four places draw nothing (plain identity). */
+function plainRules(key: (typeof PLAIN)[number]): string[] {
+  const P = theme(key);
+  return [banner(`${key.toUpperCase()} — flat: no decoration, the logo and the colour only`), ...DECOR_KINDS.map((kind) => rule(`${P} .${DECOR_CLASS}-${kind}`, [d("display", "none")]))];
+}
+
 /** The `full` level: one slow motion per voice. Each selector begins with the level, so `light` is still. */
 function motionRules(): string[] {
   const composed = (Object.keys(COMPOSED) as ComposedKey[]).map((key) => `${full(key)} .${DECOR_CLASS}-door::before`);
@@ -641,6 +656,7 @@ export function renderDecorCss(): string {
     ...(Object.keys(COMPOSED) as ComposedKey[]).flatMap((key) => composedRules(key)),
     ...(Object.keys(PATTERN) as PatternKey[]).flatMap((key) => patternRules(key)),
     ...(Object.keys(PHOTOGRAPHIC) as PhotographicKey[]).flatMap((key) => photographicRules(key)),
+    ...PLAIN.flatMap((key) => plainRules(key)),
     ...motionRules(),
     ...artRules(),
     ...stopRules(),
