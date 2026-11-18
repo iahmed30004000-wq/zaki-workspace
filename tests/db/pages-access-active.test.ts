@@ -259,7 +259,7 @@ describe("a suspended person's old cookie is dead (sessions ended at suspension)
     await loginAs(team.member.id);
     await suspendMember(team.org.id, team.member.id, { endSessions: true });
 
-    await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/login");
     await expect(IdeasPage()).rejects.toThrow("NEXT_REDIRECT:/login");
     await expect(ChatPage()).rejects.toThrow("NEXT_REDIRECT:/login");
     await expect(FilesPage()).rejects.toThrow("NEXT_REDIRECT:/login");
@@ -275,7 +275,7 @@ describe("a status change alone (no new session version) still closes the door",
 
     expect((await call(ideasRoute.GET, { url: "http://localhost/api/ideas" })).status).toBe(401);
     expect((await call(projectsRoute.GET, { url: `http://localhost/api/projects?workspaceId=${ws.id}` })).status).toBe(401);
-    await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/login");
     await expect(IdeasPage()).rejects.toThrow("NEXT_REDIRECT:/login");
   });
 

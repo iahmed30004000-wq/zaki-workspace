@@ -16,7 +16,7 @@
  */
 
 import { z } from "zod";
-import { CARDS_PLACE, PLACES, type NavModel, type NavPlace } from "./places";
+import { CARDS_PLACE, PLACES_V1, PLACES_V2, type NavModel, type NavPlace } from "./places";
 
 export interface NavOrder {
   /** Place keys, in the person's order. */
@@ -25,11 +25,24 @@ export interface NavOrder {
   tabs: Record<string, string[]>;
 }
 
-/** Every place the code knows («اللوحات» of a cards space included), and every tab of each place that has tabs. */
-export const PLACE_KEYS: readonly string[] = [...PLACES, CARDS_PLACE].map((place) => place.key);
-export const TAB_KEYS_OF: Readonly<Record<string, readonly string[]>> = Object.fromEntries(
-  PLACES.filter((place) => place.tabs.length > 0).map((place) => [place.key, place.tabs.map((tab) => tab.key)]),
-);
+/** Every place the code knows («اللوحات» of a cards space included), on either map. */
+export const PLACE_KEYS: readonly string[] = [...new Set([...PLACES_V1, ...PLACES_V2, CARDS_PLACE].map((place) => place.key as string))];
+
+/**
+ * Every tab of each place that has tabs, on either map (the new map's «المزيد» tools count: an order may name them), each key once.
+ * A saved order stays valid when the company switches the new map on or off.
+ */
+export const TAB_KEYS_OF: Readonly<Record<string, readonly string[]>> = (() => {
+  const byPlace = new Map<string, string[]>();
+  for (const place of [...PLACES_V1, ...PLACES_V2]) {
+    const all = [...place.tabs, ...(place.more ?? [])];
+    if (all.length === 0) continue;
+    const keys = byPlace.get(place.key) ?? [];
+    for (const tab of all) if (!keys.includes(tab.key)) keys.push(tab.key);
+    byPlace.set(place.key, keys);
+  }
+  return Object.fromEntries(byPlace);
+})();
 
 const hasOwn = (object: object, key: string) => Object.prototype.hasOwnProperty.call(object, key);
 const unique = (keys: readonly string[]) => new Set(keys).size === keys.length;
@@ -184,4 +197,24 @@ export function firstUnseen(order: NavOrder, nav: NavModel): string | null {
 /** Is this order one that changes anything (it is what «رجّع الترتيب الأصلي» clears)? */
 export function hasOrder(order: NavOrder | null | undefined): boolean {
   return !!order && (order.places.length > 0 || Object.keys(order.tabs).length > 0);
+}
+
+/**
+ * The company's own order of the menu (`Organization.settings.menuOrder`, D-N5), read as forgivingly as a person's: anything that is not an order is
+ * `null` (no company order). A2.1 writes it; this only reads it.
+ */
+export function readCompanyMenuOrder(settings: unknown): NavOrder | null {
+  if (!settings || typeof settings !== "object" || Array.isArray(settings)) return null;
+  return readNavOrder((settings as { menuOrder?: unknown }).menuOrder);
+}
+
+/**
+ * Which order the menu follows (D-N5): the company's when it is set, otherwise the person's own, otherwise the code's. `personalLocked` is what the
+ * person's «ترتيب» screen shows as ⚠️ «الترتيب صار للشركة كلها» with 🔧 «اطلب من المدير يغيّره» (`navv2.order.*`).
+ * ⚠️ The person's own order is NEVER deleted or rewritten here: `User.navOrder` stays stored and is used again if the owner switches the company order off.
+ */
+export function menuOrderFor(company: NavOrder | null | undefined, personal: NavOrder | null | undefined): { order: NavOrder | null; source: "company" | "person" | "code"; personalLocked: boolean } {
+  if (hasOrder(company)) return { order: company ?? null, source: "company", personalLocked: true };
+  if (hasOrder(personal)) return { order: personal ?? null, source: "person", personalLocked: false };
+  return { order: null, source: "code", personalLocked: false };
 }

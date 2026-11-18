@@ -16,6 +16,7 @@ import { currentSpace } from "@/server/services/current-space";
 import { missionOf } from "@/lib/today";
 import { opensOnCards } from "@/lib/cards/shared";
 import { actorFeatureOn } from "@/server/services/features";
+import { landsOnChat } from "@/server/services/landing";
 import { MyRemindersCard } from "@/components/reminders/my-reminders-card";
 import { PinnedStrip } from "@/components/rewards/pinned-strip";
 import { pinnedTasks } from "@/server/services/pinned";
@@ -47,14 +48,23 @@ export const metadata = { title: getServerT().t("today.title") };
  * pulse and the projects.
  *
  * Mobile first: one column with 16px gutters; from `lg` the side column sits beside the tasks.
+ *
+ * N1.8 — the landing page (D-N1, awaiting the owner): while the company's switch `navV2` is ON and its setting `landing` is «الدردشة» (the default),
+ * «/» alone sends the person to the chat; the menu's «اليوم» is «/?view=today», which is this page. With `navV2` OFF (as merged) nothing changes:
+ * «/» is «اليوم» for everybody. The manifest's `start_url` is M1a's, not read here.
  */
-export default async function TodayPage() {
+export default async function TodayPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = getServerT();
   const { actor } = await pageActor();
   // the space the person is in: its «اليوم» only (entering a space opens here)
   const space = await currentSpace(actor);
   // a space of «لوحات» opens on its cards (decided here, on the server; the sidebar is not touched)
   if (opensOnCards(space?.layout)) redirect("/cards");
+  // the company's landing page: «/» alone follows it, «/?view=today» is always «اليوم»
+  const view = searchParams?.["view"];
+  if ((Array.isArray(view) ? view[0] : view) !== "today") {
+    if (await landsOnChat(actor)) redirect("/chat");
+  }
   const [data, dashboard] = await Promise.all([
     getToday(actor, { spaceId: space?.id ?? null }),
     // the smart cards: numbers over the same space, from their own service call (a guest gets none)

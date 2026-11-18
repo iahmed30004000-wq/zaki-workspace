@@ -97,7 +97,7 @@ describe("a pending person gets no page data (the layout redirect alone does not
   it("the layout redirects, and the home page refuses", async () => {
     await pendingAfterNoticeBump();
     expect((await outcome(() => AppLayout({ children: null }))).kind).toBe("refused");
-    const home = await outcome(() => HomePage());
+    const home = await outcome(() => HomePage({}));
     expect(home.kind).toBe("refused");
     if (home.kind === "refused") expect(["auth.onboarding_required", "NEXT_REDIRECT:/onboarding"]).toContain(home.reason);
   });

@@ -101,7 +101,7 @@ describe("the home page: «اليوم»", () => {
     const { w, overdue, today, later } = await busyWorld(now);
     const markup = await atMoment(now, async () => {
       await loginAs(w.member.id);
-      return html(HomePage());
+      return html(HomePage({}));
     });
 
     // «نجمة وطريق»: the most overdue task is the mission, the page's one heading; the greeting is under it
@@ -125,7 +125,7 @@ describe("the home page: «اليوم»", () => {
   it("never shows a colleague's task or one from a space the person is not in", async () => {
     const { w } = await busyWorld();
     await loginAs(w.member.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect(markup).not.toContain("مهمة الزميل عمر");
     expect(markup).not.toContain("مهمة المساحة المغلقة");
     expect(markup).not.toContain("مشروع مغلق");
@@ -134,7 +134,7 @@ describe("the home page: «اليوم»", () => {
   it("carries the tour's hooks: the task list and the quick add, once each (the first-steps card brings its own)", async () => {
     const { w } = await busyWorld();
     await loginAs(w.member.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect([...markup.matchAll(/data-tour="today-tasks"/g)]).toHaveLength(1);
     expect([...markup.matchAll(/data-tour="quick-add"/g)]).toHaveLength(1);
     // the inline line at the foot of the list, and «المشروع والموعد» for the full sheet
@@ -145,7 +145,7 @@ describe("the home page: «اليوم»", () => {
   it("mounts the first-steps card for the person's own actor, then the install hint once, then the tasks", async () => {
     const { w } = await busyWorld();
     await loginAs(w.member.id);
-    const page = await HomePage();
+    const page = await HomePage({});
     const order = typesInOrder(page);
     expect(count(order, FirstStepsCard)).toBe(1);
     expect(count(order, InstallHint)).toBe(1);
@@ -160,7 +160,7 @@ describe("the home page: «اليوم»", () => {
   it("draws the strip once: the mission and the greeting on a scrim; its only controls are the mission's two, on the panel", async () => {
     const { w } = await busyWorld();
     await loginAs(w.member.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect([...markup.matchAll(/zk-decor-strip/g)]).toHaveLength(1);
     // the strip wires the owner's picture by its agreed name; with no artwork shipped it draws nothing at
     // all (`ArtSlot` returns null while `ART_AVAILABLE` is empty — tests/art-available.test.ts owns that rule)
@@ -180,7 +180,7 @@ describe("the home page: «اليوم»", () => {
     const { w } = await busyWorld();
     for (const person of [w.member.id, w.owner.id]) {
       await loginAs(person);
-      const { rest: markup, panel } = splitPanel(await html(HomePage()));
+      const { rest: markup, panel } = splitPanel(await html(HomePage({})));
       expect(classTokens(markup).filter((c) => /(^|:)grid-cols-/.test(c))).toEqual([]);
       expect(hrefsOf(markup).filter((h) => !allowedLinks.test(h))).toEqual([]);
       expect(hrefsOf(panel).filter((h) => !panelLinks.test(h))).toEqual([]);
@@ -195,7 +195,7 @@ describe("the home page: «اليوم»", () => {
     const { w } = await busyWorld();
     for (const person of [w.member.id, w.owner.id, w.guest.id]) {
       await loginAs(person);
-      const markup = await html(HomePage());
+      const markup = await html(HomePage({}));
       const tokens = classTokens(markup);
       expect(tokens.filter((c) => PALETTE_COLOUR.test(c))).toEqual([]);
       expect(tokens.filter((c) => PHYSICAL_UTILITY.test(c.split(":").pop() as string))).toEqual([]);
@@ -214,7 +214,7 @@ describe("the home page: «اليوم»", () => {
     }
     for (const person of [w.member.id, w.owner.id]) {
       await loginAs(person);
-      const text = readable(await html(HomePage()));
+      const text = readable(await html(HomePage({})));
       expect(text).not.toMatch(/[A-Za-z]{2,}/);
       expect(text).not.toMatch(/\b(?:today|common|task|mywork|proj|time|priority)\.[a-z_]+/);
       expect(text).not.toMatch(/\b(PLANNING|ACTIVE|ON_HOLD|AT_RISK|COMPLETED|URGENT|NORMAL|HIGH|LOW|NONE)\b/);
@@ -226,7 +226,7 @@ describe("the home page: what is empty says what to do", () => {
   it("a member with no task today gets the empty state: the next step, «افتح مهامي», and the drawing slot; the quick add is still one tap away", async () => {
     const w = await world();
     await loginAs(w.member.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect(markup).toContain(t("today.empty.title"));
     expect(markup).toMatch(new RegExp(`<a[^>]*href="/my-work"[^>]*>${t("today.empty.action")}</a>`));
     expect(readFileSync("src/components/today/today-tasks.tsx", "utf8")).toContain('"empty-tasks"');
@@ -237,7 +237,7 @@ describe("the home page: what is empty says what to do", () => {
   it("a partner who has been put in no space yet is told so, with a way to read about spaces, and is offered no quick add", async () => {
     const w = await world();
     await loginAs(w.guest.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect(markup).toContain(t("today.empty.no_space_title"));
     expect(hrefsOf(markup)).toContain("/guide/spaces");
     expect(markup).not.toContain('data-tour="quick-add"');
@@ -247,7 +247,7 @@ describe("the home page: what is empty says what to do", () => {
   it("somebody who may open a space, and has none (an admin gets no space by rank), is told to open the first one", async () => {
     const w = await world();
     await loginAs(w.admin.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect(markup).toContain(t("today.empty.create_space_title"));
     expect(hrefsOf(markup)).toContain("/projects");
     expect(markup).not.toContain(t("today.empty.no_space_title"));
@@ -259,7 +259,7 @@ describe("the home page: what is empty says what to do", () => {
     const w = await world();
     await put(w, "in", { title: "بعد أيام", assigneeId: w.member.id, due: ahead(5) });
     await loginAs(w.member.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect(markup).toContain(t("today.tasks.nothing_today"));
     expect(markup).toContain("بعد أيام");
     expect(markup).not.toContain(t("today.empty.title"));
@@ -272,7 +272,7 @@ describe("the home page: who sees what", () => {
     await joinWorkspace(w.guest.id, w.wsIn.id, "GUEST");
     await put(w, "in", { title: "مهمة الشريك", assigneeId: w.guest.id, due: todayNoon() });
     await loginAs(w.guest.id);
-    const page = await HomePage();
+    const page = await HomePage({});
     const markup = await html(page);
 
     expect(markup).toContain("مهمة الشريك");
@@ -300,7 +300,7 @@ describe("the home page: who sees what", () => {
     await put(w, "in", { title: "مهمة الموقوف", assigneeId: suspended.id, due: ago(30) });
 
     await loginAs(w.owner.id);
-    const owner = await html(HomePage());
+    const owner = await html(HomePage({}));
     expect(owner).toContain(t("today.pulse.title"));
     expect(owner).toContain(t("today.pulse.worst"));
     expect(hrefsOf(owner)).toContain(`/tasks/${colleague.id}`);
@@ -311,18 +311,18 @@ describe("the home page: who sees what", () => {
 
     await joinWorkspace(w.admin.id, w.wsIn.id); // an admin gets no space by rank
     await loginAs(w.admin.id);
-    expect(await html(HomePage())).toContain(t("today.pulse.title")); // and then manages people by default
+    expect(await html(HomePage({}))).toContain(t("today.pulse.title")); // and then manages people by default
 
     for (const person of [w.member, w.lead]) {
       await loginAs(person.id);
-      expect(await html(HomePage()), person.name).not.toContain(t("today.pulse.title"));
+      expect(await html(HomePage({})), person.name).not.toContain(t("today.pulse.title"));
     }
     await loginAs(w.member.id);
-    expect(await html(HomePage())).not.toContain("مهمة الزميل عمر"); // a colleague's task is not a plain member's business
+    expect(await html(HomePage({}))).not.toContain("مهمة الزميل عمر"); // a colleague's task is not a plain member's business
 
     await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"] });
     await loginAs(w.member.id);
-    expect(await html(HomePage())).toContain(t("today.pulse.title"));
+    expect(await html(HomePage({}))).toContain(t("today.pulse.title"));
   });
 
   it("serves the ACTIVE company: somebody whose older membership is suspended sees the newer company's work and nothing of the old one", async () => {
@@ -346,7 +346,7 @@ describe("the home page: who sees what", () => {
     await workIn(w.oldOrg.id, w.oldOwner.id, "الشركة القديمة");
     await workIn(w.newOrg.id, w.newOwner.id, "الشركة الجديدة");
     await loginAs(w.person.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect(markup).toContain("مهمة الشركة الجديدة");
     expect(markup).toContain("مشروع الشركة الجديدة");
     expect(markup).not.toContain("القديمة");
@@ -357,7 +357,7 @@ describe("the home page: who sees what", () => {
     const { w } = await busyWorld();
     await db.project.update({ where: { id: w.inside.project.id }, data: { status: "ACTIVE" } });
     await loginAs(w.member.id);
-    const markup = await html(HomePage());
+    const markup = await html(HomePage({}));
     expect(markup).toContain(t("today.projects.title"));
     expect(hrefsOf(markup)).toContain(`/projects/${w.inside.project.id}`);
     expect(markup).toContain(t("today.projects.open", { n: 4 })); // the project's open tasks: three of the member's and the lead's
@@ -367,7 +367,7 @@ describe("the home page: who sees what", () => {
 describe("the home page and the session", () => {
   it("sends a visitor who is not signed in to login", async () => {
     logout();
-    await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/login");
   });
 
   it("sends a suspended person who still has a cookie to login", async () => {
@@ -375,20 +375,20 @@ describe("the home page and the session", () => {
     await loginAs(w.member.id);
     await setMember(w.org.id, w.member.id, { status: "SUSPENDED" });
     await db.user.update({ where: { id: w.member.id }, data: { tokenVersion: { increment: 1 } } });
-    await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/login");
   });
 
   it("sends a person who still owes the temporary-password change to onboarding, and shows them none of the page's data", async () => {
     const { w } = await busyWorld();
     await db.user.update({ where: { id: w.member.id }, data: { mustChangePassword: true } });
     await loginAs(w.member.id, { mcp: true });
-    await expect(HomePage()).rejects.toThrow("NEXT_REDIRECT:/onboarding");
+    await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/onboarding");
   });
 
   it("refuses a person whose notice is pending too (the layout's redirect alone does not stop a page)", async () => {
     const { w } = await busyWorld();
     await loginAs(w.member.id);
     await db.organization.update({ where: { id: w.org.id }, data: { settings: { transparencyVersion: 2 } } });
-    await expect(HomePage()).rejects.toThrow(/NEXT_REDIRECT:\/onboarding|auth\.onboarding_required/);
+    await expect(HomePage({})).rejects.toThrow(/NEXT_REDIRECT:\/onboarding|auth\.onboarding_required/);
   });
 });

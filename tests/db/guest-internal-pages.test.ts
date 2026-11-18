@@ -55,7 +55,7 @@ import * as ideaConvertRoute from "@/app/api/ideas/[id]/convert/route";
 import { GoalsView } from "@/components/goals-view";
 import { IdeasView } from "@/components/ideas-view";
 import { getServerT } from "@/lib/i18n/server";
-import { PLACES, buildNav, canOpenTab, type NavRole, type NavSubject, type PlaceKey, type TabKey } from "@/lib/nav/places";
+import { PLACES, PLACES_V2, buildNav, canOpenTab, type NavRole, type NavSubject, type PlaceDef, type PlaceKey, type TabKey } from "@/lib/nav/places";
 import { requireActor } from "@/server/policy/actor";
 import { listGoals } from "@/server/services/goals";
 import { listIdeas } from "@/server/services/ideas";
@@ -414,17 +414,21 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   approvals: () => ApprovalsPage({ searchParams: {} }),
   structure: () => StructurePage(),
   development: () => DevelopmentPage({ searchParams: {} }),
+  // «الطلبات» of the new map (navV2): today's approvals page until W1.4 replaces it
+  requests: () => ApprovalsPage({ searchParams: {} }),
 };
 
 /** The places that are one page and have no tabs (Today, the chat). */
 const PLACE_PAGES: Partial<Record<PlaceKey, PageCall>> = {
-  today: () => TodayPage(),
+  today: () => TodayPage({}),
   chat: () => ChatPage(),
   watch: () => WatchPage(),
 };
 
 interface Entry {
   label: string;
+  /** Which map the entry belongs to: the old one (switch navV2 OFF) or the new one (ON). */
+  map: "V1" | "V2";
   href: string;
   tab: TabKey | null;
   page: PageCall | undefined;
@@ -432,25 +436,38 @@ interface Entry {
   offered: (subject: NavSubject) => boolean;
 }
 
-const ENTRIES: Entry[] = PLACES.flatMap((place): Entry[] =>
-  place.tabs.length === 0
-    ? [
-        {
-          label: `place ${place.key}`,
-          href: place.href ?? "/",
-          tab: null,
-          page: PLACE_PAGES[place.key],
-          offered: (subject) => buildNav(subject).places.some((drawn) => drawn.key === place.key),
-        },
-      ]
-    : place.tabs.map((tab) => ({
-        label: `tab ${tab.key}`,
-        href: tab.href,
-        tab: tab.key,
-        page: TAB_PAGES[tab.key],
-        offered: (subject: NavSubject) => canOpenTab(subject, tab.key),
-      })),
-);
+/** The map the shell draws for a person: the old one, or the new one when the company's `navV2` is on. */
+const onMap = (subject: NavSubject, map: "V1" | "V2"): NavSubject => (map === "V2" ? { ...subject, navV2: true } : subject);
+
+/** The file of a page: an address like "/?view=today" is the page "/". */
+const pathOfHref = (href: string) => href.split(/[?#]/, 1)[0] ?? "/";
+
+function entriesOf(places: readonly PlaceDef[], map: "V1" | "V2"): Entry[] {
+  return places.flatMap((place): Entry[] =>
+    place.tabs.length === 0
+      ? [
+          {
+            label: `place ${place.key}`,
+            map,
+            href: pathOfHref(place.href ?? "/"),
+            tab: null,
+            page: PLACE_PAGES[place.key],
+            offered: (subject) => buildNav(onMap(subject, map)).places.some((drawn) => drawn.key === place.key),
+          },
+        ]
+      : [...place.tabs, ...(place.more ?? [])].map((tab) => ({
+          label: `tab ${tab.key}`,
+          map,
+          href: tab.href,
+          tab: tab.key,
+          page: TAB_PAGES[tab.key],
+          offered: (subject: NavSubject) => canOpenTab(onMap(subject, map), tab.key),
+        })),
+  );
+}
+
+/** Both maps: the old one (PLACES) and the new one (PLACES_V2). A tab of the new map is as good as its page: every one is opened as every rank below. */
+const ENTRIES: Entry[] = [...entriesOf(PLACES, "V1"), ...entriesOf(PLACES_V2, "V2")];
 
 /**
  * A staff-only tab whose page still renders for a guest would be listed here, with the strict check run as
@@ -494,7 +511,7 @@ async function open(page: PageCall): Promise<Outcome> {
 
 const refused = (markup: string) => REFUSALS.some((notice) => markup.includes(notice));
 
-describe("every tab of PLACES × the five ranks: a tab not offered to a guest refuses the guest and hands them no company data", () => {
+describe("every tab of PLACES and PLACES_V2 × the five ranks: a tab not offered to a guest refuses the guest and hands them no company data", () => {
   let w: World;
   const userOf = (rank: NavRole) =>
     ({ OWNER: w.owner, ADMIN: w.admin, LEAD: w.lead, MEMBER: w.member, GUEST: w.guest })[rank];
@@ -520,8 +537,9 @@ describe("every tab of PLACES × the five ranks: a tab not offered to a guest re
     w = await companyWorld();
   });
 
-  it("covers every tab and every one-page place of PLACES, each with its page file on disk", () => {
-    expect(Object.keys(TAB_PAGES).sort()).toEqual(PLACES.flatMap((place) => place.tabs.map((tab) => tab.key)).sort());
+  it("covers every tab and every one-page place of PLACES and PLACES_V2, each with its page file on disk", () => {
+    const everyTab = new Set([...PLACES, ...PLACES_V2].flatMap((place) => [...place.tabs, ...(place.more ?? [])].map((tab) => tab.key)));
+    expect(Object.keys(TAB_PAGES).sort()).toEqual([...everyTab].sort());
     for (const entry of ENTRIES) {
       expect(entry.page, entry.label).toBeTypeOf("function");
       const file = path.resolve(__dirname, "../../src/app/(app)", `.${entry.href}`, "page.tsx");
@@ -529,7 +547,7 @@ describe("every tab of PLACES × the five ranks: a tab not offered to a guest re
     }
     // guests also get Chat for the spaces/topics explicitly shared with them.
     const guest = { role: "GUEST" as const, caps: [] };
-    expect(ENTRIES.filter((entry) => entry.offered(guest)).map((entry) => entry.href)).toEqual([
+    expect(ENTRIES.filter((entry) => entry.map === "V1" && entry.offered(guest)).map((entry) => entry.href)).toEqual([
       "/",
       "/chat",
       "/my-work",
@@ -539,11 +557,14 @@ describe("every tab of PLACES × the five ranks: a tab not offered to a guest re
       // «المستندات»: offered to a partner (they read only what is shared with them: the service decides)
       "/documents",
     ]);
+    // the new map offers a guest the same pages minus the two views that became part of «مهامي»; «الطلبات» and every staff tab are refused them
+    expect(ENTRIES.filter((entry) => entry.map === "V2" && entry.offered(guest)).map((entry) => entry.href)).toEqual(["/chat", "/", "/my-work", "/projects", "/documents"]);
+    expect(ENTRIES.find((entry) => entry.map === "V2" && entry.tab === "requests")?.offered(guest)).toBe(false);
   });
 
   for (const entry of ENTRIES) {
     for (const rank of RANKS) {
-      const title = `${rank} · ${entry.label} (${entry.href})`;
+      const title = `${rank} · ${entry.map} ${entry.label} (${entry.href})`;
 
       if (rank !== "GUEST") {
         it(`${title}: offered → the page itself; not offered → whatever the page serves, without breaking`, async () => {

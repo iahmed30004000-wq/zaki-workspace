@@ -87,6 +87,7 @@ import RegisterConfirmPage from "@/app/register/confirm/page";
 import OnboardingPage from "@/app/onboarding/page";
 import { ARTICLES } from "@/lib/guide/articles";
 import { LEGACY_ROUTES, type NavRole } from "@/lib/nav/places";
+import type { Landing } from "@/server/policy/org-settings";
 import { requireActor } from "@/server/policy/actor";
 import { SPACE_COOKIE } from "@/server/services/current-space";
 import { db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorkspace, uid } from "./helpers";
@@ -168,7 +169,7 @@ const idOf = ({ params }: PageArgs) => ({ id: params["id"] ?? "" });
 
 /** Every page on disk, called with what Next hands it. A page added without a line here fails the first describe. */
 const PAGES: Record<string, PageCall> = {
-  "/": () => TodayPage(),
+  "/": ({ searchParams }) => TodayPage({ searchParams }),
   "/chat": () => ChatPage(),
   "/chat/[id]": (args) => ChatConversationPage({ params: idOf(args) }),
   "/chat/[id]/whiteboard": (args) => WhiteboardPage({ params: idOf(args) }),
@@ -531,4 +532,75 @@ describe("every page × the five ranks: an element, a redirect to a page that ex
       });
     }
   }
+});
+
+// ───────────────────────────── 4. N1.7 and N1.8: the old addresses, and the landing page ─────────────────────────────
+
+describe("N1.7: every old address is still a page, and «القائمة» and «التقويم» are NOT sent to «مهامي» before its page exists (W1.1)", () => {
+  it("/list and /calendar draw their own page for every rank, with no step through /my-work", async () => {
+    const w = await linkWorld();
+    for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
+      await loginAs(person.id);
+      for (const address of ["/list", "/calendar"]) {
+        const { end, chain } = await land(address);
+        expect(chain.map(pathOf), `${person.name} ${address}`).not.toContain("/my-work");
+        expect(end.kind, `${person.name} ${address}`).toMatch(/^(?:rendered|not-found)$/);
+      }
+    }
+  });
+});
+
+describe("N1.8: the landing page is a company setting; «/» stays reachable as «اليوم»", () => {
+  async function settle(settings: Record<string, unknown>) {
+    const w = await linkWorld();
+    await db.organization.update({
+      where: { id: w.org.id },
+      data: { settings: { features: { ownerAssistant: true, knowledgeCards: true, ...(settings["features"] as object | undefined) }, ...(settings["landing"] ? { landing: settings["landing"] as Landing } : {}) } },
+    });
+    return w;
+  }
+  const everyone = (w: World) => [w.owner, w.admin, w.lead, w.member, w.guest];
+
+  it("navV2 OFF (the default, as merged): «/» is «اليوم» for everybody whatever the setting says - nothing changed", async () => {
+    const w = await settle({ landing: "chat" });
+    for (const person of everyone(w)) {
+      await loginAs(person.id);
+      expect((await open("/")).kind, person.name).toBe("rendered");
+    }
+  });
+
+  it("navV2 ON with the default landing (the chat): «/» sends everybody to /chat, and «/?view=today» is «اليوم»", async () => {
+    const w = await settle({ features: { navV2: true } });
+    for (const person of everyone(w)) {
+      await loginAs(person.id);
+      expect(await open("/"), person.name).toEqual({ kind: "redirect", to: "/chat" });
+      expect((await open("/?view=today")).kind, person.name).toBe("rendered");
+    }
+  });
+
+  it("navV2 ON with the landing «اليوم»: «/» is «اليوم»; an explicit «chat» redirects like the default", async () => {
+    const today = await settle({ features: { navV2: true }, landing: "today" });
+    await loginAs(today.member.id);
+    expect((await open("/")).kind).toBe("rendered");
+    const chat = await settle({ features: { navV2: true }, landing: "chat" });
+    await loginAs(chat.member.id);
+    expect(await open("/")).toEqual({ kind: "redirect", to: "/chat" });
+  });
+
+  it("a broken landing value is the default (the chat), never an error", async () => {
+    const w = await settle({ features: { navV2: true } });
+    await db.organization.update({ where: { id: w.org.id }, data: { settings: { features: { navV2: true, ownerAssistant: true }, landing: "nowhere" } } });
+    await loginAs(w.member.id);
+    expect(await open("/")).toEqual({ kind: "redirect", to: "/chat" });
+  });
+
+  it("the redirect ends on a page that exists and draws (the walk above follows it)", async () => {
+    const w = await settle({ features: { navV2: true } });
+    for (const person of everyone(w)) {
+      await loginAs(person.id);
+      const { end, chain } = await land("/");
+      expect(chain, person.name).toEqual(["/", "/chat"]);
+      expect(end.kind, person.name).toMatch(/^(?:rendered|not-found)$/);
+    }
+  });
 });
