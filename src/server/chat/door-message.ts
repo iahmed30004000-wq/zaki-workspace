@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/auth";
 import { DoorError } from "@/server/door/http";
-import { canModerate, canPost, canRead, hasOversight, loadConversationFacts, loadOrgFacts, type ConversationFacts, type OrgFacts } from "@/server/policy/conversation";
+import { canModerate, canPost, canRead, loadConversationFacts, loadOrgFacts, type ConversationFacts, type OrgFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
 import { TOPIC_KEY } from "@/server/door/message-payload";
 
@@ -50,6 +50,22 @@ export async function storeAppCard(tx: Prisma.TransactionClient, input: AppCardI
   return msg;
 }
 
+export type AuthorTopic = { ok: true; id: string; spaceId: string | null } | { ok: false; reason: "topic_gone" | "author_forbidden" };
+
+/**
+ * May a CARD be written into this topic in the name of this PERSON (the author of an app's cards: the one who connected the integration)? Checked when the rule is saved
+ * AND again just before every card is stored, because the topic and the person change after a rule is saved. `topic_gone`: no live topic of the company (missing, another
+ * company's, a DM, archived or closed); `author_forbidden`: the person may not read it or may not post in it (the ordinary `canRead` and `canPost` rules, the silent
+ * oversight holder included: he posts only where he joined).
+ */
+export async function topicForAuthor(orgId: string, authorId: string, conversationId: string): Promise<AuthorTopic> {
+  const topic = await db.conversation.findFirst({ where: { id: conversationId, orgId, kind: "TOPIC", archivedAt: null, closedAt: null }, select: { id: true, spaceId: true } });
+  if (!topic) return { ok: false, reason: "topic_gone" };
+  const [facts, org] = await Promise.all([loadConversationFacts(authorId, topic.id), loadOrgFacts(authorId, orgId)]);
+  if (!facts || !org || facts.orgId !== orgId || !canRead(facts, org) || !canPost(facts, org, { ownerJoined: facts.viewerIsMember })) return { ok: false, reason: "author_forbidden" };
+  return { ok: true, id: topic.id, spaceId: topic.spaceId };
+}
+
 export interface DoorTopic {
   id: string;
   spaceId: string;
@@ -60,8 +76,8 @@ export interface DoorTopic {
 /**
  * The topic a token's `topicKey` names: ONLY a topic of the token's own company and space (another space's topic with the same key, another company's, a DM and a
  * key nobody set are all the same «not found»). Then the policy decides for the PERSON the token acts for: they must read the topic; a topic that is closed or
- * archived takes nothing; otherwise the ordinary `canPost` rule applies, except that the silent oversight holder (the owner) is not asked to have «joined» — the
- * topic carries a door name only because a manager chose to open it to the door.
+ * archived takes nothing; otherwise the ordinary `canPost` rule applies, with NO exception for anyone: the silent oversight holder (the owner) posts only where he
+ * JOINED the topic, so a token of his that names a topic he has not joined is refused 403 `door.forbidden`.
  */
 export async function resolveDoorTopic(who: { orgId: string; workspaceId: string; issuerId: string }, topicKey: string): Promise<DoorTopic> {
   const topic = await db.conversation.findFirst({
@@ -72,8 +88,7 @@ export async function resolveDoorTopic(who: { orgId: string; workspaceId: string
   const [facts, org] = await Promise.all([loadConversationFacts(who.issuerId, topic.id), loadOrgFacts(who.issuerId, who.orgId)]);
   if (!facts || !org || facts.orgId !== who.orgId || !canRead(facts, org)) throw new DoorError(404, "door.topic_not_found", "No topic of the space this token writes to has that topicKey.");
   if (topic.archivedAt || facts.closedAt) throw new DoorError(409, "door.topic_closed", "The topic is closed or archived.");
-  const allowed = hasOversight(org) ? true : canPost(facts, org, { ownerJoined: facts.viewerIsMember });
-  if (!allowed) throw new DoorError(403, "door.forbidden", "The person this token acts for may not post in that topic.");
+  if (!canPost(facts, org, { ownerJoined: facts.viewerIsMember })) throw new DoorError(403, "door.forbidden", "The person this token acts for may not post in that topic.");
   return { id: topic.id, spaceId: topic.spaceId, facts, org };
 }
 

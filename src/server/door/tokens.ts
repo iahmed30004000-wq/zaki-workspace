@@ -14,13 +14,16 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 export const TOKEN_LABEL = "zws";
 
-/** The permissions a token can hold. A token with none can read nothing and write nothing. */
+/** The permissions of the v1 door (ideas and tasks). A token with none can read nothing and write nothing. Pinned by tests/api-door-tokens.test.ts: v1 never grows. */
+export const DOOR_PERMISSIONS = ["ideas.read", "ideas.write", "tasks.read", "tasks.write"] as const;
 /** `messages.write` (I1.1b) belongs to `POST /api/v2/messages` only (docs/contracts/workspace-door.v2.md); v1 never asks for it. */
-export const DOOR_PERMISSIONS = ["ideas.read", "ideas.write", "tasks.read", "tasks.write", "messages.write"] as const;
-export type DoorPermission = (typeof DOOR_PERMISSIONS)[number];
+export const DOOR_MESSAGE_PERMISSIONS = ["messages.write"] as const;
+/** Everything a token can hold: what the management route accepts and what a stored token is read against. */
+export const ALL_DOOR_PERMISSIONS = [...DOOR_PERMISSIONS, ...DOOR_MESSAGE_PERMISSIONS] as const;
+export type DoorPermission = (typeof ALL_DOOR_PERMISSIONS)[number];
 
 export function isDoorPermission(value: unknown): value is DoorPermission {
-  return typeof value === "string" && (DOOR_PERMISSIONS as readonly string[]).includes(value);
+  return typeof value === "string" && (ALL_DOOR_PERMISSIONS as readonly string[]).includes(value);
 }
 
 /** What a token holding `permissions` may do: a write permission also lets it read what it sent in (never anything else). */

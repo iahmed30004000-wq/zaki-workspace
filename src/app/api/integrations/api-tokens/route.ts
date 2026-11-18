@@ -4,7 +4,7 @@ import { withApi } from "@/server/api";
 import { parseJson } from "@/server/validation";
 import { requireActor } from "@/server/policy/actor";
 import { createApiToken, listApiTokens, TOKEN_EXPIRY_DAYS } from "@/server/services/api-tokens";
-import { DOOR_PERMISSIONS } from "@/server/door/tokens";
+import { ALL_DOOR_PERMISSIONS } from "@/server/door/tokens";
 
 /**
  * «الباب»: the tokens of the company (docs/contracts/workspace-door.v1.md). For whoever holds «integrations.manage». Making a token needs the
@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
 
 const createSchema = z.object({
   name: z.string().trim().min(2, "door.err.name").max(60, "door.err.name"),
-  permissions: z.array(z.enum(DOOR_PERMISSIONS)).min(1, "door.err.permissions").max(DOOR_PERMISSIONS.length),
+  permissions: z.array(z.enum(ALL_DOOR_PERMISSIONS)).min(1, "door.err.permissions").max(ALL_DOOR_PERMISSIONS.length),
   workspaceId: z.string().min(1, "door.err.space").max(64),
   /** null: never expires. */
   expiresInDays: z

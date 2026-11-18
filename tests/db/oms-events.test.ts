@@ -10,7 +10,7 @@ import { decryptSecrets } from "@/server/crypto";
 import { signZakiPayload, unixSeconds, zakiSignatureHeader } from "@/server/webhook-signing";
 import { MAX_EVENT_BODY_BYTES, claimInboundDelivery, countEvents, refusedDeliveriesLimiter } from "@/server/integrations/oms-events";
 import { runOmsDailyCard } from "@/server/jobs/oms-daily-card";
-import { call, db, loginAs, logout, makeTeam, makeWorkspace, uid } from "./helpers";
+import { call, db, loginAs, logout, makeTeam, makeUser, makeWorkspace, uid } from "./helpers";
 import { makeDepartment } from "./guest-helpers";
 
 /**
@@ -50,12 +50,16 @@ async function setFeatures(orgId: string, on: Record<string, boolean>) {
   await db.organization.update({ where: { id: orgId }, data: { settings: s as Prisma.InputJsonValue } });
 }
 
-/** A company with a space, two topics, the switch on, a receiver made through the owner's route and the secret pasted. */
-async function world(opts: { on?: boolean; secret?: boolean } = {}) {
+/**
+ * A company with a space, two topics, the switch on, a receiver made through the owner's route and the secret pasted. The owner (the person who connects the
+ * receiver, so the author of every card) has JOINED both topics unless asked otherwise: the silent oversight holder posts only where he joined.
+ */
+async function world(opts: { on?: boolean; secret?: boolean; ownerJoined?: boolean } = {}) {
   const team = await makeTeam();
   const space = await makeWorkspace(team.org.id, [{ userId: team.admin.id, role: "ADMIN" }, { userId: team.member.id }], "الطلبات");
   const topic = await db.conversation.create({ data: { orgId: team.org.id, kind: "TOPIC", spaceId: space.id, title: "مرتجع" } });
   const reports = await db.conversation.create({ data: { orgId: team.org.id, kind: "TOPIC", spaceId: space.id, title: "تقارير" } });
+  if (opts.ownerJoined !== false) await db.conversationMember.createMany({ data: [topic.id, reports.id].map((conversationId) => ({ conversationId, userId: team.owner.id })) });
   await setFeatures(team.org.id, { omsEvents: opts.on !== false });
   await loginAs(team.owner.id);
   const made = await call(settingsRoute.POST, { url: "http://localhost/api/integrations/oms/events/settings", body: { action: "create" } });
@@ -156,6 +160,81 @@ describe("the owner's settings of the receiver", () => {
     expect(ok.json?.["dailyCard"]).toEqual({ hour: 21, conversationId: w.reports.id });
     // the secret saved before is still there after a save of the rules
     expect(ok.json?.["secretSaved"]).toBe(true);
+  });
+});
+
+describe("the author of the cards must be allowed in the topic the owner picks", () => {
+  const url = "http://localhost/x";
+  const saveRoute = (topicId: string) => call(settingsRoute.PUT, { method: "PUT", url, body: { routes: [{ event: "order.returned", conversationId: topicId }] } });
+  const saveDaily = (topicId: string) => call(settingsRoute.PUT, { method: "PUT", url, body: { dailyCard: { hour: 9, conversationId: topicId } } });
+
+  it("saving a rule or the daily card is refused (422) when the person who connected the receiver has not joined the topic: nothing is saved", async () => {
+    const w = await world({ ownerJoined: false });
+    await loginAs(w.owner.id);
+    for (const res of [await saveRoute(w.topic.id), await saveDaily(w.reports.id)]) {
+      expect(res.status, res.text.slice(0, 200)).toBe(422);
+      expect(res.text).toContain("oms.events.e.author_forbidden");
+    }
+    const look = await call(settingsRoute.GET, { url });
+    expect(look.json?.["routes"]).toEqual([]);
+    expect(look.json?.["dailyCard"]).toBeNull();
+    // once he joins the topic, the same save is fine
+    await db.conversationMember.create({ data: { conversationId: w.topic.id, userId: w.owner.id } });
+    expect((await saveRoute(w.topic.id)).status).toBe(200);
+    // a topic that is closed takes no card either (the same refusal as a topic that is gone)
+    await db.conversationMember.create({ data: { conversationId: w.reports.id, userId: w.owner.id } });
+    await db.conversation.update({ where: { id: w.reports.id }, data: { closedAt: new Date() } });
+    const closed = await saveDaily(w.reports.id);
+    expect(closed.status).toBe(422);
+    expect(closed.text).toContain("oms.events.e.topic");
+  });
+
+  it("a partner owner whose oversight is OFF is judged like a space admin: he posts in an open topic without joining, but cannot read a restricted topic he is not in", async () => {
+    const w = await world({ ownerJoined: false });
+    const partner = await makeUser({ orgId: w.org.id, role: "OWNER", name: "Partner" });
+    await db.organizationMember.updateMany({ where: { organizationId: w.org.id, userId: partner.id }, data: { primaryOwner: false, revokedCapabilities: ["archive.view"] } });
+    const hidden = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", spaceId: w.space.id, title: "خاص", restricted: true } });
+    await loginAs(partner.id);
+    // he connects the receiver (a new address): from now on HE is the author of the cards
+    expect((await call(settingsRoute.POST, { url, body: { action: "rotate_id" } })).status).toBe(200);
+    const row = await db.integration.findFirstOrThrow({ where: { orgId: w.org.id, type: "OMS_EVENTS" } });
+    expect((row.config as { connectedById: string }).connectedById).toBe(partner.id);
+    expect((await saveRoute(w.topic.id)).status).toBe(200);
+    const refused = await saveRoute(hidden.id);
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain("oms.events.e.author_forbidden");
+  });
+
+  it("a rule saved while he was in the topic writes NO card once he is out of it: a visible failure by code, the delivery still counts, and when he is back the card is written", async () => {
+    const w = await world();
+    await loginAs(w.owner.id);
+    expect((await saveRoute(w.topic.id)).status).toBe(200);
+    logout();
+    await db.conversationMember.deleteMany({ where: { conversationId: w.topic.id, userId: w.owner.id } });
+    expect((await deliver(w, eventBody("order.returned"))).status).toBe(200);
+    expect(await db.chatMessage.count({ where: { conversationId: w.topic.id } })).toBe(0);
+    const failure = await db.integrationEvent.findFirst({ where: { orgId: w.org.id, status: "FAILED" } });
+    expect(failure?.detail).toBe("oms_events.author_forbidden");
+    expect(failure?.payload).toBeNull();
+    expect(await stateOf(w)).toMatchObject({ status: "returned" });
+    await db.conversationMember.create({ data: { conversationId: w.topic.id, userId: w.owner.id } });
+    expect((await deliver(w, eventBody("order.returned"))).status).toBe(200);
+    expect(await db.chatMessage.count({ where: { conversationId: w.topic.id } })).toBe(1);
+  });
+
+  it("the daily card is not sent when he is out of the topic: ONE failure, the day stays taken (it will not mend by itself)", async () => {
+    const w = await world();
+    const now = new Date(Date.now() + 60_000);
+    const tz = (await db.organization.findUniqueOrThrow({ where: { id: w.org.id }, select: { timezone: true } })).timezone;
+    await loginAs(w.owner.id);
+    expect((await call(settingsRoute.PUT, { method: "PUT", url, body: { dailyCard: { hour: zonedParts(now, tz ?? "Asia/Damascus").hour, conversationId: w.reports.id } } })).status).toBe(200);
+    logout();
+    await db.conversationMember.deleteMany({ where: { conversationId: w.reports.id, userId: w.owner.id } });
+    expect((await runOmsDailyCard(now)).failed).toBe(1);
+    expect((await runOmsDailyCard(new Date(now.getTime() + 30_000))).failed).toBe(0);
+    expect(await db.chatMessage.count({ where: { conversationId: w.reports.id } })).toBe(0);
+    expect(await db.inboundDelivery.count({ where: { orgId: w.org.id, source: "oms-daily" } })).toBe(1);
+    expect(await db.integrationEvent.count({ where: { orgId: w.org.id, status: "FAILED", detail: "oms_daily_card.failed" } })).toBe(1);
   });
 });
 
@@ -534,6 +613,22 @@ describe("the daily numbers card", () => {
       await db.$executeRawUnsafe(`DROP FUNCTION IF EXISTS oms_test_fail_msg()`);
     }
     expect((await runOmsDailyCard(new Date(w.now.getTime() + 60_000))).sent).toBe(1);
+  });
+
+  it("cleaning the old delivery rows after the card is stored never gives the day back: a failed cleanup makes no second card", async () => {
+    const w = await dailyWorld();
+    await db.inboundDelivery.create({ data: { orgId: w.org.id, source: "oms", deliveryId: "old-delivery-0002", event: "order.confirmed", receivedAt: new Date(Date.now() - 41 * 86_400_000) } });
+    await db.$executeRawUnsafe(`CREATE OR REPLACE FUNCTION oms_test_fail_clean() RETURNS trigger AS $$ BEGIN RAISE EXCEPTION 'boom'; END; $$ LANGUAGE plpgsql`);
+    await db.$executeRawUnsafe(`CREATE TRIGGER oms_test_fail_clean BEFORE DELETE ON "InboundDelivery" FOR EACH ROW WHEN (OLD.source = 'oms') EXECUTE FUNCTION oms_test_fail_clean()`);
+    try {
+      expect(await runOmsDailyCard(w.now)).toEqual({ sent: 1, failed: 0 });
+      expect(await runOmsDailyCard(new Date(w.now.getTime() + 30_000))).toEqual({ sent: 0, failed: 0 });
+      expect(await db.chatMessage.count({ where: { conversationId: w.reports.id } })).toBe(1);
+      expect(await db.inboundDelivery.count({ where: { orgId: w.org.id, source: "oms-daily" } })).toBe(1);
+    } finally {
+      await db.$executeRawUnsafe(`DROP TRIGGER IF EXISTS oms_test_fail_clean ON "InboundDelivery"`);
+      await db.$executeRawUnsafe(`DROP FUNCTION IF EXISTS oms_test_fail_clean()`);
+    }
   });
 
   it("the sign of a delivery older than 40 days is not needed any more: the old rows are removed when the card is sent", async () => {

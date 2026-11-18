@@ -8,6 +8,7 @@ import { withFeature } from "@/lib/features";
 import { setTopicDoorKey } from "@/server/chat/door-message";
 import { DOOR_LIMITS, DOOR_V2_LIMITS, failureLimiter, messageLimiter, tokenLimiter } from "@/server/door/limits";
 import { cleanHosts, hasPhoneNumber, messageBodySchema } from "@/server/door/message-payload";
+import { ALL_DOOR_PERMISSIONS, DOOR_MESSAGE_PERMISSIONS, DOOR_PERMISSIONS } from "@/server/door/tokens";
 import { call, db, loginAs, logout, makeTeam, makeWorkspace, uid } from "./helpers";
 
 /**
@@ -81,6 +82,12 @@ const messagesIn = (topicId: string) => db.chatMessage.findMany({ where: { conve
 // ---------------------------------------------------------------------------------------------
 
 describe("the permission and the switches", () => {
+  it("messages.write is the one permission of v2: v1's four stay as they were, and every permission is accepted by the management route", () => {
+    expect([...DOOR_PERMISSIONS]).toEqual(["ideas.read", "ideas.write", "tasks.read", "tasks.write"]);
+    expect([...DOOR_MESSAGE_PERMISSIONS]).toEqual(["messages.write"]);
+    expect([...ALL_DOOR_PERMISSIONS]).toEqual(["ideas.read", "ideas.write", "tasks.read", "tasks.write", "messages.write"]);
+  });
+
   it("a token without messages.write is 403; with it, 201 with the one answer shape and nothing of the author or the space", async () => {
     const w = await world();
     const reader = await mint(w, { permissions: ["ideas.write", "tasks.read"] });
@@ -205,18 +212,29 @@ describe("what is posted", () => {
     expect(messages.some((m) => m.kind === "CARD" && m.body.includes("ملخص الإعلانات"))).toBe(true);
   });
 
-  it("the owner as the person behind the token posts without having «joined» the topic; a closed or archived topic takes nothing (409)", async () => {
+  it("the owner behind the token posts only where he JOINED the topic: not joined is 403 door.forbidden (a visible failure, nothing written); once he joins, 201", async () => {
     const w = await world();
-    await db.workspaceMember.deleteMany({ where: { workspaceId: w.space.id, userId: w.owner.id } });
     const { token } = await mint(w, { who: w.owner });
+    const refused = await post({ token });
+    expect(refused.status).toBe(403);
+    expect(errorOf(refused)?.code).toBe("door.forbidden");
+    expect(await messagesIn(w.topic.id)).toEqual([]);
+    expect(await db.integrationEvent.count({ where: { orgId: w.org.id, status: "FAILED", detail: "door.forbidden" } })).toBe(1);
+    await db.conversationMember.create({ data: { conversationId: w.topic.id, userId: w.owner.id } });
     expect((await post({ token })).status).toBe(201);
+    expect((await messagesIn(w.topic.id)).length).toBe(1);
+  });
+
+  it("a closed or archived topic takes nothing (409), for a person who may post in it", async () => {
+    const w = await world();
+    const { token } = await mint(w);
     await db.conversation.update({ where: { id: w.topic.id }, data: { closedAt: new Date() } });
     const closed = await post({ token });
     expect(closed.status).toBe(409);
     expect(errorOf(closed)?.code).toBe("door.topic_closed");
     await db.conversation.update({ where: { id: w.topic.id }, data: { closedAt: null, archivedAt: new Date() } });
     expect((await post({ token })).status).toBe(409);
-    expect((await messagesIn(w.topic.id)).length).toBe(1);
+    expect((await messagesIn(w.topic.id)).length).toBe(0);
   });
 
   it("«لازم ينقرأ»: refused while the switch is off; with it on and a moderator behind the token, the card must be read", async () => {
@@ -460,6 +478,32 @@ describe("the limits and the failures the owner can see", () => {
     const replayKey = `cap-replay-${uid()}`;
     await db.idempotencyRecord.deleteMany({ where: { tokenId: id, key: { endsWith: "cap-0" } } });
     expect((await post({ token, key: replayKey })).status).toBe(201);
+  });
+
+  it("every refusal code is throttled: ONE row per token per code per minute, another code or another token has its own, and a minute later it is written again", async () => {
+    const w = await world();
+    const a = await mint(w, { name: "Key A" });
+    const b = await mint(w, { name: "Key B" });
+    const rows = (code: string) => db.integrationEvent.count({ where: { orgId: w.org.id, status: "FAILED", detail: code } });
+    for (let i = 0; i < 4; i++) expect((await post({ token: a.token, body: body({ topicKey: "nowhere" }) })).status).toBe(404);
+    for (let i = 0; i < 3; i++) expect((await post({ token: a.token, body: { topicKey: "reports" } })).status).toBe(422);
+    expect(await rows("door.topic_not_found")).toBe(1);
+    expect(await rows("door.validation_failed")).toBe(1);
+    // another token's refusal of the same code is its own row
+    expect((await post({ token: b.token, body: body({ topicKey: "nowhere" }) })).status).toBe(404);
+    expect(await rows("door.topic_not_found")).toBe(2);
+    // the permission refusal too (it is written before the body is read)
+    await db.apiToken.update({ where: { id: a.id }, data: { permissions: ["ideas.read"] } });
+    for (let i = 0; i < 3; i++) expect((await post({ token: a.token })).status).toBe(403);
+    expect(await rows("door.forbidden")).toBe(1);
+    // a minute later the same refusal is written again (and only once more)
+    const later = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 61_000);
+    try {
+      for (let i = 0; i < 3; i++) await post({ token: b.token, body: body({ topicKey: "nowhere" }) });
+    } finally {
+      later.mockRestore();
+    }
+    expect(await rows("door.topic_not_found")).toBe(3);
   });
 
   it("every refusal after the token was accepted is a FAILED row with a code only: no text, no payload, no token", async () => {

@@ -31,8 +31,8 @@ Exactly v1's rules (section 3 of `workspace-door.v1.md`): a token dies at once, 
 or when the person who made it is no longer an ACTIVE member holding «الربط والأتمتة» or no longer in the token's space. All of it is read from the database on every request.
 
 - **The author is the token's person.** The card appears as a message written by the person who made the token, so revoking the person revokes the token and every
-  rule of the app that applies to that person applies to the token: they must be able to read the topic and to post in it (the owner, who reads silently everywhere,
-  is not asked to have «joined» a topic that was opened to the door on purpose).
+  rule of the app that applies to that person applies to the token: they must be able to read the topic and to post in it, with no exception for anyone. The owner, who reads silently
+  everywhere, posts only where he has «joined» the topic: a token of his that names a topic he has not joined is refused `403 door.forbidden`.
 - **The bubble says who really sent it.** The message carries `viaApp` = the token's name, and its words start with that name: «عبر <اسم المفتاح>» (like Telegram's «via @bot»).
 - **Permission** — a new token holds none:
 

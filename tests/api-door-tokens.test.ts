@@ -49,7 +49,7 @@ describe("the token", () => {
 
 describe("the permissions", () => {
   it("are four named ones; a token with none can do nothing", () => {
-    expect([...DOOR_PERMISSIONS]).toEqual(["ideas.read", "ideas.write", "tasks.read", "tasks.write", "messages.write"]);
+    expect([...DOOR_PERMISSIONS]).toEqual(["ideas.read", "ideas.write", "tasks.read", "tasks.write"]);
     for (const needed of DOOR_PERMISSIONS) expect(permits([], needed), needed).toBe(false);
   });
 

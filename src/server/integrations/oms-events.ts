@@ -11,7 +11,7 @@ import { verifyZakiSignature } from "@/server/webhook-signing";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { isOrderNumber, stateKey } from "@/lib/oms/order-ref";
 import { hasPhoneNumber, cardBodyOf, type MessageCard } from "@/server/door/message-payload";
-import { storeAppCard } from "@/server/chat/door-message";
+import { storeAppCard, topicForAuthor } from "@/server/chat/door-message";
 import { applyEventTicketRules } from "@/server/services/problem-tickets";
 
 /**
@@ -328,9 +328,10 @@ async function afterStored(orgId: string, integrationId: string, cfg: EventsConf
       };
       for (const route of routes) {
         try {
-          const topic = await db.conversation.findFirst({ where: { id: route.conversationId, orgId, kind: "TOPIC", archivedAt: null, closedAt: null }, select: { id: true, spaceId: true } });
-          if (!topic) {
-            await failureEvent(orgId, integrationId, "oms_events.topic_gone");
+          // the topic and the author are asked again NOW: the topic may be gone and the person may have left it since the rule was saved
+          const topic = await topicForAuthor(orgId, author.userId, route.conversationId);
+          if (!topic.ok) {
+            await failureEvent(orgId, integrationId, `oms_events.${topic.reason}`);
             continue;
           }
           await db.$transaction((tx) => storeAppCard(tx, { orgId, conversationId: topic.id, spaceId: topic.spaceId, authorId: author.userId, body: cardBodyOf(card, via), card: stored, viaApp: via }));
@@ -450,7 +451,10 @@ export interface EventsSettingsInput {
   dailyCard?: { hour: number; conversationId: string } | null | undefined;
 }
 
-/** Saves what the owner typed: the secret (encrypted), the rules (event to topic) and the daily card (hour and topic). A topic must be a live topic of THIS company. */
+/**
+ * Saves what the owner typed: the secret (encrypted), the rules (event to topic) and the daily card (hour and topic). A topic must be a live topic of THIS company, and the person
+ * who connected the receiver (the author of the cards) must be able to read it and post in it (`topicForAuthor`): else 422, nothing is saved.
+ */
 export async function saveEventsSettings(actor: Actor, input: EventsSettingsInput): Promise<void> {
   assertOwner(actor);
   await assertFeatureOn(actor.orgId, "omsEvents");
@@ -465,8 +469,11 @@ export async function saveEventsSettings(actor: Actor, input: EventsSettingsInpu
     if (secret.length < 16 || secret.length > 200 || /\s/.test(secret)) refuseField("secret", "oms.events.e.secret");
   }
   const wanted = new Set<string>([...(input.routes ?? []).map((r) => r.conversationId), ...(input.dailyCard ? [input.dailyCard.conversationId] : [])]);
-  const live = new Set((await db.conversation.findMany({ where: { id: { in: [...wanted] }, orgId: actor.orgId, kind: "TOPIC", archivedAt: null }, select: { id: true } })).map((c) => c.id));
-  for (const id of wanted) if (!live.has(id)) refuseField("conversationId", "oms.events.e.topic");
+  // every topic must take a card from the person who connected the receiver (the author of the cards), not from the owner who types here
+  for (const id of wanted) {
+    const topic = await topicForAuthor(actor.orgId, cfg.connectedById, id);
+    if (!topic.ok) refuseField("conversationId", topic.reason === "topic_gone" ? "oms.events.e.topic" : "oms.events.e.author_forbidden");
+  }
 
   let routes = cfg.routes;
   if (input.routes !== undefined) {

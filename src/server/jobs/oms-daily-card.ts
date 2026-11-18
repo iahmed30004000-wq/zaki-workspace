@@ -3,7 +3,7 @@ import { log } from "@/server/log";
 import { AR } from "@/lib/i18n/dict";
 import { resolveTimeZone, zonedParts } from "@/lib/zoned-time";
 import { isFeatureOn } from "@/server/services/features";
-import { storeAppCard } from "@/server/chat/door-message";
+import { storeAppCard, topicForAuthor } from "@/server/chat/door-message";
 import { cardBodyOf, type MessageCard } from "@/server/door/message-payload";
 import { COUNTED_EVENTS, OMS_DAILY_SOURCE, OMS_EVENTS_SOURCE, claimInboundDelivery, countEvents, eventsConfigOf } from "@/server/integrations/oms-events";
 
@@ -40,7 +40,8 @@ export async function runOmsDailyCard(now: Date = new Date()): Promise<OmsDailyC
       try {
         await sendCard(row.orgId, cfg.connectedById, cfg.dailyCard.conversationId, now);
         out.sent += 1;
-        await db.inboundDelivery.deleteMany({ where: { orgId: row.orgId, source: OMS_EVENTS_SOURCE, receivedAt: { lt: new Date(now.getTime() - KEEP_DELIVERIES_DAYS * 86_400_000) } } });
+        // housekeeping AFTER the card is stored: its failure must never reach the catch below (that would give the day back and make a second card at the next tick)
+        await db.inboundDelivery.deleteMany({ where: { orgId: row.orgId, source: OMS_EVENTS_SOURCE, receivedAt: { lt: new Date(now.getTime() - KEEP_DELIVERIES_DAYS * 86_400_000) } } }).catch(() => undefined);
       } catch (err) {
         out.failed += 1;
         const permanent = err instanceof PermanentCardError;
@@ -66,8 +67,9 @@ class PermanentCardError extends Error {}
 async function sendCard(orgId: string, authorId: string, conversationId: string, now: Date): Promise<void> {
   const author = await db.organizationMember.findFirst({ where: { organizationId: orgId, userId: authorId, status: "ACTIVE", role: { not: "GUEST" } }, select: { userId: true } });
   if (!author) throw new PermanentCardError("author_inactive");
-  const topic = await db.conversation.findFirst({ where: { id: conversationId, orgId, kind: "TOPIC", archivedAt: null, closedAt: null }, select: { id: true, spaceId: true } });
-  if (!topic) throw new PermanentCardError("topic_gone");
+  // asked again NOW: the topic may be gone and the person may have left it since the card was set up
+  const topic = await topicForAuthor(orgId, author.userId, conversationId);
+  if (!topic.ok) throw new PermanentCardError(topic.reason);
   const counts = await countEvents(orgId, new Date(now.getTime() - 86_400_000), now);
   const card: MessageCard = {
     title: AR["oms.daily.title"] ?? "",

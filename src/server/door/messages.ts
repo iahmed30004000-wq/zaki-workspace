@@ -71,13 +71,13 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
 
   const limited = messageLimiter.check(`t:${row.id}`);
   if (!limited.ok) {
-    await failureRow(row.organizationId, "door.rate_limited", { throttleKey: row.id });
+    await failureRow(row.organizationId, row.id, "door.rate_limited");
     throw new DoorError(429, "door.rate_limited", "Too many requests for this token.", undefined, { "retry-after": String(Math.max(1, limited.retryAfterSec)) });
   }
   messageLimiter.hit(`t:${row.id}`);
 
   if (!permits(row.permissions, "messages.write")) {
-    await failureRow(row.organizationId, "door.forbidden");
+    await failureRow(row.organizationId, row.id, "door.forbidden");
     throw new DoorError(403, "door.forbidden", "This token does not hold the permission messages.write.");
   }
 
@@ -99,15 +99,17 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
 
 const lastRateRow = new Map<string, number>();
 
-/** A refusal the owner can see under «التكاملات»: the code only. */
-async function failureRow(orgId: string, code: string, opts: { throttleKey?: string } = {}): Promise<void> {
+/**
+ * A refusal the owner can see under «التكاملات»: the code only. ONE row per token per code per minute, for EVERY code (a sender that retries a refused request all day, or a
+ * flood of them, must not become a flood of rows; the 120-a-minute limit would otherwise allow a row for each).
+ */
+async function failureRow(orgId: string, tokenId: string, code: string): Promise<void> {
   try {
-    if (opts.throttleKey) {
-      const last = lastRateRow.get(opts.throttleKey) ?? 0;
-      if (Date.now() - last < 60_000) return;
-      if (lastRateRow.size > 1000) lastRateRow.clear();
-      lastRateRow.set(opts.throttleKey, Date.now());
-    }
+    const throttleKey = `${tokenId}:${code}`;
+    const last = lastRateRow.get(throttleKey) ?? 0;
+    if (Date.now() - last < 60_000) return;
+    if (lastRateRow.size > 1000) lastRateRow.clear();
+    lastRateRow.set(throttleKey, Date.now());
     await db.integrationEvent.create({ data: { orgId, direction: "IN", type: "door.message", status: "FAILED", detail: code.slice(0, 80) } });
   } catch (err) {
     log.warn("door.failure_row_failed", safeErrorFacts(err));
@@ -131,7 +133,7 @@ export async function doorPostMessage(who: MessagesPrincipal, clientKey: string,
   try {
     return await post(who, clientKey, rawBody);
   } catch (err) {
-    if (err instanceof DoorError && err.status !== 429 && err.status !== 401) await failureRow(who.orgId, err.code);
+    if (err instanceof DoorError && err.status !== 429 && err.status !== 401) await failureRow(who.orgId, who.tokenId, err.code);
     throw err;
   }
 }
