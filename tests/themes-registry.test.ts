@@ -23,9 +23,9 @@ import {
   themeOf,
 } from "@/lib/themes/registry";
 
-describe("the four themes", () => {
-  it("are exactly the four agreed keys, in the picker's order", () => {
-    expect([...THEME_KEYS]).toEqual(["night", "day", "islamic-epic", "neon-coast"]);
+describe("the six themes", () => {
+  it("are exactly the six agreed keys, in the picker's order (the two of D1 last)", () => {
+    expect([...THEME_KEYS]).toEqual(["night", "day", "islamic-epic", "neon-coast", "sky", "blue-night"]);
     expect(THEME_LIST.map((t) => t.key)).toEqual([...THEME_KEYS]);
   });
 
@@ -34,9 +34,9 @@ describe("the four themes", () => {
     expect(isDarkTheme(DEFAULT_THEME)).toBe(true);
   });
 
-  it("three are dark (they also carry the `dark` class) and «نهار» is light", () => {
-    expect(THEME_KEYS.filter(isDarkTheme)).toEqual(["night", "islamic-epic", "neon-coast"]);
-    expect(THEME_KEYS.filter((k) => !isDarkTheme(k))).toEqual(["day"]);
+  it("four are dark (they also carry the `dark` class); «نهار» and «سماء» are light", () => {
+    expect(THEME_KEYS.filter(isDarkTheme)).toEqual(["night", "islamic-epic", "neon-coast", "blue-night"]);
+    expect(THEME_KEYS.filter((k) => !isDarkTheme(k))).toEqual(["day", "sky"]);
   });
 
   it("«ليل», «نهار» and «إسلامي ملحمي» title in Reem Kufi, «ساحل النيون» in IBM Plex", () => {

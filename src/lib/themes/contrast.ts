@@ -106,6 +106,11 @@ const ON = [
   ["warn-fg", "warn"],
   ["danger-fg", "danger"],
   ["info-fg", "info"],
+  // D1.1: the chat — an own bubble's text on it, an incoming bubble's, the selected row's, and the label of a muted unread badge (the card colour on it)
+  ["bubble-out-fg", "bubble-out"],
+  ["bubble-in-fg", "bubble-in"],
+  ["selected-row-fg", "selected-row"],
+  ["surface-1", "badge-muted"],
 ] as const;
 /** The meanings that must never be mistaken for one another. */
 const MEANINGS = ["accent", "ok", "warn", "danger", "info"] as const;
