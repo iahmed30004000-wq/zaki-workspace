@@ -62,6 +62,7 @@ export async function readersAmong(conversationId: string, userIds: readonly str
   const inTeam = new Set(teamRows.map((r) => r.userId));
   const activePair = new Set(pairRows.map((r) => r.userId));
 
+  const memberList = [...memberIds];
   const readers = new Set<string>();
   for (const userId of ids) {
     const m = orgOf.get(userId);
@@ -84,7 +85,7 @@ export async function readersAmong(conversationId: string, userIds: readonly str
       viewerSpaceRole: spaceRole.get(userId) ?? null,
       mutedUntil: null,
       dmOtherActive: otherId ? activePair.has(otherId) : false,
-      memberIds: [...memberIds],
+      memberIds: memberList,
     };
     if (canRead(facts, org)) readers.add(userId);
   }

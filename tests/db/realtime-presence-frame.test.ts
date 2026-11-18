@@ -7,7 +7,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { db, loginAs, makeTeam } from "./helpers";
+import { db, loginAs, makeTeam, makeWorkspace } from "./helpers";
 import * as rtRoute from "@/app/api/rt/route";
 import { withFeature } from "@/lib/features";
 import { resetHubForTests } from "@/server/realtime/hub";
@@ -48,9 +48,28 @@ async function open(userId: string, headers: Record<string, string> = {}) {
   return { read, text: () => text, cancel: () => reader.cancel().catch(() => undefined) };
 }
 
+describe("a replayed read mark says whose it is, as the live one does", () => {
+  it("my own conversation.read comes back with self:true, somebody else's without", async () => {
+    const t = await makeTeam();
+    const ws = await makeWorkspace(t.org.id, [{ userId: t.member.id }, { userId: t.admin.id }]);
+    const topic = await db.conversation.create({ data: { orgId: t.org.id, kind: "TOPIC", spaceId: ws.id, title: "T" } });
+    const before = await db.realtimeEvent.findFirst({ orderBy: { id: "desc" }, select: { id: true } });
+    await db.realtimeEvent.create({ data: { orgId: t.org.id, kind: "conversation.read", ids: { conversationId: topic.id, userId: t.member.id } } });
+    await db.realtimeEvent.create({ data: { orgId: t.org.id, kind: "conversation.read", ids: { conversationId: topic.id, userId: t.admin.id } } });
+    const s = await open(t.member.id, { "last-event-id": String(before?.id ?? 0n) });
+    await s.read((x) => (x.match(/conversation\.read/g) ?? []).length >= 2);
+    const frames = s.text().split("\n\n").filter((f) => f.includes("conversation.read"));
+    expect(frames).toHaveLength(2);
+    expect(frames.find((f) => f.includes(t.member.id))).toContain('"self":true');
+    expect(frames.find((f) => f.includes(t.admin.id))).not.toContain("self");
+    await s.cancel();
+  });
+});
+
 describe("presence.changed", () => {
   it("a colleague's first stream nudges the people who may see the roster, as a frame with no id and no person", async () => {
     const t = await makeTeam();
+    await makeWorkspace(t.org.id, [{ userId: t.member.id }, { userId: t.admin.id }]); // the roster is the space's people
     const watcher = await open(t.member.id);
     await watcher.read((x) => x.includes(": connected"));
     const colleague = await open(t.admin.id);
@@ -60,6 +79,19 @@ describe("presence.changed", () => {
     expect(frame).not.toContain("id:");
     expect(frame).not.toContain(t.admin.id);
     await colleague.cancel();
+    await watcher.cancel();
+  });
+
+  it("a colleague of ANOTHER space is not nudged: their roster could not show the person, so it must not tell when they come and go", async () => {
+    const t = await makeTeam();
+    await makeWorkspace(t.org.id, [{ userId: t.member.id }]);
+    await makeWorkspace(t.org.id, [{ userId: t.admin.id }]);
+    const watcher = await open(t.member.id);
+    await watcher.read((x) => x.includes(": connected"));
+    const apart = await open(t.admin.id);
+    await watcher.read((x) => x.includes("presence.changed"), 700);
+    expect(watcher.text()).not.toContain("presence.changed");
+    await apart.cancel();
     await watcher.cancel();
   });
 

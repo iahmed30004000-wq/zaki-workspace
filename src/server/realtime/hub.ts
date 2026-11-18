@@ -410,7 +410,8 @@ export async function flushDeliveredForTests(): Promise<void> {
 // ───────────────────────────── presence.changed: a stream-only nudge ─────────────────────────────
 
 /**
- * Tells the people who may see the people dock that somebody came or went. The frame carries NO id and NO person: the page asks
+ * Tells the people whose people dock could show somebody that they came or went: those who may see the roster (not a guest, `directory.view`)
+ * AND share a space with the person (an owner is in every space). The frame carries NO id and NO person: the page asks
  * `/api/presence` again, where the roster's own rules apply (the space, the guests, the owner who hides himself). It has no `id:`
  * line: it is never stored, never replayed and never moves a client's resume point.
  */
@@ -428,9 +429,28 @@ async function announcePresence(client: RtClient): Promise<void> {
     if (hidden) return;
   }
   const frame = `data: ${JSON.stringify({ kind: "presence.changed" })}\n\n`;
-  for (const entry of [...hub().registry]) {
-    const c = entry.client;
-    if (c.orgId !== client.orgId || c.userId === client.userId || !c.seesPresence) continue;
+  const watchers = hub().registry.filter((r) => r.client.orgId === client.orgId && r.client.userId !== client.userId && r.client.seesPresence).map((r) => r.client);
+  if (watchers.length === 0) return;
+  // The roster of a space is the space's people (and the owner, who is in every space): somebody whose roster could not show this person
+  // must not learn WHEN they come and go either. An owner on either side is always on the roster; everybody else needs a shared space.
+  let sees = new Set<string>(watchers.filter((c) => c.role === "OWNER" || client.role === "OWNER").map((c) => c.userId));
+  if (client.role !== "OWNER") {
+    const others = [...new Set(watchers.filter((c) => c.role !== "OWNER").map((c) => c.userId))];
+    if (others.length > 0) {
+      try {
+        const { db } = await import("@/server/db");
+        const mine = await db.workspaceMember.findMany({ where: { userId: client.userId }, select: { workspaceId: true } });
+        if (mine.length > 0) {
+          const sharing = await db.workspaceMember.findMany({ where: { workspaceId: { in: mine.map((m) => m.workspaceId) }, userId: { in: others } }, select: { userId: true } });
+          sees = new Set([...sees, ...sharing.map((m) => m.userId)]);
+        }
+      } catch {
+        // cannot tell who shares a space: tell the owners only, never more (the dock still has its five-minute refresh)
+      }
+    }
+  }
+  for (const c of watchers) {
+    if (!sees.has(c.userId)) continue;
     try {
       c.send(frame);
     } catch {

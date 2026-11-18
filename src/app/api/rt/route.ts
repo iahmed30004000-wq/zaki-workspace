@@ -161,7 +161,11 @@ async function sse(req: NextRequest): Promise<Response> {
                 actor.userId,
                 rows.map((r) => ({ id: r.id.toString(), kind: r.kind, ids: (r.ids ?? {}) as RtEvent["ids"] })),
               );
-              for (const r of visible) send(frameOf({ id: r.id, orgId: actor.orgId, kind: kindOf(r.kind), ids: r.ids }));
+              // a read mark of MINE says so, as the live one does (my badge ignores the others')
+              for (const r of visible) {
+                const mine = r.kind === "conversation.read" && r.ids.userId === actor.userId;
+                send(frameOf({ id: r.id, orgId: actor.orgId, kind: kindOf(r.kind), ids: r.ids }, mine ? { self: true } : {}));
+              }
               // a full page means more was missed than one replay carries: refetch everything instead
               if (rows.length >= 500) write(`event: reload\ndata: {}\n\n`);
             }

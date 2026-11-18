@@ -234,7 +234,9 @@ describe("privacy matrix — the C1.2 surfaces", () => {
 // table above lets read it (the silent eye included — it reads everything, and a frame carries ids only). So the expected cells are the SAME table,
 // not a new one: a live gate that disagreed with the door would be a leak or a lost message. A second table is for the people dock's nudge
 // (`presence.changed`): everybody on the staff roster hears it, a guest never.
-const PRESENCE_NUDGE = "1 1 1 1 1 1 1 1 0"; // owner pW pWo oAO sA mIn mOut tM guest
+// A colleague of THE SPACE comes online: the owners (in every space), the space's people hear it; an org admin who is not in the space does not (their
+// roster could not show the person), and a guest never does.
+const PRESENCE_NUDGE = "1 1 1 0 1 1 1 1 0"; // owner pW pWo oAO sA mIn mOut tM guest
 
 describe("privacy matrix — the C1.3 live gate", () => {
   for (const kind of Object.keys(CONVERSATIONS)) {
@@ -278,11 +280,12 @@ describe("privacy matrix — the C1.3 live gate", () => {
 });
 
 describe("privacy matrix — the C1.3 presence nudge", () => {
-  it("a colleague coming online nudges every person of the staff roster and never a guest (a frame with no id and no person)", async () => {
+  it("a colleague of the space coming online nudges the owners and the space's people, never an admin outside it, never a guest (a frame with no id and no person)", async () => {
     const w = await getWorld();
     setPolicyStubs({});
     resetHubForTests();
     const newcomer = await makeUser({ orgId: w.orgId, role: "MEMBER" });
+    await db.workspaceMember.create({ data: { workspaceId: w.space.id, userId: newcomer.id, role: "MEMBER" } });
     const streams = new Map<Persona, { text: () => string; cancel: () => Promise<void> }>();
     for (const who of PERSONAS) {
       await loginAs(w.people[who].id);

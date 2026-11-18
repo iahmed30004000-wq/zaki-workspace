@@ -12,11 +12,20 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
  *    roster, never about an owner who hides himself, and a reload that returns within the grace says nothing.
  */
 
+/** who is in which space (the nudge goes to the people who share a space with the person it is about) */
+const spacesOf = vi.hoisted(() => ({} as Record<string, string[]>));
 vi.mock("@/server/db", () => ({
   db: {
     $executeRaw: vi.fn().mockResolvedValue(0),
     user: { update: vi.fn().mockResolvedValue({}) },
     conversation: { findUnique: vi.fn().mockResolvedValue({ kind: "TOPIC" }) },
+    workspaceMember: {
+      findMany: vi.fn(async ({ where }: { where: { userId: string | { in: string[] }; workspaceId?: { in: string[] } } }) => {
+        if (typeof where.userId === "string") return (spacesOf[where.userId] ?? []).map((workspaceId) => ({ workspaceId }));
+        const wanted = new Set(where.workspaceId?.in ?? []);
+        return where.userId.in.filter((u) => (spacesOf[u] ?? []).some((w) => wanted.has(w))).map((userId) => ({ userId }));
+      }),
+    },
   },
 }));
 vi.mock("@/server/chat/read-state", () => ({ markDeliveredForUser: vi.fn().mockResolvedValue(undefined) }));
@@ -51,6 +60,9 @@ beforeEach(() => {
   setPolicyStubs({});
   vi.clearAllMocks();
   isFeatureOn.mockResolvedValue(false);
+  for (const k of Object.keys(spacesOf)) delete spacesOf[k];
+  // everybody of these tests works in the same space unless a test says otherwise
+  for (const u of ["w1", "w2", "u1", "u2", "n1", "o1", "x1"]) spacesOf[u] = ["ws1"];
 });
 afterEach(() => {
   resetHubForTests();
@@ -237,6 +249,27 @@ describe("presence.changed — a stream-only nudge", () => {
     const frame = nudges(watcher)[0]!;
     expect(frame).toBe(`data: ${JSON.stringify({ kind: "presence.changed" })}\n\n`);
     expect(frame).not.toContain("id:");
+  });
+
+  it("only the people who share a space with the person get the nudge (the roster is the space's); an owner is in every space and always does", async () => {
+    spacesOf["w2"] = ["ws-other"];
+    const sharing = connect("w1", { seesPresence: true });
+    const apart = connect("w2", { seesPresence: true });
+    const owner = connect("o1", { role: "OWNER", seesPresence: true });
+    await new Promise((r) => setTimeout(r, 30)); // the owner's own arrival has been announced (it reads a switch first)
+    const base = [sharing, apart, owner].map((c) => nudges(c).length);
+    connect("u1", { seesPresence: true });
+    await vi.waitFor(() => expect(nudges(owner).length).toBe(base[2]! + 1));
+    expect(nudges(sharing).length).toBe(base[0]! + 1);
+    expect(nudges(apart).length).toBe(base[1]!);
+  });
+
+  it("an owner coming online is on every roster: everybody who sees one is nudged, in a space or not", async () => {
+    spacesOf["w2"] = [];
+    const apart = connect("w2", { seesPresence: true });
+    const base = nudges(apart).length;
+    connect("o1", { role: "OWNER", seesPresence: true });
+    await vi.waitFor(() => expect(nudges(apart).length).toBe(base + 1));
   });
 
   it("a guest's coming and going nudges nobody (no roster shows a guest)", async () => {

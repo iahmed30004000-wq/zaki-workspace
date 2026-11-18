@@ -88,6 +88,8 @@ interface SharedStream {
   silence: ReturnType<typeof setTimeout> | null;
   /** another tab was seen leading: so a takeover means a gap, and the screens refetch */
   sawLeader: boolean;
+  /** what this stream's owner last told the server about the browser's visibility */
+  reported: boolean | null;
 }
 
 // eslint-disable-next-line init-declarations
@@ -134,12 +136,17 @@ function anyVisible(): boolean {
  * belongs to the LEADER, so the leader reports - for everybody (the OR of its own tab and the followers it heard); a follower says
  * its own state to the leader over the channel and never posts.
  */
-function reportVisibility(): void {
-  if (stream?.useLocks && !stream.leader) {
+function reportVisibility(onlyIfChanged = false): void {
+  const s = stream;
+  if (s?.useLocks && !s.leader) {
     postLine({ t: "vis", tab: tab(), visible: ownVisible() });
     return;
   }
-  sendVisibility(anyVisible());
+  const visible = anyVisible();
+  // a follower's answer that changes nothing is not worth a request (every ping makes every tab answer; the ping's own report is the heartbeat)
+  if (onlyIfChanged && s && s.reported === visible) return;
+  if (s) s.reported = visible;
+  sendVisibility(visible);
 }
 
 function postLine(message: LineMessage): void {
@@ -230,6 +237,7 @@ function ensureStream(): SharedStream {
     peers: new Map(),
     silence: null,
     sawLeader: false,
+    reported: null,
   };
   return stream;
 }
@@ -376,6 +384,7 @@ function connect(): void {
   es.addEventListener("ping", () => {
     armWatchdog();
     reportVisibility();
+    evaluatePause(); // a follower that froze without a word went stale since the last beat: nobody may be looking any more
     postLine({ t: "alive" }); // the followers answer with how they stand, and know the leader is alive
   });
   // The server ended this stream and said why.
@@ -502,7 +511,13 @@ function armSilence(): void {
   if (s.silence) clearTimeout(s.silence);
   s.silence = setTimeout(() => {
     s.silence = null;
-    if (stream === s && s.useLocks && !s.leader) startPolling();
+    if (stream !== s || !s.useLocks || s.leader) return;
+    // a tab nobody is looking at has nothing to refetch for; the leader may be paused because EVERY tab is hidden (it pings no more)
+    if (!ownVisible()) {
+      armSilence();
+      return;
+    }
+    startPolling();
   }, LEADER_SILENCE_MS);
 }
 
@@ -519,7 +534,7 @@ function hearLeader(): void {
 function peersChanged(): void {
   const s = stream;
   if (!s || !s.leader) return;
-  reportVisibility();
+  reportVisibility(true);
   if (anyVisible() && s.paused) {
     s.paused = false;
     connect();
@@ -546,7 +561,10 @@ function onLine(message: LineMessage): void {
       reportVisibility(); // the leader asks how this tab stands
       return;
     case "hello":
-      if (s.leader) postLine({ t: "leader" });
+      if (s.leader) {
+        postLine({ t: "leader" });
+        if (s.evicted) postLine({ t: "evicted", value: true }); // a tab opened later shows the small line too
+      }
       return;
     case "vis":
       if (!s.leader) return;
@@ -583,6 +601,7 @@ function becomeLeader(): void {
     s.hiddenTimer = null;
   }
   s.peers.clear();
+  s.reported = null;
   // the old leader may have been evicted by another browser: try again, it may be gone now
   if (s.evicted) setEvicted(false);
   postLine({ t: "leader" }); // the followers answer with how they stand

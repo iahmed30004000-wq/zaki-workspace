@@ -356,6 +356,17 @@ describe("the leader goes", () => {
     expect(a.win.location.assign).toHaveBeenCalledWith("/login");
   });
 
+  it("a tab opened after the leader was evicted still shows the small line", async () => {
+    const a = await tab("A");
+    sub(a);
+    await flush();
+    streams()[0]!.emit("bye", JSON.stringify({ reason: "evicted" }));
+    const c = await tab("C");
+    sub(c);
+    await flush();
+    expect(inTab(c, () => c.mod.streamEvictedNow())).toBe(true);
+  });
+
   it("the leader's own stream failing polls for everybody: the follower's screens refetch every 15 s too", async () => {
     const a = await tab("A");
     const b = await tab("B");
@@ -418,6 +429,34 @@ describe("F0.5 — the leader reports the OR of every tab", () => {
     expect(reports(b)).toEqual([]);
   });
 
+  it("a follower's answer that changes nothing is not another post: one report per ping, not one per tab", async () => {
+    const a = await tab("A");
+    const others = [await tab("B"), await tab("C"), await tab("D")];
+    sub(a);
+    await flush();
+    for (const t of others) {
+      sub(t);
+      await flush();
+    }
+    const before = reports(a).length;
+    streams()[0]!.emit("ping"); // four answers come back, all «visible», nothing changed
+    expect(reports(a).length - before).toBe(1);
+  });
+
+  it("a tab that takes over while hidden says so as its stream opens (the server believes a new stream is visible until told)", async () => {
+    const a = await tab("A");
+    const b = await tab("B");
+    const offA = sub(a);
+    await flush();
+    hide(b, true);
+    sub(b);
+    await flush();
+    inTab(a, offA);
+    await flush();
+    streams()[1]!.open();
+    expect(reports(b).at(-1)).toMatchObject({ visible: false, tab: tabParam(streams()[1]!) });
+  });
+
   it("every ping re-reports the OR (a lost report is corrected within a beat)", async () => {
     const a = await tab("A");
     sub(a);
@@ -439,6 +478,21 @@ describe("F0.5 — the leader reports the OR of every tab", () => {
     expect(reports(a).at(-1)!.visible).toBe(true);
     inTab(b, offB);
     expect(reports(a).at(-1)!.visible).toBe(false);
+  });
+
+  it("a follower that vanished while the leader was hidden: the next pings notice and the stream pauses (nobody is looking)", async () => {
+    const a = await tab("A");
+    const b = await tab("B");
+    sub(a);
+    await flush();
+    sub(b);
+    await flush();
+    hide(a, true);
+    FakeBroadcastChannel.all.forEach((c) => c.owner === b && c.close()); // B froze: no `gone`, no more answers
+    await run(75_000 + 25_000);
+    expect(streams()[0]!.closed).toBe(false); // the entry went stale at the last ping; the 60 s start now
+    await run(75_000);
+    expect(streams()[0]!.closed).toBe(true);
   });
 
   it("a follower that vanished without a word is forgotten after 75 s of silence", async () => {
@@ -483,6 +537,24 @@ describe("F0.3 — pause, wake and silence", () => {
     expect(streams()[1]!.url).toContain("lastEventId=42");
     expect(seenA).toContain("conversation.changed");
     expect(seenB).toContain("conversation.changed");
+  });
+
+  it("a paused leader does not make the hidden followers poll: nobody is looking, so nobody refetches", async () => {
+    const a = await tab("A");
+    const b = await tab("B");
+    const seenB: string[] = [];
+    sub(a);
+    await flush();
+    sub(b, (e) => seenB.push(e.kind));
+    await flush();
+    hide(a, true);
+    hide(b, true);
+    await run(70_000);
+    expect(streams()[0]!.closed).toBe(true); // paused: it no longer pings
+    seenB.length = 0;
+    await vi.advanceTimersByTimeAsync(300_000);
+    expect(inTab(b, () => b.mod.streamStateForTests()?.polling)).toBe(false);
+    expect(seenB).toEqual([]);
   });
 
   it("a follower that hears nothing from the leader for 60 s polls every 15 s, like a stream that is down; a sign of life stops it", async () => {
