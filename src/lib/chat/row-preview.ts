@@ -54,9 +54,10 @@ export function rowPreview(row: ChatRowDto, extra: { typingNames?: readonly stri
   // a system line is a sentence of its own («فلان ثبّت رسالة»): no author in front of it
   if (last.kind === "SYSTEM") return { tone: "text", author: null, text: squash(last.preview ?? "") };
   const author = row.kind === "DM" ? null : last.mine ? ct("chatui.row.you") : last.authorName || null;
-  if (last.kind === "VOICE") return { tone: "text", author, text: ct("chatui.row.voice") };
-  // the server sends `null` for a deleted message (and never its text)
+  // the server sends `null` for a deleted message of ANY kind (the body column is never null, so a live voice note has an empty preview, not a null one):
+  // a deleted voice note, poll or card says «رسالة محذوفة» and nothing of what it was
   if (last.preview === null) return { tone: "deleted", author, text: ct("chatui.row.deleted") };
+  if (last.kind === "VOICE") return { tone: "text", author, text: ct("chatui.row.voice") };
   const words = squash(last.preview);
   if (last.kind === "POLL") return { tone: "text", author, text: ct("chatui.row.poll", { text: words }) };
   if (last.kind === "CARD") return { tone: "text", author, text: words ? ct("chatui.row.card", { text: words }) : ct("chatui.row.card_plain") };
@@ -117,4 +118,18 @@ export function rowSpokenLabel(row: ChatRowDto, now: Date = new Date()): string 
   const when = rowTimeLabel(row.lastMessage?.at, now);
   if (when) parts.push(when);
   return parts.join("، ");
+}
+
+/**
+ * The labels of a row depend on the DAY («09:05» today, the day's name this week, `d/M` before): a row drawn in the morning must roll over at midnight even
+ * if its own data never changes. The list holds one `dayKey` and gives it to every row, so the rows (which are memoized) re-draw once a day and not before.
+ */
+export function dayKeyOf(date: Date = new Date()): string {
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+/** Milliseconds from `date` to the next local midnight (at least one second, so a timer set at 23:59:59.999 still lands on the next day). */
+export function msUntilNextDay(date: Date = new Date()): number {
+  const next = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 0, 0, 0, 0);
+  return Math.max(1000, next.getTime() - date.getTime() + 500);
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useMemo, useState } from "react";
+import React, { memo, useEffect, useId, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
@@ -14,6 +14,8 @@ import { useChatList, useChatSpace, useChatUnreadSummary } from "@/lib/chat/cach
 import { foldersOf, folderBadge, folderKeyOf, isCompanyFolder, listRows, normalizeQuery, rowItems, type ListFolderKey } from "@/lib/chat/list-folders";
 import { ct } from "@/lib/chat/text";
 import { chatRouteOf, forumShown, nextForumSpace, selectedConversationId } from "@/lib/chat/v2/routes";
+import { useDayKey } from "@/lib/chat/v2/use-day";
+import { useForumHolds } from "@/lib/chat/v2/use-forum";
 import { useChatOrders } from "@/lib/chat/v2/use-orders";
 import { cn } from "@/lib/utils";
 import { CompanyRows } from "./company-rows";
@@ -53,10 +55,10 @@ export function ChatListColumn(props: ChatListColumnProps) {
   const column = variant === "column";
   // the forum view stays while one of its topics is open (the topics are the column, the topic is the pane); the list comes back when the person leaves it
   const [forumSpace, setForumSpace] = useState<string | null>(route.kind === "forum" ? route.spaceId : null);
-  const forumTopics = useChatSpace(forumSpace).rows;
+  const holds = useForumHolds(forumSpace, route.kind === "conversation" ? route.id : null);
   useEffect(() => {
-    setForumSpace((kept) => nextForumSpace(route, kept, forumTopics.map((row) => row.id)));
-  }, [route, forumTopics]);
+    setForumSpace((kept) => nextForumSpace(route, kept, holds));
+  }, [route, holds]);
   const forumId = forumShown(route, forumSpace);
   return (
     <section
@@ -75,7 +77,7 @@ export function ChatListColumn(props: ChatListColumnProps) {
         <div
           {...handle}
           aria-label={ct("chatui.list.resize")}
-          className="absolute inset-y-0 end-0 z-30 w-1.5 cursor-col-resize touch-none hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none"
+          className="absolute inset-y-0 end-0 z-50 w-1.5 cursor-col-resize touch-none hover:bg-accent/40 focus-visible:bg-accent/60 focus-visible:outline-none"
         />
       ) : null}
     </section>
@@ -83,9 +85,10 @@ export function ChatListColumn(props: ChatListColumnProps) {
 }
 
 /** The conversations list with its folders and search: every conversation the server put in the list, in the folder asked for. */
-function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, selectedId }: ChatListColumnProps & { selectedId: string | null }) {
+const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, selectedId }: ChatListColumnProps & { selectedId: string | null }) {
   const tall = variant === "screen";
   const searchId = useId();
+  const day = useDayKey();
   const list = useChatList("all");
   const summary = useChatUnreadSummary();
   const orders = useChatOrders(!guest);
@@ -125,6 +128,8 @@ function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, select
           <MeetingButton />
         </div>
       ) : null}
+      {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}
+      {!company && list.isError && list.rows.length > 0 ? <ListError onRetry={() => void list.refetch()} /> : null}
 
       {company ? (
         <CompanyRows selectedId={selectedId} />
@@ -135,7 +140,7 @@ function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, select
       ) : rows.length === 0 ? (
         <ListEmpty folder={folder} query={words} {...(canCreateSpace && folder === "all" && !words ? { onCreateSpace: () => setCreatingSpace(true) } : {})} />
       ) : (
-        <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} />
+        <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
       )}
 
       {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} /> : null}
@@ -143,4 +148,4 @@ function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, select
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
     </>
   );
-}
+});

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rowMarks, rowPinned, rowPreview, rowSpokenLabel, rowTicks, rowTimeLabel, typingText, unreadText } from "@/lib/chat/row-preview";
+import { dayKeyOf, msUntilNextDay, rowMarks, rowPinned, rowPreview, rowSpokenLabel, rowTicks, rowTimeLabel, typingText, unreadText } from "@/lib/chat/row-preview";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 
 /**
@@ -67,7 +67,7 @@ describe("the second line", () => {
     expect(rowPreview(row({ lastMessage: msg() }), { draft: null }).tone).toBe("text");
   });
   it("a voice note, a poll, a card, a file with no words", () => {
-    expect(rowPreview(row({ lastMessage: msg({ kind: "VOICE", preview: null }) })).text).toBe("🎤 رسالة صوتية");
+    expect(rowPreview(row({ lastMessage: msg({ kind: "VOICE", preview: "" }) })).text).toBe("🎤 رسالة صوتية");
     expect(rowPreview(row({ lastMessage: msg({ kind: "POLL", preview: "وين نتغدى؟" }) })).text).toBe("📊 وين نتغدى؟");
     expect(rowPreview(row({ lastMessage: msg({ kind: "CARD", preview: "طلب 1234" }) })).text).toBe("🧾 طلب 1234");
     expect(rowPreview(row({ lastMessage: msg({ kind: "CARD", preview: "" }) })).text).toBe("🧾 كرت");
@@ -76,6 +76,11 @@ describe("the second line", () => {
   it("a deleted message says so and carries no text; the author is still named", () => {
     const out = rowPreview(row({ lastMessage: msg({ preview: null }) }));
     expect(out).toEqual({ tone: "deleted", author: "سلمى", text: "رسالة محذوفة" });
+  });
+  it("a DELETED voice note, poll or card says «رسالة محذوفة» too: its kind is not told once the message is gone (the server sends a null preview for any deleted message)", () => {
+    for (const kind of ["VOICE", "POLL", "CARD", "TEXT"] as const) {
+      expect(rowPreview(row({ lastMessage: msg({ kind, preview: null }) })), kind).toEqual({ tone: "deleted", author: "سلمى", text: "رسالة محذوفة" });
+    }
   });
   it("a system line is a sentence of its own: no author in front of it", () => {
     const out = rowPreview(row({ lastMessage: msg({ kind: "SYSTEM", preview: "أحمد ثبّت رسالة", authorName: "أحمد" }) }));
@@ -130,5 +135,20 @@ describe("ticks, pin and the unread pill", () => {
   it("the sentence a screen reader gets", () => {
     const label = rowSpokenLabel(row({ unread: 3, mentionsUnread: 1, lastMessage: msg({ at: new Date("2026-11-17T09:05:00").toISOString() }) }), NOW);
     expect(label).toBe("الطلبات، 3 رسائل غير مقروءة، فيه رسالة بتذكرك، 09:05");
+  });
+});
+
+describe("the labels roll over at midnight", () => {
+  it("the day key changes with the local date and only then", () => {
+    expect(dayKeyOf(new Date("2026-11-17T00:00:00"))).toBe("2026-11-17");
+    expect(dayKeyOf(new Date("2026-11-17T23:59:59"))).toBe("2026-11-17");
+    expect(dayKeyOf(new Date("2026-11-18T00:00:00"))).toBe("2026-11-18");
+    expect(dayKeyOf(new Date("2026-12-31T12:00:00"))).toBe("2026-12-31");
+    expect(dayKeyOf(new Date("2027-01-01T00:00:01"))).toBe("2027-1-1");
+  });
+  it("the timer lands just after the next midnight, never sooner than a second", () => {
+    expect(msUntilNextDay(new Date("2026-11-17T23:00:00"))).toBe(3_600_000 + 500);
+    expect(msUntilNextDay(new Date("2026-11-17T23:59:59.999"))).toBe(1000);
+    expect(msUntilNextDay(new Date("2026-11-17T00:00:00"))).toBe(86_400_000 + 500);
   });
 });

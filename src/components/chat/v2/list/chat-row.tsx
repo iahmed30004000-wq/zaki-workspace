@@ -207,6 +207,8 @@ export interface ChatRowItemProps {
   tall: boolean;
   userId: string;
   menu: RowMenuContext;
+  /** the local date: only here to make a memoized row draw again once a day, so «09:05» becomes the day's name */
+  day: string;
 }
 
 /**
@@ -214,6 +216,7 @@ export interface ChatRowItemProps {
  * never the whole list; the typing line and the draft are its own too. `memo` keeps the others still when the list re-sorts.
  */
 export const ChatRowItem = memo(function ChatRowItem({ id, selected, tall, userId, menu }: ChatRowItemProps) {
+  // `day` is read by `memo` (a changed prop draws the row again) and by nothing else
   const row = useChatRow(id);
   if (!row) return null;
   return <ConnectedRow row={row} selected={selected} tall={tall} userId={userId} menu={menu} />;

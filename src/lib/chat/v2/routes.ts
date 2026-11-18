@@ -54,13 +54,14 @@ export const chatHref = {
 
 /**
  * Which space's forum view the list column holds open. The forum is the column and a topic is the pane, so opening a topic from the forum must NOT
- * take the forum away: while a conversation is open the column keeps the forum it had, as long as that conversation is one of its topics (once the
- * topics are known). `/chat/s/<id>` opens one, `/chat` and any other page closes it. Pure, so the rule is pinned without a browser.
+ * take the forum away: while a conversation is open the column keeps the forum it had, as long as that conversation is one of its topics. `holds` is the
+ * cache's answer to «is it one of them?» (`null`: not known yet, so the forum is kept). `/chat/s/<id>` opens one, `/chat` and any other page closes it.
+ * Pure, so the rule is pinned without a browser.
  */
-export function nextForumSpace(route: ChatRoute, current: string | null, topicIds: readonly string[]): string | null {
+export function nextForumSpace(route: ChatRoute, current: string | null, holds: boolean | null): string | null {
   if (route.kind === "forum") return route.spaceId;
   if (route.kind !== "conversation") return null;
-  if (current && topicIds.length > 0 && !topicIds.includes(route.id)) return null;
+  if (current && holds === false) return null;
   return current;
 }
 

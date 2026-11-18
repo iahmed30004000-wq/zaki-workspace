@@ -12,6 +12,7 @@ import { useChatSpace } from "@/lib/chat/cache/selectors";
 import { forumItems, forumRows, normalizeQuery } from "@/lib/chat/list-folders";
 import { ct, ctCount } from "@/lib/chat/text";
 import { chatHref } from "@/lib/chat/v2/routes";
+import { useDayKey } from "@/lib/chat/v2/use-day";
 import { useChatOrders } from "@/lib/chat/v2/use-orders";
 import { useSpaceSections } from "@/lib/chat/v2/use-space-sections";
 
@@ -44,6 +45,7 @@ export function ForumView({
 }) {
   const tall = variant === "screen";
   const searchId = useId();
+  const day = useDayKey();
   const { space, rows, isPending, isError, refetch } = useChatSpace(spaceId);
   const orders = useChatOrders(!guest);
   const [query, setQuery] = useState("");
@@ -116,7 +118,7 @@ export function ForumView({
           </p>
         )
       ) : (
-        <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.forum.rows")} />
+        <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.forum.rows")} day={day} />
       )}
       {isError && space ? <ListError onRetry={() => void refetch()} /> : null}
 

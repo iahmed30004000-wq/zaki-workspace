@@ -134,7 +134,7 @@ export function RowActionsMenu({
             aria-label={ct("chath.menu.open", { title: row.title })}
             disabled={busy}
             className={cn(
-              "relative z-10 hidden size-9 shrink-0 place-items-center rounded-full text-fg-muted opacity-0 transition-opacity hover:bg-surface-2 hover:text-fg focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent group-hover:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none md:grid",
+              "pointer-events-none absolute end-1 top-1/2 z-10 grid size-9 shrink-0 -translate-y-1/2 place-items-center rounded-full text-fg-muted opacity-0 transition-opacity hover:bg-surface-2 hover:text-fg focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent data-[state=open]:opacity-100 motion-reduce:transition-none md:pointer-events-auto md:static md:translate-y-0 md:group-hover:opacity-100",
               className,
             )}
           >

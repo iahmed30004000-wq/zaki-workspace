@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useRef, type KeyboardEvent } from "react";
+import React, { useCallback, useEffect, useRef, type KeyboardEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ListItem } from "@/lib/chat/list-folders";
 import { ct } from "@/lib/chat/text";
@@ -26,6 +26,7 @@ export function VirtualRows({
   userId,
   menu,
   label,
+  day,
 }: {
   items: readonly ListItem[];
   tall: boolean;
@@ -33,6 +34,8 @@ export function VirtualRows({
   userId: string;
   menu: RowMenuContext;
   label: string;
+  /** the local date (`useDayKey`): the rows' time labels roll over at midnight */
+  day: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowHeight = tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT;
@@ -46,6 +49,11 @@ export function VirtualRows({
     overscan: OVERSCAN,
     initialRect: INITIAL_RECT,
   });
+
+  // the sizes are fixed per row height: if it changes while the list is mounted (a screen that crosses the phone's width) the offsets are worked out again
+  useEffect(() => {
+    virtualizer.measure();
+  }, [rowHeight, virtualizer]);
 
   const move = useCallback(
     (from: number, step: 1 | -1) => {
@@ -61,7 +69,10 @@ export function VirtualRows({
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    const holder = (event.target as HTMLElement).closest<HTMLElement>("[data-row-index]");
+    // only from a row's own link: the «⋮» beside it is a menu button, and the arrows belong to its menu
+    const target = event.target as HTMLElement;
+    if (!target.closest<HTMLElement>("[data-row-link]")) return;
+    const holder = target.closest<HTMLElement>("[data-row-index]");
     if (!holder) return;
     event.preventDefault();
     move(Number(holder.dataset["rowIndex"]), event.key === "ArrowDown" ? 1 : -1);
@@ -84,7 +95,7 @@ export function VirtualRows({
               {item.type === "section" ? (
                 <div className="flex h-full items-center border-b border-border/60 px-3 text-xs font-semibold text-fg-muted">{ct("chath.archived", { n: item.count })}</div>
               ) : (
-                <ChatRowItem id={item.id} selected={selectedId === item.id} tall={tall} userId={userId} menu={menu} />
+                <ChatRowItem id={item.id} selected={selectedId === item.id} tall={tall} userId={userId} menu={menu} day={day} />
               )}
             </div>
           );

@@ -271,6 +271,43 @@ describe("the frame lends its ONE rail (and the old side menu) to the column", (
   });
 });
 
+describe("the row's menu and the column's handle (review fixes)", () => {
+  const menu = read("src/components/chat/v2/row-menu.tsx");
+  const virtual = read("src/components/chat/v2/list/virtual-rows.tsx");
+  const column = read("src/components/chat/v2/list/chat-list-column.tsx");
+
+  it("the «⋮» trigger always has a box (never display:none), so a long press on the phone anchors the menu at the row; only a pointer on the computer sees it", () => {
+    const trigger = /className=\{cn\(\s*"([^"]*)"/.exec(menu.slice(menu.indexOf("<DropdownMenuTrigger")))?.[1] ?? "";
+    expect(trigger).not.toMatch(/(^|\s)hidden(\s|$)/);
+    expect(trigger).toContain("absolute");
+    expect(trigger).toContain("pointer-events-none");
+    expect(trigger).toContain("md:pointer-events-auto");
+    expect(trigger).toContain("md:static");
+  });
+
+  it("the resize handle sits above the forum view (which covers the column)", () => {
+    const z = (re: RegExp, src: string) => Number(re.exec(src)?.[1]);
+    const forum = z(/data-chat-forum=""[^>]*className="absolute inset-0 z-(\d+)/, read("src/components/chat/v2/forum/forum-view.tsx"));
+    const handle = z(/className="absolute inset-y-0 end-0 z-(\d+) w-1\.5 cursor-col-resize/, column);
+    expect(forum).toBeGreaterThan(0);
+    expect(handle).toBeGreaterThan(forum);
+  });
+
+  it("the arrow keys move between rows only from a row's own link, never from the menu button beside it", () => {
+    expect(virtual).toContain('closest<HTMLElement>("[data-row-link]")');
+  });
+
+  it("the column does not subscribe to the forum's whole list: it asks one yes / no question of the cache", () => {
+    expect(column).toContain("useForumHolds(");
+    expect(column).not.toMatch(/useChatSpace\(forumSpace\)/);
+  });
+
+  it("the list shows a failed refresh even while it holds rows, and the virtualizer re-measures when the row height changes", () => {
+    expect(column).toMatch(/list\.isError && list\.rows\.length > 0/);
+    expect(virtual).toContain("virtualizer.measure()");
+  });
+});
+
 describe("the empty pane", () => {
   it("«اختار محادثة», a new-message button and the meeting button for whoever may meet", () => {
     const html = render(createElement(EmptyState, { guest: false, canMeet: true }));

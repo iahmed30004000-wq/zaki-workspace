@@ -373,3 +373,21 @@ describe("the whole column, from a seeded cache", () => {
     expect(html).toContain('href="/chat/t1"');
   });
 });
+
+describe("a refresh that failed while the list holds rows", () => {
+  it("says so, with the way to try again, above the rows it still shows (a stale copy is never silent)", () => {
+    where.pathname = "/chat";
+    const qc = new QueryClient();
+    installChatDefaults(qc);
+    const rows = [row("dm1", { title: "أحمد", unread: 1, lastMessage: msg() })];
+    qc.setQueryData(chatKeys.list(), { scope: "all", spaceId: null, canOversee: false, rows } satisfies ChatListDto);
+    const props = { variant: "column" as const, userId: "u1", guest: false, canMeet: false, rowMenu: true, canPurge: false };
+    expect(render(createElement(ChatListColumn, props), qc)).not.toContain('role="alert"');
+    qc.getQueryCache().find({ queryKey: chatKeys.list() })!.setState({ status: "error", error: new Error("x"), errorUpdateCount: 1, errorUpdatedAt: Date.now(), fetchStatus: "idle" });
+    const html = render(createElement(ChatListColumn, props), qc);
+    expect(html).toContain('role="alert"');
+    expect(html).toContain("تعذّر تحميل المحادثات.");
+    expect(html).toContain("<bdi>أحمد</bdi>");
+    expect(html.indexOf("تعذّر تحميل المحادثات.")).toBeLessThan(html.indexOf("<bdi>أحمد</bdi>"));
+  });
+});

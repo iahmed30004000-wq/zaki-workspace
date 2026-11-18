@@ -150,22 +150,21 @@ describe("in the column: the forum opens over the list, the list stays under it"
 describe("how the forum comes and goes with the address (pure)", () => {
   const forumRoute = chatRouteOf("/chat/s/s1");
   const topicRoute = chatRouteOf("/chat/a");
-  const ids = ["a", "b"];
   it("/chat/s/<id> opens it, whatever was kept", () => {
-    expect(nextForumSpace(forumRoute, null, [])).toBe("s1");
-    expect(nextForumSpace(forumRoute, "s9", ids)).toBe("s1");
+    expect(nextForumSpace(forumRoute, null, null)).toBe("s1");
+    expect(nextForumSpace(forumRoute, "s9", true)).toBe("s1");
   });
   it("a topic of the forum keeps it", () => {
-    expect(nextForumSpace(topicRoute, "s1", ids)).toBe("s1");
+    expect(nextForumSpace(topicRoute, "s1", true)).toBe("s1");
   });
   it("a conversation that is NOT one of its topics closes it (once the topics are known); before they are known it is kept", () => {
-    expect(nextForumSpace(chatRouteOf("/chat/zzz"), "s1", ids)).toBeNull();
-    expect(nextForumSpace(chatRouteOf("/chat/zzz"), "s1", [])).toBe("s1");
-    expect(nextForumSpace(topicRoute, null, ids)).toBeNull();
+    expect(nextForumSpace(chatRouteOf("/chat/zzz"), "s1", false)).toBeNull();
+    expect(nextForumSpace(chatRouteOf("/chat/zzz"), "s1", null)).toBe("s1");
+    expect(nextForumSpace(topicRoute, null, true)).toBeNull();
   });
   it("the list (and any other page) closes it", () => {
-    expect(nextForumSpace(chatRouteOf("/chat"), "s1", ids)).toBeNull();
-    expect(nextForumSpace(chatRouteOf("/tasks"), "s1", ids)).toBeNull();
+    expect(nextForumSpace(chatRouteOf("/chat"), "s1", true)).toBeNull();
+    expect(nextForumSpace(chatRouteOf("/tasks"), "s1", true)).toBeNull();
   });
   it("what is drawn: the address on a forum page, the kept one on a conversation, none on the list", () => {
     expect(forumShown(forumRoute, null)).toBe("s1");
