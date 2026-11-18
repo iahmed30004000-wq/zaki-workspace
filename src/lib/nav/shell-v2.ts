@@ -16,25 +16,24 @@ export interface AppBarSlots {
   create: boolean;
 }
 
-const FULL: AppBarSlots = { search: true, theme: true, help: true, bell: true, create: true };
+const FULL: Readonly<AppBarSlots> = { search: true, theme: true, help: true, bell: true, create: true };
 
 /**
  * The app bar of each place: its name, the search and the actions that make sense THERE. The chat and the library are dense screens: they keep the
  * search, the bell and «جديد» and leave «ليل / نهار» and «؟» to the avatar menu and the guide. «الإدارة» and «نتفرّج سوا» have nothing to create from
  * the bar. A page of no place (the profile) gets the full bar.
  */
-export function appBarOf(place: PlaceKey | null): AppBarSlots {
+export function appBarOf(place: PlaceKey | null): Readonly<AppBarSlots> {
   switch (place) {
     case "chat":
     case "library":
     case "cards":
       return { search: true, theme: false, help: false, bell: true, create: true };
     case "watch":
-      return { search: true, theme: true, help: true, bell: true, create: false };
     case "admin":
       return { search: true, theme: true, help: true, bell: true, create: false };
     default:
-      return { ...FULL };
+      return FULL;
   }
 }
 
@@ -58,6 +57,15 @@ export interface ForeignSpace {
 /** The banner's thing, only when the answer is for the page on screen (a slow answer of the page before shows nothing). */
 export function foreignFor(foreign: ForeignSpace | null | undefined, pathname: string): ForeignSpace | null {
   return foreign && foreign.path === pathname ? foreign : null;
+}
+
+/**
+ * The banner keeps the answer it had for THIS page: two other readers (the projects toolbar, the ideas form) fetch `/api/workspaces` without an address
+ * under the same query key, and their answer would otherwise blank the banner until the shell's next refetch. A fresh answer for the page wins; an answer
+ * held for another page is dropped.
+ */
+export function holdForeign(held: ForeignSpace | null, fresh: ForeignSpace | null, pathname: string): ForeignSpace | null {
+  return fresh ?? (held && held.path === pathname ? held : null);
 }
 
 export type AddressKind = "task" | "project" | "board" | "card" | "approval" | "call" | "watch" | "topic";

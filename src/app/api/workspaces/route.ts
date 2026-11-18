@@ -13,6 +13,8 @@ import { accessibleWorkspaceIds } from "@/server/services/access";
 import { unreadBySpace } from "@/server/chat/unread";
 import { currentSpace } from "@/server/services/current-space";
 import { foreignSpaceOf, overdueBySpace } from "@/server/services/nav-order";
+import { orgSummaryOf } from "@/server/services/features";
+import { featureOn } from "@/lib/features";
 import { SPACE_LAYOUTS } from "@/lib/cards/shared";
 
 /**
@@ -66,7 +68,9 @@ export async function GET(req?: Request) {
     });
     for (const b of bells) if (b.workspaceId) unread[b.workspaceId] = (unread[b.workspaceId] ?? 0) + b._count._all;
     // …and the overdue tasks of the person in each space (the number beside the unread one)
-    const overdue = await overdueBySpace(user.id, orgs.map((m) => m.organization.id));
+    // (only for the companies whose switch `navV2` is on: the old shell never draws it, so it costs the old shell nothing)
+    const newShell = await Promise.all(orgs.map(async (m) => (featureOn((await orgSummaryOf(m.organization.id))?.settings, "navV2") ? m.organization.id : null)));
+    const overdue = await overdueBySpace(user.id, newShell.filter((id): id is string => id !== null));
     type Entry = { id: string; name: string; slug: string; emoji: string | null; holdsProjects: boolean; unread: number; overdue: number };
     const byOrg = new Map<string, Entry[]>();
     const hqFirst = [...workspaces.filter((w) => w.kind === "HQ"), ...workspaces.filter((w) => w.kind !== "HQ")];

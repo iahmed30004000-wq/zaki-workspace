@@ -685,10 +685,10 @@ describe("N1.3: overdue numbers, the banner's data, and no silent switch while n
     expect(overdue[w.hq]).toBe(0);
     // C is not the member's space: it is not listed at all
     expect(overdue[w.c.id]).toBeUndefined();
-    // the same answer for the old shell: the number is there whatever the switch says
+    // a company on the old shell pays nothing for it: the old shell never draws the number, so it is not counted
     const off = await spacesWorld(false);
     await loginAs(off.member.id);
-    expect((await ask()).organizations[0]?.workspaces.find((space) => space.id === off.a.id)?.overdue).toBe(1);
+    expect((await ask()).organizations[0]?.workspaces.find((space) => space.id === off.a.id)?.overdue).toBe(0);
   });
 
   it("a task of ANOTHER space of theirs: the same answer names that space for the banner (path, next, space, name)", async () => {
@@ -710,6 +710,18 @@ describe("N1.3: overdue numbers, the banner's data, and no silent switch while n
     // once they are in B the banner is gone
     enter(w.b.id);
     expect((await ask(there)).foreign).toBeNull();
+  });
+
+  it("a topic is named to the people it is open to: an open topic of another space yes, a restricted one they are not in no", async () => {
+    const w = await spacesWorld(true);
+    await loginAs(w.member.id);
+    enter(w.a.id);
+    const open = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", title: `Open ${uid()}`, spaceId: w.b.id } });
+    const closed = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", title: `Closed ${uid()}`, spaceId: w.b.id, restricted: true } });
+    expect((await ask(`/chat/${open.id}`)).foreign).toMatchObject({ spaceId: w.b.id });
+    expect((await ask(`/chat/${closed.id}`)).foreign).toBeNull();
+    await db.conversationMember.create({ data: { conversationId: closed.id, userId: w.member.id } });
+    expect((await ask(`/chat/${closed.id}`)).foreign).toMatchObject({ spaceId: w.b.id });
   });
 
   it("with the switch OFF nothing changes: no banner data, and the page still switches the space by itself (keepInSpace redirects)", async () => {

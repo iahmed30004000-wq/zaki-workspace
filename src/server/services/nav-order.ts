@@ -87,7 +87,8 @@ export async function overdueBySpace(userId: string, orgIds: readonly string[], 
 /**
  * N1.3 — the space a page's ONE thing lives in, for the banner: «هاد من مساحة «X»». `address` is the page on screen (a task, a project, a board, a card,
  * an approval, a call, a «نتفرّج سوا» session, a chat topic: the pages that called `keepInSpace`); it answers only while the company's switch `navV2` is
- * on, only for a thing THIS person may open (the same rules the pages apply before they keep the space), only when that space is one of theirs, and only
+ * on, only for a thing THIS person may open (tasks, projects, boards, cards, approvals and topics through the rules their pages apply; a call and a watch
+ * session are named by their id inside the company, as their pages do before `keepInSpace`), only when that space is one of theirs, and only
  * when it is not the space they are in. Anything else — a list, a thing that is not theirs, a space that is not theirs — is `null`: the page answers for itself.
  */
 export async function foreignSpaceOf(actor: Actor, address: string): Promise<ForeignSpace | null> {
@@ -128,7 +129,8 @@ async function spaceOfThing(actor: Actor, kind: AddressKind, id: string): Promis
     case "watch":
       return (await db.watchSession.findFirst({ where: { id, orgId: actor.orgId }, select: { spaceId: true } }))?.spaceId ?? null;
     case "topic":
-      return (await db.conversation.findFirst({ where: { id, orgId: actor.orgId }, select: { spaceId: true } }))?.spaceId ?? null;
+      // a restricted topic and a DM are named only to the people in them; an open topic to anybody of the space (the space check is the caller's)
+      return (await db.conversation.findFirst({ where: { id, orgId: actor.orgId, OR: [{ restricted: false, kind: "TOPIC" }, { members: { some: { userId: actor.userId } } }] }, select: { spaceId: true } }))?.spaceId ?? null;
   }
 }
 

@@ -315,13 +315,16 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             badges={badges}
             editing={editing}
             onEditStart={() => setEditing(true)}
+            onEditDone={() => setEditing(false)}
+            onReset={resetOrder}
+            canReset={hasOrder(order)}
             onReorder={reorderPlaces}
             orderLocked={orderLocked}
             settingsHref={settings?.href}
             listSlot={listSlot}
           />
-          {/* «ترتيب»: one «تم» / «رجّع» bar for the rail and the drawer alike (never while the company's order is set: the mode cannot start) */}
-          {editing && !orderLocked ? (
+          {/* «ترتيب»: «تم» / «رجّع» for the rail (the drawer, being modal, carries its own inside it); never while the company's order is set: the mode cannot start */}
+          {editing && !orderLocked && !drawerOpen ? (
             <div className="fixed end-0 start-0 bottom-[calc(1rem+env(safe-area-inset-bottom))] z-40 mx-auto w-[min(22rem,calc(100vw-2rem))] rounded-2xl border border-border bg-surface-1 p-3 shadow-lg">
               <NavOrderControls onDone={() => setEditing(false)} onReset={resetOrder} canReset={hasOrder(order)} />
             </div>

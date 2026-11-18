@@ -33,7 +33,7 @@ import { AR } from "@/lib/i18n/dict";
 import { audienceOf } from "@/lib/guide/audience";
 import { buildNav, type NavRole, type NavSubject, type PlaceKey } from "@/lib/nav/places";
 import { NEW_ACTIONS, NEW_HREF, newActionsFor, newHrefFor } from "@/lib/nav/new-actions";
-import { appBarOf, foreignFor, holdsNoWork, parseAddress, tabIsDrawn } from "@/lib/nav/shell-v2";
+import { appBarOf, foreignFor, holdForeign, holdsNoWork, parseAddress, tabIsDrawn } from "@/lib/nav/shell-v2";
 import { navSubjectOf } from "@/server/services/nav-order";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
 import { PALETTE_COLOUR, PHYSICAL_UTILITY, classTokens, textOf } from "./ui-render";
@@ -115,7 +115,8 @@ describe("the layout hands the new map to the shell (N1.2 wiring)", () => {
 
   it("the layout passes the switch, the company order and the lock to the shell", () => {
     const layout = read("src/app/(app)/layout.tsx");
-    expect(layout).toContain("navV2={subject.navV2");
+    expect(layout).toContain("navV2={navV2}");
+    expect(layout).toContain("const navV2 = subject.navV2 === true");
     expect(layout).toMatch(/menuOrderFor\(/);
     expect(layout).toMatch(/orderLocked=/);
     expect(layout).toMatch(/noWorkSpace=/);
@@ -250,6 +251,16 @@ describe("the drawer (phone)", () => {
     expect(html).toContain("قائمة المحادثات");
   });
 
+  it("while «ترتيب» is on, «تم» and «رجّع» are inside the drawer (it is modal: a bar of the page would sit under it) and «ترتيب» keeps it open", () => {
+    const html = drawer({ editing: true, onEditDone: () => {}, onReset: () => {}, canReset: true, onReorder: () => {} });
+    expect(html).toContain(AR["navorder.done"] as string);
+    expect(html).toContain(AR["navorder.reset"] as string);
+    expect(drawer({ editing: false, onEditStart: () => {} })).toContain("data-nav-order-toggle");
+    expect(drawer({ editing: false, onEditStart: () => {} })).not.toContain(AR["navorder.done"] as string);
+    // the toggle does not close the drawer: only the places' links and the settings link do
+    expect(read("src/components/shell/nav-options.tsx")).toMatch(/onClick=\{onEditStart\}/);
+  });
+
   it("closed, it draws nothing (the button in the app bar opens it)", () => {
     expect(drawer({ open: false })).not.toContain("أحمد الكوري");
   });
@@ -335,6 +346,16 @@ describe("the visible space (N1.3)", () => {
     // (&amp; is how markup writes the ampersand of the same link)
     expect(hrefs(html)).toEqual(["/go?space=w3&amp;next=%2Ftasks%2Ft1"]);
     expect(html).toContain('role="status"');
+  });
+
+  it("the banner keeps its answer for the page while another reader of the same query overwrites the cache", () => {
+    expect(holdForeign(foreign, null, "/tasks/t1")).toEqual(foreign);
+    // …but never for another page
+    expect(holdForeign(foreign, null, "/tasks/other")).toBeNull();
+    // a fresh answer wins
+    const fresh = { ...foreign, spaceId: "w9", name: "الجديدة" };
+    expect(holdForeign(foreign, fresh, "/tasks/t1")).toEqual(fresh);
+    expect(holdForeign(null, null, "/")).toBeNull();
   });
 
   it("no banner without a foreign thing", () => {

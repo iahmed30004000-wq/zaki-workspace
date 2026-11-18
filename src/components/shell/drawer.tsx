@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
@@ -14,7 +14,7 @@ import { AvatarMenu, Initial, type AvatarUser } from "./avatar-menu";
 import { ariaCurrent } from "./current";
 import { NavIcon } from "./nav-icons";
 import { NavOptions } from "./nav-options";
-import { SortableItem, SortableList } from "./nav-sort";
+import { NavOrderControls, SortableItem, SortableList } from "./nav-sort";
 import { PlaceBadge } from "./place-badge";
 import { SpaceList, type ShellSpace } from "./space-switcher";
 
@@ -41,6 +41,9 @@ export function Drawer({
   badges = {},
   editing = false,
   onEditStart,
+  onEditDone,
+  onReset,
+  canReset = false,
   onReorder,
   orderLocked = false,
   settingsHref,
@@ -60,6 +63,10 @@ export function Drawer({
   badges?: Partial<Record<PlaceKey, number>>;
   editing?: boolean;
   onEditStart?: () => void;
+  /** «تم» and «رجّع الترتيب الأصلي» while `editing`: drawn inside the drawer, because the drawer is modal and the page's own bar would sit under it. */
+  onEditDone?: () => void;
+  onReset?: () => void;
+  canReset?: boolean;
   onReorder?: (keys: string[]) => void;
   /** The company's order of the menu is set (D-N5): its ⚠️ + 🔧 note instead of «ترتيب». */
   orderLocked?: boolean;
@@ -70,6 +77,17 @@ export function Drawer({
 }) {
   const { t } = useI18n();
   const close = () => onOpenChange(false);
+  // the drawer is hidden from `md` up by CSS; a Radix dialog that stays open would still make the page behind it inert, so it closes when the screen grows
+  useEffect(() => {
+    if (!open || typeof window === "undefined" || !window.matchMedia) return;
+    const wide = window.matchMedia("(min-width: 768px)");
+    const onChange = () => {
+      if (wide.matches) onOpenChange(false);
+    };
+    onChange();
+    wide.addEventListener("change", onChange);
+    return () => wide.removeEventListener("change", onChange);
+  }, [open, onOpenChange]);
   const handle = user.username ? `@${user.username}` : (user.email ?? "");
 
   const panel = (
@@ -171,6 +189,7 @@ export function Drawer({
         </div>
 
         <div data-shell="drawer-foot" className="shrink-0 space-y-0.5 border-t border-border px-2 py-2">
+          {editing && onEditDone && onReset ? <NavOrderControls onDone={onEditDone} onReset={onReset} canReset={canReset} className="pb-1" /> : null}
           <NavOptions variant="drawer" orderLocked={orderLocked} onEditStart={editing ? undefined : onEditStart} settingsHref={settingsHref} onNavigate={close} />
           <InstallAppButton />
           <AvatarMenu user={user} rank={rank} variant="sidebar" />

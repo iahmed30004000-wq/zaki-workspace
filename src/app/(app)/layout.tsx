@@ -57,8 +57,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // N1.2 — the new map is wired: `navSubjectOf` hands the switch to `buildNav`, and the shell draws the rail and the drawer when it is on
   const navV2 = subject.navV2 === true;
   // D-N5: the company's order wins while it is set (the person's own is only read, never written: `User.navOrder` stays stored)
-  const menu = menuOrderFor(readCompanyMenuOrder(org?.settings), readNavOrder(me?.navOrder));
   const ownOrder = readNavOrder(me?.navOrder);
+  const menu = menuOrderFor(readCompanyMenuOrder(org?.settings), ownOrder);
   return (
     <AppShell
       // the shell draws a name, a username and an e-mail; session facts (tv, locale, onboarding
@@ -67,7 +67,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       rank={actor.role}
       isGuest={actor.isExternal}
       nav={buildNav(subject)}
-      navV2={subject.navV2 === true}
+      navV2={navV2}
       navOrder={navV2 ? menu.order : ownOrder}
       orderLocked={navV2 && menu.personalLocked}
       noWorkSpace={navV2 && !actor.isExternal && holdsNoWork(spaces.map((s) => ({ holdsProjects: s.kind !== "HQ" })))}

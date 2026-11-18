@@ -78,10 +78,8 @@ export function NavOptions({
           <button
             type="button"
             data-nav-order-toggle=""
-            onClick={() => {
-              onNavigate?.();
-              onEditStart();
-            }}
+            // the drawer stays open: the places to drag are in it, and so is «تم»
+            onClick={onEditStart}
             className="flex h-11 w-full items-center gap-3 rounded-xl px-3 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
           >
             <ArrowUpDown aria-hidden="true" className="size-5 shrink-0" />

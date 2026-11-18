@@ -1,10 +1,11 @@
 "use client";
 
+import { useRef } from "react";
 import { usePathname } from "next/navigation";
 import { Layers } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { goHref } from "@/lib/space-link";
-import { foreignFor, type ForeignSpace } from "@/lib/nav/shell-v2";
+import { foreignFor, holdForeign, type ForeignSpace } from "@/lib/nav/shell-v2";
 import { useSpaces } from "./space-switcher";
 
 /**
@@ -34,7 +35,11 @@ export function SpaceBannerView({ foreign }: { foreign: ForeignSpace | null }) {
 export function SpaceBanner() {
   const pathname = usePathname() ?? "/";
   const { data } = useSpaces();
-  return <SpaceBannerView foreign={foreignFor(data?.foreign, pathname)} />;
+  // idempotent: the held answer is only ever replaced by an answer for the page on screen
+  const held = useRef<ForeignSpace | null>(null);
+  const shown = holdForeign(held.current, foreignFor(data?.foreign, pathname), pathname);
+  held.current = shown;
+  return <SpaceBannerView foreign={shown} />;
 }
 
 /**
