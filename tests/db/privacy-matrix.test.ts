@@ -16,7 +16,13 @@ import * as taskRoute from "@/app/api/chat/messages/[id]/task/route";
 import * as taskGet from "@/app/api/tasks/[id]/route";
 import * as tasksList from "@/app/api/tasks/route";
 import * as memberRoute from "@/app/api/organizations/[id]/members/[userId]/route";
+import * as headerRoute from "@/app/api/chat/conversations/[id]/header/route";
+import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
+import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import { chatHome } from "@/server/chat/home";
+import { chatList } from "@/server/chat/list";
+import { syncFeed } from "@/server/chat/sync";
+import { emitRealtime } from "@/server/realtime/emit";
 import { listOversight } from "@/server/chat/oversight";
 import { searchChat } from "@/server/chat/search";
 import { canReadConversation } from "@/server/policy/conversation";
@@ -172,4 +178,48 @@ describe("privacy matrix — the table itself", () => {
   it("has one cell per persona in every row (a missing cell would silently pass)", () => {
     for (const row of [...Object.values(CONVERSATIONS), ...Object.values(TASKS)]) expect(cells(row)).toHaveLength(PERSONAS.length);
   });
+});
+
+// ───────────────────────────── C1.2: the list, the topics, the header, the messages and the sync feed ─────────────────────────────
+// The same table. Two of the five surfaces are the DOORS (header, messages: the policy's own answer, so the silent eye reads a private chat of two others
+// there); three are LISTS (list, topics, sync): what is in a person's chat list and feed. A private chat of two others is not in the silent eye's list or
+// feed — he reaches it through the oversight list — and that is the one difference, written here as data.
+const LISTED_EXCEPT: Record<string, Persona[]> = { dm: ["owner", "partnerWith"] };
+const listedWant = (kind: string, who: Persona) => expected(CONVERSATIONS, kind, who) && !(LISTED_EXCEPT[kind] ?? []).includes(who);
+
+describe("privacy matrix — the C1.2 surfaces", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: the header, the messages, the list, the space's topics and the sync feed agree with the table`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      const ctxOf = async (who: Persona) => ({ orgId: w.orgId, userId: w.people[who].id, orgRole: await w.roleOf(w.people[who].id) });
+      // a fresh message with its event, after every persona took their cursor
+      const cursors = new Map<Persona, string>();
+      for (const who of PERSONAS) cursors.set(who, (await syncFeed(await ctxOf(who))).cursor);
+      const msg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: w.people.memberIn.id, body: `${WORD} sync ${kind}` } });
+      await emitRealtime(db, w.orgId, "message.created", { conversationId: id, messageId: msg.id, spaceId: w.space.id });
+
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        await loginAs(person.id);
+        const door = expected(CONVERSATIONS, kind, who);
+        const header = (await call(headerRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/header`, params: { id } })).status === 200;
+        const messages = (await call(messagesRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/messages`, params: { id } })).status === 200;
+        const listed = listedWant(kind, who);
+        const inList = JSON.stringify(await chatList(await ctxOf(who))).includes(id);
+        const inSpace = JSON.stringify(await chatList(await ctxOf(who), { spaceId: w.space.id })).includes(id);
+        const topicsRes = kind === "dm" ? null : await call(topicsRoute.GET, { url: "http://localhost/api/x", params: { spaceId: w.space.id } });
+        const inTopics = topicsRes ? topicsRes.status === 200 && JSON.stringify(topicsRes.json).includes(id) : null;
+        const inSync = JSON.stringify(await syncFeed(await ctxOf(who), { after: BigInt(cursors.get(who)!) })).includes(WORD + " sync " + kind);
+        const cells: Record<string, boolean | null> = { header, messages, list: inList, space: inSpace, topics: inTopics, sync: inSync };
+        for (const [surface, got] of Object.entries(cells)) {
+          if (got === null) continue;
+          const want = surface === "header" || surface === "messages" ? door : listed;
+          if (got !== want) wrong.push(`${who} · ${surface}: expected ${want ? "sees" : "does not see"}`);
+        }
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
 });

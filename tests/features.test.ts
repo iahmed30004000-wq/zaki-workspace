@@ -140,6 +140,17 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(buildNav({ ...owner, off: featuresOff({}) }).places.map((p) => p.key)).toEqual(["today", "chat", "work", "library", "watch", "admin"]);
   });
 
+  it("«قائمة دردشة وحدة» (`chatOneList`, D-N2): a switch of its own, ON by default (the recommended answer, pending the owner), with its two lines; off, the chat list is one space like before", () => {
+    expect(FEATURES).toContain("chatOneList");
+    expect(FEATURE_DEFAULTS.chatOneList).toBe(true);
+    expect(featureOn({}, "chatOneList")).toBe(true);
+    expect(featureOn({ features: { chatOneList: false } }, "chatOneList")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatOneList");
+    expect(featuresOff({ features: { chatOneList: false } })).toContain("chatOneList");
+    expect(AR["features.chatOneList.name"]).toBe("قائمة دردشة وحدة");
+    expect(AR["features.chatOneList.hint"]).toContain("بانتظار قرارك");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

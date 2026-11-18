@@ -278,6 +278,124 @@ export interface ConversationDto {
   oldestId?: string | null;
 }
 
+/**
+ * ---------- C1.2: the list, the header, the pages and the sync feed ----------
+ * The same privacy rules as the old detail: everything here is built from rows the policy let through, and a message only ever
+ * leaves through `presentMessage` (redact.ts).
+ */
+
+/** What a row of the chat list is: a private chat, a group, a whole space (the forum row of «قائمة وحدة») or one topic of a space. */
+export type ChatRowKind = "DM" | "GROUP" | "SPACE" | "TOPIC";
+
+export interface ChatRowLastMessageDto {
+  id: string;
+  authorName: string;
+  /** null: a deleted message (the row says «رسالة محذوفة»); a system line is its own sentence */
+  preview: string | null;
+  kind: MessageKind;
+  at: string;
+  mine: boolean;
+  /** a private chat, on my own last message: sent | delivered | read (the owner's silent reading never shows) */
+  status?: "sent" | "delivered" | "read";
+}
+
+export interface ChatRowDto {
+  /** the conversation's id; for a SPACE row the space's id */
+  id: string;
+  kind: ChatRowKind;
+  title: string;
+  emoji: string | null;
+  /** a private chat: the other person's picture (never for a guest, who has no private chats) */
+  avatarUrl?: string | null;
+  /** a private chat: who is on the other side */
+  peerId?: string;
+  /** the space a topic or a private chat belongs to (the small chip on a row of the one list); a private chat of the old days is «الشركة»'s */
+  space: { id: string; name: string } | null;
+  lastMessage: ChatRowLastMessageDto | null;
+  unread: number;
+  mentionsUnread: number;
+  /** my own mute of this conversation; a SPACE is muted when every topic I take part in is */
+  muted: boolean;
+  /** no storage yet (C3a): always false today */
+  pinnedByMe: boolean;
+  archivedByMe: boolean;
+  markedUnread: boolean;
+  /** a topic made for named people (a lock on the row) */
+  restricted: boolean;
+  /** SPACE: the first three topics (unread first, then the newest), for the chips under the name */
+  topicChips?: { id: string; title: string; emoji: string | null; unread: number }[];
+  /** SPACE: how many topics of it I read */
+  topicCount?: number;
+  /** SPACE: an external partner is in it */
+  hasExternal?: boolean;
+  /** SPACE: the viewer manages it (opens topics, moderates) */
+  canModerate?: boolean;
+  /** TOPIC */
+  topicType?: TopicType;
+  closed?: boolean;
+  pinned?: boolean;
+  archived?: boolean;
+  teamId?: string | null;
+  system?: boolean;
+}
+
+export interface ChatListDto {
+  /** `all`: every space and private chat of the person (D-N2 «قائمة وحدة»); `space`: one space, as the old home (D-N2 «كل مساحة حساب») */
+  scope: "all" | "space";
+  spaceId: string | null;
+  rows: ChatRowDto[];
+  canOversee: boolean;
+}
+
+/** `GET /api/chat/spaces/[spaceId]/topics`: the forum view of one space. */
+export interface SpaceTopicsDto {
+  space: { id: string; name: string; emoji: string | null; canModerate: boolean; canCreateTopic: boolean };
+  rows: ChatRowDto[];
+}
+
+/** Who reads a conversation, in one line (the header's «ومين بيشوف»). */
+export interface AudienceDto {
+  type: "SPACE" | "TEAM" | "PEOPLE" | "PAIR" | "GROUP";
+  /** how many people it reaches (an open topic: its space's people) */
+  count: number;
+}
+
+/** `GET /api/chat/conversations/[id]/header`: everything of the old detail except the messages and the member list. */
+export type ConversationHeaderDto = Omit<ConversationDto, "messages" | "readers" | "oldestId" | "members" | "mentionables"> & {
+  audience: AudienceDto;
+  memberCount: number;
+  /** a private chat: the other person */
+  peer?: { id: string; name: string; avatarUrl?: string | null };
+};
+
+/** `GET /api/chat/conversations/[id]/messages`: one window of a conversation, oldest first. */
+export interface MessagesPageDto {
+  messages: MessageDto[];
+  hasOlder: boolean;
+  hasNewer: boolean;
+  /** the oldest message I have not read (not mine, not deleted, not a system line); null when there is none or I have no read mark here */
+  firstUnreadId: string | null;
+  /** topics and groups: each person's avatar under the last message of THIS window they have read (a private chat has ticks instead) */
+  readers: ReaderDto[];
+}
+
+/** `GET /api/chat/sync`: the delta feed («get difference»). Every message in it is presented for the person who asked. */
+export interface SyncDto {
+  /** the newest `RealtimeEvent.id` this answer covers: send it back as `after` */
+  cursor: string;
+  /** `after` is older than the 48 h retention (or ahead of anything issued): reload the list and the open chat, then continue from `cursor` */
+  reset?: true;
+  /** the answer stopped at `limit` events: ask again at once */
+  more?: true;
+  messages: MessageDto[];
+  reads: { conversationId: string; userId: string; lastReadAt: string }[];
+  delivered: { conversationId: string; userId: string; lastDeliveredAt: string }[];
+  /** the rows whose summary changed: the conversation's own row and the row of its space */
+  rows: ChatRowDto[];
+  /** conversations the person can no longer read (left, made private, a peer who left the company, deleted) */
+  removed: string[];
+}
+
 export interface OversightConversationDto {
   id: string;
   kind: ConversationKind;
