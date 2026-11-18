@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiDelete, apiGet } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
@@ -75,7 +75,10 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
       const images = await Promise.all(chosen.map((c) => loadImage(c.url)));
       const out = layoutCollage(images.map((i) => ({ width: i.naturalWidth, height: i.naturalHeight })), { caption: productName });
       const blobs = await Promise.all(out.pages.map((p) => renderCollagePage(p, images)));
-      setMerged({ blobs, urls: blobs.map((b) => URL.createObjectURL(b)) });
+      setMerged((old) => {
+        old?.urls.forEach((u) => URL.revokeObjectURL(u));
+        return { blobs, urls: blobs.map((b) => URL.createObjectURL(b)) };
+      });
     } catch {
       toast(t("common.error"), "error");
     } finally {
@@ -172,7 +175,7 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
       ) : (
         <p className="text-xs text-muted">{t("media.feedback_none")}</p>
       )}
-      {data.canEdit ? <AddPhoto onFile={(f) => setCover(f)} label={t("media.add_feedback")} /> : null}
+      {data.canEdit && !cover ? <AddPhoto onFile={(f) => setCover(f)} label={t("media.add_feedback")} /> : null}
 
       {merged ? (
         <div className="space-y-2 rounded-lg border border-border p-2" data-collage-preview>
@@ -192,7 +195,7 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
         </div>
       ) : null}
 
-      {cover ? <CoverTool file={cover} onCancel={() => setCover(null)} onDone={async (blob, consent) => {
+      {cover ? <CoverTool key={`${cover.name}:${cover.size}:${cover.lastModified}`} file={cover} onCancel={() => setCover(null)} onDone={async (blob, consent) => {
         const form = new FormData();
         form.set("role", "FEEDBACK");
         form.set("covered", "1");
@@ -223,6 +226,7 @@ function AddPhoto({ onFile, label }: { onFile: (f: File) => void; label: string 
 function CoverTool({ file, onCancel, onDone }: { file: File; onCancel: () => void; onDone: (covered: Blob, consent: boolean) => Promise<void> }) {
   const { t } = useI18n();
   const [url] = useState(() => URL.createObjectURL(file));
+  useEffect(() => () => URL.revokeObjectURL(url), [url]);
   const [rects, setRects] = useState<CoverRect[]>([]);
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
   const [now, setNow] = useState<CoverRect | null>(null);
@@ -242,6 +246,7 @@ function CoverTool({ file, onCancel, onDone }: { file: File; onCancel: () => voi
       <div ref={box} className="relative inline-block max-w-full touch-none select-none overflow-hidden rounded border border-border"
         onPointerDown={(e) => { box.current?.setPointerCapture(e.pointerId); setDrag(point(e)); setNow(null); }}
         onPointerMove={(e) => { if (drag) setNow(rectOf(drag, point(e))); }}
+        onPointerCancel={() => { setDrag(null); setNow(null); }}
         onPointerUp={() => { if (now && now.w > 0.01 && now.h > 0.01) setRects((r) => [...r, now]); setDrag(null); setNow(null); }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={url} alt="" draggable={false} className="block max-h-96 max-w-full" />

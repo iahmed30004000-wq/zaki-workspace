@@ -40,6 +40,24 @@ export async function pngBlobOf(url: string): Promise<Blob> {
 
 /** «انسخي الصورة»: the clipboard when the browser can; otherwise the picture is downloaded and the answer says so (`"downloaded"`). */
 export async function copyImage(blob: Blob, filename: string): Promise<"copied" | "downloaded"> {
+  // the clipboard takes PNG for a picture: a JPEG (the collage) is re-drawn as a PNG first
+  if (blob.type !== "image/png") {
+    try {
+      const url = URL.createObjectURL(blob);
+      try {
+        const img = await loadImage(url);
+        const c = document.createElement("canvas");
+        c.width = img.naturalWidth;
+        c.height = img.naturalHeight;
+        c.getContext("2d")!.drawImage(img, 0, 0);
+        blob = await canvasBlob(c, "image/png");
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      /* the original is downloaded below */
+    }
+  }
   try {
     const ClipboardItemCtor = (globalThis as unknown as { ClipboardItem?: new (items: Record<string, Blob>) => unknown }).ClipboardItem;
     if (ClipboardItemCtor && navigator.clipboard && "write" in navigator.clipboard) {

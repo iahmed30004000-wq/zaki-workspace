@@ -194,4 +194,30 @@ describe("«ابعتيها بالمحادثة»", () => {
   });
 });
 
+describe("review fixes", () => {
+  it("two uploads at the same moment at 29 of 30 leave 30, never 31, and positions are distinct", async () => {
+    const w = await world();
+    await loginAs(w.admin.id);
+    for (let i = 0; i < 29; i++) {
+      const file = await db.storedFile.create({ data: { orgId: w.org.id, uploaderId: w.admin.id, familyId: `r${i}`, name: `p${i}.png`, path: `p/${w.sheet.id}/r${i}`, mimeType: "image/png", size: 10, purpose: "KNOWLEDGE" } });
+      await db.cardAttachment.create({ data: { cardId: w.sheet.id, fileId: file.id, position: i, addedById: w.admin.id, role: "GALLERY" } });
+    }
+    const [a, b] = await Promise.all([post(w, { role: "GALLERY" }), post(w, { role: "GALLERY" })]);
+    expect([a.status, b.status].sort()).toEqual([201, 422]);
+    expect(await db.cardAttachment.count({ where: { cardId: w.sheet.id, role: "GALLERY" } })).toBe(30);
+    const positions = (await db.cardAttachment.findMany({ where: { cardId: w.sheet.id, role: "GALLERY" }, select: { position: true } })).map((p) => p.position);
+    expect(new Set(positions).size).toBe(30);
+  });
+  it("consent withdrawn while an approval is being made is never lost", async () => {
+    const w = await world();
+    await loginAs(w.owner.id);
+    const item = (await post(w, { role: "FEEDBACK", covered: "1", consent: "1" })).json!["item"] as { id: string };
+    await Promise.all([patch(w, item.id, { approve: true }), patch(w, item.id, { consent: false })]);
+    const row = await db.cardAttachment.findUniqueOrThrow({ where: { id: item.id } });
+    const meta = row.meta as { consent?: boolean; approvedAt?: string };
+    // whichever came last: never consent false with an approval, never an approval without consent
+    expect(Boolean(meta.approvedAt) && meta.consent !== true).toBe(false);
+  });
+});
+
 void listRoute;

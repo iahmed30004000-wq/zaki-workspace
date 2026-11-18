@@ -21,6 +21,19 @@ import { sniffMimeType } from "@/server/files/sniff";
  *    (`covered`); the server refuses an item that does not say it, and never offers one without consent and approval.
  *  - Only pictures (JPEG, PNG, WebP), at most 8 MB; the bytes are sniffed, the client's type is ignored.
  */
+/** One at a time per key, inside this process (the app is one container). */
+const chains = new Map<string, Promise<unknown>>();
+async function serial<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const before = chains.get(key) ?? Promise.resolve();
+  const run = before.catch(() => undefined).then(fn);
+  chains.set(key, run);
+  try {
+    return await run;
+  } finally {
+    if (chains.get(key) === run) chains.delete(key);
+  }
+}
+
 export const MEDIA_ROLES = ["GALLERY", "FEEDBACK"] as const;
 export type MediaRole = (typeof MEDIA_ROLES)[number];
 export const GALLERY_CAP = 30;
@@ -110,17 +123,25 @@ export async function addMedia(
   if (!mime || !IMAGE_TYPES.has(mime)) throw new ValidationError([{ path: "file", message: "knowledge.media.e.image_only" }]);
   if (input.role === "FEEDBACK" && input.covered !== true) throw new ValidationError([{ path: "covered", message: "knowledge.media.e.cover_first" }]);
   const cap = input.role === "FEEDBACK" ? FEEDBACK_CAP : GALLERY_CAP;
-  const have = await db.cardAttachment.count({ where: { cardId, role: input.role, file: { purpose: "KNOWLEDGE", deletedAt: null } } });
-  if (have >= cap) throw new ValidationError([{ path: "role", message: "knowledge.media.e.cap" }]);
-
-  const made = await ingest(ctx, { name: input.file.name, path: input.file.path, size: input.file.size, prefix: input.file.prefix }, undefined, "KNOWLEDGE", undefined, { maxBytes: MEDIA_MAX_BYTES });
-  const position = (await db.cardAttachment.aggregate({ where: { cardId, role: input.role }, _max: { position: true } }))._max.position ?? -1;
-  const meta: FeedbackMeta | null = input.role === "FEEDBACK" ? { kind: "image", consent: input.consent === true, covered: true, source: "upload" } : null;
-  const row = await db.cardAttachment.create({
-    data: { cardId, fileId: made.id, position: position + 1, caption: input.caption?.trim() ? input.caption.trim().slice(0, 200) : null, addedById: actor.userId, role: input.role, ...(meta ? { meta: meta as unknown as Prisma.InputJsonValue } : {}) },
-    select: { id: true, fileId: true, role: true, caption: true, position: true, meta: true },
+  // one upload at a time per sheet and kind (this process): the cap and the next position are read and used without another upload between
+  return serial(`${cardId}:${input.role}`, async () => {
+    const have = await db.cardAttachment.count({ where: { cardId, role: input.role, file: { purpose: "KNOWLEDGE", deletedAt: null } } });
+    if (have >= cap) throw new ValidationError([{ path: "role", message: "knowledge.media.e.cap" }]);
+    const made = await ingest(ctx, { name: input.file.name, path: input.file.path, size: input.file.size, prefix: input.file.prefix }, undefined, "KNOWLEDGE", undefined, { maxBytes: MEDIA_MAX_BYTES });
+    try {
+      const position = (await db.cardAttachment.aggregate({ where: { cardId, role: input.role }, _max: { position: true } }))._max.position ?? -1;
+      const meta: FeedbackMeta | null = input.role === "FEEDBACK" ? { kind: "image", consent: input.consent === true, covered: true, source: "upload" } : null;
+      const row = await db.cardAttachment.create({
+        data: { cardId, fileId: made.id, position: position + 1, caption: input.caption?.trim() ? input.caption.trim().slice(0, 200) : null, addedById: actor.userId, role: input.role, ...(meta ? { meta: meta as unknown as Prisma.InputJsonValue } : {}) },
+        select: { id: true, fileId: true, role: true, caption: true, position: true, meta: true },
+      });
+      return toDto(row, true);
+    } catch (err) {
+      // the file was stored but its link was not made: it is nobody's, so it goes (never an orphan of a private screenshot)
+      await db.storedFile.update({ where: { id: made.id }, data: { deletedAt: new Date() } }).catch(() => undefined);
+      throw err;
+    }
   });
-  return toDto(row, true);
 }
 
 /** Consent (an editor, with the customer's word) and approval (an approver, only with consent): the two things that make a feedback item offerable. */
@@ -128,6 +149,7 @@ export async function setFeedbackState(actor: Actor, cardId: string, attachmentI
   const access = await knowledgeAccess(actor);
   if (!access.editor) throw new ForbiddenError("knowledge.readonly");
   await sheetCard(actor, cardId, access.spaceId);
+  return serial(`state:${attachmentId}`, async () => {
   const row = await db.cardAttachment.findFirst({ where: { id: attachmentId, cardId, role: "FEEDBACK", file: { purpose: "KNOWLEDGE", deletedAt: null } }, select: { id: true, fileId: true, role: true, caption: true, position: true, meta: true } });
   if (!row) throw new NotFoundError("knowledge.media.not_found");
   const meta: Partial<FeedbackMeta> = { kind: "image", consent: false, covered: true, ...asMeta(row.meta) };
@@ -152,6 +174,7 @@ export async function setFeedbackState(actor: Actor, cardId: string, attachmentI
   }
   const saved = await db.cardAttachment.update({ where: { id: row.id }, data: { meta: meta as unknown as Prisma.InputJsonValue }, select: { id: true, fileId: true, role: true, caption: true, position: true, meta: true } });
   return toDto(saved, true);
+  });
 }
 
 export async function removeMedia(actor: Actor, cardId: string, attachmentId: string): Promise<void> {

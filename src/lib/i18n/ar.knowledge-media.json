@@ -32,7 +32,7 @@
   "media.upload_covered": "ارفعي المغطّاة",
   "media.cancel": "إلغاء",
   "knowledge.media.e.role": "نوع الصورة غير صالح",
-  "knowledge.media.e.image_only": "الصور فقط: JPEG أو PNG أو WebP",
+  "knowledge.media.e.image_only": "الصور فقط (صورة عادية، لا مستند)",
   "knowledge.media.e.cover_first": "غطّي الأجزاء الخاصة قبل الرفع",
   "knowledge.media.e.cap": "وصلنا للحد الأعلى من الصور",
   "knowledge.media.e.consent_first": "موافقة الزبون أول",
