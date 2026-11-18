@@ -2,7 +2,7 @@ import * as React from "react";
 import { createElement, Fragment, type FunctionComponent, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
@@ -35,15 +35,9 @@ import ChatForumPage from "@/app/(app)/chat/s/[spaceId]/page";
 import { ChatHomeClient } from "@/components/chat/home/chat-home-client";
 import { EmptyState } from "@/components/chat/v2/empty-state";
 import { ChatShell, type ChatShellProps } from "@/components/chat/v2/shell/chat-shell";
-import { ListSlotProvider, useRegisterListSlot } from "@/components/chat/v2/shell/list-slot";
-import { AppShell } from "@/components/app-shell";
 import { chatHref, chatRouteOf, isListScreen, selectedConversationId } from "@/lib/chat/v2/routes";
 import { LIST_WIDTH_DEFAULT, LIST_WIDTH_KEY, LIST_WIDTH_MAX, LIST_WIDTH_MIN, clampListWidth, readListWidth, saveListWidth, widthFromKey, widthFromPointer } from "@/lib/chat/v2/list-width";
-import { ToastProvider } from "@/components/ui/toast";
 import { I18nProvider } from "@/lib/i18n";
-import { buildNav } from "@/lib/nav/places";
-import { audienceOf } from "@/lib/guide/audience";
-import { effectiveCapabilities } from "@/server/policy/capabilities";
 import { textOf } from "./ui-render";
 
 const ROOT = path.resolve(__dirname, "..");
@@ -51,7 +45,6 @@ const read = (rel: string): string => readFileSync(path.join(ROOT, rel), "utf8")
 
 const Translations = I18nProvider as unknown as FunctionComponent<{ initial: "ar"; children?: ReactNode }>;
 const Queries = QueryClientProvider as unknown as FunctionComponent<{ client: QueryClient; children?: ReactNode }>;
-const Toasts = ToastProvider as unknown as FunctionComponent<{ children?: ReactNode }>;
 const render = (node: ReactElement): string => renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(Queries, { client: new QueryClient() }, node)));
 
 describe("the addresses of the chat", () => {
@@ -145,11 +138,23 @@ describe("the shell (switch ON): the same pane on every screen, the column where
     expect(html).not.toContain("data-chat-list");
   });
 
-  it("the computer: the column is handed to the frame's rail, so the shell itself draws the pane only", () => {
-    const html = shell("/chat/c1", true);
-    expect(html).toContain('data-chat-shell="desktop"');
-    expect(html).toContain("محتوى الصفحة");
-    expect(html).not.toContain("data-chat-list");
+  it("the computer: the shell draws the column ITSELF, in its own box before the pane (it does not touch the frame), and the pane fills the rest", () => {
+    for (const where of ["/chat", "/chat/c1", "/chat/s/sp1"]) {
+      const html = shell(where, true);
+      expect(html).toContain('data-chat-shell="desktop"');
+      expect(html.match(/data-chat-list="column"/g)).toHaveLength(1);
+      expect(html).not.toContain('data-chat-list="screen"');
+      expect(html).toMatch(/<div data-chat-shell="desktop" class="flex h-full min-h-0">/);
+      expect(html).toMatch(/<div data-chat-slot="" class="hidden h-full min-h-0 shrink-0 border-e border-border bg-surface md:flex"><section[^>]*data-chat-list="column"/);
+      expect(html.indexOf('data-chat-list="column"')).toBeLessThan(html.indexOf("محتوى الصفحة"));
+      expect(html).toMatch(/<div data-chat-pane="" class="min-w-0 flex-1"><p>محتوى الصفحة<\/p><\/div>/);
+    }
+  });
+
+  it("before the size is known the pane sits in the same box as on the computer, so it is not remounted when the column appears", () => {
+    expect(shell("/chat/c1", null)).toMatch(/<div data-chat-shell="pending" class="flex h-full min-h-0"><div data-chat-pane="" class="min-w-0 flex-1"><p>/);
+    // a list route is kept off a phone meanwhile (the list is its screen)
+    expect(shell("/chat", null)).toMatch(/<div data-chat-shell="pending" class="flex h-full min-h-0 max-md:hidden">/);
   });
 
   it("the phone, on /chat: the list IS the screen; the page's content is hidden", () => {
@@ -172,100 +177,20 @@ describe("the shell (switch ON): the same pane on every screen, the column where
     expect(html).toMatch(/<div class="h-full min-h-0"><p>محتوى الصفحة<\/p><\/div>/);
   });
 
-  it("registers its column with the frame's rail ONLY on the computer, and takes it away when it leaves", () => {
+  it("the shell is self-contained: no hook into the frame (app-shell.tsx belongs to N1), and it builds neither a rail nor a drawer", () => {
     const src = read("src/components/chat/v2/shell/chat-shell.tsx");
-    expect(src).toContain("useRegisterListSlot()");
-    expect(src).toMatch(/if \(desktop !== true \|\| !register\) return;/);
-    expect(src).toContain("register(column);");
-    expect(src).toContain("return () => register(null);");
-    // the frame's own rail and drawer are used: the shell builds neither
-    expect(src).not.toMatch(/from "@\/components\/shell\/(rail|drawer)"/);
+    expect(src).not.toMatch(/ListSlot|register\(/);
+    expect(src).not.toMatch(/from "@\/components\/(app-shell|shell\/(rail|drawer))"/);
+    expect(existsSync(path.join(ROOT, "src/components/chat/v2/shell/list-slot.tsx"))).toBe(false);
   });
 });
 
-describe("the frame lends its ONE rail (and the old side menu) to the column", () => {
-  const USER = { name: "أحمد", username: "ahmad", email: "a@example.test", avatarUrl: null };
-  const frame = (extra: Record<string, unknown>, child: ReactNode = createElement("p", null, "الصفحة")): string => {
-    state.pathname = "/chat";
-    const subject = { role: "MEMBER" as const, caps: [...effectiveCapabilities({ role: "MEMBER" })], navV2: extra["navV2"] === true };
-    const client = new QueryClient();
-    client.setQueryData(["orgs"], { organizations: [{ id: "o", name: "ز", keyPrefix: "Z", role: "MEMBER", canCreateSpaces: false, workspaces: [{ id: "w", name: "مبيعات", slug: "s", holdsProjects: true }] }] });
-    client.setQueryData(["notifications"], { items: [], unreadCount: 0 });
-    return renderToStaticMarkup(
-      createElement(
-        Translations,
-        { initial: "ar" },
-        createElement(
-          Queries,
-          { client },
-          createElement(
-            Toasts,
-            null,
-            createElement(
-              AppShell,
-              { user: USER, nav: buildNav(subject), rank: "MEMBER", audience: audienceOf({ isExternal: false, caps: subject.caps }), isGuest: false, orgName: "شركة", ...extra } as unknown as React.ComponentProps<typeof AppShell>,
-              child,
-            ),
-          ),
-        ),
-      ),
-    );
-  };
-  const slot = createElement("div", { "data-chat-list": "column" }, "عمود المحادثات");
-
-  it("navV2 ON: the column is the rail's own list slot, right after the rail", () => {
-    const html = frame({ navV2: true, listSlot: slot });
-    expect(html).toContain('data-shell="rail"');
-    expect(html.match(/data-shell="list-slot"/g)).toHaveLength(1);
-    expect(html.indexOf('data-shell="rail"')).toBeLessThan(html.indexOf('data-shell="list-slot"'));
-    expect(html).toContain("عمود المحادثات");
-    // the drawer's «☰» is there: the new map's phone
-    expect(html).toContain('data-shell="drawer-open"');
-  });
-
-  it("navV2 OFF: the column sits next to TODAY's side menu, and the phone keeps today's bottom bar with no «☰»", () => {
-    const html = frame({ navV2: false, listSlot: slot });
-    expect(html).not.toContain('data-shell="rail"');
-    expect(html).toMatch(/<aside[^>]*w-64/);
-    expect(html.match(/data-shell="list-slot"/g)).toHaveLength(1);
-    expect(html.indexOf("<aside")).toBeLessThan(html.indexOf('data-shell="list-slot"'));
-    expect(html).toContain("عمود المحادثات");
-    expect(html).toMatch(/<nav[^>]*class="fixed bottom-0/);
-    expect(html).not.toContain('data-shell="drawer-open"');
-  });
-
-  it("no column, no slot: either frame is exactly what it was", () => {
-    expect(frame({ navV2: true })).not.toContain('data-shell="list-slot"');
-    expect(frame({ navV2: false })).not.toContain('data-shell="list-slot"');
-  });
-
-  it("the setter reaches the shell through a context: outside the frame the hook is null and registering does nothing", () => {
-    let seen: unknown = "unset";
-    const Probe = () => {
-      seen = useRegisterListSlot();
-      return null;
-    };
-    renderToStaticMarkup(createElement(Probe));
-    expect(seen).toBeNull();
-    let inside: unknown = "unset";
-    const setter = () => undefined;
-    const Inner = () => {
-      inside = useRegisterListSlot();
-      return null;
-    };
-    renderToStaticMarkup(createElement(ListSlotProvider, { value: setter }, createElement(Inner)));
-    expect(inside).toBe(setter);
-  });
-
-  it("app-shell.tsx: one provider, one slot variable for BOTH menus, and the drawer is not given the chat's column", () => {
-    const src = read("src/components/app-shell.tsx").replace(/\r\n/g, "\n");
-    expect(src).toContain("<ListSlotProvider value={setChatColumn}>");
-    expect(src).toContain("const columnSlot = listSlot ?? chatColumn;");
-    expect(src).toMatch(/<Rail[\s\S]*?listSlot=\{columnSlot\}/);
-    expect(src).toMatch(/\{!navV2 && columnSlot \? \(/);
-    // the phone's list is the page's own screen: the drawer keeps what the server layout gave it (nothing today)
-    expect(src).toMatch(/<Drawer[\s\S]*?listSlot=\{listSlot\}/);
-    // never a second pair
+describe("the frame is N1's and stays as it is: the chat does not touch app-shell.tsx", () => {
+  it("app-shell.tsx carries no chat import and no list-slot hook (C2.1 draws its column inside its own layout)", () => {
+    const src = read("src/components/app-shell.tsx");
+    expect(src).not.toMatch(/components\/chat\/v2/);
+    expect(src).not.toMatch(/ListSlotProvider|setChatColumn|columnSlot/);
+    // still the one pair
     expect((src.match(/<Rail\b/g) ?? []).length).toBe(1);
     expect((src.match(/<Drawer\b/g) ?? []).length).toBe(1);
   });

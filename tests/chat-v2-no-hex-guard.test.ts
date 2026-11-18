@@ -60,7 +60,7 @@ function stringsOf(file: string): { text: string; line: number }[] {
 
 describe("the new chat screen's guard", () => {
   it("scans the folder (so the checks below are not vacuous)", () => {
-    expect(v2Files.length).toBeGreaterThanOrEqual(14);
+    expect(v2Files.length).toBeGreaterThanOrEqual(13);
     for (const expected of ["src/components/chat/v2/shell/chat-shell.tsx", "src/components/chat/v2/list/chat-list-column.tsx", "src/components/chat/v2/list/chat-row.tsx", "src/components/chat/v2/forum/forum-view.tsx", "src/components/chat/v2/empty-state.tsx", "src/components/chat/v2/row-menu.tsx", "src/components/chat/v2/use-list-width.ts"]) {
       expect(v2Files).toContain(expected);
     }

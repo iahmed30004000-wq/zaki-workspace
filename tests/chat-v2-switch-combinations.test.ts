@@ -30,7 +30,6 @@ vi.mock("@/server/services/current-space", () => ({ currentSpace: async () => nu
 import ChatLayout from "@/app/(app)/chat/layout";
 import ChatPage from "@/app/(app)/chat/page";
 import { AppShell } from "@/components/app-shell";
-import { ChatListColumn } from "@/components/chat/v2/list/chat-list-column";
 import { ToastProvider } from "@/components/ui/toast";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { installChatDefaults } from "@/lib/chat/cache/share";
@@ -43,8 +42,8 @@ import { effectiveCapabilities } from "@/server/policy/capabilities";
 /**
  * C2 — «the four combinations chatLayoutV2 × navV2 each have a render test». The two switches are independent. The chat's layout and page are
  * the REAL server components (their switch reads are mocked, as the database tests prove the real ones); the frame is the real `AppShell`; the list
- * column is the real component over a seeded cache. What the column's registration does in the browser (an effect hands it to the frame) is stood
- * in for by giving the frame `listSlot`, which is the same slot that registration fills.
+ * column is the real component over a seeded cache. The column is drawn by the chat's own shell (the frame, app-shell.tsx, is N1's and is not touched), so
+ * on the computer it sits in the page area right after the rail (or the old side menu): the frame's own list slot stays empty in all four combinations.
  */
 const Translations = I18nProvider as unknown as FunctionComponent<{ initial: "ar"; children?: ReactNode }>;
 const Queries = QueryClientProvider as unknown as FunctionComponent<{ client: QueryClient; children?: ReactNode }>;
@@ -71,8 +70,6 @@ async function screen(opts: { chatV2: boolean; navV2: boolean; desktop: boolean;
   client.setQueryData(["orgs"], { organizations: [{ id: "o", name: "ز", keyPrefix: "Z", role: "MEMBER", canCreateSpaces: false, workspaces: [{ id: "w", name: "مبيعات", slug: "s", holdsProjects: true }] }] });
   client.setQueryData(["notifications"], { items: [], unreadCount: 0 });
   const subject = { role: "MEMBER" as const, caps: [...effectiveCapabilities({ role: "MEMBER" })], navV2: opts.navV2 };
-  // the computer with the new chat: the column is in the frame's slot (what the shell's registration does)
-  const column = opts.chatV2 && opts.desktop ? createElement(ChatListColumn, { variant: "column", userId: "u1", guest: false, canMeet: true, rowMenu: true, canPurge: false }) : undefined;
   return renderToStaticMarkup(
     createElement(
       Translations,
@@ -93,7 +90,6 @@ async function screen(opts: { chatV2: boolean; navV2: boolean; desktop: boolean;
               isGuest: false,
               orgName: "شركة",
               navV2: opts.navV2,
-              ...(column ? { listSlot: column } : {}),
             } as unknown as React.ComponentProps<typeof AppShell>,
             layout,
           ),
@@ -132,10 +128,12 @@ describe("chatLayoutV2 ON × navV2 OFF — the new chat beside TODAY's side menu
     const html = await screen({ chatV2: true, navV2: false, desktop: true });
     expect(html).toMatch(/<aside[^>]*w-64/);
     expect(html).not.toContain('data-shell="rail"');
-    expect(html.match(/data-shell="list-slot"/g)).toHaveLength(1);
-    expect(html.indexOf("<aside")).toBeLessThan(html.indexOf('data-shell="list-slot"'));
-    expect(html.indexOf('data-shell="list-slot"')).toBeLessThan(html.indexOf('id="zk-main"'));
-    expect(html).toContain('data-chat-list="column"');
+    // the frame's own list slot stays empty: the shell draws the column in the page area, after the side menu
+    expect(html).not.toContain('data-shell="list-slot"');
+    expect(html.match(/data-chat-slot/g)).toHaveLength(1);
+    expect(html.indexOf("<aside")).toBeLessThan(html.indexOf('data-chat-slot'));
+    expect(html.indexOf('id="zk-main"')).toBeLessThan(html.indexOf('data-chat-slot'));
+    expect(html.match(/data-chat-list="column"/g)).toHaveLength(1);
     expect(html).toContain("<bdi>أحمد</bdi>");
     expect(html).toContain("اختار محادثة");
     expect(html).not.toContain('aria-label="جارٍ التحميل…"');
@@ -153,12 +151,13 @@ describe("chatLayoutV2 ON × navV2 OFF — the new chat beside TODAY's side menu
 });
 
 describe("chatLayoutV2 ON × navV2 ON — the target layout", () => {
-  it("computer: the ONE rail, the list column in its slot right after it, the empty pane beside", async () => {
+  it("computer: the ONE rail, the list column in the page area after it, the empty pane beside", async () => {
     const html = await screen({ chatV2: true, navV2: true, desktop: true });
     expect(html.match(/data-shell="rail"/g)).toHaveLength(1);
-    expect(html.match(/data-shell="list-slot"/g)).toHaveLength(1);
-    expect(html.indexOf('data-shell="rail"')).toBeLessThan(html.indexOf('data-shell="list-slot"'));
-    expect(html).toContain('data-chat-list="column"');
+    expect(html).not.toContain('data-shell="list-slot"');
+    expect(html.match(/data-chat-slot/g)).toHaveLength(1);
+    expect(html.indexOf('data-shell="rail"')).toBeLessThan(html.indexOf('data-chat-slot'));
+    expect(html.match(/data-chat-list="column"/g)).toHaveLength(1);
     expect(html).toContain("اختار محادثة");
     expect(html).not.toMatch(/<aside[^>]*w-64/);
   });
