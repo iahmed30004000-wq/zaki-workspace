@@ -56,6 +56,29 @@ const appUrlField = z.preprocess(
 const HOURS_MESSAGE = "SESSION_TTL_HOURS must be a positive whole number of hours";
 const HOPS_MESSAGE = "TRUSTED_PROXY_HOPS must be a whole number from 1 to 5 (how many reverse proxies sit in front of the app)";
 
+const JOBS_MESSAGE = "JOBS_IN_WORKER must be 1 (the worker service runs the jobs) or 0 / empty (the app runs them, as before)";
+
+/** `1` / `true` = on, `0` / `false` / empty = off; anything else is a typo that must not leave the jobs nowhere. */
+const jobsInWorkerField = z.preprocess(
+  (v) => {
+    const b = blankToUndefined(v);
+    return typeof b === "string" ? b.trim().toLowerCase() : b;
+  },
+  z
+    .enum(["0", "1", "true", "false"], { errorMap: () => ({ message: JOBS_MESSAGE }) })
+    .default("0")
+    .transform((v) => v === "1" || v === "true"),
+);
+
+/**
+ * Who runs the jobs, read on its own (the scheduler asks this and nothing else, so it never depends on the rest of the
+ * environment being valid). A value `env()` would refuse reads as off: the boot has already stopped on it.
+ */
+export function jobsInWorker(source: NodeJS.ProcessEnv = process.env): boolean {
+  const parsed = jobsInWorkerField.safeParse(source["JOBS_IN_WORKER"]);
+  return parsed.success && parsed.data === true;
+}
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   AUTH_SECRET: z.string().min(16, "AUTH_SECRET must be at least 16 chars"),
@@ -84,6 +107,9 @@ const schema = z.object({
     blankToUndefined,
     z.coerce.number({ invalid_type_error: HOPS_MESSAGE }).int(HOPS_MESSAGE).min(1, HOPS_MESSAGE).max(5, HOPS_MESSAGE).default(1),
   ),
+  // F1.9 (D-F1): who runs the background jobs. Off (the default): the app process does, as it always has. On: only the
+  // compose `worker` service does (src/server/jobs/scheduler.ts) and the app stops scheduling.
+  JOBS_IN_WORKER: jobsInWorkerField,
 });
 
 export type AppEnv = z.infer<typeof schema>;

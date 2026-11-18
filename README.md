@@ -17,7 +17,7 @@ service and who imports it, every table and what writes it — is generated into
 | Frontend | Next.js 14 (App Router), React 18, TypeScript strict, Tailwind CSS 3, TanStack Query, @dnd-kit, lucide-react |
 | Backend  | Next.js route handlers, Zod-validated typed contracts, centralized error mapping |
 | Database | PostgreSQL 16 + Prisma (migrations in `prisma/migrations`) |
-| Worker   | Node service (`worker/index.ts`) — a heartbeat placeholder today, no jobs yet |
+| Worker   | Node service (compose `worker`, entry `runJobsWorker` in `src/server/jobs/scheduler.ts`) — runs the background jobs when `JOBS_IN_WORKER=1`, otherwise only a heartbeat (the app keeps the jobs) |
 | Tests    | Vitest: `tests/` (no database) and `tests/db/` (real Postgres) |
 | Deploy   | Docker image built by GitHub Actions, run on Coolify (`workspace.zakiai.io`); Compose for local and self-hosted runs |
 
@@ -29,7 +29,7 @@ src/app/api/         REST endpoints (auth, workspaces, projects, boards, tasks, 
 src/components/      UI shell, board, task detail, primitives
 src/server/          db, env validation, session, rbac, task service, logging
 prisma/              schema + migrations + seed
-worker/              background worker (heartbeat placeholder)
+worker/              local heartbeat (`npm run worker`); the compose worker runs src/server/jobs/scheduler.ts
 scripts/             secret scanner, migration linter, operator scripts (re-encrypt secrets)
 .github/workflows/   CI (ci.yml) and the image build (image.yml)
 docker-compose.yml   app + worker + db + redis (not used yet) + migrate
@@ -80,6 +80,7 @@ database.
 | `UPLOAD_DIR` | no | Folder where uploaded files are written. Default `.data/uploads` in the working directory; the Docker image sets `/app/storage/uploads`, which must be a persistent volume |
 | `SESSION_TTL_HOURS` | no | Session lifetime, default 168 (one week) |
 | `LOG_LEVEL` | no | `debug`, `info` (default), `warn` or `error` |
+| `JOBS_IN_WORKER` | no | Who runs the background jobs (reminders, recurring tasks, the encrypted backup, the company mailbox, embeddings, the orders sync...). Empty or `0` (the **default**): the app process does, as it always has. `1`: only the compose `worker` service does (`src/server/jobs/scheduler.ts`, the same Postgres advisory lock) and the app stops scheduling, so the jobs no longer share an event loop with the live streams and the API. The worker runs the app's own code, so it needs the app's whole environment (`DATABASE_URL`, `AUTH_SECRET`, `ENCRYPTION_KEY`, `APP_URL`, the Google and SMTP keys, the embeddings keys): `docker-compose.yml` passes them. Anything else but `1`, `true`, `0`, `false` or empty stops the boot with this name. ⚠️ It changes how production runs: with `1` and no worker running, **nothing** runs the jobs (the app logs `boot.jobs_in_worker`, the worker logs `worker.start` with `jobsStarted`). 🔧 Start the `worker` service with the app's environment first, then set `JOBS_IN_WORKER=1` on the app and the worker in Coolify; to go back, empty it |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | no | Google Drive: the library stores its files in the owner's Drive (scope `drive.file`, the app's own files only); without them the library stays on the server |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | no | The Web Push key pair that rings a closed site (`src/server/calls/push.ts`). Unset, it is derived from `ENCRYPTION_KEY` (else `AUTH_SECRET`), the same on every start; set both only to pin other keys. Changing the secret changes the keys and the browsers subscribe again by themselves |
 | `TRANSCRIBE_URL`, `TRANSCRIBE_MODEL`, `TRANSCRIBE_LANGUAGE` | no, for «اكتب النص» | A speech-to-text service the owner runs on his own machine (OpenAI shape: `POST /v1/audio/transcriptions`; faster-whisper-server, whisper.cpp's server, LocalAI). `TRANSCRIBE_URL` is an origin judged by the same allow-list as the local model (his machine or private network only; a public address is refused); `TRANSCRIBE_MODEL` defaults to `whisper-1`, `TRANSCRIBE_LANGUAGE` to `ar` (empty: let the service guess). Without it the button is not drawn; the switch `voiceTranscript` is also off by default |

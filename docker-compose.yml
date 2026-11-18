@@ -58,30 +58,54 @@ services:
       # creates it and gives it to the runtime user), so it is fixed here on purpose.
       UPLOAD_DIR: /app/storage/uploads
       NODE_ENV: production
+      # Who runs the background jobs (backup, mailbox, embeddings, orders sync, reminders). Empty / 0 (the default): THIS process, as
+      # it always has. 1: only the `worker` service below does, and this process stops scheduling. WARNING: with 1 and no
+      # worker running, nothing runs the jobs. FIX: start the worker service first (docs: README, JOBS_IN_WORKER).
+      JOBS_IN_WORKER: ${JOBS_IN_WORKER:-}
     ports:
       - "3000:3000"
     volumes:
       - uploads:/app/storage/uploads
 
-  # Heartbeat placeholder: worker/index.ts only proves the database connection and logs a
-  # tick every 60 seconds - there are no background jobs yet (they will run inside the app
-  # process, see docs/PHASE0-AUDIT.md). The image copies worker/ and keeps tsx, so this
-  # starts. It mounts the same uploads volume so that a future job sees the same files.
+  # The job worker (F1.9). It runs src/server/jobs/scheduler.ts `runJobsWorker`: with JOBS_IN_WORKER=1 it schedules the
+  # background jobs (the same advisory lock as the app, so two processes never both work a tick); with it empty / 0 it only
+  # proves the database connection every minute and the app keeps the jobs. It runs the app's own code, so it needs the
+  # app's whole environment (a job decrypts a mailbox with ENCRYPTION_KEY, sends mail with SMTP_*, writes the backup to
+  # Google Drive with GOOGLE_*), and the same uploads volume. The image keeps tsx and the "@/..." alias (tsconfig.json).
   worker:
     build: .
     restart: unless-stopped
     depends_on:
       db:
         condition: service_healthy
-    command: ["npm", "run", "worker"]
+    command: ["npx", "tsx", "-e", "import('./src/server/jobs/scheduler').then((m) => m.runJobsWorker())"]
     # The image's HEALTHCHECK probes the web server on port 3000. The worker serves nothing,
     # so the inherited check would report it unhealthy for ever.
     healthcheck:
       disable: true
     environment:
       DATABASE_URL: postgresql://zaki:${POSTGRES_PASSWORD:-zaki_local}@db:5432/zaki_workspace
+      AUTH_SECRET: ${AUTH_SECRET:-}
+      ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
+      APP_URL: ${APP_URL:-http://localhost:3000}
       UPLOAD_DIR: /app/storage/uploads
+      NODE_ENV: production
       LOG_LEVEL: info
+      JOBS_IN_WORKER: ${JOBS_IN_WORKER:-}
+      # the integrations a job uses (empty = not set up): the backup to Drive, the company mailbox, mail, the embeddings service
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      EMBED_URL: ${EMBED_URL:-}
+      EMBED_MODEL: ${EMBED_MODEL:-}
+      EMBED_API_KEY: ${EMBED_API_KEY:-}
+      EMBED_MIN_SCORE: ${EMBED_MIN_SCORE:-}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
     volumes:
       - uploads:/app/storage/uploads
 
