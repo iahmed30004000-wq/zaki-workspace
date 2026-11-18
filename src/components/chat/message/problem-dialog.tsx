@@ -62,7 +62,8 @@ export function ProblemDialog({ message, kinds, people, privateSource, defaultKi
         body: JSON.stringify({
           kindKey: kind.key,
           ...(order.trim() ? { orderNumber: order.trim() } : {}),
-          ...(useCustomer && customer.trim() ? { customerNumber: customer.trim() } : {}),
+          // the customer's number is sent only while its field is on screen (it is hidden when an order number is given)
+          ...(useCustomer && !order.trim() && customer.trim() ? { customerNumber: customer.trim() } : {}),
           ...(kind.needsFollowUp && followUp ? { followUpDate: followUp } : {}),
           ...(assignee ? { assigneeId: assignee } : {}),
           ...(privateSource ? { confirmPublic: true } : {}),

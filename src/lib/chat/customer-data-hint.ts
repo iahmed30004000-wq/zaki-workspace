@@ -10,15 +10,16 @@ import type { FeatureKey } from "@/lib/features";
 export type CustomerDataHint = "template" | "phone" | null;
 
 /** The labels of the order template, as people type them (folded: hamza, ta marbuta and marks do not matter). */
-const LABELS = ["الاسم", "رقم الهاتف", "رقم الجوال", "الهاتف", "الجوال", "المحافظه", "المدينه", "المنطقه", "العنوان", "المنتج", "اسم المنتج", "الكميه", "السعر", "المبلغ", "ملاحظات"].map((l) => foldForSearch(l));
+const LABELS = ["الاسم", "الاسم الكامل", "اسم الزبون", "اسم العميل", "رقم الهاتف", "رقم الجوال", "رقم الموبايل", "رقم التلفون", "رقم التواصل", "الهاتف", "الجوال", "الموبايل", "التلفون", "المحافظه", "المدينه", "المنطقه", "العنوان", "المنتج", "اسم المنتج", "الكميه", "السعر", "المبلغ", "ملاحظات"].map((l) => foldForSearch(l));
 /** at least one of these must be among the labels: «الكمية» and «السعر» alone are not a customer's data */
-const IDENTITY = ["الاسم", "رقم الهاتف", "رقم الجوال", "الهاتف", "الجوال", "المحافظه", "العنوان"].map((l) => foldForSearch(l));
+const IDENTITY = ["الاسم", "الاسم الكامل", "اسم الزبون", "اسم العميل", "رقم الهاتف", "رقم الجوال", "رقم الموبايل", "رقم التلفون", "رقم التواصل", "الهاتف", "الجوال", "الموبايل", "التلفون", "المحافظه", "العنوان"].map((l) => foldForSearch(l));
 const MIN_LABELLED_LINES = 3;
 
 export function looksLikeOrderTemplate(body: string): boolean {
   const found = new Set<string>();
   for (const raw of String(body ?? "").split(/\r?\n/)) {
-    const line = foldForSearch(raw);
+    // a bullet, an emoji or stars around the label do not matter: «👤 الاسم: …», «- الاسم: …», «*الاسم*: …»
+    const line = foldForSearch(raw).replace(/[*_~`]/g, "").replace(/^[^\p{L}\p{N}]+/u, "");
     const m = /^([^:：\-–]{2,20})\s*[:：\-–]\s*\S/.exec(line);
     if (m && LABELS.includes(m[1]!.trim())) found.add(m[1]!.trim());
   }

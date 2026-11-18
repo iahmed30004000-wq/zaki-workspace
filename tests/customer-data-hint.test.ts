@@ -57,3 +57,14 @@ describe("the warning beside the three switches that send text to a model", () =
     expect(AR["hints.phone"]).toBeTruthy();
   });
 });
+
+describe("review fixes", () => {
+  it("a price or a count is not a phone hint", () => {
+    for (const t of ["السعر 1.500.000 ل.س", "مبلغ 1500000", "الكمية 10 20 30 40"]) expect(customerDataHint(t), t).toBeNull();
+  });
+  it("the template is found with bullets, emoji and stars, and with the other labels people use", () => {
+    const form = "👤 الاسم الكامل: سلمى\n- رقم الموبايل: 0791234567\n*المحافظة*: عمان\n📍 العنوان: شارع الجامعة";
+    expect(looksLikeOrderTemplate(form)).toBe(true);
+    expect(looksLikeOrderTemplate("اسم الزبون: أحمد\nرقم التلفون: 0791234567\nالمدينة: إربد")).toBe(true);
+  });
+});

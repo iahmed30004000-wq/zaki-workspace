@@ -79,7 +79,9 @@ export function MessageItem({message,canModerate,oversight=false,readers=[],conv
  // a «اقترح» rule that matches this message and no ticket was made yet: one tap offers «بدك تعمليها تذكرة؟»
  const suggestKind=canProblem&&message.kind==="TEXT"&&!message.deleted&&!message.work?.length&&message.body&&!message.body.startsWith("✅")?(problemRules.find(r=>ruleMode(r)==="suggest"&&matchRule(r,{body:message.body??"",conversationId:conversationId??"",spaceId:r.spaceId}))?.kindKey??null):null;
  // «تنبيه بيانات الزبون» (Q1.7): a line for the author and the moderators, nothing is blocked or changed; not when a ticket was already made of it
- const dataHint=orderHints&&(message.mine||canModerate)&&message.kind==="TEXT"&&!message.deleted&&!message.work?.length&&message.body?customerDataHint(message.body):null;
+ const rawHint=orderHints&&(message.mine||canModerate)&&message.kind==="TEXT"&&!message.deleted&&!message.work?.length&&message.body?customerDataHint(message.body):null;
+ // the phone hint promises a ticket: only where the «🎫 مشكلة» form can be used
+ const dataHint=rawHint==="phone"&&!canProblem?null:rawHint;
  const run=groupStart&&groupEnd?"single":groupStart?"start":groupEnd?"end":"middle";
  const timeLine=<span className="mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted">{message.edited&&<span>{ct("chatc.edited")}</span>}{message.pinned&&<span>{ct("chatc.pinned")}</span>}<time dateTime={message.createdAt} dir="ltr" className="tabular-nums">{time}</time>{message.mine&&message.status&&!message.deleted&&<MessageTicks status={message.status}/>}</span>;
  const menu=canAct?<MessageMenu context={context} onAction={id=>{if(id==="translate")void translation.ask();else onAction(message,id);}} onReact={emoji=>onReact(message,emoji)} sheetOpen={sheetOpen} onSheetOpenChange={setSheetOpen}/>:null;
