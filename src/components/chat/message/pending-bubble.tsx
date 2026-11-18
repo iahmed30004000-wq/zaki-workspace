@@ -6,8 +6,11 @@ import { fmtTime } from "@/lib/format";
 /**
  * A message of mine that has not reached the server yet (the outbox, src/lib/chat/outbox/): the same bubble as my own
  * messages, drawn dashed and a little quieter with a clock — «⏳ بانتظار الإرسال» — and the two things a person can do about
- * it, «إعادة المحاولة» and «احذف». When the server refused it for good the bubble turns «تعذّر الإرسال», says why, and also
+ * it, «إعادة المحاولة» and «احذف». When the server refused it for good the bubble turns «تعذّر الإرسال» with a red «!», says why, and also
  * offers «انسخ» and «عدّل» (the words go back to the box): a message that failed is never dropped without the person's say.
+ *
+ * C1.8: a pending message of the chat cache (`pending: {...}` on a MessageDto, src/lib/chat/cache/pending.ts) is drawn by this same bubble through
+ * `outboxItemOfPending`, so the optimistic bubble and the outbox's bubble look and behave alike.
  */
 export interface PendingBubbleProps {
   item: OutboxItem;
@@ -36,6 +39,7 @@ export function PendingBubble({ item, onRetry, onDelete, onCopy, onEdit }: Pendi
               : <p className="text-sm italic text-fg-muted">{ct("outbox.attachments_only")}</p>}
             <span className="mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted">
               <time dateTime={new Date(item.createdAt).toISOString()} dir="ltr" className="tabular-nums">{fmtTime(new Date(item.createdAt).toISOString())}</time>
+              {failed && <span data-outbox-bang aria-hidden="true" className="inline-flex size-4 items-center justify-center rounded-full bg-danger text-xs font-bold leading-none text-danger-fg">!</span>}
               <span data-outbox-mark className={failed ? "font-semibold text-danger" : ""}>{failed ? ct("outbox.failed") : ct("outbox.pending")}</span>
             </span>
             {item.failed && <p role="note" data-outbox-reason className="mt-1 text-xs text-danger">{ct(item.failed.key)}</p>}

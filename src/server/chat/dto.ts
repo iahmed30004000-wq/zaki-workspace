@@ -110,6 +110,12 @@ export interface MessageDto {
   work?: { kind: "task" | "ticket"; id: string; /** a ticket: its number, state and who holds it (the live chip, Q1.5) */ number?: number; status?: string; assigneeName?: string | null }[];
   /** «نتفرّج سوا»: the second of the video it was written at. */
   videoAtSec?: number | null;
+  /**
+   * CLIENT ONLY (C1.8) — the server never sends it. A message of mine that is drawn before the server has it: its id is `pending:<clientId>`
+   * (a server id never has a colon), `sending` shows the clock, `failed` the red «!» with `reason` (a dictionary key). It is replaced in place by the
+   * server's message of the same `clientId`, and a pending copy is never sent to anybody else.
+   */
+  pending?: { state: "sending" | "failed"; reason?: string };
 }
 
 export interface SpaceSummaryDto {

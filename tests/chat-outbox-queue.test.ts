@@ -399,3 +399,40 @@ describe("what the storage holds is only believed after a check", () => {
     expect(item?.failed).toEqual({ status: 422, key: "outbox.reason.invalid" });
   });
 });
+
+describe("C1.8: a message that was refused at its first attempt is kept already marked", () => {
+  it("enqueue with `failed` keeps it as a refused item: never sent by itself, shown with its reason, ready for «إعادة المحاولة»", async () => {
+    const { outbox, attempts } = make("u1");
+    const result = outbox.enqueue(input("r1"), Date.now(), { failed: { status: 403, key: "outbox.reason.forbidden" } });
+    expect(result.ok && result.item.failed).toEqual({ status: 403, key: "outbox.reason.forbidden" });
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(attempts).toEqual([]);
+    expect(outbox.getSnapshot()[0]?.failed?.key).toBe("outbox.reason.forbidden");
+    outbox.retryNow("r1");
+    await vi.advanceTimersByTimeAsync(10);
+    expect(attempts.map((a) => a.id)).toEqual(["r1"]);
+    expect(outbox.getSnapshot()).toEqual([]);
+    outbox.dispose();
+  });
+
+  it("a refused item does not hold back the messages behind it (the server answered)", async () => {
+    const { outbox, attempts } = make("u1");
+    outbox.enqueue(input("r1"), Date.now(), { failed: { status: 422, key: "outbox.reason.invalid" } });
+    outbox.enqueue(input("r2"));
+    await vi.advanceTimersByTimeAsync(3_000);
+    expect(attempts.map((a) => a.id)).toEqual(["r2"]);
+    outbox.dispose();
+  });
+
+  it("the failure mark survives a reload", async () => {
+    const storage = memoryOutboxStorage();
+    const first = make("u1", {}, storage);
+    first.outbox.enqueue(input("r1"), Date.now(), { failed: { status: 403, key: "outbox.reason.forbidden" } });
+    await first.outbox.settled();
+    first.outbox.dispose();
+    const second = make("u1", {}, storage);
+    await second.outbox.load();
+    expect(second.outbox.getSnapshot()[0]?.failed?.key).toBe("outbox.reason.forbidden");
+    second.outbox.dispose();
+  });
+});

@@ -18,6 +18,8 @@ import * as tasksList from "@/app/api/tasks/route";
 import * as memberRoute from "@/app/api/organizations/[id]/members/[userId]/route";
 import * as headerRoute from "@/app/api/chat/conversations/[id]/header/route";
 import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
+import * as readMarkRoute from "@/app/api/chat/conversations/[id]/read/route";
+import * as deliveredMarkRoute from "@/app/api/chat/conversations/[id]/delivered/route";
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import { chatHome } from "@/server/chat/home";
 import { chatList } from "@/server/chat/list";
@@ -323,5 +325,64 @@ describe("privacy matrix — the C1.3 presence nudge", () => {
 
   it("the table has one cell per persona", () => {
     expect(cells(PRESENCE_NUDGE)).toHaveLength(PERSONAS.length);
+  });
+});
+
+// ───────────────────────────── C1.8: the read and the delivered marks ─────────────────────────────
+// A mark is a small WRITE (and an event) made by the reader. Two more tables, in the same columns:
+//  - who may MARK a conversation read: the same people who may read it (anybody else is a 404, nothing written);
+//  - who LEAVES a trace when they do (a row of their own, and a `conversation.read` event the others see): everybody who may read EXCEPT the silent eye
+//    (the primary owner, and the partner who still holds archive.view) — his reading is silent, always (P0.1).
+//  - the delivered mark belongs to a private chat's two people only: a topic is a 404 for everybody, the silent eye included.
+const READ_TRACE = "0 0 1 0 1 1 1 1 1"; // open: everybody who reads, except the two silent eyes
+const READ_TRACE_BY_KIND: Record<string, string> = {
+  open: READ_TRACE,
+  restricted: "0 0 0 0 0 1 0 0 0", // only its own people leave a mark; the silent eye reads and leaves none
+  team: "0 0 1 0 1 0 0 1 0", //       the team's people and the space's managers
+  dm: "0 0 0 0 0 1 0 0 0", //         its person (the other one is not a persona)
+};
+const DELIVERED_MARK: Record<string, string> = {
+  open: "0 0 0 0 0 0 0 0 0",
+  restricted: "0 0 0 0 0 0 0 0 0",
+  team: "0 0 0 0 0 0 0 0 0",
+  dm: "0 0 0 0 0 1 0 0 0", // memberIn is one of the two people; the silent eye is not one of them
+};
+
+describe("privacy matrix — the C1.8 read and delivered marks", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: who may mark read, who leaves a trace, who may mark delivered`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        await loginAs(person.id);
+        // a message newer than anything this person has read: the mark has something to say
+        const author = w.people.memberIn;
+        const msg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: author.id, body: `${WORD} mark ${kind} ${who}` } });
+        const eventsBefore = await db.realtimeEvent.count({ where: { kind: "conversation.read" } });
+        const res = await call(readMarkRoute.POST, { method: "POST", url: `http://localhost/api/chat/conversations/${id}/read?upTo=${msg.id}`, params: { id } });
+        const mayMark = res.status === 200;
+        const row = await db.conversationMember.findUnique({ where: { conversationId_userId: { conversationId: id, userId: person.id } } });
+        const traced = (await db.realtimeEvent.count({ where: { kind: "conversation.read" } })) > eventsBefore;
+        // a trace is BOTH a row at least as new as the message and an event the others receive; a silent reader leaves neither
+        const rowMarked = !!row && row.lastReadAt >= msg.createdAt;
+        const wantMark = expected(CONVERSATIONS, kind, who);
+        const wantTrace = cells(READ_TRACE_BY_KIND[kind]!)[PERSONAS.indexOf(who)]!;
+        if (mayMark !== wantMark) wrong.push(`${who} · may mark read: expected ${wantMark}`);
+        if (wantTrace !== (traced && rowMarked)) wrong.push(`${who} · leaves a trace: expected ${wantTrace} (event ${traced}, row ${rowMarked})`);
+        if (!wantTrace && (traced || rowMarked)) wrong.push(`${who} · a silent reader left a trace`);
+
+        const del = await call(deliveredMarkRoute.POST, { method: "POST", params: { id } });
+        const mayDeliver = del.status < 300;
+        const wantDeliver = cells(DELIVERED_MARK[kind]!)[PERSONAS.indexOf(who)]!;
+        if (mayDeliver !== wantDeliver) wrong.push(`${who} · may mark delivered: expected ${wantDeliver}`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("the tables have one cell per persona", () => {
+    for (const row of [...Object.values(READ_TRACE_BY_KIND), ...Object.values(DELIVERED_MARK)]) expect(cells(row)).toHaveLength(PERSONAS.length);
   });
 });

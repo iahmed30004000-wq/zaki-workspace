@@ -646,8 +646,8 @@ to be added to, and the places a bug can leave the row half-written.
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 14 | `server/services/files.ts`: 7<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>+3 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
-| `Conversation` | 26 | `server/chat/topics.ts`: 6<br>`server/chat/messages.ts`: 4<br>`server/chat/dm.ts`: 3<br>`server/chat/door-message.ts`: 3<br>+10 more |
-| `ConversationMember` | 19 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 3<br>`server/services/workspaces.ts`: 2<br>+4 more |
+| `Conversation` | 26 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/door-message.ts`: 3<br>`server/chat/messages.ts`: 3<br>+11 more |
+| `ConversationMember` | 18 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 2<br>`server/services/workspaces.ts`: 2<br>+4 more |
 | `ChatMessage` | 11 | `server/chat/messages.ts`: 5<br>`server/services/must-read.ts`: 2<br>`server/chat/door-message.ts`: 1<br>`server/chat/system.ts`: 1<br>+2 more |
 | `ChatReaction` | 4 | `server/chat/messages.ts`: 2<br>`server/services/must-read.ts`: 2 |
 | `Poll` | 2 | `components/chat/composer/poll-dialog.tsx`: 1<br>`server/chat/polls.ts`: 1 |

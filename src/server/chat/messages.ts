@@ -13,7 +13,9 @@ import {
   type OrgFacts,
 } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
-import { writeSystemMessage } from "@/server/chat/system";
+import { moveLastMessageAt, writeSystemMessage } from "@/server/chat/system";
+import { markDeliveredForUser } from "@/server/chat/read-state";
+import { log } from "@/server/log";
 import { claimUploads, MAX_ATTACHMENTS_PER_MESSAGE } from "@/server/chat/attachments";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "@/server/chat/poll-shared";
@@ -226,10 +228,7 @@ export async function sendMessage(
     }
     await tx.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
     // C1.1: the chat list's "last message" time moves with the message, in this same transaction (never backwards)
-    await tx.conversation.updateMany({
-      where: { id: conversationId, OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: msg.createdAt } }] },
-      data: { lastMessageAt: msg.createdAt },
-    });
+    await moveLastMessageAt(tx, conversationId, msg.createdAt);
     // my own read mark: the author has read the thread up to their message
     if (joined) {
       await tx.conversationMember.update({
@@ -245,14 +244,69 @@ export async function sendMessage(
 
   // my own fresh DM message starts at ✓ (sent): the screen shows it from this answer before any refetch
   const dto = presentMessage(created, withViewer(viewerOf(facts, org), ctx.userId), facts.kind === "DM" ? "sent" : undefined);
-  await notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, dto);
+  // C1.8: the answer goes back as soon as the commit is done. The bell and the push (and the company's auto-ticket rules) run AFTER it: the
+  // sender's ✓ never waits for them, and a failure there is logged with its step (never swallowed) and never fails the send.
+  const after: AfterSendStep[] = [{ step: "notify", run: () => notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, dto) }];
+  // «المشاكل تصير تذاكر»: the rules of the company, after the message is stored (a failure there never stops a message)
+  if (kind === "TEXT" && !internal.card) {
+    after.push({ step: "auto_tickets", run: () => applyAutoTicketRules(ctx, { id: created.id, body, conversationId }, { spaceId: facts.spaceId ?? null, kind: facts.kind, restricted: Boolean(facts.restricted), teamId: facts.teamId ?? null }) });
+  }
+  const afterJob = runAfterSend(after);
   // «@المساعد»: one answer in this conversation, written when the model has answered (never delays this reply)
   if (kind === "TEXT") afterMessageSent({ orgId: ctx.orgId, conversationId, messageId: created.id, body });
   // «بحث بالمعنى»: its vector is made in the background (a no-op without the switch and a service)
   if (kind === "TEXT") queueSync(ctx.orgId, "message", created.id);
-  // «المشاكل تصير تذاكر»: the rules of the company, after the message is stored (a failure there never stops a message)
-  if (kind === "TEXT" && !internal.card) await applyAutoTicketRules(ctx, { id: created.id, body, conversationId }, { spaceId: facts.spaceId ?? null, kind: facts.kind, restricted: Boolean(facts.restricted), teamId: facts.teamId ?? null });
+  if (afterSendMode() === "inline") await afterJob;
   return dto;
+}
+
+// ---------- after the answer (C1.8) ----------
+
+interface AfterSendStep {
+  step: string;
+  run: () => Promise<unknown>;
+}
+type AfterSendMode = "inline" | "deferred";
+let afterSendOverride: AfterSendMode | null = null;
+const afterSendJobs = new Set<Promise<void>>();
+
+/**
+ * Where the work that follows a send runs. Production: `deferred` — after the answer (a microtask on the server's own event loop, which
+ * keeps running: this is a long-lived Node process, not a function that is frozen when it answers). Under test: `inline`, so the many
+ * suites that count bells and tickets right after a send see them, unchanged; a test of the deferred order asks for it with
+ * `setAfterSendModeForTests("deferred")`.
+ */
+function afterSendMode(): AfterSendMode {
+  return afterSendOverride ?? (process.env["NODE_ENV"] === "test" ? "inline" : "deferred");
+}
+
+/** Tests only: force the mode (`null`: back to the default). */
+export function setAfterSendModeForTests(mode: AfterSendMode | null): void {
+  afterSendOverride = mode;
+}
+
+/** Tests only: wait until every send's after-work has finished. */
+export async function settleAfterSendForTests(): Promise<void> {
+  while (afterSendJobs.size > 0) await Promise.all([...afterSendJobs]);
+}
+
+/**
+ * The steps run one after the other, each on its own: one that throws is logged (the step and the kind of error, never the words of the
+ * message or of the error) and the next one still runs. The returned promise never rejects.
+ */
+function runAfterSend(steps: AfterSendStep[]): Promise<void> {
+  const job = Promise.resolve().then(async () => {
+    for (const { step, run } of steps) {
+      try {
+        await run();
+      } catch (err) {
+        log.error("chat.after_send_failed", { step, name: err instanceof Error ? err.name : "unknown" });
+      }
+    }
+  });
+  afterSendJobs.add(job);
+  void job.finally(() => afterSendJobs.delete(job));
+  return job;
 }
 
 /** Notifications go out AFTER the send transaction commits (online people are skipped). */
@@ -507,6 +561,8 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
       });
     }
     await tx.conversation.update({ where: { id: input.conversationId }, data: { updatedAt: new Date() } });
+    // C1.8: the target's list time moves with the copy, in this transaction (it never goes backwards)
+    await moveLastMessageAt(tx, input.conversationId, copy.createdAt);
     await emitRealtime(tx, ctx.orgId, "message.created", {
       conversationId: input.conversationId,
       messageId: copy.id,
@@ -564,13 +620,9 @@ export async function markRead(ctx: OrgAccessContext, conversationId: string, up
 export async function markDelivered(ctx: OrgAccessContext, conversationId: string): Promise<void> {
   const { facts } = await guard(ctx, conversationId);
   if (facts.kind !== "DM" || !facts.viewerIsMember) throw new NotFoundError("chat.e.not_found");
-  await db.$transaction(async (tx) => {
-    await tx.conversationMember.update({
-      where: { conversationId_userId: { conversationId, userId: ctx.userId } },
-      data: { lastDeliveredAt: new Date() },
-    });
-    await emitRealtime(tx, ctx.orgId, "conversation.delivered", { conversationId, userId: ctx.userId });
-  });
+  // C1.8: a delivery mark is a delta — it is written (and sent to the other person's screen) only when the other person has written
+  // something newer than the last mark; a repeat of the same call changes nothing and emits nothing
+  await markDeliveredForUser(ctx.userId, conversationId);
 }
 
 // ---------- reads for presentation ----------

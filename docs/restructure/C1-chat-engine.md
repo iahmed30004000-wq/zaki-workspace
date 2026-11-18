@@ -135,14 +135,14 @@ ticket chip of a message, and `ackRequired` with who has read; `ticket.changed` 
 
 ## C1.8 Sending, receipts, typing
 
-- [ ] Optimistic bubble on the FIRST attempt (today it appears only from the server's answer): the composer writes a
+- [x] Optimistic bubble on the FIRST attempt (today it appears only from the server's answer): the composer writes a
       pending item to the cache with its `clientId`; the answer (or sync) replaces it in place; failures hand it to the
       outbox (existing `src/lib/chat/outbox/`), shown with a red «!» and «أعد المحاولة».
-- [ ] The send route answers right after the transaction commits; notifications and push run after the response
+- [x] The send route answers right after the transaction commits; notifications and push run after the response
       (`queueMicrotask`/the in-app scheduler, with error logging), never blocking the sender.
-- [ ] Read marks: `POST /read?upTo=` only when visible + focused (F0.5) and only when the newest read message changed;
+- [x] Read marks: `POST /read?upTo=` only when visible + focused (F0.5) and only when the newest read message changed;
       the other clients apply the `reads` delta from sync (no refetch).
-- [ ] Typing: cache the policy facts of `(user, conversation)` for 30 s in the typing route (today ~12 calls per ping).
+- [x] Typing: cache the policy facts of `(user, conversation)` for 30 s in the typing route (today ~12 calls per ping).
 
 ## C1.9 Per-request efficiency (also benefits every page)
 
