@@ -193,7 +193,7 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 - [ ] ✋ Owner check of the new menu
 
 ### C2 — the Telegram-layout chat
-- [ ] C2.1 Shell + layout + empty state (`chatLayoutV2`) · [ ] C2.2 List column + folders · [ ] C2.3 Forum view
+- [x] C2.1 Shell + layout + empty state (`chatLayoutV2`) · [x] C2.2 List column + folders · [x] C2.3 Forum view
 - [ ] C2.4 Conversation pane · [ ] C2.5 Composer · [ ] C2.6 Message menu + shortcuts · [ ] C2.7 Info panel
 - [ ] C2.8 Phone screens + motion · [ ] C2.9 Call entry points restyled
 - [ ] ✋ Owner live check of the new chat
