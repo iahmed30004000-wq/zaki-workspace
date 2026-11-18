@@ -225,6 +225,11 @@ export async function sendMessage(
       });
     }
     await tx.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
+    // C1.1: the chat list's "last message" time moves with the message, in this same transaction (never backwards)
+    await tx.conversation.updateMany({
+      where: { id: conversationId, OR: [{ lastMessageAt: null }, { lastMessageAt: { lt: msg.createdAt } }] },
+      data: { lastMessageAt: msg.createdAt },
+    });
     // my own read mark: the author has read the thread up to their message
     if (joined) {
       await tx.conversationMember.update({
@@ -341,6 +346,7 @@ export async function deleteMessage(ctx: OrgAccessContext, messageId: string): P
     });
     // the bell never keeps the words of a deleted message
     await rewriteMessagePreviews(tx, msg.conversationId, messageId, DELETED_PREVIEW);
+    await recomputeLastMessageAt(tx, msg.conversationId, msg.createdAt);
     await emitRealtime(tx, ctx.orgId, "message.deleted", { conversationId: msg.conversationId, messageId, spaceId: facts.spaceId ?? undefined });
     // an admin deletion is a moderation act: it goes to the audit trail
     if (!mine) {
@@ -359,6 +365,22 @@ export async function deleteMessage(ctx: OrgAccessContext, messageId: string): P
   });
   // «بحث بالمعنى»: a deleted message loses its vector
   queueSync(ctx.orgId, "message", messageId);
+}
+
+/**
+ * C1.1: a message was just deleted in `tx`. When it was the newest one of its conversation (or the column was never
+ * filled), `lastMessageAt` falls back to the newest message that is still there (NULL when none is), in the same
+ * transaction. The write only lands if nobody moved the column in between (a message sent meanwhile is newer than
+ * anything computed here), and it keeps `updatedAt`: deleting a message must not reorder the list.
+ */
+async function recomputeLastMessageAt(tx: Prisma.TransactionClient, conversationId: string, deletedCreatedAt: Date): Promise<void> {
+  const conv = await tx.conversation.findUnique({ where: { id: conversationId }, select: { lastMessageAt: true, updatedAt: true } });
+  if (!conv || (conv.lastMessageAt !== null && conv.lastMessageAt > deletedCreatedAt)) return;
+  const newest = await tx.chatMessage.aggregate({ where: { conversationId, deletedAt: null }, _max: { createdAt: true } });
+  await tx.conversation.updateMany({
+    where: { id: conversationId, lastMessageAt: conv.lastMessageAt },
+    data: { lastMessageAt: newest._max.createdAt, updatedAt: conv.updatedAt },
+  });
 }
 
 // ---------- reactions ----------

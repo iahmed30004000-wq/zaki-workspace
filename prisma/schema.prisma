@@ -446,6 +446,9 @@ model Conversation {
   // two companies and has a DM with the same colleague in each). Born NULL; the data move fills it for
   // the OLDEST DM of each pair.
   dmKey         String?
+  // The time of the newest message that is not deleted (C1.1). Written in the send transaction and recomputed in the
+  // transaction that deletes the newest message; NULL when the conversation has no message.
+  lastMessageAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -465,6 +468,7 @@ model Conversation {
   @@unique([orgId, dmKey])
   @@unique([spaceId, systemKey])
   @@index([orgId, updatedAt])
+  @@index([orgId, lastMessageAt])
   @@index([spaceId, position])
   @@index([teamId])
 }
@@ -542,6 +546,8 @@ model ChatMessage {
 
   @@unique([authorId, clientId])
   @@index([conversationId, createdAt])
+  // the (createdAt, id) cursor inside one conversation (F0.8)
+  @@index([conversationId, createdAt, id])
   @@index([orgId, createdAt])
 }
 
