@@ -1,4 +1,22 @@
+import * as React from "react";
 import { z } from "zod";
+
+/**
+ * A memo that lives for ONE server render (one request), never longer: React's `cache()`.
+ *
+ * Next gives a server-component render a request scope for `cache()`; outside one (a route handler, a server action, the
+ * worker, a script, a test) React has no scope and calls the function every time, so nothing is ever remembered between
+ * requests. The key is the ARGUMENTS COMPARED BY IDENTITY: wrap a function that takes primitives (`orgId`, `userId`),
+ * never one that takes an object a caller builds afresh (an `opts` literal, an actor) - that would never hit.
+ *
+ * TRAP: this is the ONLY memo allowed around a user, a rank, a permission or a company's switches. A module-level
+ * `Map` / `let` of any of them is shared by every request of the process: one person would be served another's answer.
+ * (It lives in this file, which no test replaces, so that a test mocking `@/server/db` or `@/server/auth` still gets it.)
+ */
+export function perRequest<F extends (...args: never[]) => unknown>(fn: F): F {
+  const reactCache = (React as unknown as { cache?: <T extends (...args: never[]) => unknown>(f: T) => T }).cache;
+  return typeof reactCache === "function" ? reactCache(fn) : fn;
+}
 
 /**
  * A variable the platform passes as "" (Coolify does, and so does compose's `${VAR:-}`

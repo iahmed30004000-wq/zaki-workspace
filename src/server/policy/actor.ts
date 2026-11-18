@@ -1,6 +1,7 @@
 import type { OrgRole } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError, requireUser } from "@/server/auth";
+import { perRequest } from "@/server/env";
 import { can, effectiveCapabilities, type Capability } from "./capabilities";
 import { sectionGridOf } from "./section-grid";
 
@@ -20,10 +21,15 @@ export interface Actor {
   isExternal: boolean;
 }
 
-export async function requireActor(opts: { allowPending?: boolean } = {}): Promise<Actor> {
-  const user = await requireUser(opts);
+/**
+ * The membership read for one person, ONCE per server render (`perRequest`, F1.1): the layout and every page of the render
+ * ask, only the first reaches the database. The key is the person's id (a string): an `opts` literal or an `Actor` is a new
+ * object on every call and would never hit. Nothing outlives the render: a rank changed, a seat suspended is seen by the
+ * very next request.
+ */
+const actorOf = perRequest(async (userId: string): Promise<Actor> => {
   const member = await db.organizationMember.findFirst({
-    where: { userId: user.id, status: "ACTIVE" },
+    where: { userId, status: "ACTIVE" },
     orderBy: { createdAt: "asc" },
     select: {
       organizationId: true,
@@ -36,7 +42,7 @@ export async function requireActor(opts: { allowPending?: boolean } = {}): Promi
   });
   if (!member) throw new ForbiddenError("not_org_member");
   return {
-    userId: user.id,
+    userId,
     orgId: member.organizationId,
     role: member.role,
     // the section grid counts while its switch in «الميزات» is on
@@ -45,6 +51,12 @@ export async function requireActor(opts: { allowPending?: boolean } = {}): Promi
     isPrimaryOwner: member.role === "OWNER" && member.primaryOwner,
     isExternal: member.role === "GUEST",
   };
+});
+
+export async function requireActor(opts: { allowPending?: boolean } = {}): Promise<Actor> {
+  // the person first (401, or 403 while they owe the onboarding), THEN the membership
+  const user = await requireUser(opts);
+  return actorOf(user.id);
 }
 
 export function actorCan(actor: Pick<Actor, "caps">, capability: Capability): boolean {

@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { db } from "./db";
+import { perRequest } from "./env";
 import { log } from "./log";
 import { getSessionUser, clearSessionCookie, setSessionCookie } from "./session";
 import type { OrgRole, WorkspaceRole } from "@prisma/client";
@@ -43,8 +44,11 @@ export interface CurrentUser {
  * The signed-in user, or null. Null means: no cookie, a cookie that is no longer honoured (the
  * user's session version moved on: suspended, offboarded, password reset, "log out everywhere"),
  * or no ACTIVE membership anywhere. Safe to call in server components.
+ *
+ * Read ONCE per server render (`perRequest`, F1.1): the layout and the page both ask, and the second ask is free. Nothing
+ * outlives the render, so a session revoked a moment later is refused by the very next request.
  */
-export async function currentUser(): Promise<CurrentUser | null> {
+export const currentUser: () => Promise<CurrentUser | null> = perRequest(async () => {
   const session = await getSessionUser();
   if (!session) return null;
   const user = await db.user.findUnique({
@@ -78,7 +82,7 @@ export async function currentUser(): Promise<CurrentUser | null> {
     tv: user.tokenVersion,
     ...onboardingStateOf(user, active.organization.settings),
   };
-}
+});
 
 /**
  * For server-rendered pages: the person looking at the page, or null when nobody is signed in
@@ -87,11 +91,11 @@ export async function currentUser(): Promise<CurrentUser | null> {
  * anything is read. The (app) layout redirects them too, but in the App Router a page runs (and
  * its output is streamed) even when its layout redirects, so every page must refuse for itself.
  */
-export async function pageUser(): Promise<CurrentUser | null> {
+export const pageUser: () => Promise<CurrentUser | null> = perRequest(async () => {
   const user = await currentUser();
   if (user && (user.mustChangePassword || user.transparencyPending)) redirect("/onboarding");
   return user;
-}
+});
 
 /**
  * The signed-in user or a 401. Until they have changed a temporary password and accepted the

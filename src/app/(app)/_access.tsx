@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { pageUser, type CurrentUser } from "@/server/auth";
+import { perRequest } from "@/server/env";
 import { actorCan, requireActor, type Actor } from "@/server/policy/actor";
 import type { Capability } from "@/server/policy/capabilities";
 import { getServerT } from "@/lib/i18n/server";
@@ -17,11 +18,11 @@ import { getServerT } from "@/lib/i18n/server";
  *    refused by `requireActor` with 403 `auth.onboarding_required` and is NOT sent anywhere from
  *    here: the (app) layout sends them to the onboarding screen before any page renders.
  */
-export async function pageActor(): Promise<{ user: CurrentUser; actor: Actor }> {
+export const pageActor: () => Promise<{ user: CurrentUser; actor: Actor }> = perRequest(async () => {
   const user = await pageUser();
   if (!user) redirect("/login");
   return { user, actor: await requireActor() };
-}
+});
 
 /**
  * The rank a view should believe for a capability-driven area. Several views (automation,
