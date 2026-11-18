@@ -30,6 +30,7 @@ vi.mock("@/server/services/current-space", () => ({ currentSpace: async () => nu
 import ChatLayout from "@/app/(app)/chat/layout";
 import ChatPage from "@/app/(app)/chat/page";
 import { AppShell } from "@/components/app-shell";
+import { ConversationPane } from "@/components/chat/v2/pane/conversation-pane";
 import { ToastProvider } from "@/components/ui/toast";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { installChatDefaults } from "@/lib/chat/cache/share";
@@ -38,6 +39,7 @@ import { audienceOf } from "@/lib/guide/audience";
 import { I18nProvider } from "@/lib/i18n";
 import { buildNav } from "@/lib/nav/places";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
+import { makeHeader } from "./chat-v2-pane-fixtures.test";
 
 /**
  * C2 — «the four combinations chatLayoutV2 × navV2 each have a render test». The two switches are independent. The chat's layout and page are
@@ -58,15 +60,17 @@ const LIST: ChatListDto = {
   ],
 };
 
-async function screen(opts: { chatV2: boolean; navV2: boolean; desktop: boolean; pathname?: string }): Promise<string> {
+async function screen(opts: { chatV2: boolean; navV2: boolean; desktop: boolean; pathname?: string; conversation?: boolean }): Promise<string> {
   state.features = { chatLayoutV2: opts.chatV2, chatRowMenu: true };
   state.desktop = opts.desktop;
   state.pathname = opts.pathname ?? "/chat";
-  const page = (await ChatPage()) as ReactElement;
+  // C2.4: with `conversation` the page of the pane is the conversation `dm1` (the page itself is tested in chat-v2-pane-switch.test.ts)
+  const page = opts.conversation ? (createElement(ConversationPane, { conversationId: "dm1" }) as ReactElement) : ((await ChatPage()) as ReactElement);
   const layout = (await ChatLayout({ children: page })) as ReactElement;
   const client = new QueryClient();
   installChatDefaults(client);
   client.setQueryData(chatKeys.list(), LIST);
+  client.setQueryData(chatKeys.header("dm1"), makeHeader({ id: "dm1", kind: "DM", space: null, title: "أحمد", emoji: null, memberCount: 2, audience: { type: "PAIR", count: 2 } }));
   client.setQueryData(["orgs"], { organizations: [{ id: "o", name: "ز", keyPrefix: "Z", role: "MEMBER", canCreateSpaces: false, workspaces: [{ id: "w", name: "مبيعات", slug: "s", holdsProjects: true }] }] });
   client.setQueryData(["notifications"], { items: [], unreadCount: 0 });
   const subject = { role: "MEMBER" as const, caps: [...effectiveCapabilities({ role: "MEMBER" })], navV2: opts.navV2 };
@@ -174,4 +178,28 @@ describe("chatLayoutV2 ON × navV2 ON — the target layout", () => {
     const html = await screen({ chatV2: true, navV2: true, desktop: false, pathname: "/chat/dm1" });
     expect(html).toMatch(/<div class="hidden"><section[^>]*data-chat-list="screen"/);
   });
+});
+
+describe("C2.4: the conversation pane in each of the four combinations (it is the page of the new chat, so only the ON ones draw it)", () => {
+  for (const navV2 of [false, true]) {
+    it(`chatLayoutV2 ON × navV2 ${navV2 ? "ON" : "OFF"}, computer: the pane is beside the ONE list column, with its header, log and composer in the pane's root`, async () => {
+      const html = await screen({ chatV2: true, navV2, desktop: true, pathname: "/chat/dm1", conversation: true });
+      expect(html.match(/data-chat-list="column"/g)).toHaveLength(1);
+      expect(html.match(/data-chat-pane-root/g)).toHaveLength(1);
+      expect(html.indexOf('data-chat-slot')).toBeLessThan(html.indexOf("data-chat-pane-root"));
+      expect(html).toContain("data-pane-header");
+      expect(html).toContain('role="log"');
+      expect(html).toContain('data-composer-host="composer"');
+      expect(html).not.toContain("اختار محادثة");
+      expect(html.match(/data-shell="rail"/g)?.length ?? 0).toBe(navV2 ? 1 : 0);
+    });
+
+    it(`chatLayoutV2 ON × navV2 ${navV2 ? "ON" : "OFF"}, phone: the conversation is the screen with its back arrow; the list is kept but hidden`, async () => {
+      const html = await screen({ chatV2: true, navV2, desktop: false, pathname: "/chat/dm1", conversation: true });
+      expect(html).toMatch(/<div class="hidden"><section[^>]*data-chat-list="screen"/);
+      expect(html).toContain("data-chat-pane-root");
+      expect(html).toContain('href="/chat"');
+      expect(html).toContain('data-composer-host="composer"');
+    });
+  }
 });

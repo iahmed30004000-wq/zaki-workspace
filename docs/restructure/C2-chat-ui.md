@@ -244,7 +244,7 @@ allows exactly those key names and caps its allow-list below 14 entries. 🔧 Wr
 - [x] C2.2 `ChatListColumn` with virtual rows reading C1's list cache; folders «الكل/غير مقروء/خاص/المساحات/ذكروني», plus
       «كل الشركة» for oversight holders only (today's «كل الشركة» toggle, `canOversee`).
 - [x] C2.3 Forum view `/chat/s/[spaceId]`.
-- [ ] C2.4 `ConversationPane` header + viewport (virtualized, reverse) + bubbles + service lines + sticky dates + unread
+- [x] C2.4 `ConversationPane` header + viewport (virtualized, reverse) + bubbles + service lines + sticky dates + unread
       separator + jump buttons.
 - [ ] C2.5 Composer (emoji, attach menu, paste/drop, mic/send toggle) — reuse the existing upload/outbox code.
 - [ ] C2.6 Message menu (quick reactions + registry) + hover actions + shortcuts.

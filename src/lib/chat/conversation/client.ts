@@ -32,6 +32,14 @@ export function conversationMessagesUrl(id: string, opts: { before?: string; aft
   return `/api/chat/conversations/${encodeURIComponent(id)}/messages?${query.toString()}`;
 }
 
+/**
+ * C2.4: the people of a conversation (`members`, `mentionables`) — the header leaves them out and the old detail door still carries them. The pane asks for
+ * ONE message, because it only wants the people (the messages come from the cache's own windows).
+ */
+export function conversationPeopleUrl(id: string): string {
+  return `/api/chat/conversations/${encodeURIComponent(id)}?limit=1`;
+}
+
 /** The delta feed: `after` is the `cursor` of the last answer (none: «where is now?»). */
 export function chatSyncUrl(after?: string, limit?: number): string {
   const query = new URLSearchParams();

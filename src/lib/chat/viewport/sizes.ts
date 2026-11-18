@@ -18,6 +18,8 @@ export const FALLBACK_ASPECT = 4 / 3;
 export const VOICE_ROW_PX = 72;
 export const DAY_ROW_PX = 44;
 export const UNREAD_ROW_PX = 44;
+/** the chip of a folded run of call lines */
+export const CALLS_ROW_PX = 44;
 
 const SYSTEM_ROW_PX = 40;
 const DELETED_ROW_PX = 48;
@@ -51,6 +53,7 @@ function attachmentPx(a: AttachmentDto): number {
 export function estimateRowHeight(row: Row): number {
   if (row.type === "day") return DAY_ROW_PX;
   if (row.type === "unread") return UNREAD_ROW_PX;
+  if (row.type === "calls") return CALLS_ROW_PX;
   const m = row.message;
   if (m.kind === "VOICE") return VOICE_ROW_PX;
   if (m.kind === "SYSTEM") return SYSTEM_ROW_PX;

@@ -8,7 +8,7 @@ import type { ScrollSignal } from "@/lib/chat/history/jump";
 import { captureAnchor, restoredScrollTop, shouldRestore, type Anchor } from "@/lib/chat/viewport/anchor";
 import { detectArrival } from "@/lib/chat/viewport/arrival";
 import { OVERSCAN, pendingExpired } from "@/lib/chat/viewport/config";
-import { scrollRowIndex, type Row } from "@/lib/chat/viewport/rows";
+import { messagesOfRow, scrollRowIndex, type Row } from "@/lib/chat/viewport/rows";
 import { estimateRowHeight } from "@/lib/chat/viewport/sizes";
 
 /**
@@ -201,7 +201,7 @@ export function useMessageViewport(opts: MessageViewportOptions): MessageViewpor
     const was = newestRef.current;
     let arrived = false;
     if (changed || was.hasNewer !== hasNewer) {
-      const messages = rows.filter((r): r is Extract<Row, { type: "message" }> => r.type === "message").map((r) => r.message);
+      const messages = rows.flatMap(messagesOfRow);
       newestRef.current = { id: messages.at(-1)?.id ?? null, hasNewer };
       const arrival = detectArrival({ previous: was, messages, hasNewer, atBottom: stickRef.current });
       arrived = arrival.action !== "none";
