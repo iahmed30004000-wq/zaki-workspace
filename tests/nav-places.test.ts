@@ -439,7 +439,8 @@ describe("the words", () => {
       files: "مكتبة مساحة العمل",
       documents: "المستندات",
       knowledge: "المنتجات",
-      team: "الفريق",
+      // N1.4 (glossary): one name for the people directory - «الناس», never «الفريق» as a tab
+      team: "الناس",
       space: "المساحة",
       board: "لوحة المالك",
       assistant: "المساعد",

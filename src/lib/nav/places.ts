@@ -27,6 +27,13 @@
  * 🔧 `canOpenTab` / `offeredToGuests` below are that rule in one place: the pages that refuse guests
  *    ask `offeredToGuests`, so flipping a tab here flips them with it, and
  *    tests/db/guest-internal-pages.test.ts renders every tab's page as every rank to prove it.
+ *
+ * TWO MAPS, ONE SWITCH (N1.1, docs/restructure/N1-navigation.md). `PLACES_V1` is the map above, untouched. `PLACES_V2` is the new one,
+ * drawn for a person whose `NavSubject.navV2` is true (the company's switch `navV2`, OFF when merged): الدردشة · اليوم · الشغل ·
+ * المكتبة · نتفرّج سوا · الإدارة (or «الناس» for staff with no admin power), at most four tabs per place (`MAX_TABS`) and the rest under
+ * «المزيد» (`NavPlace.more`). Both maps are pinned by tests (tests/nav-places.test.ts, tests/nav-places-v2.test.ts). A place whose new page
+ * is built later points at TODAY's page until then («الطلبات» → /approvals, W1.4; «مهامي» → /my-work, W1.1; «الإدارة» keeps today's tabs, A2.1).
+ * Nothing is removed by either map: /list and /calendar stay pages (they are views of «مهامي» on the new map, W1.1 will fold them in).
  */
 
 import type { FeatureKey } from "../features";
@@ -65,6 +72,18 @@ export interface NavSubject {
    * else (`CARDS_SPACE_PLACES`). Left out, or STANDARD: the map is the usual one, untouched.
    */
   spaceLayout?: SpaceLayout;
+  /**
+   * Draw the NEW map (`PLACES_V2`) for this person: the company's switch `navV2` is on. Left out or false: the old map, exactly as before.
+   * (A switch is read from `Organization.settings` on the server: `navExtrasOf` in src/server/policy/org-settings.ts hands this and `workTabs`
+   * to whoever builds the subject.)
+   */
+  navV2?: boolean;
+  /**
+   * The optional work tools the OWNER pinned as tabs for the whole company (`Organization.settings.workTabs`, written by A2.1): at most two keys
+   * of `WORK_OPTIONAL_TABS`, in his order. They follow the core tabs while there is room under `MAX_TABS`; what does not fit stays in «المزيد».
+   * Only the new map reads it; a tool the person may not open is never drawn because it was pinned.
+   */
+  workTabs?: readonly string[];
 }
 
 export type PlaceKey = "today" | "chat" | "work" | "library" | "admin" | "watch" | "cards";
@@ -96,7 +115,9 @@ export type TabKey =
   | "assistant"
   | "approvals"
   | "structure"
-  | "development";
+  | "development"
+  // «الطلبات» (N1.1, the new map only): approvals, assignment requests and the person's department tickets. Its page is today's /approvals until W1.4.
+  | "requests";
 
 /** An icon by NAME: the shell maps it to a drawing (src/components/shell/nav-icons.tsx). Data only, so it crosses from server to browser. */
 export type NavIconKey = "today" | "chat" | "work" | "library" | "admin" | "team" | "reports" | "automation" | "telegram" | "settings" | "watch" | "cards";
@@ -141,6 +162,16 @@ export interface TabDef {
 
 export interface PlaceDef {
   readonly key: PlaceKey;
+  /**
+   * The optional tools of the place (the new map's «المزيد»): offered like tabs but drawn under «المزيد» unless the owner pinned them
+   * (`NavSubject.workTabs`). A place with `more` is the one that takes pins.
+   */
+  readonly more?: readonly TabDef[];
+  /**
+   * The new map's rule for the place that is called «الناس» for staff with no admin power: when none of the person's tabs is `powered`, the place
+   * takes this name and icon instead of its own. One rule, no name per tab (the old `singleTabTakesLabel` is the old map's alone).
+   */
+  readonly peopleOnly?: { readonly labelKey: string; readonly icon: NavIconKey; readonly powered: (tab: TabDef, subject: NavSubject) => boolean };
   /** Where the place opens. Left out: on its first tab the person may use. */
   readonly href?: string;
   readonly labelKey: string;
@@ -156,7 +187,7 @@ export interface PlaceDef {
   readonly feature?: FeatureKey;
 }
 
-export const PLACES: readonly PlaceDef[] = [
+export const PLACES_V1: readonly PlaceDef[] = [
   { key: "today", href: "/", labelKey: "nav.place.today", icon: "today", requires: "everyone", tabs: [] },
   // Chat is available to guests; server-side topic policy limits what they can read.
   { key: "chat", href: "/chat", labelKey: "nav.place.chat", icon: "chat", requires: "everyone", tabs: [] },
@@ -297,6 +328,91 @@ export const PLACES: readonly PlaceDef[] = [
 ];
 
 /**
+ * The old map under its old name: the shell, the palette and the tests that were written before the new map say `PLACES`, and they still get the
+ * old map. The new map is `PLACES_V2`.
+ */
+export const PLACES: readonly PlaceDef[] = PLACES_V1;
+
+/** The most tabs a place shows on the new map; everything else of the place is under «المزيد». */
+export const MAX_TABS = 4;
+/** The most optional tools the owner may pin as tabs (`Organization.settings.workTabs`). */
+export const MAX_PINNED_TABS = 2;
+/** The optional tools of «الشغل»: the tabs of the old map that are not «مهامي» «المشاريع» «الطلبات» (each behind its own switch or box). */
+export const WORK_OPTIONAL_TABS: readonly TabKey[] = ["goals", "ideas", "production", "departments", "tickets", "campaigns", "crm", "checkins"];
+
+/** A tab of the old map, by key: the new map reuses the definition (the same page, the same rule, the same box). */
+function v1Tab(key: TabKey): TabDef {
+  for (const place of PLACES_V1) {
+    const found = place.tabs.find((tab) => tab.key === key);
+    if (found) return found;
+  }
+  throw new Error(`places.ts: no tab ${key} in the old map`);
+}
+
+/** The admin tabs that are real administration: a person with none of them (and no control panel) is in «الناس», not «الإدارة». */
+const ADMIN_POWER_TABS: readonly TabKey[] = ["space", "assistant", "reports", "automation", "telegram", "settings", "archive"];
+
+/** «لوحة التحكم» for the owner and whoever holds `board.team`, «لوحتي» for everybody else: one page, named by what the person may read on it. */
+const boardLabelV2 = (subject: NavSubject): string => (subject.role === "OWNER" || subject.caps.includes("board.team") ? "nav.tab.controlPanel" : "nav.tab.boardSelf");
+
+/**
+ * THE NEW MAP (switch `navV2`). See the header. Order: الدردشة first (the app opens there, D-N1), then اليوم, الشغل, المكتبة, نتفرّج سوا, and
+ * «الإدارة» last (the owner's ask of 2026-10-30 holds). Every tab is a page that exists today and serves the person it is offered to; the
+ * pages of «الطلبات» / «مهامي» / the admin tabs are today's until their own phase replaces them.
+ */
+export const PLACES_V2: readonly PlaceDef[] = [
+  { key: "chat", href: "/chat", labelKey: "nav.place.chat", icon: "chat", requires: "everyone", tabs: [] },
+  // «اليوم» stays reachable from the menu even when the company's landing page is the chat: «/» alone follows the landing setting (src/app/(app)/page.tsx)
+  { key: "today", href: "/?view=today", labelKey: "nav.place.today", icon: "today", requires: "everyone", tabs: [] },
+  {
+    key: "work",
+    href: "/my-work",
+    labelKey: "nav.place.work",
+    icon: "work",
+    requires: "everyone",
+    owns: ["/tasks", "/time"],
+    tabs: [
+      // «القائمة» and «التقويم» are views of «مهامي» (W1.1 folds the pages in; until then they stay pages of their own and belong to this tab)
+      { ...v1Tab("my-work"), also: ["/list", "/calendar"] },
+      v1Tab("projects"),
+      // «الطلبات»: today's approvals page until W1.4. Staff only (a guest never asks, sees or is asked), behind the approvals switch.
+      { key: "requests", href: "/approvals", labelKey: "nav.tab.requests", requires: "staff", feature: "approvals" },
+    ],
+    more: WORK_OPTIONAL_TABS.map(v1Tab),
+  },
+  {
+    key: "library",
+    href: "/files",
+    labelKey: "nav.place.library",
+    icon: "library",
+    requires: "everyone",
+    tabs: [v1Tab("files"), v1Tab("documents"), v1Tab("knowledge")],
+  },
+  { key: "watch", href: "/watch", labelKey: "nav.place.watch", icon: "watch", requires: { capability: "watch.view" }, tabs: [], feature: "watch" },
+  {
+    key: "admin",
+    labelKey: "nav.place.admin",
+    icon: "admin",
+    requires: "everyone",
+    peopleOnly: { labelKey: "nav.place.people", icon: "team", powered: (tab, subject) => ADMIN_POWER_TABS.includes(tab.key) || tab.labelFor?.(subject) === "nav.tab.controlPanel" },
+    // «الإدارة» keeps today's tabs until `controlPanelV2` (A2.1). The first four the person may open are the tabs; the rest is «المزيد».
+    tabs: [
+      v1Tab("team"),
+      v1Tab("space"),
+      { ...v1Tab("board"), labelFor: boardLabelV2 },
+      v1Tab("settings"),
+      v1Tab("structure"),
+      v1Tab("development"),
+      v1Tab("assistant"),
+      v1Tab("reports"),
+      v1Tab("automation"),
+      v1Tab("telegram"),
+      v1Tab("archive"),
+    ],
+  },
+];
+
+/**
  * «اللوحات» — the one place of a space of cards (the owner's ask, 2026-10-30). It is NOT in `PLACES`: a general space never
  * draws it and its map, its order and the tests that pin them stay as they were. `buildNav` puts it FIRST when the space
  * the person is in is a cards space (see `CARDS_SPACE_PLACES`). It is one page (/cards, and /cards/[id] belongs to it),
@@ -321,11 +437,15 @@ export const CARDS_PLACE: PlaceDef = {
  */
 export const CARDS_SPACE_PLACES: readonly PlaceKey[] = ["admin"];
 
-/** The place definitions the map is drawn from for a space of this layout: the code's `PLACES`, or «اللوحات» then «الإدارة». */
-function placesFor(layout: SpaceLayout | undefined): readonly PlaceDef[] {
-  if (!opensOnCards(layout)) return PLACES;
-  return [CARDS_PLACE, ...PLACES.filter((def) => CARDS_SPACE_PLACES.includes(def.key))];
+/** The place definitions the map is drawn from for a space of this layout: the code's map, or «اللوحات» then «الإدارة». */
+function placesFor(layout: SpaceLayout | undefined, v2 = false): readonly PlaceDef[] {
+  const all = v2 ? PLACES_V2 : PLACES_V1;
+  if (!opensOnCards(layout)) return all;
+  return [CARDS_PLACE, ...all.filter((def) => CARDS_SPACE_PLACES.includes(def.key))];
 }
+
+/** Does the company draw the new map for this person (the switch `navV2`)? */
+const usesV2 = (subject: NavSubject): boolean => subject.navV2 === true;
 
 /**
  * Every address the app had before Phase 2. Each one is still a page (`src/app/(app)/<route>/page.tsx`,
@@ -384,10 +504,10 @@ function meets(req: Requirement, subject: NavSubject): boolean {
   return rankAtLeast(subject.role, req.rankAtLeast);
 }
 
-/** A tab, with the place it lives in (undefined: no such tab). */
-function findTab(tabKey: TabKey): { place: PlaceDef; tab: TabDef } | undefined {
-  for (const place of PLACES) {
-    const tab = place.tabs.find((candidate) => candidate.key === tabKey);
+/** A tab (or an optional tool of «المزيد»), with the place it lives in, on the old map or the new one (undefined: no such tab there). */
+function findTab(tabKey: TabKey, v2 = false): { place: PlaceDef; tab: TabDef } | undefined {
+  for (const place of v2 ? PLACES_V2 : PLACES_V1) {
+    const tab = [...place.tabs, ...(place.more ?? [])].find((candidate) => candidate.key === tabKey);
     if (tab) return { place, tab };
   }
   return undefined;
@@ -400,7 +520,7 @@ function findTab(tabKey: TabKey): { place: PlaceDef; tab: TabDef } | undefined {
  * the tab includes guests (`offeredToGuests`).
  */
 export function canOpenTab(subject: NavSubject, tabKey: TabKey): boolean {
-  const found = findTab(tabKey);
+  const found = findTab(tabKey, usesV2(subject));
   return (
     found !== undefined &&
     meets(found.place.requires, subject) &&
@@ -416,7 +536,8 @@ export function canOpenTab(subject: NavSubject, tabKey: TabKey): boolean {
  * repeating the rule: `if (actor.isExternal && !offeredToGuests("goals")) return <GuestNotice />`.
  */
 export function offeredToGuests(tabKey: TabKey): boolean {
-  return canOpenTab({ role: "GUEST", caps: [] }, tabKey);
+  // either map: a page that served a guest before the new map still does, and a tab only the new map has («الطلبات») is judged by it
+  return canOpenTab({ role: "GUEST", caps: [] }, tabKey) || canOpenTab({ role: "GUEST", caps: [], navV2: true }, tabKey);
 }
 
 /** Is this place (of any kind: one page, or tabs) on this person's map? Exactly when `buildNav` draws it. */
@@ -442,8 +563,10 @@ export interface NavPlace {
   href: string;
   labelKey: string;
   icon: NavIconKey;
-  /** The tabs this person may use, in order; empty for a place that is one page. */
+  /** The tabs this person may use, in order; empty for a place that is one page. On the new map never more than `MAX_TABS`. */
   tabs: NavTab[];
+  /** The new map only: what the person may open in this place beyond its tabs, under «المزيد» (always an array there, absent on the old map). */
+  more?: NavTab[];
 }
 
 export interface NavModel {
@@ -455,10 +578,16 @@ export interface NavModel {
  * dictionary keys), so the server computes it and hands it to the browser as it is.
  */
 export function buildNav(subject: NavSubject): NavModel {
+  const v2 = usesV2(subject);
   const places: NavPlace[] = [];
-  for (const def of placesFor(subject.spaceLayout)) {
+  for (const def of placesFor(subject.spaceLayout, v2)) {
     if (!meets(def.requires, subject)) continue;
     if (def.feature && subject.off?.includes(def.feature)) continue;
+    if (v2) {
+      const drawn = buildPlaceV2(def, subject);
+      if (drawn) places.push(drawn);
+      continue;
+    }
     const allowed = def.tabs.filter((tab) => meets(tab.requires, subject) && !(tab.feature && subject.off?.includes(tab.feature)) && !tab.hideFor?.(subject));
     if (def.tabs.length > 0 && allowed.length === 0) continue;
 
@@ -478,6 +607,46 @@ export function buildNav(subject: NavSubject): NavModel {
   return { places };
 }
 
+/** The tab a person may open: its box, its switch, and not hidden for them. */
+const tabOpen = (tab: TabDef, subject: NavSubject): boolean => meets(tab.requires, subject) && !(tab.feature && subject.off?.includes(tab.feature)) && !tab.hideFor?.(subject);
+
+const navTab = (tab: TabDef, subject: NavSubject): NavTab => ({ key: tab.key, href: tab.href, labelKey: tab.labelFor?.(subject) ?? tab.labelKey });
+
+/**
+ * One place of the NEW map for this person (null: not drawn). The core tabs come first, then the tools the owner pinned (only for a place with
+ * `more`), cut to `MAX_TABS`; everything else the person may open is `more`, in the code's order — so nothing is lost and two people of the same
+ * rank get the same menu.
+ */
+function buildPlaceV2(def: PlaceDef, subject: NavSubject): NavPlace | null {
+  const core = def.tabs.filter((tab) => tabOpen(tab, subject));
+  const optional = (def.more ?? []).filter((tab) => tabOpen(tab, subject));
+  if (def.tabs.length > 0 && core.length + optional.length === 0) return null;
+
+  // the owner's pins: the first two keys he chose (an unknown key, a duplicate, a core tab, a tool the person may not open: ignored)
+  const pinned: TabDef[] = [];
+  if (def.more) {
+    const chosen = [...new Set(subject.workTabs ?? [])].filter((key) => (WORK_OPTIONAL_TABS as readonly string[]).includes(key)).slice(0, MAX_PINNED_TABS);
+    for (const key of chosen) {
+      const tab = optional.find((candidate) => candidate.key === key);
+      if (tab) pinned.push(tab);
+    }
+  }
+  const drawn = [...core, ...pinned].slice(0, MAX_TABS);
+  const rest = [...core, ...optional].filter((tab) => !drawn.includes(tab));
+
+  const first = drawn[0];
+  const href = !first || [...drawn, ...rest].some((tab) => tab.href === def.href) ? (def.href ?? "/") : first.href;
+  const peopleOnly = def.peopleOnly && ![...core, ...optional].some((tab) => def.peopleOnly?.powered(tab, subject));
+  return {
+    key: def.key,
+    href,
+    labelKey: peopleOnly && def.peopleOnly ? def.peopleOnly.labelKey : def.labelKey,
+    icon: peopleOnly && def.peopleOnly ? def.peopleOnly.icon : def.icon,
+    tabs: drawn.map((tab) => navTab(tab, subject)),
+    more: rest.map((tab) => navTab(tab, subject)),
+  };
+}
+
 // ───────────────────────────────────────── where an address lives ─────────────────────────────────────────
 
 interface Prefix {
@@ -486,12 +655,19 @@ interface Prefix {
   tab: TabKey | null;
 }
 
-/** Every address prefix the map knows, with the place (and the tab) it belongs to. */
-const PREFIXES: readonly Prefix[] = [...PLACES, CARDS_PLACE].flatMap((def) => [
-  ...(def.tabs.length === 0 && def.href ? [{ path: def.href, place: def.key, tab: null }] : []),
-  ...(def.owns ?? []).map((path) => ({ path, place: def.key, tab: null })),
-  ...def.tabs.flatMap((tab) => [tab.href, ...(tab.also ?? [])].map((path) => ({ path, place: def.key, tab: tab.key }))),
-]);
+/** The path part of a place's address ("/?view=today" is the page "/"). */
+const bareHref = (href: string): string => href.split(/[?#]/, 1)[0] || "/";
+
+/** Every address prefix a map knows, with the place (and the tab) it belongs to. */
+const prefixesOf = (places: readonly PlaceDef[]): readonly Prefix[] =>
+  [...places, CARDS_PLACE].flatMap((def) => [
+    ...(def.tabs.length === 0 && def.href ? [{ path: bareHref(def.href), place: def.key, tab: null }] : []),
+    ...(def.owns ?? []).map((path) => ({ path, place: def.key, tab: null })),
+    ...[...def.tabs, ...(def.more ?? [])].flatMap((tab) => [tab.href, ...(tab.also ?? [])].map((path) => ({ path, place: def.key, tab: tab.key }))),
+  ]);
+
+const PREFIXES_V1: readonly Prefix[] = prefixesOf(PLACES_V1);
+const PREFIXES_V2: readonly Prefix[] = prefixesOf(PLACES_V2);
 
 /** The path of an address, without its query, its hash or a trailing slash; null when it is no path of this site. */
 function pathOf(pathname: string): string | null {
@@ -513,23 +689,23 @@ const NOWHERE = { place: null, tab: null } as const;
  * is the projects tab of «الشغل», "/tasks/x" is «الشغل» without a tab, "/u/x" is «الفريق», and the
  * profile, the guide and the onboarding belong to no place.
  */
-export function locate(pathname: string): { place: PlaceKey | null; tab: TabKey | null } {
+export function locate(pathname: string, map: "v1" | "v2" = "v1"): { place: PlaceKey | null; tab: TabKey | null } {
   const path = pathOf(pathname);
   if (!path) return { ...NOWHERE };
   let best: Prefix | null = null;
-  for (const prefix of PREFIXES) {
+  for (const prefix of map === "v2" ? PREFIXES_V2 : PREFIXES_V1) {
     if (!covers(prefix.path, path)) continue;
     if (!best || prefix.path.length > best.path.length) best = prefix;
   }
   return best ? { place: best.place, tab: best.tab } : { ...NOWHERE };
 }
 
-/** The place an address belongs to (null: none). */
-export function placeOfPath(pathname: string): PlaceKey | null {
-  return locate(pathname).place;
+/** The place an address belongs to (null: none). `map`: the old map (default) or the new one. */
+export function placeOfPath(pathname: string, map: "v1" | "v2" = "v1"): PlaceKey | null {
+  return locate(pathname, map).place;
 }
 
-/** The tab an address belongs to (null: none, or a page of the place that is no tab). */
-export function tabOfPath(pathname: string): TabKey | null {
-  return locate(pathname).tab;
+/** The tab an address belongs to (null: none, or a page of the place that is no tab). `map`: the old map (default) or the new one. */
+export function tabOfPath(pathname: string, map: "v1" | "v2" = "v1"): TabKey | null {
+  return locate(pathname, map).tab;
 }

@@ -82,6 +82,7 @@ import assistantMeetings from "./ar.assistant-meetings.json";
 import appDevices from "./ar.app-devices.json";
 import themeSwitch from "./ar.theme-switch.json";
 import themeGallery from "./ar.theme-gallery.json";
+import navV2 from "./ar.nav-v2.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -175,4 +176,5 @@ export const AR: Record<string, string> = {
   ...backup,
   ...themeSwitch,
   ...themeGallery,
+  ...navV2,
 };

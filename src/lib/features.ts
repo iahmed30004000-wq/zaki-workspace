@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -256,6 +256,10 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // «تنبيه بيانات الزبون» (src/lib/chat/customer-data-hint.ts, Q1.7): a hint line for the author and the moderators when customer data (the order template, a phone
   // number) is typed into an open topic. Hints only: nothing is blocked, hidden or changed. OFF by default.
   orderTemplateHint: false,
+  // «القائمة الجديدة» (src/lib/nav/places.ts, N1.1): the new map of places - الدردشة · اليوم · الشغل · المكتبة · نتفرّج سوا · الإدارة (or «الناس»), at most four tabs and «المزيد»
+  // in each place, the landing page the company chose (`Organization.settings.landing`) and the glossary's names. OFF by default: off, the old map (PLACES_V1) is drawn and «/» is «اليوم»,
+  // exactly as before. Nothing is removed by either map: every old address is still a page.
+  navV2: false,
   semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
   // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),
