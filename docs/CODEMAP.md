@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 345 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 65 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 66 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -776,7 +776,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `ownerBoard` | 4 — `app/(app)/analytics/page.tsx`, `lib/nav/places.ts`, `server/policy/board.ts`, `server/services/assistant-work.ts` |
 | `taskRewards` | 4 — `app/api/instant/route.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
 | `ownerAssistant` | 9 — `lib/nav/places.ts`, `server/calls/assistant-agent.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts`, `server/services/owner-assistant-access.ts`, `server/services/site-guide.ts`, `server/services/zaki-ai.ts` |
-| `chatAssistant` | 3 — `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts` |
+| `chatAssistant` | 4 — `lib/chat/customer-data-hint.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts` |
 | `chatOutbox` | 1 — `server/chat/topics.ts` |
 | `customFields` | 3 — `app/(app)/projects/[id]/page.tsx`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
 | `checkins` | 7 — `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
@@ -799,7 +799,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `siteGuide` | 2 — `server/chat/topics.ts`, `server/services/site-guide.ts` |
 | `morningDigest` | 1 — `server/services/digest.ts` |
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
-| `messageTranslate` | 1 — `server/services/message-translate.ts` |
+| `messageTranslate` | 2 — `lib/chat/customer-data-hint.ts`, `server/services/message-translate.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
 | `search` | 13 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
@@ -811,9 +811,10 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `knowledgeCards` | 6 — `app/(app)/knowledge/[cardId]/page.tsx`, `app/(app)/knowledge/page.tsx`, `lib/nav/places.ts`, `server/chat/topics.ts`, `server/integrations/oms-sync.ts`, `server/services/knowledge.ts` |
 | `quickRecall` | 2 — `server/chat/recall.ts`, `server/chat/topics.ts` |
 | `orderStatus` | 2 — `server/chat/topics.ts`, `server/services/order-state.ts` |
-| `autoTickets` | 5 — `server/chat/topics.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
+| `autoTickets` | 6 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
 | `mustRead` | 4 — `server/chat/messages.ts`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/must-read.ts` |
-| `semanticSearch` | 4 — `app/(app)/settings/page.tsx`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
+| `orderTemplateHint` | 1 — `server/chat/topics.ts` |
+| `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 4 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
 | `assistantInMeetings` | 1 — `server/calls/assistant-agent.ts` |

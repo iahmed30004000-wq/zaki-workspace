@@ -66,3 +66,18 @@ describe("review fixes", () => {
     expect(maskPhonesIn(text)).not.toContain("234567");
   });
 });
+
+describe("prices and counts are not phone numbers (Q1.7 review)", () => {
+  it("long numbers without the shape of a phone are left alone, in the finder and in the mask", () => {
+    for (const text of ["السعر 1.500.000 ل.س", "سعرها 25 000 000", "مبلغ 1500000", "رقم الشحنة 1234567", "الكمية 10 20 30 40", "الوزن 2.5 3.5 4.5 5.5", "15-11-2026 10"]) {
+      expect(findCustomerNumbers(text), text).toEqual([]);
+      expect(maskPhonesIn(text), text).toBe(text);
+    }
+  });
+  it("a phone still is one: a leading zero, a plus or a country code", () => {
+    expect(findCustomerNumbers("السعر 1.500.000 والزبون 0791234567")).toEqual(["0791234567"]);
+    expect(findCustomerNumbers("زبون +962791234567")).toEqual(["0791234567"]);
+    expect(findCustomerNumbers("زبون 00962791234567")).toEqual(["0791234567"]);
+    expect(findCustomerNumbers("زبون 011 1234567")).toEqual(["0111234567"]);
+  });
+});

@@ -61,6 +61,7 @@ import apiDoor from "./ar.api-door.json";
 import systemTokens from "./ar.system-tokens.json";
 import autoTickets from "./ar.auto-tickets.json";
 import mustRead from "./ar.must-read.json";
+import customerHints from "./ar.customer-hints.json";
 import spaceLibrary from "./ar.space-library.json";
 import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
@@ -163,6 +164,7 @@ export const AR: Record<string, string> = {
   ...systemTokens,
   ...autoTickets,
   ...mustRead,
+  ...customerHints,
   ...spaceLibrary,
   ...manufacturing,
   ...localModel,

@@ -40,7 +40,23 @@ function phoneMatches(text: string): Array<{ index: number; text: string }> {
   const norm = normalizeDigits(withoutOrderNumbers(text).replace(INVISIBLE, " "));
   return [...norm.matchAll(new RegExp(PHONE_PATTERN.source, "g"))]
     .map((m) => ({ index: m.index ?? 0, text: m[0] }))
-    .filter((m) => !DATE_SHAPES.some((re) => re.test(m.text.replace(/[()+]/g, ""))));
+    .filter((m) => !DATE_SHAPES.some((re) => re.test(m.text.replace(/[()+]/g, ""))))
+    .filter((m) => looksLikePhone(m.text));
+}
+
+/** `1.500.000`, `25 000 000`: thousands written in groups of three are a price, not a phone. */
+const THOUSANDS = /^\d{1,3}(?:[\s.]\d{3}){2,}$/;
+
+/**
+ * What the text may call a customer's number: it starts with a zero, a «+» or a country code written as «00», has at least 8 digits, and is not a price. Long
+ * numbers without that shape (a price, a count, a parcel number) are left alone — in the finder and in the mask. A number TYPED into the form is not judged
+ * here (the person said it is one).
+ */
+function looksLikePhone(raw: string): boolean {
+  const s = raw.replace(/[()\s.\-]/g, "");
+  if (!(s.startsWith("+") || s.startsWith("0"))) return false;
+  if (THOUSANDS.test(raw.replace(/[()]/g, "").trim())) return false;
+  return s.replace(/\D/g, "").length >= 8;
 }
 
 /** The customer numbers written in a text, normalised, each once, in order. */
