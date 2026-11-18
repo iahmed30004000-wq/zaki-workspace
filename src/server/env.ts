@@ -1,4 +1,22 @@
+import * as React from "react";
 import { z } from "zod";
+
+/**
+ * A memo that lives for ONE server render (one request), never longer: React's `cache()`.
+ *
+ * Next gives a server-component render a request scope for `cache()`; outside one (a route handler, a server action, the
+ * worker, a script, a test) React has no scope and calls the function every time, so nothing is ever remembered between
+ * requests. The key is the ARGUMENTS COMPARED BY IDENTITY: wrap a function that takes primitives (`orgId`, `userId`),
+ * never one that takes an object a caller builds afresh (an `opts` literal, an actor) - that would never hit.
+ *
+ * TRAP: this is the ONLY memo allowed around a user, a rank, a permission or a company's switches. A module-level
+ * `Map` / `let` of any of them is shared by every request of the process: one person would be served another's answer.
+ * (It lives in this file, which no test replaces, so that a test mocking `@/server/db` or `@/server/auth` still gets it.)
+ */
+export function perRequest<F extends (...args: never[]) => unknown>(fn: F): F {
+  const reactCache = (React as unknown as { cache?: <T extends (...args: never[]) => unknown>(f: T) => T }).cache;
+  return typeof reactCache === "function" ? reactCache(fn) : fn;
+}
 
 /**
  * A variable the platform passes as "" (Coolify does, and so does compose's `${VAR:-}`
@@ -38,6 +56,29 @@ const appUrlField = z.preprocess(
 const HOURS_MESSAGE = "SESSION_TTL_HOURS must be a positive whole number of hours";
 const HOPS_MESSAGE = "TRUSTED_PROXY_HOPS must be a whole number from 1 to 5 (how many reverse proxies sit in front of the app)";
 
+const JOBS_MESSAGE = "JOBS_IN_WORKER must be 1 (the worker service runs the jobs) or 0 / empty (the app runs them, as before)";
+
+/** `1` / `true` = on, `0` / `false` / empty = off; anything else is a typo that must not leave the jobs nowhere. */
+const jobsInWorkerField = z.preprocess(
+  (v) => {
+    const b = blankToUndefined(v);
+    return typeof b === "string" ? b.trim().toLowerCase() : b;
+  },
+  z
+    .enum(["0", "1", "true", "false"], { errorMap: () => ({ message: JOBS_MESSAGE }) })
+    .default("0")
+    .transform((v) => v === "1" || v === "true"),
+);
+
+/**
+ * Who runs the jobs, read on its own (the scheduler asks this and nothing else, so it never depends on the rest of the
+ * environment being valid). A value `env()` would refuse reads as off: the boot has already stopped on it.
+ */
+export function jobsInWorker(source: NodeJS.ProcessEnv = process.env): boolean {
+  const parsed = jobsInWorkerField.safeParse(source["JOBS_IN_WORKER"]);
+  return parsed.success && parsed.data === true;
+}
+
 const schema = z.object({
   DATABASE_URL: z.string().min(1),
   AUTH_SECRET: z.string().min(16, "AUTH_SECRET must be at least 16 chars"),
@@ -66,6 +107,9 @@ const schema = z.object({
     blankToUndefined,
     z.coerce.number({ invalid_type_error: HOPS_MESSAGE }).int(HOPS_MESSAGE).min(1, HOPS_MESSAGE).max(5, HOPS_MESSAGE).default(1),
   ),
+  // F1.9 (D-F1): who runs the background jobs. Off (the default): the app process does, as it always has. On: only the
+  // compose `worker` service does (src/server/jobs/scheduler.ts) and the app stops scheduling.
+  JOBS_IN_WORKER: jobsInWorkerField,
 });
 
 export type AppEnv = z.infer<typeof schema>;

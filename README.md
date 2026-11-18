@@ -17,7 +17,7 @@ service and who imports it, every table and what writes it — is generated into
 | Frontend | Next.js 14 (App Router), React 18, TypeScript strict, Tailwind CSS 3, TanStack Query, @dnd-kit, lucide-react |
 | Backend  | Next.js route handlers, Zod-validated typed contracts, centralized error mapping |
 | Database | PostgreSQL 16 + Prisma (migrations in `prisma/migrations`) |
-| Worker   | Node service (`worker/index.ts`) — a heartbeat placeholder today, no jobs yet |
+| Worker   | Node service (compose `worker`, entry `runJobsWorker` in `src/server/jobs/scheduler.ts`) — runs the background jobs when `JOBS_IN_WORKER=1`, otherwise only a heartbeat (the app keeps the jobs) |
 | Tests    | Vitest: `tests/` (no database) and `tests/db/` (real Postgres) |
 | Deploy   | Docker image built by GitHub Actions, run on Coolify (`workspace.zakiai.io`); Compose for local and self-hosted runs |
 
@@ -29,7 +29,7 @@ src/app/api/         REST endpoints (auth, workspaces, projects, boards, tasks, 
 src/components/      UI shell, board, task detail, primitives
 src/server/          db, env validation, session, rbac, task service, logging
 prisma/              schema + migrations + seed
-worker/              background worker (heartbeat placeholder)
+worker/              local heartbeat (`npm run worker`); the compose worker runs src/server/jobs/scheduler.ts
 scripts/             secret scanner, migration linter, operator scripts (re-encrypt secrets)
 .github/workflows/   CI (ci.yml) and the image build (image.yml)
 docker-compose.yml   app + worker + db + redis (not used yet) + migrate
@@ -72,7 +72,7 @@ database.
 
 | Variable | Required | Purpose |
 | -------- | -------- | ------- |
-| `DATABASE_URL` | yes | PostgreSQL connection string |
+| `DATABASE_URL` | yes | PostgreSQL connection string. Put an explicit pool size in it: `...?connection_limit=10&pool_timeout=20`. `connection_limit` is the size of Prisma's connection pool **per process** (the app is one process, the compose `worker` another; Prisma's default is CPUs × 2 + 1); keep processes × `connection_limit` under Postgres's `max_connections` (default 100) with a few spare for the connections the app opens itself (the live line, the jobs lock). `pool_timeout` is how many seconds a request waits for a free connection. The app keeps ONE Prisma client per process in production too (`src/server/db.ts`) |
 | `AUTH_SECRET` | yes | Signs session cookies (16+ characters; use `openssl rand -hex 32`) |
 | `APP_URL` | yes in production | The public URL of the app, a full `https://` address (`https://workspace.zakiai.io`). Every link, redirect and the Google OAuth redirect URI is built from it, not from the request. Blank falls back to `http://localhost:3000` and the container logs a `boot.app_url_missing` warning |
 | `ENCRYPTION_KEY` | no | Key for secrets stored in the database (Telegram, n8n, Google). Empty = derived from `AUTH_SECRET`, the old behaviour (production logs a `boot.encryption_key_missing` warning). Set a separate random value (`openssl rand -hex 32`) so rotating `AUTH_SECRET` does not break the stored secrets, then run `scripts/reencrypt-secrets.ts` once. ⚠️ It is also the ONLY key of the encrypted database backups (`dbBackup`, «الأتمتة»): they refuse to run without it (a key derived from `AUTH_SECRET` would rotate with the sessions) and cannot be opened without it. 🔧 Keep a copy outside the server; restoring is `scripts/decrypt-backup.mjs` then `psql` into a NEW database |
@@ -80,6 +80,7 @@ database.
 | `UPLOAD_DIR` | no | Folder where uploaded files are written. Default `.data/uploads` in the working directory; the Docker image sets `/app/storage/uploads`, which must be a persistent volume |
 | `SESSION_TTL_HOURS` | no | Session lifetime, default 168 (one week) |
 | `LOG_LEVEL` | no | `debug`, `info` (default), `warn` or `error` |
+| `JOBS_IN_WORKER` | no | Who runs the background jobs (reminders, recurring tasks, the encrypted backup, the company mailbox, embeddings, the orders sync...). Empty or `0` (the **default**): the app process does, as it always has. `1`: only the compose `worker` service does (`src/server/jobs/scheduler.ts`, the same Postgres advisory lock) and the app stops scheduling, so the jobs no longer share an event loop with the live streams and the API. The worker runs the app's own code, so it needs the app's whole environment (`DATABASE_URL`, `AUTH_SECRET`, `ENCRYPTION_KEY`, `APP_URL`, the Google and SMTP keys, the embeddings keys): `docker-compose.yml` passes them. Anything else but `1`, `true`, `0`, `false` or empty stops the boot with this name. ⚠️ It changes how production runs: with `1` and no worker running, **nothing** runs the jobs (the app logs `boot.jobs_in_worker`, the worker logs `worker.start` with `jobsStarted`). 🔧 Start the `worker` service with the app's environment first, then set `JOBS_IN_WORKER=1` on the app and the worker in Coolify; to go back, empty it |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | no | Google Drive: the library stores its files in the owner's Drive (scope `drive.file`, the app's own files only); without them the library stays on the server |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | no | The Web Push key pair that rings a closed site (`src/server/calls/push.ts`). Unset, it is derived from `ENCRYPTION_KEY` (else `AUTH_SECRET`), the same on every start; set both only to pin other keys. Changing the secret changes the keys and the browsers subscribe again by themselves |
 | `TRANSCRIBE_URL`, `TRANSCRIBE_MODEL`, `TRANSCRIBE_LANGUAGE` | no, for «اكتب النص» | A speech-to-text service the owner runs on his own machine (OpenAI shape: `POST /v1/audio/transcriptions`; faster-whisper-server, whisper.cpp's server, LocalAI). `TRANSCRIBE_URL` is an origin judged by the same allow-list as the local model (his machine or private network only; a public address is refused); `TRANSCRIBE_MODEL` defaults to `whisper-1`, `TRANSCRIBE_LANGUAGE` to `ar` (empty: let the service guess). Without it the button is not drawn; the switch `voiceTranscript` is also off by default |

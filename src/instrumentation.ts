@@ -64,6 +64,8 @@ export async function register(): Promise<void> {
     try {
       const { startJobRunner } = await import("./server/jobs/scheduler");
       if (startJobRunner()) console.log(JSON.stringify({ event: "boot.jobs_started" }));
+      // JOBS_IN_WORKER=1: the compose worker service runs them (F1.9); say so in the log, so "nothing runs the jobs" is never a mystery
+      else if ((await import("./server/env")).env().JOBS_IN_WORKER) console.log(JSON.stringify({ event: "boot.jobs_in_worker" }));
     } catch (err) {
       console.error(
         JSON.stringify({

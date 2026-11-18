@@ -182,7 +182,8 @@ describe("the Docker image has what it copies", () => {
   it("the compose worker does not inherit the web server's HEALTHCHECK (it would be 'unhealthy' for ever)", () => {
     const compose = readFileSync(join(ROOT, "docker-compose.yml"), "utf8");
     const block = /^ {2}worker:\r?\n([\s\S]*?)(?=^ {2}\w[\w-]*:\r?$|^volumes:)/m.exec(compose)?.[1] ?? "";
-    expect(block, "compose has a worker service").toContain("npm");
+    // the worker runs the job scheduler's entry (F1.9); `npm run worker` is only the local heartbeat
+    expect(block, "compose has a worker service").toContain("runJobsWorker");
     expect(block).toMatch(/healthcheck:\r?\n\s+disable:\s*true/);
   });
 

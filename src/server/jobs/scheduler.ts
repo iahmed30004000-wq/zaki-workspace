@@ -1,11 +1,16 @@
 import { Client } from "pg";
+import { bootWarnings, env, jobsInWorker } from "@/server/env";
 import { log } from "@/server/log";
 import { directPgUrl } from "@/server/realtime/listener";
 import { runDueJobs, type JobsRun } from "./run";
 
 /**
- * THE IN-APP JOB RUNNER. Background work runs INSIDE the app process (the compose `worker` is a heartbeat placeholder):
- * `instrumentation.ts` starts this once per server process; every 30 seconds it calls `runDueJobs(now)`.
+ * THE JOB RUNNER. Background work runs INSIDE the app process by default: `instrumentation.ts` starts this once per server
+ * process; every 30 seconds it calls `runDueJobs(now)`.
+ *
+ * F1.9 (D-F1): with `JOBS_IN_WORKER=1` (src/server/env.ts) the app stops scheduling and the compose `worker` service does it
+ * instead (`runJobsWorker` below), so the backup, the mailbox, the embeddings and the orders sync no longer share the event loop
+ * with the live streams and the API. The variable is unset by default: nothing changes until the owner sets it.
  *
  * Guard: a PostgreSQL ADVISORY LOCK (`pg_try_advisory_lock`) on a connection of its own. With two app processes only the
  * one holding the lock works that tick; the other skips silently. The lock belongs to the connection, so it is dropped
@@ -21,6 +26,15 @@ export const JOBS_LOCK_KEY = 742272;
 export const JOBS_INTERVAL_MS = 30_000;
 /** A tick that has not finished by now is abandoned: its connection is closed, which drops the lock. */
 const TICK_TIMEOUT_MS = 5 * 60_000;
+
+/**
+ * Who schedules: the web process unless the worker has taken the jobs over, the worker only when it has. With both running
+ * for a moment (the switch is flipped on one service before the other restarts) the advisory lock still lets one tick
+ * work, and every job is idempotent, so the overlap is harmless.
+ */
+export function jobsRunHere(role: "web" | "worker", jobsInWorker: boolean): boolean {
+  return role === "worker" ? jobsInWorker : !jobsInWorker;
+}
 
 /** May the scheduler run in this process? Not while building, not in a test. */
 export function schedulerAllowed(env: NodeJS.ProcessEnv = process.env): boolean {
@@ -65,9 +79,13 @@ declare global {
   var __zkJobsTimer: ReturnType<typeof setInterval> | undefined;
 }
 
-/** Starts the loop (once per process, even when Next loads this module twice). A job that throws never stops it. */
-export function startJobRunner(): boolean {
+/**
+ * Starts the loop (once per process, even when Next loads this module twice). A job that throws never stops it.
+ * `role` is where this process runs: the app (the default) or the worker; `JOBS_IN_WORKER` decides which of them schedules.
+ */
+export function startJobRunner(role: "web" | "worker" = "web"): boolean {
   if (!schedulerAllowed() || globalThis.__zkJobsTimer) return false;
+  if (!jobsRunHere(role, jobsInWorker())) return false;
   let busy = false;
   const run = () => {
     if (busy) return;
@@ -83,6 +101,35 @@ export function startJobRunner(): boolean {
   // the first tick shortly after boot (boot is busy), not immediately
   setTimeout(run, 10_000).unref?.();
   return true;
+}
+
+/**
+ * The entry of the compose `worker` service (`docker-compose.yml`): the same image and the same environment as the app.
+ * It validates that environment first (a worker without `DATABASE_URL` or `AUTH_SECRET` fails at once with the key's name),
+ * logs the same production warnings as the app (`boot.encryption_key_missing`: the key is optional, but without it the
+ * backup job refuses to run and a stored mailbox password cannot be read), starts the scheduler when `JOBS_IN_WORKER` is
+ * on, and keeps a one-minute heartbeat that proves the database connection (it is what keeps the process alive: the
+ * scheduler's own timers do not).
+ */
+export async function runJobsWorker(): Promise<void> {
+  const settings = env();
+  const { db } = await import("@/server/db");
+  for (const key of bootWarnings()) console.warn(JSON.stringify({ event: key, level: "warn", where: "worker" }));
+  const jobs = startJobRunner("worker");
+  console.log(JSON.stringify({ event: "worker.start", jobsInWorker: settings.JOBS_IN_WORKER, jobsStarted: jobs }));
+  if (!settings.JOBS_IN_WORKER) {
+    console.log(JSON.stringify({ event: "worker.idle", detail: "JOBS_IN_WORKER is off: the app process runs the jobs" }));
+  }
+  const beat = async () => {
+    try {
+      await db.$queryRaw`SELECT 1`;
+      console.log(JSON.stringify({ event: "worker.tick", jobsInWorker: settings.JOBS_IN_WORKER }));
+    } catch (err) {
+      console.error(JSON.stringify({ event: "worker.tick_error", message: err instanceof Error ? err.message : String(err) }));
+    }
+  };
+  await beat();
+  setInterval(() => void beat(), 60_000);
 }
 
 /** Test hook: stop the loop (never call from server code). */

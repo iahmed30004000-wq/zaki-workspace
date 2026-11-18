@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { perRequest } from "@/server/env";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { FEATURES, economyOn, featureOn, ownChoicesOf, withFeature, type FeatureKey } from "@/lib/features";
 
@@ -9,9 +10,15 @@ import { FEATURES, economyOn, featureOn, ownChoicesOf, withFeature, type Feature
  * nothing it stored is touched. Only the OWNER switches (src/lib/features.ts holds the keys and their defaults).
  */
 
+/**
+ * The company's name and settings, read ONCE per server render (`perRequest`, F1.2): the layout, the page and every
+ * `isFeatureOn` of the render share this one read (a conversation page asked seven times before). The key is the company's id;
+ * nothing outlives the render, so a switch the owner flips is seen by the very next request. C1.2 reuses it.
+ */
+export const orgSummaryOf = perRequest(async (orgId: string) => db.organization.findUnique({ where: { id: orgId }, select: { name: true, settings: true } }));
+
 async function settingsOf(orgId: string): Promise<unknown> {
-  const org = await db.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
-  return org?.settings ?? {};
+  return (await orgSummaryOf(orgId))?.settings ?? {};
 }
 
 export async function isFeatureOn(orgId: string, key: FeatureKey): Promise<boolean> {

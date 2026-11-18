@@ -2,6 +2,7 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { OrgRole, Prisma, WorkspaceKind, WorkspaceRole } from "@prisma/client";
 import { db } from "@/server/db";
+import { perRequest } from "@/server/env";
 import { HQ_SYSTEM_KEY } from "@/server/chat/hq";
 import { isSpaceManager } from "@/server/workspace-role";
 
@@ -51,8 +52,13 @@ export interface SpaceSubject {
   role: OrgRole;
 }
 
-/** The spaces of the person's company they may open: «الشركة» first, then by name. */
-export async function spacesOf(who: SpaceSubject): Promise<SpaceEntry[]> {
+/**
+ * The spaces of one person in one company, read ONCE per server render (`perRequest`, F1.1): the layout, the page and
+ * `keepInSpace` all ask. The key is three strings (a `SpaceSubject` is a new object on every call and would never hit);
+ * nothing outlives the render. The array is shared by the render's callers: nobody changes it.
+ */
+const spacesFor = perRequest(async (userId: string, orgId: string, role: OrgRole): Promise<SpaceEntry[]> => {
+  const who = { userId, orgId, role };
   const [spaces, rows] = await Promise.all([
     db.workspace.findMany({
       where:
@@ -71,6 +77,11 @@ export async function spacesOf(who: SpaceSubject): Promise<SpaceEntry[]> {
   const roleOf = new Map(rows.map((r) => [r.workspaceId, r.role] as const));
   const hqFirst = [...spaces.filter((s) => s.systemKey === HQ_SYSTEM_KEY), ...spaces.filter((s) => s.systemKey !== HQ_SYSTEM_KEY)];
   return hqFirst.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, kind: s.kind, layout: layoutOf(s.layout), role: roleOf.get(s.id) ?? null }));
+});
+
+/** The spaces of the person's company they may open: «الشركة» first, then by name. */
+export async function spacesOf(who: SpaceSubject): Promise<SpaceEntry[]> {
+  return spacesFor(who.userId, who.orgId, who.role);
 }
 
 /** The space the person is in: the wanted one when it is theirs, else «الشركة», else the first; null with none. */
@@ -88,9 +99,14 @@ export async function resolveCurrentSpace(who: SpaceSubject, wanted: string | nu
   };
 }
 
+/** One person's current space for one cookie value, once per server render (the cookie value is part of the key). */
+const spaceFor = perRequest(
+  (userId: string, orgId: string, role: OrgRole, wanted: string | undefined): Promise<CurrentSpace | null> => resolveCurrentSpace({ userId, orgId, role }, wanted),
+);
+
 /** The current space of this request (the cookie, checked). */
 export async function currentSpace(who: SpaceSubject): Promise<CurrentSpace | null> {
-  return resolveCurrentSpace(who, cookies().get(SPACE_COOKIE)?.value);
+  return spaceFor(who.userId, who.orgId, who.role, cookies().get(SPACE_COOKIE)?.value);
 }
 
 /**

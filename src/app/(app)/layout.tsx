@@ -6,6 +6,7 @@ import { newActionsFor } from "@/lib/nav/new-actions";
 import { economyOn, featuresOf } from "@/lib/features";
 import { readNavOrder } from "@/lib/nav/order";
 import { db } from "@/server/db";
+import { orgSummaryOf } from "@/server/services/features";
 import { cookies } from "next/headers";
 import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/components/shell/sidebar-cookie";
 import { currentSpace } from "@/server/services/current-space";
@@ -32,19 +33,24 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // The side menu's folded state is a cookie (`zk-sidebar`), read on the server: the first frame is
   // already the right width, instead of 256px that shrink after the effect runs.
   const sidebarCollapsed = parseSidebarCookie(cookies().get(SIDEBAR_COOKIE)?.value);
-  // the company's name under the wordmark, and its switched-off features («الميزات»: their places are not drawn)
-  const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { name: true, settings: true } });
-  // the person's picture, for the avatar in the side menu and the phone's top bar, and their own order of the menu
-  // («ترتيبي», src/lib/nav/order.ts): read here so the very first paint already has the right order (no flash)
-  const me = await db.user.findUnique({ where: { id: actor.userId }, select: { avatarUrl: true, navOrder: true } });
+  // Everything below depends on the person only, so it is read TOGETHER (one round trip, not five): with the person and
+  // the membership above that is three round trips for the whole frame (F1.1). Each reader is shared with the page.
+  const [org, me, space, supervisor] = await Promise.all([
+    // the company's name under the wordmark, and its switched-off features («الميزات»: their places are not drawn)
+    orgSummaryOf(actor.orgId),
+    // the person's picture, for the avatar in the side menu and the phone's top bar, and their own order of the menu
+    // («ترتيبي», src/lib/nav/order.ts): read here so the very first paint already has the right order (no flash)
+    db.user.findUnique({ where: { id: actor.userId }, select: { avatarUrl: true, navOrder: true } }),
+    // the space the person is in, named at the top of every page (a space is like a separate site)
+    currentSpace(actor),
+    // «الإدارة» > «المساحة» is offered to whoever manages THIS space (a space role is not a capability: read here from
+    // the database, never from the cookie; an external partner never does). The page decides again.
+    hasActiveReports(actor),
+  ]);
   const avatarUrl = me?.avatarUrl ?? null;
   // the two places the shell draws that are the owner's switches (a switched-off one is not drawn at all)
   const on = featuresOf(org?.settings);
-  // the space the person is in, named at the top of every page (a space is like a separate site)
-  const space = await currentSpace(actor);
-  // «الإدارة» > «المساحة» is offered to whoever manages THIS space (a space role is not a capability: read here from
-  // the database, never from the cookie; an external partner never does). The page decides again.
-  const subject = navSubjectOf(actor, org?.settings, space, await hasActiveReports(actor));
+  const subject = navSubjectOf(actor, org?.settings, space, supervisor);
   return (
     <AppShell
       // the shell draws a name, a username and an e-mail; session facts (tv, locale, onboarding
