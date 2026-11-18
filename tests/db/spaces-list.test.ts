@@ -95,7 +95,8 @@ describe("GET /api/workspaces: who sees which space", () => {
     expect(org).toMatchObject({ id: w.org.id, name: w.org.name, keyPrefix: w.org.keyPrefix, role: "MEMBER" });
     // + holdsProjects (2026-10-25): false for «الشركة», where no project is opened
     // + emoji and unread (2026-10-25, the space you are in): the switcher's face of each space and what waits there
-    expect(Object.keys(org.workspaces[0]!).sort()).toEqual(["emoji", "holdsProjects", "id", "name", "slug", "unread"]);
+    // + overdue (N1.2): the overdue tasks of the person in that space, for the new shell's switcher
+    expect(Object.keys(org.workspaces[0]!).sort()).toEqual(["emoji", "holdsProjects", "id", "name", "overdue", "slug", "unread"]);
   });
 
   it("never lists another organization's spaces, and a person in two organizations gets each one by its own rule", async () => {

@@ -33,7 +33,7 @@ export interface AvatarUser {
 export type AvatarVariant = "bar" | "sidebar" | "rail";
 
 /** The person's picture in a circle, or their first letter (decoration: the button carries the name). */
-function Initial({ name, src, large = false }: { name: string; src?: string | null; large?: boolean }) {
+export function Initial({ name, src, large = false }: { name: string; src?: string | null; large?: boolean }) {
   if (src) return <Avatar name={name} src={src} className={large ? "size-11" : "size-8"} />;
   return (
     <span

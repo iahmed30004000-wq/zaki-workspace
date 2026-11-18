@@ -434,7 +434,7 @@ Doors in use: `requireActor` 164 · `activeOrgCtx` 90 · `(none)` 38 · `require
 | GET | `/api/watch/[id]/conversions` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: watchDetail |
 | POST | `/api/watch/[id]/end` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: endWatch |
 | GET, POST, PATCH | `/api/watch/[id]/remote` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: handOverRemote, handOverSchema, pressRemote, pressSchema, … |
-| GET, POST | `/api/workspaces` | requireUser | `workspaces`: createWorkspace<br>`access`: accessibleWorkspaceIds<br>`current-space`: currentSpace |
+| GET, POST | `/api/workspaces` | requireUser | `workspaces`: createWorkspace<br>`access`: accessibleWorkspaceIds<br>`current-space`: currentSpace<br>`nav-order`: foreignSpaceOf, overdueBySpace<br>`features`: orgSummaryOf |
 | GET, PATCH, DELETE | `/api/workspaces/[id]` | requireWorkspace ‡ | `workspaces`: SpaceConflictError, deleteEmptyWorkspace, readWorkspace |
 | POST | `/api/workspaces/[id]/archive` | requireActor | `workspaces`: SpaceConflictError<br>`space-manage`: archiveSchema, setSpaceArchived |
 | GET, POST | `/api/workspaces/[id]/delete-all` | requireActor | `workspaces`: SpaceConflictError<br>`space-delete`: deleteAllSchema, deleteSpaceWithWork, spaceContents |
@@ -469,9 +469,9 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 63 | 115 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 63 | 117 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 104 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `current-space` | 144 | 59 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
+| `current-space` | 155 | 59 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `team-scope` | 273 | 38 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `org-day` | 26 | 30 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
@@ -553,6 +553,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
 | `milestones` | 178 | 3 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
+| `nav-order` | 167 | 3 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
 | `order-state` | 118 | 3 | AN ORDER'S STATE (Q1.4): what the chip and the «/طلب» card show. |
 | `owner-assistant-names` | 85 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
 | `pinned` | 70 | 3 | «مثبّتة» — the pinned tasks a person may be shown, for the strip at the top of a project and the compact card of «اليوم». |
@@ -575,7 +576,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `member-rules` | 184 | 2 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
 | `message-translate` | 181 | 2 | «ترجمة رسالة» — one tap turns a text message into Arabic (or, when it is mostly Arabic, into English). |
 | `move-to-space` | 106 | 2 | «انقل لمساحة» (the plan, 2026-10-25: each space is like a separate site). |
-| `nav-order` | 73 | 2 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
 | `oms-link` | 151 | 2 | «ربط نظام الطلبات» — the card under «التكاملات» (Q1.0). |
 | `onboarding` | 88 | 2 | The one-time onboarding every account goes through (the owner creates accounts with a temporary password and nobody has accepted the transparency notice yet): choose your own pa… |
 | `org-members` | 205 | 2 | Organization members: the rank rules of account management and the roster. |
@@ -765,7 +765,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 | Switch | Places that read it |
 |---|---|
-| `watch` | 13 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/watch/watch-home.tsx`, `lib/guide/page-help.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts` |
+| `watch` | 15 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/watch/watch-home.tsx`, `lib/guide/page-help.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
 | `sectionPermissions` | 1 — `server/policy/section-grid.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
 | `pushEverything` | 2 — `app/api/device/stream/route.ts`, `server/notify.ts` |
@@ -813,7 +813,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
 | `messageTranslate` | 3 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/message-translate.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
-| `search` | 13 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `search` | 14 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `economyMode` | 2 — `components/feature-switches.tsx`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
@@ -826,7 +826,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `autoTickets` | 6 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
 | `mustRead` | 5 — `server/chat/messages.ts`, `server/chat/topics.ts`, `server/door/messages.ts`, `server/jobs/run.ts`, `server/services/must-read.ts` |
 | `orderTemplateHint` | 1 — `server/chat/topics.ts` |
-| `navV2` | 2 — `server/policy/org-settings.ts`, `server/services/landing.ts` |
+| `navV2` | 4 — `app/api/workspaces/route.ts`, `server/policy/org-settings.ts`, `server/services/current-space.ts`, `server/services/landing.ts` |
 | `chatOneList` | 1 — `app/api/chat/list/route.ts` |
 | `omsEvents` | 2 — `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
 | `doorMessages` | 1 — `server/door/messages.ts` |
