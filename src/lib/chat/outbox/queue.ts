@@ -229,9 +229,10 @@ export class Outbox {
 
   /**
    * Keep a message that could not be sent. It counts as a failed attempt already (the caller tried, or knows it is offline),
-   * so the first retry comes after 2 seconds, in order behind whatever is already waiting in this conversation.
+   * so the first retry comes after 2 seconds, in order behind whatever is already waiting in this conversation. With `failed` (the
+   * server refused it for good at the first attempt) it is kept marked and is never sent by itself.
    */
-  enqueue(input: OutboxInput, now: number = Date.now(), opts: { retryAfterSec?: number } = {}): EnqueueResult {
+  enqueue(input: OutboxInput, now: number = Date.now(), opts: { retryAfterSec?: number; failed?: OutboxFailure } = {}): EnqueueResult {
     const existing = this.items.find((i) => i.clientId === input.clientId);
     if (existing) return { ok: true, item: existing };
     if (this.items.length >= OUTBOX_CAP) return { ok: false, reason: "full" };
@@ -246,9 +247,13 @@ export class Outbox {
       ...(input.attachmentIds?.length ? { attachmentIds: [...input.attachmentIds] } : {}),
       ...(input.mentionAll ? { mentionAll: true } : {}),
       ...(opts.retryAfterSec !== undefined ? { rateLimited: true } : {}),
+      // C1.8: the first attempt was refused for good (the optimistic bubble already shows it red): kept marked, never sent by itself
+      ...(opts.failed ? { failed: opts.failed } : {}),
     };
     this.items = [...this.items, item];
-    if (opts.retryAfterSec !== undefined) {
+    if (opts.failed) {
+      // nothing to wait for: only «إعادة المحاولة» sends it again
+    } else if (opts.retryAfterSec !== undefined) {
       // the first send was answered 429: wait for its Retry-After, once (a second 429 refuses the item)
       const seconds = Math.min(Math.max(Math.ceil(opts.retryAfterSec), 1), 600);
       this.waits.set(item.conversationId, { at: Date.now() + seconds * 1000, hard: true });

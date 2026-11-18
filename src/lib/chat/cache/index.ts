@@ -68,3 +68,19 @@ export { ChatCacheDriver } from "@/lib/chat/cache/driver";
 export { fetchWindow, hasMessage, isNotFound, pageIndexOf, reachesNewest, reachesOldest, showAround, showNewest, showWindow, singleWindow } from "@/lib/chat/cache/pages";
 export { MAX_PAGES, trimMessages, trimPages, viewportPageOf } from "@/lib/chat/cache/trim";
 export type { Trimmed } from "@/lib/chat/cache/trim";
+export {
+  PENDING_ID_PREFIX,
+  appendPending,
+  buildPendingMessage,
+  dropStalePending,
+  failPending,
+  isPendingMessage,
+  newestConfirmedId,
+  outboxItemOfPending,
+  pendingIdOf,
+  removePending,
+  replacePending,
+  resumePending,
+  syncPendingWithOutbox,
+} from "@/lib/chat/cache/pending";
+export type { PendingInput } from "@/lib/chat/cache/pending";

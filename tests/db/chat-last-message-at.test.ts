@@ -3,6 +3,8 @@ import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
 import * as conversationMessagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
 import * as messageRoute from "@/app/api/chat/messages/[id]/route";
+import * as forwardRoute from "@/app/api/chat/messages/[id]/forward/route";
+import * as pinRoute from "@/app/api/chat/messages/[id]/pin/route";
 import { call, db, loginAs, makeTeam, makeWorkspace } from "./helpers";
 
 /**
@@ -229,5 +231,48 @@ describe("C1.1: the data move (its own migration) fills what is empty, ignores d
     expect(sql).toMatch(/\bWHERE\b/i);
     expect(sql).toMatch(/"deletedAt"\s+IS\s+NULL/i);
     expect(sql).toMatch(/"lastMessageAt"\s+IS\s+NULL/i);
+  });
+});
+
+describe("C1.8: the writers C1.1 left behind move the column too (forward, system lines)", () => {
+  it("forwarding a message moves the TARGET conversation's lastMessageAt to the copy's time, and not the source's", async () => {
+    await loginAs(t.member.id);
+    const original = await send(topicId, "للتحويل");
+    const sourceStamp = await lastAt(topicId);
+    await new Promise((r) => setTimeout(r, 5));
+    const res = await call(forwardRoute.POST, { method: "POST", params: { id: original.id }, body: { conversationId: dmId } });
+    expect(res.status).toBe(201);
+    const copy = await db.chatMessage.findUniqueOrThrow({ where: { id: res.json?.["id"] as string } });
+    expect((await lastAt(dmId))?.getTime()).toBe(copy.createdAt.getTime());
+    expect((await lastAt(topicId))?.getTime()).toBe(sourceStamp!.getTime());
+  });
+
+  it("a forward finishing late never moves it backwards", async () => {
+    await loginAs(t.member.id);
+    const original = await send(topicId, "للتحويل المتأخر");
+    const future = new Date(Date.now() + 60_000);
+    await setLastAt(dmId, future);
+    expect((await call(forwardRoute.POST, { method: "POST", params: { id: original.id }, body: { conversationId: dmId } })).status).toBe(201);
+    expect((await lastAt(dmId))?.getTime()).toBe(future.getTime());
+  });
+
+  it("a pin writes a system line, and the line moves lastMessageAt with it (same transaction)", async () => {
+    await loginAs(t.member.id);
+    const m = await send(dmId, "للتثبيت");
+    const before = await lastAt(dmId);
+    await new Promise((r) => setTimeout(r, 5));
+    expect((await call(pinRoute.POST, { method: "POST", params: { id: m.id } })).status).toBe(200);
+    const line = await db.chatMessage.findFirstOrThrow({ where: { conversationId: dmId, kind: "SYSTEM" }, orderBy: { createdAt: "desc" } });
+    expect(line.createdAt.getTime()).toBeGreaterThan(before!.getTime());
+    expect((await lastAt(dmId))?.getTime()).toBe(line.createdAt.getTime());
+  });
+
+  it("a system line never moves it backwards either", async () => {
+    await loginAs(t.member.id);
+    const m = await send(dmId, "للتثبيت المتأخر");
+    const future = new Date(Date.now() + 60_000);
+    await setLastAt(dmId, future);
+    expect((await call(pinRoute.POST, { method: "POST", params: { id: m.id } })).status).toBe(200);
+    expect((await lastAt(dmId))?.getTime()).toBe(future.getTime());
   });
 });

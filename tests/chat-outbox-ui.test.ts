@@ -11,6 +11,7 @@ import { OutboxStatusLine } from "../src/components/chat/composer/outbox-status"
 import { attachTriggers } from "../src/lib/chat/outbox/registry";
 import { FEATURE_DEFAULTS } from "../src/lib/features";
 import type { OutboxItem } from "../src/lib/chat/outbox/queue";
+import { buildPendingMessage, outboxItemOfPending } from "../src/lib/chat/cache/pending";
 
 const src = (rel: string) => readFileSync(path.resolve(__dirname, "..", rel), "utf8");
 const noop = () => undefined;
@@ -155,5 +156,31 @@ describe("the composer and the conversation route failed sends through the outbo
     for (const file of ["queue.ts", "send.ts", "storage.ts", "registry.ts"]) {
       expect(src(`src/lib/chat/outbox/${file}`), file).not.toMatch(/console\.|log\.(info|warn|error|debug)\(/);
     }
+  });
+});
+
+describe("C1.8: a bubble that failed has a red «!»", () => {
+  const html = (i: OutboxItem) => renderToStaticMarkup(React.createElement(PendingBubble, { item: i, onRetry: noop, onDelete: noop, onCopy: noop, onEdit: noop }));
+
+  it("a refused message shows the red «!» (hidden from a screen reader: the words say it) beside «تعذّر الإرسال» and «إعادة المحاولة»", () => {
+    const failed = html({ ...item, failed: { status: 403, key: "outbox.reason.forbidden" } });
+    expect(failed).toContain("data-outbox-bang");
+    expect(failed).toMatch(/data-outbox-bang[^>]*aria-hidden="true"|aria-hidden="true"[^>]*data-outbox-bang/);
+    expect(failed).toContain("bg-danger");
+    expect(failed).toContain("text-danger-fg"); // a theme token, never white
+    expect(failed).toContain("إعادة المحاولة");
+  });
+
+  it("a message that is only waiting has the clock and no «!»", () => {
+    expect(html(item)).not.toContain("data-outbox-bang");
+  });
+
+  it("a pending message of the cache is drawn by the same bubble (its words, its time, its reason)", () => {
+    const m = { ...buildPendingMessage({ clientId: "k9", body: "من الكاش", author: { id: "u1", name: "أنا" }, now: new Date("2026-01-01T10:00:00Z") }), pending: { state: "failed" as const, reason: "outbox.reason.invalid" } };
+    const out = html(outboxItemOfPending("c1", m));
+    expect(out).toContain("من الكاش");
+    expect(out).toContain('data-pending-message="k9"');
+    expect(out).toContain('data-outbox-state="failed"');
+    expect(out).toContain("data-outbox-bang");
   });
 });

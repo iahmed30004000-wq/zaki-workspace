@@ -15,7 +15,10 @@ import { barsFor, formatDuration } from "@/lib/chat/waveform";
 import { PollDialog } from "@/components/chat/composer/poll-dialog";
 import { RecallDialog } from "@/components/chat/composer/recall-dialog";
 import { slashCommand, type RecallKind } from "@/lib/chat/recall-client";
+import type { QueryClient } from "@tanstack/react-query";
 import type { Outbox } from "@/lib/chat/outbox/queue";
+import { startOptimisticSend } from "@/lib/chat/outbox/optimistic";
+import { dropStalePending, replacePending, syncPendingWithOutbox } from "@/lib/chat/cache/pending";
 import { postChatMessage, SEND_TIMEOUT_MS, type ChatSendPayload } from "@/lib/chat/outbox/send";
 import { clearComposerDraft, loadComposerDraft, saveComposerDraft } from "@/lib/chat/composer-draft";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -36,9 +39,15 @@ const iconButton = "flex h-11 w-11 shrink-0 items-center justify-center rounded-
  * `editing`: «تعديل» from the message menu edits IN this box (there is no second edit box): the text is
  * loaded here, «+» and the microphone step aside, and sending saves the edit.
  */
-export function ChatComposer({ conversationId, detail, onMessage, reply, onCancelReply, editing = null, onCancelEdit, onEdited, outbox = null, restore = null, onRestored }: { conversationId: string; detail: ConversationDto; onMessage: (message: MessageDto) => void; reply: MessageDto | null; onCancelReply: () => void; editing?: MessageDto | null; onCancelEdit?: () => void; onEdited?: (message: MessageDto) => void;
+export function ChatComposer({ conversationId, detail, onMessage, reply, onCancelReply, editing = null, onCancelEdit, onEdited, outbox = null, restore = null, onRestored, optimistic = null }: { conversationId: string; detail: ConversationDto; onMessage: (message: MessageDto) => void; reply: MessageDto | null; onCancelReply: () => void; editing?: MessageDto | null; onCancelEdit?: () => void; onEdited?: (message: MessageDto) => void;
   /** the person's outbox («الرسائل بدون نت»): a text that cannot be sent is kept there instead of failing; null: the switch is off, a failure shows an error as before */
-  outbox?: Outbox | null; restore?: OutboxRestore | null; onRestored?: () => void }) {
+  outbox?: Outbox | null; restore?: OutboxRestore | null; onRestored?: () => void;
+  /**
+   * C1.8 — the optimistic bubble (the new screens only; the old screen does not pass it and behaves exactly as before). With the chat cache's QueryClient AND
+   * an outbox, a plain text appears in the log the moment send is pressed (a pending copy in the cache, `src/lib/chat/cache/pending.ts`), the box is free
+   * at once, the server's answer replaces the bubble in place, and a failure is handed to the outbox (red «!» + «إعادة المحاولة»). null: the old flow.
+   */
+  optimistic?: { qc: QueryClient } | null }) {
  const { t } = useI18n(); const { notifyTyping } = useTyping(conversationId); const [body,setBody]=React.useState(""); const [files,setFiles]=React.useState<PendingFile[]>([]); const [mentions,setMentions]=React.useState<Array<{id:string;name:string}>>([]); const [busy,setBusy]=React.useState(false); const [error,setError]=React.useState("");
  const [progress, setProgress] = React.useState<number[]>([]);
  const [voice, setVoice] = React.useState<VoiceState>({ mode: "idle" });
@@ -102,6 +111,20 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
   onRestored?.();
   // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per restored message
  }, [restore]);
+
+ // C1.8: bubbles of this conversation follow the outbox (a refusal turns one red, a retry gives it its clock back, an answer settles it); a pending copy
+ // the device brought back after a reload is a ghost and goes
+ const optimisticQc = optimistic?.qc ?? null;
+ React.useEffect(() => {
+  if (!optimisticQc || !outbox) return;
+  const qc = optimisticQc;
+  const sync = () => syncPendingWithOutbox(qc, conversationId, outbox.forConversation(conversationId));
+  dropStalePending(qc, conversationId, outbox.forConversation(conversationId).map(i => i.clientId));
+  sync();
+  const offSent = outbox.onSent((item, message) => { if (item.conversationId === conversationId) replacePending(qc, conversationId, message); });
+  const offChange = outbox.subscribe(sync);
+  return () => { offSent(); offChange(); };
+ }, [optimisticQc, outbox, conversationId]);
 
  function addFiles(list: FileList | null) {
   if (!list) return;
@@ -194,6 +217,26 @@ export function ChatComposer({ conversationId, detail, onMessage, reply, onCance
   event.preventDefault();
   if (editing) return void saveEdit();
   if (busy || (!body.trim() && !files.length)) return;
+  // C1.8: a plain text is drawn first and sent behind the bubble; the box is free at once (nothing to wait for, no upload)
+  if (optimistic && outbox && draftOn && !files.length) {
+   const me = (detail.members ?? detail.mentionables ?? []).find(m => m.id === meId);
+   const started = startOptimisticSend({ qc: optimistic.qc, outbox }, {
+    conversationId,
+    payload: { body: body.trim(), attachmentIds: [], mentions: selectedMentionIds(body, mentions), ...(canAll && mentionsAll(body) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), clientId },
+    author: { id: meId, name: me?.name ?? "", avatar: me?.avatarUrl ?? null },
+    ...(reply ? { replyTo: { id: reply.id, preview: reply.deleted ? null : reply.body, authorName: reply.authorName } } : {}),
+   });
+   if (started.shown) {
+    clearComposerDraft(meId, conversationId);
+    setBody("");
+    setMentions([]);
+    setClientId(messageClientId());
+    setError("");
+    onCancelReply();
+    void started.done.then(outcome => { if (outcome.kind === "sent") { onMessage(outcome.message); playChatSound("sent"); } });
+    return;
+   }
+  }
   if (files.length > MAX_ATTACHMENTS_PER_MESSAGE) {
    setError(t("chatc.too_many_files"));
    return;
