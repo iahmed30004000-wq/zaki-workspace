@@ -29,7 +29,7 @@ import { SPACE_LAYOUTS } from "@/lib/cards/shared";
  * `navV2` is on and `?path=` names ONE thing (a task, a project, …) of another space of the person's, `foreign`: the banner's line
  * («هاد من مساحة «X» [انتقل لها]»). The shell asks once per page (F1), so the spaces, the counts and the banner never cost a second request.
  */
-export async function GET(req?: Request) {
+export async function GET(req: Request) {
   return withApi(async () => {
     const user = await requireUser();
     const orgs = await db.organizationMember.findMany({
@@ -84,7 +84,7 @@ export async function GET(req?: Request) {
     const first = orgs[0];
     const here = first ? await currentSpace({ userId: user.id, orgId: first.organization.id, role: first.role }) : null;
     // the banner: only for a page that is ONE thing of another space (`?path=`), and only while `navV2` is on
-    const asked = req ? new URL(req.url).searchParams.get("path") : null;
+    const asked = new URL(req.url).searchParams.get("path");
     const foreign = asked ? await (async () => foreignSpaceOf(await requireActor(), asked))().catch(() => null) : null;
     return NextResponse.json({
       currentSpaceId: here?.id ?? null,

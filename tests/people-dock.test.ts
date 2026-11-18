@@ -104,7 +104,8 @@ describe("the people dock", () => {
   it("sits inside the column that already clears the phone's bottom bar, after the page — it covers nothing", () => {
     const shell = readFileSync(path.resolve(__dirname, "..", "src/components/app-shell.tsx"), "utf8");
     // the one wrapper that pads for the fixed bottom bar (56px + its border + the home-indicator inset)
-    const column = /<div className="flex min-h-0 flex-1 flex-col pb-\[calc\(3\.5rem\+1px\+env\(safe-area-inset-bottom\)\)\] md:pb-0">([\s\S]*?)<\/div>/.exec(shell);
+    // (N1.2: the new shell has no bottom bar, so its column pads only for the home-indicator inset; the old shell still pads for the bar)
+    const column = /<div className=\{navV2 \? "flex min-h-0 flex-1 flex-col pb-\[env\(safe-area-inset-bottom\)\] md:pb-0" : "flex min-h-0 flex-1 flex-col pb-\[calc\(3\.5rem\+1px\+env\(safe-area-inset-bottom\)\)\] md:pb-0"\}>([\s\S]*?)<\/div>/.exec(shell);
     expect(column, "the padded column is gone: the dock would land under the phone's bar").not.toBeNull();
     const inside = column![1]!;
     // the page scrolls first, the dock is its own row under it (and the company's switch can leave it out)
