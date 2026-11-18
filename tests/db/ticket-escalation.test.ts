@@ -12,8 +12,8 @@ import { makeDepartment } from "./guest-helpers";
  * Each step once. Against a real PostgreSQL.
  */
 
-// the company's clock: Asia/Damascus (UTC+2 in winter), 09:00–18:00, Friday off. Monday 16 Nov 2026.
-const MON_9 = new Date("2026-11-16T07:00:00Z");
+// the company's clock: Asia/Damascus (UTC+2 in winter), 09:00–18:00, Friday off. Monday 11 Nov 2030.
+const MON_9 = new Date("2030-11-11T07:00:00Z");
 const at = (hoursAfterMonday9: number) => new Date(MON_9.getTime() + hoursAfterMonday9 * 3_600_000);
 
 async function world(opts: { on?: boolean } = {}) {

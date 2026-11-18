@@ -28,7 +28,7 @@ async function world(opts: { on?: boolean } = {}) {
   const guest = await makeUser({ orgId: w.org.id, role: "GUEST", name: `Guest ${uid()}` });
   await db.workspaceMember.create({ data: { workspaceId: w.s.id, userId: guest.id, role: "GUEST" } });
   // the instruction: written by bob; alice, carol and the space admin are the people it reaches (the guest never counts)
-  const post = await db.chatMessage.create({ data: { orgId: w.org.id, conversationId: topic.id, authorId: w.bob.id, body: "تعليمات جديدة: ما حدا يغيّر السعر", createdAt: new Date("2026-11-16T07:00:00Z") } });
+  const post = await db.chatMessage.create({ data: { orgId: w.org.id, conversationId: topic.id, authorId: w.bob.id, body: "تعليمات جديدة: ما حدا يغيّر السعر", createdAt: new Date("2030-11-11T07:00:00Z") } });
   const mark = (id: string, on = true) => call(mustReadRoute.POST, { params: { id }, body: { on } });
   const ack = (id: string) => call(ackRoute.POST, { params: { id } });
   const unack = (id: string) => call(ackRoute.DELETE, { method: "DELETE", params: { id } });
@@ -142,65 +142,65 @@ describe("reading it", () => {
 });
 
 describe("the reminders", () => {
-  // the post was written Monday 16 Nov 2026 09:00 (Damascus, UTC+2) = 07:00Z; working hours 09:00-18:00, Friday off
+  // the post was written Monday 11 Nov 2030 09:00 (Damascus, UTC+2) = 07:00Z; working hours 09:00-18:00, Friday off
   const at = (iso: string) => new Date(iso);
   it("after 3 working hours the people who have not read are reminded once, not those who have", async () => {
     const w = await world();
     await marked(w);
     await loginAs(w.alice.id);
     await w.ack(w.post.id);
-    await runMustReadReminders(at("2026-11-16T09:00:00Z")); // 11:00 local: 2 working hours
+    await runMustReadReminders(at("2030-11-11T09:00:00Z")); // 11:00 local: 2 working hours
     expect(await w.bells(w.carol.id)).toBe(0);
-    await runMustReadReminders(at("2026-11-16T10:30:00Z")); // 12:30 local: 3.5 working hours
+    await runMustReadReminders(at("2030-11-11T10:30:00Z")); // 12:30 local: 3.5 working hours
     expect(await w.bells(w.carol.id)).toBe(1);
     expect(await w.bells(w.alice.id)).toBe(0);
     expect(await w.bells(w.bob.id)).toBe(0);
-    await runMustReadReminders(at("2026-11-16T11:30:00Z"));
+    await runMustReadReminders(at("2030-11-11T11:30:00Z"));
     expect(await w.bells(w.carol.id)).toBe(1);
   });
   it("again the next working morning, once; Friday is skipped", async () => {
     const w = await world();
     await marked(w);
-    await runMustReadReminders(at("2026-11-16T10:30:00Z"));
+    await runMustReadReminders(at("2030-11-11T10:30:00Z"));
     expect(await w.bells(w.carol.id)).toBe(1);
-    await runMustReadReminders(at("2026-11-17T05:00:00Z")); // Tuesday 07:00 local: before opening
+    await runMustReadReminders(at("2030-11-12T05:00:00Z")); // Tuesday 07:00 local: before opening
     expect(await w.bells(w.carol.id)).toBe(1);
-    await runMustReadReminders(at("2026-11-17T07:30:00Z")); // Tuesday 09:30 local
+    await runMustReadReminders(at("2030-11-12T07:30:00Z")); // Tuesday 09:30 local
     expect(await w.bells(w.carol.id)).toBe(2);
-    await runMustReadReminders(at("2026-11-17T12:00:00Z"));
+    await runMustReadReminders(at("2030-11-12T12:00:00Z"));
     expect(await w.bells(w.carol.id)).toBe(2);
   });
   it("the list of late readers goes to the author once a day, on a working day, in a run that did not remind; nothing when everybody has read; nothing when the switch is off", async () => {
     const w = await world();
     await marked(w);
-    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2026-11-16T07:00:00.000Z" } } });
-    await runMustReadReminders(at("2026-11-16T10:30:00Z")); // Monday: the first reminder
+    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2030-11-11T07:00:00.000Z" } } });
+    await runMustReadReminders(at("2030-11-11T10:30:00Z")); // Monday: the first reminder
     expect(await w.bells(w.bob.id, "must_read_late")).toBe(0);
-    await runMustReadReminders(at("2026-11-17T07:30:00Z")); // Tuesday morning: the second reminder
+    await runMustReadReminders(at("2030-11-12T07:30:00Z")); // Tuesday morning: the second reminder
     expect(await w.bells(w.bob.id, "must_read_late")).toBe(0);
-    await runMustReadReminders(at("2026-11-18T07:30:00Z")); // Wednesday morning: nothing to remind, the list
+    await runMustReadReminders(at("2030-11-13T07:30:00Z")); // Wednesday morning: nothing to remind, the list
     expect(await w.bells(w.bob.id, "must_read_late")).toBe(1);
-    await runMustReadReminders(at("2026-11-18T12:00:00Z"));
+    await runMustReadReminders(at("2030-11-13T12:00:00Z"));
     expect(await w.bells(w.bob.id, "must_read_late")).toBe(1);
-    await runMustReadReminders(at("2026-11-20T08:00:00Z")); // Friday: a day off
+    await runMustReadReminders(at("2030-11-15T08:00:00Z")); // Friday: a day off
     expect(await w.bells(w.bob.id, "must_read_late")).toBe(1);
     const done = await world();
     await loginAs(done.spaceAdmin.id);
     await done.mark(done.post.id);
     const everyone = await db.workspaceMember.findMany({ where: { workspaceId: done.s.id, role: { not: "GUEST" }, userId: { not: done.bob.id } }, select: { userId: true } });
     for (const m of everyone) await db.chatReaction.create({ data: { messageId: done.post.id, userId: m.userId, emoji: "✅" } });
-    await runMustReadReminders(at("2026-11-18T07:30:00Z"));
+    await runMustReadReminders(at("2030-11-13T07:30:00Z"));
     expect(await done.bells(done.bob.id, "must_read_late")).toBe(0);
     const off = await world({ on: false });
     await db.chatMessage.update({ where: { id: off.post.id }, data: { ackRequired: true } });
-    await runMustReadReminders(at("2026-11-16T10:30:00Z"));
+    await runMustReadReminders(at("2030-11-11T10:30:00Z"));
     expect(await off.bells(off.carol.id)).toBe(0);
   });
   it("a person who left is not reminded", async () => {
     const w = await world();
     await marked(w);
     await db.organizationMember.update({ where: { organizationId_userId: { organizationId: w.org.id, userId: w.carol.id } }, data: { status: "OFFBOARDED" } });
-    await runMustReadReminders(at("2026-11-16T10:30:00Z"));
+    await runMustReadReminders(at("2030-11-11T10:30:00Z"));
     expect(await w.bells(w.carol.id)).toBe(0);
   });
 });
@@ -209,12 +209,12 @@ describe("review fixes", () => {
   const at = (iso: string) => new Date(iso);
   it("the clock starts when the message is marked, not when it was written: an old post marked this morning waits its 3 hours", async () => {
     const w = await world();
-    await db.chatMessage.update({ where: { id: w.post.id }, data: { createdAt: new Date("2026-11-09T07:00:00Z") } });
+    await db.chatMessage.update({ where: { id: w.post.id }, data: { createdAt: new Date("2030-11-04T07:00:00Z") } });
     await marked(w);
-    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2026-11-16T07:00:00.000Z" } } });
-    await runMustReadReminders(at("2026-11-16T08:30:00Z")); // 1.5 working hours after the mark
+    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2030-11-11T07:00:00.000Z" } } });
+    await runMustReadReminders(at("2030-11-11T08:30:00Z")); // 1.5 working hours after the mark
     expect(await w.bells(w.carol.id)).toBe(0);
-    await runMustReadReminders(at("2026-11-16T10:30:00Z"));
+    await runMustReadReminders(at("2030-11-11T10:30:00Z"));
     expect(await w.bells(w.carol.id)).toBe(1);
     // marking sets the mark's own time
     const fresh = await db.chatMessage.findUniqueOrThrow({ where: { id: (await world()).post.id } });
@@ -230,8 +230,8 @@ describe("review fixes", () => {
   it("two runs at the same moment remind once", async () => {
     const w = await world();
     await marked(w);
-    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2026-11-16T07:00:00.000Z" } } });
-    await Promise.all([runMustReadReminders(at("2026-11-16T10:30:00Z")), runMustReadReminders(at("2026-11-16T10:30:00Z"))]);
+    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2030-11-11T07:00:00.000Z" } } });
+    await Promise.all([runMustReadReminders(at("2030-11-11T10:30:00Z")), runMustReadReminders(at("2030-11-11T10:30:00Z"))]);
     expect(await w.bells(w.carol.id)).toBe(1);
   });
   it("somebody who cannot read the topic gets «not found» from both doors, not a hint that the message exists", async () => {
@@ -255,8 +255,8 @@ describe("review fixes", () => {
   it("a reminder never keeps the text of a message that was edited or deleted", async () => {
     const w = await world();
     await marked(w);
-    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2026-11-16T07:00:00.000Z" } } });
-    await runMustReadReminders(at("2026-11-16T10:30:00Z"));
+    await db.chatMessage.update({ where: { id: w.post.id }, data: { ackMeta: { markedAt: "2030-11-11T07:00:00.000Z" } } });
+    await runMustReadReminders(at("2030-11-11T10:30:00Z"));
     const before = await db.notification.findFirstOrThrow({ where: { userId: w.carol.id, type: "must_read" } });
     expect(before.body).toContain("تعليمات");
     await loginAs(w.bob.id);
