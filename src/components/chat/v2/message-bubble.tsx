@@ -118,8 +118,9 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               onPointerCancel={longPress.onPointerCancel}
               onContextMenu={(e) => {
                 if (sheetOpen || longPress.pressing()) e.preventDefault();
-                // the right button on a computer opens the menu where the message is (the browser's own menu stays for text that is selected)
-                else if (menuNode && pointer.current === "mouse" && !window.getSelection()?.toString()) {
+                // the right button on a computer (and the keyboard's menu key) opens the menu where the message is; a finger's long press is the sheet's, and
+                // the browser's own menu stays for text that is selected
+                else if (menuNode && pointer.current !== "touch" && !window.getSelection()?.toString()) {
                   e.preventDefault();
                   setMenuOpen(true);
                 }

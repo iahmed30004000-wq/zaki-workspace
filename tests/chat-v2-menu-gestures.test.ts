@@ -57,8 +57,8 @@ describe("«اقرأ النص» and «حوّل الصوت لنص» press the but
 describe("the bubble's gestures", () => {
   const bubble = read("src/components/chat/v2/message-bubble.tsx");
 
-  it("a right click with the mouse opens the menu; a long press with a finger opens the sheet (the old LONG_PRESS_MS, not a second number)", () => {
-    expect(bubble).toMatch(/onContextMenu=\{\(e\) => \{[\s\S]*pointer\.current === "mouse"[\s\S]*setMenuOpen\(true\)/);
+  it("a right click (and the menu key) opens the menu; a long press with a finger opens the sheet (the old LONG_PRESS_MS, not a second number)", () => {
+    expect(bubble).toMatch(/onContextMenu=\{\(e\) => \{[\s\S]*pointer\.current !== "touch"[\s\S]*setMenuOpen\(true\)/);
     expect(bubble).toContain("useLongPress(canAct,");
     expect(read("src/components/chat/v2/bubble/use-long-press.ts")).toContain("LONG_PRESS_MS");
     expect(bubble).not.toMatch(/LONG_PRESS_MS\s*=/);
@@ -132,5 +132,37 @@ describe("the full picker", () => {
       expect(picker).toContain(`"chatui.menu.cat.${key}"`);
       expect(AR[`chatui.menu.cat.${key}`], key).toMatch(/[؀-ۿ]/);
     }
+  });
+});
+
+describe("what the independent review found", () => {
+  it("a second picture is read when the first already has its text on screen (the press goes to the first block that has none)", () => {
+    const first = { querySelector: (s: string) => (s === '[dir="auto"]' ? {} : null) };
+    const clickSecond = vi.fn();
+    const second = { querySelector: (s: string) => (s === "button" ? { click: clickSecond } : null) };
+    const root = { querySelectorAll: (s: string) => (s === "[data-image-text]" ? [first, second] : []), querySelector: () => null } as never;
+    expect(pressInlineButton(root, "image-text")).toBe(true);
+    expect(clickSecond).toHaveBeenCalledTimes(1);
+  });
+
+  it("«نسخ الرابط» says it failed when the browser has no clipboard (an insecure address, a webview), instead of doing nothing", async () => {
+    const { copyText } = await import("@/lib/chat/v2/menu/clipboard");
+    expect(await copyText("x", undefined)).toBe(false);
+    expect(await copyText("x", { writeText: () => Promise.reject(new Error("denied")) })).toBe(false);
+    const written: string[] = [];
+    expect(await copyText("x", { writeText: async (t: string) => void written.push(t) })).toBe(true);
+    expect(written).toEqual(["x"]);
+  });
+
+  it("the keyboard's context menu key opens the menu too (anything but a finger's touch), and the source says so", () => {
+    expect(read("src/components/chat/v2/message-bubble.tsx")).toMatch(/pointer\.current !== "touch"/);
+  });
+
+  it("Esc does not leave the conversation while a popover or a tooltip is open", () => {
+    expect(read("src/lib/chat/shortcuts.ts")).toContain("data-radix-popper-content-wrapper");
+  });
+
+  it("the menu context of a bubble is not rebuilt on every draw", () => {
+    expect(read("src/components/chat/v2/pane/seams/menu-host.tsx")).toMatch(/const context = React\.useMemo\(\(\) => menuContextV2\(message, facts,/);
   });
 });

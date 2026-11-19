@@ -17,6 +17,7 @@ import type { MessageMenuSlotApi } from "@/components/chat/v2/message-bubble";
 import { usePaneActions, usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { ASK_KIND_KEY, askKindOf, menuContextV2 } from "@/lib/chat/v2/menu/menu-context";
+import { copyText } from "@/lib/chat/v2/menu/clipboard";
 import { messageLinkOf } from "@/lib/chat/v2/menu/message-link";
 import { quickReactionsOf } from "@/lib/chat/v2/menu/quick-reactions";
 import { ct } from "@/lib/chat/text";
@@ -74,10 +75,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         else if (id === "problem") setProblemFor({ message, kindKey: null });
         else if (id === "ask") setProblemFor({ message, kindKey: ASK_KIND_KEY });
         else if (id === "copyLink")
-          void navigator.clipboard?.writeText(messageLinkOf(window.location.origin, conversationId, message.id)).then(
-            () => commands.say("chatui.menu.link_copied"),
-            () => commands.say("chatc.menu.failed", "error"),
-          );
+          void copyText(messageLinkOf(window.location.origin, conversationId, message.id), navigator.clipboard).then((ok) => (ok ? commands.say("chatui.menu.link_copied") : commands.say("chatc.menu.failed", "error")));
         else if (id === "mustread") void commands.setMustRead(message, !message.mustRead);
         else if (id === "delete") void commands.remove(message);
         else if (id === "copy") commands.copy(message);
@@ -192,7 +190,8 @@ function MessageMenuSlot({ message, facts, sheetOpen, setSheetOpen, menuOpen, se
   const { act, askKind } = useMenuDialogs();
   const commands = usePaneCommands();
   const [seen, setSeen] = React.useState(false);
-  const context = menuContextV2(message, facts, { readerCount: readers.length, askKind });
+  const readerCount = readers.length;
+  const context = React.useMemo(() => menuContextV2(message, facts, { readerCount, askKind }), [message, facts, readerCount, askKind]);
   const onAction = (id: MessageMenuId) => {
     if (id === "translate") translate();
     else if (id === "seen") setSeen(true);

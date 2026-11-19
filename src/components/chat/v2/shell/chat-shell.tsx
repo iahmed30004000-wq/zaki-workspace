@@ -64,20 +64,20 @@ export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, children 
   }
   return (
     <InfoSlotContext.Provider value={desktop === true ? infoSlot : null}>
-    {/* while the screen size is unknown the pane of a list route is kept off a phone (the list is its screen), so «اختار محادثة» never flashes there */}
-    <div data-chat-shell={desktop === true ? "desktop" : "pending"} className={isListScreen(route) && desktop === null ? "flex h-full min-h-0 max-md:hidden" : "flex h-full min-h-0"}>
-      {desktop === true ? (
-        <div data-chat-slot="" className="hidden h-full min-h-0 shrink-0 border-e border-border bg-surface md:flex">
-          {column}
+      {/* while the screen size is unknown the pane of a list route is kept off a phone (the list is its screen), so «اختار محادثة» never flashes there */}
+      <div data-chat-shell={desktop === true ? "desktop" : "pending"} className={isListScreen(route) && desktop === null ? "flex h-full min-h-0 max-md:hidden" : "flex h-full min-h-0"}>
+        {desktop === true ? (
+          <div data-chat-slot="" className="hidden h-full min-h-0 shrink-0 border-e border-border bg-surface md:flex">
+            {column}
+          </div>
+        ) : null}
+        <div data-chat-pane="" className="min-w-0 flex-1">
+          {children}
         </div>
-      ) : null}
-      <div data-chat-pane="" className="min-w-0 flex-1">
-        {children}
+        {/* C2.7: the info panel's column (empty, so it takes no room, until the pane's info host portals the panel into it) */}
+        {desktop === true ? <div ref={setInfoSlot} data-chat-info-slot="" className="flex h-full min-h-0 shrink-0 empty:hidden" /> : null}
+        {desktop === true ? <ShortcutsSheet open={sheet} onOpenChange={setSheet} /> : null}
       </div>
-      {/* C2.7: the info panel's column (empty, so it takes no room, until the pane's info host portals the panel into it) */}
-      {desktop === true ? <div ref={setInfoSlot} data-chat-info-slot="" className="flex h-full min-h-0 shrink-0 empty:hidden" /> : null}
-      {desktop === true ? <ShortcutsSheet open={sheet} onOpenChange={setSheet} /> : null}
-    </div>
     </InfoSlotContext.Provider>
   );
 }

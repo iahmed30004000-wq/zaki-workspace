@@ -24,8 +24,8 @@ import { usePeople } from "@/lib/chat/v2/pane/use-people";
  *                  the conversation aside and no file of the pane's layout changes;
  *   below 1024 px  an overlay sheet from the END side (a bottom sheet on a phone until C2.8's route replaces it).
  *
- * It reads only the header and the pane's actions; the people come from the same cache entry the pane already asked for. Nothing is asked for while the
- * panel is closed. The server decides every action again; a refusal is a toast through the pane's `call`.
+ * It reads only the header and the pane's actions; the people come from the SAME cache entry the pane already asked for (one request per conversation,
+ * shared), and nothing else is asked for while the panel is closed. The server decides every action again; a refusal is a toast through the pane's `call`.
  */
 export function InfoHost({ header }: { header: ConversationHeaderDto }) {
   const a = usePaneActions();

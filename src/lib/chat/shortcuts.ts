@@ -154,7 +154,8 @@ const isEditable = (target: EventTarget | null): boolean => {
   if (!el || typeof el.tagName !== "string") return false;
   return el.isContentEditable === true || /^(?:INPUT|TEXTAREA|SELECT)$/.test(el.tagName);
 };
-const overlayIsOpen = (): boolean => document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"]') !== null;
+const overlayIsOpen = (): boolean =>
+  document.querySelector('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [role="tooltip"], [data-radix-popper-content-wrapper]') !== null;
 
 /**
  * Mounted once by the chat shell. `enabled` is false on a phone (no keyboard), so nothing listens there. The handler reads the CURRENT list and pane from
