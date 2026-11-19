@@ -2,6 +2,9 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import { Video } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ct } from "@/lib/chat/text";
 import { callApi } from "./call-api";
 import { ensurePush } from "./push-client";
@@ -9,6 +12,9 @@ import { ensurePush } from "./push-client";
 /**
  * «اجتماع جديد»: a call with a link, in the space the person is in. The link opens it for the space's people only,
  * each with their own account (the owner's decision, 2026-10-25); the server checks it on every pass.
+ *
+ * C2.9 — looks only: the button set's `tonal` button with a lucide icon (44 px), and the form in the primitives (`Input`, `Button` primary and ghost). What it
+ * asks and how it creates the call are untouched.
  */
 export function MeetingButton() {
   const router = useRouter();
@@ -33,27 +39,27 @@ export function MeetingButton() {
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-border px-3 text-sm hover:bg-surface-2">
-        <span aria-hidden="true">🎥</span>
+      <Button type="button" variant="tonal" onClick={() => setOpen(true)} className="min-h-11 md:h-11">
+        <Video aria-hidden="true" className="size-5" />
         {ct("calls.meeting_new")}
-      </button>
+      </Button>
     );
   }
   return (
     <form onSubmit={(e) => void create(e)} className="flex w-full flex-col gap-2 rounded-xl border border-border bg-surface-1 p-3">
       <label className="flex flex-col gap-1 text-sm">
         <span>{ct("calls.meeting_title")}</span>
-        <input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} className="min-h-11 rounded-lg border border-border bg-surface px-3" />
+        <Input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={80} className="min-h-11 md:h-11" />
       </label>
       <p className="text-xs text-fg-muted">{ct("calls.meeting_hint")}</p>
       {error && <p role="alert" className="text-sm text-danger">{error}</p>}
       <div className="flex gap-2">
-        <button type="submit" disabled={busy} className="min-h-11 rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-60">
+        <Button type="submit" disabled={busy} className="min-h-11 font-semibold md:h-11">
           {ct("calls.meeting_create")}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="min-h-11 rounded-lg px-3 text-sm hover:bg-surface-2">
+        </Button>
+        <Button type="button" variant="ghost" onClick={() => setOpen(false)} className="min-h-11 md:h-11">
           {ct("chatc.cancel")}
-        </button>
+        </Button>
       </div>
     </form>
   );

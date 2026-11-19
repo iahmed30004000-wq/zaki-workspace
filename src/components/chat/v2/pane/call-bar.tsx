@@ -2,6 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
+import { ChevronLeft, PhoneCall } from "lucide-react";
 import { callApi } from "@/components/calls/call-api";
 import { useRealtime } from "@/lib/realtime/use-realtime";
 import { ct } from "@/lib/chat/text";
@@ -36,9 +37,9 @@ export function useLiveCall(conversationId: string, enabled: boolean): { id: str
 }
 
 /**
- * «مكالمة جارية · انضم» — the bar under the header while a call of this conversation is live: one press joins it. Functional, theme tokens only; C2.9
- * restyles it (and the ring) to the Telegram call look, so it is a plain bar on purpose. It is one component with one prop-free body (`CallBarView`) so the
- * bar's look can be tested without the live line.
+ * «مكالمة جارية · انضم» — the bar under the header while a call of this conversation is live: one press joins it. C2.9 gave it the Telegram call look on the
+ * new tokens: a solid `ok` strip (the call is the one live thing on the screen), a phone icon with a quiet pulse, the words, and a chevron at the END that says
+ * «go in». It is one component with one prop-free body (`CallBarView`) so the bar's look can be tested without the live line; the logic above it is not touched.
  */
 export function CallBarView({ onJoin }: { onJoin: () => void }) {
   return (
@@ -46,10 +47,11 @@ export function CallBarView({ onJoin }: { onJoin: () => void }) {
       type="button"
       data-call-bar
       onClick={onJoin}
-      className="flex min-h-11 w-full items-center gap-2 border-b border-ok/40 bg-ok/10 px-3 py-1 text-start text-sm font-semibold text-ok hover:bg-ok/15"
+      className="flex min-h-11 w-full items-center gap-2 bg-ok px-3 py-1 text-start text-sm font-semibold text-ok-fg hover:bg-ok/90 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent"
     >
-      <span aria-hidden="true" className="size-2 shrink-0 animate-pulse rounded-full bg-ok motion-reduce:animate-none" />
+      <PhoneCall aria-hidden="true" className="size-5 shrink-0 animate-pulse motion-reduce:animate-none" />
       <span className="min-w-0 flex-1 truncate">{ct("chatui.pane.call_bar")}</span>
+      <ChevronLeft aria-hidden="true" className="size-5 shrink-0" />
     </button>
   );
 }
