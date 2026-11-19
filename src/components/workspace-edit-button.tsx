@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Pencil } from "lucide-react";
 import { apiPatch, ApiError } from "@/lib/api-client";
@@ -24,6 +25,7 @@ export function WorkspaceEditButton({
   const { t } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [nextName, setNextName] = useState(name);
   const [nextDesc, setNextDesc] = useState(description ?? "");
@@ -33,8 +35,10 @@ export function WorkspaceEditButton({
     onSuccess: () => {
       setOpen(false);
       toast(t("ws.renamed"), "success");
+      // the space switcher reads the company's spaces list (client-fetched): ask it again; the page itself is drawn by the
+      // server (its title and description), so it is drawn again in place, without leaving the page
       qc.invalidateQueries({ queryKey: ["orgs"] });
-      window.location.reload();
+      router.refresh();
     },
     onError: (err) => {
       if (err instanceof ApiError && err.messageKey) {

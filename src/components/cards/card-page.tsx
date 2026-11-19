@@ -198,7 +198,8 @@ export function CardPage({ initial, userId, approvalsSlot = null }: { initial: C
       await apiDelete(`/api/cards/${cardId}`);
       toast(t("cards.deleted"), "success");
       router.push("/cards");
-      router.refresh();
+      // the list of cards is client-fetched: ask it again (the server tree has nothing to draw again)
+      void qc.invalidateQueries({ queryKey: ["cards"] });
     } catch (err) {
       fail(err);
       setBusy(false);
