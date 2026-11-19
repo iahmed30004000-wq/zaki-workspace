@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 360 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 361 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 77 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 78 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 360 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 361 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 157 services — the business rules (§6) |
+| `src/server/services/` | 158 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 165 · `activeOrgCtx` 93 · `(none)` 40 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 166 · `activeOrgCtx` 93 · `(none)` 40 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -309,6 +309,7 @@ Doors in use: `requireActor` 165 · `activeOrgCtx` 93 · `(none)` 40 · `require
 | POST, DELETE | `/api/me/avatar` | requireActor | `avatars`: clearAvatar, setAvatar, AVATAR_MAX_BYTES<br>`features`: assertFeatureOn |
 | GET, POST | `/api/me/calendar-feed` | requireActor | `calendar-feed`: createFeedToken, listFeedTokens |
 | DELETE | `/api/me/calendar-feed/[id]` | requireActor | `calendar-feed`: revokeFeedToken |
+| GET, PUT | `/api/me/chat-prefs` | requireActor | `chat-prefs`: getMyChatPrefs, saveMyChatPrefs |
 | POST | `/api/me/digits` | requireUser ‡ | — |
 | PATCH, GET | `/api/me/last-seen` | requireActor | `features`: assertFeatureOn<br>`last-seen`: myHideLastSeen, setHideLastSeen |
 | GET, PUT, DELETE | `/api/me/nav-order` | requireActor | `nav-order`: getNavOrder, resetNavOrder, saveNavOrder |
@@ -454,7 +455,7 @@ Doors in use: `requireActor` 165 · `activeOrgCtx` 93 · `(none)` 40 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 360. Each one is a door that cannot have a session, or one that is closed.
+Six of 361. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -475,7 +476,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 63 | 133 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 63 | 134 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 107 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 61 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
@@ -603,6 +604,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-links` | 64 | 1 | What the card was turned into: the tasks made from it («حوّلها لمهمة») and the topic it was sent to («أرسل»). |
 | `card-log` | 92 | 1 | «السجل»: a read-only timeline made of the AuditLog rows written about this card. |
 | `card-status` | 32 | 1 | «حالة الاعتماد» (the second of the two systems): مسودة → قيد المراجعة → معتمدة → مؤرشفة, set by a moderator of the space or the OWNER. |
+| `chat-prefs` | 78 | 1 | C3a.2 — the person's own chat preferences, kept on their account (`User.chatPrefs`, one nullable JSON column; the schema is `src/lib/chat/prefs.ts`). |
 | `checkins-section` | 27 | 1 | «التسجيل اليومي» as a section of the team score: how many days a person answered in the period and the run of answered days. |
 | `credentials` | 64 | 1 | Account credentials as pure functions (no database): what a username may look like, the password policy, and the temporary passwords the owner hands to a new or reset account. |
 | `custom-fields-export` | 74 | 1 | «حقول مخصصة» — the project's values as a CSV file. |
@@ -641,7 +643,7 @@ to be added to, and the places a bug can leave the row half-written.
 
 | Model | Writes | Written by (file: calls) |
 |---|---|---|
-| `User` | 15 | `server/services/accounts.ts`: 3<br>`server/services/avatars.ts`: 2<br>`server/services/nav-order.ts`: 2<br>`server/services/onboarding.ts`: 2<br>+6 more |
+| `User` | 16 | `server/services/accounts.ts`: 3<br>`server/services/avatars.ts`: 2<br>`server/services/nav-order.ts`: 2<br>`server/services/onboarding.ts`: 2<br>+7 more |
 | `Department` | 4 | `server/services/departments.ts`: 3<br>`server/services/accounts.ts`: 1 |
 | `Ticket` | 7 | `server/services/tickets.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1<br>`server/services/problem-tickets.ts`: 1 |
 | `TicketComment` | 3 | `server/services/tickets.ts`: 3 |
@@ -821,7 +823,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
 | `messageTranslate` | 3 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/message-translate.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
-| `search` | 21 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `search` | 22 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `economyMode` | 2 — `components/feature-switches.tsx`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
@@ -845,6 +847,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `permissionTemplates` | 3 — `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
 | `chatPersonalState` | 3 — `app/api/chat/conversations/[id]/me/route.ts`, `server/chat/list.ts`, `server/chat/read-state.ts` |
+| `chatFolders` | 1 — `server/services/chat-prefs.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
@@ -855,8 +858,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 354 of 360 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 258 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 355 of 361 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 259 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **17 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 5 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **23 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 
