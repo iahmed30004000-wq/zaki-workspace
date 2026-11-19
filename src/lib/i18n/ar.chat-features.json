@@ -6,5 +6,16 @@
   "chatfmt.act.strike": "مشطوب ({keys})",
   "chatfmt.act.code": "كود ({keys})",
   "chatfmt.act.spoiler": "إخفاء النص ({keys})",
-  "chatfmt.act.link": "رابط ({keys})"
+  "chatfmt.act.link": "رابط ({keys})",
+  "chatalb.viewer": "عارض الصور والفيديو",
+  "chatalb.open": "افتح {name}",
+  "chatalb.play": "شغّل {name}",
+  "chatalb.prev": "السابق",
+  "chatalb.next": "التالي",
+  "chatalb.close": "إغلاق",
+  "chatalb.show": "اعرض بالمحادثة",
+  "chatalb.position": "{n} من {total}",
+  "chatalb.zoom_in": "تكبير",
+  "chatalb.zoom_out": "تصغير",
+  "chatalb.tray_count": "{count} من {max} مرفقات، بتنبعت كلها برسالة وحدة بتعليق واحد"
 }

@@ -173,6 +173,17 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.chatFormatting.hint"]).toContain("نص عادي");
   });
 
+  it("«ألبومات الصور وعارض الوسائط» (`chatAlbums`, C3b.3): ON by default, off is the old single pictures; its two lines are there", () => {
+    expect(FEATURES).toContain("chatAlbums");
+    expect(FEATURE_DEFAULTS.chatAlbums).toBe(true);
+    expect(featureOn({}, "chatAlbums")).toBe(true);
+    expect(featureOn({ features: { chatAlbums: false } }, "chatAlbums")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatAlbums");
+    expect(featuresOff({ features: { chatAlbums: false } })).toContain("chatAlbums");
+    expect(AR["features.chatAlbums.name"]).toBe("ألبومات الصور وعارض الوسائط");
+    expect(AR["features.chatAlbums.hint"]).toContain("لحد 10 ملفات");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

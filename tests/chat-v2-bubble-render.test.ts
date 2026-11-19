@@ -4,6 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { BubbleBody } from "@/components/chat/v2/bubble/bubble-body";
+import { BubbleMedia } from "@/components/chat/v2/bubble/bubble-media";
+import { layoutAlbum } from "@/lib/chat/album-layout";
 import { MessageBubble, type MessageBubbleProps } from "@/components/chat/v2/message-bubble";
 import { bubbleFactsOf } from "@/lib/chat/v2/pane/bubble-facts";
 import { nameTone } from "@/lib/chat/v2/pane/bubble-model";
@@ -249,5 +251,85 @@ describe("C3b.1 — the formatting of the words, composed with mentions and orde
   it("a deleted message shows the deleted line and nothing of its words", () => {
     const html = draw(makeMessage({ deleted: true, body: null }));
     expect(html).not.toContain("<strong>");
+  });
+});
+
+describe("albums and the media viewer (C3b.3)", () => {
+  const pictures = (n: number, over: (i: number) => Partial<AttachmentDto> = () => ({ width: 1200, height: 800 })) => Array.from({ length: n }, (_, i) => image({ id: `p${i}`, name: `صورة${i}.png`, url: `/api/chat/attachments/p${i}`, ...over(i) }));
+  const media = (list: AttachmentDto[], over: { albums?: boolean; kind?: "TEXT" | "VOICE" } = {}) =>
+    renderToStaticMarkup(createElement(BubbleMedia, { attachments: list, kind: over.kind ?? "TEXT", canTranscribe: false, canReadImages: false, ...(over.albums === undefined ? {} : { albums: over.albums }) }));
+
+  it("three pictures are ONE mosaic whose box is the layout's own (the one the list reserves), each cell a button that opens the viewer", () => {
+    const list = pictures(3);
+    const layout = layoutAlbum(list);
+    const html = draw(makeMessage({ attachments: list }));
+    expect(html.match(/data-album="true"/g)).toHaveLength(1);
+    expect(html).toContain('data-album-count="3"');
+    expect(html).toContain(`aspect-ratio:${layout.width} / ${layout.height}`);
+    expect(html.match(/data-album-cell/g)).toHaveLength(3);
+    expect(html).toContain("افتح صورة0.png");
+    // no picture of the album is a link, a box of its own or a download line: the viewer has the download
+    expect(html).not.toContain("data-image-box");
+    expect(html).not.toContain("تنزيل صورة0.png");
+    // the cells sit by percentages from the inline start, so the mosaic shrinks with a narrow bubble and flips in a right-to-left screen
+    expect(html).toContain("inset-inline-start:0%");
+    expect(html).not.toMatch(/(?:^|[;"\s])left:/);
+  });
+
+  it("a mosaic of two shows the first picture at the start and the second after it", () => {
+    const html = media(pictures(2));
+    const l = layoutAlbum(pictures(2));
+    expect(html).toContain("inset-inline-start:0%");
+    expect(html).toContain(`inset-inline-start:${Math.round((l.cells[1]!.x / l.width) * 1e6) / 1e4}%`);
+  });
+
+  it("a video in a mosaic is a muted still with a play mark; the native controls are the viewer's", () => {
+    const html = media([...pictures(1), image({ id: "v1", kind: "VIDEO", mime: "video/mp4", name: "فيديو.mp4", url: "/api/chat/attachments/v1", width: 1280, height: 720 })]);
+    expect(html).toContain("data-album-play");
+    expect(html).toContain("شغّل فيديو.mp4");
+    expect(html).toMatch(/<video[^>]*muted/);
+    expect(html).not.toContain("controls");
+  });
+
+  it("a file or a voice note beside the pictures keeps its own line under the mosaic", () => {
+    const html = media([...pictures(2), image({ id: "f1", kind: "FILE", mime: "application/pdf", name: "عرض.pdf", url: "/api/chat/attachments/f1" })]);
+    expect(html).toContain('data-album-count="2"');
+    expect(html).toContain("تنزيل عرض.pdf");
+    const voice = media([image({ id: "vn", kind: "AUDIO", mime: "audio/webm", name: "voice.webm", url: "/api/chat/attachments/vn" }), ...pictures(2)], { kind: "VOICE" });
+    expect(voice).not.toContain("data-album");
+    expect(voice).toContain("data-voice-box");
+  });
+
+  it("a lone picture keeps its box, its download line and the OCR button, and becomes a button that opens the viewer", () => {
+    const file = image({ width: 1600, height: 900 });
+    const box = imageBox(file);
+    const html = media([file]);
+    expect(html).toContain("data-image-box");
+    expect(html).toContain(`aspect-ratio:${box.width} / ${box.height}`);
+    expect(html).toContain('<button type="button" class="block size-full" aria-label="افتح صورة.png">');
+    expect(html).toContain("تنزيل صورة.png");
+    expect(html).not.toContain("data-album");
+  });
+
+  it("with the switch off every picture is its own box as before, nothing opens, and there is no button", () => {
+    const html = media(pictures(3), { albums: false });
+    expect(html).not.toContain("data-album");
+    expect(html.match(/data-image-box/g)).toHaveLength(3);
+    expect(html).not.toContain("<button");
+    expect(html).toContain("تنزيل صورة2.png");
+    expect(media([image()], { albums: false })).not.toContain("<button");
+  });
+
+  it("a file that is not on our own address is never in the mosaic (a line that says it cannot be opened)", () => {
+    const html = media([...pictures(2), image({ id: "far", url: "https://elsewhere.example/a.png", name: "بعيدة.png" })]);
+    expect(html).toContain('data-album-count="2"');
+    expect(html).not.toContain("elsewhere.example");
+    expect(html).toContain('aria-disabled="true"');
+  });
+
+  it("a deleted message shows no mosaic and no file (and the viewer's list never holds it)", () => {
+    const html = draw(makeMessage({ deleted: true, body: null, attachments: pictures(3) }));
+    expect(html).not.toContain("data-album");
+    expect(html).not.toContain("/api/chat/attachments/p0");
   });
 });

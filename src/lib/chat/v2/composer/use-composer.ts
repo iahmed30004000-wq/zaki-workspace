@@ -10,6 +10,7 @@ import { compressImage } from "@/lib/chat/compress-image";
 import { createChatUploadFormData, createVoiceUploadFormData, enterSends, messageClientId } from "@/lib/chat/conversation/client";
 import { ASSISTANT_MENTION_ID, filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
 import { classifyFile, exceedsKindLimit, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/chat/file-kinds";
+import { takeRoom } from "@/lib/chat/album-layout";
 import { startOptimisticSend } from "@/lib/chat/outbox/optimistic";
 import type { Outbox } from "@/lib/chat/outbox/queue";
 import { postChatMessage, SEND_TIMEOUT_MS, type ChatSendPayload } from "@/lib/chat/outbox/send";
@@ -165,12 +166,17 @@ export function useComposer(p: ComposerParams) {
   // ---------- the tray ----------
   function addFiles(list: ArrayLike<File> | DroppedFile[] | null, asFileDefault = false) {
     if (!list || editing) return;
-    const incoming = Array.from(list as ArrayLike<File | DroppedFile>).map((entry) => {
+    // C3b.3: ONE message carries at most ten files with ONE caption: what does not fit is left out now, and the person is told now (not after the upload)
+    const { accepted, dropped } = takeRoom(filesRef.current.length, Array.from(list as ArrayLike<File | DroppedFile>));
+    if (dropped > 0) setError(ct("chatc.too_many_files"));
+    const incoming = accepted.map((entry) => {
       const { file, asFile } = "file" in entry ? entry : { file: entry, asFile: asFileDefault };
       const kind = classifyFile(file);
       return { file, kind, asFile, preview: kind === "IMAGE" || kind === "VIDEO" ? URL.createObjectURL(file) : null } satisfies PendingFile;
     });
     if (incoming.length) setClientId(messageClientId());
+    // the tray's own ref moves at once: a second pick in the same breath counts the first one
+    filesRef.current = [...filesRef.current, ...incoming];
     setFiles((current) => [...current, ...incoming]);
   }
   function removeFile(index: number) {
