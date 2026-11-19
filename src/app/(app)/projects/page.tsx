@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { Inbox } from "lucide-react";
 import { actorCanWork } from "@/server/policy/actor";
 import { redirect } from "next/navigation";
 import { db } from "@/server/db";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere } from "@/server/services/team-scope";
 import { currentSpace } from "@/server/services/current-space";
+import { isFeatureOn } from "@/server/services/features";
+import { INSTANT_PROJECT_KEY } from "@/server/services/instant-work";
 import { goHref } from "@/lib/space-link";
 import { Card, CardBody, Badge, EmptyState } from "@/components/ui/card";
 import { ProjectsToolbar } from "@/components/projects-toolbar";
@@ -55,6 +58,7 @@ export default async function ProjectsPage({
     select: {
       id: true,
       name: true,
+      systemKey: true,
       description: true,
       status: true,
       priority: true,
@@ -63,6 +67,10 @@ export default async function ProjectsPage({
       _count: { select: { tasks: { where: { archived: false, AND: [taskParticipantWhere(everything)] } }, boards: true } },
     },
   });
+  // «صندوق المهام» (W1.2, switch `workInbox`): the space's quick-task project is drawn once, pinned on top with its own icon, and is not
+  // in the ordinary list again. Off: it is an ordinary card, as it was.
+  const inboxes = (await isFeatureOn(actor.orgId, "workInbox")) ? projects.filter((p) => p.systemKey === INSTANT_PROJECT_KEY) : [];
+  const ordinary = inboxes.length > 0 ? projects.filter((p) => p.systemKey !== INSTANT_PROJECT_KEY) : projects;
   const wsInfo =
     typeof wsFilter === "string"
       ? await db.workspace.findUnique({ where: { id: wsFilter }, select: { name: true, description: true } })
@@ -87,11 +95,33 @@ export default async function ProjectsPage({
           <ProjectsToolbar />
         </div>
       </header>
-      {projects.length === 0 ? (
+      {inboxes.map((p) => (
+        <Link key={p.id} href={`/projects/${p.id}`} data-work-inbox="pinned" className="block">
+          <Card className="border-accent/40 bg-accent/[0.05] transition-colors hover:border-accent">
+            <CardBody className="flex items-center gap-3">
+              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+                <Inbox className="size-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-fg">{p.name === t("instant.project") ? t("work.inbox.name") : p.name}</p>
+                <p className="mt-0.5 text-xs text-fg-muted">
+                  {t("work.inbox.hint")}
+                  {inboxes.length > 1 ? ` · ${p.workspace.name}` : ""}
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-1">
+                <Badge>{t("work.inbox.pinned")}</Badge>
+                <span className="text-xs text-muted">{t("work.inbox.line", { tasks: p._count.tasks })}</span>
+              </div>
+            </CardBody>
+          </Card>
+        </Link>
+      ))}
+      {ordinary.length === 0 ? (
         <EmptyState title={t("proj.emptyTitle")} hint={t("proj.emptyHint")} />
       ) : (
         <div className="grid gap-3 md:grid-cols-2">
-          {projects.map((p) => (
+          {ordinary.map((p) => (
             <Link key={p.id} href={`/projects/${p.id}`} className="block">
               <Card className="transition-colors hover:border-accent/40">
                 <CardBody>

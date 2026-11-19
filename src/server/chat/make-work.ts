@@ -1,13 +1,15 @@
 import { db } from "@/server/db";
-import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
+import { ForbiddenError, NotFoundError, requireWorkspace, ValidationError, type OrgAccessContext } from "@/server/auth";
 import type { TaskVisibility } from "@/server/services/team-scope";
 import { canRead, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 import { createTask, type ActorContext } from "@/server/services/tasks";
 import { createTicket } from "@/server/services/tickets";
+import { inboxSpaceFor, inboxTarget } from "@/server/services/instant-work";
 import type { TaskPriority } from "@prisma/client";
 import { AR } from "@/lib/i18n/dict";
 import { interpolate } from "@/lib/i18n/interpolate";
 import { momentLink } from "@/lib/watch/convert";
+import { WORK_INBOX_REF } from "@/lib/today";
 
 /**
  * A CHAT MESSAGE BECOMES WORK (the owner's ask, 2026-10-25): «اعمل منها مهمة» / «اعمل منها تذكرة». The task or the
@@ -16,6 +18,10 @@ import { momentLink } from "@/lib/watch/convert";
  * (`sourceMessageId`), so the message shows what it became.
  *
  * Only a message one may read, never a deleted message or a system line, never by a guest.
+ *
+ * «صندوق المهام» (W1.2, switch `workInbox`): a task made with no project chosen — none given, or `WORK_INBOX_REF` — lands in the
+ * space's inbox, in «للتنفيذ» (in «الشركة», which holds no project, in the person's first standard space: D-N3). That only changes WHERE the
+ * task lands: the privacy of the source (P0.3) is decided before, exactly as for any project.
  */
 
 export async function sourceOf(ctx: OrgAccessContext, messageId: string) {
@@ -66,8 +72,9 @@ export async function messageToTask(
   messageId: string,
   input: {
     workspaceId: string;
-    projectId: string;
-    boardId: string;
+    /** Absent (a service caller) or `WORK_INBOX_REF` (what the dialog sends: the route still wants both ids): the space's «صندوق المهام». */
+    projectId?: string;
+    boardId?: string;
     title?: string;
     assigneeId?: string | null;
     priority?: TaskPriority;
@@ -78,12 +85,23 @@ export async function messageToTask(
 ): Promise<{ taskId: string }> {
   const msg = await sourceOf(ctx, messageId);
   assertConfirmed(msg.privateSource, input.visibility === "SPACE", input.confirmPublic);
-  const visibility: TaskVisibility | undefined = msg.privateSource ? (input.visibility ?? "PARTICIPANTS") : input.visibility;
-  const task = await createTask(actor, {
+  let visibility: TaskVisibility | undefined = msg.privateSource ? (input.visibility ?? "PARTICIPANTS") : input.visibility;
+  let owner = actor;
+  let where: { workspaceId: string; projectId: string; boardId: string; columnId?: string } = { workspaceId: input.workspaceId, projectId: input.projectId ?? "", boardId: input.boardId ?? "" };
+  if (!input.projectId || input.projectId === WORK_INBOX_REF) {
+    const space = await inboxSpaceFor({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole }, input.workspaceId);
+    if (!space) throw new ForbiddenError("instant.no_space");
+    // «الشركة» holds no project: the inbox is the first standard space's, and the person's rights are checked there
+    if (space.id !== input.workspaceId) owner = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
+    const target = await inboxTarget(ctx, space.id);
+    // a task somebody holds, in the inbox everybody of the space opens, is «المعنيين بس» unless the person said otherwise (as a quick task is)
+    if (!visibility && input.assigneeId) visibility = "PARTICIPANTS";
+    // «للتنفيذ», not the backlog
+    where = { workspaceId: space.id, projectId: target.projectId, boardId: target.boardId, columnId: target.columnId };
+  }
+  const task = await createTask(owner, {
     ...(visibility ? { visibility } : {}),
-    workspaceId: input.workspaceId,
-    projectId: input.projectId,
-    boardId: input.boardId,
+    ...where,
     title: (input.title?.trim() || titleFrom(msg.body)).slice(0, 280),
     description: await describe(msg),
     priority: input.priority,

@@ -6,13 +6,44 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { Plus } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/toast";
-import { ApiError, apiPost } from "@/lib/api-client";
+import { ApiError, apiGet, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
-import { quickTaskBody, TASK_TITLE_MAX, type QuickDue, type TodayQuickAddData } from "@/lib/today";
+import { quickInboxBody, quickTaskBody, TASK_TITLE_MAX, WORK_INBOX_REF, type QuickDue, type TodayQuickAddData, type WorkInboxInfo } from "@/lib/today";
 import { cn } from "@/lib/utils";
 import { useNewIntent } from "@/lib/nav/use-new-intent";
 
 type Post = (path: string, body?: unknown) => Promise<unknown>;
+
+/** The words for a refusal: the server's own reason when it is one of the instant-work ones («لسا ما إلك مساحة شغل»), else the usual ones. */
+function quickError(err: unknown, t: (key: string) => string): string {
+  if (err instanceof ApiError && err.messageKey?.startsWith("instant.")) {
+    const said = t(err.messageKey);
+    if (said !== err.messageKey) return said;
+  }
+  return err instanceof ApiError && err.code === "forbidden" ? t("forbidden") : t("task.createFailed");
+}
+
+/**
+ * Where a quick task goes (W1.2, switch `workInbox`): the answer of `GET /api/instant`. `undefined` is "not asked yet, ask"; null is
+ * "off" (the old behaviour: the first project with a board). A test passes it as a prop, so nothing is fetched there.
+ */
+function useWorkInbox(given: WorkInboxInfo | null | undefined): { inbox: WorkInboxInfo | null; known: boolean } {
+  const [fetched, setFetched] = useState<{ inbox: WorkInboxInfo | null } | null>(null);
+  useEffect(() => {
+    if (given !== undefined) return;
+    let live = true;
+    // a failed answer is "off": the quick add keeps working the old way rather than not at all
+    apiGet<{ inbox?: WorkInboxInfo | null }>("/api/instant").then(
+      (data) => live && setFetched({ inbox: data.inbox ?? null }),
+      () => live && setFetched({ inbox: null }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [given]);
+  // `known` is false only while the answer is on its way: nothing is sent then (a task typed in that moment would miss the inbox)
+  return given === undefined ? { inbox: fetched?.inbox ?? null, known: fetched !== null } : { inbox: given, known: true };
+}
 
 /**
  * «إضافة سريعة» at the foot of «مهمّاتي اليوم» («نجمة وطريق»): a dashed line to type a title into and press
@@ -23,8 +54,22 @@ type Post = (path: string, body?: unknown) => Promise<unknown>;
  *
  * The field is the tour's hook `quick-add`. With no project that has a board yet there is nothing to add to:
  * only «المشروع والموعد» is shown, and its sheet says so and points to «المشاريع».
+ *
+ * «صندوق المهام» (W1.2, switch `workInbox`): instead of «your first project with a board», the task goes to the inbox of the
+ * space (`POST /api/instant/inbox`, in «للتنفيذ»), so typing works with no project at all; in «الشركة» it goes to the first
+ * standard space, and with none the line says why («لسا ما إلك مساحة شغل»). Off, everything above is as it was.
  */
-export function TodayQuickAdd({ quickAdd, timeZone, post = apiPost }: { quickAdd: TodayQuickAddData; timeZone: string; post?: Post }) {
+export function TodayQuickAdd({
+  quickAdd,
+  timeZone,
+  post = apiPost,
+  inbox: given,
+}: {
+  quickAdd: TodayQuickAddData;
+  timeZone: string;
+  post?: Post;
+  inbox?: WorkInboxInfo | null;
+}) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -33,21 +78,32 @@ export function TodayQuickAdd({ quickAdd, timeZone, post = apiPost }: { quickAdd
   const [pending, setPending] = useState(false);
   // «جديد» → «مهمّة» lands here with ?new=task
   useNewIntent("task", () => setOpen(true));
+  const { inbox, known } = useWorkInbox(given);
   const target = quickAdd.targets[0];
+  const noSpace = inbox !== null && inbox.space === null;
+  // the inbox takes the typing with no project at all; the old way needs a project with a board
+  const canType = inbox !== null ? !noSpace : Boolean(target);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || !target) return;
-    const body = quickTaskBody(quickAdd, { projectId: target.projectId, title, due: "today", timeZone });
-    if (!body) return;
+    if (pending || !canType || !known) return;
+    let send: (() => Promise<unknown>) | null = null;
+    if (inbox) {
+      const made = quickInboxBody(quickAdd, { title, due: "today", timeZone });
+      if (made) send = () => post("/api/instant/inbox", made);
+    } else if (target) {
+      const made = quickTaskBody(quickAdd, { projectId: target.projectId, title, due: "today", timeZone });
+      if (made) send = () => post("/api/tasks", made);
+    }
+    if (!send) return;
     setPending(true);
     try {
-      await post("/api/tasks", body);
+      await send();
       setTitle("");
       toast(t("today.quick.inline_added"), "success");
       router.refresh();
     } catch (err) {
-      toast(err instanceof ApiError && err.code === "forbidden" ? t("forbidden") : t("task.createFailed"), "error");
+      toast(quickError(err, t), "error");
     } finally {
       setPending(false);
     }
@@ -55,7 +111,11 @@ export function TodayQuickAdd({ quickAdd, timeZone, post = apiPost }: { quickAdd
 
   return (
     <div className="flex flex-wrap items-center gap-2 px-2 pt-2">
-      {target ? (
+      {noSpace ? (
+        <p data-tour={noSpace ? "quick-add" : undefined} className="min-w-0 flex-1 basis-60 px-1 text-sm text-fg-muted">
+          {t("instant.no_space")} · {t("work.inbox.no_space_hint")}
+        </p>
+      ) : canType ? (
         <form onSubmit={submit} className="min-w-0 flex-1 basis-60">
           <input
             type="text"
@@ -71,16 +131,18 @@ export function TodayQuickAdd({ quickAdd, timeZone, post = apiPost }: { quickAdd
           />
         </form>
       ) : null}
-      <button
-        type="button"
-        data-tour={target ? undefined : "quick-add"}
-        onClick={() => setOpen(true)}
-        className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-accent transition-colors hover:bg-surface-2"
-      >
-        <Plus className="size-4" aria-hidden="true" />
-        {target ? t("today.quick.more") : t("today.quick_add")}
-      </button>
-      <QuickAddSheet open={open} onOpenChange={setOpen} quickAdd={quickAdd} timeZone={timeZone} />
+      {noSpace ? null : (
+        <button
+          type="button"
+          data-tour={canType ? undefined : "quick-add"}
+          onClick={() => setOpen(true)}
+          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm font-medium text-accent transition-colors hover:bg-surface-2"
+        >
+          <Plus className="size-4" aria-hidden="true" />
+          {canType ? t("today.quick.more") : t("today.quick_add")}
+        </button>
+      )}
+      <QuickAddSheet open={open} onOpenChange={setOpen} quickAdd={quickAdd} timeZone={timeZone} inbox={inbox} />
     </div>
   );
 }
@@ -95,25 +157,31 @@ export function QuickAddSheet({
   quickAdd,
   timeZone,
   portal = true,
+  inbox = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   quickAdd: TodayQuickAddData;
   timeZone: string;
   portal?: boolean;
+  /** `workInbox` on: the inbox is the first choice and no project is needed (null: off, the sheet as it was). */
+  inbox?: WorkInboxInfo | null;
 }) {
   const { t } = useI18n();
-  const ready = quickAdd.targets.length > 0;
+  const noSpace = inbox !== null && inbox.space === null;
+  const ready = inbox !== null ? !noSpace : quickAdd.targets.length > 0;
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent portal={portal}>
         <SheetHeader>
           <SheetTitle>{t("task.new")}</SheetTitle>
-          <SheetDescription>{ready ? t("today.quick.assigned_hint") : t("today.quick.no_target_hint")}</SheetDescription>
+          <SheetDescription>{ready ? t("today.quick.assigned_hint") : noSpace ? t("work.inbox.no_space_hint") : t("today.quick.no_target_hint")}</SheetDescription>
         </SheetHeader>
         <SheetBody>
           {ready ? (
-            <QuickAddForm quickAdd={quickAdd} timeZone={timeZone} onDone={() => onOpenChange(false)} />
+            <QuickAddForm quickAdd={quickAdd} timeZone={timeZone} onDone={() => onOpenChange(false)} inbox={inbox} />
+          ) : noSpace ? (
+            <p className="pb-2 text-sm font-semibold text-fg">{t("instant.no_space")}</p>
           ) : (
             <div className="space-y-3 pb-2">
               <p className="text-sm font-semibold text-fg">{t("today.quick.no_target_title")}</p>
@@ -135,14 +203,28 @@ const FIELD = "min-h-11 w-full rounded-lg border-muted bg-surface px-3 text-base
 
 /**
  * The form inside the sheet. `post` is a parameter only so that a test can stand in for the network. It owns no
- * decision: what is sent is built by `quickTaskBody` (tested on its own), and what is allowed is up to the server.
+ * decision: what is sent is built by `quickTaskBody` / `quickInboxBody` (tested on their own), and what is allowed is up to the server.
  */
-export function QuickAddForm({ quickAdd, timeZone, onDone, post = apiPost }: { quickAdd: TodayQuickAddData; timeZone: string; onDone: () => void; post?: Post }) {
+export function QuickAddForm({
+  quickAdd,
+  timeZone,
+  onDone,
+  post = apiPost,
+  inbox = null,
+}: {
+  quickAdd: TodayQuickAddData;
+  timeZone: string;
+  onDone: () => void;
+  post?: Post;
+  inbox?: WorkInboxInfo | null;
+}) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
   const [title, setTitle] = useState("");
-  const [projectId, setProjectId] = useState(quickAdd.targets[0]?.projectId ?? "");
+  // with the inbox on it is the first choice and the default; its own project is not listed a second time
+  const targets = inbox ? quickAdd.targets.filter((x) => x.projectId !== inbox.projectId) : quickAdd.targets;
+  const [projectId, setProjectId] = useState(inbox ? WORK_INBOX_REF : (quickAdd.targets[0]?.projectId ?? ""));
   const [due, setDue] = useState<QuickDue>("today");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -155,7 +237,7 @@ export function QuickAddForm({ quickAdd, timeZone, onDone, post = apiPost }: { q
   }, []);
 
   // the space is named beside the project only when the projects are in more than one space
-  const manySpaces = new Set(quickAdd.targets.map((x) => x.workspaceId)).size > 1;
+  const manySpaces = new Set(targets.map((x) => x.workspaceId)).size > 1;
   const days: { value: QuickDue; label: string }[] = [
     { value: "today", label: t("time.today") },
     { value: "tomorrow", label: t("time.tomorrow") },
@@ -165,17 +247,18 @@ export function QuickAddForm({ quickAdd, timeZone, onDone, post = apiPost }: { q
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (pending) return;
-    const body = quickTaskBody(quickAdd, { projectId, title, due, timeZone });
+    const toInbox = inbox !== null && projectId === WORK_INBOX_REF;
+    const body = toInbox ? quickInboxBody(quickAdd, { title, due, timeZone }) : quickTaskBody(quickAdd, { projectId, title, due, timeZone });
     if (!body) return;
     setPending(true);
     setError(null);
     try {
-      await post("/api/tasks", body);
+      await post(toInbox ? "/api/instant/inbox" : "/api/tasks", body);
       toast(t("common.created"), "success");
       router.refresh();
       onDone();
     } catch (err) {
-      const message = err instanceof ApiError && err.code === "forbidden" ? t("forbidden") : t("task.createFailed");
+      const message = quickError(err, t);
       setError(message);
       toast(message, "error");
       setPending(false);
@@ -202,12 +285,14 @@ export function QuickAddForm({ quickAdd, timeZone, onDone, post = apiPost }: { q
       <label className="block">
         <span className="mb-1 block text-xs font-medium text-fg-muted">{t("proj.one")}</span>
         <select name="projectId" value={projectId} onChange={(event) => setProjectId(event.target.value)} className={FIELD}>
-          {quickAdd.targets.map((target) => (
+          {inbox ? <option value={WORK_INBOX_REF}>{t("work.inbox.name")}</option> : null}
+          {targets.map((target) => (
             <option key={target.projectId} value={target.projectId}>
               {manySpaces ? `${target.projectName} · ${target.workspaceName}` : target.projectName}
             </option>
           ))}
         </select>
+        {inbox && projectId === WORK_INBOX_REF ? <span className="mt-1 block text-xs text-fg-muted">{t("work.inbox.sheet_hint")}</span> : null}
       </label>
 
       <fieldset>

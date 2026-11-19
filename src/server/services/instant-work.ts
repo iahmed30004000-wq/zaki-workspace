@@ -4,7 +4,8 @@ import { db } from "@/server/db";
 import { ForbiddenError, type OrgAccessContext } from "@/server/auth";
 import { notifyAssignment } from "@/server/notify";
 import { assertNotGuest } from "@/server/services/guest-guard";
-import { assertFeatureOn } from "@/server/services/features";
+import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
+import { spacesOf, type SpaceSubject } from "@/server/services/current-space";
 import { createTask, DEFAULT_BOARD_COLUMNS } from "@/server/services/tasks";
 import type { RewardRequest } from "@/server/services/rewards";
 
@@ -16,16 +17,24 @@ import type { RewardRequest } from "@/server/services/rewards";
  * assignee). The person must be in the space, or they would hold a task they cannot open. They are told at once.
  *
  * Behind the «instantWork» switch: off, the route answers «not found» and the tasks already made stay as they are.
+ *
+ * «صندوق المهام» (W1.2, switch `workInbox`): the SAME project (same `systemKey`, same service) becomes a visible, named,
+ * pinned inbox on top of «المشاريع». A quick task from anywhere lands in it, in «للتنفيذ»: Today's quick add
+ * (`createInboxTask`), «اعمل منها مهمة» with no project chosen (`inboxTarget`, src/server/chat/make-work.ts), «جديد».
+ * «الشركة» holds no project (D-N3): a quick task made while in it lands in the inbox of the person's first STANDARD space
+ * (`inboxSpaceFor`), and with none the quick add says why («instant.no_space»). A quick task with an assignee is
+ * «المعنيين بس» (P0.2). A project that already existed keeps its id and its tasks; only the default name changes.
+ * With the switch off nothing here changes.
  */
 
 export const INSTANT_PROJECT_KEY = "instant";
 
 /** The space's «مهام فورية» board and its «to do» column, made on first use (two at once: one wins, both use it). */
-async function instantBoard(workspaceId: string): Promise<{ projectId: string; boardId: string; columnId: string }> {
+async function instantBoard(workspaceId: string, inbox: boolean): Promise<{ projectId: string; boardId: string; columnId: string }> {
   const find = () =>
     db.project.findUnique({
       where: { workspaceId_systemKey: { workspaceId, systemKey: INSTANT_PROJECT_KEY } },
-      select: { id: true, boards: { where: { archived: false }, orderBy: { createdAt: "asc" }, take: 1, select: { id: true, columns: { orderBy: { position: "asc" }, select: { id: true, done: true } } } } },
+      select: { id: true, name: true, boards: { where: { archived: false }, orderBy: { createdAt: "asc" }, take: 1, select: { id: true, columns: { orderBy: { position: "asc" }, select: { id: true, done: true } } } } },
     });
   let project = await find();
   if (!project) {
@@ -34,7 +43,7 @@ async function instantBoard(workspaceId: string): Promise<{ projectId: string; b
         data: {
           workspaceId,
           systemKey: INSTANT_PROJECT_KEY,
-          name: AR["instant.project"] ?? "مهام فورية",
+          name: inbox ? (AR["work.inbox.name"] ?? "صندوق المهام") : (AR["instant.project"] ?? "مهام فورية"),
           status: "ACTIVE",
           boards: {
             create: { name: AR["instant.board"] ?? "فوري", columns: { create: DEFAULT_BOARD_COLUMNS.map((c, i) => ({ ...c, position: i })) } },
@@ -48,6 +57,12 @@ async function instantBoard(workspaceId: string): Promise<{ projectId: string; b
     project = await find();
   }
   if (!project) throw new ForbiddenError("instant.unavailable");
+  // the hidden project that still wears its old default name takes the inbox's name; a name somebody chose is kept
+  // (one conditional write: a rename made in between is never overwritten)
+  const oldName = AR["instant.project"] ?? "مهام فورية";
+  if (inbox && project.name === oldName) {
+    await db.project.updateMany({ where: { id: project.id, name: oldName }, data: { name: AR["work.inbox.name"] ?? "صندوق المهام" } });
+  }
   let board = project.boards[0];
   if (!board || board.columns.length === 0) {
     // its board was archived or emptied: a fresh one
@@ -76,10 +91,63 @@ export interface InstantTaskInput {
   reward?: RewardRequest;
 }
 
+export interface InboxSpace {
+  id: string;
+  name: string;
+}
+
+/**
+ * The space a quick task goes to (D-N3): the one the person is in, unless it is «الشركة» (it holds no project) — then their
+ * first STANDARD space (the order of the space switcher: the owner's order, then by name) that they may work in. Null when
+ * they have none, or when `spaceId` is not one of theirs.
+ */
+export async function inboxSpaceFor(who: SpaceSubject, spaceId: string | null | undefined): Promise<InboxSpace | null> {
+  const spaces = await spacesOf(who);
+  const here = spaces.find((s) => s.id === spaceId);
+  // the space the person is in, unless it is «الشركة» (no project there) or they may not add work in it (a guest of that space)
+  if (here && here.kind !== "HQ" && here.role !== "GUEST") return { id: here.id, name: here.name };
+  if (spaceId && !here) return null;
+  const first = spaces.find((s) => s.kind === "STANDARD" && s.layout === "STANDARD" && s.role !== "GUEST");
+  return first ? { id: first.id, name: first.name } : null;
+}
+
+/** What the clients need to know: where a quick task would go (null: no space) and the inbox project's id once it exists (a read: nothing is made). */
+export async function inboxInfo(who: SpaceSubject, spaceId: string | null | undefined): Promise<{ space: InboxSpace | null; projectId: string | null }> {
+  const space = await inboxSpaceFor(who, spaceId);
+  if (!space) return { space: null, projectId: null };
+  const project = await db.project.findUnique({ where: { workspaceId_systemKey: { workspaceId: space.id, systemKey: INSTANT_PROJECT_KEY } }, select: { id: true } });
+  return { space, projectId: project?.id ?? null };
+}
+
+/**
+ * The inbox's project, board and «للتنفيذ» column of a space, made if it is not there yet — for «اعمل منها مهمة» with no project
+ * chosen. `workspaceId` is a space the caller was checked for (`inboxSpaceFor` has already moved «الشركة» to a real one).
+ */
+export async function inboxTarget(ctx: OrgAccessContext, workspaceId: string): Promise<{ projectId: string; boardId: string; columnId: string }> {
+  await assertFeatureOn(ctx.orgId, "workInbox");
+  assertNotGuest(ctx);
+  return instantBoard(workspaceId, true);
+}
+
 /** `ctx`: the caller checked for this space (`requireWorkspace(spaceId, ["ADMIN", "MEMBER"])`). */
 export async function createInstantTask(ctx: OrgAccessContext, workspaceId: string, input: InstantTaskInput): Promise<{ id: string; number: number; requested: boolean }> {
   await assertFeatureOn(ctx.orgId, "instantWork");
+  return makeInboxTask(ctx, workspaceId, input);
+}
+
+/**
+ * Today's quick add («اليوم» → the line at the foot of the list): a task typed with just a title, the person's own unless they
+ * name somebody, in the inbox. It needs the switch `workInbox` only (not `instantWork`: it is not the «مهمة فورية» form).
+ */
+export async function createInboxTask(ctx: OrgAccessContext, workspaceId: string, input: InstantTaskInput): Promise<{ id: string; number: number; requested: boolean }> {
+  await assertFeatureOn(ctx.orgId, "workInbox");
+  const named = input.assigneeIds ?? (input.assigneeId ? [input.assigneeId] : []);
+  return makeInboxTask(ctx, workspaceId, { ...input, assigneeIds: named.length ? named : [ctx.userId] });
+}
+
+async function makeInboxTask(ctx: OrgAccessContext, workspaceId: string, input: InstantTaskInput): Promise<{ id: string; number: number; requested: boolean }> {
   assertNotGuest(ctx);
+  const inbox = await isFeatureOn(ctx.orgId, "workInbox");
   const people = [...new Set((input.assigneeIds ?? (input.assigneeId ? [input.assigneeId] : [])).filter(Boolean))];
   if (people.length === 0) throw new ForbiddenError("instant.pick_person");
   // every person named must be in this space (or be the company's owner), or they would hold a task they cannot open
@@ -93,10 +161,12 @@ export async function createInstantTask(ctx: OrgAccessContext, workspaceId: stri
     }),
   );
   if (allowed.some((ok) => !ok)) throw new ForbiddenError("instant.not_in_space");
-  const where = await instantBoard(workspaceId);
+  const where = await instantBoard(workspaceId, inbox);
   const task = await createTask(ctx, {
     workspaceId,
     ...where,
+    // a quick task that somebody holds is «المعنيين بس» (P0.2, D-P2): the inbox is a place everybody of the space opens
+    ...(inbox ? { visibility: "PARTICIPANTS" as const } : {}),
     title: input.title,
     description: input.description ?? null,
     priority: input.priority,
