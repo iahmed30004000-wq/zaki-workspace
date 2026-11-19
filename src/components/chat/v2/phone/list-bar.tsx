@@ -2,6 +2,7 @@
 
 import React from "react";
 import { ArrowRight, Menu, Search, X } from "lucide-react";
+import { ListSearchPanel } from "@/components/chat/v2/info/list-search-results";
 import { ct } from "@/lib/chat/text";
 import { useFrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
 
@@ -14,6 +15,9 @@ const iconButton =
  * the person is in, or «زاكي» for «الكل» — and a search icon that EXPANDS to a full-width field («→» folds it back and clears it; Esc too). The folders and
  * the rows are under it, in the list's own column. The words typed narrow the rows exactly as the computer's search field does (the list holds the state).
  * The frame's own top bar is hidden on the phone while a chat screen is up (app-shell.tsx), so this bar owns the notch.
+ *
+ * C3d: while the field is open and holds two letters, the chats, people and messages the server found (`GET /api/search?scope=chat`) are drawn as a panel under the
+ * bar, over the rows; opening one folds the field.
  */
 export function PhoneListBar({ title, query, onQuery, searchId }: { title: string; query: string; onQuery: (value: string) => void; searchId: string }) {
   const bridge = useFrameBridge();
@@ -30,7 +34,7 @@ export function PhoneListBar({ title, query, onQuery, searchId }: { title: strin
   };
 
   return (
-    <header data-chat-phone-bar="" className="shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
+    <header data-chat-phone-bar="" className="relative shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
       {expanded ? (
         <div data-chat-phone-search="open" className="flex h-14 items-center gap-1 px-1">
           <button type="button" aria-label={ct("chatui.phone.search.close")} onClick={fold} className={iconButton}>
@@ -80,6 +84,7 @@ export function PhoneListBar({ title, query, onQuery, searchId }: { title: strin
           ) : null}
         </div>
       )}
+      {expanded ? <ListSearchPanel query={query} onPick={fold} /> : null}
     </header>
   );
 }

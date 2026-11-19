@@ -4,6 +4,9 @@ import React from "react";
 import Link from "next/link";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { ConversationSearch } from "@/components/chat/conversation/conversation-search";
+import { InfoJumpContext } from "@/components/chat/v2/info/info-jump";
+import { useInfoSlot } from "@/components/chat/v2/info/info-slot";
+import { MediaViewerProvider } from "@/components/chat/v2/media-viewer";
 import { CallBar } from "@/components/chat/v2/pane/call-bar";
 import { MessageViewport } from "@/components/chat/v2/pane/message-viewport";
 import { PaneActionsProvider, usePaneActions, usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
@@ -17,6 +20,7 @@ import { isNotFound } from "@/lib/chat/cache/pages";
 import { useChatHeader, useChatRow } from "@/lib/chat/cache/selectors";
 import { useConversationHistory, type ConversationHistory } from "@/lib/chat/history/use-conversation-history";
 import { ct } from "@/lib/chat/text";
+import { useIsWide } from "@/lib/chat/v2/info/use-wide";
 import { bubbleFactsOf, sameFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { usePeople } from "@/lib/chat/v2/pane/use-people";
@@ -65,20 +69,46 @@ export function PaneUnavailable({ error, retry }: { error: unknown; retry: () =>
   );
 }
 
-/** The search under the header: a hit is a JUMP (around the message, a 2 s highlight), and the panel closes. */
-function SearchPanel({ conversationId }: { conversationId: string }) {
+/**
+ * The search under the header. C3d: it STAYS open while the person walks the hits (↑ older, ↓ newer, a click, the date jump are JUMPS: around the message, a 2 s
+ * highlight), and it offers «من:» with the conversation's people. Esc and «سكّر» close it.
+ */
+function SearchPanel({ conversationId, people }: { conversationId: string; people: PaneMembers | null }) {
   const a = usePaneActions();
+  const members = React.useMemo(() => (people?.members ?? NO_MEMBERS).filter((m) => m.role !== "AI").map((m) => ({ id: m.id, name: m.name })), [people]);
   if (!a.searchOpen) return null;
   return (
     <ConversationSearch
       conversationId={conversationId}
       onClose={a.closeSearch}
+      enhanced
+      people={members}
+      onJump={a.jumpTo}
       onPick={(id) => {
         a.closeSearch();
         a.jumpTo(id);
       }}
     />
   );
+}
+
+/**
+ * C3d — the info panel's «اعرض بالمحادثة»: scroll this conversation to a message. Where the panel COVERS the conversation (the tablet's sheet) it is closed first; the
+ * docked column stays open beside it. The panel reads this through a context because two other files mount it (the host and the phone's screen).
+ */
+function InfoJumpProvider({ children }: { children: React.ReactNode }) {
+  const commands = usePaneCommands();
+  const wide = useIsWide();
+  const slot = useInfoSlot();
+  const docked = wide === true && slot !== null;
+  const jump = React.useCallback(
+    (messageId: string) => {
+      if (!docked) commands.closeInfo();
+      commands.jumpTo(messageId);
+    },
+    [commands, docked],
+  );
+  return <InfoJumpContext.Provider value={jump}>{children}</InfoJumpContext.Provider>;
 }
 
 function PaneBody({ header, history, people, watch }: { header: ConversationHeaderDto; history: ConversationHistory; people: PaneMembers | null; watch: boolean }) {
@@ -93,16 +123,20 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
   return (
     <MenuHost header={header} members={people?.members ?? NO_MEMBERS}>
       <section dir="rtl" lang="ar" data-chat-pane-root data-pane-state="ready" className="relative flex h-full min-h-0 flex-col bg-surface" aria-label={header.title}>
-        <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
-        <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} />
-        <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
-        <CallBar conversationId={header.id} enabled={header.calls !== false} />
-        <SearchPanel conversationId={header.id} />
-        {header.me.oversight ? <p className="border-b border-border p-2 text-center text-sm">{ct("chatc.oversight_banner")}</p> : null}
-        {header.space?.hasExternal ? <p className="p-2 text-sm">{ct("chatc.external")}</p> : null}
-        <MessageViewport header={header} history={history} facts={facts} people={people} />
-        <ComposerHost header={header} people={people} onSent={() => !history.atNewest && void history.backToNewest()} />
-        <InfoHost header={header} />
+        <MediaViewerProvider messages={history.messages} conversationId={header.id} onShowInChat={commands.jumpTo}>
+          <InfoJumpProvider>
+            <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
+            <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} />
+            <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
+            <CallBar conversationId={header.id} enabled={header.calls !== false} />
+            <SearchPanel conversationId={header.id} people={people} />
+            {header.me.oversight ? <p className="border-b border-border p-2 text-center text-sm">{ct("chatc.oversight_banner")}</p> : null}
+            {header.space?.hasExternal ? <p className="p-2 text-sm">{ct("chatc.external")}</p> : null}
+            <MessageViewport header={header} history={history} facts={facts} people={people} />
+            <ComposerHost header={header} people={people} onSent={() => !history.atNewest && void history.backToNewest()} />
+            <InfoHost header={header} />
+          </InfoJumpProvider>
+        </MediaViewerProvider>
       </section>
     </MenuHost>
   );
