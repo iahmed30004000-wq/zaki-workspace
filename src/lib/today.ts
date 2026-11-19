@@ -303,3 +303,272 @@ export function quickInboxBody(quickAdd: TodayQuickAddData, input: { title: stri
   const dueDate = quickDueAt(input.due, input.timeZone, input.now);
   return { title, assigneeId: quickAdd.assigneeId, ...(dueDate ? { dueDate } : {}) };
 }
+
+// ───────────────────────────────────────── «اليوم» simplified (W1.7) ─────────────────────────────────────────
+
+/**
+ * With the switch `navV2` ON, «اليوم» is up to SIX cards in this fixed order and nothing else on the main column:
+ *   tasks      «مهامي اليوم» — today and overdue, the inline quick add at its foot (it lands in «صندوق المهام», W1.2)
+ *   waiting    «بانتظار قرارك» — the count of W1.4's inbox and its newest five (only while `workRequests` is on, only when something waits)
+ *   mentions   «ذكروك» — the unread messages that mention the person, each a link into its conversation (only when there is one)
+ *   reminders  «تذكيراتي» (the switch `reminders`), with Q1.5's «مواعيد اليوم» (a ticket's follow-up day) beneath it
+ *   checkin    «التسجيل اليومي» — only while its switch is on
+ *   team       ONE team card for the owner and whoever manages people (the old pulse and the dashboard's team strip folded into it)
+ * Everything else of the old page MOVED, nothing was deleted: `TODAY_HAND_OFF` says where each piece went and
+ * `placeOfPiece` is the test's way to prove that no part of the old page is homeless.
+ */
+export const TODAY_CARD_KEYS = ["tasks", "waiting", "mentions", "reminders", "checkin", "team"] as const;
+export type TodayCardKey = (typeof TODAY_CARD_KEYS)[number];
+export const TODAY_CARD_MAX = 6;
+
+/** What «اليوم › المزيد» holds, in its order. */
+export const TODAY_MORE_KEYS = ["glance", "digest", "time", "pinned", "projects"] as const;
+export type TodayMoreKey = (typeof TODAY_MORE_KEYS)[number];
+
+export interface TodayLayoutInput {
+  /** An external partner: their tasks, and nothing of the company. */
+  external: boolean;
+  /** How many things wait for the person's decision (0 while `workRequests` is off). */
+  waiting: number;
+  /** How many unread mentions. */
+  mentions: number;
+  /** The company's «ذكّرني» switch. */
+  remindersOn: boolean;
+  /** Tickets of the person whose follow-up day has come (Q1.5). */
+  followUps: number;
+  checkinsOn: boolean;
+  /** The service gave this person the team numbers (the owner, whoever holds users.manage). */
+  team: boolean;
+  digestOn: boolean;
+  timeOn: boolean;
+  /** How many pinned tasks the space has for the person. */
+  pinned: number;
+  /** How many active projects. */
+  projects: number;
+  /** The personal ring and numbers of the dashboard exist for the person. */
+  glance: boolean;
+}
+
+export interface TodayLayout {
+  cards: TodayCardKey[];
+  more: TodayMoreKey[];
+}
+
+/** Which cards the page draws and what goes under «المزيد»: pure, so the render tests and the page read one rule. */
+export function todayLayout(input: TodayLayoutInput): TodayLayout {
+  const cards: TodayCardKey[] = ["tasks"];
+  if (!input.external) {
+    if (input.waiting > 0) cards.push("waiting");
+    if (input.mentions > 0) cards.push("mentions");
+    if (input.remindersOn || input.followUps > 0) cards.push("reminders");
+    if (input.checkinsOn) cards.push("checkin");
+    if (input.team) cards.push("team");
+  }
+  const more: TodayMoreKey[] = [];
+  if (!input.external && input.glance) more.push("glance");
+  if (!input.external && input.digestOn) more.push("digest");
+  if (!input.external && input.timeOn) more.push("time");
+  if (input.pinned > 0) more.push("pinned");
+  if (input.projects > 0) more.push("projects");
+  return { cards, more };
+}
+
+/** The parts of the page before W1.7, so a test can prove each of them still has a home. */
+export const OLD_TODAY_PIECES = [
+  "hero",
+  "controlPanel",
+  "digest",
+  "firstSteps",
+  "dashboard",
+  "dashboardTeam",
+  "tasks",
+  "installHint",
+  "guide",
+  "pinned",
+  "reminders",
+  "time",
+  "checkins",
+  "teamPulse",
+  "projects",
+] as const;
+export type OldTodayPiece = (typeof OLD_TODAY_PIECES)[number];
+
+export type TodayHandOff =
+  | { piece: OldTodayPiece; to: "card"; card: TodayCardKey }
+  | { piece: OldTodayPiece; to: "more"; more: TodayMoreKey }
+  | { piece: OldTodayPiece; to: "panel"; href: string }
+  | { piece: OldTodayPiece; to: "strip" };
+
+/**
+ * Where each old part of «اليوم» went with `navV2` ON (with it OFF the page is as it was).
+ *  - the three team cards (the pulse, the dashboard's team strip, the owner's whole panel) became ONE card; the panel itself is
+ *    «لوحة التحكم» at /owner (the card links to it; A2.1 gives it its final home);
+ *  - the digest, the day's time, the pinned tasks, the projects and the personal numbers sit under «اليوم › المزيد»;
+ *  - the hero, the first steps, the guide's welcome and the install hint are the guide's strips: they draw nothing when they have nothing to say.
+ */
+export const TODAY_HAND_OFF: readonly TodayHandOff[] = [
+  { piece: "hero", to: "strip" },
+  { piece: "firstSteps", to: "strip" },
+  { piece: "guide", to: "strip" },
+  { piece: "installHint", to: "strip" },
+  { piece: "tasks", to: "card", card: "tasks" },
+  { piece: "reminders", to: "card", card: "reminders" },
+  { piece: "checkins", to: "card", card: "checkin" },
+  { piece: "teamPulse", to: "card", card: "team" },
+  { piece: "dashboardTeam", to: "card", card: "team" },
+  { piece: "controlPanel", to: "panel", href: "/owner" },
+  { piece: "digest", to: "more", more: "digest" },
+  { piece: "time", to: "more", more: "time" },
+  { piece: "pinned", to: "more", more: "pinned" },
+  { piece: "projects", to: "more", more: "projects" },
+  { piece: "dashboard", to: "more", more: "glance" },
+];
+
+export function placeOfPiece(piece: OldTodayPiece): TodayHandOff | null {
+  return TODAY_HAND_OFF.find((h) => h.piece === piece) ?? null;
+}
+
+// ---------- «بانتظار قرارك» ----------
+
+/** How many rows the card lists (the rest is one tap away in «الطلبات»). */
+export const WAITING_TOP = 5;
+
+export type WaitingKind = "approval" | "assign" | "ticket" | "card" | "sheet";
+
+export interface WaitingRowView {
+  id: string;
+  kind: WaitingKind;
+  title: string;
+  href: string;
+  /** The space or department the row belongs to. */
+  place: string | null;
+  /** ISO time the thing was asked. */
+  at: string;
+}
+
+export interface TodayWaiting {
+  /** The real count: the length of W1.4's «بانتظاري». */
+  total: number;
+  rows: WaitingRowView[];
+}
+
+/** The newest `WAITING_TOP` rows across the inbox's sections (each section is already filtered by what the person may see); null when nothing waits. */
+export function topWaiting(sections: ReadonlyArray<{ total: number; rows: ReadonlyArray<WaitingRowView> }>, top: number = WAITING_TOP): TodayWaiting | null {
+  const total = sections.reduce((sum, s) => sum + s.total, 0);
+  if (total <= 0) return null;
+  const rows = sections
+    .flatMap((s) => s.rows)
+    .sort((a, b) => Date.parse(b.at) - Date.parse(a.at) || a.id.localeCompare(b.id))
+    .slice(0, top)
+    .map((r): WaitingRowView => ({ id: r.id, kind: r.kind, title: r.title, href: r.href, place: r.place, at: r.at }));
+  return { total, rows };
+}
+
+// ---------- «ذكروك» ----------
+
+export const MENTIONS_TOP = 5;
+
+export interface MentionRowView {
+  id: string;
+  /** The conversation's name (a private chat: the other person). */
+  title: string;
+  /** How many unread messages in it mention the person. */
+  count: number;
+  /** The conversation, or a space's forum while the person is in no space of their own. */
+  href: string;
+  place: string | null;
+  at: string | null;
+}
+
+export interface TodayMentions {
+  /** Every unread mention, over all the rows (not only the five listed). */
+  total: number;
+  rows: MentionRowView[];
+}
+
+/** What the chat list's row carries that this card reads (src/server/chat/dto.ts `ChatRowDto`). */
+export interface MentionSourceRow {
+  id: string;
+  kind: string;
+  title: string;
+  space: { id: string; name: string } | null;
+  lastMessage: { at: string } | null;
+  mentionsUnread: number;
+}
+
+/**
+ * The card's rows from the chat list's own rows (the existing unread-mentions numbers: `mentionsUnread` is 0 for a conversation the person
+ * has no row in, so the owner's silent reading adds nothing): only the ones with a mention, newest first, five of them; null when there is none.
+ */
+export function mentionRowsOf(rows: ReadonlyArray<MentionSourceRow>, top: number = MENTIONS_TOP): TodayMentions | null {
+  const hit = rows.filter((r) => r.mentionsUnread > 0);
+  if (hit.length === 0) return null;
+  const at = (r: MentionSourceRow) => (r.lastMessage ? Date.parse(r.lastMessage.at) : 0);
+  const listed = [...hit].sort((a, b) => at(b) - at(a) || a.id.localeCompare(b.id)).slice(0, top);
+  return {
+    total: hit.reduce((sum, r) => sum + r.mentionsUnread, 0),
+    rows: listed.map(
+      (r): MentionRowView => ({
+        id: r.id,
+        title: r.title,
+        count: r.mentionsUnread,
+        href: r.kind === "SPACE" ? `/chat/s/${encodeURIComponent(r.id)}` : `/chat/${encodeURIComponent(r.id)}`,
+        place: r.kind === "SPACE" ? null : (r.space?.name ?? null),
+        at: r.lastMessage?.at ?? null,
+      }),
+    ),
+  };
+}
+
+// ---------- «مواعيد اليوم» (Q1.5's follow-up day) ----------
+
+export interface TodayFollowUp {
+  id: string;
+  title: string;
+  /** «اليوم» «أمس» «قبل 3 أيام», counted by the company's calendar. */
+  dueLabel: string;
+  late: boolean;
+}
+
+// ---------- the one team card ----------
+
+export type TeamScopeKind = "company" | "space" | "spaces";
+
+/** What the team numbers were counted over, said on the card (every KPI shows its scope). */
+export interface TeamScopeChip {
+  kind: TeamScopeKind;
+  /** The space's name when `kind` is «space». */
+  name: string | null;
+}
+
+/** The owner outside a space: the company; inside a space: that space; a people manager outside one: the spaces they can open. */
+export function teamScopeOf(input: { isOwner: boolean; spaceName: string | null }): TeamScopeChip {
+  if (input.spaceName) return { kind: "space", name: input.spaceName };
+  return { kind: input.isOwner ? "company" : "spaces", name: null };
+}
+
+export interface TodayTeamData {
+  scope: TeamScopeChip;
+  open: number;
+  overdue: number;
+  doneWeek: number;
+  dueToday: number;
+  /** How many people (still active) hold something overdue. */
+  peopleLate: number;
+  /** The most overdue tasks and who holds them (the old pulse's list); may be empty. */
+  worst: PulseTask[];
+}
+
+/** ONE card from the two sets of numbers the page already has (the dashboard's team strip and the pulse); null when the person has neither. */
+export function teamCardOf(team: DashboardTeam | null, pulse: TodayPulse | null, scope: TeamScopeChip): TodayTeamData | null {
+  if (!team && !pulse) return null;
+  return {
+    scope,
+    open: pulse?.open ?? 0,
+    overdue: pulse?.overdue ?? 0,
+    doneWeek: team?.doneWeek ?? 0,
+    dueToday: team?.dueToday ?? 0,
+    peopleLate: team?.peopleLate ?? 0,
+    worst: pulse?.worst ?? [],
+  };
+}

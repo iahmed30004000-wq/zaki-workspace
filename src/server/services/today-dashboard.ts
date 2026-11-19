@@ -1,9 +1,23 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { chatList } from "@/server/chat/list";
 import { unreadTotal } from "@/server/chat/unread";
 import { actorCan, actorCanWork, type Actor } from "@/server/policy/actor";
+import { actorFeatureOn } from "@/server/services/features";
 import { loadWorkScope, narrowScope, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
-import { type DashboardMine, type DashboardTeam, type TodayDashboard, weekProgress } from "@/lib/today";
+import { workRequestsOf } from "@/server/services/work-requests";
+import { fmtRelative } from "@/lib/format";
+import {
+  type DashboardMine,
+  type DashboardTeam,
+  type TodayDashboard,
+  type TodayFollowUp,
+  type TodayMentions,
+  type TodayWaiting,
+  mentionRowsOf,
+  topWaiting,
+  weekProgress,
+} from "@/lib/today";
 import { nextZonedDayStart, resolveTimeZone, zonedDayStart, zonedParts, zonedWallTime } from "@/lib/zoned-time";
 
 /**
@@ -109,4 +123,58 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
     unreadTotal({ orgId: actor.orgId, orgRole: actor.role, userId: actor.userId }, spaceId ?? null, opts.space?.kind === "HQ"),
   ]);
   return { mine, unreadChat, team };
+}
+
+// ───────────────────────────────────────── W1.7: the cards of the simplified «اليوم» ─────────────────────────────────────────
+
+/**
+ * «بانتظار قرارك»: W1.4's own count and its newest five rows. NOTHING is read here that the inbox does not already filter: every row and the
+ * count come from `workRequestsOf(actor, "waiting")` (P0.2 `taskVisibleWhere` for a request on a task, the approver's turn, the departments,
+ * the spaces the person moderates). `null` while `workRequests` is off, for a guest, and when nothing waits.
+ */
+export async function getTodayWaiting(actor: Actor): Promise<TodayWaiting | null> {
+  if (actor.isExternal) return null;
+  if (!(await actorFeatureOn(actor, "workRequests"))) return null;
+  const view = await workRequestsOf(actor, "waiting");
+  return topWaiting(view.sections);
+}
+
+/**
+ * «ذكروك»: the unread messages that mention the person, from the chat list's own numbers (`chatList`: the same unread rule as the badge, only
+ * conversations the person may read — `canRead` has the last word — and a conversation they have no row in counts nothing, so the owner's silent
+ * oversight adds nothing and nothing is written). Inside a space: that space's topics and private chats (like the unread count of the same page);
+ * with no space: every conversation, a space then shown as its forum. A guest gets none. `null` when nobody mentioned the person.
+ */
+export async function getTodayMentions(actor: Actor, opts: { space?: { id: string } | null } = {}): Promise<TodayMentions | null> {
+  if (actor.isExternal) return null;
+  const list = await chatList({ orgId: actor.orgId, orgRole: actor.role, userId: actor.userId }, opts.space ? { spaceId: opts.space.id } : {});
+  return mentionRowsOf(list.rows);
+}
+
+/** How many follow-up tickets the card lists. */
+const FOLLOW_UPS_TOP = 5;
+
+/**
+ * «مواعيد اليوم» (Q1.5): the person's OWN tickets (the ones they hold, not finished) whose follow-up day is today or has passed, by the company's
+ * calendar. A ticket belongs to no space, so the space is not applied; the person needs the tickets «يشوف» box, a guest gets none, and only the
+ * ticket's title is read (never the customer's number, which stays in `ticketDetail`).
+ */
+export async function getTodayFollowUps(actor: Actor, opts: { now?: Date } = {}): Promise<TodayFollowUp[]> {
+  if (actor.isExternal || !actorCan(actor, "tickets.view")) return [];
+  const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true } });
+  const clock = zonedParts(opts.now ?? new Date(), resolveTimeZone(org?.timezone));
+  // the follow-up day is stored as a date (midnight UTC of that day): compare days, not instants
+  const endOfToday = new Date(Date.UTC(clock.year, clock.month - 1, clock.day + 1));
+  const rows = await db.ticket.findMany({
+    where: { orgId: actor.orgId, assigneeId: actor.userId, status: { in: ["OPEN", "IN_PROGRESS"] }, followUpAt: { not: null, lt: endOfToday } },
+    orderBy: [{ followUpAt: "asc" }, { id: "asc" }],
+    take: FOLLOW_UPS_TOP,
+    select: { id: true, title: true, followUpAt: true },
+  });
+  const todayStandIn = new Date(clock.year, clock.month - 1, clock.day, 12);
+  return rows.map((r): TodayFollowUp => {
+    const day = r.followUpAt as Date;
+    const late = day.getTime() < Date.UTC(clock.year, clock.month - 1, clock.day);
+    return { id: r.id, title: r.title, late, dueLabel: fmtRelative(new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 12), todayStandIn) };
+  });
 }

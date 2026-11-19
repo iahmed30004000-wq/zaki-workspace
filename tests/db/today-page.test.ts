@@ -21,6 +21,7 @@ import { FirstStepsCard } from "@/components/guide/first-steps-card";
 import { InstallHint } from "@/components/pwa/install-hint";
 import { TodayQuickAdd } from "@/components/today/quick-add";
 import { TeamPulse } from "@/components/today/team-pulse";
+import { TodayTeamCard } from "@/components/today/team-card";
 import { TodayTasksCard } from "@/components/today/today-tasks";
 import { fmtLongDate } from "@/lib/format";
 import { getServerT } from "@/lib/i18n/server";
@@ -28,7 +29,11 @@ import { zonedStandIn } from "@/lib/zoned-time";
 import { db, loginAs, logout, makeProject, makeTask, makeUser, makeWorkspace } from "./helpers";
 import { makeTwoCompanyPerson } from "./pages-access-helpers";
 import { joinWorkspace } from "./scoping-helpers";
-import { atMoment, hrefsOf, html, put, readable, setMember, todayNoon, typesInOrder, world } from "./today-helpers";
+import { actorOf, atMoment, hrefsOf, html, put, readable, setMember, todayFor, todayNoon, typesInOrder, world, type World } from "./today-helpers";
+import { makeDepartment, makeTicket } from "./guest-helpers";
+import { withFeature } from "@/lib/features";
+import { waitingRequestCount } from "@/server/services/work-requests";
+import type { Prisma } from "@prisma/client";
 import { classTokens, PALETTE_COLOUR, PHYSICAL_UTILITY } from "../ui-render";
 
 const { t } = getServerT();
@@ -390,5 +395,338 @@ describe("the home page and the session", () => {
     await loginAs(w.member.id);
     await db.organization.update({ where: { id: w.org.id }, data: { settings: { transparencyVersion: 2 } } });
     await expect(HomePage({})).rejects.toThrow(/NEXT_REDIRECT:\/onboarding|auth\.onboarding_required/);
+  });
+});
+
+// ───────────────────────────────────────── W1.7: «اليوم» simplified (navV2) ─────────────────────────────────────────
+
+/**
+ * With the switch `navV2` ON, «اليوم» is up to six cards in one order and ONE team card; the parts that moved sit under «المزيد» or in «لوحة التحكم».
+ * With it OFF the page is the old one (every test above runs with it OFF, the default). The pure rules are in tests/today-simple.test.ts.
+ */
+async function setFeatures(orgId: string, features: Record<string, boolean>) {
+  const org = await db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { settings: true } });
+  let settings: Record<string, unknown> = (org.settings as Record<string, unknown> | null) ?? {};
+  for (const [key, on] of Object.entries(features)) settings = withFeature(settings, key as never, on);
+  await db.organization.update({ where: { id: orgId }, data: { settings: settings as Prisma.InputJsonValue } });
+}
+
+/** «اليوم» itself («/» alone follows the company's landing page while navV2 is on). */
+const todayPage = () => HomePage({ searchParams: { view: "today" } });
+const cardsOf = (markup: string) => [...markup.matchAll(/data-today-card="(\w+)"/g)].map((m) => m[1] as string);
+const slotOf = (markup: string, key: string) => new RegExp(`<div[^>]*data-today-card="${key}"[^>]*>[\\s\\S]*?(?=<div[^>]*data-today-card=|<details[^>]*data-today-more|$)`).exec(markup)?.[0] ?? "";
+
+/** Seven tickets waiting in a department of the member's (and one in a department they are not in), made oldest to newest. */
+async function waitingTickets(w: World, memberIds: string[]) {
+  const dept = await makeDepartment(w.org.id, { name: "قسم الدعم", memberIds, leadId: w.lead.id });
+  const other = await makeDepartment(w.org.id, { name: "قسم آخر", memberIds: [w.lead.id] });
+  const titles: string[] = [];
+  for (let i = 1; i <= 7; i++) {
+    const row = await makeTicket({ orgId: w.org.id, departmentId: dept.id, creatorId: w.lead.id, title: `تذكرة بانتظار ${i}` });
+    await db.ticket.update({ where: { id: row.id }, data: { createdAt: new Date(Date.now() - (8 - i) * 3600 * 1000) } });
+    titles.push(row.title);
+  }
+  await makeTicket({ orgId: w.org.id, departmentId: other.id, creatorId: w.lead.id, title: "تذكرة قسم غريب" });
+  return { dept, titles };
+}
+
+/** A topic of a space with these people in it (a row each), and messages by `by` that mention `who`. */
+async function mentionTopic(w: World, opts: { spaceId: string; title: string; members: string[]; restricted?: boolean }) {
+  const old = new Date("2020-01-01T00:00:00Z");
+  return db.conversation.create({
+    data: {
+      orgId: w.org.id,
+      kind: "TOPIC",
+      spaceId: opts.spaceId,
+      title: opts.title,
+      restricted: opts.restricted ?? false,
+      members: { create: opts.members.map((userId) => ({ userId, lastReadAt: old })) },
+    },
+  });
+}
+const say = (w: World, conversationId: string, authorId: string, body: string, mentions: string[] = []) =>
+  db.chatMessage.create({ data: { orgId: w.org.id, conversationId, authorId, body, mentions } });
+
+const ALLOWED_ON = /^(\/|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|\/my-work(\?tab=\w+)?|\/guide(\/[\w-]+)?|\/chat(\/[\w-]+|\/s\/[\w-]+)?|\/time|\/requests|\/tickets|\/owner|\/approvals\/[\w-]+|\/cards\/[\w-]+|\/knowledge\/[\w-]+|\/checkins|\/reminders)$/;
+
+describe("W1.7 «اليوم» simplified: with navV2 OFF the page is the old one", () => {
+  it("draws no card slot and no «المزيد»; the owner still gets the pulse and the plain member the dashboard, as before", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: false, workRequests: true });
+    await waitingTickets(w, [w.member.id]);
+    for (const person of [w.owner.id, w.member.id]) {
+      await loginAs(person);
+      const page = await HomePage({});
+      const markup = await html(page);
+      expect(markup).not.toContain("data-today-card");
+      expect(markup).not.toContain("data-today-more");
+      expect(markup).not.toContain(t("today.waiting.title"));
+      expect(markup).not.toContain(t("today.mentions.title"));
+      expect(count(typesInOrder(page), TodayTeamCard)).toBe(0);
+      expect(markup).toContain('id="today-dash-title"');
+      if (person === w.owner.id) expect(count(typesInOrder(page), TeamPulse)).toBe(1);
+    }
+  });
+});
+
+describe("W1.7 «اليوم» simplified: the cards (navV2 ON)", () => {
+  it("a plain member: «مهامي اليوم» with the quick add, «تذكيراتي», «التسجيل اليومي» — in this order; no team card, no pulse; the hero strip once", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true, reminders: true, checkins: true });
+    await loginAs(w.member.id);
+    const markup = await html(todayPage());
+    expect(cardsOf(markup)).toEqual(["tasks", "reminders", "checkin"]);
+    expect([...markup.matchAll(/<h1\b/g)]).toHaveLength(1);
+    expect([...markup.matchAll(/zk-decor-strip/g)]).toHaveLength(1);
+    expect(markup).toContain("عقد متأخر");
+    expect([...markup.matchAll(/data-tour="quick-add"/g)]).toHaveLength(1);
+    expect(markup).not.toContain('id="today-pulse-title"');
+    expect(markup).not.toContain('id="today-team-title"');
+    expect(markup).not.toContain("data-today-scope");
+    expect(markup).not.toContain('id="today-dash-team"');
+  });
+
+  it("«بانتظار قرارك»: the count of the inbox and its newest five, only what the person may see; nothing while workRequests is off", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true, workRequests: true });
+    const { titles } = await waitingTickets(w, [w.member.id]);
+    await loginAs(w.member.id);
+    const markup = await html(todayPage());
+    expect(cardsOf(markup)).toContain("waiting");
+    expect(cardsOf(markup).indexOf("waiting")).toBe(1);
+    const slot = slotOf(markup, "waiting");
+    // the newest five of seven; the other department's ticket is neither listed nor counted
+    for (const title of titles.slice(2)) expect(slot, title).toContain(title);
+    for (const title of titles.slice(0, 2)) expect(slot, title).not.toContain(title);
+    expect(markup).not.toContain("تذكرة قسم غريب");
+    expect(slot).toContain(`aria-label="${t("shell.place_waiting", { count: 7 })}"`);
+    expect(slot).toContain(t("today.waiting.rest", { n: 2 }));
+    expect(hrefsOf(slot)).toContain("/requests");
+    expect(await waitingRequestCount(await actorOf(w.member.id))).toBe(7);
+
+    await setFeatures(w.org.id, { workRequests: false });
+    await loginAs(w.member.id);
+    expect(cardsOf(await html(todayPage()))).not.toContain("waiting");
+  });
+
+  it("«بانتظار قرارك» is not drawn when nothing waits, nor for a partner", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true, workRequests: true });
+    await loginAs(w.member.id);
+    expect(cardsOf(await html(todayPage()))).not.toContain("waiting");
+    await waitingTickets(w, [w.member.id, w.guest.id]);
+    await joinWorkspace(w.guest.id, w.wsIn.id, "GUEST");
+    await loginAs(w.guest.id);
+    expect(cardsOf(await html(todayPage()))).toEqual(["tasks"]);
+  });
+
+  it("«ذكروك»: a conversation the person reads with an unread mention, as a link into it; never the text, never a space they left, never a restricted topic they are not in", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true });
+    const open = await mentionTopic(w, { spaceId: w.wsIn.id, title: "موضوع المبيعات", members: [w.member.id, w.lead.id] });
+    await say(w, open.id, w.lead.id, "سر المحادثة الأول", [w.member.id]);
+    await say(w, open.id, w.lead.id, "سر المحادثة الثاني", [w.member.id]);
+    await say(w, open.id, w.lead.id, "بدون ذكر");
+    // a space the person is no longer in: a leftover row of theirs must add nothing
+    const left = await mentionTopic(w, { spaceId: w.wsOut.id, title: "موضوع مساحة تركتها", members: [w.member.id, w.lead.id] });
+    await say(w, left.id, w.lead.id, "ذكر في مساحة غريبة", [w.member.id]);
+    // a restricted topic of the space with no row of theirs
+    const secret = await mentionTopic(w, { spaceId: w.wsIn.id, title: "موضوع مقيّد", members: [w.lead.id], restricted: true });
+    await say(w, secret.id, w.lead.id, "ذكر في موضوع مقيّد", [w.member.id]);
+
+    await loginAs(w.member.id);
+    const markup = await html(todayPage());
+    expect(cardsOf(markup)[1]).toBe("mentions");
+    const slot = slotOf(markup, "mentions");
+    expect(hrefsOf(slot)).toContain(`/chat/${open.id}`);
+    expect(slot).toContain("موضوع المبيعات");
+    expect(slot).toContain(t("today.mentions.count", { n: 2 }));
+    expect(markup).not.toContain("سر المحادثة");
+    for (const hidden of ["موضوع مساحة تركتها", "موضوع مقيّد", "ذكر في"]) expect(markup, hidden).not.toContain(hidden);
+    expect(hrefsOf(markup)).not.toContain(`/chat/${left.id}`);
+    expect(hrefsOf(markup)).not.toContain(`/chat/${secret.id}`);
+
+    // somebody nobody mentioned gets no card
+    await loginAs(w.lead.id);
+    expect(cardsOf(await html(todayPage()))).not.toContain("mentions");
+  });
+
+  it("«ذكروك» is silent for the owner who only reads (no row of his own in the conversation)", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true });
+    const topic = await mentionTopic(w, { spaceId: w.wsIn.id, title: "موضوع الفريق", members: [w.member.id, w.lead.id] });
+    await say(w, topic.id, w.lead.id, "يا مالك", [w.owner.id]);
+    await loginAs(w.owner.id);
+    expect(cardsOf(await html(todayPage()))).not.toContain("mentions");
+    // and the page wrote nothing: still no row for him, no read mark moved
+    expect(await db.conversationMember.count({ where: { conversationId: topic.id, userId: w.owner.id } })).toBe(0);
+  });
+
+  it("«تذكيراتي» carries «مواعيد اليوم»: my own tickets whose follow-up day has come or passed, in the company's calendar; never another person's, never a later day", async () => {
+    const now = new Date();
+    const { w } = await busyWorld(now);
+    await setFeatures(w.org.id, { navV2: true, reminders: false });
+    const dept = await makeDepartment(w.org.id, { memberIds: [w.member.id, w.lead.id], leadId: w.lead.id });
+    const day = (offset: number) => {
+      const p = zonedStandIn(now, "UTC");
+      return new Date(Date.UTC(p.getFullYear(), p.getMonth(), p.getDate() + offset));
+    };
+    const mk = async (title: string, over: { assigneeId: string; followUpAt: Date | null; status?: "OPEN" | "RESOLVED" }) => {
+      const row = await makeTicket({ orgId: w.org.id, departmentId: dept.id, creatorId: w.lead.id, assigneeId: over.assigneeId, title, status: over.status ?? "OPEN" });
+      await db.ticket.update({ where: { id: row.id }, data: { followUpAt: over.followUpAt } });
+    };
+    await mk("اتصال بالزبون اليوم", { assigneeId: w.member.id, followUpAt: day(0) });
+    await mk("اتصال فات موعده", { assigneeId: w.member.id, followUpAt: day(-2) });
+    await mk("اتصال بكرا", { assigneeId: w.member.id, followUpAt: day(1) });
+    await mk("اتصال زميل", { assigneeId: w.lead.id, followUpAt: day(0) });
+    await mk("اتصال منتهي", { assigneeId: w.member.id, followUpAt: day(0), status: "RESOLVED" });
+    const markup = await atMoment(now, async () => {
+      await loginAs(w.member.id);
+      return html(todayPage());
+    });
+    // the switch is off, yet the slot exists because a follow-up day has come
+    expect(cardsOf(markup)).toEqual(["tasks", "reminders", "checkin"]);
+    const slot = slotOf(markup, "reminders");
+    expect(slot).toContain("اتصال بالزبون اليوم");
+    expect(slot).toContain("اتصال فات موعده");
+    expect(slot).toContain(t("today.follow.title"));
+    for (const hidden of ["اتصال بكرا", "اتصال زميل", "اتصال منتهي"]) expect(slot, hidden).not.toContain(hidden);
+    expect(hrefsOf(slot)).toContain("/tickets");
+    // without the tickets box nothing is read
+    await setMember(w.org.id, w.member.id, { revokedCapabilities: ["tickets.view"] });
+    await loginAs(w.member.id);
+    expect(slotOf(await html(todayPage()), "reminders")).not.toContain("اتصال بالزبون اليوم");
+  });
+});
+
+describe("W1.7 «اليوم» simplified: the one team card (navV2 ON)", () => {
+  it("the owner gets ONE team card with its scope chip, the numbers of the old pulse and strip, and a link to «لوحة التحكم»; the three old team pieces are gone", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true, controlPanel: true });
+    await loginAs(w.owner.id);
+    const markup = await html(todayPage());
+    expect([...markup.matchAll(/id="today-team-title"/g)]).toHaveLength(1);
+    expect([...markup.matchAll(/data-today-scope=/g)]).toHaveLength(1);
+    expect(cardsOf(markup).at(-1)).toBe("team");
+    // the scope is the space the owner is in (the page counts inside one space), said on the card
+    const space = await db.workspace.findFirstOrThrow({ where: { organizationId: w.org.id, id: w.wsIn.id }, select: { name: true } });
+    expect(slotOf(markup, "team")).toContain(t("today.team.scope_space", { name: space.name }));
+    // the old pieces: the pulse card, the dashboard's team strip, the owner's whole panel
+    expect(markup).not.toContain('id="today-pulse-title"');
+    expect(markup).not.toContain('id="today-dash-team"');
+    expect(markup).not.toContain('data-testid="control-panel"');
+    // the panel is «لوحة التحكم» at /owner and the card says so
+    expect(hrefsOf(slotOf(markup, "team"))).toContain("/owner");
+    // the most overdue tasks are still reachable, inside the card
+    expect(hrefsOf(slotOf(markup, "team"))).toContain(`/tasks/${(await db.task.findFirstOrThrow({ where: { orgId: w.org.id, title: "مهمة الزميل عمر" } })).id}`);
+    expect(markup).toContain("عمر قائد");
+    // the numbers: open and overdue of the space, the same as the service's own
+    const data = await todayFor(w.owner.id, undefined);
+    expect(slotOf(markup, "team")).toContain(`>${data.pulse?.overdue}<`);
+
+    await setFeatures(w.org.id, { controlPanel: false });
+    await loginAs(w.owner.id);
+    expect(hrefsOf(slotOf(await html(todayPage()), "team"))).not.toContain("/owner");
+  });
+
+  it("whoever holds users.manage gets it; a plain member, a team lead and a partner do not", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true });
+    for (const person of [w.member, w.lead]) {
+      await loginAs(person.id);
+      expect(cardsOf(await html(todayPage())), person.name).not.toContain("team");
+    }
+    await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"] });
+    await loginAs(w.member.id);
+    const markup = await html(todayPage());
+    expect(cardsOf(markup)).toContain("team");
+    expect(slotOf(markup, "team")).toContain(t("today.team.scope_space", { name: "مساحة الفريق" }));
+    // and no link to a panel they cannot open
+    expect(hrefsOf(slotOf(markup, "team"))).not.toContain("/owner");
+  });
+
+  it("is never more than six cards, in the fixed order, even with everything on", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true, workRequests: true, reminders: true, checkins: true, controlPanel: true });
+    await waitingTickets(w, [w.owner.id]);
+    const topic = await mentionTopic(w, { spaceId: w.wsIn.id, title: "موضوع المالك", members: [w.owner.id, w.lead.id] });
+    await say(w, topic.id, w.lead.id, "ذكر", [w.owner.id]);
+    await loginAs(w.owner.id);
+    const markup = await html(todayPage());
+    expect(cardsOf(markup)).toEqual(["tasks", "waiting", "mentions", "reminders", "checkin", "team"]);
+  });
+});
+
+describe("W1.7 «اليوم» simplified: what moved is under «المزيد», nothing is lost", () => {
+  it("holds the personal numbers, the time line and the projects for a member, closed by default and Arabic; the quick add and the mission stay on the main column", async () => {
+    const { w } = await busyWorld();
+    await db.project.update({ where: { id: w.inside.project.id }, data: { status: "ACTIVE" } });
+    await setFeatures(w.org.id, { navV2: true, timeTracking: true });
+    await loginAs(w.member.id);
+    const markup = await html(todayPage());
+    const start = markup.indexOf("data-today-more");
+    expect(start).toBeGreaterThan(0);
+    const more = markup.slice(markup.lastIndexOf("<details", start));
+    expect(more).not.toMatch(/^<details[^>]*\sopen/);
+    for (const part of ["glance", "time", "projects"]) expect(more, part).toContain(`data-today-more-part="${part}"`);
+    expect(more).toContain('id="today-dash-title"');
+    expect(more).toContain(t("today.projects.title"));
+    expect(hrefsOf(more)).toContain(`/projects/${w.inside.project.id}`);
+    // not a second team card
+    expect(more).not.toContain("today-dash-team");
+    // the day's tasks are NOT folded away
+    expect(markup.indexOf('data-tour="today-tasks"')).toBeLessThan(start);
+  });
+
+  it("a partner: their tasks, and under «المزيد» only the projects they work in", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true });
+    await joinWorkspace(w.guest.id, w.wsIn.id, "GUEST");
+    await put(w, "in", { title: "مهمة الشريك", assigneeId: w.guest.id, due: todayNoon() });
+    await loginAs(w.guest.id);
+    const markup = await html(todayPage());
+    expect(cardsOf(markup)).toEqual(["tasks"]);
+    expect(markup).toContain("مهمة الشريك");
+    expect(markup).not.toContain('data-tour="quick-add"');
+    expect(markup).not.toContain('id="today-dash-title"');
+    expect(markup).toContain(t("today.projects.open_mine", { n: 1 }));
+  });
+
+  it("every link is one the page owns (a task, a project, the chat, the inbox, the tickets, the panel) — no wall of navigation; theme tokens and logical CSS only; Arabic only", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true, workRequests: true, controlPanel: true, timeTracking: true });
+    await waitingTickets(w, [w.owner.id]);
+    const topic = await mentionTopic(w, { spaceId: w.wsIn.id, title: "موضوع المالك", members: [w.owner.id, w.lead.id] });
+    await say(w, topic.id, w.lead.id, "ذكر", [w.owner.id]);
+    let n = 0;
+    for (const u of await db.user.findMany({ where: { memberships: { some: { organizationId: w.org.id } }, id: { notIn: [w.owner.id, w.member.id] } }, select: { id: true } })) {
+      await db.user.update({ where: { id: u.id }, data: { name: `زميل ${++n}` } });
+    }
+    for (const person of [w.member.id, w.owner.id, w.guest.id]) {
+      await loginAs(person);
+      const markup = await html(todayPage());
+      expect(hrefsOf(markup).filter((h) => !ALLOWED_ON.test(h)), person).toEqual([]);
+      const tokens = classTokens(markup);
+      expect(tokens.filter((c) => PALETTE_COLOUR.test(c))).toEqual([]);
+      expect(tokens.filter((c) => PHYSICAL_UTILITY.test(c.split(":").pop() as string))).toEqual([]);
+      expect(tokens.filter((c) => /(^|:)grid-cols-/.test(c))).toEqual([]);
+      expect(markup).not.toMatch(/style="[^"]*(?:#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\()/);
+      const text = readable(markup);
+      expect(text).not.toMatch(/[A-Za-z]{2,}/);
+      expect(text).not.toMatch(/\b(?:today|common|task|mywork|proj|time|priority|shell)\.[a-z_]+/);
+    }
+  });
+
+  it("task data comes through the visibility rule: a private task of a colleague is neither listed nor counted on any card", async () => {
+    const { w } = await busyWorld();
+    await setFeatures(w.org.id, { navV2: true, taskPrivacy: true });
+    const secret = await put(w, "in", { title: "مهمة سرية جدا", assigneeId: w.lead.id, due: ago(20) });
+    await db.task.update({ where: { id: secret.id }, data: { visibility: "PARTICIPANTS" } });
+    await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"] });
+    await loginAs(w.member.id);
+    const markup = await html(todayPage());
+    expect(markup).not.toContain("مهمة سرية جدا");
+    const data = await todayFor(w.member.id);
+    expect(data.pulse?.worst.map((r) => r.title) ?? []).not.toContain("مهمة سرية جدا");
   });
 });
