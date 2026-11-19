@@ -27,6 +27,7 @@ import { CredentialsCard } from "./credentials-card";
 import { Field } from "./field";
 import { Sheet } from "./sheet";
 import { SwitchRow } from "./switch-row";
+import { TemplatePicker, useRoleTemplates } from "./template-picker";
 
 /**
  * Add a person in ONE short form: name, username, rank, job title, the spaces they will see and a
@@ -60,6 +61,8 @@ export function AddMemberSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedPerson | null>(null);
+  // A1.1: «القالب» appears only while the company's switch is on (the templates door answers «not found» otherwise)
+  const templates = useRoleTemplates(orgId);
 
   const fieldId = (name: string) => `${uid}-${name}`;
   const set = <K extends keyof AddFormValues>(key: K, value: AddFormValues[K]) => setValues((v) => ({ ...v, [key]: value }));
@@ -93,7 +96,7 @@ export function AddMemberSheet({
   function addAnother() {
     setCreated(null);
     setError(null);
-    setValues({ ...EMPTY_ADD_FORM, role: values.role, workspaceIds: values.workspaceIds });
+    setValues({ ...EMPTY_ADD_FORM, role: values.role, workspaceIds: values.workspaceIds, templateId: values.templateId });
   }
 
   function toggleSpace(id: string, on: boolean) {
@@ -150,8 +153,26 @@ export function AddMemberSheet({
             />
           </Field>
 
-          <Field id={fieldId("role")} label={t("members.f_rank")} hint={rankHint(values.role, t)}>
-            <Select id={fieldId("role")} value={values.role} onChange={(e) => set("role", e.target.value as AddFormValues["role"])} className="h-11">
+          {templates.enabled ? (
+            <TemplatePicker
+              id={fieldId("template")}
+              templates={templates.templates}
+              actor={actor}
+              value={values.templateId}
+              // a template carries its rank: the person is made with it
+              onChange={(templateId, template) => setValues((v) => ({ ...v, templateId, ...(template ? { role: template.rank } : {}) }))}
+              hint={t("ptemplates.hint_create")}
+            />
+          ) : null}
+
+          <Field id={fieldId("role")} label={t("members.f_rank")} hint={values.templateId ? t("ptemplates.rank_from_template") : rankHint(values.role, t)}>
+            <Select
+              id={fieldId("role")}
+              value={values.role}
+              disabled={values.templateId !== ""}
+              onChange={(e) => set("role", e.target.value as AddFormValues["role"])}
+              className="h-11"
+            >
               {ranks.map((role) => (
                 <option key={role} value={role}>
                   {t(ROLE_KEYS[role] ?? "role.member")}

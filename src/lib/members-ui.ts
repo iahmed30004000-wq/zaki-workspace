@@ -8,6 +8,7 @@
  * is never shown a button that would be refused.
  */
 import type { OrgRole } from "@prisma/client";
+import type { MemberTemplate } from "@/lib/permission-templates";
 import {
   CAPABILITIES,
   RANK_DEFAULTS,
@@ -75,6 +76,8 @@ export interface ContractMember {
   /** Open tasks + open tickets + active routines assigned to the person: an offboarding needs a transfer target when > 0. */
   openWork: number;
   workspaces: MemberWorkspace[];
+  /** A1.1 (switch `permissionTemplates`): the template the person was last given and whether they were changed by hand since. Absent: none. */
+  template?: MemberTemplate;
 }
 
 export interface ContractSpace {
@@ -149,6 +152,9 @@ export function normalizeMember(raw: Partial<ContractMember> & { id: string }): 
     mustChangePassword: raw.mustChangePassword === true,
     openWork: typeof raw.openWork === "number" && raw.openWork > 0 ? raw.openWork : 0,
     workspaces: Array.isArray(raw.workspaces) ? raw.workspaces : [],
+    ...(raw.template && typeof raw.template.id === "string" && typeof raw.template.name === "string"
+      ? { template: { id: raw.template.id, name: raw.template.name, modified: raw.template.modified === true } }
+      : {}),
   };
 }
 
@@ -639,6 +645,8 @@ export interface AddFormValues {
   workspaceIds: string[];
   autoPassword: boolean;
   password: string;
+  /** A1.1: the company's template for the new person (its rank is theirs); "" = none. */
+  templateId: string;
 }
 
 export const EMPTY_ADD_FORM: AddFormValues = {
@@ -651,6 +659,7 @@ export const EMPTY_ADD_FORM: AddFormValues = {
   workspaceIds: [],
   autoPassword: true,
   password: "",
+  templateId: "",
 };
 
 export type AddFormField = "name" | "username" | "email" | "password";
@@ -707,6 +716,7 @@ export interface CreatePayload {
   jobTitle?: string;
   managerId?: string;
   password?: string;
+  templateId?: string;
 }
 
 /** `POST /api/organizations/[id]/members` body: optional fields are left out when blank, the password only when typed. */
@@ -723,6 +733,7 @@ export function buildCreatePayload(v: AddFormValues): CreatePayload {
   if (jobTitle) payload.jobTitle = jobTitle;
   if (v.managerId && v.role !== "GUEST") payload.managerId = v.managerId;
   if (!v.autoPassword) payload.password = v.password;
+  if (v.templateId) payload.templateId = v.templateId;
   return payload;
 }
 

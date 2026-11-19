@@ -46,11 +46,13 @@
 - [ ] Data: `Organization.settings.roleTemplates` (existing JSON column — no migration): `[{ id, name, rank, caps: string[],
       revoked: string[] }]`, ≤ 30. Built-in starters (editable copies, created on first open): «مدير مساحة», «موظف»,
       «مبيعات وتأكيد طلبات», «ميديا باير», «مونتاج وتصميم», «محاسبة», «مشاهدة فقط»; the owner names and edits them.
-- [ ] Applying a template to a person writes `capabilities` / `revokedCapabilities` through the existing service
+- [x] Applying a template to a person writes `capabilities` / `revokedCapabilities` through the existing service
       (`src/server/services/accounts.ts` / `org-members.ts`: same rank rules, nobody grants what they do not hold,
       audited); the person's sheet shows «القالب: X» and «معدّل» when changed by hand afterwards.
-- [ ] The create-account sheet gets «القالب» + «المساحات» (today spaces only at creation, rank/caps after).
-- [ ] Tests: applying a template cannot give more than the applier holds; a guest template is refused; audit row.
+- [x] The create-account sheet gets «القالب» + «المساحات» (today spaces only at creation, rank/caps after).
+- [x] Tests: applying a template cannot give more than the applier holds; a guest template is refused; audit row.
+- Note (A1.1 built): box 1 stays open — the data, the seven starters and the door (`PUT .../role-templates`, owner only, with its `rev` guard) are built and tested, but the
+  SCREEN where the owner names and edits the templates is not (it belongs in A2.1's control panel). Switch `permissionTemplates` (OFF), strings in `ar.permissions-v2.json`.
 
 ### A1.2 One clear permissions sheet — `feat/permissions-sheet`
 - [ ] The person sheet (`src/components/members/member-sheet.tsx`) reorganised in plain words by AREA («المهام

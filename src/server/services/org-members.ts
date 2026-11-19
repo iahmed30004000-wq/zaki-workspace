@@ -6,6 +6,9 @@ import { RANK } from "@/server/policy/rank";
 import type { Actor } from "@/server/policy/actor";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { inCatalogueOrder } from "@/server/services/member-rules";
+import { orgSummaryOf } from "@/server/services/features";
+import { featureOn } from "@/lib/features";
+import { appliedTemplateOf, roleTemplatesOf, templateStateOf, type AppliedTemplate, type MemberTemplate } from "@/lib/permission-templates";
 import { taskParticipantFilter } from "@/server/services/team-scope";
 
 /**
@@ -84,6 +87,11 @@ export interface RosterMember {
   openWork: number;
   /** The person's spaces in this organization — only those the caller may see themselves. */
   workspaces: { id: string; name: string; role: WorkspaceRole }[];
+  /**
+   * A1.1 (switch `permissionTemplates`): the template the person was last given — «القالب: X» — and whether they were changed by hand since
+   * («معدّل»). Absent while the switch is off or nobody gave them one.
+   */
+  template?: MemberTemplate;
 }
 
 export interface Roster {
@@ -95,6 +103,34 @@ export interface Roster {
   sectionGrid: boolean;
   /** The spaces the caller may put people into: every space for the OWNER, otherwise their own. */
   spaces: { id: string; name: string }[];
+}
+
+/** The template each person was LAST given: the newest `org.template_applied` audit row about them. */
+async function lastAppliedTemplates(orgId: string, userIds: readonly string[]): Promise<Map<string, AppliedTemplate>> {
+  const rows = await db.auditLog.findMany({
+    where: { orgId, action: "org.template_applied", target: { in: [...userIds] } },
+    orderBy: { createdAt: "desc" },
+    distinct: ["target"],
+    select: { target: true, meta: true },
+  });
+  const out = new Map<string, AppliedTemplate>();
+  for (const row of rows) {
+    const applied = row.target ? appliedTemplateOf(row.meta) : null;
+    if (row.target && applied && !out.has(row.target)) out.set(row.target, applied);
+  }
+  return out;
+}
+
+function templateOf(
+  userId: string,
+  member: { role: OrgRole; capabilities: string[]; revokedCapabilities: string[] },
+  applied: ReadonlyMap<string, AppliedTemplate>,
+  names: ReadonlyMap<string, string>,
+): { template?: MemberTemplate } {
+  const a = applied.get(userId);
+  if (!a) return {};
+  const state = templateStateOf(a, member);
+  return { template: { ...state, name: names.get(a.templateId) ?? state.name } };
 }
 
 const STATUS_ORDER: Record<MemberStatus, number> = { ACTIVE: 0, SUSPENDED: 1, OFFBOARDED: 2 };
@@ -132,6 +168,11 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     },
   });
   const ids = rows.map((r) => r.user.id);
+  // A1.1: «القالب: X» only while the company's switch is on; the name is the template's own now (renamed since: the new name)
+  const settings = (await orgSummaryOf(orgId))?.settings ?? {};
+  const templatesOn = featureOn(settings, "permissionTemplates");
+  const applied = templatesOn ? await lastAppliedTemplates(orgId, ids) : new Map<string, AppliedTemplate>();
+  const templateNames = templatesOn ? new Map(roleTemplatesOf(settings).map((t) => [t.id, t.name])) : new Map<string, string>();
   // the open-work counts the roster shows never count a private task the person asking may not see
   const visibleTasks = await taskParticipantFilter(actor.userId);
 
@@ -188,6 +229,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     avatarUrl: r.user.avatarUrl,
     openWork: openWork.get(r.user.id) ?? 0,
     workspaces: spacesOf.get(r.user.id) ?? [],
+    ...templateOf(r.user.id, r, applied, templateNames),
   }));
   members.sort(
     (a, b) =>

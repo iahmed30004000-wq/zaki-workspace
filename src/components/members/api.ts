@@ -31,6 +31,7 @@ import {
   type TFn,
 } from "@/lib/members-ui";
 import type { Capability } from "@/server/policy/capabilities";
+import type { MemberTemplate, RoleTemplate } from "@/lib/permission-templates";
 
 export interface CreateResult {
   userId: string;
@@ -48,6 +49,22 @@ export interface StatusBody {
   transferToUserId?: string;
 }
 
+/** `GET /api/organizations/[id]/role-templates` (A1.1, behind the switch `permissionTemplates`: 404 while it is off). */
+export interface TemplatesResponse {
+  templates: RoleTemplate[];
+  rev: string;
+  canEdit: boolean;
+}
+
+/** What applying a template answers: the person as they ended up. */
+export interface AppliedResponse {
+  ok: true;
+  role: ContractMember["role"];
+  capabilities: string[];
+  revokedCapabilities: string[];
+  template: MemberTemplate;
+}
+
 const base = (orgId: string) => `/api/organizations/${encodeURIComponent(orgId)}/members`;
 const one = (orgId: string, userId: string) => `${base(orgId)}/${encodeURIComponent(userId)}`;
 
@@ -58,6 +75,9 @@ export const membersApi = {
   status: (orgId: string, userId: string, body: StatusBody) => apiPost<OkResult>(`${one(orgId, userId)}/status`, body),
   resetPassword: (orgId: string, userId: string) => apiPost<OkResult>(`${one(orgId, userId)}/password`),
   logout: (orgId: string, userId: string) => apiPost<OkResult>(`${one(orgId, userId)}/logout`),
+  templates: (orgId: string) => apiGet<TemplatesResponse>(`/api/organizations/${encodeURIComponent(orgId)}/role-templates`),
+  applyTemplate: (orgId: string, templateId: string, userId: string) =>
+    apiPost<AppliedResponse>(`/api/organizations/${encodeURIComponent(orgId)}/role-templates/${encodeURIComponent(templateId)}/apply`, { userId }),
 };
 
 // ---------------------------------------------------------------------------------- outcomes
@@ -191,6 +211,20 @@ export async function resetCapabilities(
   try {
     await membersApi.patch(orgId, member.id, lists);
     return { ok: true, value: capabilityPatch(member, lists) };
+  } catch (err) {
+    return failure(err, t);
+  }
+}
+
+/**
+ * Applies a template to a person (the server judges it again and answers what they ended with). Resolves to what changed locally: the rank,
+ * both lists, what the person can do now and «القالب: X» without «معدّل».
+ */
+export async function applyTemplate(orgId: string, member: ContractMember, templateId: string, t: TFn): Promise<FlowOutcome<Partial<ContractMember>>> {
+  try {
+    const res = await membersApi.applyTemplate(orgId, templateId, member.id);
+    const lists: CapabilityLists = { capabilities: res.capabilities, revokedCapabilities: res.revokedCapabilities };
+    return { ok: true, value: { role: res.role, ...capabilityPatch({ role: res.role }, lists), template: res.template } };
   } catch (err) {
     return failure(err, t);
   }
