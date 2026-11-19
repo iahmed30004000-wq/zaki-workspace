@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { FeatureSwitches } from "@/components/feature-switches";
-import { COMPANY_CHAT_GROUP, FEATURES, FEATURE_DEFAULTS, isFeatureKey, type FeatureKey } from "@/lib/features";
+import { COMPANY_CHAT_GROUP, ECONOMY_FORCED_OFF, FEATURES, FEATURE_DEFAULTS, isFeatureKey, type FeatureKey } from "@/lib/features";
 import { AR } from "@/lib/i18n/dict";
 import chatSettings from "@/lib/i18n/ar.settings-company-chat.json";
 import { PALETTE_COLOUR, PHYSICAL_UTILITY, classTokens, render, textOf } from "./ui-render";
@@ -143,13 +143,19 @@ describe("C4.3: the group on «الميزات»", () => {
     }
   });
 
+  it("a switch that has its own ⚠️ does not also get the generic model warning (one warning, not two), while the ones outside the group keep it", () => {
+    const text = textOf(view({ autoTickets: true, messageTranslate: true }));
+    expect(text).toContain(AR["companyChat.warn.messageTranslate"] as string);
+    expect(count(text, AR["features.model_warn"] as string)).toBe(2);
+  });
+
   it("keeps working as before: «وضع التوفير» still marks the group's held switches once each, and a switch still carries its own state", () => {
     const text = textOf(view({ economyMode: true }));
     for (const key of ["calls", "whiteboard", "callNoiseFilter", "quickChat", "lastSeen"] as const) {
       const at = text.indexOf(AR[`features.${key}.hint`] as string);
       expect(at, key).toBeGreaterThan(-1);
     }
-    expect(count(text, AR["economy.held"] as string)).toBe(8);
+    expect(count(text, AR["economy.held"] as string)).toBe(ECONOMY_FORCED_OFF.length);
     const markup = view({ chatOutbox: false });
     const name = (AR["features.chatOutbox.name"] as string).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     expect(markup).toMatch(new RegExp(`aria-checked="false"[^>]*aria-label="${name}"`));
@@ -171,8 +177,12 @@ describe("C4.3: the group on «الميزات»", () => {
 
   it("nothing from the company moves into a person's settings: the page keeps the group inside the owner's block, and no «إعداداتي» file is touched", () => {
     const page = read("src/app/(app)/settings/page.tsx");
-    const block = page.slice(page.indexOf("actor.isOwner ? (", page.indexOf("features-title") - 400));
-    expect(block).toContain("<FeatureSwitches");
+    const at = page.indexOf("<FeatureSwitches");
+    expect(at).toBeGreaterThan(-1);
+    const opener = page.lastIndexOf("actor.isOwner ? (", at);
+    expect(opener).toBeGreaterThan(-1);
+    // nothing closes the owner-only block between its opening and the component
+    expect(page.slice(opener, at)).not.toContain(") : null}");
     expect(page).not.toMatch(/settings\/me/);
     expect(read("src/components/feature-switches.tsx")).not.toMatch(/settings\/me|chatPrefs/);
   });

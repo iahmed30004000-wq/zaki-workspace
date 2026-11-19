@@ -57,7 +57,7 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
           </p>
           <p className="text-xs text-muted">{t(`features.${f.key}.hint`)}</p>
           {extra?.note ? <p className="text-xs text-muted">{t(`companyChat.note.${f.key}`)}</p> : null}
-          {showModelWarning(items, f.key) ? <p data-model-warning className="text-xs leading-6 text-warn">{t("features.model_warn")}</p> : null}
+          {!extra?.risk && showModelWarning(items, f.key) ?<p data-model-warning className="text-xs leading-6 text-warn">{t("features.model_warn")}</p> : null}
           {notReady.includes(f.key) ? <p className="text-xs text-warn">{t("semantic.not_ready_hint")}</p> : null}
           {extra?.risk ? (
             <div className="space-y-0.5" data-risk={f.key}>
