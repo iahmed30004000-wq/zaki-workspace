@@ -431,3 +431,29 @@ export function withFeature(orgSettings: unknown, key: FeatureKey, on: boolean):
   const features = base["features"] && typeof base["features"] === "object" ? (base["features"] as Record<string, unknown>) : {};
   return { ...base, features: { ...features, [key]: on } };
 }
+
+/**
+ * C4.3 — «الدردشة»: the company's chat switches as DATA, in the order of the spec (docs/restructure/C4-settings.md section 4). `FeatureSwitches` draws this
+ * group first on «الميزات» (until A2's «إعدادات الشركة»; A1.4 turns the whole list into groups with `dependsOn` and absorbs this one). It adds, renames and
+ * removes no switch: every key is a key of `FEATURES` and keeps its own name and hint.
+ *   risk  the switch has a ⚠️ and its 🔧 under it (`companyChat.warn.<key>` / `companyChat.fix.<key>`, src/lib/i18n/ar.settings-company-chat.json):
+ *         the server visits links, message text goes to a model (never a customer's data to an outside one), who is seen and when.
+ *   note  a line of explanation under the hint (`companyChat.note.<key>`): «شكل الرسائل الحديث» is the company's default look.
+ * Nothing here moves into a person's own settings: it is the owner's.
+ */
+export const COMPANY_CHAT_GROUP: ReadonlyArray<{ key: FeatureKey; risk?: true; note?: true }> = [
+  { key: "chatBubbles", note: true },
+  { key: "chatOutbox" },
+  { key: "voiceNotes" },
+  { key: "voiceTranscript", risk: true },
+  { key: "messageTranslate", risk: true },
+  { key: "whiteboard" },
+  { key: "calls" },
+  { key: "callNoiseFilter" },
+  { key: "quickChat" },
+  { key: "linkPreviews", risk: true },
+  { key: "chatLayoutV2" },
+  { key: "lastSeen", risk: true },
+  { key: "ownerHiddenOnline", risk: true },
+  { key: "chatRowMenu" },
+];

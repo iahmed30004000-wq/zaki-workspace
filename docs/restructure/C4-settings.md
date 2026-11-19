@@ -61,3 +61,10 @@ note where it has a risk.
 - [ ] Text size and wallpaper apply live without reload and persist.
 - [ ] `/profile` still works (redirect test); old preferences are read correctly.
 - [ ] Strings in `src/lib/i18n/ar.settings-me.json`.
+
+## 6. Built: C4.3 (2026-11-20)
+
+- The group of section 4 is on today's «الميزات» list in `/settings`, first after the economy panel, titled «الدردشة» (owner only, like the whole list: the switch route refuses everybody else).
+- It is data: `COMPANY_CHAT_GROUP` in `src/lib/features.ts` (key, `risk`, `note`); `FeatureSwitches` draws it and then the rest of the list. A1.4 replaces the flat list with groups and `dependsOn` and absorbs this array as its chat group; A2 moves the whole screen to «إعدادات الشركة» → «الدردشة».
+- ⚠️/🔧 strings: `ar.settings-company-chat.json` (`companyChat.warn.<key>` / `companyChat.fix.<key>`), for voiceTranscript, messageTranslate, linkPreviews, lastSeen, ownerHiddenOnline. The model-sending ones say no customer data goes to an outside model.
+- Not here: the person's own override of `chatBubbles` (C4.1, `chatPrefs.chat`).
