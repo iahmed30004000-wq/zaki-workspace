@@ -1,10 +1,11 @@
 "use client";
 
 import React from "react";
-import type { MessageDto } from "@/server/chat/dto";
+import type { LinkPreviewDto, MessageDto } from "@/server/chat/dto";
 import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/chat/text";
 import { cn } from "@/lib/utils";
+import { hostOf, safeHref } from "@/lib/chat/format/links";
 import type { CustomerDataHint } from "@/lib/chat/customer-data-hint";
 
 /**
@@ -96,5 +97,51 @@ export function ProblemSuggestion({ onSuggest }: { onSuggest: () => void }) {
     <button type="button" data-problem-suggest onClick={onSuggest} className="mt-1 inline-flex min-h-8 items-center rounded-full border border-dashed border-info/50 px-2 text-xs font-semibold text-info">
       {ct("tickets.chip.suggest")}
     </button>
+  );
+}
+
+/** The picture of a card is drawn only from the app's own address (`/api/chat/messages/<id>/preview/image`): a message can never point the page at a remote picture. */
+const OWN_PICTURE = /^\/api\/chat\/messages\/[A-Za-z0-9_-]+\/preview\/image$/;
+
+/**
+ * C3b.2 — the card under a message's first link: the picture (the app's own copy), the site's name, the title and a few lines of the description, all drawn as TEXT.
+ * The whole card is one link that opens the page in a new tab (`rel="noopener noreferrer"`); an address that is not a safe https link draws nothing. It is drawn only
+ * while the message carries a `preview` (the server leaves it out for a deleted message, a failed page and while the company's switch `linkPreviews` is off), and
+ * `enabled={false}` hides it as well (a screen that knows the switch passes it).
+ */
+export function LinkPreviewCard({ preview, enabled = true }: { preview: LinkPreviewDto | undefined; enabled?: boolean }) {
+  if (!preview || !enabled) return null;
+  const safe = safeHref(preview.url);
+  if (!safe || safe.internal || !safe.href.startsWith("https://")) return null;
+  const host = hostOf(preview.url) ?? "";
+  const heading = preview.title ?? preview.siteName ?? host;
+  const picture = preview.image && OWN_PICTURE.test(preview.image) ? preview.image : null;
+  return (
+    <a
+      data-link-preview
+      href={safe.href}
+      target="_blank"
+      rel="noopener noreferrer"
+      aria-label={ct("chatlp.card", { title: heading })}
+      className="mt-1 block max-w-sm overflow-hidden rounded-lg border-s-4 border-accent bg-surface-2 text-start text-fg no-underline hover:bg-surface-1"
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element -- the app's own preview address (checked above), a private route: next/image would need a loader for it */}
+      {picture ? <img data-link-preview-image src={picture} alt="" loading="lazy" decoding="async" className="aspect-video w-full bg-surface-1 object-cover" /> : null}
+      <span className="block space-y-0.5 p-2">
+        <span dir="auto" className="block truncate text-xs font-semibold text-accent">
+          {preview.siteName ?? host}
+        </span>
+        {preview.title ? (
+          <span dir="auto" className="line-clamp-2 block text-sm font-semibold">
+            {preview.title}
+          </span>
+        ) : null}
+        {preview.description ? (
+          <span dir="auto" className="line-clamp-3 block text-xs text-fg-muted">
+            {preview.description}
+          </span>
+        ) : null}
+      </span>
+    </a>
   );
 }

@@ -25,6 +25,9 @@ import * as personalStateRoute from "@/app/api/chat/conversations/[id]/me/route"
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import * as workRequestsRoute from "@/app/api/work/requests/route";
 import * as chatPrefsRoute from "@/app/api/me/chat-prefs/route";
+import * as previewImageRoute from "@/app/api/chat/messages/[id]/preview/image/route";
+import * as previewRemoveRoute from "@/app/api/chat/messages/[id]/preview/route";
+import { linkPreviewAfterSend, setLinkPreviewDepsForTests } from "@/server/chat/link-preview";
 import { folderRows } from "@/lib/chat/folders";
 import { chatHome } from "@/server/chat/home";
 import { chatList } from "@/server/chat/list";
@@ -619,4 +622,82 @@ describe("privacy matrix — the C3a.3 saved messages", () => {
     }
     expect(wrong).toEqual([]);
   });
+});
+
+// ───────────────────────────── C3b.2: the link card under a message, and its picture ─────────────────────────────
+// A link preview is made by the SERVER from a public page and attached to a message. It must reach exactly the people who may read the message: the picture route answers the
+// reading rule of the conversation (404 as if nothing were there for everybody else, a guest in a private chat included), the card rides the sync feed only to its readers, nobody
+// but the author can take it off, and the event that announces it carries ids and never a word of the page. The network is a stub: nothing here reaches a site.
+const CARD_TITLE = "عنوان البطاقة السري";
+const CARD_PAGE = "https://matrix-card.example.com/page";
+const CARD_PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, ...new Array<number>(64).fill(3)]);
+
+describe("privacy matrix — the C3b.2 link preview", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: the card and its picture reach only the readers, only the author removes it, and the event carries no words`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      setLinkPreviewDepsForTests({
+        resolve: async () => ["93.184.216.34"],
+        timeoutMs: 3_000,
+        fetch: (async (input: RequestInfo | URL) =>
+          String(input) === CARD_PAGE
+            ? new Response(`<html><head><meta property="og:title" content="${CARD_TITLE}"><meta property="og:image" content="https://matrix-card.example.com/p.png"></head></html>`, { status: 200, headers: { "content-type": "text/html" } })
+            : new Response(CARD_PNG, { status: 200, headers: { "content-type": "image/png" } })) as typeof fetch,
+      });
+      try {
+        const author = (["memberIn", "teamMember", "spaceAdmin"] as const).map((n) => w.people[n]).find((_p, i) => expected(CONVERSATIONS, kind, (["memberIn", "teamMember", "spaceAdmin"] as const)[i]!))!; // a team's topic is not memberIn's: the author is the first of these who may read it
+        const ownerCtx = { orgId: w.orgId, userId: w.people.owner.id, orgRole: "OWNER" as const };
+        const before = (await syncFeed(ownerCtx)).cursor;
+        const msg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: author.id, body: `${CARD_PAGE} ${kind}` } });
+        const conv = await db.conversation.findUniqueOrThrow({ where: { id }, select: { spaceId: true } });
+        await linkPreviewAfterSend({ orgId: w.orgId, userId: author.id, orgRole: "MEMBER" }, { messageId: msg.id, conversationId: id, spaceId: conv.spaceId, body: msg.body });
+        expect((await db.chatMessage.findUniqueOrThrow({ where: { id: msg.id } })).previewId).not.toBeNull();
+
+        // the event: ids only
+        const events = await db.realtimeEvent.findMany({ where: { orgId: w.orgId, kind: "message.enriched", id: { gt: BigInt(before) } } });
+        expect(events).toHaveLength(1);
+        if (JSON.stringify(events[0]!.ids).includes(CARD_TITLE)) throw new Error("the event carried a word of the page");
+
+        const wrong: string[] = [];
+        const rowsBefore = await db.conversationMember.count({ where: { conversationId: id } });
+        for (const who of PERSONAS) {
+          const person = w.people[who];
+          const may = expected(CONVERSATIONS, kind, who);
+          await loginAs(person.id);
+          // the picture
+          const image = await call(previewImageRoute.GET, { params: { id: msg.id }, url: `http://localhost/api/chat/messages/${msg.id}/preview/image` });
+          if ((image.status === 200) !== may) wrong.push(`${who} · picture: expected ${may ? 200 : "a refusal"} (status ${image.status})`);
+          if (!may && (image.text.includes(CARD_TITLE) || image.headers.get("content-type") === "image/png")) wrong.push(`${who} · a refusal carried the card or the picture`);
+          // the card in the sync feed
+          const synced = await syncFeed({ orgId: w.orgId, userId: person.id, orgRole: await w.roleOf(person.id) }, { after: BigInt(before) });
+          const got = synced.messages.find((m) => m.id === msg.id);
+          // the sync feed never carries somebody else's private chat, not even to the silent eye (he reads it through the archive): that is the feed's own rule
+          const viaSync = may && !(kind === "dm" && (who === "owner" || who === "partnerWith"));
+          if (viaSync && got?.preview?.title !== CARD_TITLE) wrong.push(`${who} · a reader did not get the card by sync`);
+          if (!viaSync && (got || JSON.stringify(synced).includes(CARD_TITLE))) wrong.push(`${who} · sync carried the message or the card to somebody who may not read it`);
+          // the removal: not for anybody but the author (a reader is told 403, the others are told nothing)
+          if (person.id !== author.id) {
+            const removal = await call(previewRemoveRoute.DELETE, { method: "DELETE", params: { id: msg.id } });
+            if (removal.status === 200) wrong.push(`${who} · removed somebody else's card`);
+            if (may && removal.status !== 403) wrong.push(`${who} · a reader who is not the author should get 403 (got ${removal.status})`);
+            if (!may && removal.status !== 404 && removal.status !== 403) wrong.push(`${who} · a refusal should be 404 or 403 (got ${removal.status})`);
+          }
+        }
+        if ((await db.chatMessage.findUniqueOrThrow({ where: { id: msg.id } })).previewId === null) wrong.push("a card was removed by somebody who is not the author");
+        // reading the picture and the card left no trace: no row was made for anybody
+        if ((await db.conversationMember.count({ where: { conversationId: id } })) !== rowsBefore) wrong.push("reading the card made a membership row");
+        // the author removes it, and from then on nobody gets it
+        await loginAs(author.id);
+        expect((await call(previewRemoveRoute.DELETE, { method: "DELETE", params: { id: msg.id } })).status).toBe(200);
+        for (const who of PERSONAS) {
+          await loginAs(w.people[who].id);
+          if ((await call(previewImageRoute.GET, { params: { id: msg.id } })).status === 200) wrong.push(`${who} · the picture still opens after the author removed the card`);
+        }
+        expect(wrong, kind).toEqual([]);
+      } finally {
+        setLinkPreviewDepsForTests(undefined);
+      }
+    });
+  }
 });

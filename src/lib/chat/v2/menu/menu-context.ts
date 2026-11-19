@@ -91,5 +91,7 @@ export function menuContextV2(message: MessageDto, facts: BubbleFacts, extras: {
     canTranscribe: facts.canTranscribe && message.kind === "VOICE" && message.attachments.some((f) => f.mime.startsWith("audio/") && ours(f)),
     readerCount: extras.readerCount,
     canAsk: extras.askKind,
+    // C3b.2: «شيل المعاينة» is offered on a message that carries a card (the server sends none for a deleted message or while the switch is off)
+    hasPreview: message.preview !== undefined,
   };
 }

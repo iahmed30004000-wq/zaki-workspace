@@ -71,6 +71,19 @@ export interface PollDto {
   canClose: boolean;
 }
 
+/**
+ * «معاينة الرابط» (C3b.2): the card under a message's first link, as ONE viewer receives it. Never on a deleted message. The words are the page's, cleaned by the server
+ * (plain text: the screen draws them as text, never as markup). `image` is the app's own address (`/api/chat/messages/<id>/preview/image`), never the site's.
+ */
+export interface LinkPreviewDto {
+  /** the page's address (https, no `#`): what the card opens */
+  url: string;
+  title: string | null;
+  description: string | null;
+  siteName: string | null;
+  image: string | null;
+}
+
 export interface MessageDto {
   id: string;
   kind: MessageKind;
@@ -104,6 +117,8 @@ export interface MessageDto {
   poll?: PollDto;
   /** A CARD message: the card it points at. */
   card?: CardRefDto;
+  /** «معاينة الرابط» (C3b.2): the card of the first link; absent when there is none, on a deleted message, and while the company's switch `linkPreviews` is off. */
+  preview?: LinkPreviewDto;
   /** «لازم ينقرأ» (Q1.6): absent unless the message must be read and the viewer is staff. `mine`: the viewer is one of the people it must reach; `acked`: they tapped «قرأت ✓». The author and the moderators also get the count and who has not read. */
   mustRead?: { mine: boolean; acked: boolean; total?: number; read?: number; missing?: { id: string; name: string }[] };
   /** the tasks and tickets made from this message («صارت مهمة»). */

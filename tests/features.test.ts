@@ -228,6 +228,20 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.savedMessages.hint"]).toContain("المالك");
   });
 
+  it("«معاينة الروابط بالدردشة» (`linkPreviews`, C3b.2): ON by default, off is no page visited and no card (the data stays); its two lines carry the warning and the way out", () => {
+    expect(FEATURES).toContain("linkPreviews");
+    expect(FEATURE_DEFAULTS.linkPreviews).toBe(true);
+    expect(featureOn({}, "linkPreviews")).toBe(true);
+    expect(featureOn({ features: { linkPreviews: false } }, "linkPreviews")).toBe(false);
+    expect(featuresOff({})).not.toContain("linkPreviews");
+    expect(featuresOff({ features: { linkPreviews: false } })).toContain("linkPreviews");
+    expect(AR["features.linkPreviews.name"]).toBe("معاينة الروابط بالدردشة");
+    // ⚠️ the server visits the link, 🔧 and what limits it
+    expect(AR["features.linkPreviews.hint"]).toContain("⚠️");
+    expect(AR["features.linkPreviews.hint"]).toContain("🔧");
+    expect(AR["features.linkPreviews.hint"]).toContain("السيرفر هو اللي بيزور الرابط");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

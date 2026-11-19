@@ -12,6 +12,7 @@ import { MentionList } from "@/components/chat/v2/composer/mention-list";
 import { RecordBar } from "@/components/chat/v2/composer/record-bar";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
 import { ct } from "@/lib/chat/text";
+import { firstLink, hostOf } from "@/lib/chat/format/links";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
 import { applyFormat, formatActionOf, type FormatAction } from "@/lib/chat/v2/composer/format-keys";
 import type { ComposerEngine } from "@/lib/chat/v2/composer/use-composer";
@@ -36,6 +37,13 @@ export interface SurfaceProps {
   onEmoji: (emoji: string) => void;
   /** the company's switch `chatFormatting` (C3b.1; absent: on): off, no toolbar over the selection and no formatting shortcut */
   formatting?: boolean;
+  /** the company's switch `linkPreviews` (C3b.2; absent: on): off, the line about the link's preview is not drawn */
+  linkPreviews?: boolean;
+  /**
+   * C3b.2: the person pressed ✕ on the preview of the link in the box (`true`), or the link changed or went (`false`): the send must carry `noPreview` while it is
+   * `true`, and the server then never visits the link. The surface only reports it; the composer that sends (`useComposer`) reads it.
+   */
+  onNoPreviewChange?: (noPreview: boolean) => void;
 }
 
 /**
@@ -43,8 +51,20 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, onNoPreviewChange }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
+  // C3b.2: the first https link of the draft is what the server will visit after the send; ✕ says «no preview» for THAT link (another first link brings the line back)
+  const draftLink = linkPreviews && !editing ? firstLink(c.body) : null;
+  const previewHref = draftLink && draftLink.href.startsWith("https://") ? draftLink.href : null;
+  const [previewOff, setPreviewOff] = React.useState<string | null>(null);
+  const noPreview = previewHref !== null && previewOff === previewHref;
+  React.useEffect(() => {
+    onNoPreviewChange?.(noPreview);
+  }, [noPreview, onNoPreviewChange]);
+  // the link went (the message was sent, or the words were cleared): a ✕ does not follow the person to the next message
+  React.useEffect(() => {
+    if (previewHref === null) setPreviewOff(null);
+  }, [previewHref]);
   const closeEmoji = React.useCallback(() => setEmojiOpen(false), []);
   // C3b.1: words selected in the box show the formatting bar; an action (a press on it, or Ctrl+B ...) rewrites the text and puts the selection back on the same words
   const [selected, setSelected] = React.useState(false);
@@ -96,6 +116,20 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
       <ReplyEditBar reply={reply} editing={editing} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} />
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
       <MentionList choices={c.choices} pickAt={c.pickAt} onHover={c.setPick} onChoose={c.selectMention} />
+      {previewHref && !noPreview ? (
+        <div data-link-preview-chip className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs">
+          <div className="min-w-0 flex-1 space-y-0.5">
+            <p dir="auto" className="truncate font-semibold">
+              {ct("chatlp.composer", { host: hostOf(previewHref) ?? "" })}
+            </p>
+            <p className="text-warn">{ct("chatlp.warn")}</p>
+            <p className="text-fg-muted">{ct("chatlp.fix")}</p>
+          </div>
+          <button type="button" data-link-preview-off aria-label={ct("chatlp.composer_off")} title={ct("chatlp.composer_off")} onClick={() => setPreviewOff(previewHref)} className="flex size-8 shrink-0 items-center justify-center rounded-full text-fg-muted hover:bg-surface-1 hover:text-fg">
+            <span aria-hidden="true">✕</span>
+          </button>
+        </div>
+      ) : null}
       <div className="relative flex min-w-0 items-end gap-1.5 sm:gap-2">
         {formatting && selected ? <FormatToolbar onAction={applyAction} /> : null}
         <EmojiPopover

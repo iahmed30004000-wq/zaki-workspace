@@ -26,6 +26,8 @@ import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { queueSync } from "@/server/services/search-embed-index";
 import { applyAutoTicketRules } from "@/server/services/problem-tickets";
 import { canMark } from "@/server/chat/must-read-policy";
+import { detachPreview, linkPreviewAfterSend, previewUrlOf } from "@/server/chat/link-preview";
+import { openStored } from "@/server/services/files";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
 import type { Prisma } from "@prisma/client";
 import type { MessageDto } from "@/server/chat/dto";
@@ -65,6 +67,8 @@ export const sendSchema = z
     videoAtSec: z.number().finite().min(0).max(86_400).optional(),
     // «استطلاع»: the question is the body; a topic only, never with files or a voice note
     poll: pollInputSchema.optional(),
+    // «لا معاينة» (C3b.2): the sender took the card off in the composer: the server does not visit the link
+    noPreview: z.boolean().optional(),
   })
   .refine((v) => (v.body?.trim().length ?? 0) > 0 || (v.attachmentIds?.length ?? 0) > 0, {
     message: "chat.e.empty",
@@ -188,6 +192,9 @@ export async function sendMessage(
   if (wantsAll && org.role === "GUEST") throw new ForbiddenError("chat.e.mention_all_denied");
   const allIds = wantsAll ? await readersAmong(conversationId, await topicAudienceIds(facts, conversationId)) : [];
 
+  // «معاينة الرابط»: whether the company has the switch on (it decides the fetch AND whether the answer carries a card)
+  const previewsOn = await isFeatureOn(ctx.orgId, "linkPreviews");
+
   // idempotent send: the same clientId of the same author returns the same message
   if (input.clientId) {
     const existing = await db.chatMessage.findUnique({
@@ -195,7 +202,7 @@ export async function sendMessage(
       include: messageInclude(),
     });
     if (existing) {
-      return presentMessage(existing, withViewer(viewerOf(facts, org), ctx.userId));
+      return presentMessage(existing, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn });
     }
   }
 
@@ -243,13 +250,18 @@ export async function sendMessage(
   });
 
   // my own fresh DM message starts at ✓ (sent): the screen shows it from this answer before any refetch
-  const dto = presentMessage(created, withViewer(viewerOf(facts, org), ctx.userId), facts.kind === "DM" ? "sent" : undefined);
+  const dto = presentMessage(created, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn }, facts.kind === "DM" ? "sent" : undefined);
   // C1.8: the answer goes back as soon as the commit is done. The bell and the push (and the company's auto-ticket rules) run AFTER it: the
   // sender's ✓ never waits for them, and a failure there is logged with its step (never swallowed) and never fails the send.
   const after: AfterSendStep[] = [{ step: "notify", run: () => notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, dto) }];
   // «المشاكل تصير تذاكر»: the rules of the company, after the message is stored (a failure there never stops a message)
   if (kind === "TEXT" && !internal.card) {
     after.push({ step: "auto_tickets", run: () => applyAutoTicketRules(ctx, { id: created.id, body, conversationId }, { spaceId: facts.spaceId ?? null, kind: facts.kind, restricted: Boolean(facts.restricted), teamId: facts.teamId ?? null }) });
+  }
+  // «معاينة الرابط»: LAST of the steps (it waits for another company's web server, up to 3 seconds: the bell and the rules never wait for it). ⚠️ The server visits the
+  // link. Only a plain text message, only while the switch is on, never when the sender took the card off; a failure is logged and the message is untouched.
+  if (kind === "TEXT" && !internal.card && previewsOn && input.noPreview !== true && previewUrlOf(body) !== null) {
+    after.push({ step: "link_preview", run: () => linkPreviewAfterSend(ctx, { messageId: created.id, conversationId, spaceId: facts.spaceId ?? null, body }) });
   }
   const afterJob = runAfterSend(after);
   // «@المساعد»: one answer in this conversation, written when the model has answered (never delays this reply)
@@ -353,7 +365,7 @@ export const editSchema = z.object({ body: z.string().trim().min(1, "chat.e.empt
 export async function editMessage(ctx: OrgAccessContext, messageId: string, input: z.infer<typeof editSchema>): Promise<MessageDto> {
   const msg = await db.chatMessage.findUnique({
     where: { id: messageId },
-    include: { conversation: { select: { id: true, orgId: true } } },
+    include: { conversation: { select: { id: true, orgId: true } }, preview: { select: { url: true } } },
   });
   if (!msg) throw new NotFoundError("chat.e.not_found");
   if (msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
@@ -368,7 +380,9 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
   const updated = await db.$transaction(async (tx) => {
     // the text BEFORE the edit goes into the history, in the same transaction
     await tx.messageRevision.create({ data: { messageId, body: msg.body, editorId: ctx.userId } });
-    const m = await tx.chatMessage.update({ where: { id: messageId }, data: { body: input.body, editedAt: new Date() }, include: messageInclude() });
+    // «معاينة الرابط»: the card follows the words — when the edit changed the first link (or took it away), the card of the old one goes. A new link is NOT visited on an edit.
+    const cardStays = msg.preview !== null && previewUrlOf(input.body) === msg.preview.url;
+    const m = await tx.chatMessage.update({ where: { id: messageId }, data: { body: input.body, editedAt: new Date(), ...(msg.preview !== null && !cardStays ? { previewId: null } : {}) }, include: messageInclude() });
     // a bell that showed the old words shows the new ones
     await rewriteMessagePreviews(tx, msg.conversationId, messageId, input.body.slice(0, 140));
     await emitRealtime(tx, ctx.orgId, "message.edited", { conversationId: msg.conversationId, messageId, spaceId: facts.spaceId ?? undefined });
@@ -376,7 +390,7 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
   });
   // «بحث بالمعنى»: the vector follows the new words
   queueSync(ctx.orgId, "message", messageId);
-  return presentMessage(updated, withViewer(viewerOf(facts, org), ctx.userId));
+  return presentMessage(updated, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: await isFeatureOn(ctx.orgId, "linkPreviews") });
 }
 
 // ---------- delete ----------
@@ -573,6 +587,38 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
   return { id: created.id };
 }
 
+// ---------- link preview (C3b.2) ----------
+
+/**
+ * «شيل المعاينة»: the AUTHOR takes the card off their own message (nobody else: not a moderator, not the owner). The message keeps its words and is not marked
+ * edited; the other screens are told (`message.enriched`, ids only). A message with no card answers `removed: false`. Switch off: 404.
+ */
+export async function removeLinkPreview(ctx: OrgAccessContext, messageId: string): Promise<{ removed: boolean }> {
+  const msg = await db.chatMessage.findUnique({ where: { id: messageId }, select: { id: true, orgId: true, conversationId: true, authorId: true, deletedAt: true } });
+  if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
+  await assertFeatureOn(ctx.orgId, "linkPreviews");
+  const { facts, org } = await guard(ctx, msg.conversationId);
+  if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
+  if (msg.authorId !== ctx.userId) throw new ForbiddenError("chat.e.not_author");
+  if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
+  return { removed: await detachPreview(ctx.orgId, { id: msg.id, conversationId: msg.conversationId, spaceId: facts.spaceId ?? null }) };
+}
+
+/**
+ * The picture of a message's card, opened for streaming — ONLY for somebody who may read the conversation and only while the message is not deleted (for everybody:
+ * the owner's original of a deleted message carries no card). The bytes come from the app's own storage (the server's disk, or proxied from Drive): never the
+ * site's address and never a Drive link. Anything else is 404, never 403.
+ */
+export async function openPreviewImage(ctx: OrgAccessContext, messageId: string) {
+  const msg = await db.chatMessage.findUnique({ where: { id: messageId }, select: { orgId: true, conversationId: true, deletedAt: true, preview: { select: { status: true, imageFileId: true } } } });
+  if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
+  await assertFeatureOn(ctx.orgId, "linkPreviews");
+  const { facts, org } = await guard(ctx, msg.conversationId);
+  if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
+  if (msg.deletedAt || msg.preview?.status !== "OK" || !msg.preview.imageFileId) throw new NotFoundError("chat.e.not_found");
+  return openStored(ctx.orgId, msg.preview.imageFileId);
+}
+
 // ---------- read / delivered ----------
 
 /**
@@ -644,6 +690,8 @@ export function messageInclude() {
     tasks: { select: { id: true, visibility: true, creatorId: true, assigneeId: true } },
     tickets: { select: { id: true, number: true, status: true, assignee: { select: { name: true } } } },
     poll: { include: pollInclude },
+    // «معاينة الرابط» (C3b.2): the card of the message's first link (presented per viewer in redact.ts)
+    preview: { select: { url: true, title: true, description: true, siteName: true, imageFileId: true, status: true } },
   } satisfies Prisma.ChatMessageInclude;
 }
 

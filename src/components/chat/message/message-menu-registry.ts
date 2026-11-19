@@ -26,6 +26,7 @@
  * - copyLink: «نسخ الرابط», `/chat/<id>?m=<message>`: any message I may read (no door: the link only points; the server checks the reader on open);
  * - readText: «اقرأ النص», a picture, where the header says `imageOcr` (the same button the picture draws under itself);
  * - transcribe: «حوّل الصوت لنص», a voice note, where the header says `voiceTranscript` (the same button the note draws);
+ * - removePreview: «شيل المعاينة» (C3b.2), my OWN message while it carries a link card (`hasPreview`); the server lets only the author do it (DELETE `/api/chat/messages/<id>/preview`);
  * - seen: «مين شاف», a topic or a group, when somebody's newest read message is this one (today's reader list);
  * - ask: «اسألي مشرفتك», the «🎫 مشكلة» door with the question kind, where the company's kinds have it;
  * - saved (C3a.3): «حوّل للمحفوظة», a forward into the person's own saved chat, where the screen knows it (`canSaved`: the company's switch `savedMessages` is on), not inside that chat itself,
@@ -34,7 +35,11 @@
  *
  * Nothing at all on a deleted message, a system line, or for the owner in silent oversight.
  */
+<<<<<<< HEAD
 export type MessageMenuId = "reply" | "pin" | "forward" | "saved" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask";
+=======
+export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask" | "removePreview";
+>>>>>>> b9caf40 (C3b.2: link previews - the server reads the first link after the send commits (linkPreviews))
 
 export interface MessageMenuContext {
   mine: boolean;
@@ -70,6 +75,7 @@ export interface MessageMenuContext {
   readerCount?: number;
   /** the company's problem kinds include the question kind («اسألي مشرفتك») */
   canAsk?: boolean;
+<<<<<<< HEAD
   /** C3a.3: the person has «الرسائل المحفوظة» (the switch is on), so «حوّل للمحفوظة» can run */
   canSaved?: boolean;
   /** C3a.3: the open conversation IS the saved chat (the item makes no sense there) */
@@ -77,6 +83,10 @@ export interface MessageMenuContext {
   /** the message and the viewer, for an item that runs itself inside the menu (`saved`); set by `menuContextV2` */
   messageId?: string;
   viewerId?: string;
+=======
+  /** C3b.2: the message carries a link card (`message.preview`), so its author may take it off («شيل المعاينة») */
+  hasPreview?: boolean;
+>>>>>>> b9caf40 (C3b.2: link previews - the server reads the first link after the send commits (linkPreviews))
 }
 
 /** `labelKey`: a key of ar.chat-conversation.json (the strings live there, not here). */
@@ -104,6 +114,7 @@ export const messageMenuItems: MessageMenuAction[] = [
   { id: "readText", labelKey: () => "chatui.menu.read_text", available: (c) => v2(c) && !!c.canReadText },
   { id: "transcribe", labelKey: () => "chatui.menu.transcribe", available: (c) => v2(c) && !!c.canTranscribe && c.kind === "VOICE" },
   { id: "seen", labelKey: () => "chatui.menu.seen", available: (c) => v2(c) && c.conversationKind !== "DM" && (c.readerCount ?? 0) > 0 },
+  { id: "removePreview", labelKey: () => "chatlp.menu_remove", available: (c) => v2(c) && c.mine && c.kind === "TEXT" && !!c.hasPreview },
   { id: "delete", labelKey: (c) => (v2(c) ? "chatui.menu.delete" : "chatc.menu.delete"), danger: true, available: (c) => c.mine || c.canModerate },
 ];
 
@@ -112,7 +123,11 @@ export const messageMenuItems: MessageMenuAction[] = [
  * مشرفتك، ذكّرني، ملاحظة، «لازم ينقرأ»، ترجم، اقرأ النص، حوّل الصوت لنص، مين شاف). The old screen keeps the order of `messageMenuItems` (the dangerous one last);
  * every id has a place here (a test fails for an id without one), so a new item has to choose.
  */
+<<<<<<< HEAD
 export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "saved", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen"];
+=======
+export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen", "removePreview"];
+>>>>>>> b9caf40 (C3b.2: link previews - the server reads the first link after the send commits (linkPreviews))
 
 /** Is there a menu at all for this message (and a reaction bar)? */
 export function menuOpen(c: MessageMenuContext): boolean {
