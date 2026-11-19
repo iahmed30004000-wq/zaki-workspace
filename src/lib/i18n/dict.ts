@@ -85,6 +85,7 @@ import themeSwitch from "./ar.theme-switch.json";
 import themeGallery from "./ar.theme-gallery.json";
 import navV2 from "./ar.nav-v2.json";
 import chatUi from "./ar.chat-ui.json";
+import chatFeatures from "./ar.chat-features.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -181,4 +182,5 @@ export const AR: Record<string, string> = {
   ...themeGallery,
   ...navV2,
   ...chatUi,
+  ...chatFeatures,
 };

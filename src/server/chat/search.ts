@@ -1,5 +1,6 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { stripFormatting } from "@/lib/chat/format/parse";
 import { arabicSearch, cleanQuery, findSpelled } from "@/lib/search/arabic";
 import { rankedSearch } from "@/server/search/ranked";
 import { NotFoundError, type OrgAccessContext } from "@/server/auth";
@@ -20,8 +21,9 @@ export function searchText(q: string): string {
 }
 
 /** The words searched with some text on each side (the whole message when it is short). */
-export function snippetOf(body: string, q: string, width = 120): string {
-  const flat = body.replace(/\s+/g, " ").trim();
+export function snippetOf(body: string, q: string, width = 120, format = true): string {
+  // C3b.1: the words without the formatting markers (a message), found the way the search found them; the text a picture's OCR read is not formatting (`format` false)
+  const flat = (format ? stripFormatting(body, { math: true }) : body).replace(/\s+/g, " ").trim();
   if (flat.length <= width) return flat;
   // found the way the search found it: «احمد» centres on «أحمد», with or without marks
   const at = findSpelled(flat, q);
@@ -73,7 +75,7 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
       const m = link.message;
       if (!m || seen.has(m.id) || hits.length >= 30) continue;
       seen.add(m.id);
-      hits.push({ id: m.id, conversationId, conversationTitle: "", authorName: m.author.name, at: m.createdAt.toISOString(), snippet: snippetOf(pic.text, q) });
+      hits.push({ id: m.id, conversationId, conversationTitle: "", authorName: m.author.name, at: m.createdAt.toISOString(), snippet: snippetOf(pic.text, q, 120, false) });
     }
   }
   return hits;
@@ -251,7 +253,7 @@ export async function searchChat(
         conversationTitle: m.conversation.kind === "DM" ? (m.conversation.members.find((x) => x.userId !== ctx.userId)?.user.name ?? "") : (m.conversation.title ?? ""),
         authorName: m.author.name,
         at: m.createdAt.toISOString(),
-        snippet: snippetOf(pic.text, q, 90),
+        snippet: snippetOf(pic.text, q, 90, false),
       });
     }
   }

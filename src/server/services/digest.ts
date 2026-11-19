@@ -30,7 +30,8 @@ import { AiProviderError } from "@/server/ai/provider";
 import { LOCAL_MAX_OUTPUT_TOKENS, LOCAL_WINDOW } from "@/server/ai/local-transport";
 import { makeProvider } from "@/server/ai/registry";
 import { capText, maskKnownNames, redactTitle } from "@/server/ai/redact";
-import { buildChatPrompt, redactChatText, type ChatRow } from "@/server/ai/redact-chat";
+import { cleanMath } from "@/lib/chat/format/math";
+import { PLAIN_ANSWER_RULE, buildChatPrompt, redactChatText, type ChatRow } from "@/server/ai/redact-chat";
 import type { Actor } from "@/server/policy/actor";
 import { canRead, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 import { FixedWindowLimiter } from "@/server/rate-limit";
@@ -131,11 +132,12 @@ async function prepare(actor: Actor, now: Date): Promise<Prepared> {
 async function ask(p: Prepared, system: string, content: string, label: string): Promise<{ text: string; inputTokens: number; outputTokens: number }> {
   try {
     const out = await makeProvider(p.choice.config).complete({
-      system,
+      // C3b.1: plain words, no math markup (the rows were already stripped of their markers by `buildChatPrompt`)
+      system: [system, PLAIN_ANSWER_RULE].join("\n"),
       messages: [{ role: "user", content }],
       maxTokens: p.local ? Math.min(DIGEST_MAX_OUTPUT_TOKENS, LOCAL_MAX_OUTPUT_TOKENS) : DIGEST_MAX_OUTPUT_TOKENS,
     });
-    const text = capText(out.text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), DIGEST_REPLY_MAX_CHARS) || (AR["digest.reply_empty"] ?? "");
+    const text = capText(cleanMath(out.text).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), DIGEST_REPLY_MAX_CHARS) || (AR["digest.reply_empty"] ?? "");
     return { text, inputTokens: out.usage.inputTokens, outputTokens: out.usage.outputTokens };
   } catch (err) {
     const key = err instanceof AiProviderError ? err.key : "unexpected";

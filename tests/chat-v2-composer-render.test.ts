@@ -1,6 +1,8 @@
 import * as React from "react";
 import { createElement, type FunctionComponent, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
@@ -21,8 +23,11 @@ import { RecordBar } from "@/components/chat/v2/composer/record-bar";
 import { PaneActionsProvider } from "@/components/chat/v2/pane/pane-actions";
 import { ComposerHost } from "@/components/chat/v2/pane/seams/composer-host";
 import { MenuHost } from "@/components/chat/v2/pane/seams/menu-host";
+import { FormatToolbar } from "@/components/chat/v2/composer/format-toolbar";
+import { parseFormatting } from "@/lib/chat/format/parse";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
 import { composerFaceOf } from "@/lib/chat/v2/composer/face";
+import { applyFormat, FORMAT_ACTIONS, FORMAT_SHORTCUT_KEYS, formatActionOf, type KeyLike } from "@/lib/chat/v2/composer/format-keys";
 import type { PendingFile } from "@/lib/chat/v2/composer/types";
 import { I18nProvider } from "@/lib/i18n";
 import { AR } from "@/lib/i18n/dict";
@@ -247,5 +252,129 @@ describe("what Q1 put in the composer", () => {
     const html = host(makeHeader({ me: { canRecall: true, recallKinds: ["product", "reply"] } }));
     expect(html).toContain("data-recall-button");
     expect(host(makeHeader())).not.toContain("data-recall-button");
+  });
+});
+
+describe("C3b.1 — formatting in the composer", () => {
+  const key = (over: Partial<KeyLike>): KeyLike => ({ key: "", code: "", ctrlKey: true, metaKey: false, shiftKey: false, altKey: false, ...over });
+
+  it("Ctrl+B / I / U / K and Ctrl+Shift+X / M each mean one action, by the PHYSICAL key (the Arabic layout types other letters)", () => {
+    expect(formatActionOf(key({ key: "b", code: "KeyB" }))).toBe("bold");
+    expect(formatActionOf(key({ key: "i", code: "KeyI" }))).toBe("italic");
+    expect(formatActionOf(key({ key: "u", code: "KeyU" }))).toBe("spoiler");
+    expect(formatActionOf(key({ key: "k", code: "KeyK" }))).toBe("link");
+    expect(formatActionOf(key({ key: "X", code: "KeyX", shiftKey: true }))).toBe("strike");
+    expect(formatActionOf(key({ key: "M", code: "KeyM", shiftKey: true }))).toBe("code");
+    // the Arabic layout: `key` is an Arabic letter, `code` is the key
+    expect(formatActionOf(key({ key: "\u0630", code: "KeyB" }))).toBe("bold");
+    // a keyboard event without a `code` falls back to the letter
+    expect(formatActionOf(key({ key: "B", code: undefined }))).toBe("bold");
+    // the command key of a Mac counts
+    expect(formatActionOf(key({ key: "b", code: "KeyB", ctrlKey: false, metaKey: true }))).toBe("bold");
+  });
+
+  it("nothing else is an action: no Ctrl, Alt (AltGr), a wrong Shift, other letters, or a word being composed", () => {
+    expect(formatActionOf(key({ key: "b", code: "KeyB", ctrlKey: false }))).toBeNull();
+    expect(formatActionOf(key({ key: "b", code: "KeyB", altKey: true }))).toBeNull();
+    expect(formatActionOf(key({ key: "B", code: "KeyB", shiftKey: true }))).toBeNull();
+    expect(formatActionOf(key({ key: "x", code: "KeyX" }))).toBeNull();
+    expect(formatActionOf(key({ key: "m", code: "KeyM" }))).toBeNull();
+    expect(formatActionOf(key({ key: "c", code: "KeyC" }))).toBeNull();
+    expect(formatActionOf(key({ key: "b", code: "KeyB", isComposing: true }))).toBeNull();
+  });
+
+  it("applying an action wraps the selection and keeps it selected", () => {
+    expect(applyFormat("hello world", 0, 5, "bold")).toEqual({ value: "**hello** world", start: 2, end: 7 });
+    expect(applyFormat("hello world", 6, 11, "italic")).toEqual({ value: "hello __world__", start: 8, end: 13 });
+    expect(applyFormat("hello", 0, 5, "strike").value).toBe("~~hello~~");
+    expect(applyFormat("hello", 0, 5, "spoiler").value).toBe("||hello||");
+    expect(applyFormat("hello", 0, 5, "code").value).toBe("`hello`");
+    // a selection made backwards (end before start) is the same selection
+    expect(applyFormat("hello world", 5, 0, "bold").value).toBe("**hello** world");
+  });
+
+  it("what it writes is what the parser reads back", () => {
+    for (const action of ["bold", "italic", "strike", "spoiler"] as const) {
+      const out = applyFormat("نص عربي هنا", 3, 7, action).value;
+      const blocks = parseFormatting(out);
+      expect(JSON.stringify(blocks), action).toContain(`"t":"${action}"`);
+    }
+    expect(JSON.stringify(parseFormatting(applyFormat("x y", 0, 1, "code").value))).toContain('"t":"code"');
+  });
+
+  it("the same action again undoes it, whether the selection holds the markers or sits just inside them", () => {
+    expect(applyFormat("**hello** world", 2, 7, "bold")).toEqual({ value: "hello world", start: 0, end: 5 });
+    expect(applyFormat("**hello** world", 0, 9, "bold")).toEqual({ value: "hello world", start: 0, end: 5 });
+    expect(applyFormat("`x`", 1, 2, "code").value).toBe("x");
+  });
+
+  it("spaces at the ends of the selection stay outside the marker (a marker next to a space is plain text)", () => {
+    expect(applyFormat("a hello b", 1, 8, "bold").value).toBe("a **hello** b");
+  });
+
+  it("nothing selected: the pair is inserted and the caret goes between", () => {
+    expect(applyFormat("ab", 1, 1, "bold")).toEqual({ value: "a****b", start: 3, end: 3 });
+    expect(applyFormat("", 0, 0, "code")).toEqual({ value: "``", start: 1, end: 1 });
+    // only spaces selected is the same as nothing selected
+    expect(applyFormat("a   b", 1, 4, "italic").value).toBe("a   ____b");
+  });
+
+  it("several selected lines become a code block; the block is taken off the same way", () => {
+    const block = applyFormat("a\nb", 0, 3, "code");
+    expect(block.value).toBe("```\na\nb\n```");
+    expect(parseFormatting(block.value)).toEqual([{ t: "pre", text: "a\nb" }]);
+    expect(applyFormat(block.value, 0, block.value.length, "code").value).toBe("a\nb");
+  });
+
+  it("a link: the words become the label and the address is selected, ready to type; a selected address becomes the target", () => {
+    expect(applyFormat("see docs now", 4, 8, "link")).toEqual({ value: "see [docs](https://) now", start: 11, end: 19 });
+    expect(applyFormat("https://example.com/x", 0, 21, "link")).toEqual({ value: "[](https://example.com/x)", start: 1, end: 1 });
+    expect(applyFormat("", 0, 0, "link")).toEqual({ value: "[](https://)", start: 1, end: 1 });
+  });
+
+  it("the toolbar: six buttons that name themselves in Arabic and in the tooltip give their shortcut; a press keeps the selection in the box", () => {
+    const html = inI18n(createElement(FormatToolbar, { onAction: noop }));
+    expect(html).toContain('role="toolbar"');
+    expect(html).toContain("data-format-toolbar");
+    for (const action of FORMAT_ACTIONS) {
+      expect(html).toContain(`data-format="${action}"`);
+      const { shift, letter } = FORMAT_SHORTCUT_KEYS[action];
+      const keys = ["Ctrl", ...(shift ? [AR["chatui.keys.shift"]!] : []), letter].join("+");
+      expect(html).toContain(AR[`chatfmt.act.${action}`]!.replace("{keys}", keys));
+    }
+    expect((html.match(/<button/g) ?? []).length).toBe(6);
+    expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(?:bg|text|border)-(?:white|black)\b/);
+  });
+
+  it("the toolbar writes Shift with its Arabic key name (as the shortcuts sheet does): no tooltip or aria-label of it has the Latin word Shift, only Ctrl and the letter stay Latin", () => {
+    const html = inI18n(createElement(FormatToolbar, { onAction: noop }));
+    const texts = [...html.matchAll(/(?:title|aria-label)="([^"]*)"/g)].map((m) => m[1]!);
+    expect(texts.length).toBe(12 + 1); // six titles, six aria-labels, the toolbar's own name
+    for (const text of texts) expect(text).not.toMatch(/shift/i);
+    const strike = html.match(/data-format="strike"[^>]*>/)![0];
+    expect(strike).toContain(`Ctrl+${AR["chatui.keys.shift"]}+X`);
+    const code = html.match(/data-format="code"[^>]*>/)![0];
+    expect(code).toContain(`Ctrl+${AR["chatui.keys.shift"]}+M`);
+    // a shortcut without Shift names no Shift at all
+    expect(html.match(/data-format="bold"[^>]*>/)![0]).toContain("Ctrl+B");
+    // no Latin literal for the shortcut travels through {keys}: the module exports parts, not a string
+    expect(Object.values(FORMAT_SHORTCUT_KEYS).every((k) => typeof k === "object" && typeof k.shift === "boolean" && /^[A-Z]$/.test(k.letter))).toBe(true);
+  });
+
+  it("the surface draws the toolbar only over a selection (never on a fresh box), with or without the switch", () => {
+    expect(surface(engine())).not.toContain("data-format-toolbar");
+    const off = inI18n(createElement(ComposerSurface, { c: engine({ body: "نص" }), me: {}, reply: null, editing: null, onCancelReply: noop, onCancelEdit: noop, recents: [], onEmoji: noop, formatting: false }));
+    expect(off).not.toContain("data-format-toolbar");
+    expect(off).toContain("<textarea");
+  });
+
+  it("the surface asks the formatting keys BEFORE the engine's keys, stops them from reaching the app's palette, and honours the switch", () => {
+    const source = readFileSync(path.join(process.cwd(), "src/components/chat/v2/composer/composer-surface.tsx"), "utf8");
+    const handler = source.slice(source.indexOf("const onBoxKeyDown"), source.indexOf("if (c.voice.mode"));
+    expect(handler.indexOf("formatActionOf")).toBeGreaterThan(-1);
+    expect(handler.indexOf("formatActionOf")).toBeLessThan(handler.indexOf("c.onKeyDown(event)"));
+    expect(handler).toContain("event.stopPropagation()");
+    expect(handler).toContain("formatting");
+    expect(source).toContain("onKeyDown={onBoxKeyDown}");
   });
 });

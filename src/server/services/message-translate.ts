@@ -7,6 +7,7 @@ import { AssistantError } from "@/server/ai/api";
 import { AiProviderError } from "@/server/ai/provider";
 import { capText } from "@/server/ai/redact";
 import { redactChatText } from "@/server/ai/redact-chat";
+import { stripFormatting } from "@/lib/chat/format/parse";
 import { makeProvider } from "@/server/ai/registry";
 import { log } from "@/server/log";
 import { FixedWindowLimiter } from "@/server/rate-limit";
@@ -126,7 +127,8 @@ export async function translateMessage(actor: Actor, messageId: string, now: Dat
     throw err;
   }
   // 8. what is sent: this one message, redacted with the strict filter (never relaxed: a translation needs no phone number or address)
-  const redacted = redactChatText(msg.body);
+  // C3b.1: the words only, never the markers (the translation comes back as plain text); a spoiler's words stay, the asker reads them in the conversation
+  const redacted = redactChatText(stripFormatting(msg.body, { spoilers: "keep" }));
   const content = `<text>\n${redacted.text.replace(/<\/?text>/gi, "")}\n</text>`;
   let completion;
   try {
