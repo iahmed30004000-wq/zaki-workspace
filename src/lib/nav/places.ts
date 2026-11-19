@@ -32,7 +32,7 @@
  * drawn for a person whose `NavSubject.navV2` is true (the company's switch `navV2`, OFF when merged): الدردشة · اليوم · الشغل ·
  * المكتبة · نتفرّج سوا · الإدارة (or «الناس» for staff with no admin power), at most four tabs per place (`MAX_TABS`) and the rest under
  * «المزيد» (`NavPlace.more`). Both maps are pinned by tests (tests/nav-places.test.ts, tests/nav-places-v2.test.ts). A place whose new page
- * is built later points at TODAY's page until then («الطلبات» → /approvals, W1.4; «مهامي» → /my-work, W1.1; «الإدارة» keeps today's tabs, A2.1).
+ * is built later points at TODAY's page until then («مهامي» → /my-work, W1.1; «الإدارة» keeps today's tabs, A2.1). «الطلبات» has its own page since W1.4 (/requests; the approvals pages stay pages of the same tab).
  * Nothing is removed by either map: /list and /calendar stay pages (they are views of «مهامي» on the new map, W1.1 will fold them in).
  */
 
@@ -116,7 +116,7 @@ export type TabKey =
   | "approvals"
   | "structure"
   | "development"
-  // «الطلبات» (N1.1, the new map only): approvals, assignment requests and the person's department tickets. Its page is today's /approvals until W1.4.
+  // «الطلبات» (N1.1, the new map only; its own page /requests since W1.4): everything that waits for a decision - approvals, assignment requests, the person's department tickets, cards and sheets.
   | "requests";
 
 /** An icon by NAME: the shell maps it to a drawing (src/components/shell/nav-icons.tsx). Data only, so it crosses from server to browser. */
@@ -375,8 +375,17 @@ export const PLACES_V2: readonly PlaceDef[] = [
       // «القائمة» and «التقويم» are views of «مهامي» (W1.1 folds the pages in; until then they stay pages of their own and belong to this tab)
       { ...v1Tab("my-work"), also: ["/list", "/calendar"] },
       v1Tab("projects"),
-      // «الطلبات»: today's approvals page until W1.4. Staff only (a guest never asks, sees or is asked), behind the approvals switch.
-      { key: "requests", href: "/approvals", labelKey: "nav.tab.requests", requires: "staff", feature: "approvals" },
+      // «الطلبات» (W1.4): the inbox of everything waiting for a decision. Staff only (a guest never asks, sees or is asked). The approvals pages (list, detail, forms) stay pages of this
+      // tab (`also`). It holds more than approvals (assignment requests, tickets, cards, sheets), so it leaves the map only when BOTH `approvals` and `workRequests` are off; with
+      // `workRequests` off (the default) the address serves today's approvals page, so the tab never dead-ends.
+      {
+        key: "requests",
+        href: "/requests",
+        also: ["/approvals"],
+        labelKey: "nav.tab.requests",
+        requires: "staff",
+        hideFor: (subject) => subject.off?.includes("approvals") === true && subject.off.includes("workRequests"),
+      },
     ],
     more: WORK_OPTIONAL_TABS.map(v1Tab),
   },

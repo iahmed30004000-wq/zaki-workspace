@@ -149,7 +149,10 @@ describe("navV2 ON: the new map, rank by rank", () => {
 
   it("a switched-off feature leaves the map: «الطلبات» with `approvals`, «المنتجات» with `knowledgeCards`, «التسجيل اليومي» with `checkins`, «نتفرّج سوا» with `watch`", () => {
     const off = (list: NavSubject["off"]) => buildNav(v2("OWNER", {}, { off: list }));
-    expect(tabs(off(["approvals"]), "work")).toEqual(["my-work", "projects"]);
+    // W1.4: «الطلبات» holds more than approvals (assignment requests, tickets, cards, sheets): it leaves only when BOTH its own switch and `approvals` are off
+    expect(tabs(off(["approvals", "workRequests"]), "work")).toEqual(["my-work", "projects"]);
+    expect(tabs(off(["approvals"]), "work")).toEqual(["my-work", "projects", "requests"]);
+    expect(tabs(off(["workRequests"]), "work")).toEqual(["my-work", "projects", "requests"]);
     expect(tabs(off(["knowledgeCards"]), "library")).toEqual(["files", "documents"]);
     expect(more(off(["checkins"]), "work")).not.toContain("checkins");
     expect(keys(off(["watch"]))).toEqual(["chat", "today", "work", "library", "admin"]);
@@ -167,10 +170,11 @@ describe("navV2 ON: the new map, rank by rank", () => {
     });
   });
 
-  it("places whose page is built later point at today's page: «الطلبات» the approvals, «مهامي» my-work, «المنتجات» /knowledge, the admin tabs the old ones", () => {
+  it("places whose page is built later point at today's page: «مهامي» my-work, «المنتجات» /knowledge, the admin tabs the old ones", () => {
     const nav = buildNav(v2("OWNER"));
     const hrefOf = (p: PlaceKey, k: TabKey) => [...place(nav, p).tabs, ...(place(nav, p).more ?? [])].find((t) => t.key === k)?.href;
-    expect(hrefOf("work", "requests")).toBe("/approvals");
+    // W1.4: «الطلبات» has its own page; the approvals pages stay pages of the same tab
+    expect(hrefOf("work", "requests")).toBe("/requests");
     expect(hrefOf("work", "my-work")).toBe("/my-work");
     expect(hrefOf("work", "projects")).toBe("/projects");
     expect(hrefOf("library", "knowledge")).toBe("/knowledge");
@@ -225,27 +229,27 @@ describe("at most four tabs plus «المزيد», and the owner's two pinned to
     expect(tabs(nav, "work")).toEqual(["my-work", "projects", "requests", "crm"]);
     expect(more(nav, "work")).toEqual(WORK_OPTIONAL.filter((k) => k !== "crm"));
     // without «الطلبات» (its switch off) both pins have room
-    const two = buildNav(v2("OWNER", {}, { workTabs: ["crm", "goals"], off: ["approvals"] }));
+    const two = buildNav(v2("OWNER", {}, { workTabs: ["crm", "goals"], off: ["approvals", "workRequests"] }));
     expect(tabs(two, "work")).toEqual(["my-work", "projects", "crm", "goals"]);
     expect(more(two, "work")).toEqual(WORK_OPTIONAL.filter((k) => k !== "crm" && k !== "goals"));
   });
 
   it("a pin the person may not open, a duplicate, an unknown key or a core tab is ignored; only the first two count", () => {
-    const base = tabs(buildNav(v2("OWNER", {}, { off: ["approvals"] })), "work");
-    const pinned = (workTabs: string[], extra: Partial<NavSubject> = {}) => tabs(buildNav(v2("OWNER", {}, { off: ["approvals"], workTabs, ...extra })), "work");
+    const base = tabs(buildNav(v2("OWNER", {}, { off: ["approvals", "workRequests"] })), "work");
+    const pinned = (workTabs: string[], extra: Partial<NavSubject> = {}) => tabs(buildNav(v2("OWNER", {}, { off: ["approvals", "workRequests"], workTabs, ...extra })), "work");
     expect(pinned(["nowhere"])).toEqual(base);
     expect(pinned(["projects", "my-work", "files"])).toEqual(base);
     expect(pinned(["crm", "crm"])).toEqual([...base, "crm"]);
     expect(pinned(["crm", "goals", "ideas"])).toEqual([...base, "crm", "goals"]);
     expect(pinned([], {})).toEqual(base);
     // a person without the `crm.view` box is not given the tab by the pin
-    const noCrm = buildNav(v2("MEMBER", { revokedCapabilities: ["crm.view", "crm.edit"] }, { off: ["approvals"], workTabs: ["crm", "goals"] }));
+    const noCrm = buildNav(v2("MEMBER", { revokedCapabilities: ["crm.view", "crm.edit"] }, { off: ["approvals", "workRequests"], workTabs: ["crm", "goals"] }));
     expect(tabs(noCrm, "work")).toEqual(["my-work", "projects", "goals"]);
   });
 
   it("a person who may open none of the core tabs but an optional tool still gets a place with a tab (never an empty strip with a dead link)", () => {
     // staff with the work boxes switched off and «الطلبات» off: only the optional tools are left
-    const nav = buildNav(v2("MEMBER", { revokedCapabilities: ["tasks.view", "projects.view"] }, { off: ["approvals"] }));
+    const nav = buildNav(v2("MEMBER", { revokedCapabilities: ["tasks.view", "projects.view"] }, { off: ["approvals", "workRequests"] }));
     const work = place(nav, "work");
     expect(work.tabs.length).toBeGreaterThan(0);
     expect(work.tabs[0]?.key).toBe("goals");
@@ -330,6 +334,8 @@ describe("where an address lives on the new map (the old addresses stay pages)",
     expect(locate("/calendar", "v2")).toEqual({ place: "work", tab: "my-work" });
     expect(locate("/approvals", "v2")).toEqual({ place: "work", tab: "requests" });
     expect(locate("/approvals/abc", "v2")).toEqual({ place: "work", tab: "requests" });
+    expect(locate("/approvals/forms", "v2")).toEqual({ place: "work", tab: "requests" });
+    expect(locate("/requests", "v2")).toEqual({ place: "work", tab: "requests" });
     expect(locate("/?view=today", "v2")).toEqual({ place: "today", tab: null });
     expect(locate("/", "v2")).toEqual({ place: "today", tab: null });
     expect(locate("/chat", "v2")).toEqual({ place: "chat", tab: null });
