@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 359 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 360 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 76 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 77 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,7 +45,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 359 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 360 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 165 · `activeOrgCtx` 92 · `(none)` 40 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 165 · `activeOrgCtx` 93 · `(none)` 40 · `requireTeamWork` 13 · `requireUser` 11 · `requireTaskAccess` 10 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -157,6 +157,7 @@ Doors in use: `requireActor` 165 · `activeOrgCtx` 92 · `(none)` 40 · `require
 | POST | `/api/chat/conversations/[id]/delivered` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/conversations/[id]/header` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/conversations/[id]/join` | activeOrgCtx | `integrations`: activeOrgCtx |
+| PUT | `/api/chat/conversations/[id]/me` | activeOrgCtx | `integrations`: activeOrgCtx<br>`features`: assertFeatureOn |
 | GET | `/api/chat/conversations/[id]/mentions` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET, POST | `/api/chat/conversations/[id]/messages` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/conversations/[id]/purge` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -453,7 +454,7 @@ Doors in use: `requireActor` 165 · `activeOrgCtx` 92 · `(none)` 40 · `require
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 359. Each one is a door that cannot have a session, or one that is closed.
+Six of 360. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -474,8 +475,8 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 63 | 132 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
-| `integrations` | 180 | 106 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
+| `features` | 63 | 133 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `integrations` | 180 | 107 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 61 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `team-scope` | 273 | 39 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -654,12 +655,12 @@ to be added to, and the places a bug can leave the row half-written.
 | `StoredFile` | 14 | `server/services/files.ts`: 7<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>+3 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
 | `Conversation` | 26 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/door-message.ts`: 3<br>`server/chat/messages.ts`: 3<br>+11 more |
-| `ConversationMember` | 18 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 2<br>`server/services/workspaces.ts`: 2<br>+4 more |
+| `ConversationMember` | 20 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/read-state.ts`: 3<br>`server/chat/messages.ts`: 2<br>+4 more |
 | `ChatMessage` | 11 | `server/chat/messages.ts`: 5<br>`server/services/must-read.ts`: 2<br>`server/chat/door-message.ts`: 1<br>`server/chat/system.ts`: 1<br>+2 more |
 | `ChatReaction` | 4 | `server/chat/messages.ts`: 2<br>`server/services/must-read.ts`: 2 |
 | `Poll` | 2 | `components/chat/composer/poll-dialog.tsx`: 1<br>`server/chat/polls.ts`: 1 |
 | `PollVote` | 2 | `server/chat/polls.ts`: 2 |
-| `UserChatOrder` | 3 | `server/chat/order.ts`: 3 |
+| `UserChatOrder` | 5 | `server/chat/order.ts`: 3<br>`server/chat/read-state.ts`: 2 |
 | `MessageRevision` | 1 | `server/chat/messages.ts`: 1 |
 | `MessageNote` | 1 | `server/chat/messages.ts`: 1 |
 | `MessageAttachment` | 2 | `server/chat/attachments.ts`: 1<br>`server/chat/messages.ts`: 1 |
@@ -843,6 +844,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatAlbums` | 0 —  |
 | `permissionTemplates` | 3 — `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
+| `chatPersonalState` | 3 — `app/api/chat/conversations/[id]/me/route.ts`, `server/chat/list.ts`, `server/chat/read-state.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
@@ -853,8 +855,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 353 of 359 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 257 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 354 of 360 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 258 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **17 route handlers write to the database themselves instead of calling a service.** 10 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 5 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **23 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 
