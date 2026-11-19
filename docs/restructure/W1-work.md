@@ -72,8 +72,8 @@
       existing `/approvals` lists), task assignment requests (`TaskAssignRequest` addressed to me — today it has NO inbox
       list), open tickets of my departments (`Ticket`), card approvals waiting for me (Card status REVIEW where I decide).
       Each row acts in place (accept / return with reason / approve / reject) through the EXISTING services.
-- [ ] Badge on «الشغل» = count of «بانتظاري».
-- [ ] `/approvals` keeps its pages (forms, detail); «الطلبات» links into them.
+- [x] Badge on «الشغل» = count of «بانتظاري». (built 2026-11-19 on `feat/work-requests-inbox`: `/api/workspaces` carries `waiting`, `place-badge.tsx` has `useWorkWaiting`; ⚠️ the shell's one line that passes it to the badges is the integrator's, see docs/restructure/pr/W1.4.md)
+- [x] `/approvals` keeps its pages (forms, detail); «الطلبات» links into them. (built; the tab is `/requests`, the switch `workRequests` is OFF)
 
 ### W1.5 The project page — `feat/work-project-page`
 - [ ] `src/app/(app)/projects/[id]/page.tsx` gets tabs: «اللوحة» (default; the board picker when there are several),

@@ -14,6 +14,8 @@ import { unreadBySpace } from "@/server/chat/unread";
 import { currentSpace } from "@/server/services/current-space";
 import { foreignSpaceOf, overdueBySpace } from "@/server/services/nav-order";
 import { orgSummaryOf } from "@/server/services/features";
+import { waitingRequestCount } from "@/server/services/work-requests";
+import { log } from "@/server/log";
 import { featureOn } from "@/lib/features";
 import { SPACE_LAYOUTS } from "@/lib/cards/shared";
 
@@ -28,6 +30,11 @@ import { SPACE_LAYOUTS } from "@/lib/cards/shared";
  * N1.3 — the same ONE answer also carries `overdue` per space (the tasks assigned to the person that are late there) and, while the company's switch
  * `navV2` is on and `?path=` names ONE thing (a task, a project, …) of another space of the person's, `foreign`: the banner's line
  * («هاد من مساحة «X» [انتقل لها]»). The shell asks once per page (F1), so the spaces, the counts and the banner never cost a second request.
+ *
+ * W1.4 — and `waiting`: how many things wait for THIS person in «الطلبات» (the length of its «بانتظاري» tab: approvals, assignment requests,
+ * tickets of their departments, cards and sheets they decide), the number on «الشغل». It is the caller's own count, only while the company's
+ * switch `workRequests` is on (else 0), and 0 for an external partner. It is counted with the rows' own filters, so it never includes
+ * what the person may not open.
  */
 export async function GET(req: Request) {
   return withApi(async () => {
@@ -86,8 +93,21 @@ export async function GET(req: Request) {
     // the banner: only for a page that is ONE thing of another space (`?path=`), and only while `navV2` is on
     const asked = new URL(req.url).searchParams.get("path");
     const foreign = asked ? await (async () => foreignSpaceOf(await requireActor(), asked))().catch(() => null) : null;
+    // the number on «الشغل» (W1.4): the caller's own, the company they work in (the first membership, as `requireActor` picks it)
+    const waiting = first
+      ? await (async () => {
+          const actor = await requireActor();
+          if (actor.isExternal || !featureOn((await orgSummaryOf(actor.orgId))?.settings, "workRequests")) return 0;
+          return waitingRequestCount(actor);
+        })().catch((err: unknown) => {
+          // a number that cannot be counted is no number: it never takes the spaces, the unread counts and the banner down with it
+          log.warn("work_requests.count_failed", { message: err instanceof Error ? err.message : String(err) });
+          return 0;
+        })
+      : 0;
     return NextResponse.json({
       currentSpaceId: here?.id ?? null,
+      waiting,
       foreign,
       organizations: orgs.map((m) => ({
         id: m.organization.id,

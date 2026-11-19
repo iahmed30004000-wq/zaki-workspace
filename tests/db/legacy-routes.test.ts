@@ -31,6 +31,7 @@ import OwnerBoardPersonPage from "@/app/(app)/owner/people/[id]/page";
 import OwnerAssistantPage from "@/app/(app)/owner/assistant/page";
 import OwnerAssistantSettingsPage from "@/app/(app)/owner/assistant/settings/page";
 import ApprovalsPage from "@/app/(app)/approvals/page";
+import RequestsPage from "@/app/(app)/requests/page";
 import ApprovalPage from "@/app/(app)/approvals/[id]/page";
 import ApprovalFormsPage from "@/app/(app)/approvals/forms/page";
 import StructurePage from "@/app/(app)/structure/page";
@@ -126,7 +127,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -188,6 +189,8 @@ const PAGES: Record<string, PageCall> = {
   "/approvals": ({ searchParams }) => ApprovalsPage({ searchParams }),
   "/approvals/[id]": (args) => ApprovalPage({ params: idOf(args) }),
   "/approvals/forms": ({ searchParams }) => ApprovalFormsPage({ searchParams }),
+  // W1.4 «الطلبات»: a page of its own; the approvals pages above stay
+  "/requests": ({ searchParams }) => RequestsPage({ searchParams }),
   "/structure": () => StructurePage(),
   "/development": ({ searchParams }) => DevelopmentPage({ searchParams }),
   "/development/skills": () => DevelopmentSkillsPage(),
@@ -351,7 +354,7 @@ async function linkWorld() {
   const team = await makeTeam();
   const orgId = team.org.id;
   // «مساعد المالك» is OFF by default and its pages are «not found» while it is off; the owner opens every page of the shell below
-  await db.organization.update({ where: { id: orgId }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true } } } });
+  await db.organization.update({ where: { id: orgId }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true } } } });
   const lead = await makeUser({ orgId, role: "LEAD", name: "Lead" });
 
   async function spaceWithWork(members: { userId: string; role?: "ADMIN" | "MEMBER" | "GUEST" }[], name: string, assigneeId: string | null) {
@@ -610,6 +613,32 @@ describe("N1.8: the landing page is a company setting; «/» stays reachable as 
       await loginAs(person.id);
       const { end, chain } = await land("/");
       expect(chain, person.name).toEqual(["/", "/chat"]);
+      expect(end.kind, person.name).toMatch(/^(?:rendered|not-found)$/);
+    }
+  });
+});
+
+// ───────────────────────────── 5. W1.4: «الطلبات» is a new page, and no old address moved ─────────────────────────────
+
+describe("W1.4: /requests is a page of its own and the approvals addresses are still pages", () => {
+  it("every rank lands on /requests and on every approvals address without a break; a guest never reads the company's inbox", async () => {
+    const w = await linkWorld();
+    for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
+      await loginAs(person.id);
+      for (const address of ["/requests", "/requests?tab=mine", "/approvals", "/approvals/forms"]) {
+        const { end, chain } = await land(address);
+        expect(chain.map(pathOf), `${person.name} ${address}`).not.toContain("/my-work");
+        expect(end.kind, `${person.name} ${address}`).toMatch(/^(?:rendered|not-found)$/);
+      }
+    }
+  });
+
+  it("with the switch OFF (the default) the same address serves today's approvals page for staff, so nothing is lost", async () => {
+    const w = await linkWorld();
+    await db.organization.update({ where: { id: w.org.id }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true } } } });
+    for (const person of [w.owner, w.admin, w.lead, w.member]) {
+      await loginAs(person.id);
+      const { end } = await land("/requests");
       expect(end.kind, person.name).toMatch(/^(?:rendered|not-found)$/);
     }
   });

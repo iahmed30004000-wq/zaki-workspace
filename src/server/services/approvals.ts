@@ -728,13 +728,19 @@ export async function spaceOfApproval(actor: Who, id: string): Promise<string | 
   return mayRead(viewer, actor.userId, request, request.steps.map((s) => s.approverId)) ? request.workspaceId : null;
 }
 
-/** «بانتظاري»: how many requests wait for this person now (for a badge); 0 while the feature is off for them. */
+/**
+ * «بانتظاري»: how many requests wait for this person now (for a badge); 0 while the feature is off for them. It counts exactly the rows
+ * `listApprovals({ view: "waiting" })` draws — only the spaces the person still works in (W1.4: the number on «الشغل» must equal the list).
+ */
 export async function waitingCount(actor: Who): Promise<number> {
   await approvalsGate(actor);
+  const allowed = (await workSpacesOf(actor)).map((s) => s.id);
+  if (allowed.length === 0) return 0;
   const rows = await db.$queryRaw<{ n: bigint }[]>`
     SELECT COUNT(*)::bigint AS n FROM "ApprovalRequest" r
     JOIN "ApprovalStep" s ON s."requestId" = r."id" AND s."version" = r."version" AND s."position" = r."currentStep"
-    WHERE r."orgId" = ${actor.orgId} AND r."status" = 'PENDING' AND s."approverId" = ${actor.userId} AND s."status" = 'PENDING'`;
+    WHERE r."orgId" = ${actor.orgId} AND r."status" = 'PENDING' AND s."approverId" = ${actor.userId} AND s."status" = 'PENDING'
+      AND r."workspaceId" IN (${Prisma.join(allowed)})`;
   return Number(rows[0]?.n ?? 0);
 }
 

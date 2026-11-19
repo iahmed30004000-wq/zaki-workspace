@@ -42,6 +42,7 @@ import CheckinsPage from "@/app/(app)/checkins/page";
 import DocumentsPage from "@/app/(app)/documents/page";
 import KnowledgePage from "@/app/(app)/knowledge/page";
 import ApprovalsPage from "@/app/(app)/approvals/page";
+import RequestsPage from "@/app/(app)/requests/page";
 import StructurePage from "@/app/(app)/structure/page";
 import DevelopmentPage from "@/app/(app)/development/page";
 import CurrentSpacePage from "@/app/(app)/spaces/current/page";
@@ -103,7 +104,7 @@ async function companyWorld() {
   const orgId = team.org.id;
   const orgName = `Company ${uid()}`;
   // «مساعد المالك» and «المنتجات» are OFF by default; their tabs are on the owner's map only while their switch is on, and the loop below opens every offered tab
-  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true, knowledgeCards: true } } } });
+  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true } } } });
   const lead = await makeUser({ orgId, role: "LEAD", name: "Lead" });
   const staffer = await makeUser({ orgId, role: "MEMBER", name: `Staffer ${secret}` });
   await db.user.update({ where: { id: staffer.id }, data: { jobTitle: `Title ${secret}` } });
@@ -417,8 +418,8 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   approvals: () => ApprovalsPage({ searchParams: {} }),
   structure: () => StructurePage(),
   development: () => DevelopmentPage({ searchParams: {} }),
-  // «الطلبات» of the new map (navV2): today's approvals page until W1.4 replaces it
-  requests: () => ApprovalsPage({ searchParams: {} }),
+  // «الطلبات» of the new map (navV2): W1.4's inbox (the company's switch `workRequests` is on in this world; off, the same address serves the approvals page)
+  requests: () => RequestsPage({ searchParams: {} }),
 };
 
 /** The places that are one page and have no tabs (Today, the chat). */
@@ -672,7 +673,7 @@ describe("N1.3: overdue numbers, the banner's data, and no silent switch while n
     return { ...team, hq, a, b, c, ta, tb, tc };
   }
 
-  type SpacesAnswer = { organizations: { workspaces: { id: string; overdue: number }[] }[]; foreign: { path: string; next: string; spaceId: string; name: string; emoji: string | null } | null };
+  type SpacesAnswer = { waiting: number; organizations: { workspaces: { id: string; overdue: number }[] }[]; foreign: { path: string; next: string; spaceId: string; name: string; emoji: string | null } | null };
   const ask = async (path?: string) => (await call(workspacesRoute.GET, { url: `http://localhost/api/workspaces${path ? `?path=${encodeURIComponent(path)}` : ""}` })).json as unknown as SpacesAnswer;
 
   it("/api/workspaces carries each space's overdue count: only open tasks assigned to the person that are late, never a stranger's", async () => {
@@ -685,6 +686,8 @@ describe("N1.3: overdue numbers, the banner's data, and no silent switch while n
     expect(overdue[w.hq]).toBe(0);
     // C is not the member's space: it is not listed at all
     expect(overdue[w.c.id]).toBeUndefined();
+    // W1.4: the answer also carries the number on «الشغل» (the caller's own «بانتظاري»; the switch `workRequests` is off in this world, so none)
+    expect(answer.waiting).toBe(0);
     // a company on the old shell pays nothing for it: the old shell never draws the number, so it is not counted
     const off = await spacesWorld(false);
     await loginAs(off.member.id);

@@ -22,6 +22,7 @@ import * as readMarkRoute from "@/app/api/chat/conversations/[id]/read/route";
 import * as deliveredMarkRoute from "@/app/api/chat/conversations/[id]/delivered/route";
 import * as mentionsRoute from "@/app/api/chat/conversations/[id]/mentions/route";
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
+import * as workRequestsRoute from "@/app/api/work/requests/route";
 import { chatHome } from "@/server/chat/home";
 import { chatList } from "@/server/chat/list";
 import { syncFeed } from "@/server/chat/sync";
@@ -418,6 +419,42 @@ describe("privacy matrix — the C3b.6 unread mentions of a conversation", () =>
         // no trace of any kind: no new row, no event
         if ((await db.conversationMember.count({ where: { conversationId: id } })) !== rowsBefore) wrong.push(`${who} · left a row`);
         if ((await db.realtimeEvent.count()) !== eventsBefore) wrong.push(`${who} · left an event`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+});
+
+// ───────────────────────────── W1.4: the inbox «الطلبات» ─────────────────────────────
+// The same table, on one more surface: a task assignment request addressed to a person is in THEIR inbox only when the table says they may open the
+// task («المعنيين بس»: a private task is not listed to somebody who is no part of it, and is not counted). A guest has no inbox at all (403), whatever
+// the table says about the space they are in.
+describe("privacy matrix — the W1.4 inbox (assignment requests)", () => {
+  for (const kind of Object.keys(TASKS)) {
+    it(`${kind}: a pending request addressed to each person is listed to them only where the table lets them open the task`, async () => {
+      const w = await getWorld();
+      const org = await db.organization.findUniqueOrThrow({ where: { id: w.orgId }, select: { settings: true } });
+      const settings = (org.settings ?? {}) as { features?: Record<string, boolean> };
+      await db.organization.update({ where: { id: w.orgId }, data: { settings: { ...settings, features: { ...(settings.features ?? {}), workRequests: true } } } });
+      const taskId = w.tasks[kind]!;
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        const request = await db.taskAssignRequest.create({ data: { orgId: w.orgId, taskId, fromUserId: w.people.memberIn.id, toUserId: person.id } });
+        await loginAs(person.id);
+        const res = await call(workRequestsRoute.GET, { url: "http://localhost/api/work/requests?tab=waiting" });
+        // one request at a time, so each person's number is about this task alone
+        await db.taskAssignRequest.delete({ where: { id: request.id } });
+        if (who === "guest") {
+          if (res.status !== 403 || res.text.includes(request.id)) wrong.push(`${who}: a guest has no inbox (status ${res.status})`);
+          continue;
+        }
+        const listed = res.status === 200 && res.text.includes(request.id);
+        const want = expected(TASKS, kind, who);
+        if (listed !== want) wrong.push(`${who}: expected ${want ? "listed" : "not listed"}`);
+        const section = (res.json?.["sections"] as { key: string; total: number }[] | undefined)?.find((x) => x.key === "assignments");
+        if (want && section?.total !== 1) wrong.push(`${who}: the number should count it`);
+        if (!want && (section?.total ?? 0) !== 0) wrong.push(`${who}: the number counted a task they cannot open`);
       }
       expect(wrong, kind).toEqual([]);
     });
