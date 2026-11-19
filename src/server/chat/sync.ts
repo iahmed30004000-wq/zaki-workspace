@@ -17,6 +17,7 @@ import {
 import { dmStatusFor, messageInclude } from "@/server/chat/messages";
 import { presentMessage, type Viewer } from "@/server/chat/redact";
 import { decorateMustRead } from "@/server/services/must-read";
+import { linkPreviewsOn } from "@/server/chat/link-preview";
 import { isFeatureOn } from "@/server/services/features";
 import type { RealtimeKind } from "@/server/realtime/emit";
 
@@ -166,7 +167,7 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
   const messages: MessageDto[] = [];
   const byConversation = new Map<string, { rows: typeof rows; dtos: MessageDto[] }>();
   // C3b.2: the company's switch `linkPreviews`, asked once and only when a message of this answer carries a card
-  const linkPreviews = rows.some((r) => r.previewId !== null) ? await isFeatureOn(ctx.orgId, "linkPreviews") : true;
+  const linkPreviews = rows.some((r) => r.previewId !== null) ? await linkPreviewsOn(ctx.orgId) : false;
   for (const row of rows) {
     const rec = visible.get(row.conversationId)!;
     const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, linkPreviews };

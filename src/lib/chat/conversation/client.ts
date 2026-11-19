@@ -66,6 +66,8 @@ export interface ChatMessagePayloadInput {
   voice?: boolean;
   /** the body carries «@الكل» and the person may use it (the server checks both again) */
   mentionAll?: boolean;
+  /** C3b.2: the person pressed ✕ on the link's preview: the server must not visit the link after the send */
+  noPreview?: boolean;
 }
 
 export function buildChatMessagePayload(input: ChatMessagePayloadInput) {
@@ -77,6 +79,7 @@ export function buildChatMessagePayload(input: ChatMessagePayloadInput) {
     clientId: input.clientId,
     ...(input.voice ? { voice: true } : {}),
     ...(input.mentionAll ? { mentionAll: true } : {}),
+    ...(input.noPreview ? { noPreview: true } : {}),
   };
 }
 

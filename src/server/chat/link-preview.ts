@@ -8,6 +8,8 @@ import { sniffMimeType } from "@/server/files/sniff";
 import { discardStoredBytes, ingest } from "@/server/services/files";
 import { emitRealtime } from "@/server/realtime/emit";
 import { log } from "@/server/log";
+import { NotFoundError } from "@/server/auth";
+import { isFeatureOn } from "@/server/services/features";
 
 /**
  * C3b.2 — LINK PREVIEWS: the server reads a public page AFTER a message has been sent and keeps its title, description, site name and picture, so the
@@ -30,6 +32,20 @@ import { log } from "@/server/log";
  *
  * Why not one of the existing tables: see the comment on `LinkPreview` in prisma/schema.prisma.
  */
+
+/**
+ * Are link previews ON for this company? Two switches, both: `linkPreviews` AND the new chat screen `chatLayoutV2`. The card, the ✕ before sending and «شيل المعاينة»
+ * exist only on the new screen: with it off, a person would have a server that visits his links and stores pictures with no way to see the card or to remove it. So
+ * nothing is visited, presented or served until both are on (the data already made stays).
+ */
+export async function linkPreviewsOn(orgId: string): Promise<boolean> {
+  return (await isFeatureOn(orgId, "linkPreviews")) && (await isFeatureOn(orgId, "chatLayoutV2"));
+}
+
+/** The routes' door: off answers 404 like any switched-off feature. */
+export async function assertLinkPreviewsOn(orgId: string): Promise<void> {
+  if (!(await linkPreviewsOn(orgId))) throw new NotFoundError("features.off");
+}
 
 export const PAGE_MAX_BYTES = 512 * 1024;
 export const IMAGE_MAX_BYTES = 1024 * 1024;

@@ -24,7 +24,7 @@ export type Viewer = {
   canModerateHere: boolean;
   /** the viewer is a row of the conversation (the owner only where he joined); absent: not */
   isMember?: boolean;
-  /** the company's switch `linkPreviews` (C3b.2); `false`: no card is presented (the data stays). Absent: on. */
+  /** the company's switch `linkPreviews` (C3b.2); a card is presented ONLY when it is `true` (the data stays when it is off). Absent reads as off: a caller that forgets to ask the switch hides the cards instead of showing them while the company turned them off. */
   linkPreviews?: boolean;
 };
 
@@ -151,7 +151,7 @@ export function presentMessage(
   // the card of the first link: a deleted message has none (for everybody, the owner too: his original is the words), a card that failed has none, and the company's
   // switch off hides every card (the rows stay). It is the same card for every viewer who may see the words — a guest included — because it is made of the PAGE, not of
   // anything the company holds.
-  if (row.preview && row.preview.status === "OK" && !deleted && row.kind === "TEXT" && viewer.linkPreviews !== false) {
+  if (row.preview && row.preview.status === "OK" && !deleted && row.kind === "TEXT" && viewer.linkPreviews === true) {
     dto.preview = {
       url: row.preview.url,
       title: row.preview.title,

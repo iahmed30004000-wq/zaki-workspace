@@ -315,7 +315,7 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // info panel says so in one line. 🔧 Nothing of the company's work belongs there that the person would not want the owner to read. ON by default. Off: the chat leaves the list and the menu has no item, the door answers «not found»; what was saved stays and comes back with the switch.
   savedMessages: true,
   // «معاينة الرابط» (src/server/chat/link-preview.ts, C3b.2): right AFTER a message with a link is sent, the SERVER reads that public page (its title, description, site name and one picture) and the bubble draws a card under the words; the
-  // sender can switch the card off in the composer (✕) and remove it from their own message («شيل المعاينة»). ON by default. Off: no page is visited, no card is drawn or sent and the routes answer «not found»; the cards already made stay in the data
+  // sender can switch the card off in the composer (✕) and remove it from their own message («شيل المعاينة»). ON by default, but it works only where the NEW chat screen (`chatLayoutV2`) is on too (`linkPreviewsOn`): that screen draws the card and has the ✕ and «شيل المعاينة»; with it off nothing is visited. Off: no page is visited, no card is drawn or sent and the routes answer «not found»; the cards already made stay in the data
   // and come back with the switch. ⚠️ The server visits the link: the site sees the address of this server, never the person's, and no cookie, no login and no company data is sent. 🔧 Only public https pages (a private or internal address is refused,
   // at every redirect too), 3 seconds, 512 KB; the picture is kept by the app and shown only to people who may read the message; it is written in the guide.
   linkPreviews: true,

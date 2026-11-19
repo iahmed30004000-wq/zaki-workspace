@@ -637,6 +637,10 @@ describe("privacy matrix — the C3b.2 link preview", () => {
     it(`${kind}: the card and its picture reach only the readers, only the author removes it, and the event carries no words`, async () => {
       const w = await getWorld();
       const id = w.ids[kind]!;
+      // link previews work only where the new chat screen (which draws the card and the ✕) is on too
+      const org = await db.organization.findUniqueOrThrow({ where: { id: w.orgId }, select: { settings: true } });
+      const settings = (org.settings ?? {}) as { features?: Record<string, boolean> };
+      await db.organization.update({ where: { id: w.orgId }, data: { settings: { ...settings, features: { ...(settings.features ?? {}), chatLayoutV2: true } } } });
       setLinkPreviewDepsForTests({
         resolve: async () => ["93.184.216.34"],
         timeoutMs: 3_000,

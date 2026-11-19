@@ -19,6 +19,8 @@ export const doors = {
   /** «قرأت ✓» on a must-read message, and taking it back */
   ack: (messageId: string, on: boolean): Door => ({ path: `${at(messageId)}/ack`, method: on ? "POST" : "DELETE" }),
   mustRead: (messageId: string, on: boolean): Door => ({ path: `${at(messageId)}/must-read`, method: "POST", body: { on } }),
+  /** «شيل المعاينة» (C3b.2): the author takes the link card off their message */
+  removePreview: (messageId: string): Door => ({ path: `${at(messageId)}/preview`, method: "DELETE" }),
   /** «شارك بالمحادثة»: the owner leaves silent oversight of an open topic */
   join: (conversationId: string): Door => ({ path: `/api/chat/conversations/${enc(conversationId)}/join`, method: "POST" }),
   /** close / reopen / archive / bring back a topic (its moderators; the route checks again) */
@@ -40,4 +42,10 @@ export async function callDoor(door: Door, fetchImpl: typeof fetch = fetch): Pro
   } catch {
     return { ok: false, message: null };
   }
+}
+
+/** «شيل المعاينة» (C3b.2): the one call and the toast key of its answer (a refusal and a fault both say the same, the server decided). */
+export async function removePreviewOf(messageId: string, fetchImpl: typeof fetch = fetch): Promise<{ ok: boolean; key: "chatlp.removed" | "chatlp.remove_failed" }> {
+  const result = await callDoor(doors.removePreview(messageId), fetchImpl);
+  return result.ok ? { ok: true, key: "chatlp.removed" } : { ok: false, key: "chatlp.remove_failed" };
 }

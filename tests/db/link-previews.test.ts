@@ -17,6 +17,8 @@ import type { MessageDto, MessagesPageDto, SyncDto } from "@/server/chat/dto";
 import { deleteMessage, editMessage, sendLimiter, sendMessage } from "@/server/chat/messages";
 import { setLinkPreviewDepsForTests, urlHashOf, IMAGE_MAX_BYTES, PAGE_MAX_BYTES } from "@/server/chat/link-preview";
 import { syncFeed } from "@/server/chat/sync";
+import { buildChatMessagePayload } from "@/lib/chat/conversation/client";
+import { conversationHeader } from "@/server/chat/topics";
 import { assertMayReadFile } from "@/server/services/files";
 import { withFeature } from "@/lib/features";
 import { call, db, loginAs, makeTeam, makeUser, makeWorkspace } from "./helpers";
@@ -61,6 +63,8 @@ function network(routes: Record<string, () => Response | Promise<Response>> = {}
 async function world() {
   const t = await makeTeam();
   const orgId = t.org.id;
+  // the card, the ✕ and «شيل المعاينة» live on the new chat screen: link previews work only where it is on too (`linkPreviewsOn`)
+  await setSwitch(orgId, true, "chatLayoutV2");
   const a = t.member;
   const b = await makeUser({ orgId, role: "MEMBER", name: "Bee" });
   const sa = await makeUser({ orgId, role: "MEMBER", name: "SpaceAdmin" });
@@ -87,10 +91,10 @@ const cursor = async (w: World) => (await syncFeed(ctxOf(w, w.a))).cursor;
 const since = (w: World, who: Person, after: string, role: Role = "MEMBER") => syncFeed(ctxOf(w, who, role), { after: BigInt(after) });
 const rowOf = (id: string) => db.chatMessage.findUniqueOrThrow({ where: { id }, include: { preview: true } });
 const enrichedAfter = async (w: World, after: string) => db.realtimeEvent.findMany({ where: { orgId: w.t.org.id, kind: "message.enriched", id: { gt: BigInt(after) } }, orderBy: { id: "asc" } });
-const setSwitch = async (orgId: string, on: boolean) => {
+async function setSwitch(orgId: string, on: boolean, key: "linkPreviews" | "chatLayoutV2" = "linkPreviews") {
   const org = await db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { settings: true } });
-  await db.organization.update({ where: { id: orgId }, data: { settings: withFeature(org.settings, "linkPreviews", on) as Prisma.InputJsonValue } });
-};
+  await db.organization.update({ where: { id: orgId }, data: { settings: withFeature(org.settings, key, on) as Prisma.InputJsonValue } });
+}
 const window = async (w: World, who: Person, conversationId: string): Promise<MessageDto[]> => {
   await loginAs(who.id);
   return ((await call(messagesRoute.GET, { url: `http://localhost/api/chat/conversations/${conversationId}/messages`, params: { id: conversationId } })).json as unknown as MessagesPageDto).messages;
@@ -170,6 +174,28 @@ describe("the card is made after the send commits", () => {
     expect(delta.messages.find((m) => m.id === old.id)?.preview).toBeUndefined();
     expect(visits).toHaveLength(0);
     expect((await rowOf(old.id)).previewId).toBeNull();
+  });
+
+  it("a send through the messages door with the composer's ✕ pressed (the very payload the screen builds) makes no visit and stores no card; without the ✕ it does", async () => {
+    const w = await getWorld();
+    await loginAs(w.a.id);
+    sendLimiter.reset(`chat.send.${w.a.id}`);
+    const post = (clientId: string, noPreview: boolean, body: string) =>
+      call(messagesRoute.POST, {
+        method: "POST",
+        url: `http://localhost/api/chat/conversations/${w.open.id}/messages`,
+        params: { id: w.open.id },
+        body: buildChatMessagePayload({ body, attachmentIds: [], mentions: [], clientId, noPreview }),
+      });
+    const refused = await post("lp-x-1", true, "https://fresh.example.com/p1");
+    expect(refused.status).toBeLessThan(300);
+    const refusedId = (refused.json as unknown as MessageDto).id;
+    expect((await rowOf(refusedId)).previewId).toBeNull();
+    expect(visits).toHaveLength(0);
+    const allowed = await post("lp-x-2", false, "https://fresh.example.com/p2");
+    expect(allowed.status).toBeLessThan(300);
+    expect(visits.map((v) => v.url)).toContain("https://fresh.example.com/p2");
+    expect(visits.map((v) => v.url)).not.toContain("https://fresh.example.com/p1");
   });
 
   it("a message with no link, an http or mailto link, a link to the app itself, or the sender's `noPreview` makes no visit", async () => {
@@ -256,7 +282,8 @@ describe("only public https pages, only what the guard allows", () => {
     expect((await rowOf(first.id)).previewId).toBe((await rowOf(second.id)).previewId);
     expect(await db.linkPreview.count({ where: { urlHash: urlHashOf(w.t.org.id, url) } })).toBe(1);
 
-    // another company: its own row, its own picture
+    // another company: its own row, its own picture (its new chat screen is on too)
+    await setSwitch(w.other.org.id, true, "chatLayoutV2");
     const foreignSent = await say({ ...w, t: w.other } as unknown as World, w.other.member, w.foreign.id, url);
     expect((await rowOf(foreignSent.id)).preview?.orgId).toBe(w.other.org.id);
     expect((await rowOf(foreignSent.id)).previewId).not.toBe((await rowOf(first.id)).previewId);
@@ -408,6 +435,55 @@ describe("per viewer: a deleted message has no card, and an edit follows the wor
 });
 
 describe("the switch `linkPreviews`", () => {
+  it("the cards live on the new chat screen: with `chatLayoutV2` off, link previews are off too (no visit, no card, header says no, the routes answer 404)", async () => {
+    const w = await getWorld();
+    const made = await say(w, w.a, w.open.id, PAGE_URL);
+    expect((await rowOf(made.id)).previewId).not.toBeNull();
+    visits.length = 0;
+    await setSwitch(w.t.org.id, false, "chatLayoutV2");
+    try {
+      const sent = await say(w, w.a, w.open.id, "https://old-screen.example.com/x");
+      expect(visits).toHaveLength(0);
+      expect((await rowOf(sent.id)).previewId).toBeNull();
+      expect((await conversationHeader(ctxOf(w, w.b), w.open.id)).linkPreviews).toBe(false);
+      expect((await window(w, w.b, w.open.id)).find((m) => m.id === made.id)?.preview).toBeUndefined();
+      await loginAs(w.b.id);
+      expect((await call(imageRoute.GET, { params: { id: made.id } })).status).toBe(404);
+    } finally {
+      await setSwitch(w.t.org.id, true, "chatLayoutV2");
+    }
+    expect((await window(w, w.b, w.open.id)).find((m) => m.id === made.id)?.preview?.title).toBe("خبر عاجل");
+  });
+
+  it("the conversation header tells the screen the switch (the composer's line and the bubble's card follow it)", async () => {
+    const w = await getWorld();
+    expect((await conversationHeader(ctxOf(w, w.b), w.open.id)).linkPreviews).toBe(true);
+    await setSwitch(w.t.org.id, false);
+    try {
+      expect((await conversationHeader(ctxOf(w, w.b), w.open.id)).linkPreviews).toBe(false);
+    } finally {
+      await setSwitch(w.t.org.id, true);
+    }
+  });
+
+  it("the messages window (what the screen opens with) shows the card while the switch is on and hides it when it is off, for the author and a reader", async () => {
+    const w = await getWorld();
+    const made = await say(w, w.a, w.open.id, PAGE_URL);
+    const cardIn = async (who: Person) => (await window(w, who, w.open.id)).find((m) => m.id === made.id)?.preview;
+    expect((await cardIn(w.b))?.title).toBe("خبر عاجل");
+    expect((await cardIn(w.a))?.title).toBe("خبر عاجل");
+    await setSwitch(w.t.org.id, false);
+    try {
+      expect(await cardIn(w.b)).toBeUndefined();
+      expect(await cardIn(w.a)).toBeUndefined();
+      // the words stay
+      expect((await window(w, w.b, w.open.id)).find((m) => m.id === made.id)?.body).toBe(PAGE_URL);
+    } finally {
+      await setSwitch(w.t.org.id, true);
+    }
+    expect((await cardIn(w.b))?.title).toBe("خبر عاجل");
+  });
+
   it("off: no page is visited, no card is presented or answered, the routes answer 404, and what was made stays and comes back on", async () => {
     const w = await getWorld();
     const made = await say(w, w.a, w.open.id, PAGE_URL);

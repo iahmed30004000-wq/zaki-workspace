@@ -343,7 +343,7 @@ describe("the card as one viewer receives it", () => {
     preview: { url: "https://example.com/a", title: "عنوان", description: "وصف", siteName: "موقع", imageFileId: "f1", status: "OK" },
     ...extra,
   });
-  const viewer = (extra: Partial<Viewer> = {}): Viewer => ({ userId: "u2", role: "MEMBER", canModerateHere: false, ...extra });
+  const viewer = (extra: Partial<Viewer> = {}): Viewer => ({ userId: "u2", role: "MEMBER", canModerateHere: false, linkPreviews: true, ...extra });
 
   it("carries the words and the APP's address of the picture (never the site's)", () => {
     const dto = presentMessage(row() as never, viewer());
@@ -359,6 +359,9 @@ describe("the card as one viewer receives it", () => {
     expect(presentMessage(row({ preview: null }) as never, viewer()).preview).toBeUndefined();
     expect(presentMessage(row() as never, viewer({ linkPreviews: false })).preview).toBeUndefined();
     expect(presentMessage(row() as never, viewer({ linkPreviews: true })).preview).toBeDefined();
+    // a caller that forgets to ask the switch hides the card (the switch is off by omission, never on by omission)
+    const forgetful: Viewer = { userId: "u2", role: "MEMBER", canModerateHere: false };
+    expect(presentMessage(row() as never, forgetful).preview).toBeUndefined();
   });
 
   it("is the same card for a guest as for the text (a guest who reads the words reads the card)", () => {

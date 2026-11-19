@@ -13,6 +13,7 @@ import type { FeatureKey } from "@/lib/features";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { messageInclude, dmStatusFor } from "@/server/chat/messages";
 import { oversightReaderExists } from "@/server/chat/archive-access";
+import { linkPreviewsOn } from "@/server/chat/link-preview";
 import { isFeatureOn } from "@/server/services/features";
 import { decorateMustRead } from "@/server/services/must-read";
 import { canMark } from "@/server/chat/must-read-policy";
@@ -369,7 +370,7 @@ export async function conversationDetail(
 
   const canModerateHere = canModerate(facts, org!);
   const silent = hasOversight(org); // reading with no row of his own: the capability archive.view, never the rank
-  const viewer: Viewer = { userId: ctx.userId, role: org!.role, oversight: silent, canModerateHere, isMember: facts.viewerIsMember };
+  const viewer: Viewer = { userId: ctx.userId, role: org!.role, oversight: silent, canModerateHere, isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId) };
   const hideOwnerOnline = await isFeatureOn(ctx.orgId, "ownerHiddenOnline");
 
   // the OWNER's reading is silent: his read mark never shows, in ticks or reader avatars
@@ -507,6 +508,7 @@ export async function conversationDetail(
     // the company's switch, so the log draws the shape it is set to (the words of a message never change)
     chatBubbles: await isFeatureOn(ctx.orgId, "chatBubbles"),
     chatOutbox: await isFeatureOn(ctx.orgId, "chatOutbox"),
+    linkPreviews: viewer.linkPreviews === true,
     calls: await isFeatureOn(ctx.orgId, "calls"),
     whiteboard: await isFeatureOn(ctx.orgId, "whiteboard"),
     voiceNotes: await isFeatureOn(ctx.orgId, "voiceNotes"),
@@ -731,6 +733,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     pinnedMessages: pinned.map((m) => ({ id: m.id, authorName: m.author.name, preview: previewOf(m.body, m.deletedAt) })),
     chatBubbles,
     chatOutbox,
+    linkPreviews: await linkPreviewsOn(ctx.orgId),
     calls,
     whiteboard,
     voiceNotes,
@@ -829,7 +832,7 @@ export async function conversationMessages(
   ]);
 
   const silent = hasOversight(org);
-  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember };
+  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId) };
   // DM ticks: the OTHER person's marks decide my own messages' status; the owner's silent reading never shows as «قرأ»
   let other: { lastDeliveredAt: Date | null; lastReadAt: Date | null } | null = null;
   if (facts.kind === "DM") {

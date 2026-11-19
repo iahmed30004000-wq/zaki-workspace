@@ -30,6 +30,8 @@ export function ChatComposerV2(props: ComposerParams) {
         onCancelReply={onCancelReply}
         onCancelEdit={onCancelEdit}
         recents={recents}
+        linkPreviews={detail.linkPreviews !== false}
+        onNoPreviewChange={c.setNoPreview}
         onEmoji={(emoji) => {
           setRecents(rememberEmoji(emoji));
           c.insertAtCaret(emoji);

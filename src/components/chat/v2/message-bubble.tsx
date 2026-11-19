@@ -9,7 +9,7 @@ import { PollCard } from "@/components/chat/message/poll-card";
 import { MessageTranslation, useTranslation } from "@/components/chat/message/message-translation";
 import { ReaderRow, customerHintOf, suggestedProblemKind } from "@/components/chat/message/message-item";
 import { BubbleBody } from "@/components/chat/v2/bubble/bubble-body";
-import { CustomerHint, MustReadBlock, ProblemSuggestion, WorkChips } from "@/components/chat/v2/bubble/bubble-extras";
+import { CustomerHint, LinkPreviewCard, MustReadBlock, ProblemSuggestion, WorkChips } from "@/components/chat/v2/bubble/bubble-extras";
 import { BubbleMedia } from "@/components/chat/v2/bubble/bubble-media";
 import { BubbleFooter, ForwardedHeader, ReactionChips, ReplyBlock } from "@/components/chat/v2/bubble/bubble-parts";
 import { useLongPress } from "@/components/chat/v2/bubble/use-long-press";
@@ -149,6 +149,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               ) : null}
               <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} />
               {!message.deleted && <MessageTranslation state={translation.state} onHide={translation.hide} />}
+              {!message.deleted ? <LinkPreviewCard preview={message.preview} enabled={facts.linkPreviews} /> : null}
               {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} /> : null}
               {message.card && !message.deleted ? message.card.type === "order" ? facts.canOrderState ? <OrderCardBubble number={message.card.number} conversationId={conversationId} /> : null : <CardBubble card={message.card} /> : null}
               {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} /> : null}

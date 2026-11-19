@@ -26,7 +26,7 @@ import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { queueSync } from "@/server/services/search-embed-index";
 import { applyAutoTicketRules } from "@/server/services/problem-tickets";
 import { canMark } from "@/server/chat/must-read-policy";
-import { detachPreview, linkPreviewAfterSend, previewUrlOf } from "@/server/chat/link-preview";
+import { assertLinkPreviewsOn, detachPreview, linkPreviewAfterSend, linkPreviewsOn, previewUrlOf } from "@/server/chat/link-preview";
 import { openStored } from "@/server/services/files";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
 import type { Prisma } from "@prisma/client";
@@ -193,7 +193,7 @@ export async function sendMessage(
   const allIds = wantsAll ? await readersAmong(conversationId, await topicAudienceIds(facts, conversationId)) : [];
 
   // «معاينة الرابط»: whether the company has the switch on (it decides the fetch AND whether the answer carries a card)
-  const previewsOn = await isFeatureOn(ctx.orgId, "linkPreviews");
+  const previewsOn = await linkPreviewsOn(ctx.orgId);
 
   // idempotent send: the same clientId of the same author returns the same message
   if (input.clientId) {
@@ -390,7 +390,7 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
   });
   // «بحث بالمعنى»: the vector follows the new words
   queueSync(ctx.orgId, "message", messageId);
-  return presentMessage(updated, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: await isFeatureOn(ctx.orgId, "linkPreviews") });
+  return presentMessage(updated, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: await linkPreviewsOn(ctx.orgId) });
 }
 
 // ---------- delete ----------
@@ -596,7 +596,7 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
 export async function removeLinkPreview(ctx: OrgAccessContext, messageId: string): Promise<{ removed: boolean }> {
   const msg = await db.chatMessage.findUnique({ where: { id: messageId }, select: { id: true, orgId: true, conversationId: true, authorId: true, deletedAt: true } });
   if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
-  await assertFeatureOn(ctx.orgId, "linkPreviews");
+  await assertLinkPreviewsOn(ctx.orgId);
   const { facts, org } = await guard(ctx, msg.conversationId);
   if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
   if (msg.authorId !== ctx.userId) throw new ForbiddenError("chat.e.not_author");
@@ -612,7 +612,7 @@ export async function removeLinkPreview(ctx: OrgAccessContext, messageId: string
 export async function openPreviewImage(ctx: OrgAccessContext, messageId: string) {
   const msg = await db.chatMessage.findUnique({ where: { id: messageId }, select: { orgId: true, conversationId: true, deletedAt: true, preview: { select: { status: true, imageFileId: true } } } });
   if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
-  await assertFeatureOn(ctx.orgId, "linkPreviews");
+  await assertLinkPreviewsOn(ctx.orgId);
   const { facts, org } = await guard(ctx, msg.conversationId);
   if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
   if (msg.deletedAt || msg.preview?.status !== "OK" || !msg.preview.imageFileId) throw new NotFoundError("chat.e.not_found");

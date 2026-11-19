@@ -20,6 +20,8 @@ export interface BubbleFacts extends MenuFacts {
   orderHints: boolean;
   canTranscribe: boolean;
   canReadImages: boolean;
+  /** C3b.2: the company's switch `linkPreviews`; off, a card the cache still holds is not drawn */
+  linkPreviews: boolean;
   problemRules: AutoRule[];
 }
 
@@ -44,6 +46,7 @@ export function bubbleFactsOf(header: ConversationHeaderDto): BubbleFacts {
     orderHints: Boolean(me.orderHints) && header.kind === "TOPIC" && !header.restricted && !header.teamId,
     canTranscribe: header.voiceTranscript === true,
     canReadImages: header.imageOcr === true,
+    linkPreviews: header.linkPreviews === true,
     problemRules: me.problemRules ?? NO_RULES,
   };
 }

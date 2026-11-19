@@ -9,7 +9,7 @@ import { chatKeys } from "@/lib/chat/cache/keys";
 import { scheduleSync } from "@/lib/chat/cache/runtime";
 import { tombstone } from "@/lib/chat/cache/writer";
 import { ct } from "@/lib/chat/text";
-import { callDoor, doors, type Door } from "@/lib/chat/v2/pane/message-actions";
+import { callDoor, doors, removePreviewOf, type Door } from "@/lib/chat/v2/pane/message-actions";
 import { clearPendingSearch, peekPendingSearch } from "@/lib/chat/v2/phone/pending-search";
 
 /**
@@ -56,6 +56,8 @@ export interface PaneCommands {
   react: (message: MessageDto, emoji: string) => Promise<boolean>;
   ack: (message: MessageDto, on: boolean) => Promise<boolean>;
   setMustRead: (message: MessageDto, on: boolean) => Promise<boolean>;
+  /** «شيل المعاينة» (C3b.2): the author's own link card; says what happened and asks the feed to catch up (the card goes from every screen) */
+  removePreview: (message: MessageDto) => Promise<boolean>;
   copy: (message: MessageDto) => void;
   /** ask a door that is not a message action (close / archive a topic, join) and say what happened; `done` is the toast key on success */
   call: (door: Door, done?: string) => Promise<boolean>;
@@ -159,6 +161,12 @@ export function PaneActionsProvider({
       react: (message, emoji) => call(doors.react(message.id, emoji)),
       ack: (message, on) => call(doors.ack(message.id, on)),
       setMustRead: (message, on) => call(doors.mustRead(message.id, on)),
+      removePreview: async (message) => {
+        const result = await removePreviewOf(message.id);
+        say(result.key, result.ok ? "success" : "error");
+        scheduleSync(qc);
+        return result.ok;
+      },
       copy: (message) => {
         void navigator.clipboard?.writeText(message.body ?? "").then(
           () => say("chatc.menu.copied"),
