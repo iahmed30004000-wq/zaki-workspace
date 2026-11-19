@@ -147,5 +147,10 @@
   "chatui.info.space": "المساحة",
   "chatui.info.audience": "مين بيشوفها",
   "chatui.info.job": "المسمى الوظيفي",
-  "chatui.info.bio": "نبذة"
+  "chatui.info.bio": "نبذة",
+  "chatui.phone.title": "زاكي",
+  "chatui.phone.menu": "القائمة",
+  "chatui.phone.search.open": "ابحث",
+  "chatui.phone.search.close": "أغلق البحث",
+  "chatui.phone.info.label": "معلومات المحادثة"
 }

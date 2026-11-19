@@ -145,7 +145,8 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
   const topic = items.filter((id) => topicIds.includes(id));
 
   return (
-    <header data-pane-header className="flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 md:px-3">
+    // C2.8: on a phone the header owns the notch (the frame's top bar is hidden on a chat screen), so it pads its top by the inset; from `md` there is none
+    <header data-pane-header className="flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 pt-[env(safe-area-inset-top)] md:px-3 md:pt-0">
       <Link href={chatHref.list} aria-label={ct("chatc.back")} className={`${iconButton} md:hidden`}>
         <ArrowRight aria-hidden="true" className="size-5" />
       </Link>

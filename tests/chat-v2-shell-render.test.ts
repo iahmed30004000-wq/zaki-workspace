@@ -144,7 +144,7 @@ describe("the shell (switch ON): the same pane on every screen, the column where
       expect(html).toContain('data-chat-shell="desktop"');
       expect(html.match(/data-chat-list="column"/g)).toHaveLength(1);
       expect(html).not.toContain('data-chat-list="screen"');
-      expect(html).toMatch(/<div data-chat-shell="desktop" class="flex h-full min-h-0">/);
+      expect(html).toMatch(/<div data-chat-shell="desktop" data-chat-screen="[a-z]+" data-frame-bars="hide-(?:top|all)" class="flex h-full min-h-0">/);
       expect(html).toMatch(/<div data-chat-slot="" class="hidden h-full min-h-0 shrink-0 border-e border-border bg-surface md:flex"><section[^>]*data-chat-list="column"/);
       expect(html.indexOf('data-chat-list="column"')).toBeLessThan(html.indexOf("محتوى الصفحة"));
       expect(html).toMatch(/<div data-chat-pane="" class="min-w-0 flex-1"><p>محتوى الصفحة<\/p><\/div>/);
@@ -152,9 +152,9 @@ describe("the shell (switch ON): the same pane on every screen, the column where
   });
 
   it("before the size is known the pane sits in the same box as on the computer, so it is not remounted when the column appears", () => {
-    expect(shell("/chat/c1", null)).toMatch(/<div data-chat-shell="pending" class="flex h-full min-h-0"><div data-chat-pane="" class="min-w-0 flex-1"><p>/);
+    expect(shell("/chat/c1", null)).toMatch(/<div data-chat-shell="pending" data-chat-screen="conversation" data-frame-bars="hide-all" class="flex h-full min-h-0"><div data-chat-pane="" class="min-w-0 flex-1"><p>/);
     // a list route is kept off a phone meanwhile (the list is its screen)
-    expect(shell("/chat", null)).toMatch(/<div data-chat-shell="pending" class="flex h-full min-h-0 max-md:hidden">/);
+    expect(shell("/chat", null)).toMatch(/<div data-chat-shell="pending" data-chat-screen="list" data-frame-bars="hide-top" class="flex h-full min-h-0 max-md:hidden">/);
   });
 
   it("the phone, on /chat: the list IS the screen; the page's content is hidden", () => {
@@ -174,7 +174,8 @@ describe("the shell (switch ON): the same pane on every screen, the column where
   it("the phone, on a conversation: the conversation is the screen and the list stays mounted but hidden (back finds it where it was)", () => {
     const html = shell("/chat/c1", false);
     expect(html).toMatch(/<div class="hidden"><section[^>]*data-chat-list="screen"/);
-    expect(html).toMatch(/<div class="h-full min-h-0"><p>محتوى الصفحة<\/p><\/div>/);
+    // C2.8: the page is the whole screen in the phone box (it slides in, follows a swipe from the start edge, rides above the keyboard)
+    expect(html).toMatch(/<div class="group\/phone h-full min-h-0 touch-pan-y overflow-x-clip animate-slide-in-start motion-reduce:animate-none" data-chat-phone-screen="" data-keyboard="closed"><p>محتوى الصفحة<\/p><\/div>/);
   });
 
   it("the shell is self-contained: no hook into the frame (app-shell.tsx belongs to N1), and it builds neither a rail nor a drawer", () => {

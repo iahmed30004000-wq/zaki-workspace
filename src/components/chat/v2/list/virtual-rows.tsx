@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, type KeyboardEvent } from "react
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ListItem } from "@/lib/chat/list-folders";
 import { ct } from "@/lib/chat/text";
+import { useFlipRows } from "@/lib/chat/v2/phone/use-flip";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { ChatRowItem, ROW_HEIGHT, ROW_HEIGHT_PHONE, SECTION_HEIGHT } from "./chat-row";
 
@@ -55,6 +56,13 @@ export function VirtualRows({
     virtualizer.measure();
   }, [rowHeight, virtualizer]);
 
+  // C2.8: a row that moves (a new message sends its chat to the top) slides 150 ms to its place (FLIP) instead of jumping; nothing under reduced motion.
+  // The offsets of the rows drawn now are compared with the render before; a change of the row height (a screen that crosses the phone's width) slides nothing.
+  const rowEls = useRef(new Map<string | number, HTMLElement>());
+  const virtualItems = virtualizer.getVirtualItems();
+  const starts = new Map<string | number, number>(virtualItems.map((virtual) => [virtual.key as string | number, virtual.start]));
+  useFlipRows(starts, rowEls, rowHeight);
+
   // C2.6: a shortcut (Alt+↓) can open a chat that is outside the window: the selected row is brought into view, and only when it is not already
   useEffect(() => {
     if (!selectedId) return;
@@ -90,12 +98,16 @@ export function VirtualRows({
   return (
     <div ref={scrollRef} onKeyDown={onKeyDown} data-chat-rows="" className="min-h-0 flex-1 overflow-y-auto overscroll-contain" role="list" aria-label={label}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((virtual) => {
+        {virtualItems.map((virtual) => {
           const item = items[virtual.index];
           if (!item) return null;
           return (
             <div
               key={virtual.key}
+              ref={(el) => {
+                if (el) rowEls.current.set(virtual.key as string | number, el);
+                else rowEls.current.delete(virtual.key as string | number);
+              }}
               role="listitem"
               data-row-index={virtual.index}
               className="absolute start-0 top-0 w-full"

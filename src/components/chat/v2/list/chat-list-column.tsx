@@ -9,6 +9,7 @@ import { WorkspaceCreateModal } from "@/components/create-forms";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
 import { ForumView } from "@/components/chat/v2/forum/forum-view";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
+import { PhoneListBar } from "@/components/chat/v2/phone/list-bar";
 import { useListWidth } from "@/components/chat/v2/use-list-width";
 import { useChatList, useChatSpace, useChatUnreadSummary } from "@/lib/chat/cache/selectors";
 import { shortcutBridge } from "@/lib/chat/v2/menu/shortcut-bridge";
@@ -139,7 +140,12 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
 
   return (
     <>
-      <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
+      {tall ? (
+        // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
+        <PhoneListBar title={ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
+      ) : (
+        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
+      )}
       <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} />
       {canMeet && tall ? (
         <div className="shrink-0 border-b border-border/60 px-3 py-2">

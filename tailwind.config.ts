@@ -41,12 +41,21 @@ const config: Config = {
         "ring-fill": { from: { "stroke-dashoffset": "100" } },
         // «نتفرّج سوا»: a reaction rises over the video and fades
         "float-up": { "0%": { opacity: "0", transform: "translateY(0) scale(0.8)" }, "15%": { opacity: "1" }, "100%": { opacity: "0", transform: "translateY(-160px) scale(1.2)" } },
+        // C2.8, the chat's motion (src/lib/chat/v2/phone/motion.ts): a phone screen slides in from the START edge (the variable is +100% in this right-to-left page,
+        // -100% in a left-to-right one), a bubble that just arrived fades up, a reaction pops. Always used with `motion-reduce:animate-none`.
+        "slide-in-start": { from: { transform: "translateX(var(--zk-slide-from, 100%))" }, to: { transform: "none" } },
+        "fade-up": { from: { opacity: "0", transform: "translateY(6px)" }, to: { opacity: "1", transform: "none" } },
+        pop: { "0%": { transform: "scale(0.85)" }, "60%": { transform: "scale(1.08)" }, "100%": { transform: "scale(1)" } },
       },
       animation: {
         "fade-in": "fade-in 150ms ease-out",
         rise: "rise 450ms ease-out both",
         "ring-fill": "ring-fill 900ms ease-out both",
         "float-up": "float-up 2.5s ease-out forwards",
+        // no fill mode on these three: a finished animation must not keep a `transform` that would beat the swipe's own inline one
+        "slide-in-start": "slide-in-start 200ms ease-out",
+        "fade-up": "fade-up 120ms ease-out",
+        pop: "pop 150ms ease-out",
       },
     },
   },

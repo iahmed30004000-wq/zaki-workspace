@@ -17,6 +17,9 @@ import { NavOrderControls, SortableItem, SortableList } from "./nav-sort";
  * the content by its height plus the home-indicator inset (`env(safe-area-inset-bottom)`, which the
  * root layout's `viewportFit: "cover"` makes real on an iPhone). From `md` the side menu takes over.
  *
+ * C2.8: while a page asks for it (`data-frame-bars="hide-all"`: a chat conversation) the bar is hidden below `md`, so the conversation is the whole screen,
+ * like Telegram's; the frame's `group/frame` class and `group-has-*` do it, and the chat is not imported here.
+ *
  * `data-tour="places"`: the guide's tour points here on a phone (and at the side menu on a computer).
  *
  * «ترتيب»: a LONG PRESS on the bar (about half a second, the finger hardly moving) starts the reorder mode, so a
@@ -100,7 +103,7 @@ export function BottomNav({
     <nav
       aria-label={t("shell.places")}
       data-tour="places"
-      className="fixed bottom-0 end-0 start-0 z-40 border-t border-border bg-surface-1 pb-[env(safe-area-inset-bottom)] md:hidden zk-safe-x"
+      className="fixed bottom-0 end-0 start-0 z-40 border-t border-border bg-surface-1 pb-[env(safe-area-inset-bottom)] md:hidden zk-safe-x group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden"
       {...longPress}
     >
       {editing && onReorder ? (

@@ -19,6 +19,12 @@ import { useOnline, useOutbox } from "@/lib/chat/outbox/use-outbox";
 import { useStreamEvicted } from "@/lib/realtime/use-realtime";
 
 /**
+ * C2.8: the footer owns the home-indicator inset on a phone (the frame's bottom padding is gone inside a conversation); while the keyboard covers that corner
+ * (the phone screen box says so with `data-keyboard="open"`) the inset is dropped. From `md` there is no inset.
+ */
+const FOOTER_CLASS = "border-t border-border p-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] group-data-[keyboard=open]/phone:pb-3 md:pb-3";
+
+/**
  * SEAM 2: what sits under the messages. C2.4 made it and rendered today's `ChatComposer` here; C2.5 owns it now and renders THE NEW COMPOSER
  * (`ChatComposerV2`: emoji, the attach menu, paste and drop, the microphone ⇄ send button, the reply / edit bar, «↑» to edit my last message). The old
  * `ChatComposer` is untouched, for the old screen and the quick chat. It still works end to end: the optimistic bubble (`optimistic={{ qc }}` with the person's
@@ -55,7 +61,7 @@ export function ComposerHost({ header, people, onSent }: { header: ConversationH
   const bar = composerBarOf(header.me, header);
   if (bar !== "composer") {
     return (
-      <footer data-composer-host={bar} className="border-t border-border p-3 text-center text-sm">
+      <footer data-composer-host={bar} className={FOOTER_CLASS + " text-center text-sm"}>
         {bar === "join" ? (
           <div className="flex flex-col items-center gap-1">
             <Button
@@ -82,7 +88,7 @@ export function ComposerHost({ header, people, onSent }: { header: ConversationH
   }
 
   return (
-    <footer data-composer-host="composer" className="border-t border-border p-3">
+    <footer data-composer-host="composer" className={FOOTER_CLASS}>
       {liveElsewhere && (
         <p role="status" className="px-3 pb-1 text-xs text-fg-muted">
           {ct("chatc.live_elsewhere")}

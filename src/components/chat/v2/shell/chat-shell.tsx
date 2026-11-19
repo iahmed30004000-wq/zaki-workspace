@@ -4,8 +4,10 @@ import React, { useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChatListColumn } from "@/components/chat/v2/list/chat-list-column";
 import { InfoSlotContext } from "@/components/chat/v2/info/info-slot";
+import { PhoneScreenFrame } from "@/components/chat/v2/phone/screen-frame";
 import { ShortcutsSheet } from "@/components/chat/v2/menu/shortcuts-sheet";
 import { useChatShortcuts } from "@/lib/chat/shortcuts";
+import { phoneBackOf, phoneScreenOf } from "@/lib/chat/v2/phone/screens";
 import { chatHref, chatRouteOf, isListScreen, selectedConversationId } from "@/lib/chat/v2/routes";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
 
@@ -33,7 +35,11 @@ export interface ChatShellProps {
  * renders agree and the pane is not remounted when the column appears.
  */
 export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, children }: ChatShellProps) {
-  const route = chatRouteOf(usePathname());
+  const pathname = usePathname();
+  const route = chatRouteOf(pathname);
+  // C2.8: which phone screen this address is. `data-frame-bars` asks the app frame to hide its own top bar below `md` ("hide-top": the list screen draws its own) and, inside a conversation or its info screen, its bottom bar and people row too ("hide-all"), with CSS only
+  const screen = phoneScreenOf(pathname);
+  const marker = screen === "other" ? {} : { "data-chat-screen": screen, "data-frame-bars": screen === "conversation" || screen === "info" ? "hide-all" : "hide-top" };
   const desktop = useIsDesktop();
   const router = useRouter();
   const [sheet, setSheet] = useState(false);
@@ -56,16 +62,19 @@ export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, children 
   if (desktop === false) {
     const onList = isListScreen(route);
     return (
-      <div data-chat-shell="phone" className="relative h-full min-h-0">
+      <div data-chat-shell="phone" {...marker} className="relative h-full min-h-0 overflow-x-clip">
         <div className={onList ? "h-full" : "hidden"}>{column}</div>
-        <div className={onList ? "hidden" : "h-full min-h-0"}>{children}</div>
+        {/* C2.8: the conversation (or its info screen) is the whole screen: it slides in from the start edge, a swipe from that edge goes back, the composer rides above the keyboard */}
+        <PhoneScreenFrame active={!onList} back={phoneBackOf(pathname)}>
+          {children}
+        </PhoneScreenFrame>
       </div>
     );
   }
   return (
     <InfoSlotContext.Provider value={desktop === true ? infoSlot : null}>
       {/* while the screen size is unknown the pane of a list route is kept off a phone (the list is its screen), so «اختار محادثة» never flashes there */}
-      <div data-chat-shell={desktop === true ? "desktop" : "pending"} className={isListScreen(route) && desktop === null ? "flex h-full min-h-0 max-md:hidden" : "flex h-full min-h-0"}>
+      <div data-chat-shell={desktop === true ? "desktop" : "pending"} {...marker} className={isListScreen(route) && desktop === null ? "flex h-full min-h-0 max-md:hidden" : "flex h-full min-h-0"}>
         {desktop === true ? (
           <div data-chat-slot="" className="hidden h-full min-h-0 shrink-0 border-e border-border bg-surface md:flex">
             {column}

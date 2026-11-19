@@ -438,3 +438,13 @@ html.zk-reveal::view-transition-old(zk-overlay) {
 html.zk-reveal::view-transition-new(zk-overlay) {
   animation: none;
 }
+
+/* C2.8 — a page that asks the app frame for a BARE phone screen (`data-frame-bars="hide-all"`: the chat's conversation and its info screen) takes back the room
+   the frame keeps under the page for its bottom bar and the home-indicator inset: the page's own footer (the composer) owns that inset there, and the frame's
+   bottom bar and people row are hidden by their own `group-has-*` classes (src/components/app-shell.tsx, shell/bottom-nav.tsx). The column that pads is
+   found by what it holds (`#zk-main`), so the frame's own class strings stay exactly as N1 pinned them. Below `md` only, like the classes. */
+@media not all and (min-width: 768px) {
+  .group\/frame:has([data-frame-bars="hide-all"]) div:has(> #zk-main) {
+    padding-bottom: 0;
+  }
+}
