@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 361 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 78 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 79 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -167,7 +167,7 @@ Doors in use: `requireActor` 166 · `activeOrgCtx` 93 · `(none)` 40 · `require
 | POST | `/api/chat/conversations/[id]/summarize` | requireActor † | `digest`: summarizeTopic |
 | GET, PUT | `/api/chat/conversations/[id]/whiteboard` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/directory` | directoryContext | `current-space`: currentSpace<br>`last-seen`: lastSeenReader<br>`assistant-chat`: assistantContactOffered |
-| POST | `/api/chat/dm` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace |
+| POST | `/api/chat/dm` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn |
 | GET | `/api/chat/home` | activeOrgCtx | `current-space`: currentSpace<br>`integrations`: activeOrgCtx |
 | GET | `/api/chat/list` | activeOrgCtx | `current-space`: currentSpace<br>`integrations`: activeOrgCtx |
 | PATCH, DELETE | `/api/chat/messages/[id]` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -476,7 +476,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 63 | 134 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 63 | 135 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 107 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 61 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
@@ -656,8 +656,8 @@ to be added to, and the places a bug can leave the row half-written.
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 14 | `server/services/files.ts`: 7<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>`server/chat/purge.ts`: 1<br>+3 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
-| `Conversation` | 26 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 3<br>`server/chat/door-message.ts`: 3<br>`server/chat/messages.ts`: 3<br>+11 more |
-| `ConversationMember` | 20 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/read-state.ts`: 3<br>`server/chat/messages.ts`: 2<br>+4 more |
+| `Conversation` | 27 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/door-message.ts`: 3<br>`server/chat/messages.ts`: 3<br>+11 more |
+| `ConversationMember` | 21 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 5<br>`server/chat/read-state.ts`: 3<br>`server/chat/messages.ts`: 2<br>+4 more |
 | `ChatMessage` | 11 | `server/chat/messages.ts`: 5<br>`server/services/must-read.ts`: 2<br>`server/chat/door-message.ts`: 1<br>`server/chat/system.ts`: 1<br>+2 more |
 | `ChatReaction` | 4 | `server/chat/messages.ts`: 2<br>`server/services/must-read.ts`: 2 |
 | `Poll` | 2 | `components/chat/composer/poll-dialog.tsx`: 1<br>`server/chat/polls.ts`: 1 |
@@ -848,6 +848,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
 | `chatPersonalState` | 3 — `app/api/chat/conversations/[id]/me/route.ts`, `server/chat/list.ts`, `server/chat/read-state.ts` |
 | `chatFolders` | 1 — `server/services/chat-prefs.ts` |
+| `savedMessages` | 2 — `app/api/chat/dm/route.ts`, `server/chat/list.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
