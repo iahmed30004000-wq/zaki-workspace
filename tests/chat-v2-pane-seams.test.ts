@@ -43,18 +43,20 @@ describe("the four seams", () => {
     expect(src).toContain("useOutbox(header.me.id, outboxOn)");
   });
 
-  it("the menu host renders today's MessageMenu from the registry and takes the context from the same function the old bubble uses", () => {
+  it("the menu host renders the new screen's menu (C2.6) from the registry; its context is the old bubble's function plus the new flags, never a second copy of the rules", () => {
     const src = read("src/components/chat/v2/pane/seams/menu-host.tsx");
-    expect(src).toContain("<MessageMenu");
-    expect(src).toContain("messageMenuContext(message, facts)");
+    expect(src).toContain("<MessageMenuV2");
+    expect(src).toContain("menuContextV2(message, facts,");
+    expect(read("src/lib/chat/v2/menu/menu-context.ts")).toContain("...messageMenuContext(message, facts)");
     // the registry stays the ONE source: no list of menu ids is written down here
     expect(src).not.toContain("messageMenuItems");
     expect(src).not.toMatch(/\["reply",\s*"pin"/);
   });
 
-  it("the info host renders nothing yet and takes only the header", () => {
+  it("the info host (C2.7 filled it) takes only the header and draws the panel body in the shell's column or in a sheet", () => {
     const src = read("src/components/chat/v2/pane/seams/info-host.tsx");
-    expect(src).toMatch(/export function InfoHost\(_props: \{ header: ConversationHeaderDto \}\) \{\s*return null;/);
+    expect(src).toMatch(/export function InfoHost\(\{ header \}: \{ header: ConversationHeaderDto \}\)/);
+    expect(src).toContain("<InfoPanel");
   });
 
   it("each seam's component is imported by its own host and by nobody else in the pane", () => {

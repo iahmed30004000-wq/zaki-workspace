@@ -13,7 +13,10 @@ import { CustomerHint, MustReadBlock, ProblemSuggestion, WorkChips } from "@/com
 import { BubbleMedia } from "@/components/chat/v2/bubble/bubble-media";
 import { BubbleFooter, ForwardedHeader, ReactionChips, ReplyBlock } from "@/components/chat/v2/bubble/bubble-parts";
 import { useLongPress } from "@/components/chat/v2/bubble/use-long-press";
+import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { ct } from "@/lib/chat/text";
+import { replyOnDoubleClick } from "@/lib/chat/v2/menu/gestures";
+import { pressInlineButton, type InlineKind } from "@/lib/chat/v2/menu/inline-press";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
 import { cn } from "@/lib/utils";
@@ -25,6 +28,13 @@ export interface MessageMenuSlotApi {
   setSheetOpen: (open: boolean) => void;
   /** «ترجم»: the translation shows under the words IN THIS bubble (its state lives here), so the menu asks the bubble */
   translate: () => void;
+  /** a right click (computer) opened the menu: the bubble owns the gesture, the menu draws it */
+  menuOpen: boolean;
+  setMenuOpen: (open: boolean) => void;
+  /** who read up to this message (a topic or a group): «مين شاف» lists them */
+  readers: ReaderDto[];
+  /** «اقرأ النص» / «حوّل الصوت لنص»: presses the button the picture or the voice note draws under itself (the doors and the result live there) */
+  pressInline: (kind: InlineKind) => void;
 }
 
 export interface MessageBubbleProps {
@@ -72,6 +82,11 @@ export interface MessageBubbleProps {
  */
 function MessageBubbleView({ message, conversationId, facts, start, end, mentionNames, readers = [], highlighted = false, menu, hover, onReact, onJump, onAck, onOpenWork, onHintTicket, onSuggestProblem }: MessageBubbleProps) {
   const [sheetOpen, setSheetOpen] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
+  const articleRef = React.useRef<HTMLElement>(null);
+  // what the last press on this bubble was made with: a right click or a double click is the computer's, a finger's long press is the sheet's
+  const pointer = React.useRef("");
+  const gestures = useBubbleGestures();
   const translation = useTranslation(message.id);
   const canAct = !facts.oversight && !message.deleted && message.kind !== "SYSTEM";
   const longPress = useLongPress(canAct, () => setSheetOpen(true));
@@ -81,7 +96,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const chips = facts.canOrderState && message.kind === "TEXT";
   const suggestKind = suggestedProblemKind(message, { canProblem: facts.canProblem, problemRules: facts.problemRules, conversationId });
   const hint = customerHintOf(message, { orderHints: facts.orderHints, canModerate: facts.canModerate, canProblem: facts.canProblem });
-  const menuNode = canAct && menu ? menu({ message, sheetOpen, setSheetOpen, translate: () => void translation.ask() }) : null;
+  const menuNode = canAct && menu ? menu({ message, sheetOpen, setSheetOpen, translate: () => void translation.ask(), menuOpen, setMenuOpen, readers, pressInline: (kind) => pressInlineButton(articleRef.current, kind) }) : null;
   const hoverNode = canAct && hover ? hover : null;
 
   return (
@@ -92,13 +107,26 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
           <div className={cn("flex min-w-0 max-w-full items-end gap-1", mine ? "flex-row-reverse" : "flex-row")}>
             <article
               dir="rtl"
+              ref={articleRef}
               data-message-id={message.id}
-              onPointerDown={longPress.onPointerDown}
+              onPointerDown={(e) => {
+                pointer.current = e.pointerType;
+                longPress.onPointerDown(e);
+              }}
               onPointerMove={longPress.onPointerMove}
               onPointerUp={longPress.onPointerUp}
               onPointerCancel={longPress.onPointerCancel}
               onContextMenu={(e) => {
                 if (sheetOpen || longPress.pressing()) e.preventDefault();
+                // the right button on a computer (and the keyboard's menu key) opens the menu where the message is; a finger's long press is the sheet's, and
+                // the browser's own menu stays for text that is selected
+                else if (menuNode && pointer.current !== "touch" && !window.getSelection()?.toString()) {
+                  e.preventDefault();
+                  setMenuOpen(true);
+                }
+              }}
+              onDoubleClick={(e) => {
+                if (canAct && gestures && replyOnDoubleClick({ pointerType: pointer.current, target: e.target })) gestures.reply(message, facts);
               }}
               className={bubbleClass({ mine, mentionsMe, tail: end, highlighted })}
             >
