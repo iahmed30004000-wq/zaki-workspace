@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 356 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 73 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 74 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -835,6 +835,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatLayoutV2` | 4 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts` |
 | `chatFormatting` | 0 —  |
 | `workInbox` | 5 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `server/services/instant-work.ts` |
+| `chatAlbums` | 0 —  |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
