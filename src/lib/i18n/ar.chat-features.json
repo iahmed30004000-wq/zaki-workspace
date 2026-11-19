@@ -1,0 +1,10 @@
+{
+  "chatfmt.spoiler": "نص مخفي، اضغط لإظهاره",
+  "chatfmt.toolbar": "تنسيق النص",
+  "chatfmt.act.bold": "عريض ({keys})",
+  "chatfmt.act.italic": "مائل ({keys})",
+  "chatfmt.act.strike": "مشطوب ({keys})",
+  "chatfmt.act.code": "كود ({keys})",
+  "chatfmt.act.spoiler": "إخفاء النص ({keys})",
+  "chatfmt.act.link": "رابط ({keys})"
+}

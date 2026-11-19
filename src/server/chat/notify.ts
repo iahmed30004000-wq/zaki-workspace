@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { stripFormatting } from "@/lib/chat/format/parse";
 import { pushNotification } from "@/server/notify";
 import { isViewing } from "@/server/realtime/viewing";
 import { canReadConversation, type ConversationFacts } from "@/server/policy/conversation";
@@ -44,7 +45,8 @@ export async function notifyMessageToAudience(opts: {
       userId,
       type: "chat_message",
       title: named.has(userId) ? `${opts.title} ${MENTION_TITLE}` : everyone.has(userId) ? `${opts.title} ${MENTION_ALL_TITLE}` : opts.title,
-      body: opts.preview,
+      // C3b.1: the words, not the markers (`**bold**`, a link's `[label](address)`); a spoiler's words are not read out on a lock screen, even when the preview was cut inside the spoiler (`partial`)
+      body: stripFormatting(opts.preview, { math: true, partial: true }),
       linkUrl: messageLink(opts.conversationId, opts.messageId),
       workspaceId,
     });
@@ -90,7 +92,7 @@ export async function rewriteMessagePreviews(
 ): Promise<void> {
   await tx.notification.updateMany({
     where: { type: { in: ["chat_message", "must_read", "must_read_late"] }, linkUrl: messageLink(conversationId, messageId) },
-    data: { body: preview },
+    data: { body: stripFormatting(preview, { math: true, partial: true }) },
   });
 }
 

@@ -162,6 +162,17 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.chatLayoutV2.hint"]).toContain("القديمة");
   });
 
+  it("«تنسيق النص بالدردشة» (`chatFormatting`, C3b.1): ON by default, off is plain text; its two lines are there", () => {
+    expect(FEATURES).toContain("chatFormatting");
+    expect(FEATURE_DEFAULTS.chatFormatting).toBe(true);
+    expect(featureOn({}, "chatFormatting")).toBe(true);
+    expect(featureOn({ features: { chatFormatting: false } }, "chatFormatting")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatFormatting");
+    expect(featuresOff({ features: { chatFormatting: false } })).toContain("chatFormatting");
+    expect(AR["features.chatFormatting.name"]).toBe("تنسيق النص بالدردشة");
+    expect(AR["features.chatFormatting.hint"]).toContain("نص عادي");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

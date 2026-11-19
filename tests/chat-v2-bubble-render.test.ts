@@ -3,6 +3,7 @@ import { createElement, type FunctionComponent, type ReactElement, type ReactNod
 import { renderToStaticMarkup } from "react-dom/server";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
+import { BubbleBody } from "@/components/chat/v2/bubble/bubble-body";
 import { MessageBubble, type MessageBubbleProps } from "@/components/chat/v2/message-bubble";
 import { bubbleFactsOf } from "@/lib/chat/v2/pane/bubble-facts";
 import { nameTone } from "@/lib/chat/v2/pane/bubble-model";
@@ -198,5 +199,55 @@ describe("the two seams of a bubble", () => {
 
   it("without a menu the bubble is still a bubble (a test, a read-only embed)", () => {
     expect(draw(makeMessage())).toContain("نص الرسالة");
+  });
+});
+
+describe("C3b.1 — the formatting of the words, composed with mentions and order chips", () => {
+  const orderFacts = bubbleFactsOf(makeHeader({ me: { canOrderState: true, orderHints: true, canModerate: false } }));
+
+  it("a bold word, a link and a quote are drawn inside the bubble", () => {
+    const html = draw(makeMessage({ body: "**مهم**: [الدليل](https://example.com/guide)\n> اقتباس" }));
+    expect(html).toContain("<strong>مهم</strong>");
+    expect(html).toContain('href="https://example.com/guide"');
+    expect(html).toContain('rel="noopener noreferrer"');
+    expect(html).toContain("<blockquote");
+  });
+
+  it("a mention INSIDE a bold word still highlights the person (one render test)", () => {
+    const html = draw(makeMessage({ mentions: ["u1"], body: "**تمام يا @ليلى** شكرا" }), { mentionNames: ["ليلى"] });
+    expect(html).toMatch(/<strong>تمام يا <span data-mention[^>]*>@ليلى<\/span><\/strong>/);
+  });
+
+  it("an order number INSIDE a bold word is still a chip, where the header says so (one render test)", () => {
+    const html = draw(makeMessage({ body: "**الطلب ZK-2026-1234 تأخر**" }), { facts: orderFacts });
+    expect(html).toContain("data-order-chip");
+    expect(html).toContain("<strong>");
+    expect(html).toContain("ZK-2026-1234");
+  });
+
+  it("an order number inside a code span is NOT a chip (code is drawn as typed)", () => {
+    const html = draw(makeMessage({ body: "`ZK-2026-1234`" }), { facts: orderFacts });
+    expect(html).not.toContain("data-order-chip");
+    expect(html).toContain("ZK-2026-1234</code>");
+  });
+
+  it("a plain body keeps the markup it always had (one paragraph, pre-wrap, mention tint)", () => {
+    const html = draw(makeMessage({ mentions: ["u1"], body: "تمام يا @ليلى" }), { mentionNames: ["ليلى"] });
+    expect(html).toContain('<p class="whitespace-pre-wrap text-sm leading-relaxed">تمام يا <span data-mention');
+  });
+
+  it("with the switch off the body is the plain text it is, markers and all (the bubble body, `formatting={false}`)", () => {
+    const message = makeMessage({ body: "**مهم** [x](https://example.com)" });
+    const on = renderToStaticMarkup(createElement(BubbleBody, { message, mentionNames: [], conversationId: "c1", orderChips: false }));
+    const off = renderToStaticMarkup(createElement(BubbleBody, { message, mentionNames: [], conversationId: "c1", orderChips: false, formatting: false }));
+    expect(on).toContain("<strong>");
+    expect(off).not.toContain("<strong>");
+    expect(off).not.toContain("<a ");
+    expect(off).toContain("**مهم** [x](https://example.com)");
+  });
+
+  it("a deleted message shows the deleted line and nothing of its words", () => {
+    const html = draw(makeMessage({ deleted: true, body: null }));
+    expect(html).not.toContain("<strong>");
   });
 });

@@ -180,3 +180,10 @@ controls are not drawn, data already made stays.
 - Every new route: zod, `withApi`, a policy check, a DB test including a refusal case, a privacy-matrix row.
 - Strings in `src/lib/i18n/ar.chat-features.json`; no Latin on screen.
 - The C2 acceptance checks still pass.
+
+## Built notes
+
+### C3b.1 Text formatting (`feat/chat-formatting`, `pr/C3b-1.md`)
+- Built: `src/lib/chat/format/` (`parse.ts` blocks and inline tokens + `stripFormatting`, `links.ts` the link tokenizer C3b.2 reuses, `math.ts`, `render.tsx`), the new bubble body, the composer's selection toolbar and shortcuts, and the stripping in the list row, push, search snippet, `buildChatPrompt`, translate and the digest. No schema.
+- Decision: the chat has no underline marker, so Ctrl+U is bound to the spoiler (`||`). Say if it should be left unbound.
+- Not wired by this package (files of other packages): the `chatFormatting` switch reaches `BubbleBody` (`formatting`) and `ComposerSurface` (`formatting`) as optional props that default to ON; `ConversationDto` + `topics.ts` + `message-bubble.tsx` + `composer-host.tsx` still have to pass it. Details in `pr/C3b-1.md`.

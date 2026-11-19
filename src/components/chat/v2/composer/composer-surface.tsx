@@ -7,11 +7,13 @@ import { CustomerHint } from "@/components/chat/v2/bubble/bubble-extras";
 import { AttachMenu } from "@/components/chat/v2/composer/attach-menu";
 import { EmojiPopover } from "@/components/chat/v2/composer/emoji-panel";
 import { FileTray } from "@/components/chat/v2/composer/file-tray";
+import { FormatToolbar } from "@/components/chat/v2/composer/format-toolbar";
 import { MentionList } from "@/components/chat/v2/composer/mention-list";
 import { RecordBar } from "@/components/chat/v2/composer/record-bar";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
 import { ct } from "@/lib/chat/text";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
+import { applyFormat, formatActionOf, type FormatAction } from "@/lib/chat/v2/composer/format-keys";
 import type { ComposerEngine } from "@/lib/chat/v2/composer/use-composer";
 
 /** What the surface reads of the engine (a test builds one by hand). */
@@ -32,6 +34,8 @@ export interface SurfaceProps {
   onCancelEdit: () => void;
   recents: string[];
   onEmoji: (emoji: string) => void;
+  /** the company's switch `chatFormatting` (C3b.1; absent: on): off, no toolbar over the selection and no formatting shortcut */
+  formatting?: boolean;
 }
 
 /**
@@ -39,9 +43,12 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancelEdit, recents, onEmoji }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   const closeEmoji = React.useCallback(() => setEmojiOpen(false), []);
+  // C3b.1: words selected in the box show the formatting bar; an action (a press on it, or Ctrl+B ...) rewrites the text and puts the selection back on the same words
+  const [selected, setSelected] = React.useState(false);
+  const pendingSelection = React.useRef<{ start: number; end: number } | null>(null);
   // the box grows with its words up to ten lines (its max-height), then scrolls
   const { body, textRef } = c;
   React.useEffect(() => {
@@ -50,6 +57,35 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
   }, [body, textRef]);
+  React.useEffect(() => {
+    const el = textRef.current;
+    const wanted = pendingSelection.current;
+    if (!el || !wanted) return;
+    pendingSelection.current = null;
+    el.setSelectionRange(wanted.start, wanted.end);
+    setSelected(wanted.end > wanted.start);
+  }, [body, textRef]);
+  const applyAction = (action: FormatAction) => {
+    const el = textRef.current;
+    if (!el) return;
+    const edit = applyFormat(el.value, el.selectionStart ?? 0, el.selectionEnd ?? 0, action);
+    pendingSelection.current = { start: edit.start, end: edit.end };
+    c.onTextChange(edit.value);
+    el.focus();
+  };
+  const onBoxKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    const action = formatting
+      ? formatActionOf({ key: event.key, code: event.code, ctrlKey: event.ctrlKey, metaKey: event.metaKey, shiftKey: event.shiftKey, altKey: event.altKey, isComposing: event.nativeEvent.isComposing })
+      : null;
+    if (action) {
+      // Ctrl+K here is the link; the app's palette (a window listener) never sees it while the box has the focus
+      event.preventDefault();
+      event.stopPropagation();
+      applyAction(action);
+      return;
+    }
+    c.onKeyDown(event);
+  };
   if (c.voice.mode !== "idle") {
     const voice = c.voice;
     return <RecordBar voice={voice} error={c.error} onCancel={c.cancelRecording} onSend={() => void c.sendVoice(voice.mode === "review" ? voice.take : null)} />;
@@ -61,6 +97,7 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
       <MentionList choices={c.choices} pickAt={c.pickAt} onHover={c.setPick} onChoose={c.selectMention} />
       <div className="relative flex min-w-0 items-end gap-1.5 sm:gap-2">
+        {formatting && selected ? <FormatToolbar onAction={applyAction} /> : null}
         <EmojiPopover
           open={emojiOpen}
           onClose={closeEmoji}
@@ -83,7 +120,9 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
           rows={1}
           value={c.body}
           onChange={(event) => c.onTextChange(event.currentTarget.value)}
-          onKeyDown={c.onKeyDown}
+          onKeyDown={onBoxKeyDown}
+          onSelect={(event) => setSelected(event.currentTarget.selectionStart !== event.currentTarget.selectionEnd)}
+          onBlur={() => setSelected(false)}
           onPaste={c.onPaste}
           role="combobox"
           aria-expanded={c.choices.length > 0}

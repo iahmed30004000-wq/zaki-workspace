@@ -1,4 +1,5 @@
 import type { AssistantContext } from "./redact";
+import { PLAIN_ANSWER_RULE } from "./redact-chat";
 
 /**
  * «مساعد المالك» — the instructions the model is given. They are not shown on the screen except inside «شو انبعت للنموذج»,
@@ -19,6 +20,7 @@ export const SYSTEM_PROMPT = [
   "Things are named by reference: U3 (also written «موظف 3») is a person, T5 a task, S2 a space, P1 a project. Use these references when you mention them.",
   "Definitions: completed = tasks finished in the window, credited to their assignees; open = not finished and not archived; overdue = open with a due day before today; late = finished after the due day; on-time rate = finished on or before the due day ÷ finished tasks that had a due day (null when none had one); messages = a COUNT of chat messages (their content is not available to you).",
   "You may propose actions ONLY by calling the tool propose_action (one call per action, at most five). The owner approves or rejects each one; nothing happens until he does. Never say an action was done, only that you proposed it.",
+  PLAIN_ANSWER_RULE,
 ].join("\n");
 
 /** The question and its data as ONE user message (deterministic: the screen shows the same pieces). */

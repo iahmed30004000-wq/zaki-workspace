@@ -8,6 +8,7 @@ import { AiProviderError } from "@/server/ai/provider";
 import { LOCAL_MAX_OUTPUT_TOKENS, LOCAL_WINDOW } from "@/server/ai/local-transport";
 import { makeProvider } from "@/server/ai/registry";
 import { capText, redactTitle } from "@/server/ai/redact";
+import { cleanMath } from "@/lib/chat/format/math";
 import { PROPOSE_TOOL } from "@/server/ai/actions";
 import { CHAT_MAX_OUTPUT_TOKENS, CHAT_PROPOSE_PROMPT, CHAT_SYSTEM_PROMPT, CHAT_TOPICS_PROMPT, CHAT_WORK_PROMPT, REPLY_MAX_CHARS, buildChatPrompt, type ChatRow } from "@/server/ai/redact-chat";
 import { systemMessage } from "@/server/chat/system";
@@ -411,7 +412,8 @@ export async function answerMention(input: { orgId: string; conversationId: stri
     }
 
     // 9. the line
-    let text = capText(completion.text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), REPLY_MAX_CHARS) || (AR["chatai.reply_empty"] ?? "");
+    // C3b.1: the model is told to write plain text; any math markup it printed anyway is stored as plain characters (the line is drawn as text, by both screens)
+    let text = capText(cleanMath(completion.text).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, " ").trim(), REPLY_MAX_CHARS) || (AR["chatai.reply_empty"] ?? "");
     // the owner's own conversation: «موظف 2» / T5 are put back as the names and titles they stand for (it is his line, nobody else's)
     let props: string[] = [];
     if (work?.canPropose && Object.keys(work.refs).length > 0) {

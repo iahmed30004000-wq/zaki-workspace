@@ -1,3 +1,4 @@
+import { stripFormatting } from "@/lib/chat/format/parse";
 import { ct, ctCount } from "@/lib/chat/text";
 import { dayDiff, weekdayName } from "@/lib/format";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
@@ -32,7 +33,11 @@ export interface RowPreview {
   text: string;
 }
 
-const squash = (text: string, max = 140): string => text.replace(/\s+/g, " ").trim().slice(0, max);
+/**
+ * One line of words. C3b.1: the formatting markers are removed BEFORE the cut (`**`, `~~`, a link's `[label](address)`; a spoiler becomes «•••»; leftover math
+ * markup becomes plain characters; the server cut the preview at 140 characters, so a marker still open at its end is closed there: `partial`). A system sentence is not formatting, so it passes `format = false`.
+ */
+const squash = (text: string, max = 140, format = true): string => (format ? stripFormatting(text, { math: true, partial: true }) : text).replace(/\s+/g, " ").trim().slice(0, max);
 
 /** «عم يكتب…» for a private chat; «فلان عم يكتب…» in a topic, a group or a space (two people: both names). */
 export function typingText(names: readonly string[], row: Pick<ChatRowDto, "kind">): string {
@@ -52,7 +57,7 @@ export function rowPreview(row: ChatRowDto, extra: { typingNames?: readonly stri
   const last = row.lastMessage;
   if (!last) return { tone: "empty", author: null, text: ct(row.kind === "DM" ? "chath.start" : "chath.no_messages") };
   // a system line is a sentence of its own («فلان ثبّت رسالة»): no author in front of it
-  if (last.kind === "SYSTEM") return { tone: "text", author: null, text: squash(last.preview ?? "") };
+  if (last.kind === "SYSTEM") return { tone: "text", author: null, text: squash(last.preview ?? "", 140, false) };
   const author = row.kind === "DM" ? null : last.mine ? ct("chatui.row.you") : last.authorName || null;
   // the server sends `null` for a deleted message of ANY kind (the body column is never null, so a live voice note has an empty preview, not a null one):
   // a deleted voice note, poll or card says «رسالة محذوفة» and nothing of what it was
