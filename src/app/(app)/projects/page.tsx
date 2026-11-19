@@ -104,7 +104,10 @@ export default async function ProjectsPage({
               </span>
               <div className="min-w-0 flex-1">
                 <p className="font-medium text-fg">{p.name === t("instant.project") ? t("work.inbox.name") : p.name}</p>
-                <p className="mt-0.5 text-xs text-fg-muted">{t("work.inbox.hint")}</p>
+                <p className="mt-0.5 text-xs text-fg-muted">
+                  {t("work.inbox.hint")}
+                  {inboxes.length > 1 ? ` · ${p.workspace.name}` : ""}
+                </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <Badge>{t("work.inbox.pinned")}</Badge>

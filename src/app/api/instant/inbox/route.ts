@@ -2,11 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ForbiddenError, requireWorkspace } from "@/server/auth";
 import { withApi } from "@/server/api";
-import { parseJson } from "@/server/validation";
+import { parse, parseJson } from "@/server/validation";
 import { activeOrgCtx } from "@/server/services/integrations";
 import { currentSpace } from "@/server/services/current-space";
 import { assertFeatureOn } from "@/server/services/features";
-import { createInboxTask, inboxSpaceFor } from "@/server/services/instant-work";
+import { createInboxTask, inboxInfo, inboxSpaceFor } from "@/server/services/instant-work";
 import { orgTimeZone } from "@/server/services/org-day";
 import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 
@@ -47,5 +47,19 @@ export async function POST(req: Request) {
       dueDate,
     });
     return NextResponse.json({ task, space }, { status: 201 });
+  });
+}
+
+/**
+ * GET `?workspaceId=`: the inbox project's id in that space once it exists (null before the first quick task), so a picker of projects (the
+ * dialog of «اعمل منها مهمة») can leave it out of its list by id and offer «صندوق المهام» once. A read: nothing is made. Switch off: 404.
+ */
+export async function GET(req: Request) {
+  return withApi(async () => {
+    const { workspaceId } = parse(z.object({ workspaceId: z.string().min(1) }), Object.fromEntries(new URL(req.url).searchParams));
+    const ctx = await requireWorkspace(workspaceId, ["ADMIN", "MEMBER"]);
+    await assertFeatureOn(ctx.orgId, "workInbox");
+    const info = await inboxInfo({ userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole }, workspaceId);
+    return NextResponse.json({ projectId: info.projectId });
   });
 }

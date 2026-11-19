@@ -197,6 +197,34 @@ describe("«الشركة» holds none (D-N3)", () => {
   });
 });
 
+describe("where a quick task goes, read first", () => {
+  it("GET /api/instant/inbox?workspaceId= tells the inbox project's id (null before the first task), reads only, and is a 404 with the switch off", async () => {
+    const w = await world();
+    await loginAs(w.member.id);
+    const ask = () => call(inboxRoute.GET, { url: `http://localhost/api/instant/inbox?workspaceId=${w.ws.id}` });
+    expect((await ask()).json).toEqual({ projectId: null });
+    expect(await inboxOf(w.ws.id)).toBeNull(); // asking made nothing
+    await quick({ title: "أول" });
+    expect((await ask()).json).toEqual({ projectId: (await inboxOf(w.ws.id))!.id });
+    await db.organization.update({ where: { id: w.org.id }, data: { settings: { features: { workInbox: false } } } });
+    expect((await ask()).status).toBe(404);
+  });
+
+  it("a space where the person is only a guest is not where their quick task goes: the first space they may work in is", async () => {
+    const w = await world();
+    const gamma = await makeWorkspace(w.org.id, [{ userId: w.guest.id }, { userId: w.member.id, role: "GUEST" }], "Aaa guest-only");
+    const beta = await makeWorkspace(w.org.id, [{ userId: w.member.id }], "Zzz mine");
+    jar().set(SPACE_COOKIE, gamma.id);
+    await loginAs(w.member.id);
+    const res = await quick({ title: "من مساحة ضيف" });
+    expect(res.status).toBe(201);
+    const workspaceId = (await db.task.findUniqueOrThrow({ where: { id: (res.json?.["task"] as { id: string }).id } })).workspaceId;
+    expect([w.ws.id, beta.id]).toContain(workspaceId);
+    expect(workspaceId).not.toBe(gamma.id);
+    expect(await db.project.count({ where: { workspaceId: gamma.id } })).toBe(0);
+  });
+});
+
 describe("«المشاريع» pins the inbox on top and never lists it twice", () => {
   it("the inbox card is drawn once, before the ordinary cards, with its own marker; with the switch off it is an ordinary card as before", async () => {
     const w = await world();
@@ -255,6 +283,17 @@ describe("«اعمل منها مهمة» without a chosen project lands in the i
     expect(task.project.systemKey).toBe(INSTANT_PROJECT_KEY);
     expect(task.column.position).toBe(1);
     expect(task.sourceMessageId).toBe(msg);
+  });
+
+  it("a task from an open topic that is given to somebody is «المعنيين بس» in the inbox; with nobody it follows the space's rule", async () => {
+    const w = await chatWorld();
+    const msg = await w.say(w.a.id, w.open.id, "وزّعها");
+    await loginAs(w.a.id);
+    const ctx = await requireWorkspace(w.ws.id, ["ADMIN", "MEMBER"]);
+    const held = await messageToTask(ctx, ctx, msg, { workspaceId: w.ws.id, assigneeId: w.b.id });
+    expect((await db.task.findUniqueOrThrow({ where: { id: held.taskId } })).visibility).toBe("PARTICIPANTS");
+    const open = await messageToTask(ctx, ctx, msg, { workspaceId: w.ws.id });
+    expect((await db.task.findUniqueOrThrow({ where: { id: open.taskId } })).visibility).toBe("SPACE");
   });
 
   it("the route with the inbox reference: a DM stays «المعنيين بس» and «المساحة كلها» still needs confirmPublic", async () => {

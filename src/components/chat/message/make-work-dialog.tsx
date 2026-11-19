@@ -48,8 +48,8 @@ export function MakeWorkDialog({
   privateSource?: boolean;
 }) {
   const [title, setTitle] = useState("");
-  // null: not known yet; true: the inbox is on for this company (`GET /api/instant`)
-  const [inboxOn, setInboxOn] = useState<boolean | null>(null);
+  // the inbox is on for this company (`GET /api/instant/inbox` answers; it answers «not found» while the switch is off)
+  const [inboxOn, setInboxOn] = useState(false);
   const [spaces, setSpaces] = useState<Space[] | null>(null);
   const [spaceId, setSpaceId] = useState("");
   const [projects, setProjects] = useState<Option[] | null>(null);
@@ -74,10 +74,6 @@ export function MakeWorkDialog({
     setMakePublic(false);
     let alive = true;
     if (kind === "task") {
-      getJson<{ inbox?: unknown }>("/api/instant").then(
-        (data) => alive && setInboxOn(data.inbox != null),
-        () => alive && setInboxOn(false),
-      );
       getJson<{ currentSpaceId: string | null; organizations: { workspaces: Space[] }[] }>("/api/workspaces")
         .then((data) => {
           if (!alive) return;
@@ -104,21 +100,28 @@ export function MakeWorkDialog({
   useEffect(() => {
     setProjects(null);
     setProjectId("");
-    if (!spaceId || inboxOn === null) return;
+    setInboxOn(false);
+    if (!spaceId) return;
     let alive = true;
-    getJson<{ projects: Option[] }>(`/api/projects?workspaceId=${encodeURIComponent(spaceId)}`)
-      .then((data) => {
+    const at = encodeURIComponent(spaceId);
+    Promise.all([
+      getJson<{ projects: Option[] }>(`/api/projects?workspaceId=${at}`),
+      // the inbox project's id (null before the first quick task), or a refusal: the switch is off and the list is as it was
+      getJson<{ projectId: string | null }>(`/api/instant/inbox?workspaceId=${at}`).catch(() => null),
+    ])
+      .then(([data, inbox]) => {
         if (!alive) return;
-        // the inbox is its own first choice: its project (still named as the old default, or the new one) is not listed again
-        const list = inboxOn ? data.projects.filter((p) => p.name !== ct("work.inbox.name") && p.name !== ct("instant.project")) : data.projects;
+        // the inbox is its own first choice: its project is not listed again
+        const list = inbox ? data.projects.filter((p) => p.id !== inbox.projectId) : data.projects;
+        setInboxOn(inbox !== null);
         setProjects(list);
-        setProjectId(inboxOn ? WORK_INBOX_REF : (list[0]?.id ?? ""));
+        setProjectId(inbox ? WORK_INBOX_REF : (list[0]?.id ?? ""));
       })
       .catch(() => alive && setProjects([]));
     return () => {
       alive = false;
     };
-  }, [spaceId, inboxOn]);
+  }, [spaceId]);
   useEffect(() => {
     setBoards(null);
     setBoardId("");

@@ -24,11 +24,12 @@ export async function GET() {
     const ctx = await activeOrgCtx();
     const none = { task: false, ticket: false, space: null, people: [], inbox: null };
     if (ctx.orgRole === "GUEST") return NextResponse.json(none);
+    const [inboxOn, instantOn] = await Promise.all([isFeatureOn(ctx.orgId, "workInbox"), isFeatureOn(ctx.orgId, "instantWork")]);
+    if (!inboxOn && !instantOn) return NextResponse.json(none);
     const subject = { userId: ctx.userId, orgId: ctx.orgId, role: ctx.orgRole };
     const current = await currentSpace(subject);
-    const inboxOn = await isFeatureOn(ctx.orgId, "workInbox");
     const inbox = inboxOn ? await inboxInfo(subject, current?.id) : null;
-    if (!(await isFeatureOn(ctx.orgId, "instantWork"))) return NextResponse.json({ ...none, inbox });
+    if (!instantOn) return NextResponse.json({ ...none, inbox });
     const space = inbox ? inbox.space : current;
     if (!space) return NextResponse.json({ ...none, inbox });
     const [task, ticket, members] = await Promise.all([

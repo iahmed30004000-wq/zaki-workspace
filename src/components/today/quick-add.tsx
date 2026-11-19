@@ -27,20 +27,22 @@ function quickError(err: unknown, t: (key: string) => string): string {
  * Where a quick task goes (W1.2, switch `workInbox`): the answer of `GET /api/instant`. `undefined` is "not asked yet, ask"; null is
  * "off" (the old behaviour: the first project with a board). A test passes it as a prop, so nothing is fetched there.
  */
-function useWorkInbox(given: WorkInboxInfo | null | undefined): WorkInboxInfo | null {
-  const [fetched, setFetched] = useState<WorkInboxInfo | null>(null);
+function useWorkInbox(given: WorkInboxInfo | null | undefined): { inbox: WorkInboxInfo | null; known: boolean } {
+  const [fetched, setFetched] = useState<{ inbox: WorkInboxInfo | null } | null>(null);
   useEffect(() => {
     if (given !== undefined) return;
     let live = true;
+    // a failed answer is "off": the quick add keeps working the old way rather than not at all
     apiGet<{ inbox?: WorkInboxInfo | null }>("/api/instant").then(
-      (data) => live && setFetched(data.inbox ?? null),
-      () => undefined,
+      (data) => live && setFetched({ inbox: data.inbox ?? null }),
+      () => live && setFetched({ inbox: null }),
     );
     return () => {
       live = false;
     };
   }, [given]);
-  return given === undefined ? fetched : given;
+  // `known` is false only while the answer is on its way: nothing is sent then (a task typed in that moment would miss the inbox)
+  return given === undefined ? { inbox: fetched?.inbox ?? null, known: fetched !== null } : { inbox: given, known: true };
 }
 
 /**
@@ -76,7 +78,7 @@ export function TodayQuickAdd({
   const [pending, setPending] = useState(false);
   // «جديد» → «مهمّة» lands here with ?new=task
   useNewIntent("task", () => setOpen(true));
-  const inbox = useWorkInbox(given);
+  const { inbox, known } = useWorkInbox(given);
   const target = quickAdd.targets[0];
   const noSpace = inbox !== null && inbox.space === null;
   // the inbox takes the typing with no project at all; the old way needs a project with a board
@@ -84,7 +86,7 @@ export function TodayQuickAdd({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (pending || !canType) return;
+    if (pending || !canType || !known) return;
     let send: (() => Promise<unknown>) | null = null;
     if (inbox) {
       const made = quickInboxBody(quickAdd, { title, due: "today", timeZone });

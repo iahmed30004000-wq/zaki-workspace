@@ -58,8 +58,10 @@ async function instantBoard(workspaceId: string, inbox: boolean): Promise<{ proj
   }
   if (!project) throw new ForbiddenError("instant.unavailable");
   // the hidden project that still wears its old default name takes the inbox's name; a name somebody chose is kept
-  if (inbox && project.name === (AR["instant.project"] ?? "مهام فورية")) {
-    await db.project.update({ where: { id: project.id }, data: { name: AR["work.inbox.name"] ?? "صندوق المهام" } });
+  // (one conditional write: a rename made in between is never overwritten)
+  const oldName = AR["instant.project"] ?? "مهام فورية";
+  if (inbox && project.name === oldName) {
+    await db.project.updateMany({ where: { id: project.id, name: oldName }, data: { name: AR["work.inbox.name"] ?? "صندوق المهام" } });
   }
   let board = project.boards[0];
   if (!board || board.columns.length === 0) {
@@ -102,13 +104,14 @@ export interface InboxSpace {
 export async function inboxSpaceFor(who: SpaceSubject, spaceId: string | null | undefined): Promise<InboxSpace | null> {
   const spaces = await spacesOf(who);
   const here = spaces.find((s) => s.id === spaceId);
-  if (here && here.kind !== "HQ") return { id: here.id, name: here.name };
+  // the space the person is in, unless it is «الشركة» (no project there) or they may not add work in it (a guest of that space)
+  if (here && here.kind !== "HQ" && here.role !== "GUEST") return { id: here.id, name: here.name };
   if (spaceId && !here) return null;
   const first = spaces.find((s) => s.kind === "STANDARD" && s.layout === "STANDARD" && s.role !== "GUEST");
   return first ? { id: first.id, name: first.name } : null;
 }
 
-/** What the clients need to know: where a quick task would go (null: no space) and the inbox project's id once it exists. */
+/** What the clients need to know: where a quick task would go (null: no space) and the inbox project's id once it exists (a read: nothing is made). */
 export async function inboxInfo(who: SpaceSubject, spaceId: string | null | undefined): Promise<{ space: InboxSpace | null; projectId: string | null }> {
   const space = await inboxSpaceFor(who, spaceId);
   if (!space) return { space: null, projectId: null };

@@ -72,7 +72,7 @@ export async function messageToTask(
   messageId: string,
   input: {
     workspaceId: string;
-    /** Absent (or `WORK_INBOX_REF`): the space's «صندوق المهام». */
+    /** Absent (a service caller) or `WORK_INBOX_REF` (what the dialog sends: the route still wants both ids): the space's «صندوق المهام». */
     projectId?: string;
     boardId?: string;
     title?: string;
@@ -85,7 +85,7 @@ export async function messageToTask(
 ): Promise<{ taskId: string }> {
   const msg = await sourceOf(ctx, messageId);
   assertConfirmed(msg.privateSource, input.visibility === "SPACE", input.confirmPublic);
-  const visibility: TaskVisibility | undefined = msg.privateSource ? (input.visibility ?? "PARTICIPANTS") : input.visibility;
+  let visibility: TaskVisibility | undefined = msg.privateSource ? (input.visibility ?? "PARTICIPANTS") : input.visibility;
   let owner = actor;
   let where: { workspaceId: string; projectId: string; boardId: string; columnId?: string } = { workspaceId: input.workspaceId, projectId: input.projectId ?? "", boardId: input.boardId ?? "" };
   if (!input.projectId || input.projectId === WORK_INBOX_REF) {
@@ -94,6 +94,8 @@ export async function messageToTask(
     // «الشركة» holds no project: the inbox is the first standard space's, and the person's rights are checked there
     if (space.id !== input.workspaceId) owner = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
     const target = await inboxTarget(ctx, space.id);
+    // a task somebody holds, in the inbox everybody of the space opens, is «المعنيين بس» unless the person said otherwise (as a quick task is)
+    if (!visibility && input.assigneeId) visibility = "PARTICIPANTS";
     // «للتنفيذ», not the backlog
     where = { workspaceId: space.id, projectId: target.projectId, boardId: target.boardId, columnId: target.columnId };
   }
