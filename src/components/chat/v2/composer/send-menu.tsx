@@ -6,24 +6,31 @@ import { ct } from "@/lib/chat/text";
 import { SEND_HOLD_MS, sendHoldOpensMenu, type Point } from "@/lib/chat/v2/composer/hold-gesture";
 
 /**
- * C3c.2 — the menu of the SEND button: right-click on the computer, a long press on a phone. Today it has one item, «ابعت بدون صوت»; C3c.3 adds «جدول الإرسال»
- * by adding its id to `SEND_MENU_ITEMS`, a line to `sendMenuItemsOf` (when it is offered) and a label to `labelOf` — nothing else in this file changes.
+ * C3c.2 — the menu of the SEND button: right-click on the computer, a long press on a phone. Two items: «ابعت بدون صوت» (C3c.2) and «جدول الإرسال» (C3c.3, offered only while the
+ * company's `chatScheduled` switch is on and the person may write here: `scheduling`). `SEND_MENU_ITEMS` stays C3c.2's list (a test pins it); the schedule item is added by
+ * `sendMenuItemsOf` after it, and has its label in `labelOf`.
  *
  * The button itself is NOT a menu trigger: a plain click and Enter still send. The menu is opened by the gesture (a controlled `open`) and is anchored on an
  * invisible span laid over the button.
  */
-export type SendMenuItemId = "silent";
+export type SendMenuItemId = "silent" | "schedule";
 
-/** Every item the menu can have, in the order it shows them. */
+/** The items of the send itself (C3c.2), in the order the menu shows them; «جدول الإرسال» comes after them (`SCHEDULE_MENU_ITEM`). */
 export const SEND_MENU_ITEMS: readonly SendMenuItemId[] = ["silent"];
+/** C3c.3: the id of «جدول الإرسال» on the menu. */
+export const SCHEDULE_MENU_ITEM: SendMenuItemId = "schedule";
 
-/** Which items the menu offers now: none while an edit is saved or there is nothing to send; «ابعت بدون صوت» only with the company's switch on. Pure. */
-export function sendMenuItemsOf(s: { silentSend: boolean; editing: boolean; canSubmit: boolean }): SendMenuItemId[] {
+/**
+ * Which items the menu offers now: none while an edit is saved or there is nothing to send; «ابعت بدون صوت» only with the company's switch on; «جدول الإرسال» only when
+ * `scheduling` (the switch `chatScheduled` is on and the person may write here: the scheduled list answered). Pure.
+ */
+export function sendMenuItemsOf(s: { silentSend: boolean; editing: boolean; canSubmit: boolean; scheduling?: boolean }): SendMenuItemId[] {
   if (s.editing || !s.canSubmit) return [];
-  return SEND_MENU_ITEMS.filter((id) => (id === "silent" ? s.silentSend : true));
+  const items = SEND_MENU_ITEMS.filter((id) => (id === "silent" ? s.silentSend : true));
+  return s.scheduling === true ? [...items, SCHEDULE_MENU_ITEM] : items;
 }
 
-const labelOf = (id: SendMenuItemId): string => (id === "silent" ? ct("chatsilent.menu.silent") : id);
+const labelOf = (id: SendMenuItemId): string => (id === "silent" ? ct("chatsilent.menu.silent") : ct("chatsched.menu.schedule"));
 
 export interface SendMenuProps {
   items: readonly SendMenuItemId[];

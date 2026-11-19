@@ -37,10 +37,10 @@ describe("the old composer is untouched (the old screen and the quick chat)", ()
 });
 
 describe("the new composer adds no door", () => {
-  it("the only addresses it names are the old composer's: the upload, a message's own edit, and the send path", () => {
+  it("the only addresses it names are the old composer's (the upload, a message's own edit, the send path) and the scheduled-message doors of C3c.3 (the conversation's own list, one row's edit, send-now and delete)", () => {
     const doors = new Set<string>();
     for (const file of composerFiles) for (const m of read(file).matchAll(/["'`](\/api\/[^"'`${]*)/g)) doors.add(m[1]!.replace(/\/$/, ""));
-    expect([...doors].sort()).toEqual(["/api/chat/messages", "/api/chat/uploads"]);
+    expect([...doors].sort()).toEqual(["/api/chat/conversations", "/api/chat/messages", "/api/chat/scheduled", "/api/chat/uploads"]);
     // the send itself goes through the existing helper, never a hand-made fetch of the messages door
     expect(engine).toContain("postChatMessage(");
     expect(engine).not.toMatch(/fetch\(`?["']?\/api\/chat\/conversations/);

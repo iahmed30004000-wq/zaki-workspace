@@ -128,16 +128,16 @@ ONE shared done-state each.
       the badge still count). «ابعت بدون صوت» on the send button's menu.
 
 ### C3c.3 Scheduled messages
-- [ ] New table `ScheduledChatMessage` (`id`, `orgId`, `conversationId`, `authorId`, `body`, `attachmentIds` JSON,
+- [x] New table `ScheduledChatMessage` (`id`, `orgId`, `conversationId`, `authorId`, `body`, `attachmentIds` JSON,
       `mentions` JSON, `replyToId?`, `silent`, `sendAt`, `status` PENDING|SENT|FAILED|CANCELLED, `messageId?`,
       `clientId` unique per author, `createdAt`). A separate table on purpose: a future message inside `ChatMessage` would
       need a "not yet" filter in every reader (≈ 60 queries) and one forgotten filter is a leak.
-- [ ] A job in `src/server/jobs/` (the in-app runner, every 30 s, idempotent by `clientId`) sends due rows through
+- [x] A job in `src/server/jobs/` (the in-app runner, every 30 s, idempotent by `clientId`) sends due rows through
       the normal `sendMessage` service AS the author, re-checking `canPost` at send time (a person who lost access sends
       nothing: FAILED, and they are told in a system note to themselves).
-- [ ] UI: «جدول الإرسال» (date + time picker, ≥ 1 minute, ≤ 365 days), a calendar icon in the composer when the
+- [x] UI: «جدول الإرسال» (date + time picker, ≥ 1 minute, ≤ 365 days), a calendar icon in the composer when the
       conversation has scheduled messages → list with «ابعت هلّق» / «عدّل» / «احذف».
-- [ ] Tests: DB (send at time, permission re-check, cancel), job idempotency.
+- [x] Tests: DB (send at time, permission re-check, cancel), job idempotency.
 
 ### C3c.4 Channels («قناة»)
 - [ ] No schema change: a topic of type ANNOUNCEMENTS with posting «للمشرفين» shows the megaphone icon and the word
@@ -214,3 +214,8 @@ controls are not drawn, data already made stays.
 - Built: `ChatMessage.silent` (one additive migration), `sendSchema.silent` (honoured only while `chatSilentSend` is on), `notify.ts` (`silent`: no bell row, no push, a mention included; unread counts and the mention list come from the message rows and are untouched), `MessageDto.silent` + `arrivalSoundOf` (no arrival sound), the flag carried by the optimistic send, the outbox (kept through a reload and every retry) and the request, `send-menu.tsx` (right-click, long press; one item now, built so C3c.3's «جدول الإرسال» is one id and one line), `useComposer.submitSilent`.
 - Hot spot: `notify.ts` is also edited by C3b.1, C4.1 and M1a. This package adds ONE option (`silent`) and ONE early return at the top of `notifyMessageToAudience`; nothing else in the file moves.
 - Not wired by this package (files of other packages): `redact.ts` (`presentMessage`) must set `dto.silent = true` for a row with `silent` and `MessageRow` must carry `silent?: boolean` (the answer to the SENDER is already marked by `messages.ts`; every other reader goes through `presentMessage`, so the other screen's sound rule cannot see it until then); `topics.ts` must set `silentSend` on the conversation header next to `chatOutbox` (`isFeatureOn(ctx.orgId, "chatSilentSend")`), or the menu entry stays on when the switch is off (the server still ignores the flag then). Details in `pr/C3c.2.md`.
+
+### C3c.3 Scheduled messages (`feat/chat-scheduled`, `pr/C3c.3.md`)
+- Built: the table `ScheduledChatMessage` + its status enum (one additive migration; the extra columns `noPreview` and `failReason` beside the spec's list), `src/server/chat/scheduled.ts` (the author's own list / create / edit / cancel / send-now, and `deliverScheduled`: the claim with `FOR UPDATE SKIP LOCKED`, the normal `sendMessage` AS the author with the clientId `sch:<id>`, the permission re-check, FAILED + a bell note), `src/server/jobs/chat-scheduled.ts` (called FIRST in the scheduler's locked tick, so it runs in the worker with `JOBS_IN_WORKER=1`), the routes `GET/POST /api/chat/conversations/[id]/scheduled`, `PATCH/DELETE /api/chat/scheduled/[id]`, `POST /api/chat/scheduled/[id]/send`, the send menu's «جدول الإرسال», the dialog (date + time in the company's zone), the list with «ابعت هلّق» / «عدّل» / «احذف» and the calendar icon. Switch `chatScheduled` (ON).
+- Decisions: a row more than a day late when the job reaches it is FAILED (not sent) and its author is told; the words of a sent or cancelled row are blanked; a message with files must go out within 24 hours of the upload (the 24-hour orphan purge and the claim window; `attachments.ts` is not this package's); finished rows are removed after 30 days.
+- Not wired by this package (files of other packages): `tests/chat-v2-composer-seam.test.ts` pins the composer's doors to the old three and now needs `/api/chat/conversations` and `/api/chat/scheduled` in its list (details in `pr/C3c.3.md`); the conversation header could carry the switch and the number of waiting rows so the composer needs no request of its own.

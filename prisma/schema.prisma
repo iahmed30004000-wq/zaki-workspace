@@ -81,6 +81,7 @@ model User {
   chatMemberships ConversationMember[] @relation("ChatMember")
   chatMessages    ChatMessage[]        @relation("ChatAuthor")
   chatDeletions   ChatMessage[]        @relation("ChatDeleter")
+  scheduledChat   ScheduledChatMessage[] @relation("ScheduledChatAuthor")
   chatReactions   ChatReaction[]
   pollVotes       PollVote[]
   chatOrders      UserChatOrder[]
@@ -468,6 +469,8 @@ model Conversation {
   whiteboard   Whiteboard?
   calls        Call[]
   watch        WatchSession?
+  // «جدول الإرسال» (C3c.3): the scheduled messages written for this conversation (a separate table on purpose: never read by a message reader)
+  scheduledMessages ScheduledChatMessage[]
   // «بحث بالمعنى»: the vectors of this topic's messages (src/server/services/search-embed-index.ts)
   searchEmbeddings SearchEmbedding[]
 
@@ -589,6 +592,52 @@ model LinkPreview {
   messages     ChatMessage[]
 
   @@index([orgId])
+}
+
+// «جدول الإرسال» (C3c.3, src/server/chat/scheduled.ts, src/server/jobs/chat-scheduled.ts): a message its author wrote now and wants sent later. A table of its own ON PURPOSE: a
+// future-dated row inside ChatMessage would need a «not yet» filter in every reader of messages (about sixty queries), and one forgotten filter is a leak. Nothing of this table is read
+// by any message reader (the list, the window, sync, search, the archive, the digest): ONLY its author sees their own rows, through the routes of scheduled.ts. At its time the job sends
+// the row through the normal `sendMessage` AS the author (it checks canPost and canRead again at that moment) with the clientId `sch:<id>`, so a retry or a second run finds the same
+// message and never makes a second one. The text of a row that was sent or cancelled is blanked (it is kept only while it is waiting or failed). No foreign key to the message or to the
+// replied-to message on purpose (the row outlives both; a message hard-deleted later must not touch it).
+enum ScheduledChatStatus {
+  PENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
+model ScheduledChatMessage {
+  id             String              @id @default(cuid())
+  orgId          String
+  conversationId String
+  authorId       String
+  body           String
+  /// StoredFile ids the author uploaded (their own, not yet attached): a JSON array of strings
+  attachmentIds  Json                @default("[]")
+  /// the ids the author @mentioned (a JSON array of strings; «*» is «@الكل»)
+  mentions       Json                @default("[]")
+  replyToId      String?
+  silent         Boolean             @default(false)
+  /// the ✕ on the link's preview in the composer: the server never visits the link of this message
+  noPreview      Boolean             @default(false)
+  sendAt         DateTime
+  status         ScheduledChatStatus @default(PENDING)
+  /// the message it became (set when SENT)
+  messageId      String?
+  /// why it failed (a chat.e.* key), set when FAILED
+  failReason     String?
+  /// the author's idempotency key for MAKING the row: a retried request finds the same row
+  clientId       String
+  createdAt      DateTime            @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author       User         @relation("ScheduledChatAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@unique([authorId, clientId])
+  @@index([status, sendAt])
+  @@index([conversationId, authorId, status])
 }
 
 model ChatReaction {
@@ -910,6 +959,7 @@ model Organization {
   IntegrationEvent IntegrationEvent[]
   ChatMessage      ChatMessage[]
   linkPreviews     LinkPreview[]
+  scheduledChatMessages ScheduledChatMessage[]
   chatOrders       UserChatOrder[]
   files            StoredFile[]
   departments      Department[]

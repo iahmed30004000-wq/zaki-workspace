@@ -4,6 +4,7 @@ import { log } from "@/server/log";
 import { directPgUrl } from "@/server/realtime/listener";
 import { runDueJobs, type JobsRun } from "./run";
 import { runOmsDailyCard } from "./oms-daily-card";
+import { runChatScheduled } from "./chat-scheduled";
 
 /**
  * THE JOB RUNNER. Background work runs INSIDE the app process by default: `instrumentation.ts` starts this once per server
@@ -65,6 +66,12 @@ export async function tickJobs(now: Date = new Date()): Promise<JobsRun | null> 
     });
     // I1.1a: the daily numbers card of the orders system's events runs in the same tick, under the same lock (its own failure never fails the tick)
     const work = async (): Promise<JobsRun> => {
+      // C3c.3: the messages people scheduled go out FIRST (a slow job below must never make them late), under the same lock, and its failure never fails the tick
+      try {
+        await runChatScheduled(now);
+      } catch (err) {
+        log.error("jobs.failed", { job: "chatScheduled", message: err instanceof Error ? err.message : String(err) });
+      }
       const run = await runDueJobs(now);
       try {
         await runOmsDailyCard(now);

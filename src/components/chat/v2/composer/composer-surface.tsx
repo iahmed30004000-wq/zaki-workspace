@@ -10,6 +10,8 @@ import { FileTray } from "@/components/chat/v2/composer/file-tray";
 import { FormatToolbar } from "@/components/chat/v2/composer/format-toolbar";
 import { MentionList } from "@/components/chat/v2/composer/mention-list";
 import { RecordBar } from "@/components/chat/v2/composer/record-bar";
+import { ScheduledList } from "@/components/chat/v2/composer/scheduled-list";
+import { ScheduleDialog } from "@/components/chat/v2/composer/schedule-dialog";
 import { SendMenu, sendMenuItemsOf } from "@/components/chat/v2/composer/send-menu";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
 import { ct } from "@/lib/chat/text";
@@ -27,7 +29,9 @@ export type SurfaceEngine = Pick<
   | "setPollOpen" | "setRecall"
 > &
   /** C3c.2: «ابعت بدون صوت» (the send button's menu); an engine without them (a test's) draws no menu */
-  Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn">>;
+  Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn">> &
+  /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
+  Partial<Pick<ComposerEngine, "scheduling" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
 
 export interface SurfaceProps {
   c: SurfaceEngine;
@@ -115,8 +119,12 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
   }
   const mic = c.face === "mic";
   // C3c.2: the send button's menu (right-click, long press): only an engine that can send silently, only while the company's switch is on (absent: on)
-  const sendItems = c.submitSilent ? sendMenuItemsOf({ silentSend: c.silentSendOn !== false, editing: editing !== null, canSubmit: c.canSubmit }) : [];
+  // C3c.3: and «جدول الإرسال», only where the scheduled list said the person may write here (the company's switch on)
+  const sendItems = c.submitSilent || c.scheduling ? sendMenuItemsOf({ silentSend: c.submitSilent !== undefined && c.silentSendOn !== false, editing: editing !== null, canSubmit: c.canSubmit, scheduling: c.scheduling === true }) : [];
+  const scheduledCount = c.scheduledItems?.length ?? 0;
+  const dialogEdit = c.scheduleDialog?.edit ?? null;
   return (
+    <>
     <form onSubmit={c.submit} className="flex flex-col gap-2" data-composer-surface>
       <ReplyEditBar reply={reply} editing={editing} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} />
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
@@ -173,6 +181,13 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
           placeholder={ct("chatc.message")}
         />
         {!editing ? <AttachMenu items={attachItemsOf(me)} disabled={c.busy} onPick={(id) => (id === "media" ? c.mediaInput.current?.click() : id === "file" ? c.fileInput.current?.click() : c.setPollOpen(true))} /> : null}
+        {!editing && scheduledCount > 0 ? (
+          <Button type="button" variant="ghost" size="icon" data-sched-icon aria-label={ct("chatsched.icon", { n: scheduledCount })} title={ct("chatsched.icon", { n: scheduledCount })} onClick={() => c.setScheduledOpen?.(true)}>
+            <span aria-hidden="true" className="text-xl">
+              📅
+            </span>
+          </Button>
+        ) : null}
         {!editing && me.canRecall ? (
           <Button type="button" variant="ghost" size="icon" data-recall-button aria-label={ct("recall.menu")} title={ct("recall.menu")} onClick={() => c.setRecall({ kind: null, q: "" })}>
             <span aria-hidden="true" className="text-xl">
@@ -198,7 +213,7 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
             <span aria-hidden="true">🎤</span>
           </Button>
         ) : (
-          <SendMenu items={sendItems} onPick={(id) => (id === "silent" ? c.submitSilent?.() : undefined)}>
+          <SendMenu items={sendItems} onPick={(id) => (id === "silent" ? c.submitSilent?.() : id === "schedule" ? c.openScheduleDialog?.() : undefined)}>
             <Button type="submit" variant="primary" size="icon" data-composer-face={c.face} disabled={!c.canSubmit} aria-label={c.face === "save" ? ct("chatc.save") : c.busy ? ct("chatc.sending") : ct("chatc.send")}>
               <span aria-hidden="true">{c.busy ? "…" : c.face === "save" ? "✓" : "➤"}</span>
             </Button>
@@ -212,6 +227,36 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
         </p>
       ) : null}
       {c.error ? <p role="alert">{c.error}</p> : null}
+      {c.scheduleNotice ? (
+        <p role="status" className="text-xs text-fg-muted" data-sched-notice>
+          {c.scheduleNotice}
+        </p>
+      ) : null}
     </form>
+    {/* C3c.3: the two dialogs sit NEXT TO the form, not inside it: a dialog's own submit never reaches the composer's */}
+    {c.scheduleDialog && c.scheduleNow && c.saveScheduledEdit && c.closeScheduleDialog ? (
+      <ScheduleDialog
+        open
+        onClose={c.closeScheduleDialog}
+        timeZone={c.scheduledZone ?? "UTC"}
+        hasFiles={dialogEdit ? dialogEdit.attachmentIds.length > 0 : c.files.length > 0}
+        edit={dialogEdit ? { body: dialogEdit.body, sendAt: dialogEdit.sendAt } : null}
+        onSubmit={(input) => (dialogEdit ? c.saveScheduledEdit!(dialogEdit, input) : c.scheduleNow!(input))}
+      />
+    ) : null}
+    {c.scheduledOpen && c.setScheduledOpen && c.sendScheduledNow && c.beginEditScheduled && c.deleteScheduled ? (
+      <ScheduledList
+        open
+        onClose={() => c.setScheduledOpen?.(false)}
+        items={c.scheduledItems ?? []}
+        timeZone={c.scheduledZone ?? "UTC"}
+        busyId={c.scheduledBusy ?? null}
+        error={c.scheduledError ?? ""}
+        onSendNow={c.sendScheduledNow}
+        onEdit={c.beginEditScheduled}
+        onDelete={c.deleteScheduled}
+      />
+    ) : null}
+    </>
   );
 }
