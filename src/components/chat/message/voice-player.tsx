@@ -1,34 +1,71 @@
 "use client";
 import React from "react";
 import { AR } from "@/lib/i18n/dict";
+import { ct } from "@/lib/chat/text";
+import { nextVoiceSpeed, type VoiceSpeed } from "@/lib/chat/prefs";
+import { voiceEngine, voiceSpeedLabel } from "@/lib/chat/voice-queue";
 import { barsFor, formatDuration } from "@/lib/chat/waveform";
 
 const BARS = 32;
 
+interface View {
+  active: boolean;
+  playing: boolean;
+  at: number;
+  speed: VoiceSpeed;
+}
+
 /**
- * The voice note in a bubble: play / pause, the stored waveform (`peaks`) drawn as bars that fill as
- * it plays, and the time (the total until it starts, then what is left). The real `<audio>` stays in
- * the page for the browser's own controls of the media session; it is not shown.
+ * What ONE bubble reads of the shared engine. The object is kept while its fields do not change, so a bubble that is not the playing one is not drawn again
+ * on every tick of the playing one.
+ */
+function useVoiceView(src: string): View {
+  const last = React.useRef<View | null>(null);
+  const read = React.useCallback((): View => {
+    const s = voiceEngine.getSnapshot();
+    const active = s.activeSrc === src;
+    const next: View = { active, playing: active && s.playing, at: active ? s.at : 0, speed: s.speed };
+    const prev = last.current;
+    if (prev && prev.active === next.active && prev.playing === next.playing && prev.at === next.at && prev.speed === next.speed) return prev;
+    last.current = next;
+    return next;
+  }, [src]);
+  return React.useSyncExternalStore(voiceEngine.subscribe, read, read);
+}
+
+/**
+ * The voice note in a bubble: play / pause, the stored waveform (`peaks`) drawn as bars that fill as it plays, and the time (the total until it starts, then
+ * what is left). The sound plays through the shared engine (`voice-queue.ts`), which keeps ONE note
+ * playing at a time, goes on to the next unheard note of the conversation when one ends, and keeps the sound going when the list drops this bubble. The
+ * hidden `<audio>` here only reads the note's length.
+ *
+ * The speed chip («1×» → «1.5×» → «2×») shows while this note is the active one, and on every note once the person has picked a speed other than 1×; an
+ * idle note at 1× looks exactly as it always did. The old screen and the quick chat use this player too, and get the same behaviour without a queue.
  */
 export function VoicePlayer({ src, peaks = [], durationMs = 0 }: { src: string; peaks?: number[]; durationMs?: number }) {
- const audio = React.useRef<HTMLAudioElement | null>(null);
- const [playing, setPlaying] = React.useState(false);
- const [at, setAt] = React.useState(0); // 0..1
+ const root = React.useRef<HTMLDivElement | null>(null);
+ const view = useVoiceView(src);
  const [total, setTotal] = React.useState(durationMs);
  const bars = barsFor(peaks, BARS);
- const toggle = () => {
-  const el = audio.current;
-  if (!el) return;
-  if (el.paused) void el.play().catch(() => setPlaying(false));
-  else el.pause();
- };
+ React.useEffect(() => voiceEngine.attach(src), [src]);
+ React.useEffect(() => {
+  const box = root.current;
+  if (!box || typeof IntersectionObserver === "undefined") return;
+  const watch = new IntersectionObserver((entries) => {
+   const last = entries[entries.length - 1];
+   if (last) voiceEngine.setVisible(src, last.isIntersecting);
+  });
+  watch.observe(box);
+  return () => watch.disconnect();
+ }, [src]);
+ const { active, playing, at, speed } = view;
  const left = playing || at > 0 ? total * (1 - at) : total;
  const label = AR["chat.f.voice_label"] ?? "";
  return (
-  <div data-voice className="mt-1 flex min-w-48 items-center gap-2" role="group" aria-label={`${label} ${formatDuration(total)}`}>
+  <div ref={root} data-voice className="mt-1 flex min-w-48 items-center gap-2" role="group" aria-label={`${label} ${formatDuration(total)}`}>
    <button
     type="button"
-    onClick={toggle}
+    onClick={() => voiceEngine.toggle(src)}
     aria-label={playing ? AR["chat.f.pause"] : AR["chat.f.play"]}
     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-fg"
    >
@@ -44,16 +81,23 @@ export function VoicePlayer({ src, peaks = [], durationMs = 0 }: { src: string; 
     ))}
    </div>
    <span className="w-11 shrink-0 text-xs tabular-nums text-fg-muted" dir="ltr">{formatDuration(left)}</span>
+   {active || speed !== 1 ? (
+    <button
+     type="button"
+     data-voice-speed={speed}
+     onClick={() => voiceEngine.setSpeed(nextVoiceSpeed(speed))}
+     aria-label={ct("chatvoice.speed", { speed: voiceSpeedLabel(speed) })}
+     className="inline-flex min-h-8 min-w-10 shrink-0 items-center justify-center rounded-full border border-border px-2 text-xs font-semibold tabular-nums text-fg-muted hover:bg-surface-2"
+     dir="ltr"
+    >
+     {voiceSpeedLabel(speed)}
+    </button>
+   ) : null}
    <audio
-    ref={audio}
     src={src}
     preload="metadata"
     className="hidden"
-    onPlay={() => setPlaying(true)}
-    onPause={() => setPlaying(false)}
-    onEnded={() => { setPlaying(false); setAt(0); }}
     onLoadedMetadata={(e) => { const d = e.currentTarget.duration; if (Number.isFinite(d) && d > 0) setTotal(Math.round(d * 1000)); }}
-    onTimeUpdate={(e) => { const el = e.currentTarget; if (Number.isFinite(el.duration) && el.duration > 0) setAt(el.currentTime / el.duration); }}
    />
   </div>
  );

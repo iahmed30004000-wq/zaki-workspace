@@ -81,8 +81,8 @@
       videos with native controls. Uses `GET /api/chat/conversations/[id]/media` (C3d) for prev/next beyond the album.
 
 ### C3b.4 Voice notes
-- [ ] Speed 1× / 1.5× / 2× (persisted in prefs), continue to the next unheard voice note, a mini player bar under the
-      header while playing and scrolling away (Telegram).
+- [x] Speed 1× / 1.5× / 2× (persisted in prefs), continue to the next unheard voice note, a mini player bar under the
+      header while playing and scrolling away (Telegram). Built (`pr/C3b-4.md`): `voiceSpeed` of `User.chatPrefs` (the field C3a.2 reserved), `src/lib/chat/voice-queue.ts` (pure `nextUnheard` + the shared engine), `VoicePlayer` plays through the engine, `voice-mini-player.tsx` mounted in `conversation-pane.tsx`. «Heard» is per device and per session (the server keeps no heard mark).
 
 ### C3b.5 Multi-select and forwarding many
 - [ ] «حدّد» enters selection: checkboxes on bubbles, a top bar with the count and actions «حوّل · انسخ · احذف ·

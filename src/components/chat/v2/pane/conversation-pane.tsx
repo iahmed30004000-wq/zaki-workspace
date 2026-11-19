@@ -9,6 +9,7 @@ import { MessageViewport } from "@/components/chat/v2/pane/message-viewport";
 import { PaneActionsProvider, usePaneActions, usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { PaneHeader } from "@/components/chat/v2/pane/pane-header";
 import { PinnedBar } from "@/components/chat/v2/pane/pinned-bar";
+import { VoiceMiniPlayer } from "@/components/chat/v2/pane/voice-mini-player";
 import { ComposerHost } from "@/components/chat/v2/pane/seams/composer-host";
 import { InfoHost } from "@/components/chat/v2/pane/seams/info-host";
 import { MenuHost } from "@/components/chat/v2/pane/seams/menu-host";
@@ -93,6 +94,7 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
     <MenuHost header={header} members={people?.members ?? NO_MEMBERS}>
       <section dir="rtl" lang="ar" data-chat-pane-root data-pane-state="ready" className="relative flex h-full min-h-0 flex-col bg-surface" aria-label={header.title}>
         <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
+        <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} />
         <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
         <CallBar conversationId={header.id} enabled={header.calls !== false} />
         <SearchPanel conversationId={header.id} />
@@ -113,7 +115,7 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
  * already holds paints from it.
  *
  *   <section data-chat-pane-root class="relative">            the root: `relative`, so C2.5 can lay a drop overlay over it
- *     PaneHeader · PinnedBar · CallBar · search · banners
+ *     PaneHeader · VoiceMiniPlayer (C3b.4: only while a voice note plays and its bubble is out of sight) · PinnedBar · CallBar · search · banners
  *     MessageViewport                                          the virtual log, sticky date, jump buttons
  *     ComposerHost                                             a DIRECT child of the root (seam 2: C2.5's file afterwards)
  *     InfoHost                                                 nothing yet (seam 4: C2.7's file afterwards)

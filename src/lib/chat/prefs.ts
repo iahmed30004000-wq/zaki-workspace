@@ -31,6 +31,12 @@ export const VOICE_SPEEDS = [1, 1.5, 2] as const;
 export type VoiceSpeed = (typeof VOICE_SPEEDS)[number];
 export const DEFAULT_VOICE_SPEED: VoiceSpeed = 1;
 
+/** The speed button of a voice note: 1 → 1.5 → 2 → 1 (a value that is not in the list starts again at 1.5). */
+export function nextVoiceSpeed(current: VoiceSpeed): VoiceSpeed {
+  const at = VOICE_SPEEDS.indexOf(current);
+  return at < 0 ? VOICE_SPEEDS[1] : VOICE_SPEEDS[(at + 1) % VOICE_SPEEDS.length]!;
+}
+
 /** An id the code made (cuid, or a folder's id): plain characters, never starting with an underscore (so `__proto__` is no key). */
 const ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 const idSchema = z.string().regex(ID, "chatprefs.bad_id");

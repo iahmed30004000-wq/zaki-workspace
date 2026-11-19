@@ -79,5 +79,10 @@
   "chatprefs.name_empty": "اكتب اسم للمجلد",
   "chatprefs.too_many_folders": "ما بتقدر تعمل أكتر من 10 مجلدات",
   "chatprefs.too_many_chats": "المجلد بيشيل لحد 100 محادثة",
-  "chatprefs.too_many_spaces": "المجلد بيشيل لحد 50 مساحة"
+  "chatprefs.too_many_spaces": "المجلد بيشيل لحد 50 مساحة",
+  "chatvoice.speed": "سرعة التشغيل {speed}، اضغط للتغيير",
+  "chatvoice.mini": "الرسالة الصوتية الجارية",
+  "chatvoice.from": "رسالة صوتية من {name}",
+  "chatvoice.jump": "روح للرسالة الصوتية",
+  "chatvoice.stop": "إيقاف التشغيل"
 }
