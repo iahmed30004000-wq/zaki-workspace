@@ -133,7 +133,7 @@ function templateOf(
   return { template: { ...state, name: names.get(a.templateId) ?? state.name } };
 }
 
-const STATUS_ORDER: Record<MemberStatus, number> ={ ACTIVE: 0, SUSPENDED: 1, OFFBOARDED: 2 };
+const STATUS_ORDER: Record<MemberStatus, number> = { ACTIVE: 0, SUSPENDED: 1, OFFBOARDED: 2 };
 
 /**
  * Everybody in the caller's organization, every status: ACTIVE first, then SUSPENDED, then
