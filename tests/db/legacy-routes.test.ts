@@ -21,6 +21,7 @@ import ChatPage from "@/app/(app)/chat/page";
 import ChatForumPage from "@/app/(app)/chat/s/[spaceId]/page";
 import ChatConversationPage from "@/app/(app)/chat/[id]/page";
 import WhiteboardPage from "@/app/(app)/chat/[id]/whiteboard/page";
+import ChatInfoPage from "@/app/(app)/chat/[id]/info/page";
 import CallPage from "@/app/(app)/calls/[id]/page";
 import WatchPage from "@/app/(app)/watch/page";
 import WatchSessionPage from "@/app/(app)/watch/[id]/page";
@@ -125,7 +126,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -174,6 +175,7 @@ const PAGES: Record<string, PageCall> = {
   "/chat": () => ChatPage(),
   "/chat/[id]": (args) => ChatConversationPage({ params: idOf(args) }),
   "/chat/[id]/whiteboard": (args) => WhiteboardPage({ params: idOf(args) }),
+  "/chat/[id]/info": (args) => ChatInfoPage({ params: idOf(args) }),
   "/chat/s/[spaceId]": () => ChatForumPage(),
   "/calls/[id]": (args) => CallPage({ params: idOf(args) }),
   "/watch": () => WatchPage(),
@@ -409,6 +411,9 @@ function addressesOf(route: string, w: World): string[] {
     case "/chat/[id]":
       // a topic of the team's space, one of the space nobody is in, and one that is gone
       return [w.teamTopic.id, w.closedTopic.id, GONE].map((id) => `/chat/${id}`);
+    case "/chat/[id]/info":
+      // the phone's info screen: with the switch OFF it goes to the conversation, so the same three: a topic of the team's space, one nobody is in, one that is gone
+      return [w.teamTopic.id, w.closedTopic.id, GONE].map((id) => `/chat/${id}/info`);
     case "/chat/[id]/whiteboard":
       return [w.teamTopic.id, w.closedTopic.id, GONE].map((id) => `/chat/${id}/whiteboard`);
     case "/chat/s/[spaceId]":
