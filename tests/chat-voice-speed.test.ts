@@ -285,6 +285,28 @@ describe("the player's engine: one note at a time, and on to the next", () => {
     expect(engine.getSnapshot().note).toMatchObject({ authorName: "ليلى", messageId: "m1" });
   });
 
+  it("with no pane owning the queue (the old screen, the quick chat) the sound stops when the playing note's last bubble goes", () => {
+    const { engine, mount, el, notes } = setup(undefined, null);
+    const one = mount(notes[0]!.src);
+    const two = mount(notes[0]!.src);
+    engine.toggle(notes[0]!.src);
+    one();
+    expect(el().paused).toBe(false);
+    two();
+    expect(engine.getSnapshot().activeSrc).toBeNull();
+    expect(el().paused).toBe(true);
+  });
+
+  it("with no pane owning the queue, a bubble that is not the playing note leaving does not touch the sound", () => {
+    const { engine, mount, el, notes } = setup(undefined, null);
+    mount(notes[0]!.src);
+    const other = mount(notes[1]!.src);
+    engine.toggle(notes[0]!.src);
+    other();
+    expect(el().paused).toBe(false);
+    expect(engine.getSnapshot().activeSrc).toBe(notes[0]!.src);
+  });
+
   it("a note drawn twice counts as on the page while either bubble is", () => {
     const { engine, mount, notes } = setup();
     const one = mount(notes[0]!.src);

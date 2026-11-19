@@ -217,6 +217,11 @@ export function createVoiceEngine(options: VoiceEngineOptions = {}) {
         else {
           attached.delete(src);
           seen.delete(src);
+          // with no pane owning a queue (the old screen, the quick chat) nothing shows a bar for the note: the last bubble going takes the sound with it
+          if (state.activeSrc === src && queue.conversationId === null) {
+            stop();
+            return;
+          }
         }
         commit({});
       };
