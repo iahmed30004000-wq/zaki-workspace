@@ -12,7 +12,8 @@ import { applyNavOrder, hasOrder, withPlaceOrder, withTabOrder, type NavOrder } 
 import { holdsNoWork, tabIsDrawn } from "@/lib/nav/shell-v2";
 import { useOptionalToast } from "@/components/ui/toast";
 import type { NewActionKey } from "@/lib/nav/new-actions";
-import type { AvatarUser } from "@/components/shell/avatar-menu";
+import { AvatarMenu, type AvatarUser } from "@/components/shell/avatar-menu";
+import { NotificationBell } from "@/components/notification-bell";
 import { AppBar } from "@/components/shell/app-bar";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { Drawer } from "@/components/shell/drawer";
@@ -27,6 +28,7 @@ import { TopBar } from "@/components/shell/top-bar";
 import { SwitchFxProvider } from "@/components/theme/switch-fx-provider";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/components/shell/sidebar-state";
 import { useChatUnread } from "@/lib/chat/use-chat-unread";
+import { FrameBridgeContext, type FrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
 
 /**
@@ -160,6 +162,20 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   // N1.2 — the phone's drawer: opened by «☰», closed by any navigation
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => setDrawerOpen(false), [pathname]);
+  // C2.8: the phone's chat list screen draws its own bar and asks the frame to open the drawer through this (only with the new menu: with it off there is no drawer, so no «☰»)
+  // (the frame's own top bar is hidden on those screens, so the bell, and the account menu where there is no drawer, ride along in `trailing`)
+  const bridge = useMemo<FrameBridge>(
+    () => ({
+      openDrawer: navV2 ? () => setDrawerOpen(true) : null,
+      trailing: (
+        <>
+          <NotificationBell />
+          {navV2 ? null : <AvatarMenu user={user} rank={rank} variant="bar" />}
+        </>
+      ),
+    }),
+    [navV2, user, rank],
+  );
   // «الإعدادات»: only where the person's map offers the page (as a tab or under «المزيد»)
   const settings = nav.places.flatMap((p) => [...p.tabs, ...(p.more ?? [])]).find((x) => x.key === "settings");
   // D-N3: «الشركة» keeps no projects, so somebody put only there has no work space. The shell's own spaces query answers once it has arrived; the server's guess first.
@@ -194,7 +210,9 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   };
 
   return (
-    <div className="relative flex h-dvh overflow-clip bg-surface">
+    <FrameBridgeContext.Provider value={bridge}>
+    {/* `group/frame` (C2.8): a page can ask the frame to hide its bars on a phone with `data-frame-bars` ("hide-top": the top bar; "hide-all": also the bottom bar and the people row), through `group-has-*` classes. Nothing here knows who asks (the chat's phone screens do). */}
+    <div className="group/frame relative flex h-dvh overflow-clip bg-surface">
       <a
         href="#zk-main"
         className="sr-only focus:not-sr-only focus:fixed focus:start-2 focus:top-2 focus:z-[100] focus:rounded-xl focus:bg-surface-1 focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-fg focus:shadow-lg"
@@ -246,6 +264,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
       )}
 
       <div className="flex min-w-0 flex-1 flex-col">
+        <div className="contents group-has-[[data-frame-bars]]/frame:max-md:hidden">
         {navV2 ? (
           <AppBar
             nav={nav}
@@ -271,6 +290,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             newActions={isGuest ? [] : newActions}
           />
         )}
+        </div>
         <PlaceTabs
           place={place}
           tab={tab}
@@ -295,7 +315,9 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             {noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : children}
           </main>
           {/* who is here and who is at their screen: its own 40px row above the phone's bar, so it covers no page (never for a guest) */}
-          <PeopleDock enabled={!isGuest && peopleDock} />
+          <div className="contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden">
+            <PeopleDock enabled={!isGuest && peopleDock} />
+          </div>
         </div>
       </div>
 
@@ -351,5 +373,6 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
       {!isGuest && quickChat ? <QuickChat enabled={!isGuest && quickChat && place?.key !== "chat"} /> : null}
       {!isGuest && siteGuide ? <SiteGuide enabled={!isGuest && siteGuide} /> : null}
     </div>
+    </FrameBridgeContext.Provider>
   );
 }

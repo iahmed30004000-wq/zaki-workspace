@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, type KeyboardEvent } from "react
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ListItem } from "@/lib/chat/list-folders";
 import { ct } from "@/lib/chat/text";
+import { useFlipRows } from "@/lib/chat/v2/phone/use-flip";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { ChatRowItem, ROW_HEIGHT, ROW_HEIGHT_PHONE, SECTION_HEIGHT } from "./chat-row";
 
@@ -55,6 +56,20 @@ export function VirtualRows({
     virtualizer.measure();
   }, [rowHeight, virtualizer]);
 
+  // C2.8: a row that moves (a new message sends its chat to the top) slides 150 ms to its place (FLIP) instead of jumping; nothing under reduced motion.
+  // The offsets of the rows drawn now are compared with the render before; a change of the row height (a screen that crosses the phone's width) slides nothing.
+  const virtualItems = virtualizer.getVirtualItems();
+  const starts = new Map<string | number, number>(virtualItems.map((virtual) => [virtual.key as string | number, virtual.start]));
+  useFlipRows(
+    starts,
+    // the element of a row that moved, found by its place in the window (only asked for the rows that moved)
+    (key) => {
+      const at = virtualItems.find((virtual) => virtual.key === key);
+      return at ? scrollRef.current?.querySelector<HTMLElement>(`[data-row-index="${at.index}"]`) : null;
+    },
+    rowHeight,
+  );
+
   // C2.6: a shortcut (Alt+↓) can open a chat that is outside the window: the selected row is brought into view, and only when it is not already
   useEffect(() => {
     if (!selectedId) return;
@@ -90,7 +105,7 @@ export function VirtualRows({
   return (
     <div ref={scrollRef} onKeyDown={onKeyDown} data-chat-rows="" className="min-h-0 flex-1 overflow-y-auto overscroll-contain" role="list" aria-label={label}>
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
-        {virtualizer.getVirtualItems().map((virtual) => {
+        {virtualItems.map((virtual) => {
           const item = items[virtual.index];
           if (!item) return null;
           return (

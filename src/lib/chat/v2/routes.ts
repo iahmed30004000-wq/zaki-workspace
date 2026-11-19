@@ -50,6 +50,8 @@ export const chatHref = {
   list: "/chat",
   forum: (spaceId: string): string => `/chat/s/${encodeURIComponent(spaceId)}`,
   conversation: (id: string): string => `/chat/${encodeURIComponent(id)}`,
+  /** C2.8: the phone's info screen of a conversation (a computer opens the side panel instead) */
+  info: (id: string): string => `/chat/${encodeURIComponent(id)}/info`,
 } as const;
 
 /**

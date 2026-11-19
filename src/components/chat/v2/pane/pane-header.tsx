@@ -23,6 +23,7 @@ import { headerMenuOf, subtitleOf, type HeaderMenuId } from "@/lib/chat/v2/pane/
 import { doors } from "@/lib/chat/v2/pane/message-actions";
 import { useTyping } from "@/lib/realtime/use-realtime";
 import { chatHref } from "@/lib/chat/v2/routes";
+import { usePhoneBack } from "@/lib/chat/v2/phone/use-phone-back";
 
 const iconButton = "inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg hover:bg-surface-2";
 
@@ -47,6 +48,7 @@ function HeaderAvatar({ header }: { header: ConversationHeaderDto }) {
 export function PaneHeader({ header, people, watch, system }: { header: ConversationHeaderDto; people: PaneMembers | null; watch: boolean; system: boolean }) {
   const qc = useQueryClient();
   const a = usePaneActions();
+  const { onLinkClick } = usePhoneBack();
   const { typingNames } = useTyping(header.id);
   const subtitle = subtitleOf(header, { typingNames });
   const [privacyOpen, setPrivacyOpen] = React.useState(false);
@@ -145,8 +147,9 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
   const topic = items.filter((id) => topicIds.includes(id));
 
   return (
-    <header data-pane-header className="flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 md:px-3">
-      <Link href={chatHref.list} aria-label={ct("chatc.back")} className={`${iconButton} md:hidden`}>
+    // C2.8: on a phone the header owns the notch (the frame's top bar is hidden on a chat screen), so it pads its top by the inset; from `md` there is none
+    <header data-pane-header className="flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 pt-[env(safe-area-inset-top)] md:px-3 md:pt-0">
+      <Link href={chatHref.list} aria-label={ct("chatc.back")} onClick={onLinkClick(chatHref.list)} className={`${iconButton} md:hidden`}>
         <ArrowRight aria-hidden="true" className="size-5" />
       </Link>
       <HeaderAvatar header={header} />

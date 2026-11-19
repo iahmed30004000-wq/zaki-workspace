@@ -10,6 +10,7 @@ import { scheduleSync } from "@/lib/chat/cache/runtime";
 import { tombstone } from "@/lib/chat/cache/writer";
 import { ct } from "@/lib/chat/text";
 import { callDoor, doors, type Door } from "@/lib/chat/v2/pane/message-actions";
+import { clearPendingSearch, peekPendingSearch } from "@/lib/chat/v2/phone/pending-search";
 
 /**
  * C2.4 — THE ONE SEAM of the conversation pane (`src/components/chat/v2/pane/`). Everything a later package needs to DO to the open conversation is
@@ -111,7 +112,9 @@ export function PaneActionsProvider({
   const [editing, setEditing] = React.useState<MessageDto | null>(null);
   const [restore, setRestore] = React.useState<OutboxRestore | null>(null);
   const [forwarding, setForwarding] = React.useState<MessageDto | null>(null);
-  const [searchOpen, setSearchOpen] = React.useState(false);
+  // C2.8: the phone's info screen leaves a note when «🔍 بحث» was pressed there: this pane opens its search from it, once (the note is cleared after the mount)
+  const [searchOpen, setSearchOpen] = React.useState(() => peekPendingSearch(conversationId));
+  React.useEffect(() => clearPendingSearch(conversationId), [conversationId]);
   const [infoOpen, setInfoOpen] = React.useState(false);
 
   // the latest of what the provider was given: the commands below keep one identity for the life of the pane

@@ -13,9 +13,11 @@ import { CustomerHint, MustReadBlock, ProblemSuggestion, WorkChips } from "@/com
 import { BubbleMedia } from "@/components/chat/v2/bubble/bubble-media";
 import { BubbleFooter, ForwardedHeader, ReactionChips, ReplyBlock } from "@/components/chat/v2/bubble/bubble-parts";
 import { useLongPress } from "@/components/chat/v2/bubble/use-long-press";
+import { ReactionPop } from "@/components/chat/v2/phone/reaction-pop";
 import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { ct } from "@/lib/chat/text";
 import { replyOnDoubleClick } from "@/lib/chat/v2/menu/gestures";
+import { isFreshArrival } from "@/lib/chat/v2/phone/motion";
 import { pressInlineButton, type InlineKind } from "@/lib/chat/v2/menu/inline-press";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
@@ -84,6 +86,9 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const articleRef = React.useRef<HTMLElement>(null);
+  // C2.8: a bubble that mounts within seconds of its message being written has just ARRIVED: it fades up (120 ms). Decided once, at mount: a re-render never
+  // replays it, and opening a chat or scrolling up (old messages) draws none. Off under reduced motion (the class below).
+  const [fresh] = React.useState(() => isFreshArrival(message.createdAt, Date.now()));
   // what the last press on this bubble was made with: a right click or a double click is the computer's, a finger's long press is the sheet's
   const pointer = React.useRef("");
   const gestures = useBubbleGestures();
@@ -128,7 +133,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               onDoubleClick={(e) => {
                 if (canAct && gestures && replyOnDoubleClick({ pointerType: pointer.current, target: e.target })) gestures.reply(message, facts);
               }}
-              className={bubbleClass({ mine, mentionsMe, tail: end, highlighted })}
+              className={cn(bubbleClass({ mine, mentionsMe, tail: end, highlighted }), fresh && "animate-fade-up motion-reduce:animate-none")}
             >
               {sender && start ? (
                 <p data-sender className={cn("mb-0.5 truncate text-xs font-semibold", nameTone(message.authorName))}>
@@ -151,7 +156,9 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               <MustReadBlock message={message} onAck={onAck} />
               <CustomerHint hint={hint} canProblem={facts.canProblem} onTicket={onHintTicket ? () => onHintTicket(message) : undefined} />
               {suggestKind && onSuggestProblem ? <ProblemSuggestion onSuggest={() => onSuggestProblem(message, suggestKind)} /> : null}
-              <ReactionChips message={message} canAct={canAct} onReact={onReact} />
+              <ReactionPop reactions={message.reactions}>
+                <ReactionChips message={message} canAct={canAct} onReact={onReact} />
+              </ReactionPop>
               <BubbleFooter message={message} />
             </article>
             {hoverNode}

@@ -1,6 +1,8 @@
 import * as React from "react";
 import { createElement, type FunctionComponent, type ReactElement, type ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 
@@ -202,4 +204,72 @@ describe("C2.4: the conversation pane in each of the four combinations (it is th
       expect(html).toContain('data-composer-host="composer"');
     });
   }
+});
+
+describe("C2.8: the frame's bars on a phone, in each of the four combinations", () => {
+  // the frame hides its own bars with `group-has-*` classes on a marker the chat shell draws (`data-frame-bars`): nothing else of the frame changes
+  const TOP = "group-has-[[data-frame-bars]]/frame:max-md:hidden";
+  const ALL = "group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden";
+
+  it("chatLayoutV2 OFF: no marker at all, in both menus — today's phone, exactly (the classes are there, waiting, and match nothing)", async () => {
+    for (const navV2 of [false, true]) {
+      const html = await screen({ chatV2: false, navV2, desktop: false });
+      expect(html).not.toContain('data-frame-bars="');
+      expect(html).not.toContain("data-chat-phone-bar");
+      expect(html).toContain('class="group/frame relative flex h-dvh overflow-clip bg-surface"');
+    }
+  });
+
+  it("ON, the list screen: the shell asks the frame to hide ITS top bar; the list draws its own 56 px bar, with «☰» only when the new menu is on", async () => {
+    const old = await screen({ chatV2: true, navV2: false, desktop: false });
+    expect(old).toContain('data-frame-bars="hide-top"');
+    expect(old).toContain('data-chat-screen="list"');
+    expect(old).toContain(TOP);
+    expect(old).toContain("data-chat-phone-bar");
+    // the old bottom bar stays on the list, and there is no «☰» of the chat
+    expect(old).toMatch(/<nav[^>]*class="fixed bottom-0/);
+    expect(old).not.toContain("data-chat-drawer-open");
+    const target = await screen({ chatV2: true, navV2: true, desktop: false });
+    expect(target).toContain('data-frame-bars="hide-top"');
+    expect(target).toContain("data-chat-phone-bar");
+    expect(target).toContain("data-chat-drawer-open");
+    expect(target).not.toMatch(/<nav[^>]*class="fixed bottom-0/);
+    // what the frame's hidden top bar carried rides on the list's bar: the bell in both menus, the account menu only with the old one (the new one has it in the drawer)
+    const barOf = (html: string) => /<header data-chat-phone-bar[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+    expect(barOf(old)).toContain('data-tour="inbox"');
+    expect(barOf(old)).toContain('data-tour="avatar"');
+    expect(barOf(target)).toContain('data-tour="inbox"');
+    expect(barOf(target)).not.toContain('data-tour="avatar"');
+  });
+
+  it("ON, a conversation: the bottom bar, the people row and the content's bottom padding go too (the composer owns the inset)", async () => {
+    const old = await screen({ chatV2: true, navV2: false, desktop: false, pathname: "/chat/dm1", conversation: true });
+    expect(old).toContain('data-frame-bars="hide-all"');
+    expect(old).toContain('data-chat-screen="conversation"');
+    // the old bottom bar is still in the tree, with the class that hides it inside a conversation
+    expect(old).toMatch(/<nav[^>]*class="fixed bottom-0[^"]*group-has-\[\[data-frame-bars=hide-all\]\]\/frame:max-md:hidden/);
+    expect(old).toContain(ALL);
+    // the column that pads for the bar is given back by ONE css rule (it finds the column by the `#zk-main` it holds; the frame's class strings are N1's and pinned)
+    expect(old).toContain('<main id="zk-main"');
+    const css = readFileSync(path.resolve(__dirname, "..", "src/app/globals.css"), "utf8").replace(/\r\n/g, "\n");
+    expect(css).toMatch(/@media not all and \(min-width: 768px\) \{\n  \.group\\\/frame:has\(\[data-frame-bars="hide-all"\]\) div:has\(> #zk-main\) \{\n    padding-bottom: 0;/);
+    expect(old).toContain("data-chat-phone-screen");
+    // the list is kept (hidden) under the conversation, so its bar is in the tree but not the screen
+    expect(old).toMatch(/<div class="hidden"><section[^>]*data-chat-list="screen"/);
+    const target = await screen({ chatV2: true, navV2: true, desktop: false, pathname: "/chat/dm1", conversation: true });
+    expect(target).toContain('data-frame-bars="hide-all"');
+    expect(target).toContain("data-chat-phone-screen");
+  });
+
+  it("ON, the info screen is a full screen too (bars hidden), and the computer never hides anything (the classes are all `max-md:`)", async () => {
+    const info = await screen({ chatV2: true, navV2: true, desktop: false, pathname: "/chat/dm1/info", conversation: true });
+    expect(info).toContain('data-frame-bars="hide-all"');
+    expect(info).toContain('data-chat-screen="info"');
+    const desk = await screen({ chatV2: true, navV2: true, desktop: true, pathname: "/chat/dm1", conversation: true });
+    expect(desk).not.toContain("data-chat-phone-screen");
+    expect(desk).not.toContain("data-chat-phone-bar");
+    for (const html of [info, desk]) {
+      for (const cls of html.match(/group-has-\[\[data-frame-bars[^"\s]*/g) ?? []) expect(cls).toContain(":max-md:");
+    }
+  });
 });

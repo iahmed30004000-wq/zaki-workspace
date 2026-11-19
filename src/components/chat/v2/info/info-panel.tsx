@@ -92,7 +92,7 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
           <button type="button" data-info-button="search" onClick={onSearch} className={pill}>
             {ct("chatui.info.search")}
           </button>
-          {model.buttons.includes("call") ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart /> : null}
+          {model.buttons.includes("call") ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
         </div>
 
         <div className="space-y-3 border-t border-border px-4 py-3">

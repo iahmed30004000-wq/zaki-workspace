@@ -9,6 +9,7 @@ import { WorkspaceCreateModal } from "@/components/create-forms";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
 import { ForumView } from "@/components/chat/v2/forum/forum-view";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
+import { PhoneListBar } from "@/components/chat/v2/phone/list-bar";
 import { useListWidth } from "@/components/chat/v2/use-list-width";
 import { useChatList, useChatSpace, useChatUnreadSummary } from "@/lib/chat/cache/selectors";
 import { shortcutBridge } from "@/lib/chat/v2/menu/shortcut-bridge";
@@ -61,6 +62,9 @@ export function ChatListColumn(props: ChatListColumnProps) {
     setForumSpace((kept) => nextForumSpace(route, kept, holds));
   }, [route, holds]);
   const forumId = forumShown(route, forumSpace);
+  const forum = (spaceId: string) => (
+    <ForumView spaceId={spaceId} variant={variant} userId={props.userId} guest={props.guest} rowMenu={props.rowMenu} canPurge={props.canPurge} selectedId={selectedConversationId(route)} />
+  );
   return (
     <section
       ref={columnRef}
@@ -73,7 +77,16 @@ export function ChatListColumn(props: ChatListColumnProps) {
       <div className="flex min-h-0 flex-1 flex-col" aria-hidden={forumId ? true : undefined} {...(forumId ? ({ inert: "" } as Record<string, string>) : {})}>
         <ListScreen {...props} selectedId={selectedConversationId(route)} />
       </div>
-      {forumId ? <ForumView spaceId={forumId} variant={variant} userId={props.userId} guest={props.guest} rowMenu={props.rowMenu} canPurge={props.canPurge} selectedId={selectedConversationId(route)} /> : null}
+      {forumId ? (
+        column ? (
+          forum(forumId)
+        ) : (
+          // C2.8: on the phone the frame's top bar (which owned the notch) is hidden on a chat screen, and the forum view's own header has no inset: the view starts below it
+          <div data-chat-forum-screen="" className="absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-40">
+            {forum(forumId)}
+          </div>
+        )
+      ) : null}
       {column ? (
         <div
           {...handle}
@@ -139,7 +152,12 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
 
   return (
     <>
-      <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
+      {tall ? (
+        // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
+        <PhoneListBar title={ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
+      ) : (
+        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
+      )}
       <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} />
       {canMeet && tall ? (
         <div className="shrink-0 border-b border-border/60 px-3 py-2">
