@@ -60,12 +60,15 @@
       Built on `feat/work-inbox-project` behind the switch `workInbox` (OFF); notes: `docs/restructure/pr/W1.2.md`.
 
 ### W1.3 A normalized stage — `feat/work-stage`
-- [ ] Migration (additive): `BoardColumn.stage TEXT NOT NULL DEFAULT 'DOING'` (TODO | DOING | REVIEW | DONE);
+- [x] Migration (additive): `BoardColumn.stage TEXT NOT NULL DEFAULT 'DOING'` (TODO | DOING | REVIEW | DONE);
       a separate data migration: `UPDATE "BoardColumn" SET stage = 'DONE' WHERE done = true;` then `UPDATE "BoardColumn" c
       SET stage = 'TODO' WHERE c.done = false AND c.position = (SELECT min(position) FROM "BoardColumn" x WHERE x."boardId"
       = c."boardId");` (both with WHERE, repeatable; ties on position: the smallest id).
-- [ ] Column settings let a manager choose the stage; new boards' default columns get TODO/DOING/DONE.
+- [x] Column settings let a manager choose the stage; new boards' default columns get TODO/DOING/DONE.
 - [ ] Cross-project lists group and filter by stage; `columnLabel()` still shows each board's own column name.
+      Built 2026-11-20 on `feat/work-stage` (switch `workStages`, OFF): the column, both data moves (own folders `20261123102100_board_column_stage` and
+      `..102101_board_column_stage_backfill`), `PATCH`/`POST`/`GET /api/boards/[id]/columns` and the picker on the board are done; the LISTS that group and filter by
+      stage are W1.1's screens (they read `BoardColumn.stage`; `src/lib/work/stage.ts` is the vocabulary). Notes: `docs/restructure/pr/W1.3.md`.
 
 ### W1.4 «الطلبات» — `feat/work-requests-inbox`
 - [ ] One screen, two tabs «بانتظاري / طلباتي», sections: approvals (`ApprovalRequest` steps where I am the approver —

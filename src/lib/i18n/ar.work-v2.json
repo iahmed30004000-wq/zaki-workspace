@@ -83,5 +83,14 @@
   "today.team.worst": "الأكثر تأخرًا",
   "today.team.panel": "لوحة التحكم",
   "today.more.title": "المزيد",
-  "today.more.hint": "كل شي كان على الصفحة وانتقل لهون: ما انحذف شي."
+  "today.more.hint": "كل شي كان على الصفحة وانتقل لهون: ما انحذف شي.",
+  "enum.WorkStage.TODO": "للتنفيذ",
+  "enum.WorkStage.DOING": "قيد الشغل",
+  "enum.WorkStage.REVIEW": "قيد المراجعة",
+  "enum.WorkStage.DONE": "منجزة",
+  "work.stage.label": "المرحلة",
+  "work.stage.aria": "مرحلة العمود {name}",
+  "work.stage.hint": "المرحلة هي اللي بتجمّع عليها قوائم المهام عبر المشاريع. العمود بيضل باسمه.",
+  "work.stage.saved": "انحفظت المرحلة",
+  "column.stage_manager_only": "اختيار مرحلة العمود لمدير المساحة فقط"
 }

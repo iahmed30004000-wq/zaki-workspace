@@ -6,6 +6,7 @@ import { orgDayStart } from "./org-day";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/auth";
 import { AR } from "@/lib/i18n/dict";
+import type { WorkStage } from "@/lib/work/stage";
 import { prepareReward, REWARD_EVENTS, type RewardRequest } from "./rewards";
 import { assertRewardEditable } from "./reward-guard";
 import { sourceIsPrivate } from "@/server/chat/private-source";
@@ -102,6 +103,8 @@ export interface DefaultBoardColumn {
   name: string;
   color: string;
   done: boolean;
+  /** W1.3: the normalized stage (src/lib/work/stage.ts) the cross-project lists group and filter by. */
+  stage: WorkStage;
 }
 
 /**
@@ -109,13 +112,16 @@ export interface DefaultBoardColumn {
  * words `columnLabel` shows for the English defaults boards were given before, so an old board and a
  * new one read alike. Boards that already exist keep their names; only what is shown is translated.
  * (A column's colour is user data, stored as a hex value.)
+ *
+ * W1.3: each column also starts with its stage, TODO / DOING / DONE: the two steps before the work starts are TODO, the two while it
+ * is under way DOING, and the column that marks "done" is DONE (a manager may choose REVIEW, or another stage, per column afterwards).
  */
 export const DEFAULT_BOARD_COLUMNS: readonly DefaultBoardColumn[] = [
-  { name: AR["column.backlog"]!, color: "#6b7280", done: false },
-  { name: AR["column.todo"]!, color: "#3b82f6", done: false },
-  { name: AR["column.in_progress"]!, color: "#f59e0b", done: false },
-  { name: AR["column.review"]!, color: "#a855f7", done: false },
-  { name: AR["column.done"]!, color: "#10b981", done: true },
+  { name: AR["column.backlog"]!, color: "#6b7280", done: false, stage: "TODO" },
+  { name: AR["column.todo"]!, color: "#3b82f6", done: false, stage: "TODO" },
+  { name: AR["column.in_progress"]!, color: "#f59e0b", done: false, stage: "DOING" },
+  { name: AR["column.review"]!, color: "#a855f7", done: false, stage: "DOING" },
+  { name: AR["column.done"]!, color: "#10b981", done: true, stage: "DONE" },
 ];
 
 /**

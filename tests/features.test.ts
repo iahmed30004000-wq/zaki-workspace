@@ -30,7 +30,7 @@ describe("«الميزات»: the owner's switches", () => {
     expect(FEATURE_DEFAULTS.customFields).toBe(true);
     expect(featureOn({}, "customFields")).toBe(true);
     expect(featureOn({ features: { customFields: false } }, "customFields")).toBe(false);
-    expect(featuresOff({ features: { customFields: false } })).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "customFields", "apiDoor", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests"]);
+    expect(featuresOff({ features: { customFields: false } })).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "customFields", "apiDoor", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests", "workStages"]);
   });
 
   it("a broken stored value is ignored, never read as off", () => {
@@ -46,9 +46,9 @@ describe("«الميزات»: the owner's switches", () => {
     expect(Object.keys(all).sort()).toEqual([...FEATURES].sort());
     for (const key of FEATURES) expect(all[key], key).toBe(key === "watch" ? false : FEATURE_DEFAULTS[key]);
     // «إخفاء المالك من متصل» and «مساعد المالك» are OFF until the owner turns them on, so they are always in the list of the ones that are off
-    expect(featuresOff({ features: { watch: false } })).toEqual(["watch", "ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests"]);
-    expect(featuresOff({})).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests"]);
-    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true, dbBackup: true, voiceTranscript: true, externalGateway: true, morningDigest: true, messageTranslate: true, imageOcr: true, semanticSearch: true, emailToTask: true, assistantInMeetings: true, taskPrivacy: true, omsLink: true, knowledgeCards: true, quickRecall: true, orderStatus: true, autoTickets: true, mustRead: true, orderTemplateHint: true, navV2: true, omsEvents: true, doorMessages: true, chatLayoutV2: true, workInbox: true, permissionTemplates: true, workRequests: true } })).toEqual([]);
+    expect(featuresOff({ features: { watch: false } })).toEqual(["watch", "ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests", "workStages"]);
+    expect(featuresOff({})).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests", "workStages"]);
+    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true, dbBackup: true, voiceTranscript: true, externalGateway: true, morningDigest: true, messageTranslate: true, imageOcr: true, semanticSearch: true, emailToTask: true, assistantInMeetings: true, taskPrivacy: true, omsLink: true, knowledgeCards: true, quickRecall: true, orderStatus: true, autoTickets: true, mustRead: true, orderTemplateHint: true, navV2: true, omsEvents: true, doorMessages: true, chatLayoutV2: true, workInbox: true, permissionTemplates: true, workRequests: true, workStages: true } })).toEqual([]);
     expect(FEATURE_DEFAULTS.ownerAssistant).toBe(false);
     // «الرسائل بدون نت» is ON until the owner turns it off (so it is never in the list of the ones that are off)
     expect(FEATURE_DEFAULTS.chatOutbox).toBe(true);
@@ -85,7 +85,7 @@ describe("«الميزات»: the owner's switches", () => {
     expect(FEATURES).toContain("lastSeen");
     expect(FEATURE_DEFAULTS.lastSeen).toBe(true);
     expect(featureOn({}, "lastSeen")).toBe(true);
-    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true, dbBackup: true, voiceTranscript: true, externalGateway: true, messageTranslate: true, imageOcr: true, semanticSearch: true, emailToTask: true, assistantInMeetings: true, taskPrivacy: true, omsLink: true, knowledgeCards: true, quickRecall: true, orderStatus: true, autoTickets: true, mustRead: true, orderTemplateHint: true, navV2: true, omsEvents: true, doorMessages: true, chatLayoutV2: true, workInbox: true, permissionTemplates: true, workRequests: true, lastSeen: false } })).toEqual(["lastSeen", "morningDigest"]);
+    expect(featuresOff({ features: { ownerHiddenOnline: true, ownerAssistant: true, chatAssistant: true, apiDoor: true, dbBackup: true, voiceTranscript: true, externalGateway: true, messageTranslate: true, imageOcr: true, semanticSearch: true, emailToTask: true, assistantInMeetings: true, taskPrivacy: true, omsLink: true, knowledgeCards: true, quickRecall: true, orderStatus: true, autoTickets: true, mustRead: true, orderTemplateHint: true, navV2: true, omsEvents: true, doorMessages: true, chatLayoutV2: true, workInbox: true, permissionTemplates: true, workRequests: true, workStages: true, lastSeen: false } })).toEqual(["lastSeen", "morningDigest"]);
     expect(AR["features.lastSeen.name"]).toBe("آخر ظهور");
   });
 
@@ -267,6 +267,17 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.chatScheduled.hint"]).toContain("جدول الإرسال");
     expect(AR["features.chatScheduled.hint"]).toContain("⚠️");
     expect(AR["features.chatScheduled.hint"]).toContain("🔧");
+  });
+
+  it("«مراحل الأعمدة» (`workStages`, W1.3): OFF until the owner turns it on; the column exists either way, the switch only gates the choice in column settings", () => {
+    expect(FEATURES).toContain("workStages");
+    expect(FEATURE_DEFAULTS.workStages).toBe(false);
+    expect(featureOn({}, "workStages")).toBe(false);
+    expect(featureOn({ features: { workStages: true } }, "workStages")).toBe(true);
+    expect(featuresOff({})).toContain("workStages");
+    expect(featuresOff({ features: { workStages: true } })).not.toContain("workStages");
+    expect(AR["features.workStages.name"]).toBe("مراحل الأعمدة");
+    expect(AR["features.workStages.hint"]).toContain("مدير المساحة");
   });
 
   it("switching a feature off changes nothing else on the map", () => {
