@@ -54,6 +54,7 @@ export function ConversationSearch({
     if (!asked) {
       setHits(null);
       setActive(null);
+      setFailed(false);
       return;
     }
     let alive = true;

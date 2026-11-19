@@ -3,6 +3,7 @@ import type { MemberDto } from "@/server/chat/dto";
 import type { MediaItemDto } from "@/server/chat/media";
 import { mergeViewerItems, viewerItemsOf, viewerItemsOfMedia, type ViewerItem } from "@/components/chat/v2/media-viewer";
 import { dayStartOf, inChatSearchUrl, isAskable, stepHit, stepOfSearchKey } from "@/lib/chat/v2/info/in-chat-search";
+import { messagesSignature } from "@/lib/chat/v2/info/use-info-tabs";
 import { activeTabOf, INFO_TAB_ORDER, isPagedTab, mediaCountsUrl, mediaPageUrl, safeLinkHref, TAB_KIND, tabAfterKey, tabLabelKey, tabsOf, workUrl } from "@/lib/chat/v2/info/info-tabs";
 import { infoModelOf } from "@/lib/chat/v2/info/info-model";
 import { chatHitHref, hasListResults, LIST_SEARCH_MIN, listSearchUrl, listSearchWords, messageHitHref, personHitHref, personOpensChat } from "@/lib/chat/v2/info/list-search";
@@ -323,5 +324,18 @@ describe("C3d — the viewer's list: the loaded part and the part the media rout
       },
     ]);
     expect([first!.at, first!.position, second!.position]).toEqual(["2026-11-01T08:30:00.000Z", 0, 1]);
+  });
+});
+
+describe("C3d — the tabs follow the conversation", () => {
+  it("the signature changes when a message arrives or one is deleted, and not for a message that is only pending", () => {
+    const m = (over: { deleted?: boolean; pending?: unknown } = {}) => over;
+    expect(messagesSignature([])).toBe("0:0");
+    expect(messagesSignature([m(), m()])).toBe("2:0");
+    expect(messagesSignature([m(), m({ deleted: true })])).toBe("2:1");
+    // a delete changes it even though no message left
+    expect(messagesSignature([m(), m({ deleted: true })])).not.toBe(messagesSignature([m(), m()]));
+    // an optimistic message is not one yet: the arrival of the real one is the change
+    expect(messagesSignature([m(), m({ pending: { state: "sending" } })])).toBe("1:0");
   });
 });

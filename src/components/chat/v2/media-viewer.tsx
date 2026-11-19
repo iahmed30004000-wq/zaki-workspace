@@ -201,6 +201,8 @@ function useFetchedMedia(conversationId: string | undefined, open: boolean): Vie
   const [fetched, setFetched] = React.useState<{ id: string; items: ViewerItem[] } | null>(null);
   React.useEffect(() => {
     if (!open || !conversationId) return;
+    // what an earlier opening fetched is old by now (a message may have been deleted since): only loaded media shows until the first page of THIS opening arrives
+    setFetched(null);
     const controller = new AbortController();
     void (async () => {
       const rows: MediaItemDto[] = [];

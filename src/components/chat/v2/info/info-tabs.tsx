@@ -11,7 +11,7 @@ import { MediaViewerContext, MediaViewerProvider, safeMediaUrl, viewerItemsOfMed
 import { useInfoJump } from "@/components/chat/v2/info/info-jump";
 import { ct } from "@/lib/chat/text";
 import { activeTabOf, isPagedTab, safeLinkHref, tabAfterKey, tabsOf, type InfoTab, type InfoTabId, type PagedTab } from "@/lib/chat/v2/info/info-tabs";
-import { useConversationWork, useMediaCounts, useMediaPages } from "@/lib/chat/v2/info/use-info-tabs";
+import { useConversationWork, useMediaCounts, useMediaPages, useRefreshOnMessages } from "@/lib/chat/v2/info/use-info-tabs";
 import { chatHref } from "@/lib/chat/v2/routes";
 import { fmtShort, fmtSize, fmtTime, dayDiff } from "@/lib/format";
 
@@ -42,6 +42,7 @@ export function InfoTabs({ header }: { header: ConversationHeaderDto }) {
     },
     [provided, router, header.id],
   );
+  useRefreshOnMessages(header.id);
   const counts = useMediaCounts(header.id);
   const work = useConversationWork(header.id);
   const pinned = header.pinnedMessages ?? NO_MESSAGES;

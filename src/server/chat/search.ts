@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { stripFormatting } from "@/lib/chat/format/parse";
 import { z } from "zod";
-import { arabicSearch, cleanQuery, findSpelled, foldedIncludes, foldForSearch } from "@/lib/search/arabic";
+import { arabicSearch, cleanQuery, findSpelled, foldedIncludes } from "@/lib/search/arabic";
 import { rankedSearch } from "@/server/search/ranked";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { canRead, loadConversationFacts, loadOrgFacts, type OrgFacts } from "@/server/policy/conversation";
@@ -372,7 +372,7 @@ export async function searchChatList(actor: Actor, place: { id: string; name: st
   const ctx = { orgId: actor.orgId, userId: actor.userId, orgRole: actor.role };
   const [found, dms, spaces, people] = await Promise.all([
     place ? searchChat(ctx, place, q, { topics: CHATS_MAX, messages: LIST_MESSAGES_MAX }) : { topics: [] as TopicHitDto[], messages: [] as MessageHitDto[] },
-    place && !actor.isExternal ? privateChatHits(ctx, place.id, q) : [],
+    place && !actor.isExternal ? privateChatHits(ctx, place, search) : [],
     spaceHits(actor.orgId, spaceIds, q),
     place ? peopleHits(actor, place.id, search) : [],
   ]);
@@ -392,28 +392,37 @@ export async function searchChatList(actor: Actor, place: { id: string; name: st
   };
 }
 
-/** The caller's own private chats whose other person's name carries the words, best first (a name that STARTS with them first). */
-async function privateChatHits(ctx: OrgAccessContext, placeId: string, q: string): Promise<(ChatHitDto & { peerId: string })[]> {
-  const mine = await db.conversation.findMany({
-    where: { orgId: ctx.orgId, kind: "DM", members: { some: { userId: ctx.userId } }, ...(await dmPlaceWhere(placeId)) },
-    orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { id: "asc" }],
-    take: 500,
-    select: { id: true, members: { where: { userId: { not: ctx.userId } }, take: 1, select: { user: { select: { id: true, name: true } } } } },
+/**
+ * The caller's own private chats whose other person's name carries the words, best first (a name that STARTS with them first): the SAME folded pool as the people
+ * (`rankedSearch` over the names of the people the caller has a private chat with in this place), and the rule on top of it is the caller's own membership of that chat
+ * — so a private chat of two other people is never a result, and no number of chats hides one.
+ */
+async function privateChatHits(ctx: OrgAccessContext, place: { id: string; isHq: boolean }, search: NonNullable<ReturnType<typeof arabicSearch>>): Promise<(ChatHitDto & { peerId: string })[]> {
+  const placeSql = place.isHq ? Prisma.sql`(c."spaceId" = ${place.id} OR c."spaceId" IS NULL)` : Prisma.sql`c."spaceId" = ${place.id}`;
+  const found = await rankedSearch({
+    query: {
+      table: "User",
+      search,
+      rank: true,
+      where: [
+        Prisma.sql`"id" IN (SELECT other."userId" FROM "ConversationMember" mine JOIN "Conversation" c ON c."id" = mine."conversationId" JOIN "ConversationMember" other ON other."conversationId" = c."id" WHERE mine."userId" = ${ctx.userId} AND other."userId" <> ${ctx.userId} AND c."orgId" = ${ctx.orgId} AND c."kind" = 'DM' AND ${placeSql})`,
+      ],
+      order: Prisma.sql`"name" ASC`,
+    },
+    take: CHATS_MAX,
+    load: async (ids) => {
+      const chats = await db.conversation.findMany({
+        where: { orgId: ctx.orgId, kind: "DM", AND: [{ members: { some: { userId: ctx.userId } } }, { members: { some: { userId: { in: ids } } } }], ...(await dmPlaceWhere(place.id)) },
+        orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { id: "asc" }],
+        select: { id: true, members: { where: { userId: { in: ids } }, select: { user: { select: { id: true, name: true } } } } },
+      });
+      // one chat per person (the newest): «الشركة» also holds the ones from before spaces
+      const byPerson = new Map<string, { id: string; chatId: string; name: string }>();
+      for (const c of chats) for (const m of c.members) if (!byPerson.has(m.user.id)) byPerson.set(m.user.id, { id: m.user.id, chatId: c.id, name: m.user.name });
+      return [...byPerson.values()];
+    },
   });
-  const typed = foldForSearch(q);
-  const named = mine.flatMap((c) => {
-    const peer = c.members[0]?.user;
-    return peer && foldedIncludes(peer.name, q) ? [{ id: c.id, peer }] : [];
-  });
-  const starts = (name: string) => Number(foldForSearch(name).startsWith(typed));
-  named.sort((a, b) => starts(b.peer.name) - starts(a.peer.name));
-  const reads = readerOf(ctx.userId, await loadOrgFacts(ctx.userId, ctx.orgId));
-  const out: (ChatHitDto & { peerId: string })[] = [];
-  for (const c of named) {
-    if (out.length >= CHATS_MAX) break;
-    if (await reads(c.id)) out.push({ id: c.id, kind: "DM", title: c.peer.name, emoji: null, context: null, peerId: c.peer.id });
-  }
-  return out;
+  return found.map((p) => ({ id: p.chatId, kind: "DM" as const, title: p.name, emoji: null, context: null, peerId: p.id }));
 }
 
 /** The private chats the caller already has with these people, in this place: person id and chat id. */
@@ -483,7 +492,10 @@ export async function chatScopeAnswer(actor: Actor, params: URLSearchParams): Pr
   const p = parsed.data;
   const ctx = { orgId: actor.orgId, userId: actor.userId, orgRole: actor.role };
   if (p.conversationId) {
-    if (actor.isExternal && (await loadConversationFacts(actor.userId, p.conversationId))?.kind !== "TOPIC") throw new ForbiddenError("chat.guest_forbidden");
+    // reading first, so a missing id and a conversation one cannot open answer the same «not found»; only then the guest's «topics only»
+    const [facts, org] = await Promise.all([loadConversationFacts(actor.userId, p.conversationId), loadOrgFacts(actor.userId, actor.orgId)]);
+    if (!facts || facts.orgId !== actor.orgId || !canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
+    if (actor.isExternal && facts.kind !== "TOPIC") throw new ForbiddenError("chat.guest_forbidden");
     return { messages: await searchConversation(ctx, p.conversationId, p.q ?? "", { from: p.from, since: p.since ? new Date(p.since) : undefined }) };
   }
   const space = await currentSpace(actor);

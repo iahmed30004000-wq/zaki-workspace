@@ -493,3 +493,20 @@ describe("C3d — where it is wired (read from the source: there is no browser h
     expect(read("src/components/chat/v2/media-viewer.tsx")).toContain('mediaPageUrl(conversationId, "MEDIA", before)');
   });
 });
+
+describe("C3d — the review's fixes (read from the source: there is no browser here)", () => {
+  it("the open tabs ask again when a message arrives or is deleted: the panel subscribes to the chat cache and marks the counts, the work and the lists stale", () => {
+    const hooks = read("src/lib/chat/v2/info/use-info-tabs.ts");
+    expect(hooks).toContain("getQueryCache().subscribe(");
+    expect(hooks).toContain("invalidateQueries");
+    expect(read("src/components/chat/v2/info/info-tabs.tsx")).toContain("useRefreshOnMessages(header.id)");
+  });
+
+  it("the viewer forgets what an earlier opening fetched before it fetches again", () => {
+    expect(read("src/components/chat/v2/media-viewer.tsx")).toMatch(/if \(!open \|\| !conversationId\) return;[\s\S]*?setFetched\(null\);[\s\S]*?new AbortController\(\)/);
+  });
+
+  it("clearing the in-chat search takes the failure line away with the hits", () => {
+    expect(read("src/components/chat/conversation/conversation-search.tsx")).toMatch(/if \(!asked\) \{\s*setHits\(null\);\s*setActive\(null\);\s*setFailed\(false\);/);
+  });
+});

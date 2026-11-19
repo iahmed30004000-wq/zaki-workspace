@@ -265,11 +265,16 @@ describe("the work tab «الشغل»", () => {
     const number = ((await db.ticket.aggregate({ where: { orgId: w.orgId }, _max: { number: true } }))._max.number ?? 0) + 1;
     const mine = await db.ticket.create({ data: { orgId: w.orgId, number, title: "my ticket", creatorId: w.t.member.id, assigneeId: w.bee.id, sourceMessageId: msg.id } });
     const theirs = await db.ticket.create({ data: { orgId: w.orgId, number: number + 1, title: `${SECRET} not mine`, creatorId: w.bee.id, assigneeId: w.bee.id, sourceMessageId: msg.id } });
-    return { w, conv, msg, open, hidden, foreign, mine, theirs };
+    // made from a message that was deleted since: it leaves nothing here (no chip on the screen either)
+    const goneMsg = await w.say(conv.id, w.bee.id, "was a task", { deletedAt: new Date(), deletedById: w.bee.id });
+    const goneTask = await makeTask({ ...base, creatorId: w.bee.id, title: `${SECRET} deleted source task` });
+    await db.task.update({ where: { id: goneTask.id }, data: { sourceMessageId: goneMsg.id } });
+    const goneTicket = await db.ticket.create({ data: { orgId: w.orgId, number: number + 2, title: `${SECRET} deleted source ticket`, creatorId: w.t.member.id, sourceMessageId: goneMsg.id } });
+    return { w, conv, msg, open, hidden, foreign, mine, theirs, goneTask, goneTicket };
   }
 
   it("the tasks and tickets made from a message of THIS conversation — a hidden task is not even counted, a ticket nobody opens for me is not named", async () => {
-    const { w, conv, open, hidden, foreign, mine, theirs } = await workWorld();
+    const { w, conv, open, hidden, foreign, mine, theirs, goneTask, goneTicket } = await workWorld();
     // a member who is neither of the hidden task's people: the open task and the ticket they raised, nothing else
     const r = await work(w.t.member.id, conv.id);
     expect(r.status).toBe(200);
@@ -277,12 +282,31 @@ describe("the work tab «الشغل»", () => {
     expect(r.tickets!.map((t) => t.id)).toEqual([mine.id]);
     expect(r.tasks![0]!.key).toMatch(/-\d+$/);
     expect(r.tickets![0]!.key).toMatch(/-T\d+$/);
-    for (const hiddenThing of [hidden.id, foreign.id, theirs.id, SECRET]) expect(r.text).not.toContain(hiddenThing);
+    for (const hiddenThing of [hidden.id, foreign.id, theirs.id, goneTask.id, goneTicket.id, SECRET]) expect(r.text).not.toContain(hiddenThing);
     // the hidden task's own people see it; the owner (silent eye) sees all three that were made here
     expect((await work(w.bee.id, conv.id)).tasks!.map((t) => t.id).sort()).toEqual([open.id, hidden.id].sort());
     const owner = await work(w.t.owner.id, conv.id);
     expect(owner.tasks!.map((t) => t.id).sort()).toEqual([open.id, hidden.id].sort());
     expect(owner.tickets!.map((t) => t.id).sort()).toEqual([mine.id, theirs.id].sort());
+    // …and a task or ticket made from a deleted message is not named to the owner either
+    expect(owner.text).not.toContain(goneTask.id);
+    expect(owner.text).not.toContain(goneTicket.id);
+  });
+
+  it("newer tickets this person may not read never hide an older one they may (the rule is a verdict per ticket, not a cut of the read)", async () => {
+    const w = await getWorld();
+    const conv = await db.conversation.create({ data: { orgId: w.orgId, kind: "TOPIC", spaceId: w.space.id, title: `Many ${uid()}` } });
+    const msg = await w.say(conv.id, w.bee.id, "tickets");
+    const start = ((await db.ticket.aggregate({ where: { orgId: w.orgId }, _max: { number: true } }))._max.number ?? 0) + 1;
+    const readable = await db.ticket.create({ data: { orgId: w.orgId, number: start, title: "mine, old", creatorId: w.t.member.id, sourceMessageId: msg.id, createdAt: new Date("2026-01-01T00:00:00.000Z") } });
+    await db.ticket.createMany({
+      data: Array.from({ length: 120 }, (_, i) => ({ orgId: w.orgId, number: start + 1 + i, title: `${SECRET} theirs ${i}`, creatorId: w.bee.id, assigneeId: w.bee.id, sourceMessageId: msg.id, createdAt: new Date("2026-02-01T00:00:00.000Z") })),
+    });
+    const r = await work(w.t.member.id, conv.id);
+    expect(r.tickets!.map((t) => t.id)).toEqual([readable.id]);
+    expect(r.text).not.toContain(SECRET);
+    // the owner reads them all, capped at fifty
+    expect((await work(w.t.owner.id, conv.id)).tickets).toHaveLength(50);
   });
 
   it("a conversation one cannot open is «not found»; a guest learns of no task and no ticket", async () => {

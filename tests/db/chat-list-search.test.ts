@@ -73,6 +73,23 @@ describe("the chat list's search — one request", () => {
     expect(spaces.map((c) => c.id)).not.toContain(w.other.id);
   });
 
+  it("private chats are found by the other person's name through the same folded pool as the people: a name that STARTS with the words comes first", async () => {
+    const w = await getWorld();
+    const natalie = await makeUser({ orgId: w.org.id, role: "MEMBER", name: `Natalie ${uid()}` });
+    await db.workspaceMember.create({ data: { workspaceId: w.s.id, userId: natalie.id, role: "MEMBER" } });
+    const withNatalie = await openDm(w.ctxOf(w.carol), natalie.id, w.s.id);
+    const withAlice = await openDm(w.ctxOf(w.carol), w.alice.id, w.s.id);
+    await loginAs(w.carol.id);
+    enter(w.s.id);
+    const dms = (await chatSearch("ali")).body.chats.filter((c) => c.kind === "DM");
+    expect(dms.map((c) => c.id)).toEqual([withAlice.id, withNatalie.id]);
+    expect(dms.map((c) => c.title)).toEqual(["Alice", natalie.name]);
+    // the chat is found once per person, and only the caller's own
+    await loginAs(natalie.id);
+    enter(w.s.id);
+    expect((await chatSearch("Bob")).body.chats.filter((c) => c.kind === "DM")).toEqual([]);
+  });
+
   it("a private chat of two OTHER people is not found by their names, and an archived topic is not offered", async () => {
     const w = await getWorld();
     await openDm(w.ctxOf(w.alice), w.bob.id, w.s.id);
@@ -226,6 +243,10 @@ describe("the search inside one conversation: «من:» and the date jump", () =
     await loginAs(guest.id);
     expect([403, 404]).toContain((await scoped(`conversationId=${dm.id}&q=${w.word}`)).status);
     expect((await scoped(`conversationId=${w.open.id}&q=${w.word}`)).status).toBe(200);
+    // reading first: a missing id and a topic the guest cannot open are the same «not found», so the answer does not tell which ids are topics
+    expect((await scoped(`conversationId=nothing&q=${w.word}`)).status).toBe(404);
+    expect((await scoped(`conversationId=${w.restricted.id}&q=${w.word}`)).status).toBe(404);
+    expect((await scoped(`conversationId=${w.teamY.id}&q=${w.word}`)).status).toBe(404);
   });
 
   it("a bad date or person is a refusal, not a crash", async () => {

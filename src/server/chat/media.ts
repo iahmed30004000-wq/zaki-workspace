@@ -21,13 +21,16 @@ import { canReadTicket } from "@/server/services/tickets";
  *    the videos together (what the viewer steps through). `LINK` is the messages with a link card (`previewId`, status OK) and exists only while the link-preview
  *    switches are on (the same two switches that decide whether the card is drawn at all).
  *  - counts: one number per kind, by the same rule, so a tab with nothing in it is not drawn.
- *  - work: the tasks and tickets made from a message of THIS conversation. A task by P0.2's rule (`taskVisibleWhere`: a private task is not even counted for
- *    a person it does not concern), a ticket by the ticket door's own reader rule (`canReadTicket`); a guest learns of neither (as on the message chips).
+ *  - work: the tasks and tickets made from a message of THIS conversation (a message that was deleted since leaves no row here, as it leaves no chip on the
+ *    screen). A task by P0.2's rule (`taskVisibleWhere`: a private task is not even counted for a person it does not concern), a ticket by the ticket door's own
+ *    reader rule (`canReadTicket`); a guest learns of neither (as on the message chips).
  */
 
 export const MEDIA_PAGE_DEFAULT = 60;
 export const MEDIA_PAGE_MAX = 100;
 export const WORK_MAX = 50;
+/** How many ticket rows are read before the reader rule is applied (the rule is a verdict per row, so the read is wider than what is shown). */
+const TICKETS_READ = 400;
 
 export const MEDIA_KINDS = ["IMAGE", "VIDEO", "FILE", "AUDIO", "LINK", "MEDIA"] as const;
 export type MediaKind = (typeof MEDIA_KINDS)[number];
@@ -229,7 +232,8 @@ export async function conversationWork(ctx: OrgAccessContext, conversationId: st
   const { org } = await readable(ctx, conversationId);
   // a guest never learns of the company's tasks and tickets (the message chips say the same)
   if (org.role === "GUEST") return { tasks: [], tickets: [] };
-  const source = { sourceMessage: { orgId: ctx.orgId, conversationId } };
+  // a deleted message leaves nothing: the row would point at a message that is no longer in the conversation
+  const source = { sourceMessage: { orgId: ctx.orgId, conversationId, deletedAt: null } };
 
   const [tasks, tickets] = await Promise.all([taskRows(ctx, source), ticketRows(ctx, source)]);
   return { tasks, tickets };
@@ -265,7 +269,7 @@ async function ticketRows(ctx: OrgAccessContext, source: { sourceMessage: Prisma
   const rows = await db.ticket.findMany({
     where: { orgId: ctx.orgId, ...source },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: WORK_MAX * 2,
+    take: TICKETS_READ,
     select: {
       id: true,
       number: true,
@@ -280,12 +284,21 @@ async function ticketRows(ctx: OrgAccessContext, source: { sourceMessage: Prisma
     },
   });
   const out: WorkTicketDto[] = [];
+  // the ticket door's own reader rule (`canReadTicket`: whoever raised or holds it, the department's people, the OWNER and the ADMINs) is the verdict; it depends only on
+  // «did I raise it», «do I hold it» and the department, so it is asked ONCE per such combination, not once per row
+  const verdicts = new Map<string, Promise<boolean>>();
+  const may = (t: (typeof rows)[number]): Promise<boolean> => {
+    const key = `${t.creatorId === ctx.userId}|${t.assigneeId === ctx.userId}|${t.departmentId ?? ""}`;
+    let verdict = verdicts.get(key);
+    if (!verdict) {
+      verdict = canReadTicket(ctx, t).catch(() => false);
+      verdicts.set(key, verdict);
+    }
+    return verdict;
+  };
   for (const t of rows) {
     if (out.length >= WORK_MAX) break;
-    if (!t.sourceMessageId) continue;
-    // the ticket door's own reader rule: whoever raised or holds it, the department's people, the OWNER and the ADMINs
-    const may = await canReadTicket(ctx, t).catch(() => false);
-    if (!may) continue;
+    if (!t.sourceMessageId || !(await may(t))) continue;
     out.push({ id: t.id, key: `${t.organization.keyPrefix}-T${t.number}`, title: t.title, status: t.status, assigneeName: t.assignee?.name ?? null, messageId: t.sourceMessageId });
   }
   return out;
