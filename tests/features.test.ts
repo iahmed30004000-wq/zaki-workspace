@@ -242,6 +242,20 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.linkPreviews.hint"]).toContain("السيرفر هو اللي بيزور الرابط");
   });
 
+  it("«الإرسال بدون صوت» (`chatSilentSend`, C3c.2): ON by default; off, the route ignores the flag and the menu entry is not drawn (messages already sent silent stay silent)", () => {
+    expect(FEATURES).toContain("chatSilentSend");
+    expect(FEATURE_DEFAULTS.chatSilentSend).toBe(true);
+    expect(featureOn({}, "chatSilentSend")).toBe(true);
+    expect(featureOn({ features: { chatSilentSend: false } }, "chatSilentSend")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatSilentSend");
+    expect(featuresOff({ features: { chatSilentSend: false } })).toContain("chatSilentSend");
+    expect(AR["features.chatSilentSend.name"]).toBe("الإرسال بدون صوت");
+    // what it does, and what it does not do (the unread count and the mention are kept)
+    expect(AR["features.chatSilentSend.hint"]).toContain("ابعت بدون صوت");
+    expect(AR["features.chatSilentSend.hint"]).toContain("⚠️");
+    expect(AR["features.chatSilentSend.hint"]).toContain("🔧");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

@@ -124,7 +124,7 @@ ONE shared done-state each.
 - [ ] Tests: DB (who may add / tick / edit; oversight cannot; guest rules like polls; privacy matrix row), render.
 
 ### C3c.2 Send without sound
-- [ ] `ChatMessage.silent BOOLEAN NOT NULL DEFAULT false`; `notify.ts` sends no push and no sound for it (unread and
+- [x] `ChatMessage.silent BOOLEAN NOT NULL DEFAULT false`; `notify.ts` sends no push and no sound for it (unread and
       the badge still count). «ابعت بدون صوت» on the send button's menu.
 
 ### C3c.3 Scheduled messages
@@ -209,3 +209,8 @@ controls are not drawn, data already made stays.
 - Built: the additive column `User.chatPrefs` and its ONE zod schema (`src/lib/chat/prefs.ts`: folders by company id, `tabs.hidden`, room for C4.1's `notifications` and `chat` and C3b.4's `voiceSpeed`), `GET/PUT /api/me/chat-prefs` (a PATCH, the caller's own row, 64 KB), the pure filter and tab logic (`src/lib/chat/folders.ts`), the custom tabs in `FolderTabs`, the reusable `FolderEditor` and the connected `ChatFoldersSettings`, switch `chatFolders` (ON).
 - Decision: the exclusions (muted · read · archived) take out of everything a folder holds, chats picked by hand included; a chat the person archived is in a folder unless the folder excludes the archive (the editor makes new folders exclude it). Say if a hand-picked chat should survive the exclusions.
 - Not wired by this package (files of other packages): `chat-list-column.tsx` must call `useChatPrefs` + `tabsOf` + `folderRows` / `folderBadge` (six lines, in `pr/C3a.2.md`), and C4.1's «المجلدات» page must mount `ChatFoldersSettings`. In the one-list shape a topic is folded into its space's row, so a topic is reached through its space (the picker offers private chats and groups; whole spaces are a separate list).
+
+### C3c.2 Send without sound (`feat/chat-silent-send`, `pr/C3c.2.md`)
+- Built: `ChatMessage.silent` (one additive migration), `sendSchema.silent` (honoured only while `chatSilentSend` is on), `notify.ts` (`silent`: no bell row, no push, a mention included; unread counts and the mention list come from the message rows and are untouched), `MessageDto.silent` + `arrivalSoundOf` (no arrival sound), the flag carried by the optimistic send, the outbox (kept through a reload and every retry) and the request, `send-menu.tsx` (right-click, long press; one item now, built so C3c.3's «جدول الإرسال» is one id and one line), `useComposer.submitSilent`.
+- Hot spot: `notify.ts` is also edited by C3b.1, C4.1 and M1a. This package adds ONE option (`silent`) and ONE early return at the top of `notifyMessageToAudience`; nothing else in the file moves.
+- Not wired by this package (files of other packages): `redact.ts` (`presentMessage`) must set `dto.silent = true` for a row with `silent` and `MessageRow` must carry `silent?: boolean` (the answer to the SENDER is already marked by `messages.ts`; every other reader goes through `presentMessage`, so the other screen's sound rule cannot see it until then); `topics.ts` must set `silentSend` on the conversation header next to `chatOutbox` (`isFeatureOn(ctx.orgId, "chatSilentSend")`), or the menu entry stays on when the switch is off (the server still ignores the flag then). Details in `pr/C3c.2.md`.

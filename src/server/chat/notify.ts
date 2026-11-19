@@ -23,7 +23,10 @@ export async function notifyMessageToAudience(opts: {
   mentionedIds?: string[];
   /** reached by «@الكل»: told even while online, as «ذكر الجميع» */
   allIds?: string[];
+  /** C3c.2 «ابعت بدون صوت»: the sender chose silence: no bell row, no push for anybody (a mention included); unread counts do not come from here */
+  silent?: boolean;
 }): Promise<void> {
+  if (opts.silent === true) return;
   const targets = new Set(opts.audienceIds);
   // the space the message is in (a DM from before spaces had them is «الشركة»'s): the bell of that space shows it
   const conv = await db.conversation.findUnique({ where: { id: opts.conversationId }, select: { spaceId: true, orgId: true } });

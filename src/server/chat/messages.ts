@@ -69,6 +69,8 @@ export const sendSchema = z
     poll: pollInputSchema.optional(),
     // «لا معاينة» (C3b.2): the sender took the card off in the composer: the server does not visit the link
     noPreview: z.boolean().optional(),
+    // «ابعت بدون صوت» (C3c.2): no bell, no push, no arrival sound for this message (it still counts as unread); ignored while the company's `chatSilentSend` switch is off
+    silent: z.boolean().optional(),
   })
   .refine((v) => (v.body?.trim().length ?? 0) > 0 || (v.attachmentIds?.length ?? 0) > 0, {
     message: "chat.e.empty",
@@ -202,9 +204,12 @@ export async function sendMessage(
       include: messageInclude(),
     });
     if (existing) {
-      return presentMessage(existing, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn });
+      // a retry is the SAME message: it stays silent whatever the retry's own flag says (a copy that lost the flag must not make it loud)
+      return withSilent(presentMessage(existing, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn }), existing.silent);
     }
   }
+  // «ابعت بدون صوت»: honoured only while the company's switch is on (off: an ordinary message)
+  const silent = input.silent === true && (await isFeatureOn(ctx.orgId, "chatSilentSend"));
 
   const created = await db.$transaction(async (tx) => {
     const msg = await tx.chatMessage.create({
@@ -217,6 +222,7 @@ export async function sendMessage(
         replyToId: input.replyToId ?? null,
         mentions: wantsAll ? [...mentionIds, MENTION_ALL_ID] : mentionIds,
         ...(input.clientId ? { clientId: input.clientId } : {}),
+        ...(silent ? { silent: true } : {}),
         ...(mustRead ? { ackRequired: true, ackMeta: { markedAt: new Date().toISOString() } } : {}),
         ...(videoAtSec !== null ? { videoAtSec } : {}),
         ...(internal.card ? { card: internal.card as unknown as Prisma.InputJsonValue } : {}),
@@ -250,7 +256,7 @@ export async function sendMessage(
   });
 
   // my own fresh DM message starts at ✓ (sent): the screen shows it from this answer before any refetch
-  const dto = presentMessage(created, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn }, facts.kind === "DM" ? "sent" : undefined);
+  const dto = withSilent(presentMessage(created, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn }, facts.kind === "DM" ? "sent" : undefined), silent);
   // C1.8: the answer goes back as soon as the commit is done. The bell and the push (and the company's auto-ticket rules) run AFTER it: the
   // sender's ✓ never waits for them, and a failure there is logged with its step (never swallowed) and never fails the send.
   const after: AfterSendStep[] = [{ step: "notify", run: () => notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, dto) }];
@@ -321,6 +327,11 @@ function runAfterSend(steps: AfterSendStep[]): Promise<void> {
   return job;
 }
 
+/** C3c.2: the answer says `silent: true` for a silent message (the presenter is `redact.ts`'s; this keeps the sender's own answer and a retry's honest). */
+function withSilent(dto: MessageDto, silent: boolean): MessageDto {
+  return silent ? { ...dto, silent: true } : dto;
+}
+
 /** Notifications go out AFTER the send transaction commits (online people are skipped). */
 async function notifyAfterSend(
   ctx: OrgAccessContext,
@@ -343,6 +354,7 @@ async function notifyAfterSend(
     messageId: dto.id,
     mentionedIds: mentionIds,
     allIds: allIds.filter((id) => !mentionIds.includes(id)),
+    ...(dto.silent === true ? { silent: true } : {}),
     preview: dto.body ? dto.body.slice(0, 140) : "أرسل مرفقًا",
   });
 }

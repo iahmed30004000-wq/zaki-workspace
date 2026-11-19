@@ -14,6 +14,8 @@ export function arrivalSoundOf(s: { previousNewestId: string | null; messages: r
   if (!newest || s.previousNewestId === null || newest.id === s.previousNewestId) return null;
   if (s.hadNewer || s.hasNewer) return null;
   if (isPendingMessage(newest)) return null;
+  // C3c.2: «ابعت بدون صوت» — the sender chose silence, so this device makes none either (a mention included)
+  if (newest.silent === true) return null;
   if (!s.messages.some((m) => m.id === s.previousNewestId)) return null;
   return soundOfArrival({ mine: newest.mine, opening: false, mentionsMe: mentionsMeOf(newest, s.meId), kind: newest.kind });
 }

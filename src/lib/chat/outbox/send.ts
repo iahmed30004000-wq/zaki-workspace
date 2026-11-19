@@ -57,6 +57,8 @@ export interface ChatSendPayload {
   voice?: boolean;
   /** C3b.2: ✕ on the link's preview was pressed before sending */
   noPreview?: boolean;
+  /** C3c.2 «ابعت بدون صوت»: no bell, push or arrival sound for this message */
+  silent?: boolean;
 }
 
 type FetchLike = (input: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; headers?: { get(name: string): string | null }; json(): Promise<unknown> }>;
@@ -72,7 +74,8 @@ export async function postChatMessage(conversationId: string, payload: ChatSendP
     const response = await fetchImpl(`/api/chat/conversations/${encodeURIComponent(conversationId)}/messages`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify(buildChatMessagePayload(payload)),
+      // `silent` rides next to the shared payload builder (a file of the conversation screens): only a silent message carries it
+      body: JSON.stringify({ ...buildChatMessagePayload(payload), ...(payload.silent ? { silent: true } : {}) }),
       ...(controller ? { signal: controller.signal } : {}),
     });
     if (response.ok) {
@@ -108,5 +111,6 @@ export function sendOutboxItem(item: OutboxItem): Promise<SendOutcome> {
     clientId: item.clientId,
     ...(item.mentionAll ? { mentionAll: true } : {}),
     ...(item.noPreview ? { noPreview: true } : {}),
+    ...(item.silent ? { silent: true } : {}),
   });
 }

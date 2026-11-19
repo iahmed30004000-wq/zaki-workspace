@@ -27,3 +27,14 @@ export function holdOutcome(start: Point, now: Point): HoldOutcome {
   if (Math.hypot(dx, Math.max(down, 0)) > HOLD_CANCEL_PX) return "cancel";
   return "hold";
 }
+
+/**
+ * C3c.2 — the long press on the SEND button, on a phone: it opens the send menu («ابعت بدون صوت»). A press this long (the finger within `SEND_HOLD_SLOP_PX` of where
+ * it went down: more is a scroll) is a long press; lifting earlier is an ordinary tap that sends. A mouse has the right button instead (`contextmenu`).
+ */
+export const SEND_HOLD_MS = 500;
+export const SEND_HOLD_SLOP_PX = 10;
+
+export function sendHoldOpensMenu(start: Point, now: Point, elapsedMs: number): boolean {
+  return elapsedMs >= SEND_HOLD_MS && Math.hypot(now.x - start.x, now.y - start.y) <= SEND_HOLD_SLOP_PX;
+}

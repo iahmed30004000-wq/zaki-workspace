@@ -10,6 +10,7 @@ import { FileTray } from "@/components/chat/v2/composer/file-tray";
 import { FormatToolbar } from "@/components/chat/v2/composer/format-toolbar";
 import { MentionList } from "@/components/chat/v2/composer/mention-list";
 import { RecordBar } from "@/components/chat/v2/composer/record-bar";
+import { SendMenu, sendMenuItemsOf } from "@/components/chat/v2/composer/send-menu";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
 import { ct } from "@/lib/chat/text";
 import { firstLink, hostOf } from "@/lib/chat/format/links";
@@ -24,7 +25,9 @@ export type SurfaceEngine = Pick<
   | "textRef" | "mediaInput" | "fileInput" | "addFiles" | "removeFile" | "selectMention"
   | "onTextChange" | "onKeyDown" | "onPaste" | "submit" | "cancelRecording" | "sendVoice" | "onMicPointerDown" | "onMicClick"
   | "setPollOpen" | "setRecall"
->;
+> &
+  /** C3c.2: «ابعت بدون صوت» (the send button's menu); an engine without them (a test's) draws no menu */
+  Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn">>;
 
 export interface SurfaceProps {
   c: SurfaceEngine;
@@ -111,6 +114,8 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
     return <RecordBar voice={voice} error={c.error} onCancel={c.cancelRecording} onSend={() => void c.sendVoice(voice.mode === "review" ? voice.take : null)} />;
   }
   const mic = c.face === "mic";
+  // C3c.2: the send button's menu (right-click, long press): only an engine that can send silently, only while the company's switch is on (absent: on)
+  const sendItems = c.submitSilent ? sendMenuItemsOf({ silentSend: c.silentSendOn !== false, editing: editing !== null, canSubmit: c.canSubmit }) : [];
   return (
     <form onSubmit={c.submit} className="flex flex-col gap-2" data-composer-surface>
       <ReplyEditBar reply={reply} editing={editing} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} />
@@ -193,9 +198,11 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
             <span aria-hidden="true">🎤</span>
           </Button>
         ) : (
-          <Button type="submit" variant="primary" size="icon" data-composer-face={c.face} disabled={!c.canSubmit} aria-label={c.face === "save" ? ct("chatc.save") : c.busy ? ct("chatc.sending") : ct("chatc.send")}>
-            <span aria-hidden="true">{c.busy ? "…" : c.face === "save" ? "✓" : "➤"}</span>
-          </Button>
+          <SendMenu items={sendItems} onPick={(id) => (id === "silent" ? c.submitSilent?.() : undefined)}>
+            <Button type="submit" variant="primary" size="icon" data-composer-face={c.face} disabled={!c.canSubmit} aria-label={c.face === "save" ? ct("chatc.save") : c.busy ? ct("chatc.sending") : ct("chatc.send")}>
+              <span aria-hidden="true">{c.busy ? "…" : c.face === "save" ? "✓" : "➤"}</span>
+            </Button>
+          </SendMenu>
         )}
       </div>
       {c.hint ? <CustomerHint hint={c.hint} canProblem={false} /> : null}
