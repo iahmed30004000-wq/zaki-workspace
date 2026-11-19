@@ -501,7 +501,8 @@ export interface MentionSourceRow {
  * has no row in, so the owner's silent reading adds nothing): only the ones with a mention, newest first, five of them; null when there is none.
  */
 export function mentionRowsOf(rows: ReadonlyArray<MentionSourceRow>, top: number = MENTIONS_TOP): TodayMentions | null {
-  const hit = rows.filter((r) => r.mentionsUnread > 0);
+  // a row with no id has nowhere to link to (a forum row of a conversation with no space): left out
+  const hit = rows.filter((r) => r.mentionsUnread > 0 && r.id !== "");
   if (hit.length === 0) return null;
   const at = (r: MentionSourceRow) => (r.lastMessage ? Date.parse(r.lastMessage.at) : 0);
   const listed = [...hit].sort((a, b) => at(b) - at(a) || a.id.localeCompare(b.id)).slice(0, top);
@@ -549,12 +550,14 @@ export function teamScopeOf(input: { isOwner: boolean; spaceName: string | null 
 
 export interface TodayTeamData {
   scope: TeamScopeChip;
-  open: number;
-  overdue: number;
-  doneWeek: number;
-  dueToday: number;
+  /** From the pulse: null when the person was not given the pulse (a missing number is not drawn, never drawn as 0). */
+  open: number | null;
+  overdue: number | null;
+  /** From the dashboard's team strip: null when the person was not given it. */
+  doneWeek: number | null;
+  dueToday: number | null;
   /** How many people (still active) hold something overdue. */
-  peopleLate: number;
+  peopleLate: number | null;
   /** The most overdue tasks and who holds them (the old pulse's list); may be empty. */
   worst: PulseTask[];
 }
@@ -564,11 +567,11 @@ export function teamCardOf(team: DashboardTeam | null, pulse: TodayPulse | null,
   if (!team && !pulse) return null;
   return {
     scope,
-    open: pulse?.open ?? 0,
-    overdue: pulse?.overdue ?? 0,
-    doneWeek: team?.doneWeek ?? 0,
-    dueToday: team?.dueToday ?? 0,
-    peopleLate: team?.peopleLate ?? 0,
+    open: pulse?.open ?? null,
+    overdue: pulse?.overdue ?? null,
+    doneWeek: team?.doneWeek ?? null,
+    dueToday: team?.dueToday ?? null,
+    peopleLate: team?.peopleLate ?? null,
     worst: pulse?.worst ?? [],
   };
 }

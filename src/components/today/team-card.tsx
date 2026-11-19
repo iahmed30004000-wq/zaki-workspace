@@ -24,13 +24,14 @@ export function scopeLabel(scope: TeamScopeChip): string {
  */
 export function TodayTeamCard({ team, panelHref }: { team: TodayTeamData; panelHref: string | null }) {
   const { t } = getServerT();
+  // a number the person was not given is left out, never drawn as 0
   const stats = [
     { n: team.open, label: t("today.team.open"), danger: false },
-    { n: team.overdue, label: t("mywork.tab.overdue"), danger: team.overdue > 0 },
+    { n: team.overdue, label: t("mywork.tab.overdue"), danger: (team.overdue ?? 0) > 0 },
     { n: team.dueToday, label: t("today.team.today"), danger: false },
     { n: team.doneWeek, label: t("today.team.done"), danger: false },
-    { n: team.peopleLate, label: t("today.team.late_people"), danger: team.peopleLate > 0 },
-  ];
+    { n: team.peopleLate, label: t("today.team.late_people"), danger: (team.peopleLate ?? 0) > 0 },
+  ].filter((s): s is { n: number; label: string; danger: boolean } => s.n !== null);
   return (
     <section aria-labelledby="today-team-title" className="rounded-card border border-border bg-surface-1 p-4 shadow-card">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-1">

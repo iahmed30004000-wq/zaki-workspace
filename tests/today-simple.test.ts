@@ -158,6 +158,10 @@ describe("«ذكروك»", () => {
     expect(out.rows.find((r) => r.id === "a")!.place).toBe("مساحة");
   });
 
+  it("leaves out a row with no id (nowhere to link to)", () => {
+    expect(mentionRowsOf([conv({ id: "", kind: "SPACE" })] as never)).toBeNull();
+  });
+
   it("is null when nobody mentioned the person", () => {
     expect(mentionRowsOf([conv({ mentionsUnread: 0 })] as never)).toBeNull();
     expect(mentionRowsOf([])).toBeNull();
@@ -185,6 +189,14 @@ describe("the one team card", () => {
       peopleLate: 1,
       worst,
     });
+  });
+});
+
+describe("the team card never invents a number", () => {
+  const scope = { kind: "space", name: "م" } as const;
+  it("a half the person was not given is null, not 0", () => {
+    expect(teamCardOf({ doneWeek: 4, dueToday: 2, peopleLate: 1 }, null, scope)).toMatchObject({ open: null, overdue: null, doneWeek: 4, dueToday: 2, peopleLate: 1 });
+    expect(teamCardOf(null, { open: 9, overdue: 0, worst: [] }, scope)).toMatchObject({ open: 9, overdue: 0, doneWeek: null, dueToday: null, peopleLate: null });
   });
 });
 
