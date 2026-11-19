@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 354 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 71 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 72 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -498,7 +498,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `space-place` | 30 | 9 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
-| `chat-assistant` | 495 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
+| `chat-assistant` | 497 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `ideas` | 419 | 8 | Membership context resolved from the idea's own org (shared by API routes). |
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
@@ -539,7 +539,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `crm` | 228 | 4 | no header comment — exports `OPPORTUNITY_STAGES`, `createCustomerSchema`, `updateCustomerSchema`, `createOpportunitySchema`, `updateOpportunitySchema`, … |
 | `db-backup` | 460 | 4 | «نسخ احتياطي لقاعدة البيانات»: a daily, encrypted copy of the WHOLE database on the owner's own Google Drive. |
 | `departments` | 240 | 4 | The departments area is the company's staff directory (who works where, with which job title), so org GUESTs get 403 on every function here, read or write. |
-| `digest` | 401 | 4 | «شو فاتني؟» — a short catch-up written by the owner's assistant for ONE person, on «اليوم», and «لخّصلي» inside a topic. |
+| `digest` | 403 | 4 | «شو فاتني؟» — a short catch-up written by the owner's assistant for ONE person, on «اليوم», and «لخّصلي» inside a topic. |
 | `okr` | 489 | 4 | «الأهداف والنتائج» — the key results of an objective (src/lib/okr.ts holds the arithmetic). |
 | `problem-settings` | 136 | 4 | The kinds of problem, the rules and the working hours of «المشاكل تصير تذاكر» (Q1.5): who edits them is «ضبط التصعيد» (`escalation.configure`), a capability that was checked now… |
 | `problem-tickets` | 271 | 4 | «🎫 مشكلة» (Q1.5): a ticket made where the message is. |
@@ -574,7 +574,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `goals` | 307 | 2 | no header comment — exports `periodWindow`, `goalSchema`, `goalStatus`, `listGoals`, `createGoal`, … |
 | `image-ocr-route` | 23 | 2 | The answer of «اقرا النص» for both doors (a library file, a chat attachment): the body may say `{ "again": true }` («اقرا من جديد»). |
 | `member-rules` | 184 | 2 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
-| `message-translate` | 181 | 2 | «ترجمة رسالة» — one tap turns a text message into Arabic (or, when it is mostly Arabic, into English). |
+| `message-translate` | 183 | 2 | «ترجمة رسالة» — one tap turns a text message into Arabic (or, when it is mostly Arabic, into English). |
 | `move-to-space` | 106 | 2 | «انقل لمساحة» (the plan, 2026-10-25: each space is like a separate site). |
 | `oms-link` | 151 | 2 | «ربط نظام الطلبات» — the card under «التكاملات» (Q1.0). |
 | `onboarding` | 88 | 2 | The one-time onboarding every account goes through (the owner creates accounts with a temporary password and nobody has accepted the transparency notice yet): choose your own pa… |
@@ -831,6 +831,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `omsEvents` | 2 — `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
 | `doorMessages` | 1 — `server/door/messages.ts` |
 | `chatLayoutV2` | 4 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts` |
+| `chatFormatting` | 0 —  |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
