@@ -474,7 +474,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 63 | 131 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 63 | 132 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 106 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 61 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
@@ -554,6 +554,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `search-embeddings` | 276 | 4 | «بحث بالمعنى» — the connector and the pure rules. |
 | `task-rules` | 306 | 4 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
+| `work-requests` | 365 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
@@ -570,7 +571,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `spaces-overview` | 73 | 3 | «كل المساحات» — the owner's and the admins' one look over every space they can open (the owner's decision, 2026-10-25): each space stays a separate site, and this page only coun… |
 | `system-tokens` | 59 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
 | `team-score-io` | 28 | 3 | `?kind=` as a period kind (anything else: the month). |
-| `work-requests` | 365 | 3 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `analytics` | 66 | 2 | Numbers behind the analytics page. |
 | `assistant-chat` | 73 | 2 | «المساعد» كجهة اتصال — the assistant as a name in the chat's people lists, with a private conversation of its own for each person. |
 | `avatars` | 118 | 2 | A PERSON'S PICTURE (the owner's ask, 2026-10-29: «خيار إن المستخدم يحط صورة بروفايل»). |
@@ -624,7 +624,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
 | `ticket-escalation` | 73 | 1 | Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). |
 | `today` | 299 | 1 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
-| `today-dashboard` | 113 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
+| `today-dashboard` | 181 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
 | `approval-notify` | 65 | 0 | The bell of «طلبات الموافقة». |
 | `manufacturing-access` | 107 | 0 | «مخزون التصنيع» — WHO MAY DO WHAT, in one place. |
 | `manufacturing-costing` | 114 | 0 | «مخزون التصنيع» — reads the lots and movements of a material and turns them into its POSITION (balance, value of what has a price, the stock that has none, and the lots as first… |
@@ -788,7 +788,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `ownerHiddenOnline` | 5 — `app/api/presence/route.ts`, `server/chat/directory.ts`, `server/chat/topics.ts`, `server/realtime/hub.ts`, `server/services/last-seen.ts` |
 | `quickChat` | 0 —  |
 | `taskSteps` | 5 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/task-rules-run.ts`, `server/services/task-steps.ts` |
-| `reminders` | 6 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/calendar-feed.ts`, `server/services/reminders.ts` |
+| `reminders` | 7 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `lib/today.ts`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/calendar-feed.ts`, `server/services/reminders.ts` |
 | `timeTracking` | 5 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `server/services/time-section.ts`, `server/services/time-tracking.ts` |
 | `recurringTasks` | 4 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/task-recurrence.ts` |
 | `calendarFeed` | 2 — `app/(app)/calendar/page.tsx`, `server/services/calendar-feed.ts` |
@@ -798,7 +798,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatAssistant` | 5 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts` |
 | `chatOutbox` | 1 — `server/chat/topics.ts` |
 | `customFields` | 3 — `app/(app)/projects/[id]/page.tsx`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
-| `checkins` | 8 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
+| `checkins` | 9 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
 | `lastSeen` | 5 — `app/(app)/profile/page.tsx`, `app/api/me/last-seen/route.ts`, `server/chat/topics.ts`, `server/realtime/presence.ts`, `server/services/last-seen.ts` |
 | `approvals` | 8 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
 | `teamDevelopment` | 4 — `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/policy/team-development.ts`, `server/services/team-score.ts` |
@@ -824,7 +824,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `economyMode` | 2 — `components/feature-switches.tsx`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
-| `controlPanel` | 4 — `app/(app)/analytics/page.tsx`, `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/services/control-panel.ts` |
+| `controlPanel` | 5 — `app/(app)/analytics/page.tsx`, `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `lib/today.ts`, `server/services/control-panel.ts` |
 | `taskPrivacy` | 1 — `server/services/tasks.ts` |
 | `omsLink` | 5 — `components/oms-link-card.tsx`, `server/chat/topics.ts`, `server/integrations/oms-sync.ts`, `server/services/oms-link.ts`, `server/services/order-state.ts` |
 | `knowledgeCards` | 7 — `app/(app)/knowledge/[cardId]/page.tsx`, `app/(app)/knowledge/page.tsx`, `lib/nav/places.ts`, `server/chat/topics.ts`, `server/integrations/oms-sync.ts`, `server/services/knowledge.ts`, `server/services/work-requests.ts` |
@@ -833,7 +833,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `autoTickets` | 6 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
 | `mustRead` | 6 — `lib/chat/cache/reducers.ts`, `server/chat/messages.ts`, `server/chat/topics.ts`, `server/door/messages.ts`, `server/jobs/run.ts`, `server/services/must-read.ts` |
 | `orderTemplateHint` | 1 — `server/chat/topics.ts` |
-| `navV2` | 4 — `app/api/workspaces/route.ts`, `server/policy/org-settings.ts`, `server/services/current-space.ts`, `server/services/landing.ts` |
+| `navV2` | 5 — `app/(app)/page.tsx`, `app/api/workspaces/route.ts`, `server/policy/org-settings.ts`, `server/services/current-space.ts`, `server/services/landing.ts` |
 | `chatOneList` | 1 — `app/api/chat/list/route.ts` |
 | `omsEvents` | 2 — `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
 | `doorMessages` | 1 — `server/door/messages.ts` |
@@ -842,7 +842,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workInbox` | 5 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `server/services/instant-work.ts` |
 | `chatAlbums` | 0 —  |
 | `permissionTemplates` | 3 — `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
-| `workRequests` | 4 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts` |
+| `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
