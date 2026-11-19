@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { ct, ctCount } from "@/lib/chat/text";
 import { NAME_TONES, bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
-import { bubbleFactsOf } from "@/lib/chat/v2/pane/bubble-facts";
+import { bubbleFactsOf, sameFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { headerMenuOf, subtitleOf } from "@/lib/chat/v2/pane/header-model";
 import { jumpButtonsOf, mentionTargetsOf, mentionsButtonOf } from "@/lib/chat/v2/pane/jump-model";
 import { newestToConsider } from "@/lib/chat/v2/pane/read-model";
@@ -104,6 +104,22 @@ describe("what the bubble knows about the conversation (from the header, never f
     const ctx = messageMenuContext(makeMessage({ mine: true, pinned: true }), facts);
     expect(ctx).toMatchObject({ mine: true, pinned: true, deleted: false, kind: "TEXT", hasText: true, conversationKind: "TOPIC", canPost: true, canModerate: true, oversight: false, canMakeWork: true });
     expect(messageMenuContext(makeMessage({ body: "   " }), facts).hasText).toBe(false);
+  });
+});
+
+describe("the facts keep their identity while they do not change", () => {
+  it("a header that changed in something a bubble does not read (the title, a pin) gives the SAME facts back", () => {
+    const first = bubbleFactsOf(makeHeader());
+    expect(sameFacts(first, bubbleFactsOf(makeHeader({ title: "اسم تاني", pinnedMessages: [{ id: "p", authorName: "ليلى", preview: "x" }] })))).toBe(true);
+  });
+
+  it("and another one when a flag a bubble reads changed (a moderator, a rule)", () => {
+    const first = bubbleFactsOf(makeHeader());
+    expect(sameFacts(first, bubbleFactsOf(makeHeader({ me: { canModerate: true } })))).toBe(false);
+    const rule = { id: "r1", type: "topic" as const, spaceId: "s1", conversationId: "c1", kindKey: "late", mode: "suggest" as const };
+    const withRule = bubbleFactsOf(makeHeader({ me: { problemRules: [rule] } }));
+    expect(sameFacts(withRule, bubbleFactsOf(makeHeader({ me: { problemRules: [{ ...rule }] } })))).toBe(true);
+    expect(sameFacts(withRule, bubbleFactsOf(makeHeader({ me: { problemRules: [{ ...rule, kindKey: "other" }] } })))).toBe(false);
   });
 });
 
@@ -244,6 +260,12 @@ describe("the readers of a bubble keep their identity while they do not change",
     const again = stableReaders(first, [r("a", "m1"), r("b", "m1"), r("c", "m2")]);
     expect(again.get("m1")).toBe(first.get("m1"));
     expect(again.get("m2")).toBe(first.get("m2"));
+  });
+
+  it("nothing changed: the SAME map comes back (the rows hold it, so a read tick that moved nobody draws nothing)", () => {
+    const first = stableReaders(new Map(), [r("a", "m1"), r("c", "m2")]);
+    expect(stableReaders(first, [r("a", "m1"), r("c", "m2")])).toBe(first);
+    expect(stableReaders(first, [r("a", "m1")])).not.toBe(first);
   });
 
   it("only the message whose readers changed gets a new array", () => {

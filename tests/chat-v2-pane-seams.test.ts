@@ -151,11 +151,26 @@ describe("what the review of this package found", () => {
     expect(read("src/components/chat/v2/pane/call-bar.tsx")).toContain("latestGuard()");
   });
 
-  it("the people are asked for once the header says how many there are, and again when that number changes", () => {
+  it("the people have ONE cache entry per conversation and are asked for again when the header's member count changes", () => {
     const hook = read("src/lib/chat/v2/pane/use-people.ts");
-    expect(hook).toMatch(/export const peopleKey = \(id: string, count: number \| undefined\)/);
-    expect(hook).toContain("enabled: !!id && count !== undefined");
+    expect(hook).toMatch(/export const peopleKey = \(id: string\)/);
+    expect(hook).toContain("invalidateQueries({ queryKey: peopleKey(id), exact: true })");
     expect(read("src/components/chat/v2/pane/conversation-pane.tsx")).toContain("usePeople(conversationId, headerQuery.data?.memberCount)");
+  });
+
+  it("the calls list is drawn by the viewport, outside the virtual rows, for a run named by its FIRST line (it survives a new line and a row that unmounts)", () => {
+    const viewport = read("src/components/chat/v2/pane/message-viewport.tsx");
+    expect(viewport).toContain("<CallsDialog");
+    expect(viewport).toContain("openCalls");
+    expect(read("src/components/chat/v2/pane/service-rows.tsx")).not.toContain("useState");
+  });
+
+  it("the menu host listens to the commands only; the forward dialog is the one part that reads the state", () => {
+    const host = read("src/components/chat/v2/pane/seams/menu-host.tsx");
+    const menuHost = host.slice(host.indexOf("export function MenuHost"), host.indexOf("function ForwardHost("));
+    expect(menuHost).toContain("usePaneCommands()");
+    expect(menuHost).not.toContain("usePaneActions()");
+    expect(host.slice(host.indexOf("function ForwardHost("), host.indexOf("function MessageMenuSlot("))).toContain("usePaneActions()");
   });
 
   it("the rows do not hold the messages: the run flags are given per row, so a new message does not draw every row again", () => {

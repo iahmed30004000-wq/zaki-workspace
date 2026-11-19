@@ -16,7 +16,7 @@ import { isNotFound } from "@/lib/chat/cache/pages";
 import { useChatHeader, useChatRow } from "@/lib/chat/cache/selectors";
 import { useConversationHistory, type ConversationHistory } from "@/lib/chat/history/use-conversation-history";
 import { ct } from "@/lib/chat/text";
-import { bubbleFactsOf } from "@/lib/chat/v2/pane/bubble-facts";
+import { bubbleFactsOf, sameFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { usePeople } from "@/lib/chat/v2/pane/use-people";
 import { chatHref } from "@/lib/chat/v2/routes";
@@ -84,7 +84,11 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
   // only the commands: a reply or an edit being started must not draw the whole pane again
   const commands = usePaneCommands();
   const row = useChatRow(header.id);
-  const facts = React.useMemo(() => bubbleFactsOf(header), [header]);
+  // the header is a new object for a pin or a title; the facts a bubble reads rarely change with it, and the OLD object is kept while they do not
+  const next = React.useMemo(() => bubbleFactsOf(header), [header]);
+  const kept = React.useRef(next);
+  const facts = sameFacts(kept.current, next) ? kept.current : next;
+  kept.current = facts;
   return (
     <MenuHost header={header} members={people?.members ?? NO_MEMBERS}>
       <section dir="rtl" lang="ar" data-chat-pane-root data-pane-state="ready" className="relative flex h-full min-h-0 flex-col bg-surface" aria-label={header.title}>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildRows, rowIndexOfMessage, scrollRowIndex } from "@/lib/chat/viewport/rows";
+import { buildRows, firstMessageIdFrom, rowIndexOfMessage, sameRow, scrollRowIndex } from "@/lib/chat/viewport/rows";
 import { estimateRowHeight, CALLS_ROW_PX } from "@/lib/chat/viewport/sizes";
 import { FOLD_MIN_LINES, callCount, callRuns, isCallLine } from "@/lib/chat/viewport/calls";
 import type { MessageDto } from "@/lib/chat/cache/types";
@@ -129,6 +129,38 @@ describe("the rows of the virtual list", () => {
     const { readFileSync } = await import("node:fs");
     const src = readFileSync("src/lib/chat/viewport/use-message-viewport.ts", "utf8");
     expect(src).toMatch(/type === "message" \|\| old\[i\.index\]\?\.type === "calls"/);
+  });
+
+  it("the first message of the view is found INSIDE a folded run too (a view that shows only the chip still tells the history where it is)", () => {
+    const messages = withCalls(six);
+    const rows = buildRows(messages, { foldCalls: true });
+    const chipAt = rows.findIndex((r) => r.type === "calls");
+    expect(firstMessageIdFrom(rows, chipAt)).toBe(messages[3]!.id);
+    expect(firstMessageIdFrom(rows, 0)).toBe(messages[0]!.id);
+    expect(firstMessageIdFrom(rows, rows.length)).toBeNull();
+  });
+
+  it("two builds of the same messages give rows that are the SAME rows (a row object is new every time: the screen compares them by what they hold)", () => {
+    const messages = withCalls(six);
+    const a = buildRows(messages, { foldCalls: true });
+    const b = buildRows([...messages], { foldCalls: true });
+    expect(a.every((row, i) => sameRow(row, b[i]!))).toBe(true);
+    // a message that changed (a reaction made a new object) is another row; so is a day with another day under it
+    const edited = messages.map((m, i) => (i === 1 ? { ...m, body: "عدّلتها" } : m));
+    const c = buildRows(edited, { foldCalls: true });
+    expect(a.map((row, i) => sameRow(row, c[i]!)).filter((same) => !same)).toHaveLength(1);
+    // the index among the messages is NOT part of the identity: an older page put in front moves every index and changes no row
+    const older = makeConversation(5, 1, () => ({ createdAt: "2026-10-30T08:00:00.000Z" }));
+    const shifted = buildRows([...older.map((m) => ({ ...m, id: `old${m.id}` })), ...messages], { foldCalls: true });
+    const same = a.filter((row) => row.type !== "day").every((row) => sameRow(row, shifted.find((r) => r.key === row.key)!));
+    expect(same).toBe(true);
+  });
+
+  it("the hook finds an anchor that became part of a folded run (by the message it was), and reports the first message of a chip", async () => {
+    const { readFileSync } = await import("node:fs");
+    const src = readFileSync("src/lib/chat/viewport/use-message-viewport.ts", "utf8");
+    expect(src).toContain("rowIndexOfMessage(rows, String(anchor.key))");
+    expect(src).toContain("firstMessageIdFrom(rowsRef.current, first.index)");
   });
 
   it("the chip has a fixed height for the first paint", () => {

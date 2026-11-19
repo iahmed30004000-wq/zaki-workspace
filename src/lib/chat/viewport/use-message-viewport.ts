@@ -8,7 +8,7 @@ import type { ScrollSignal } from "@/lib/chat/history/jump";
 import { captureAnchor, restoredScrollTop, shouldRestore, type Anchor } from "@/lib/chat/viewport/anchor";
 import { detectArrival } from "@/lib/chat/viewport/arrival";
 import { OVERSCAN, pendingExpired } from "@/lib/chat/viewport/config";
-import { messagesOfRow, scrollRowIndex, type Row } from "@/lib/chat/viewport/rows";
+import { firstMessageIdFrom, messagesOfRow, rowIndexOfMessage, scrollRowIndex, type Row } from "@/lib/chat/viewport/rows";
 import { estimateRowHeight } from "@/lib/chat/viewport/sizes";
 
 /**
@@ -146,7 +146,7 @@ export function useMessageViewport(opts: MessageViewportOptions): MessageViewpor
     if (!node || !v || !onViewport || hasPending()) return; // not while a landing is still on its way
     const first = v.getVirtualItems().find((i) => i.end > node.scrollTop);
     // nothing laid out yet (or scrolled past everything): no message is reported, never «the oldest one»
-    const firstMessage = first ? (rowsRef.current.slice(first.index).find((r) => r.type === "message")?.key ?? null) : null;
+    const firstMessage = first ? firstMessageIdFrom(rowsRef.current, first.index) : null;
     onViewport(firstMessage, { scrollTop: node.scrollTop, scrollHeight: node.scrollHeight, clientHeight: node.clientHeight });
   }, [onViewport]);
   const reportRef = useRef(reportViewport);
@@ -190,7 +190,9 @@ export function useMessageViewport(opts: MessageViewportOptions): MessageViewpor
     anchorRef.current = null;
     let restored = false;
     if (v && anchor && changed) {
-      const at = rows.findIndex((r) => r.key === anchor.key);
+      let at = rows.findIndex((r) => r.key === anchor.key);
+      // a message row that an older page folded into a run of calls is found by the message it was (the chip's row)
+      if (at < 0) at = rowIndexOfMessage(rows, String(anchor.key));
       const start = at >= 0 ? v.measurementsCache[at]?.start : undefined;
       if (shouldRestore(anchor, at) && start !== undefined && !hasPending()) {
         v.scrollToOffset(restoredScrollTop(anchor, start));

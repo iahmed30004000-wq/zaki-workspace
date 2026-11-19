@@ -23,6 +23,8 @@ export interface BubbleFacts extends MenuFacts {
   problemRules: AutoRule[];
 }
 
+const NO_RULES: AutoRule[] = [];
+
 export function bubbleFactsOf(header: ConversationHeaderDto): BubbleFacts {
   const me = header.me;
   return {
@@ -42,6 +44,14 @@ export function bubbleFactsOf(header: ConversationHeaderDto): BubbleFacts {
     orderHints: Boolean(me.orderHints) && header.kind === "TOPIC" && !header.restricted && !header.teamId,
     canTranscribe: header.voiceTranscript === true,
     canReadImages: header.imageOcr === true,
-    problemRules: me.problemRules ?? [],
+    problemRules: me.problemRules ?? NO_RULES,
   };
+}
+
+/**
+ * Are these the same facts? A header is a new object whenever anything in it changes (a pin, the title, the member count), and the facts it carries rarely
+ * do: the screen keeps the OLD object while this says yes, so a bubble (and the menu given to it) is not drawn again for a change it does not read.
+ */
+export function sameFacts(a: BubbleFacts, b: BubbleFacts): boolean {
+  return (Object.keys(a) as (keyof BubbleFacts)[]).every((key) => (key === "problemRules" ? a.problemRules === b.problemRules || JSON.stringify(a.problemRules) === JSON.stringify(b.problemRules) : a[key] === b[key]));
 }

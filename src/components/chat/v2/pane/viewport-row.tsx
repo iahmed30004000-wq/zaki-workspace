@@ -11,7 +11,7 @@ import { isPendingMessage, outboxItemOfPending } from "@/lib/chat/cache/pending"
 import { runFlags } from "@/lib/chat/group";
 import type { OutboxItem } from "@/lib/chat/outbox/queue";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
-import type { Row } from "@/lib/chat/viewport/rows";
+import { sameRow, type Row } from "@/lib/chat/viewport/rows";
 import { findCustomerNumbers } from "@/lib/tickets/customer-number";
 
 /** What every row of the log shares; it changes only when the header's flags, the people, the readers, the menu or the pending handlers do. */
@@ -23,6 +23,8 @@ export interface RowEnv {
   /** the message menu (seam 3) and the hover slot (C2.6) */
   menu?: (api: MessageMenuSlotApi) => React.ReactNode;
   hover?: React.ReactNode;
+  /** a calls chip was pressed: the viewport opens the list (the id of the run's first line) */
+  openCalls: (firstLineId: string) => void;
   /** what a pending bubble's buttons do (the viewport owns the outbox) */
   pending: { retry: (item: OutboxItem) => void; discard: (item: OutboxItem) => void; copy: (item: OutboxItem) => void; edit: (item: OutboxItem) => void };
 }
@@ -63,25 +65,36 @@ function BubbleRow({ message, start, end, env, highlighted }: { message: Message
  * `start` / `end` are the run flags of a message row (the viewport asks `runFlags` per row): the env holds no message list, so a new message does not make
  * every row draw again — only the row whose flags changed (the one that stopped being the last of its run).
  */
-function ViewportRowView({ row, env, start, end, highlightId }: { row: Row; env: RowEnv; start: boolean; end: boolean; highlightId: string | null }) {
+interface ViewportRowProps {
+  row: Row;
+  env: RowEnv;
+  /** the run flags of a message row (the viewport asks `runFlags` per row) */
+  start: boolean;
+  end: boolean;
+  /** this row's message is the target of a jump */
+  highlighted: boolean;
+}
+
+function ViewportRowView({ row, env, start, end, highlighted }: ViewportRowProps) {
   if (row.type === "day") return <DaySeparator at={row.at} />;
   if (row.type === "unread") return <UnreadLine />;
-  if (row.type === "calls") return <CallsChip messages={row.messages} />;
+  if (row.type === "calls") return <CallsChip messages={row.messages} onOpen={env.openCalls} />;
   const message = row.message;
   if (isPendingMessage(message)) {
     const item = outboxItemOfPending(env.conversationId, message);
     return <PendingBubble item={item} onRetry={env.pending.retry} onDelete={env.pending.discard} onCopy={env.pending.copy} onEdit={env.pending.edit} />;
   }
   if (message.kind === "SYSTEM") return <ServiceLine message={message} />;
-  return <BubbleRow message={message} start={start} end={end} env={env} highlighted={highlightId === message.id} />;
+  return <BubbleRow message={message} start={start} end={end} env={env} highlighted={highlighted} />;
 }
 
-export const ViewportRow = React.memo(ViewportRowView);
+/** Drawn again only when what it holds changed: `buildRows` makes a new object for every row each time the messages change, so the rows are compared by content. */
+export const ViewportRow = React.memo(ViewportRowView, (a, b) => a.env === b.env && a.start === b.start && a.end === b.end && a.highlighted === b.highlighted && sameRow(a.row, b.row));
 
 /** The space under a row: a run's last bubble leaves a gap, the bubbles inside a run sit close, and the chips breathe. */
-export function rowPadding(row: Row, messages: readonly MessageDto[]): string {
+export function rowPadding(row: Row, flags: { end: boolean }): string {
   if (row.type !== "message") return "py-2";
   const m = row.message;
   if (isPendingMessage(m) || m.kind === "SYSTEM") return "py-1.5";
-  return runFlags(messages, row.index).end ? "pb-2 pt-0.5" : "pb-0.5 pt-0.5";
+  return flags.end ? "pb-2 pt-0.5" : "pb-0.5 pt-0.5";
 }

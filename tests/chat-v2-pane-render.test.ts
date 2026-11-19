@@ -63,6 +63,7 @@ describe("the rows of the log", () => {
     mentionNames: [],
     readersByMessage: new Map(),
     menu: () => createElement("i", { "data-menu-slot": "" }),
+    openCalls: noop,
     pending: { retry: noop, discard: noop, copy: noop, edit: noop },
     ...over,
   });
@@ -70,7 +71,7 @@ describe("the rows of the log", () => {
   // the run flags of a message row are the viewport's to give (`runFlags` of the loaded messages); a test asks for them the same way
   const draw = (r: Row, e: RowEnv, highlightId: string | null = null, messages: MessageDto[] = []) => {
     const flags = r.type === "message" ? runFlags(messages, r.index) : { start: true, end: true };
-    return inPane(header, createElement(ViewportRow, { row: r, env: e, start: flags.start, end: flags.end, highlightId }));
+    return inPane(header, createElement(ViewportRow, { row: r, env: e, start: flags.start, end: flags.end, highlighted: r.type === "message" && highlightId === r.message.id }));
   };
   const call = (k: "call_started" | "call_ended"): Partial<MessageDto> => ({ kind: "SYSTEM", body: null, system: { k } });
 
@@ -95,6 +96,8 @@ describe("the rows of the log", () => {
     expect(html).toContain("data-calls-chip");
     expect(html).toContain("6 مكالمات");
     expect(html).toContain('aria-haspopup="dialog"');
+    // the list is NOT inside the row (a virtual row can unmount under an open dialog): the viewport draws it
+    expect(html).not.toContain("data-calls-list");
     expect(html).not.toContain(AR["chatc.sys.call_ended"]);
   });
 
@@ -134,9 +137,9 @@ describe("the rows of the log", () => {
   it("the run's last bubble leaves a gap and the ones inside it sit close", () => {
     const messages = makeConversation(3);
     const rows = buildRows(messages);
-    expect(rowPadding(row(rows, "message", 0), messages)).toBe("pb-0.5 pt-0.5");
-    expect(rowPadding(row(rows, "message", 2), messages)).toBe("pb-2 pt-0.5");
-    expect(rowPadding(row(rows, "day"), messages)).toBe("py-2");
+    expect(rowPadding(row(rows, "message", 0), runFlags(messages, 0))).toBe("pb-0.5 pt-0.5");
+    expect(rowPadding(row(rows, "message", 2), runFlags(messages, 2))).toBe("pb-2 pt-0.5");
+    expect(rowPadding(row(rows, "day"), { end: true })).toBe("py-2");
   });
 });
 

@@ -50,6 +50,29 @@ export function messagesOfRow(row: Row): readonly MessageDto[] {
   return row.type === "message" ? [row.message] : row.type === "calls" ? row.messages : [];
 }
 
+/** The id of the first message at or after row `index` (the first line of a folded run counts), or null. */
+export function firstMessageIdFrom(rows: readonly Row[], index: number): string | null {
+  for (let i = Math.max(0, index); i < rows.length; i += 1) {
+    const messages = messagesOfRow(rows[i]!);
+    if (messages.length) return messages[0]!.id;
+  }
+  return null;
+}
+
+/**
+ * Is this the same row as that one? `buildRows` makes a new object for every row each time the messages change, so the screen compares rows by what they
+ * HOLD: the same message objects (the cache keeps the object of a message that did not change), the same lines of a folded run, the same day. The index among
+ * the messages is not part of it: an older page put in front moves every index and changes no row.
+ */
+export function sameRow(a: Row, b: Row): boolean {
+  if (a === b) return true;
+  if (a.type !== b.type || a.key !== b.key) return false;
+  if (a.type === "message" && b.type === "message") return a.message === b.message;
+  if (a.type === "calls" && b.type === "calls") return a.messages.length === b.messages.length && a.messages.every((m, i) => m === b.messages[i]);
+  if (a.type === "day" && b.type === "day") return a.at === b.at;
+  return true;
+}
+
 /** The row of a message, or -1 (a line inside a folded run is at the chip's row). */
 export function rowIndexOfMessage(rows: readonly Row[], messageId: string): number {
   return rows.findIndex((r) => (r.type === "message" ? r.key === messageId : r.type === "calls" && r.messages.some((m) => m.id === messageId)));

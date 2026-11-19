@@ -50,34 +50,41 @@ export function ServiceLine({ message }: { message: MessageDto }) {
   );
 }
 
-/** «6 مكالمات»: a dozen «بلّش مكالمة» / «خلصت المكالمة» lines in a row are ONE chip; pressing it opens the list, line by line. */
-export function CallsChip({ messages }: { messages: readonly MessageDto[] }) {
-  const [open, setOpen] = React.useState(false);
+/**
+ * «6 مكالمات»: a dozen «بلّش مكالمة» / «خلصت المكالمة» lines in a row are ONE chip; pressing it asks the viewport to open the list (`onOpen` gets the id of the
+ * run's FIRST line). The list is not drawn here: a virtual row can unmount (a new line gives the run a new key, a scroll drops it) and would take an open
+ * dialog with it.
+ */
+export function CallsChip({ messages, onOpen }: { messages: readonly MessageDto[]; onOpen: (firstLineId: string) => void }) {
   return (
-    <>
-      <button type="button" data-calls-chip aria-haspopup="dialog" onClick={() => setOpen(true)} className={`${chip} inline-flex items-center gap-1.5 font-semibold hover:bg-surface-1`}>
-        <Phone aria-hidden="true" className="size-3.5" />
-        {counted(CALLS_FORMS, callCount(messages))}
-      </button>
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent size="md">
-          <DialogHeader>
-            <DialogTitle>{ct("chatui.pane.calls_title")}</DialogTitle>
-          </DialogHeader>
-          <DialogBody>
-            <ul data-calls-list className="divide-y divide-border text-sm">
-              {messages.map((m) => (
-                <li key={m.id} className="flex min-h-11 items-center gap-3">
-                  <span className="min-w-0 flex-1">{systemSentence(m.system, m.authorName)}</span>
-                  <time dateTime={m.createdAt} dir="ltr" className="shrink-0 text-xs tabular-nums text-fg-muted">
-                    {fmtTime(m.createdAt)}
-                  </time>
-                </li>
-              ))}
-            </ul>
-          </DialogBody>
-        </DialogContent>
-      </Dialog>
-    </>
+    <button type="button" data-calls-chip aria-haspopup="dialog" onClick={() => onOpen(messages[0]!.id)} className={`${chip} inline-flex items-center gap-1.5 font-semibold hover:bg-surface-1`}>
+      <Phone aria-hidden="true" className="size-3.5" />
+      {counted(CALLS_FORMS, callCount(messages))}
+    </button>
+  );
+}
+
+/** The list the chip opens, line by line; `null` is closed. The viewport draws it, outside the virtual rows. */
+export function CallsDialog({ messages, onClose }: { messages: readonly MessageDto[] | null; onClose: () => void }) {
+  return (
+    <Dialog open={messages !== null} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent size="md">
+        <DialogHeader>
+          <DialogTitle>{ct("chatui.pane.calls_title")}</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <ul data-calls-list className="divide-y divide-border text-sm">
+            {(messages ?? []).map((m) => (
+              <li key={m.id} className="flex min-h-11 items-center gap-3">
+                <span className="min-w-0 flex-1">{systemSentence(m.system, m.authorName)}</span>
+                <time dateTime={m.createdAt} dir="ltr" className="shrink-0 text-xs tabular-nums text-fg-muted">
+                  {fmtTime(m.createdAt)}
+                </time>
+              </li>
+            ))}
+          </ul>
+        </DialogBody>
+      </DialogContent>
+    </Dialog>
   );
 }

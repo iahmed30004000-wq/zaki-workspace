@@ -42,7 +42,6 @@ export function useMenuDialogs(): MenuDialogs {
 
 export function MenuHost({ header, members, children }: { header: ConversationHeaderDto; members: MemberDto[]; children: React.ReactNode }) {
   const commands = usePaneCommands();
-  const { conversationId, forwarding } = usePaneActions();
   const [making, setMaking] = React.useState<{ message: MessageDto; kind: WorkKind } | null>(null);
   const [problemFor, setProblemFor] = React.useState<{ message: MessageDto; kindKey: string | null; customer?: string | null } | null>(null);
   const [ticketOpen, setTicketOpen] = React.useState<string | null>(null);
@@ -100,15 +99,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         }}
       />
       {ticketOpen && header.me.id ? <TicketDetailModal ticketId={ticketOpen} currentUserId={header.me.id} onClose={() => setTicketOpen(null)} /> : null}
-      <ForwardDialog
-        message={forwarding}
-        from={conversationId}
-        onClose={commands.endForward}
-        onDone={(ok) => {
-          commands.endForward();
-          commands.say(ok ? "chatc.menu.forwarded" : "chatc.menu.failed", ok ? "success" : "error");
-        }}
-      />
+      <ForwardHost />
       <NoteDialog
         message={noting}
         onClose={() => setNoting(null)}
@@ -131,6 +122,22 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         />
       ) : null}
     </MenuContext.Provider>
+  );
+}
+
+/** «حوّل»: the dialog reads the pane's STATE (which message is being forwarded), so it is its own small part — the rest of the host never draws for a reply or an edit. */
+function ForwardHost() {
+  const { conversationId, forwarding, endForward, say } = usePaneActions();
+  return (
+    <ForwardDialog
+      message={forwarding}
+      from={conversationId}
+      onClose={endForward}
+      onDone={(ok) => {
+        endForward();
+        say(ok ? "chatc.menu.forwarded" : "chatc.menu.failed", ok ? "success" : "error");
+      }}
+    />
   );
 }
 

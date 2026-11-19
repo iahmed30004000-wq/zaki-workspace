@@ -1,7 +1,7 @@
 "use client";
 
-import { useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import type { MemberDto } from "@/server/chat/dto";
 import { CHAT_GC_MS, CHAT_STALE_MS } from "@/lib/chat/cache/constants";
 import { chatRetry, fetchChatJson } from "@/lib/chat/cache/http";
@@ -18,16 +18,17 @@ import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
  * ⚠️ A members door of its own (no messages in the answer) would be cheaper. 🔧 Until the owner of the server side adds one, this is the cost: one small
  * request per conversation per five minutes, never on a switch back to a conversation that was just open.
  */
-export const peopleKey = (id: string, count: number | undefined) => [...chatKeys.conv(id), "people", count ?? null] as const;
+export const peopleKey = (id: string) => [...chatKeys.conv(id), "people"] as const;
 
 /**
- * `count` is the header's `memberCount`: the people are asked for once the header says how many there are, and AGAIN when that number changes (a person
- * added or removed), so the «@» list and the sheet never keep somebody who left for the five minutes the cache would otherwise believe them.
+ * `count` is the header's `memberCount`: when it MOVES (a person added or removed) the list is asked for again, so the «@» list and the sheet never keep
+ * somebody who left for the five minutes the cache would otherwise believe them. The old list stays on screen while the new one is on its way.
  */
 export function usePeople(id: string | null, count: number | undefined): PaneMembers | null {
+  const qc = useQueryClient();
   const query = useQuery({
-    queryKey: peopleKey(id ?? "", count),
-    enabled: !!id && count !== undefined,
+    queryKey: peopleKey(id ?? ""),
+    enabled: !!id,
     staleTime: CHAT_STALE_MS,
     gcTime: CHAT_GC_MS,
     retry: chatRetry,
@@ -38,9 +39,11 @@ export function usePeople(id: string | null, count: number | undefined): PaneMem
       return { ...(detail.members ? { members: detail.members } : {}), ...(detail.mentionables ? { mentionables: detail.mentionables } : {}) };
     },
   });
-  // while the answer for a NEW number is on its way the people of the SAME conversation stay (never those of another one)
-  const last = useRef<{ id: string | null; people: PaneMembers | null }>({ id, people: null });
-  if (last.current.id !== id) last.current = { id, people: null };
-  if (query.data) last.current.people = query.data;
-  return query.data ?? last.current.people;
+  const seen = useRef<{ id: string | null; count: number | undefined }>({ id, count });
+  useEffect(() => {
+    const was = seen.current;
+    seen.current = { id, count };
+    if (id && was.id === id && was.count !== undefined && count !== undefined && was.count !== count) void qc.invalidateQueries({ queryKey: peopleKey(id), exact: true });
+  }, [qc, id, count]);
+  return query.data ?? null;
 }

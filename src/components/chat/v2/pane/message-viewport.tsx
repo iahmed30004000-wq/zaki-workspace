@@ -6,6 +6,7 @@ import type { ConversationHeaderDto, ReaderDto } from "@/server/chat/dto";
 import { JumpButtons, StickyDateChip } from "@/components/chat/v2/pane/floating";
 import { usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { useMessageMenu } from "@/components/chat/v2/pane/seams/menu-host";
+import { CallsDialog } from "@/components/chat/v2/pane/service-rows";
 import { ViewportRow, rowPadding, type RowEnv } from "@/components/chat/v2/pane/viewport-row";
 import { discardPending, retryPending } from "@/lib/chat/outbox/optimistic";
 import { removePending } from "@/lib/chat/cache/pending";
@@ -124,9 +125,13 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
     return readersRef.current;
   }, [history.readers]);
   const menu = useMessageMenu(facts);
+  // the run of calls whose list is open, named by its FIRST line: it survives a new line (the chip's key changes) and a row that unmounts
+  const [openedCalls, setOpenedCalls] = React.useState<string | null>(null);
+  const openCalls = React.useCallback((firstLineId: string) => setOpenedCalls(firstLineId), []);
+  const callsOpen = openedCalls ? rows.find((r) => r.type === "calls" && r.messages[0]!.id === openedCalls) : undefined;
   const env = React.useMemo<RowEnv>(
-    () => ({ conversationId, facts, mentionNames, readersByMessage, menu, pending }),
-    [conversationId, facts, mentionNames, readersByMessage, menu, pending],
+    () => ({ conversationId, facts, mentionNames, readersByMessage, menu, pending, openCalls }),
+    [conversationId, facts, mentionNames, readersByMessage, menu, pending, openCalls],
   );
 
   const stickyLabel = topId && byId.get(topId) ? dayLabelOf(byId.get(topId)!.createdAt) : null;
@@ -140,13 +145,14 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
             if (!r) return null;
             const flags = r.type === "message" ? runFlags(history.messages, r.index) : { start: true, end: true };
             return (
-              <div key={item.key} data-index={item.index} ref={v.measureElement} className={`absolute inset-x-0 top-0 px-3 ${rowPadding(r, history.messages)}`} style={{ transform: `translateY(${item.start}px)` }}>
-                <ViewportRow row={r} env={env} start={flags.start} end={flags.end} highlightId={history.highlightId} />
+              <div key={item.key} data-index={item.index} ref={v.measureElement} className={`absolute inset-x-0 top-0 px-3 ${rowPadding(r, flags)}`} style={{ transform: `translateY(${item.start}px)` }}>
+                <ViewportRow row={r} env={env} start={flags.start} end={flags.end} highlighted={r.type === "message" && history.highlightId === r.message.id} />
               </div>
             );
           })}
         </div>
       </div>
+      <CallsDialog messages={callsOpen?.type === "calls" ? callsOpen.messages : null} onClose={() => setOpenedCalls(null)} />
       <StickyDateChip label={stickyLabel} visible={scrolling} />
       <JumpButtons
         down={down}
