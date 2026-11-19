@@ -64,15 +64,20 @@ export function PhoneListBar({ title, query, onQuery, searchId }: { title: strin
         </div>
       ) : (
         <div data-chat-phone-search="closed" className="flex h-14 items-center gap-1 px-1">
-          {bridge ? (
+          {bridge?.openDrawer ? (
             <button type="button" data-chat-drawer-open="" aria-label={ct("chatui.phone.menu")} onClick={bridge.openDrawer} className={iconButton}>
               <Menu aria-hidden="true" className="size-6" />
             </button>
           ) : null}
-          <h1 className={`min-w-0 flex-1 truncate text-lg font-semibold leading-tight text-fg ${bridge ? "" : "ps-3"}`}>{title}</h1>
+          <h1 className={`min-w-0 flex-1 truncate text-lg font-semibold leading-tight text-fg ${bridge?.openDrawer ? "" : "ps-3"}`}>{title}</h1>
           <button type="button" data-chat-phone-search-open="" aria-label={ct("chatui.phone.search.open")} onClick={() => setOpen(true)} className={iconButton}>
             <Search aria-hidden="true" className="size-5" />
           </button>
+          {bridge?.trailing ? (
+            <div data-chat-phone-trailing="" className="flex shrink-0 items-center">
+              {bridge.trailing}
+            </div>
+          ) : null}
         </div>
       )}
     </header>

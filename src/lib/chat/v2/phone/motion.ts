@@ -33,14 +33,29 @@ export interface FlipMove {
   to: number;
 }
 
-/** More rows than this moving at once is a new list (a folder, a search), not a row finding its place. */
+/** More rows than this moving at once is a new list, not a row finding its place (a safety net: the virtual list never draws many more than this). */
 export const MAX_FLIP_ROWS = 40;
+/**
+ * How many rows may ENTER or LEAVE the drawn window between two renders for the change to still be one row finding its place. A new message sends one row
+ * to the top: at most one row comes in at the top (or none, when it was already drawn) and one falls out at the bottom of the window. A folder switch or a
+ * search keystroke changes most of the window: that is a new list, and nothing slides (the cap above alone could never say so: the window holds fewer rows).
+ */
+export const MAX_FLIP_CHURN = 2;
 
 /**
  * The rows that were drawn before AND are drawn now at a different offset: each slides from where it was to where it is. A row that is new, or one that
- * stands still, does not move. Too many at once (`max`) means the whole list changed: nothing slides.
+ * stands still, does not move. When the window of drawn rows changed too much (`maxChurn`) or too many rows moved (`max`), the whole list changed: nothing slides.
  */
-export function flipMoves(prev: ReadonlyMap<string | number, number>, next: ReadonlyMap<string | number, number>, max: number = MAX_FLIP_ROWS): FlipMove[] {
+export function flipMoves(
+  prev: ReadonlyMap<string | number, number>,
+  next: ReadonlyMap<string | number, number>,
+  max: number = MAX_FLIP_ROWS,
+  maxChurn: number = MAX_FLIP_CHURN,
+): FlipMove[] {
+  let churn = 0;
+  for (const key of prev.keys()) if (!next.has(key)) churn += 1;
+  for (const key of next.keys()) if (!prev.has(key)) churn += 1;
+  if (churn > maxChurn) return [];
   const moves: FlipMove[] = [];
   for (const [key, to] of next) {
     const from = prev.get(key);

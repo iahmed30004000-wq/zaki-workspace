@@ -1,12 +1,13 @@
 "use client";
 
-import React, { useMemo, useState, type ReactNode } from "react";
+import React, { useEffect, useMemo, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ChatListColumn } from "@/components/chat/v2/list/chat-list-column";
 import { InfoSlotContext } from "@/components/chat/v2/info/info-slot";
 import { PhoneScreenFrame } from "@/components/chat/v2/phone/screen-frame";
 import { ShortcutsSheet } from "@/components/chat/v2/menu/shortcuts-sheet";
 import { useChatShortcuts } from "@/lib/chat/shortcuts";
+import { navTrail } from "@/lib/chat/v2/phone/nav-trail";
 import { phoneBackOf, phoneScreenOf } from "@/lib/chat/v2/phone/screens";
 import { chatHref, chatRouteOf, isListScreen, selectedConversationId } from "@/lib/chat/v2/routes";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
@@ -42,6 +43,8 @@ export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, children 
   const marker = screen === "other" ? {} : { "data-chat-screen": screen, "data-frame-bars": screen === "conversation" || screen === "info" ? "hide-all" : "hide-top" };
   const desktop = useIsDesktop();
   const router = useRouter();
+  // C2.8: the trail of addresses, so «back» pops the history when it can (nav-trail.ts)
+  useEffect(() => navTrail.visit(pathname ?? ""), [pathname]);
   const [sheet, setSheet] = useState(false);
   // C2.7: the column beside the pane where the info panel is drawn on a wide screen (the pane's info host portals into it)
   const [infoSlot, setInfoSlot] = useState<HTMLElement | null>(null);

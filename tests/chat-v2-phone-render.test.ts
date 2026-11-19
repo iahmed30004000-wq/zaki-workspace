@@ -284,10 +284,74 @@ describe("motion on the bubble and the reactions", () => {
 });
 
 describe("the phone list's rows slide to their place", () => {
-  it("the virtual list holds each row's element and runs FLIP after every render", () => {
+  it("the virtual list runs FLIP after every render, finding the element of a row that MOVED by its place in the window (no ref callback per row: a scroll re-attaches nothing)", () => {
     const src = read("src/components/chat/v2/list/virtual-rows.tsx");
-    expect(src).toContain("useFlipRows(starts, rowEls, rowHeight)");
-    expect(src).toMatch(/rowEls\.current\.set\(/);
+    expect(src).toContain("useFlipRows(");
+    expect(src).toContain('querySelector<HTMLElement>(`[data-row-index="${at.index}"]`)');
+    expect(src).not.toMatch(/\bref=\{\(el\)/);
     expect(src).toMatch(/transform: `translateY\(\$\{virtual\.start\}px\)`/);
+  });
+});
+
+describe("what the frame's hidden top bar carried, on the phone's list bar (review)", () => {
+  const TRAILING = createElement("span", { "data-test-trailing": "" }, "x");
+  const bar = (value: { openDrawer: (() => void) | null; trailing?: ReactNode } | null, query = "") =>
+    wrap(createElement(Bridge, { value: value as { openDrawer: () => void } | null }, createElement(PhoneListBar, { title: "زاكي", query, onQuery: noop, searchId: "s1" })));
+
+  it("the bell (and, with the old menu, the account menu) the frame hands over are drawn at the END of the bar; «☰» only when a drawer is handed over", () => {
+    const oldMenu = bar({ openDrawer: null, trailing: TRAILING });
+    expect(oldMenu).toContain("data-chat-phone-trailing");
+    expect(oldMenu).toContain("data-test-trailing");
+    expect(oldMenu).not.toContain("data-chat-drawer-open");
+    const newMenu = bar({ openDrawer: noop, trailing: TRAILING });
+    expect(newMenu).toContain("data-chat-drawer-open");
+    expect(newMenu).toContain("data-test-trailing");
+    expect(newMenu.indexOf("data-chat-drawer-open")).toBeLessThan(newMenu.indexOf("data-chat-phone-search-open"));
+    expect(newMenu.indexOf("data-chat-phone-search-open")).toBeLessThan(newMenu.indexOf("data-test-trailing"));
+    // nothing handed over, nothing drawn
+    expect(bar({ openDrawer: null })).not.toContain("data-chat-phone-trailing");
+    // an expanded search is a full-width field: nothing beside it
+    expect(bar({ openDrawer: noop, trailing: TRAILING }, "أحمد")).not.toContain("data-test-trailing");
+  });
+
+  it("the frame hands over the bell with the new menu and the bell plus the account menu with the old one (read from the source)", () => {
+    const shell = read("src/components/app-shell.tsx");
+    expect(shell).toContain("openDrawer: navV2 ? () => setDrawerOpen(true) : null,");
+    expect(shell).toContain("<NotificationBell />\n          {navV2 ? null : <AvatarMenu user={user} rank={rank} variant=\"bar\" />}");
+  });
+});
+
+describe("the forum view on the phone starts below the notch (review)", () => {
+  const LIST: ChatListDto = { scope: "all", spaceId: null, canOversee: false, rows: [] };
+  const column = (variant: "screen" | "column", pathname: string) => {
+    state.pathname = pathname;
+    const client = new QueryClient();
+    installChatDefaults(client);
+    client.setQueryData(chatKeys.list(), LIST);
+    const html = wrap(createElement(ChatListColumn as unknown as FunctionComponent<Record<string, unknown>>, { variant, userId: "u1", guest: false, canMeet: false, rowMenu: true, canPurge: false }), client);
+    state.pathname = "/chat";
+    return html;
+  };
+
+  it("on the phone the forum view sits in a box whose top is the safe-area inset (the frame's top bar, which owned the notch, is hidden there); on the computer it is as it was", () => {
+    const phone = column("screen", "/chat/s/sp1");
+    expect(phone).toContain("data-chat-forum-screen");
+    expect(phone).toContain("data-chat-forum");
+    const box = /<div data-chat-forum-screen="" class="([^"]*)"/.exec(phone)?.[1] ?? "";
+    expect(box.split(/\s+/)).toEqual(expect.arrayContaining(["absolute", "inset-x-0", "bottom-0", "top-[env(safe-area-inset-top)]", "z-40"]));
+    const desk = column("column", "/chat/s/sp1");
+    expect(desk).toContain("data-chat-forum");
+    expect(desk).not.toContain("data-chat-forum-screen");
+    // no forum open: no box
+    expect(column("screen", "/chat")).not.toContain("data-chat-forum-screen");
+  });
+
+  it("the whiteboard of a conversation is not a phone chat screen: the frame keeps its bars (and its notch padding) there", () => {
+    state.pathname = "/chat/c1/whiteboard";
+    state.desktop = false;
+    const html = wrap(createElement(Frame, { active: true, back: null }, createElement("p", null, "سبورة")));
+    expect(html).toContain("سبورة");
+    expect(read("src/components/chat/v2/shell/chat-shell.tsx")).toContain('screen === "other" ? {}');
+    state.pathname = "/chat";
   });
 });

@@ -234,6 +234,12 @@ describe("C2.8: the frame's bars on a phone, in each of the four combinations", 
     expect(target).toContain("data-chat-phone-bar");
     expect(target).toContain("data-chat-drawer-open");
     expect(target).not.toMatch(/<nav[^>]*class="fixed bottom-0/);
+    // what the frame's hidden top bar carried rides on the list's bar: the bell in both menus, the account menu only with the old one (the new one has it in the drawer)
+    const barOf = (html: string) => /<header data-chat-phone-bar[\s\S]*?<\/header>/.exec(html)?.[0] ?? "";
+    expect(barOf(old)).toContain('data-tour="inbox"');
+    expect(barOf(old)).toContain('data-tour="avatar"');
+    expect(barOf(target)).toContain('data-tour="inbox"');
+    expect(barOf(target)).not.toContain('data-tour="avatar"');
   });
 
   it("ON, a conversation: the bottom bar, the people row and the content's bottom padding go too (the composer owns the inset)", async () => {

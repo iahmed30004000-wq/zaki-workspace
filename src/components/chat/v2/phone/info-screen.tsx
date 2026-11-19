@@ -14,6 +14,8 @@ import { useChatHeader } from "@/lib/chat/cache/selectors";
 import { ct } from "@/lib/chat/text";
 import { callDoor, doors } from "@/lib/chat/v2/pane/message-actions";
 import { usePeople } from "@/lib/chat/v2/pane/use-people";
+import { markPendingSearch } from "@/lib/chat/v2/phone/pending-search";
+import { usePhoneBack } from "@/lib/chat/v2/phone/use-phone-back";
 import { chatHref } from "@/lib/chat/v2/routes";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
 
@@ -27,6 +29,7 @@ import { useIsDesktop } from "@/lib/chat/v2/use-media";
  */
 export function PhoneInfoScreen({ conversationId }: { conversationId: string }) {
   const router = useRouter();
+  const { go, onLinkClick } = usePhoneBack();
   const qc = useQueryClient();
   const toast = useOptionalToast();
   const desktop = useIsDesktop();
@@ -44,7 +47,7 @@ export function PhoneInfoScreen({ conversationId }: { conversationId: string }) 
     if (headerQuery.isError) return <PaneUnavailable error={headerQuery.error} retry={() => void headerQuery.refetch()} />;
     return (
       <section data-chat-info-screen="loading" className="flex h-full min-h-0 flex-col bg-surface">
-        <InfoBar back={back} />
+        <InfoBar back={back} onBack={onLinkClick(back)} />
         <p role="status" className="p-6 text-center text-sm text-fg-muted">
           {ct("chatc.loading")}
         </p>
@@ -66,20 +69,24 @@ export function PhoneInfoScreen({ conversationId }: { conversationId: string }) 
 
   return (
     <section data-chat-info-screen="ready" aria-label={ct("chatui.phone.info.label")} className="flex h-full min-h-0 flex-col bg-surface">
-      <InfoBar back={back} />
+      <InfoBar back={back} onBack={onLinkClick(back)} />
       <div className="flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)]">
-        <InfoPanel header={header} people={people} onSearch={() => router.push(back)} onTopic={topicCall} onSettingsSaved={refreshHeader} />
+        <InfoPanel header={header} people={people} onSearch={() => {
+            // the search lives in the conversation: leave a note for its pane and go back to it
+            markPendingSearch(conversationId);
+            go(back);
+          }} onTopic={topicCall} onSettingsSaved={refreshHeader} />
       </div>
     </section>
   );
 }
 
 /** The bar: under the notch, 56 px, a 44 px back arrow at the start and the screen's name. */
-function InfoBar({ back }: { back: string }) {
+function InfoBar({ back, onBack }: { back: string; onBack: (event: React.MouseEvent) => void }) {
   return (
     <header data-chat-info-bar="" className="shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
       <div className="flex h-14 items-center gap-1 px-1">
-        <Link href={back} aria-label={ct("chatc.back")} className="grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+        <Link href={back} aria-label={ct("chatc.back")} onClick={onBack} className="grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
           <ArrowRight aria-hidden="true" className="size-5" />
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{ct("chatui.phone.info.label")}</h1>

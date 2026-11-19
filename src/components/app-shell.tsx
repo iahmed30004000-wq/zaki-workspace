@@ -12,7 +12,8 @@ import { applyNavOrder, hasOrder, withPlaceOrder, withTabOrder, type NavOrder } 
 import { holdsNoWork, tabIsDrawn } from "@/lib/nav/shell-v2";
 import { useOptionalToast } from "@/components/ui/toast";
 import type { NewActionKey } from "@/lib/nav/new-actions";
-import type { AvatarUser } from "@/components/shell/avatar-menu";
+import { AvatarMenu, type AvatarUser } from "@/components/shell/avatar-menu";
+import { NotificationBell } from "@/components/notification-bell";
 import { AppBar } from "@/components/shell/app-bar";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { Drawer } from "@/components/shell/drawer";
@@ -27,7 +28,7 @@ import { TopBar } from "@/components/shell/top-bar";
 import { SwitchFxProvider } from "@/components/theme/switch-fx-provider";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/components/shell/sidebar-state";
 import { useChatUnread } from "@/lib/chat/use-chat-unread";
-import { FrameBridgeContext } from "@/lib/chat/v2/phone/frame-bridge";
+import { FrameBridgeContext, type FrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
 
 /**
@@ -162,7 +163,19 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => setDrawerOpen(false), [pathname]);
   // C2.8: the phone's chat list screen draws its own bar and asks the frame to open the drawer through this (only with the new menu: with it off there is no drawer, so no «☰»)
-  const bridge = useMemo(() => (navV2 ? { openDrawer: () => setDrawerOpen(true) } : null), [navV2]);
+  // (the frame's own top bar is hidden on those screens, so the bell, and the account menu where there is no drawer, ride along in `trailing`)
+  const bridge = useMemo<FrameBridge>(
+    () => ({
+      openDrawer: navV2 ? () => setDrawerOpen(true) : null,
+      trailing: (
+        <>
+          <NotificationBell />
+          {navV2 ? null : <AvatarMenu user={user} rank={rank} variant="bar" />}
+        </>
+      ),
+    }),
+    [navV2, user, rank],
+  );
   // «الإعدادات»: only where the person's map offers the page (as a tab or under «المزيد»)
   const settings = nav.places.flatMap((p) => [...p.tabs, ...(p.more ?? [])]).find((x) => x.key === "settings");
   // D-N3: «الشركة» keeps no projects, so somebody put only there has no work space. The shell's own spaces query answers once it has arrived; the server's guess first.

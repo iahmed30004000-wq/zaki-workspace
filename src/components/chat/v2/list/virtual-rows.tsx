@@ -58,10 +58,17 @@ export function VirtualRows({
 
   // C2.8: a row that moves (a new message sends its chat to the top) slides 150 ms to its place (FLIP) instead of jumping; nothing under reduced motion.
   // The offsets of the rows drawn now are compared with the render before; a change of the row height (a screen that crosses the phone's width) slides nothing.
-  const rowEls = useRef(new Map<string | number, HTMLElement>());
   const virtualItems = virtualizer.getVirtualItems();
   const starts = new Map<string | number, number>(virtualItems.map((virtual) => [virtual.key as string | number, virtual.start]));
-  useFlipRows(starts, rowEls, rowHeight);
+  useFlipRows(
+    starts,
+    // the element of a row that moved, found by its place in the window (only asked for the rows that moved)
+    (key) => {
+      const at = virtualItems.find((virtual) => virtual.key === key);
+      return at ? scrollRef.current?.querySelector<HTMLElement>(`[data-row-index="${at.index}"]`) : null;
+    },
+    rowHeight,
+  );
 
   // C2.6: a shortcut (Alt+↓) can open a chat that is outside the window: the selected row is brought into view, and only when it is not already
   useEffect(() => {
@@ -104,10 +111,6 @@ export function VirtualRows({
           return (
             <div
               key={virtual.key}
-              ref={(el) => {
-                if (el) rowEls.current.set(virtual.key as string | number, el);
-                else rowEls.current.delete(virtual.key as string | number);
-              }}
               role="listitem"
               data-row-index={virtual.index}
               className="absolute start-0 top-0 w-full"

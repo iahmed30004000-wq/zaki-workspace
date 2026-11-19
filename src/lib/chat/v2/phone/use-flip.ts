@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, type MutableRefObject } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { FLIP_MS, flipMoves, prefersReducedMotion } from "@/lib/chat/v2/phone/motion";
 
 // a layout effect in the browser (the slide must start before the first paint of the new place), a plain one where there is no browser (no warning on the server)
@@ -13,12 +13,13 @@ const useIsomorphicLayoutEffect = typeof window !== "undefined" ? useLayoutEffec
  * so when the animation ends nothing moves).
  *
  *  - `starts`      key → offset of every row drawn now (a scroll changes WHICH rows are drawn, never a row's offset, so a scroll slides nothing)
- *  - `refs`        key → the row's element
+ *  - `elementOf`   the row's element for a key (asked only for the rows that moved, so a scroll costs one small map and nothing else)
  *  - `resetKey`    a value that changes when the offsets all change for another reason (the row height at a screen change): that render slides nothing
  *
- * Nothing under `prefers-reduced-motion`, nothing without Web Animations, nothing when too many rows moved (a folder switch is a new list).
+ * Nothing under `prefers-reduced-motion`, nothing without Web Animations, nothing when the drawn window changed too much (a folder switch or a search is a new
+ * list, not a row finding its place: `flipMoves`).
  */
-export function useFlipRows(starts: ReadonlyMap<string | number, number>, refs: MutableRefObject<Map<string | number, HTMLElement>>, resetKey: unknown): void {
+export function useFlipRows(starts: ReadonlyMap<string | number, number>, elementOf: (key: string | number) => HTMLElement | null | undefined, resetKey: unknown): void {
   const before = useRef<ReadonlyMap<string | number, number> | null>(null);
   const lastReset = useRef(resetKey);
   useIsomorphicLayoutEffect(() => {
@@ -30,7 +31,7 @@ export function useFlipRows(starts: ReadonlyMap<string | number, number>, refs: 
     }
     if (!prev || prefersReducedMotion()) return;
     for (const move of flipMoves(prev, starts)) {
-      const el = refs.current.get(move.key);
+      const el = elementOf(move.key);
       if (el && typeof el.animate === "function") el.animate([{ transform: `translateY(${move.from}px)` }, { transform: `translateY(${move.to}px)` }], { duration: FLIP_MS, easing: "ease-out" });
     }
   });

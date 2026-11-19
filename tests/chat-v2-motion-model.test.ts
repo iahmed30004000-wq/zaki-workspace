@@ -77,6 +77,24 @@ describe("a row that moved slides to its place (FLIP)", () => {
     expect(flipMoves(prev, next)).toEqual([]);
     expect(flipMoves(prev, next, 100)).toHaveLength(60);
   });
+
+  it("does nothing when the DRAWN WINDOW changed (a folder switch or a search keystroke: most rows came or went), which the row cap alone could never say — a window holds fewer rows than the cap (review)", () => {
+    const window = (keys: string[]) => new Map<string | number, number>(keys.map((key, i) => [key, i * 76]));
+    // a folder switch: some rows survive at other offsets, most are new
+    const prev = window(["a", "b", "c", "d", "e", "f", "g", "h"]);
+    const next = window(["d", "c", "x", "y", "z", "w", "v", "u"]);
+    expect(flipMoves(prev, next)).toEqual([]);
+    // one more keystroke of a search: rows drop out of the middle, the survivors shift up
+    expect(flipMoves(window(["a", "b", "c", "d"]), window(["a", "c", "d"]))).toEqual([
+      { key: "c", from: 152, to: 76 },
+      { key: "d", from: 228, to: 152 },
+    ]);
+    // a new message: one row in at the top, the last of the window out at the bottom, everything between shifts down
+    const arrived = flipMoves(window(["a", "b", "c"]), window(["n", "a", "b"]));
+    expect(arrived.map((m) => m.key)).toEqual(["a", "b"]);
+    // a row from far below jumps to the top: one in, one out
+    expect(flipMoves(window(["a", "b", "c"]), window(["z", "a", "b"])).map((m) => m.key)).toEqual(["a", "b"]);
+  });
 });
 
 describe("every motion is off under prefers-reduced-motion", () => {

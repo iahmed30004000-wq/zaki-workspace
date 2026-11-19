@@ -1,13 +1,13 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
 import { useEdgeSwipeBack } from "@/lib/chat/v2/phone/use-edge-swipe";
 import { useKeyboardInset } from "@/lib/chat/v2/phone/use-keyboard-inset";
+import { usePhoneBack } from "@/lib/chat/v2/phone/use-phone-back";
 import { cn } from "@/lib/utils";
 
 /**
- * C2.8 — THE PHONE'S SCREEN BOX around everything that is not the list (a conversation, its info screen, its whiteboard): the page's content, full screen.
+ * C2.8 — THE PHONE'S SCREEN BOX around everything that is not the list (a conversation, its info screen; the whiteboard page is in the box too but keeps the frame's bars): the page's content, full screen.
  * It is ALWAYS in the tree (the list screen shows it as `hidden`, so the page and the list keep their state when the person goes back and forth), and what it
  * does, it does only while `active`:
  *
@@ -21,10 +21,11 @@ import { cn } from "@/lib/utils";
  * `overflow-x-clip` keeps the sliding box from ever making the page scroll sideways.
  */
 export function PhoneScreenFrame({ active, back, children }: { active: boolean; back: string | null; children: React.ReactNode }) {
-  const router = useRouter();
+  const { go } = usePhoneBack();
   const inset = useKeyboardInset(active);
+  // back POPS the history when the screen before is the target, and replaces this entry otherwise (nav-trail.ts): the hardware back button never bounces between two screens
   const ref = useEdgeSwipeBack<HTMLDivElement>(active && back !== null, () => {
-    if (back) router.push(back, { scroll: false });
+    if (back) go(back);
   });
   return (
     <div

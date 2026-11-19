@@ -62,6 +62,9 @@ export function ChatListColumn(props: ChatListColumnProps) {
     setForumSpace((kept) => nextForumSpace(route, kept, holds));
   }, [route, holds]);
   const forumId = forumShown(route, forumSpace);
+  const forum = (spaceId: string) => (
+    <ForumView spaceId={spaceId} variant={variant} userId={props.userId} guest={props.guest} rowMenu={props.rowMenu} canPurge={props.canPurge} selectedId={selectedConversationId(route)} />
+  );
   return (
     <section
       ref={columnRef}
@@ -74,7 +77,16 @@ export function ChatListColumn(props: ChatListColumnProps) {
       <div className="flex min-h-0 flex-1 flex-col" aria-hidden={forumId ? true : undefined} {...(forumId ? ({ inert: "" } as Record<string, string>) : {})}>
         <ListScreen {...props} selectedId={selectedConversationId(route)} />
       </div>
-      {forumId ? <ForumView spaceId={forumId} variant={variant} userId={props.userId} guest={props.guest} rowMenu={props.rowMenu} canPurge={props.canPurge} selectedId={selectedConversationId(route)} /> : null}
+      {forumId ? (
+        column ? (
+          forum(forumId)
+        ) : (
+          // C2.8: on the phone the frame's top bar (which owned the notch) is hidden on a chat screen, and the forum view's own header has no inset: the view starts below it
+          <div data-chat-forum-screen="" className="absolute inset-x-0 bottom-0 top-[env(safe-area-inset-top)] z-40">
+            {forum(forumId)}
+          </div>
+        )
+      ) : null}
       {column ? (
         <div
           {...handle}
