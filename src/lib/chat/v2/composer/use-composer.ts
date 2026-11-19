@@ -3,6 +3,8 @@
 import React from "react";
 import type { QueryClient } from "@tanstack/react-query";
 import type { ConversationDto, MessageDto } from "@/server/chat/dto";
+import type { ScheduledAnswer, ScheduledItem } from "@/components/chat/v2/composer/scheduled-list";
+import { editChangesTime, type ScheduleSubmit } from "@/components/chat/v2/composer/schedule-dialog";
 import type { OutboxRestore } from "@/components/chat/composer/chat-composer";
 import { dropStalePending, replacePending, syncPendingWithOutbox } from "@/lib/chat/cache/pending";
 import { clearComposerDraft, loadComposerDraft, saveComposerDraft } from "@/lib/chat/composer-draft";
@@ -10,6 +12,7 @@ import { compressImage } from "@/lib/chat/compress-image";
 import { createChatUploadFormData, createVoiceUploadFormData, enterSends, messageClientId } from "@/lib/chat/conversation/client";
 import { ASSISTANT_MENTION_ID, filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
 import { classifyFile, exceedsKindLimit, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/chat/file-kinds";
+import { errorKeyOf } from "@/lib/chat/poll-client";
 import { takeRoom } from "@/lib/chat/album-layout";
 import { startOptimisticSend } from "@/lib/chat/outbox/optimistic";
 import type { Outbox } from "@/lib/chat/outbox/queue";
@@ -72,6 +75,17 @@ export function useComposer(p: ComposerParams) {
   /** C3b.2: ✕ was pressed on the preview of the link in the box (the surface reports it): the send carries `noPreview` and the server never visits the link */
   const [noPreview, setNoPreview] = React.useState(false);
   const [recall, setRecall] = React.useState<{ kind: RecallKind | null; q: string } | null>(null);
+  // C3c.3 «جدول الإرسال»: the person's own scheduled messages of this conversation (null: not loaded, the company's switch is off, or they may not schedule here), the two dialogs, and what an action says
+  const [scheduledList, setScheduledList] = React.useState<ScheduledAnswer | null>(null);
+  const [scheduleDialog, setScheduleDialog] = React.useState<{ edit: ScheduledItem | null } | null>(null);
+  const [scheduledOpen, setScheduledOpen] = React.useState(false);
+  const [scheduledBusy, setScheduledBusy] = React.useState<string | null>(null);
+  const [scheduledError, setScheduledError] = React.useState("");
+  const [scheduleNotice, setScheduleNotice] = React.useState("");
+  /** the id of THIS scheduling: a retry of a request whose answer was lost finds the same row; renewed after a row was made */
+  const scheduleKey = React.useRef(messageClientId());
+  /** the files already uploaded for this scheduling: a retry after a refusal (a time too soon ...) reuses them instead of uploading and orphaning a second copy */
+  const scheduleUploads = React.useRef<{ files: File[]; ids: string[] } | null>(null);
   /** the images of a paste, waiting in the send dialog */
   const [pasted, setPasted] = React.useState<File[] | null>(null);
   const recorder = React.useRef<VoiceRecorder | null>(null);
@@ -273,6 +287,26 @@ export function useComposer(p: ComposerParams) {
     }
   }
 
+  /** Uploads the tray's files one after the other (the progress of each) and answers their ids, in order (C3c.3 shares it with «جدول الإرسال»: the same upload, the same limits). */
+  async function uploadTray(tray: PendingFile[]): Promise<string[]> {
+    const attachmentIds: string[] = [];
+    for (const [index, item] of tray.entries()) {
+      let upload = item.file;
+      // «ابعتها كملف»: the original bytes, never compressed
+      if (item.kind === "IMAGE" && !item.asFile) {
+        const compressed = await compressImage(item.file, item.file.name);
+        if (compressed) upload = new File([compressed.blob], item.file.name, { type: compressed.mime });
+      }
+      if (exceedsKindLimit(upload.size, item.kind)) throw new Error(ct("chatc.file_too_large"));
+      const result = await uploadWithProgress("/api/chat/uploads", createChatUploadFormData(upload, item.asFile ? "FILE" : item.kind), (percent) =>
+        setProgress((current) => current.map((v, i) => (i === index ? percent : v))),
+      );
+      if (typeof result["id"] !== "string") throw new Error(ct("chatc.upload_failed"));
+      attachmentIds.push(result["id"]);
+    }
+    return attachmentIds;
+  }
+
   /** The send itself, for the words and the tray it is given (the box's own, or a paste dialog's). */
   async function sendNow(text: string, tray: PendingFile[], id: string = clientId) {
     return sendWith(text, tray, id, false);
@@ -316,21 +350,7 @@ export function useComposer(p: ComposerParams) {
     setError("");
     setProgress(tray.map(() => 0));
     try {
-      const attachmentIds: string[] = [];
-      for (const [index, item] of tray.entries()) {
-        let upload = item.file;
-        // «ابعتها كملف»: the original bytes, never compressed
-        if (item.kind === "IMAGE" && !item.asFile) {
-          const compressed = await compressImage(item.file, item.file.name);
-          if (compressed) upload = new File([compressed.blob], item.file.name, { type: compressed.mime });
-        }
-        if (exceedsKindLimit(upload.size, item.kind)) throw new Error(ct("chatc.file_too_large"));
-        const result = await uploadWithProgress("/api/chat/uploads", createChatUploadFormData(upload, item.asFile ? "FILE" : item.kind), (percent) =>
-          setProgress((current) => current.map((v, i) => (i === index ? percent : v))),
-        );
-        if (typeof result["id"] !== "string") throw new Error(ct("chatc.upload_failed"));
-        attachmentIds.push(result["id"]);
-      }
+      const attachmentIds = await uploadTray(tray);
       await postMessage({ body: text.trim(), attachmentIds, mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), ...(silent ? { silent: true } : {}), clientId: id });
       for (const f of tray) if (f.preview) URL.revokeObjectURL(f.preview);
       if (draftOn) clearComposerDraft(meId, conversationId);
@@ -357,6 +377,150 @@ export function useComposer(p: ComposerParams) {
   function submitSilent() {
     if (editing || detail.silentSend === false) return;
     void sendWith(body, files, clientId, true);
+  }
+
+  // ---------- C3c.3 «جدول الإرسال» ----------
+  const scheduledUrl = `/api/chat/conversations/${encodeURIComponent(conversationId)}/scheduled`;
+  // the list is read when the conversation opens (a 404 is the company's switch off, or no right to write: no icon, no menu entry); a person who only reads in silence never asks
+  const scheduledAsk = !detail.me.oversight && meId !== "";
+  async function refreshScheduled(): Promise<void> {
+    try {
+      const response = await fetch(scheduledUrl, { cache: "no-store" });
+      setScheduledList(response.ok ? ((await response.json()) as ScheduledAnswer) : null);
+    } catch {
+      // the network is gone: the icon keeps what it had and the next action asks again
+    }
+  }
+  React.useEffect(() => {
+    setScheduledList(null);
+    setScheduledOpen(false);
+    setScheduleDialog(null);
+    if (!scheduledAsk) return;
+    let live = true;
+    void fetch(scheduledUrl, { cache: "no-store" })
+      .then(async (response) => (response.ok ? ((await response.json()) as ScheduledAnswer) : null))
+      .then((list) => {
+        if (live) setScheduledList(list);
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked again when the conversation or the person changes
+  }, [conversationId, scheduledAsk]);
+  React.useEffect(() => {
+    if (!scheduleNotice) return;
+    const timer = setTimeout(() => setScheduleNotice(""), 6000);
+    return () => clearTimeout(timer);
+  }, [scheduleNotice]);
+  const failureOf = async (response: Response, fallbackKey: string): Promise<string> => {
+    const key = errorKeyOf(await response.json().catch(() => null));
+    return ct(key ?? fallbackKey);
+  };
+
+  /** «جدول الإرسال» from the send button's menu: asks WHEN (the dialog), then `scheduleNow`. Never while an edit is saved or with nothing to send. */
+  function openScheduleDialog() {
+    if (editing || scheduledList?.canSchedule !== true || (!body.trim() && !files.length)) return;
+    setError("");
+    setScheduleDialog({ edit: null });
+  }
+  /** The dialog's «جدول»: the files go up, then ONE row is made with the words, the mentions and the moment. The box is emptied like after a send; a failure comes back as a sentence for the dialog. */
+  async function scheduleNow(input: ScheduleSubmit): Promise<string | null> {
+    // a send or an upload is running: say so (a null would close the dialog as if it had worked)
+    if (busy) return ct("chat.sched.e.busy");
+    if (!body.trim() && !files.length) return ct("chat.e.empty");
+    const tray = files;
+    setBusy(true);
+    setError("");
+    setProgress(tray.map(() => 0));
+    try {
+      const kept = scheduleUploads.current;
+      const reuse = kept !== null && kept.files.length === tray.length && kept.files.every((file, i) => file === tray[i]?.file);
+      const attachmentIds = reuse ? kept.ids : await uploadTray(tray);
+      scheduleUploads.current = tray.length > 0 ? { files: tray.map((item) => item.file), ids: attachmentIds } : null;
+      const response = await fetch(scheduledUrl, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          body: body.trim(), attachmentIds, mentions: selectedMentionIds(body, mentions),
+          ...(canAll && mentionsAll(body) ? { mentionAll: true } : {}),
+          ...(reply ? { replyToId: reply.id } : {}),
+          ...(noPreview === true ? { noPreview: true } : {}),
+          sendAt: input.sendAt, clientId: scheduleKey.current,
+        }),
+      });
+      if (!response.ok) return await failureOf(response, "chat.sched.e.save_failed");
+      for (const f of tray) if (f.preview) URL.revokeObjectURL(f.preview);
+      if (draftOn) clearComposerDraft(meId, conversationId);
+      setBody("");
+      setFiles([]);
+      setMentions([]);
+      setClientId(messageClientId());
+      scheduleKey.current = messageClientId();
+      scheduleUploads.current = null;
+      onCancelReply();
+      setScheduleDialog(null);
+      setScheduleNotice(ct("chatsched.done"));
+      await refreshScheduled();
+      return null;
+    } catch (e) {
+      return failText(e, "chat.sched.e.save_failed");
+    } finally {
+      setBusy(false);
+      setProgress([]);
+    }
+  }
+  /** «عدّل» from the list: the dialog opens on that row (its words and its moment). */
+  function beginEditScheduled(item: ScheduledItem) {
+    setScheduledError("");
+    setScheduledOpen(false);
+    setScheduleDialog({ edit: item });
+  }
+  async function saveScheduledEdit(item: ScheduledItem, input: ScheduleSubmit): Promise<string | null> {
+    try {
+      const response = await fetch(`/api/chat/scheduled/${encodeURIComponent(item.id)}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        // the moment is sent only when the person changed it: a row that is a few seconds from going out can still have its words edited
+        body: JSON.stringify({ ...(editChangesTime(item.sendAt, input.sendAt) ? { sendAt: input.sendAt } : {}), ...(input.body !== undefined ? { body: input.body } : {}) }),
+      });
+      if (!response.ok) return await failureOf(response, "chat.sched.e.save_failed");
+      setScheduleDialog(null);
+      await refreshScheduled();
+      setScheduledOpen(true);
+      return null;
+    } catch (e) {
+      return failText(e, "chat.sched.e.save_failed");
+    }
+  }
+  /** One action of the list («ابعت هلّق» or «احذف») on one row; the list is read again afterwards whatever happened. */
+  async function actOnScheduled(id: string, run: () => Promise<Response>, then?: (response: Response) => Promise<void>) {
+    if (scheduledBusy) return;
+    setScheduledBusy(id);
+    setScheduledError("");
+    try {
+      const response = await run();
+      if (!response.ok) setScheduledError(await failureOf(response, "chat.sched.e.action_failed"));
+      else if (then) await then(response);
+    } catch {
+      setScheduledError(ct("chat.sched.e.action_failed"));
+    } finally {
+      setScheduledBusy(null);
+      await refreshScheduled();
+    }
+  }
+  function sendScheduledNow(id: string) {
+    void actOnScheduled(id, () => fetch(`/api/chat/scheduled/${encodeURIComponent(id)}/send`, { method: "POST" }), async (response) => {
+      const answer = (await response.json().catch(() => null)) as { message?: MessageDto | null } | null;
+      // the job may have sent it a moment before (the answer then carries no message): nothing was sent by THIS action, so no sound
+      if (answer?.message) {
+        onMessage(answer.message);
+        playChatSound("sent");
+      }
+    });
+  }
+  function deleteScheduled(id: string) {
+    void actOnScheduled(id, () => fetch(`/api/chat/scheduled/${encodeURIComponent(id)}`, { method: "DELETE" }));
   }
 
   /** The paste dialog's «ابعت»: the pictures go with the caption, as pictures or (the toggle) as files. */
@@ -560,6 +724,10 @@ export function useComposer(p: ComposerParams) {
     textRef, mediaInput, fileInput,
     addFiles, addDropped: (list: ArrayLike<File>, asFile: boolean) => addFiles(forDropMode(list, asFile ? "files" : "media")), removeFile, selectMention, insertAtCaret,
     onTextChange, onKeyDown, onPaste, submit, submitSilent, silentSendOn: detail.silentSend !== false, sendPasted,
+    // C3c.3: the send menu's «جدول الإرسال» (only where the person may write and the company's switch is on), the dialogs and the list
+    scheduling: !editing && scheduledList?.canSchedule === true, scheduledItems: scheduledList?.items ?? [], scheduledZone: scheduledList?.timeZone ?? "UTC",
+    scheduleDialog, closeScheduleDialog: () => setScheduleDialog(null), openScheduleDialog, scheduleNow, saveScheduledEdit,
+    scheduledOpen, setScheduledOpen, scheduledBusy, scheduledError, scheduleNotice, beginEditScheduled, sendScheduledNow, deleteScheduled,
     startRecording, cancelRecording, sendVoice, onMicPointerDown, onMicClick,
     insertWords: (text: string) => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); },
     setDismissed,

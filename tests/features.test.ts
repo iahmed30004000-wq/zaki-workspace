@@ -256,6 +256,19 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.chatSilentSend.hint"]).toContain("🔧");
   });
 
+  it("«جدولة الرسائل» (`chatScheduled`, C3c.3): ON by default; off, the routes answer «not found», the menu entry and the icon are not drawn and the job leaves the rows alone", () => {
+    expect(FEATURES).toContain("chatScheduled");
+    expect(FEATURE_DEFAULTS.chatScheduled).toBe(true);
+    expect(featureOn({}, "chatScheduled")).toBe(true);
+    expect(featureOn({ features: { chatScheduled: false } }, "chatScheduled")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatScheduled");
+    expect(featuresOff({ features: { chatScheduled: false } })).toContain("chatScheduled");
+    expect(AR["features.chatScheduled.name"]).toBe("جدولة الرسائل");
+    expect(AR["features.chatScheduled.hint"]).toContain("جدول الإرسال");
+    expect(AR["features.chatScheduled.hint"]).toContain("⚠️");
+    expect(AR["features.chatScheduled.hint"]).toContain("🔧");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

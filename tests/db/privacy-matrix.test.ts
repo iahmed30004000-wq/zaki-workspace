@@ -27,6 +27,9 @@ import * as workRequestsRoute from "@/app/api/work/requests/route";
 import * as chatPrefsRoute from "@/app/api/me/chat-prefs/route";
 import * as previewImageRoute from "@/app/api/chat/messages/[id]/preview/image/route";
 import * as previewRemoveRoute from "@/app/api/chat/messages/[id]/preview/route";
+import * as scheduleRoute from "@/app/api/chat/conversations/[id]/scheduled/route";
+import * as oneRoute from "@/app/api/chat/scheduled/[id]/route";
+import * as sendNowRoute from "@/app/api/chat/scheduled/[id]/send/route";
 import { linkPreviewAfterSend, setLinkPreviewDepsForTests } from "@/server/chat/link-preview";
 import { folderRows } from "@/lib/chat/folders";
 import { chatHome } from "@/server/chat/home";
@@ -704,4 +707,93 @@ describe("privacy matrix — the C3b.2 link preview", () => {
       }
     });
   }
+});
+
+// ───────────────────────────── C3c.3: «جدول الإرسال» (scheduled messages) ─────────────────────────────
+// A scheduled message lives in a table of its own (`ScheduledChatMessage`) that NO message reader reads, and only its AUTHOR sees their own rows. Who may SCHEDULE in a
+// conversation is who may POST there (the send's own `canPost`, with the silent eye unable to post where he has not joined): the same cells as the personal-state table above
+// (read + post, not the silent eyes). A refused person leaves no row and learns nothing. The words of a waiting row appear on NO surface of a message: the window, the list,
+// the search, the sync feed and the oversight list never carry them, for anybody (the author included: they read their own rows only through the scheduled routes).
+const SCHEDULE_WRITE: Record<string, string> = {
+  open: "0 0 1 0 1 1 1 1 1", //       an open topic: everybody who reads AND may post (the owner's eyes cannot post unjoined; a guest may post in a discussion topic)
+  restricted: "0 0 0 0 0 1 0 0 0", // only its own people
+  team: "0 0 1 0 1 0 0 1 0", //       the team's people and the space's managers
+  dm: "0 0 0 0 0 1 0 0 0", //         the private chat's own person
+};
+const SCHEDULED_WORD = "نصمجدولبالمصفوفة";
+
+describe("privacy matrix — the C3c.3 scheduled messages", () => {
+  for (const kind of Object.keys(SCHEDULE_WRITE)) {
+    it(`${kind}: who may schedule, who sees the row, and that no message reader ever carries it`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      const wrong: string[] = [];
+      const sendAt = () => new Date(Date.now() + 30 * 60_000).toISOString();
+      const made = new Map<Persona, string>();
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        await loginAs(person.id);
+        const rowsBefore = await db.scheduledChatMessage.count({ where: { authorId: person.id, conversationId: id } });
+        const res = await call(scheduleRoute.POST, { method: "POST", params: { id }, body: { body: `${SCHEDULED_WORD} ${who} ${kind}`, sendAt: sendAt() } });
+        const may = res.status === 201;
+        const want = cells(SCHEDULE_WRITE[kind]!)[PERSONAS.indexOf(who)]!;
+        if (may !== want) wrong.push(`${who} · may schedule: expected ${want} (status ${res.status})`);
+        if (may) made.set(who, res.json?.["id"] as string);
+        if (!want) {
+          if (![403, 404].includes(res.status)) wrong.push(`${who} · a refusal must be 403 or 404 (got ${res.status})`);
+          if ((await db.scheduledChatMessage.count({ where: { authorId: person.id, conversationId: id } })) !== rowsBefore) wrong.push(`${who} · a refused person got a row`);
+          if (res.text.includes(WORD) || res.text.includes(SCHEDULED_WORD)) wrong.push(`${who} · the refusal carried a text`);
+        }
+      }
+
+      // every reader of a message, as every person who may read: not one word of any waiting row
+      const ctxOf = async (who: Persona) => ({ orgId: w.orgId, userId: w.people[who].id, orgRole: await w.roleOf(w.people[who].id) });
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        const c = await ctxOf(who);
+        const surfaces: Record<string, string> = {
+          window: (await call(messagesRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/messages`, params: { id } })).text,
+          list: JSON.stringify(await chatList(c)),
+          space: JSON.stringify(await chatList(c, { spaceId: w.space.id })),
+          search: JSON.stringify(await searchChat(c, { id: w.space.id, isHq: false }, SCHEDULED_WORD)),
+          sync: JSON.stringify(await syncFeed(c)),
+          oversight: JSON.stringify(await listOversight(c, { limit: 100 }).catch(() => null)),
+        };
+        for (const [surface, text] of Object.entries(surfaces)) if (text.includes(SCHEDULED_WORD)) wrong.push(`${who} · ${surface}: carried the words of a scheduled message`);
+      }
+
+      // the scheduled routes: each person sees their OWN row and nobody else's; nobody touches another's row
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        const listed = await call(scheduleRoute.GET, { method: "GET", params: { id } });
+        const readsHere = expected(CONVERSATIONS, kind, who);
+        if (readsHere !== (listed.status === 200)) wrong.push(`${who} · the list: expected ${readsHere ? 200 : "a refusal"} (status ${listed.status})`);
+        if (listed.status === 200) {
+          const ids = (listed.json?.["items"] as { id: string }[]).map((i) => i.id);
+          const mine = made.get(who);
+          if (JSON.stringify(ids) !== JSON.stringify(mine ? [mine] : [])) wrong.push(`${who} · the list shows ${JSON.stringify(ids)}, not only their own row`);
+        } else if (listed.text.includes(SCHEDULED_WORD)) wrong.push(`${who} · a refused list carried a text`);
+        for (const [owner, rowId] of made) {
+          if (owner === who) continue;
+          const patch = await call(oneRoute.PATCH, { method: "PATCH", params: { id: rowId }, body: { body: "x" } });
+          const del = await call(oneRoute.DELETE, { method: "DELETE", params: { id: rowId } });
+          const send = await call(sendNowRoute.POST, { method: "POST", params: { id: rowId } });
+          for (const [what, res] of Object.entries({ patch, del, send })) {
+            if (res.status !== 404 || res.text.includes(SCHEDULED_WORD)) wrong.push(`${who} · ${what} of ${owner}'s row: expected a bare 404 (got ${res.status})`);
+          }
+        }
+      }
+      for (const [owner, rowId] of made) {
+        const row = await db.scheduledChatMessage.findUniqueOrThrow({ where: { id: rowId } });
+        if (row.status !== "PENDING" || !row.body.includes(SCHEDULED_WORD)) wrong.push(`${owner} · a row was changed by somebody else`);
+      }
+      // the rows made no message
+      if ((await db.chatMessage.count({ where: { conversationId: id, body: { contains: SCHEDULED_WORD } } })) !== 0) wrong.push("a scheduled row became a message before its time");
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("the table has one cell per persona in every row", () => {
+    for (const row of Object.values(SCHEDULE_WRITE)) expect(cells(row)).toHaveLength(PERSONAS.length);
+  });
 });
