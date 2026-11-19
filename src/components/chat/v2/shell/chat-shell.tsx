@@ -1,9 +1,11 @@
 "use client";
 
-import React, { useMemo, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
+import React, { useMemo, useState, type ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
 import { ChatListColumn } from "@/components/chat/v2/list/chat-list-column";
-import { chatRouteOf, isListScreen } from "@/lib/chat/v2/routes";
+import { ShortcutsSheet } from "@/components/chat/v2/menu/shortcuts-sheet";
+import { useChatShortcuts } from "@/lib/chat/shortcuts";
+import { chatHref, chatRouteOf, isListScreen, selectedConversationId } from "@/lib/chat/v2/routes";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
 
 export interface ChatShellProps {
@@ -32,6 +34,16 @@ export interface ChatShellProps {
 export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, children }: ChatShellProps) {
   const route = chatRouteOf(usePathname());
   const desktop = useIsDesktop();
+  const router = useRouter();
+  const [sheet, setSheet] = useState(false);
+  // C2.6: the keyboard of the chat, mounted ONCE here (the list and the pane tell it what they hold); only on the computer
+  useChatShortcuts({
+    enabled: desktop === true,
+    currentId: selectedConversationId(route),
+    open: (id) => router.push(chatHref.conversation(id), { scroll: false }),
+    toList: () => router.push(chatHref.list, { scroll: false }),
+    openSheet: () => setSheet(true),
+  });
 
   const column = useMemo(
     () => <ChatListColumn variant={desktop === false ? "screen" : "column"} userId={userId} guest={guest} canMeet={canMeet} rowMenu={rowMenu} canPurge={canPurge} />,
@@ -58,6 +70,7 @@ export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, children 
       <div data-chat-pane="" className="min-w-0 flex-1">
         {children}
       </div>
+      {desktop === true ? <ShortcutsSheet open={sheet} onOpenChange={setSheet} /> : null}
     </div>
   );
 }

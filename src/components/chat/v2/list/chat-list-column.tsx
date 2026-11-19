@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useEffect, useId, useMemo, useState } from "react";
+import React, { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
@@ -11,6 +11,7 @@ import { ForumView } from "@/components/chat/v2/forum/forum-view";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { useListWidth } from "@/components/chat/v2/use-list-width";
 import { useChatList, useChatSpace, useChatUnreadSummary } from "@/lib/chat/cache/selectors";
+import { shortcutBridge } from "@/lib/chat/v2/menu/shortcut-bridge";
 import { foldersOf, folderBadge, folderKeyOf, isCompanyFolder, listRows, normalizeQuery, rowItems, type ListFolderKey } from "@/lib/chat/list-folders";
 import { ct } from "@/lib/chat/text";
 import { chatRouteOf, forumShown, nextForumSpace, selectedConversationId } from "@/lib/chat/v2/routes";
@@ -107,6 +108,23 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
     [list.rows, list.scope, list.spaceId, folder, words, orders],
   );
   const items = useMemo(() => rowItems(rows), [rows]);
+
+  // C2.6: the keyboard (Alt+↑/↓, Alt+Shift+↑/↓, Ctrl+1…9) reads the rows in the order they are drawn and the folders of THIS list. A space row is not a
+  // conversation, so it is not a chat to step to. The source is registered once and always answers from the latest rows.
+  const live = useRef({ entries: [] as { id: string; unread: boolean }[], folders });
+  live.current = { entries: rows.filter((row) => row.kind !== "SPACE").map((row) => ({ id: row.id, unread: row.unread > 0 || row.markedUnread })), folders };
+  useEffect(
+    () =>
+      shortcutBridge.setList({
+        entries: () => live.current.entries,
+        folderCount: () => live.current.folders.length,
+        selectFolder: (index) => {
+          const target = live.current.folders[index];
+          if (target) setFolderKey(target.key);
+        },
+      }),
+    [],
+  );
   const badges = useMemo(() => Object.fromEntries(folders.map((f) => [f.key, folderBadge(summary, f.key)])) as Partial<Record<ListFolderKey, number>>, [folders, summary]);
 
   // the list of ONE space (D-N2 «كل مساحة حساب»): its topics have no manager flag of their own, so the space's own view says whether the viewer manages it

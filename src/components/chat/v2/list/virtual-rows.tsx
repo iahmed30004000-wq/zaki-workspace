@@ -55,6 +55,15 @@ export function VirtualRows({
     virtualizer.measure();
   }, [rowHeight, virtualizer]);
 
+  // C2.6: a shortcut (Alt+↓) can open a chat that is outside the window: the selected row is brought into view, and only when it is not already
+  useEffect(() => {
+    if (!selectedId) return;
+    const index = items.findIndex((item) => item.type === "row" && item.id === selectedId);
+    if (index >= 0) virtualizer.scrollToIndex(index, { align: "auto" });
+    // the list is scrolled to the selection when the selection moves, not when the rows change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
   const move = useCallback(
     (from: number, step: 1 | -1) => {
       let next = from + step;
