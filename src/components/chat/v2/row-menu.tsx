@@ -8,7 +8,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
 import { useOptionalToast } from "@/components/ui/toast";
 import { PurgeConfirm, RowMenuItems, rowMenuOffers, useRowCall, type RowAction } from "@/components/chat/home/row-menu";
 import { chatKeys } from "@/lib/chat/cache/keys";
-import { useChatPersonalState } from "@/lib/chat/cache/selectors";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { markConversationRead } from "@/lib/chat/cache/writer";
 import { MUTE_PRESETS, mutedUntilOf, personalOffers } from "@/lib/chat/row-preview";
@@ -158,7 +157,10 @@ export function usePersonalCall(row: Pick<ChatRowDto, "id" | "unread">): { busy:
           markConversationRead(qc, row.id);
           announceChatRead();
         }
-        say("chath.menu.done");
+        // a mute whose time had already passed on the server (this device's clock is behind) was not kept: said, not shown as done
+        const asked = change !== "read" && typeof change.mutedUntil === "string";
+        const kept = !asked || ((await res.json().catch(() => ({}))) as { mutedUntil?: string | null }).mutedUntil;
+        say(kept ? "chath.menu.done" : "chatps.failed", kept ? "success" : "error");
         void qc.invalidateQueries({ queryKey: chatKeys.list() });
         void qc.invalidateQueries({ queryKey: chatKeys.spaces() });
         void qc.invalidateQueries({ queryKey: CHAT_ORDERS_KEY });

@@ -49,7 +49,6 @@ export function foldersOf(opts: { canOversee: boolean; guest?: boolean; archived
   return opts.canOversee && !opts.guest ? [...base, COMPANY] : base;
 }
 
-
 /** A remembered or typed folder, or the first one when it is not on offer (a person who lost the oversight, a stale value). */
 export function folderKeyOf(value: unknown, offered: readonly ListFolder[]): ListFolderKey {
   return offered.find((f) => f.key === value)?.key ?? offered[0]?.key ?? "all";

@@ -229,6 +229,22 @@ describe("archive: it comes back to the main list when something arrives, unless
     expect(rowOf(await listOf(w, w.a), w.open2.id)!.archivedByMe).toBe(false); // «y» is newer than the archive
   });
 
+  it("an archive that a message already ended stays ended when the chat is muted LATER (muting does not archive it again)", async () => {
+    const w = await getWorld();
+    const t = await db.conversation.create({ data: { orgId: w.t.org.id, kind: "TOPIC", spaceId: w.space.id, title: "Ended" } });
+    await say(w, t.id, w.b.id, "old");
+    expect((await put(w, w.a, t.id, { archived: true })).status).toBe(200);
+    await sayAfterArchive(w, t.id, w.a.id, w.b.id, "back again");
+    expect(rowOf(await listOf(w, w.a), t.id)!.archivedByMe).toBe(false);
+    expect((await put(w, w.a, t.id, { mutedUntil: new Date(Date.now() + 3_600_000).toISOString() })).status).toBe(200);
+    const row = rowOf(await listOf(w, w.a), t.id)!;
+    expect(row.muted).toBe(true);
+    expect(row.archivedByMe).toBe(false);
+    // while archived AND muted from the start, the archive stands (the other test); archiving and muting in one call is that case too
+    expect((await put(w, w.a, t.id, { archived: true, mutedUntil: new Date(Date.now() + 3_600_000).toISOString() })).status).toBe(200);
+    expect(rowOf(await listOf(w, w.a), t.id)!.archivedByMe).toBe(true);
+  });
+
   it("un-archiving is explicit too, and an archive of a topic takes it out of its space's row (its numbers and chips)", async () => {
     const w = await getWorld();
     const t = await db.conversation.create({ data: { orgId: w.t.org.id, kind: "TOPIC", spaceId: w.space.id, title: "Fold" } });

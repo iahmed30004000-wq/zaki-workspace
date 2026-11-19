@@ -4,7 +4,6 @@ import { db } from "@/server/db";
 import { NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { canRead, hasOversight, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
-import { parse } from "@/server/validation";
 import { cleanOrder } from "@/lib/chat/order";
 
 /**
@@ -123,8 +122,7 @@ export function archivedByMeSql(orgId: string): Prisma.Sql {
  * A change that changes nothing writes nothing and says nothing. A change is ONE event for the person alone (`conversation.changed` with
  * `targetUserId`, ids only): their other tabs and devices get the row through the sync feed.
  */
-export async function setMyChatState(ctx: OrgAccessContext, conversationId: string, input: unknown): Promise<MyChatStateDto> {
-  const want = parse(myChatStateSchema, input);
+export async function setMyChatState(ctx: OrgAccessContext, conversationId: string, want: MyChatStateInput): Promise<MyChatStateDto> {
   const [facts, org] = await Promise.all([loadConversationFacts(ctx.userId, conversationId), loadOrgFacts(ctx.userId, ctx.orgId)]);
   if (!facts || !org || facts.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
   if (org.role === "GUEST" && facts.kind !== "TOPIC") throw new NotFoundError("chat.e.not_found");
@@ -137,8 +135,8 @@ export async function setMyChatState(ctx: OrgAccessContext, conversationId: stri
   const where = { conversationId_userId: { conversationId, userId: ctx.userId } };
   const mineOf = (tx: Prisma.TransactionClient) => tx.conversationMember.findUnique({ where, select: { pinnedAt: true, archivedAt: true, markedUnread: true, mutedUntil: true } });
   return db.$transaction(async (tx) => {
-    // pins are counted and written under one lock per person, so two at once never make eleven
-    if (want.pinned === true) await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${`chatpins:${ctx.userId}`}))) l`;
+    // pins are counted and written under one lock per person (a pin AND an un-pin), so two at once never make eleven and never write a stale order
+    if (want.pinned !== undefined) await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${`chatpins:${ctx.userId}`}))) l`;
     const row = await mineOf(tx);
     const data: { pinnedAt?: Date | null; archivedAt?: Date | null; markedUnread?: boolean; mutedUntil?: Date | null } = {};
     let pinChanged = false;
@@ -164,6 +162,14 @@ export async function setMyChatState(ctx: OrgAccessContext, conversationId: stri
       const asked = want.mutedUntil === null ? null : new Date(want.mutedUntil);
       const until = asked && asked > now ? new Date(Math.min(asked.getTime(), now.getTime() + MUTE_MAX_MS)) : null;
       if ((row?.mutedUntil?.getTime() ?? null) !== (until?.getTime() ?? null)) data.mutedUntil = until;
+      // an archive that a message already ended (an unmuted chat with something newer) is over: muting the chat now must not archive it again
+      if (until && row?.archivedAt && want.archived !== true && !(row.mutedUntil && row.mutedUntil > now)) {
+        const newer = await tx.chatMessage.findFirst({
+          where: { conversationId, createdAt: { gt: row.archivedAt }, kind: { not: "SYSTEM" }, deletedAt: null },
+          select: { id: true },
+        });
+        if (newer) data.archivedAt = null;
+      }
     }
 
     const changed = Object.keys(data).length > 0;

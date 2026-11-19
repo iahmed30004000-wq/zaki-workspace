@@ -80,7 +80,7 @@ describe("the folders on offer", () => {
 describe("what each folder shows", () => {
   const show = (folder: "all" | "unread" | "dm" | "spaces" | "mentions", extra: { query?: string } = {}) => ids(listRows(rows, { ...shapeAll, folder, ...extra }));
 
-  it("all: every row except the ones the person archived (C3a fills archivedByMe; always false from the server today)", () => {
+  it("all: every row except the ones the person archived for themselves (C3a.1: the server fills archivedByMe; only the «الأرشيف» tab shows those)", () => {
     expect(show("all")).toEqual(["space1", "dm1", "dm2", "grp1", "space2"]);
   });
   it("unread: the rows with something unread, muted ones included", () => {

@@ -148,7 +148,7 @@ export function rowTicksLabel(ticks: RowTicks): string {
   return ct(`chatui.row.ticks_${ticks}`);
 }
 
-/** The pin icon: shown only when nothing is unread (the pill takes its place otherwise). Personal pin (C3a, false today) or the managers' pin of a topic. */
+/** The pin icon: shown only when nothing is unread (the pill takes its place otherwise). My own pin (C3a.1) or the managers' pin of a topic. */
 export function rowPinned(row: ChatRowDto): boolean {
   return row.pinnedByMe || (row.kind === "TOPIC" && row.pinned === true);
 }
