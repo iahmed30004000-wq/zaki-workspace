@@ -119,6 +119,8 @@ export interface MessageDto {
   card?: CardRefDto;
   /** «معاينة الرابط» (C3b.2): the card of the first link; absent when there is none, on a deleted message, and while the company's switch `linkPreviews` is off. */
   preview?: LinkPreviewDto;
+  /** «ابعت بدون صوت» (C3c.2): the sender chose silence; `true` only when it was, absent otherwise. The screen makes no arrival sound for it (`arrivalSoundOf`); it is read, counted as unread and shown like any message. */
+  silent?: boolean;
   /** «لازم ينقرأ» (Q1.6): absent unless the message must be read and the viewer is staff. `mine`: the viewer is one of the people it must reach; `acked`: they tapped «قرأت ✓». The author and the moderators also get the count and who has not read. */
   mustRead?: { mine: boolean; acked: boolean; total?: number; read?: number; missing?: { id: string; name: string }[] };
   /** the tasks and tickets made from this message («صارت مهمة»). */
@@ -283,6 +285,8 @@ export interface ConversationDto {
   chatOutbox?: boolean;
   /** the company's «معاينة الروابط بالدردشة» switch (`linkPreviews`, C3b.2): off, the composer draws no line about a preview and a bubble draws no card; absent: off */
   linkPreviews?: boolean;
+  /** the company's «الإرسال بدون صوت» switch (`chatSilentSend`, C3c.2): off, the send button's menu has no «ابعت بدون صوت»; absent: on */
+  silentSend?: boolean;
   /** the company's «المكالمات» switch (`calls`, economy mode applied): off, the header draws no call button; absent: on */
   calls?: boolean;
   /** the company's «السبورة» switch (`whiteboard`, economy mode applied): off, the header draws no link to it; absent: on */

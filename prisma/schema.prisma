@@ -534,6 +534,8 @@ model ChatMessage {
   ackMeta         Json?
   // «معاينة الرابط» (C3b.2): the preview of the FIRST link of the message, made by the server after the send committed. NULL: none (not fetched, failed, switched off, or the sender removed it).
   previewId       String?
+  // «ابعت بدون صوت» (C3c.2): the sender chose silence. The message is an ordinary one for reading, unread counts and the badge; it makes NO bell, push or arrival sound (notify.ts, arrival-sound.ts).
+  silent          Boolean   @default(false)
   createdAt       DateTime  @default(now())
 
   organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)

@@ -1,14 +1,33 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import * as React from "react";
+import { createElement, type FunctionComponent, type ReactElement, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient } from "@tanstack/react-query";
+
+import { chatKeys, LATEST, type MessagesData } from "@/lib/chat/cache";
+import { resetPendingForTests } from "@/lib/chat/cache/pending";
+import { Outbox, outboxKey, parseStored } from "@/lib/chat/outbox/queue";
+import { memoryOutboxStorage } from "@/lib/chat/outbox/storage";
+import { startOptimisticSend, type OptimisticDeps } from "@/lib/chat/outbox/optimistic";
+import { postChatMessage, sendOutboxItem, type ChatSendPayload } from "@/lib/chat/outbox/send";
+import { arrivalSoundOf } from "@/lib/chat/v2/pane/arrival-sound";
+import { ComposerSurface } from "@/components/chat/v2/composer/composer-surface";
+import { SEND_MENU_ITEMS, SendMenu, sendMenuItemsOf } from "@/components/chat/v2/composer/send-menu";
+import { I18nProvider } from "@/lib/i18n";
+import { AR } from "@/lib/i18n/dict";
+import { makeMessage } from "./chat-v2-pane-fixtures.test";
 import type { MessageDto } from "@/server/chat/dto";
 import { composerBarOf } from "@/lib/chat/v2/pane/composer-bar";
 import { composerFaceOf, canSubmitNow } from "@/lib/chat/v2/composer/face";
 import { loadRecentEmoji, rememberEmoji, MAX_RECENT_EMOJI, RECENT_EMOJI_KEY } from "@/lib/chat/v2/composer/recent-emoji";
 import { dragHasFiles, forDropMode, pastedImages, type ClipboardLike } from "@/lib/chat/v2/composer/clipboard-files";
-import { HOLD_CANCEL_PX, HOLD_LOCK_PX, holdOutcome } from "@/lib/chat/v2/composer/hold-gesture";
+import { HOLD_CANCEL_PX, HOLD_LOCK_PX, SEND_HOLD_MS, SEND_HOLD_SLOP_PX, holdOutcome, sendHoldOpensMenu } from "@/lib/chat/v2/composer/hold-gesture";
 import { arrowUpEdits, lastEditableOf } from "@/lib/chat/v2/composer/edit-last";
 import { composerHintOf } from "@/lib/chat/v2/composer/hint";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
 import { emojiGroupOf } from "@/lib/chat/v2/composer/emoji-groups";
+
+(globalThis as { React?: typeof React }).React = React;
 
 /**
  * C2.5 — the composer's rules that need no screen: the round button's face, the recent emojis, what a paste and a drop carry, the hold on the microphone, «↑»
@@ -242,5 +261,151 @@ describe("the emoji data is our own, no third-party address (review of C2.5)", (
     expect(data.categories).toHaveLength(9);
     expect(data.emojis.find((e) => e.emoji === "👋")?.skins?.dark).toBeTruthy();
     expect(data.emojis.every((e) => e.version <= MAX_EMOJI_VERSION)).toBe(true);
+  });
+});
+
+/**
+ * C3c.2 — «ابعت بدون صوت»: the send button's menu (what it offers, how a long press opens it), and the flag's way through the optimistic send, the outbox
+ * and the request. The server's half (no bell, no push, unread still counts) is `tests/db/chat-silent-send.test.ts`.
+ */
+describe("C3c.2: the send button's menu", () => {
+  const on = { silentSend: true, editing: false, canSubmit: true };
+  it("offers «ابعت بدون صوت» only with the switch on, with something to send and not while an edit is saved; the list is ordered so «جدول الإرسال» (C3c.3) can join it", () => {
+    expect(sendMenuItemsOf(on)).toEqual(["silent"]);
+    expect(sendMenuItemsOf({ ...on, silentSend: false })).toEqual([]);
+    expect(sendMenuItemsOf({ ...on, editing: true })).toEqual([]);
+    expect(sendMenuItemsOf({ ...on, canSubmit: false })).toEqual([]);
+    expect(SEND_MENU_ITEMS).toEqual(["silent"]);
+  });
+
+  it("a long press opens it only when the finger stayed put for long enough (a scroll or an early lift is no press)", () => {
+    const down = { x: 100, y: 100 };
+    expect(SEND_HOLD_MS).toBeGreaterThanOrEqual(400);
+    expect(sendHoldOpensMenu(down, { x: 103, y: 104 }, SEND_HOLD_MS)).toBe(true);
+    expect(sendHoldOpensMenu(down, { x: 103, y: 104 }, SEND_HOLD_MS - 1)).toBe(false);
+    expect(sendHoldOpensMenu(down, { x: 100 + SEND_HOLD_SLOP_PX + 1, y: 100 }, SEND_HOLD_MS)).toBe(false);
+    expect(sendHoldOpensMenu(down, { x: 100, y: 100 - SEND_HOLD_SLOP_PX - 1 }, SEND_HOLD_MS + 500)).toBe(false);
+  });
+
+  const withI18n = (node: ReactElement) => renderToStaticMarkup(createElement(I18nProvider as unknown as FunctionComponent<{ initial: "ar"; children?: ReactNode }>, { initial: "ar" }, node));
+  const button = createElement("button", { type: "submit", "data-composer-face": "send" }, "➤");
+
+  it("with nothing to offer the button is drawn exactly as it was (no wrapper)", () => {
+    expect(withI18n(createElement(SendMenu, { items: [], onPick: () => undefined }, button))).toBe(withI18n(button));
+  });
+
+  it("opened, it lists «ابعت بدون صوت» (the word is in the dictionary, no Latin letters)", () => {
+    const html = withI18n(createElement(SendMenu, { items: ["silent"], onPick: () => undefined, defaultOpen: true, portal: false }, button));
+    expect(html).toContain("data-send-menu");
+    expect(html).toContain('data-send-item="silent"');
+    expect(html).toContain(AR["chatsilent.menu.silent"]!);
+    expect(AR["chatsilent.menu.silent"]).toBe("ابعت بدون صوت");
+    expect(AR["chatsilent.menu.silent"]).not.toMatch(/[A-Za-z]/);
+  });
+
+  it("the surface draws the menu around the send button only for an engine that can send silently, with the switch on", () => {
+    const noop = () => undefined;
+    const engine = (over: Record<string, unknown>) =>
+      ({
+        body: "أهلا", files: [], busy: false, error: "", progress: [], voice: { mode: "idle" }, face: "send", canSubmit: true, choices: [], pickAt: 0, setPick: noop, hint: null,
+        textRef: { current: null }, mediaInput: { current: null }, fileInput: { current: null }, addFiles: noop, removeFile: noop, selectMention: noop,
+        onTextChange: noop, onKeyDown: noop, onPaste: noop, submit: noop, cancelRecording: noop, sendVoice: noop, onMicPointerDown: noop, onMicClick: noop, setPollOpen: noop, setRecall: noop,
+        ...over,
+      }) as never;
+    const surface = (c: never, editing: MessageDto | null = null) =>
+      withI18n(createElement(ComposerSurface, { c, me: {}, reply: null, editing, onCancelReply: noop, onCancelEdit: noop, recents: [], onEmoji: noop }));
+    expect(surface(engine({ submitSilent: noop, silentSendOn: true }))).toContain("data-send-menu");
+    expect(surface(engine({ submitSilent: noop }))).toContain("data-send-menu"); // absent switch reads as on
+    expect(surface(engine({ submitSilent: noop, silentSendOn: false }))).not.toContain("data-send-menu");
+    expect(surface(engine({ silentSendOn: true }))).not.toContain("data-send-menu"); // an engine without the action
+    expect(surface(engine({ submitSilent: noop, silentSendOn: true, face: "save" }), msg({ id: "e1" }))).not.toContain("data-send-menu");
+    expect(surface(engine({ submitSilent: noop, silentSendOn: true, body: "", canSubmit: false, face: "mic" }))).not.toContain("data-send-menu");
+  });
+});
+
+describe("C3c.2: the flag travels with the message", () => {
+  const CONV = "c1";
+  const ME = { id: "me", name: "أنا", avatar: null };
+  const bodyOf = (call: { body: string }) => JSON.parse(call.body) as Record<string, unknown>;
+
+  it("the request carries `silent` only for a silent message", async () => {
+    const calls: Array<{ body: string }> = [];
+    const fetchImpl = async (_input: string, init: { method: string; headers: Record<string, string>; body: string }) => {
+      calls.push(init);
+      return { ok: true, status: 201, json: async () => ({ id: "srv" }) };
+    };
+    await postChatMessage(CONV, { body: "أ", attachmentIds: [], mentions: [], clientId: "k1", silent: true }, fetchImpl as never);
+    await postChatMessage(CONV, { body: "أ", attachmentIds: [], mentions: [], clientId: "k2" }, fetchImpl as never);
+    expect(bodyOf(calls[0]!)).toMatchObject({ clientId: "k1", silent: true });
+    expect("silent" in bodyOf(calls[1]!)).toBe(false);
+  });
+
+  it("the outbox keeps it: enqueue, a reload (sanitize), and every retry's request", async () => {
+    const storage = memoryOutboxStorage();
+    const sent: Array<Record<string, unknown>> = [];
+    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body) as Record<string, unknown>);
+      return { ok: true, status: 201, json: async () => ({ id: "srv-k1" }) };
+    });
+    try {
+      const outbox = new Outbox({ userId: "me", storage, send: sendOutboxItem });
+      expect(outbox.enqueue({ clientId: "k1", conversationId: CONV, body: "أ", mentions: [], silent: true }, Date.now(), { retryAfterSec: 1 }).ok).toBe(true);
+      expect(outbox.getSnapshot()[0]?.silent).toBe(true);
+      // the stored copy (what a reload reads) is still silent; a loud one has no flag
+      await outbox.settled();
+      expect(parseStored(storage.dump()[outboxKey("me")] ?? null, "me")[0]?.silent).toBe(true);
+      outbox.enqueue({ clientId: "k2", conversationId: "c2", body: "ب", mentions: [] }, Date.now(), { retryAfterSec: 1 });
+      await outbox.settled();
+      expect(parseStored(storage.dump()[outboxKey("me")] ?? null, "me").find((i) => i.clientId === "k2")?.silent).toBeUndefined();
+      outbox.dispose();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    // the retry's own request
+    vi.stubGlobal("fetch", async (_url: string, init: { body: string }) => {
+      sent.push(JSON.parse(init.body) as Record<string, unknown>);
+      return { ok: true, status: 201, json: async () => ({ id: "srv-k1" }) };
+    });
+    try {
+      await sendOutboxItem({ clientId: "k1", conversationId: CONV, body: "أ", mentions: [], silent: true, createdAt: 1, attempts: 2 });
+      await sendOutboxItem({ clientId: "k3", conversationId: CONV, body: "ج", mentions: [], createdAt: 1, attempts: 2 });
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(sent.at(-2)).toMatchObject({ clientId: "k1", silent: true });
+    expect("silent" in sent.at(-1)!).toBe(false);
+  });
+
+  it("the optimistic send hands the flag to the outbox when the network is gone, and to the request when it is not (same clientId either way)", async () => {
+    resetPendingForTests();
+    const qc = new QueryClient();
+    qc.setQueryData<MessagesData>(chatKeys.messages(CONV), { pages: [{ messages: [], hasOlder: false, hasNewer: false, firstUnreadId: null, readers: [] }], pageParams: [LATEST] });
+    const outbox = new Outbox({ userId: "me", storage: memoryOutboxStorage(), send: async () => ({ kind: "transient" }) });
+    const payload = (clientId: string): ChatSendPayload => ({ body: "مرحبا", attachmentIds: [], mentions: [], clientId, silent: true });
+
+    const offline = startOptimisticSend({ qc, outbox, online: () => false }, { conversationId: CONV, payload: payload("k1"), author: ME });
+    expect(offline.shown).toBe(true);
+    expect(outbox.getSnapshot().find((i) => i.clientId === "k1")?.silent).toBe(true);
+
+    const seen: ChatSendPayload[] = [];
+    const post = (async (_c: string, p: ChatSendPayload) => {
+      seen.push(p);
+      return { kind: "transient" } as const;
+    }) as NonNullable<OptimisticDeps["post"]>;
+    const online = startOptimisticSend({ qc, outbox: new Outbox({ userId: "me2", storage: memoryOutboxStorage(), send: async () => ({ kind: "transient" }) }), post, online: () => true }, { conversationId: CONV, payload: payload("k2"), author: ME });
+    if (!online.shown) throw new Error("unreachable");
+    await online.done;
+    expect(seen[0]).toMatchObject({ clientId: "k2", silent: true });
+    outbox.dispose();
+  });
+});
+
+describe("C3c.2: a silent message makes no arrival sound on the other screen", () => {
+  const old = [makeMessage({ id: "m1" })];
+  it("silent: none (even a mention); the same message loud still sounds", () => {
+    expect(arrivalSoundOf({ previousNewestId: "m1", messages: [...old, makeMessage({ id: "m2", silent: true })], meId: "u1" })).toBeNull();
+    expect(arrivalSoundOf({ previousNewestId: "m1", messages: [...old, makeMessage({ id: "m2", silent: true, mentions: ["u1"] })], meId: "u1" })).toBeNull();
+    expect(arrivalSoundOf({ previousNewestId: "m1", messages: [...old, makeMessage({ id: "m2" })], meId: "u1" })).toBe("received");
+    expect(arrivalSoundOf({ previousNewestId: "m1", messages: [...old, makeMessage({ id: "m2", silent: false })], meId: "u1" })).toBe("received");
   });
 });

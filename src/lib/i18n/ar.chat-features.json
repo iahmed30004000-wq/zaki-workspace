@@ -101,5 +101,7 @@
   "chatsaved.failed": "ما قدرنا نحفظ الرسالة",
   "chatsaved.open_failed": "ما قدرنا نفتح المحفوظة",
   "chatsaved.info.oversight": "⚠️ المحفوظة مش سرية عن المالك: نفس رقابة كل المحادثات الخاصة، وهو بيقدر يقرأها بصمت.",
-  "chatsaved.keys.open": "افتح المحفوظة"
+  "chatsaved.keys.open": "افتح المحفوظة",
+  "chatsilent.menu.label": "خيارات الإرسال",
+  "chatsilent.menu.silent": "ابعت بدون صوت"
 }

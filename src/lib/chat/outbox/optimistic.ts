@@ -72,6 +72,7 @@ export function startOptimisticSend(deps: OptimisticDeps, input: OptimisticSendI
         ...(payload.replyToId ? { replyToId: payload.replyToId } : {}),
         ...(payload.mentionAll ? { mentionAll: true } : {}),
         ...(payload.noPreview ? { noPreview: true } : {}),
+        ...(payload.silent ? { silent: true } : {}),
       },
       Date.now(),
       opts,

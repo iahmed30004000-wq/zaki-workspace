@@ -225,6 +225,7 @@ export function useComposer(p: ComposerParams) {
         ...(payload.attachmentIds.length ? { attachmentIds: payload.attachmentIds } : {}),
         ...(payload.mentionAll ? { mentionAll: true } : {}),
         ...(payload.noPreview ? { noPreview: true } : {}),
+        ...(payload.silent ? { silent: true } : {}),
       },
       Date.now(),
       retryAfterSec !== undefined ? { retryAfterSec } : {},
@@ -274,6 +275,10 @@ export function useComposer(p: ComposerParams) {
 
   /** The send itself, for the words and the tray it is given (the box's own, or a paste dialog's). */
   async function sendNow(text: string, tray: PendingFile[], id: string = clientId) {
+    return sendWith(text, tray, id, false);
+  }
+  /** `sendNow` with the choice of C3c.2's «ابعت بدون صوت»: `silent` sends the message with no bell, push or sound for anybody (and keeps it silent through the outbox's retries). */
+  async function sendWith(text: string, tray: PendingFile[], id: string, silent: boolean) {
     if (busy || (!text.trim() && !tray.length)) return;
     // C1.8: a plain text is drawn first and sent behind the bubble; the box is free at once (nothing to wait for, no upload)
     if (optimistic && outbox && draftOn && !tray.length) {
@@ -282,7 +287,7 @@ export function useComposer(p: ComposerParams) {
         { qc: optimistic.qc, outbox },
         {
           conversationId,
-          payload: { body: text.trim(), attachmentIds: [], mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), clientId: id },
+          payload: { body: text.trim(), attachmentIds: [], mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), ...(silent ? { silent: true } : {}), clientId: id },
           author: { id: meId, name: me?.name ?? "", avatar: me?.avatarUrl ?? null },
           ...(reply ? { replyTo: { id: reply.id, preview: reply.deleted ? null : reply.body, authorName: reply.authorName } } : {}),
         },
@@ -326,7 +331,7 @@ export function useComposer(p: ComposerParams) {
         if (typeof result["id"] !== "string") throw new Error(ct("chatc.upload_failed"));
         attachmentIds.push(result["id"]);
       }
-      await postMessage({ body: text.trim(), attachmentIds, mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), clientId: id });
+      await postMessage({ body: text.trim(), attachmentIds, mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), ...(silent ? { silent: true } : {}), clientId: id });
       for (const f of tray) if (f.preview) URL.revokeObjectURL(f.preview);
       if (draftOn) clearComposerDraft(meId, conversationId);
       setBody("");
@@ -346,6 +351,12 @@ export function useComposer(p: ComposerParams) {
     event?.preventDefault();
     if (editing) return void saveEdit();
     void sendNow(body, files);
+  }
+
+  /** C3c.2: «ابعت بدون صوت» from the send button's menu: the same send, silent (never while an edit is saved, never with the company's switch off). */
+  function submitSilent() {
+    if (editing || detail.silentSend === false) return;
+    void sendWith(body, files, clientId, true);
   }
 
   /** The paste dialog's «ابعت»: the pictures go with the caption, as pictures or (the toggle) as files. */
@@ -548,7 +559,7 @@ export function useComposer(p: ComposerParams) {
     pollOpen, setPollOpen, recall, setRecall, pasted, setPasted, noPreview, setNoPreview,
     textRef, mediaInput, fileInput,
     addFiles, addDropped: (list: ArrayLike<File>, asFile: boolean) => addFiles(forDropMode(list, asFile ? "files" : "media")), removeFile, selectMention, insertAtCaret,
-    onTextChange, onKeyDown, onPaste, submit, sendPasted,
+    onTextChange, onKeyDown, onPaste, submit, submitSilent, silentSendOn: detail.silentSend !== false, sendPasted,
     startRecording, cancelRecording, sendVoice, onMicPointerDown, onMicClick,
     insertWords: (text: string) => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); },
     setDismissed,
