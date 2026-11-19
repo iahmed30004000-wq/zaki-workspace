@@ -559,3 +559,64 @@ describe("privacy matrix — the C3a.2 folders", () => {
     expect(wrong).toEqual([]);
   });
 });
+
+// ───────────────────────────── C3a.3: «الرسائل المحفوظة» (a DM with oneself) ─────────────────────────────
+// A person's saved chat is a DM whose two people are the same person (`dmKey = <me>|<me>`, ONE row). Who reads it is the DM row of the table above and nothing else:
+// the person, and the silent eye (D-C3: the same oversight rule as every DM, the owner's decision recorded as «آه»). An outsider, a partner without `archive.view`, an org
+// admin, a space admin, a team member and a guest read nothing of it, on any surface. And everybody who may have private chats can make their own (a guest cannot).
+const SAVED_READ = "1 1 0 0 0 1 0 0 0"; //  the person (memberIn) and the silent eyes — exactly the `dm` row
+describe("privacy matrix — the C3a.3 saved messages", () => {
+  it("a person's saved chat is read by the person and the silent eye only: the door, the header, the messages and the policy agree with the DM row", async () => {
+    const w = await getWorld();
+    expect(SAVED_READ).toBe(CONVERSATIONS["dm"]);
+    await loginAs(w.people.memberIn.id);
+    const made = await call(dmRoute.POST, { body: { saved: true } });
+    expect(made.status).toBe(201);
+    const id = made.json?.["id"] as string;
+    await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: w.people.memberIn.id, body: `${WORD} saved` } });
+    const wrong: string[] = [];
+    for (const who of PERSONAS) {
+      const person = w.people[who];
+      const want = cells(SAVED_READ)[PERSONAS.indexOf(who)]!;
+      await loginAs(person.id);
+      const door = (await call(conversationRoute.GET, { url: `http://localhost/api/chat/conversations/${id}`, params: { id } })).status === 200;
+      const header = await call(headerRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/header`, params: { id } });
+      const messages = await call(messagesRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/messages`, params: { id } });
+      const policy = await canReadConversation(person.id, id);
+      for (const [surface, got] of Object.entries({ door, header: header.status === 200, messages: messages.status === 200, policy })) {
+        if (got !== want) wrong.push(`${who} · ${surface}: expected ${want ? "reads" : "does not read"}`);
+      }
+      if (!want && (header.text.includes(WORD) || messages.text.includes(WORD))) wrong.push(`${who} · a refusal carried the text`);
+      // nobody but the person has the chat in their own list, and nobody but the person may write in it (the owner only reads)
+      const ctx = { orgId: w.orgId, userId: person.id, orgRole: await w.roleOf(person.id) };
+      const listed = JSON.stringify((await chatList(ctx)).rows).includes(id);
+      if (listed !== (who === "memberIn")) wrong.push(`${who} · the list ${listed ? "holds" : "does not hold"} the saved chat`);
+      const posted = await call(messagesRoute.POST, { url: `http://localhost/api/chat/conversations/${id}/messages`, params: { id }, body: { body: "x" } });
+      if ((posted.status === 201 || posted.status === 200) !== (who === "memberIn")) wrong.push(`${who} · may post: status ${posted.status}`);
+    }
+    expect(wrong).toEqual([]);
+    // the one who made it still has exactly one row in it
+    expect(await db.conversationMember.count({ where: { conversationId: id } })).toBe(1);
+  });
+
+  it("every persona may make their OWN (one conversation, one row, theirs); a guest may not (403) and nothing is made for them", async () => {
+    const w = await getWorld();
+    const wrong: string[] = [];
+    for (const who of PERSONAS) {
+      const person = w.people[who];
+      await loginAs(person.id);
+      const res = await call(dmRoute.POST, { body: { saved: true } });
+      const again = await call(dmRoute.POST, { body: { saved: true } });
+      const rows = await db.conversation.findMany({ where: { orgId: w.orgId, dmKey: `${person.id}|${person.id}` }, include: { members: true } });
+      if (who === "guest") {
+        if (res.status !== 403) wrong.push(`${who} · expected 403, got ${res.status}`);
+        if (rows.length !== 0) wrong.push(`${who} · a guest got a saved chat`);
+        continue;
+      }
+      if (![200, 201].includes(res.status) || again.status !== 200 || again.json?.["id"] !== res.json?.["id"]) wrong.push(`${who} · open: ${res.status} then ${again.status}`);
+      if (rows.length !== 1 || rows[0]!.members.length !== 1 || rows[0]!.members[0]!.userId !== person.id) wrong.push(`${who} · not exactly one chat with one row of their own`);
+      if (rows[0]?.spaceId !== null || rows[0]?.kind !== "DM") wrong.push(`${who} · not a space-less DM`);
+    }
+    expect(wrong).toEqual([]);
+  });
+});

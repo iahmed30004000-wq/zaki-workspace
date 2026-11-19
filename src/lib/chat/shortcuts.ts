@@ -1,6 +1,9 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useContext, useEffect, useRef } from "react";
+import { QueryClientContext } from "@tanstack/react-query";
+import { chatKeys } from "@/lib/chat/cache/keys";
+import { openSavedId, type ListWithSaved } from "@/lib/chat/v2/menu/menu-context";
 import { shortcutBridge, type ChatListEntry, type ListSource, type PaneSource } from "@/lib/chat/v2/menu/shortcut-bridge";
 
 /**
@@ -14,7 +17,10 @@ import { shortcutBridge, type ChatListEntry, type ListSource, type PaneSource } 
  *   Esc                          close the panel, then the search, then back to the list
  *   Ctrl+Shift+?                 the sheet that lists them
  *
- * NOT here: Ctrl+0 (saved messages) and Ctrl+B / I / U / K, Ctrl+Shift+X / M (formatting) are C3's; «↑ edits my last message» and Esc of a reply or an edit
+ *   Ctrl+0                       «الرسائل المحفوظة» (C3a.3): opens the person's own saved chat (made on first use). It is `savedShortcutOf`, NOT a row of
+ *                                `shortcutOf` / `SHORTCUT_ROWS` (those tables are pinned by C2.6's tests: Ctrl+0 is no folder and the sheet lists 8); the hook below asks it first
+ *
+ * NOT here: Ctrl+B / I / U / K, Ctrl+Shift+X / M (formatting) are C3's; «↑ edits my last message» and Esc of a reply or an edit
  * are the composer's (C2.5); Ctrl+K stays the app's palette. The command key (Mac) is never used: a person on a Mac has the browser's own.
  *
  * ⚠️ Esc leaves the conversation only when nothing else wants it: it does nothing while a field has the focus (the composer's Esc cancels a reply or an
@@ -59,6 +65,24 @@ export function shortcutOf(e: KeyEventLike): ShortcutAction | null {
   }
   if (!e.ctrlKey && !e.altKey && !e.shiftKey && e.key === "Escape") return { type: "escape" };
   return null;
+}
+
+/**
+ * C3a.3 — Ctrl+0 is «المحفوظة». By the PHYSICAL key (`Digit0` / `Numpad0`), so an Arabic layout works the same; never with Alt, Shift or the command key.
+ * The registry's one row for the sheet: `SAVED_SHORTCUT` (the sheet draws `SHORTCUT_ROWS`; wiring this row into it is the sheet's own change).
+ */
+export function savedShortcutOf(e: KeyEventLike): boolean {
+  if (e.metaKey || e.isComposing || e.defaultPrevented) return false;
+  return e.ctrlKey && !e.altKey && !e.shiftKey && (e.code === "Digit0" || e.code === "Numpad0");
+}
+export const SAVED_SHORTCUT = { id: "saved", keys: ["ctrl", "0"], labelKey: "chatsaved.keys.open" } as const;
+
+/** Opens (or makes) the person's saved chat through the dm door and hands its id to `open`. Nothing happens when the door refuses (the switch is off). */
+export async function openSavedChat(open: (conversationId: string) => void, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  const id = await openSavedId(fetchImpl);
+  if (!id) return false;
+  open(id);
+  return true;
 }
 
 /** The chat after / before the open one, or null at the ends (no wrap). With none open (or one not in this list) the first / last row. `unreadOnly` skips what is read. */
@@ -165,9 +189,21 @@ export function useChatShortcuts(opts: { enabled: boolean; currentId: string | n
   const live = useRef(opts);
   live.current = opts;
   const { enabled } = opts;
+  // Ctrl+0 reads the company's switch from the cached list (a render with no query client has none: the server decides)
+  const queries = useContext(QueryClientContext);
   useEffect(() => {
     if (!enabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
+      if (savedShortcutOf(event)) {
+        // a dialog or a menu that is open keeps the key (the same rule as every other shortcut); a company that switched «المحفوظة» off, or a guest, leaves the browser's own
+        // meaning of the key alone (the list answer says `saved: false`); a held key asks once
+        if (overlayIsOpen()) return;
+        const list = queries?.getQueryData<ListWithSaved>(chatKeys.list());
+        if (list && list.saved === false) return;
+        event.preventDefault();
+        if (!event.repeat) void openSavedChat(live.current.open);
+        return;
+      }
       const action = shortcutOf(event);
       if (!action) return;
       const o = live.current;
@@ -191,5 +227,5 @@ export function useChatShortcuts(opts: { enabled: boolean; currentId: string | n
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [enabled]);
+  }, [enabled, queries]);
 }

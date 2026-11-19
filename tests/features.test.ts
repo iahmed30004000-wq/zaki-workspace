@@ -217,6 +217,17 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.chatFolders.hint"]).toContain("لإلك بس");
   });
 
+  it("«الرسائل المحفوظة» (`savedMessages`, C3a.3): ON by default, off hides the chat and its door (the messages stay); its two lines are there and say who can read it", () => {
+    expect(FEATURES).toContain("savedMessages");
+    expect(FEATURE_DEFAULTS.savedMessages).toBe(true);
+    expect(featureOn({}, "savedMessages")).toBe(true);
+    expect(featureOn({ features: { savedMessages: false } }, "savedMessages")).toBe(false);
+    expect(featuresOff({})).not.toContain("savedMessages");
+    expect(featuresOff({ features: { savedMessages: false } })).toContain("savedMessages");
+    expect(AR["features.savedMessages.name"]).toBe("الرسائل المحفوظة");
+    expect(AR["features.savedMessages.hint"]).toContain("المالك");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

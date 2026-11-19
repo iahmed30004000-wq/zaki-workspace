@@ -34,11 +34,12 @@
 - [x] The built-in tabs «الكل · غير مقروء · خاص · المساحات · ذكروني» are not stored; the person may hide them.
 
 ### C3a.3 Saved messages («الرسائل المحفوظة»)
-- [ ] A DM with oneself: `kind = "DM"`, `dmKey = "<me>|<me>"`, one `ConversationMember`. Service
-      `openSavedMessages(ctx)` in `src/server/chat/dm.ts` (create-or-get, idempotent on `@@unique([orgId, dmKey])`).
-- [ ] `loadConversationFacts`: for a self-DM, `dmOtherActive` = the viewer is ACTIVE.
-- [ ] Forward to «المحفوظة» from the message menu; pinned on top of the list by default; Ctrl+0.
-- [ ] Owner decision D-C3 (oversight of saved messages): recommended **same rule as every DM** (the transparency
+- [x] A DM with oneself: `kind = "DM"`, `dmKey = "<me>|<me>"` (no space suffix: it is the person's, one per company, listed in every space), one `ConversationMember`. Service
+      `openSavedMessages(ctx)` in `src/server/chat/dm.ts` (create-or-get, idempotent on `@@unique([orgId, dmKey])`; the loser of a race reads the winner's row). Door: `POST /api/chat/dm` `{ saved: true }`.
+- [x] `loadConversationFacts`: for a self-DM, `dmOtherActive` = the viewer is ACTIVE (and not a guest).
+- [x] Forward to «المحفوظة» from the message menu (registry id `saved`, v2 only); pinned on top of the list by default (C3a.1's `pinnedAt`, a person may unpin); Ctrl+0 (`savedShortcutOf`).
+- [ ] No call button / no typing indicator / no ticks on a self-DM: built for the list row and the info panel; NOT for the pane header's call button, the composer's typing line and the single ✓ on my own message (`pr/C3a.3.md`).
+- [x] Owner decision D-C3 (oversight of saved messages): built as the recommended default, **same rule as every DM** (switch `savedMessages` ON; the owner's answer is still pending) (the transparency
       notice already says work chats are visible to the owner) and the info panel says so in one line.
 
 ## C3b — Message features

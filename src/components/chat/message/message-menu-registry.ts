@@ -27,12 +27,14 @@
  * - readText: «اقرأ النص», a picture, where the header says `imageOcr` (the same button the picture draws under itself);
  * - transcribe: «حوّل الصوت لنص», a voice note, where the header says `voiceTranscript` (the same button the note draws);
  * - seen: «مين شاف», a topic or a group, when somebody's newest read message is this one (today's reader list);
- * - ask: «اسألي مشرفتك», the «🎫 مشكلة» door with the question kind, where the company's kinds have it.
+ * - ask: «اسألي مشرفتك», the «🎫 مشكلة» door with the question kind, where the company's kinds have it;
+ * - saved (C3a.3): «حوّل للمحفوظة», a forward into the person's own saved chat, where the screen knows it (`canSaved`: the company's switch `savedMessages` is on), not inside that chat itself,
+ *   not on a poll (a copy would carry no votes: `forwardMessage` refuses it too).
  * «حدّد» (select) is C3b.5: it has no action yet, so its id is NOT here.
  *
  * Nothing at all on a deleted message, a system line, or for the owner in silent oversight.
  */
-export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask";
+export type MessageMenuId = "reply" | "pin" | "forward" | "saved" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask";
 
 export interface MessageMenuContext {
   mine: boolean;
@@ -68,6 +70,13 @@ export interface MessageMenuContext {
   readerCount?: number;
   /** the company's problem kinds include the question kind («اسألي مشرفتك») */
   canAsk?: boolean;
+  /** C3a.3: the person has «الرسائل المحفوظة» (the switch is on), so «حوّل للمحفوظة» can run */
+  canSaved?: boolean;
+  /** C3a.3: the open conversation IS the saved chat (the item makes no sense there) */
+  inSaved?: boolean;
+  /** the message and the viewer, for an item that runs itself inside the menu (`saved`); set by `menuContextV2` */
+  messageId?: string;
+  viewerId?: string;
 }
 
 /** `labelKey`: a key of ar.chat-conversation.json (the strings live there, not here). */
@@ -80,6 +89,7 @@ export const messageMenuItems: MessageMenuAction[] = [
   { id: "reply", labelKey: () => "chatc.menu.reply", available: (c) => c.canPost },
   { id: "pin", labelKey: (c) => (v2(c) ? (c.pinned ? "chatui.menu.unpin" : "chatui.menu.pin") : c.pinned ? "chatc.menu.unpin" : "chatc.menu.pin"), available: (c) => (c.conversationKind === "DM" ? true : c.canModerate) },
   { id: "forward", labelKey: (c) => (v2(c) ? "chatui.menu.forward" : "chatc.menu.forward"), available: (c) => c.kind !== "POLL" },
+  { id: "saved", labelKey: () => "chatsaved.menu.save", available: (c) => v2(c) && !!c.canSaved && !c.inSaved && c.kind !== "POLL" },
   { id: "edit", labelKey: (c) => (v2(c) ? "chatui.menu.edit" : "chatc.menu.edit"), available: (c) => c.mine && c.kind === "TEXT" && c.hasText },
   { id: "note", labelKey: (c) => (v2(c) ? "chatui.menu.note" : "chatc.menu.note"), available: (c) => c.canModerate },
   { id: "copy", labelKey: (c) => (v2(c) ? "chatui.menu.copy" : "chatc.menu.copy"), available: (c) => c.hasText },
@@ -102,7 +112,7 @@ export const messageMenuItems: MessageMenuAction[] = [
  * مشرفتك، ذكّرني، ملاحظة، «لازم ينقرأ»، ترجم، اقرأ النص، حوّل الصوت لنص، مين شاف). The old screen keeps the order of `messageMenuItems` (the dangerous one last);
  * every id has a place here (a test fails for an id without one), so a new item has to choose.
  */
-export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen"];
+export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "saved", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen"];
 
 /** Is there a menu at all for this message (and a reaction bar)? */
 export function menuOpen(c: MessageMenuContext): boolean {

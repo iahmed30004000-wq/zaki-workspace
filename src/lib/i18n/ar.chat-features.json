@@ -84,5 +84,14 @@
   "chatvoice.mini": "الرسالة الصوتية الجارية",
   "chatvoice.from": "رسالة صوتية من {name}",
   "chatvoice.jump": "روح للرسالة الصوتية",
-  "chatvoice.stop": "إيقاف التشغيل"
+  "chatvoice.stop": "إيقاف التشغيل",
+  "chatsaved.title": "الرسائل المحفوظة",
+  "chatsaved.entry": "المحفوظة",
+  "chatsaved.entry_hint": "رسائل بتحفظها لحالك",
+  "chatsaved.menu.save": "حوّل للمحفوظة",
+  "chatsaved.done": "انحفظت الرسالة بالمحفوظة",
+  "chatsaved.failed": "ما قدرنا نحفظ الرسالة",
+  "chatsaved.open_failed": "ما قدرنا نفتح المحفوظة",
+  "chatsaved.info.oversight": "⚠️ المحفوظة مش سرية عن المالك: نفس رقابة كل المحادثات الخاصة، وهو بيقدر يقرأها بصمت.",
+  "chatsaved.keys.open": "افتح المحفوظة"
 }

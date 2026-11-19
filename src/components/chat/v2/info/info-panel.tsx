@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { X } from "lucide-react";
+import { Bookmark, X } from "lucide-react";
 import type { ConversationHeaderDto, MemberDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { CallButton } from "@/components/calls/call-button";
@@ -10,6 +10,7 @@ import { TopicSettingsDialog } from "@/components/chat/conversation/topic-settin
 import { useChatRow } from "@/lib/chat/cache/selectors";
 import { ct } from "@/lib/chat/text";
 import { infoModelOf } from "@/lib/chat/v2/info/info-model";
+import { isSavedHeader, isSavedRow } from "@/lib/chat/v2/menu/menu-context";
 import { usePeerProfile, useTeamName } from "@/lib/chat/v2/info/use-info-data";
 import { composerDetailOf, type PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 
@@ -57,10 +58,14 @@ export interface InfoPanelProps {
 }
 
 export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, onClose }: InfoPanelProps) {
-  const system = useChatRow(header.id)?.system === true;
+  const listed = useChatRow(header.id);
+  const system = listed?.system === true;
   const teamName = useTeamName(header.id, header.space?.id ?? null, header.teamId ?? null);
   const model = infoModelOf(header, { people, teamName, system });
   const profile = usePeerProfile(header.id, model.peerId);
+  // C3a.3: «الرسائل المحفوظة» — a chat with myself: a bookmark for a picture, no call (nobody to ring), no profile, and ONE line that says the owner's rule honestly
+  // the list's row says it by the chat's KEY (its other person is me); the header's own look is only for a header opened before the list is in the cache
+  const saved = listed ? isSavedRow(listed, header.me.id) : isSavedHeader(header);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   // ONE object per header and people (the settings dialog resets its fields whenever the topic it was given changes)
   const settingsTopic = React.useMemo(() => composerDetailOf(header, people), [header, people]);
@@ -77,7 +82,11 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <section data-info-hero className="flex flex-col items-center gap-1 px-4 pb-3 pt-5 text-center">
-          {model.avatar.kind === "person" ? (
+          {saved ? (
+            <span aria-hidden="true" data-info-saved-avatar className="grid size-24 place-items-center rounded-full bg-accent text-accent-fg">
+              <Bookmark className="size-12" />
+            </span>
+          ) : model.avatar.kind === "person" ? (
             <Avatar name={model.avatar.name} src={model.avatar.src} className="size-24 text-3xl" />
           ) : (
             <span aria-hidden="true" className="grid size-24 place-items-center rounded-full bg-surface-2 text-5xl">
@@ -85,14 +94,14 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
             </span>
           )}
           <h3 className="mt-2 max-w-full break-words text-lg font-semibold">{model.title}</h3>
-          {model.subtitle ? <p className="max-w-full break-words text-sm text-fg-muted">{model.subtitle}</p> : null}
+          {model.subtitle && !saved ? <p className="max-w-full break-words text-sm text-fg-muted">{model.subtitle}</p> : null}
         </section>
 
         <div className="flex flex-wrap items-center justify-center gap-2 px-4 pb-3">
           <button type="button" data-info-button="search" onClick={onSearch} className={pill}>
             {ct("chatui.info.search")}
           </button>
-          {model.buttons.includes("call") ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
+          {model.buttons.includes("call") && !saved ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
         </div>
 
         <div className="space-y-3 border-t border-border px-4 py-3">
@@ -116,6 +125,12 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
                 </Link>
               ) : null}
             </div>
+          ) : null}
+
+          {saved && header.oversightNotice !== false ? (
+            <p data-info-saved-oversight className="rounded-lg border border-warn/40 bg-warn/10 p-3 text-sm">
+              {ct("chatsaved.info.oversight")}
+            </p>
           ) : null}
 
           {model.space ? (

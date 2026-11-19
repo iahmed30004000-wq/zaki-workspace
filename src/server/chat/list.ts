@@ -12,6 +12,8 @@ import type { ChatListDto, ChatRowDto, ChatRowLastMessageDto, MessageKind } from
 import { previewOf } from "@/server/chat/redact";
 import { dmStatusFor } from "@/server/chat/messages";
 import { archivedByMeSql, personalOnSql } from "@/server/chat/read-state";
+import { SAVED_TITLE_KEY } from "@/server/chat/dm";
+import { AR } from "@/lib/i18n/dict";
 
 /**
  * C1.2 — THE CHAT LIST, and the batch of conversation facts the sync feed decides with.
@@ -162,6 +164,10 @@ export interface ConvRecord {
   peerPrimaryOwner: boolean | null;
   peerLastReadAt: Date | null;
   peerLastDeliveredAt: Date | null;
+  /** C3a.3: «الرسائل المحفوظة» — a private chat whose two people are the same person (no other person, no ticks, no call) */
+  selfDm?: boolean;
+  /** C3a.3: a saved chat while the company's switch `savedMessages` is off: not listed for anybody (the data stays) */
+  savedHidden?: boolean;
   // with stats
   lmId?: string | null;
   lmBody?: string | null;
@@ -187,15 +193,28 @@ export type ListFilter =
   /** these conversations, and every conversation of these spaces (the rows a sync answer sends) */
   | { ids: string[]; spaceIds?: string[] };
 
-function scopeSql(f: ListFilter): Prisma.Sql {
+function scopeSql(f: ListFilter, userId: string): Prisma.Sql {
   if ("all" in f) return Prisma.empty;
   if ("spaceId" in f) {
-    return Prisma.sql`AND (c."spaceId" = ${f.spaceId} OR (c."spaceId" IS NULL AND c.kind <> 'TOPIC' AND EXISTS (SELECT 1 FROM "Workspace" h WHERE h.id = ${f.spaceId} AND h."systemKey" = 'hq')))`;
+    // the person's saved chat (C3a.3) belongs to them, not to a space: it is in the list of every space they are in
+    return Prisma.sql`AND (c."spaceId" = ${f.spaceId} OR c."dmKey" = ${`${userId}|${userId}`} OR (c."spaceId" IS NULL AND c.kind <> 'TOPIC' AND EXISTS (SELECT 1 FROM "Workspace" h WHERE h.id = ${f.spaceId} AND h."systemKey" = 'hq')))`;
   }
   const spaces = f.spaceIds ?? [];
   return spaces.length
     ? Prisma.sql`AND (c.id = ANY(${f.ids}::text[]) OR c."spaceId" = ANY(${spaces}::text[]))`
     : Prisma.sql`AND c.id = ANY(${f.ids}::text[])`;
+}
+
+/**
+ * SQL: the company's switch `savedMessages` (C3a.3), read INSIDE the list's one query like `personalOnSql` (the sync feed reads no settings of its own). The same rule as
+ * `featureOn`: a stored boolean wins, anything else is the default, which is ON.
+ */
+export function savedOnSql(orgId: string): Prisma.Sql {
+  return Prisma.sql`COALESCE(
+    (SELECT CASE WHEN jsonb_typeof(o.settings -> 'features' -> 'savedMessages') = 'boolean' THEN (o.settings -> 'features' ->> 'savedMessages')::boolean END
+     FROM "Organization" o WHERE o.id = ${orgId}),
+    true
+  )`;
 }
 
 /** The list's own rule, as SQL: what narrows the rows that are loaded. `canRead` decides afterwards. */
@@ -270,7 +289,9 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
       w.id AS "shownSpaceId", w.name AS "shownSpaceName",
       po.id AS "peerId", pu.name AS "peerName", pu."avatarUrl" AS "peerAvatar", pom.status::text AS "peerStatus", pom.role::text AS "peerRole",
       pom.capabilities AS "peerCapabilities", pom."revokedCapabilities" AS "peerRevoked", pom."primaryOwner" AS "peerPrimaryOwner",
-      pcm."lastReadAt" AS "peerLastReadAt", pcm."lastDeliveredAt" AS "peerLastDeliveredAt"
+      pcm."lastReadAt" AS "peerLastReadAt", pcm."lastDeliveredAt" AS "peerLastDeliveredAt",
+      (c.kind = 'DM' AND po.id = ${uid} AND split_part(split_part(c."dmKey", '@', 1), '|', 1) = split_part(split_part(c."dmKey", '@', 1), '|', 2)) AS "selfDm",
+      (c.kind = 'DM' AND split_part(split_part(c."dmKey", '@', 1), '|', 1) <> '' AND split_part(split_part(c."dmKey", '@', 1), '|', 1) = split_part(split_part(c."dmKey", '@', 1), '|', 2) AND NOT ${savedOnSql(v.orgId)}) AS "savedHidden"
       ${statSelect}
     FROM "Conversation" c
     LEFT JOIN "ConversationMember" cm ON cm."conversationId" = c.id AND cm."userId" = ${uid}
@@ -290,7 +311,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
     LEFT JOIN "OrganizationMember" pom ON pom."organizationId" = c."orgId" AND pom."userId" = po.id
     LEFT JOIN "ConversationMember" pcm ON pcm."conversationId" = c.id AND pcm."userId" = po.id
     ${statJoin}
-    WHERE c."orgId" = ${v.orgId} ${scopeSql(f)} ${where}
+    WHERE c."orgId" = ${v.orgId} ${scopeSql(f, uid)} ${where}
   `);
 }
 
@@ -322,6 +343,7 @@ export function factsOfRecord(r: ConvRecord): ConversationFacts {
  */
 export function listable(r: ConvRecord, v: ListViewer): boolean {
   if (r.orgId !== v.orgId) return false;
+  if (r.savedHidden === true) return false; // C3a.3: the saved chat while its switch is off
   if (r.kind !== "TOPIC") {
     if (v.guest || !r.isMember) return false;
   } else {
@@ -350,7 +372,7 @@ export async function loadConversationBatch(v: ListViewer, ids: string[]): Promi
 
 /** The other person's marks of a private chat, for the ticks on MY messages; the owner's silent reading never shows as «قرأ». */
 export function peerMarks(r: ConvRecord): { lastDeliveredAt: Date | null; lastReadAt: Date | null } | null {
-  if (r.kind !== "DM" || !r.peerId) return null;
+  if (r.kind !== "DM" || !r.peerId || r.selfDm === true) return null; // a chat with myself has no other person whose marks could be read
   return { lastDeliveredAt: r.peerLastDeliveredAt, lastReadAt: peerSilent(r) ? null : r.peerLastReadAt };
 }
 
@@ -371,7 +393,8 @@ function lastOf(r: ConvRecord, v: ListViewer): ChatRowLastMessageDto | null {
     at: r.lmCreatedAt.toISOString(),
     mine,
   };
-  if (r.kind === "DM" && mine && !system) {
+  // no ticks in a chat with myself (C3a.3): nobody else is there to deliver to or read it
+  if (r.kind === "DM" && mine && !system && r.selfDm !== true) {
     out.status = dmStatusFor(peerMarks(r), r.lmCreatedAt);
   }
   return out;
@@ -386,12 +409,14 @@ const muted = (until: Date | null) => !!until && until > new Date();
 /** A conversation's own row (a DM, a group or one topic). */
 function conversationRow(r: ConvRecord, v: ListViewer): ChatRowDto {
   const topic = r.kind === "TOPIC";
+  const saved = r.selfDm === true;
   const row: ChatRowDto = {
     id: r.id,
     kind: r.kind,
-    title: r.kind === "DM" ? (r.peerName ?? r.title ?? "") : (r.title ?? ""),
+    // «الرسائل المحفوظة» (C3a.3): the dictionary's own line, never my own name; it is the person's, not a space's (no chip)
+    title: saved ? (AR[SAVED_TITLE_KEY] ?? "") : r.kind === "DM" ? (r.peerName ?? r.title ?? "") : (r.title ?? ""),
     emoji: r.emoji,
-    space: hqChip(r),
+    space: saved ? null : hqChip(r),
     lastMessage: lastOf(r, v),
     unread: r.unreadCount ?? 0,
     mentionsUnread: r.isMember ? (r.mentionCount ?? 0) : 0,
@@ -403,8 +428,8 @@ function conversationRow(r: ConvRecord, v: ListViewer): ChatRowDto {
   };
   if (r.myPinnedAt) pinStamp.set(row, r.myPinnedAt.getTime());
   if (r.kind === "DM") {
-    row.avatarUrl = r.peerAvatar;
-    if (r.peerId) row.peerId = r.peerId;
+    row.avatarUrl = saved ? null : r.peerAvatar;
+    if (r.peerId) row.peerId = r.peerId; // for «المحفوظة» it is me: the screen knows the chat by that (`isSavedRow`)
   }
   if (topic) {
     row.topicType = r.topicType as ChatRowDto["topicType"];
@@ -488,7 +513,7 @@ export function foldSpaces(items: { rec: ConvRecord; row: ChatRowDto }[], v: Lis
  * (D-N2 «قائمة وحدة»). With `spaceId`: that space's topics and its private chats, like the old home (D-N2 «كل مساحة حساب»).
  * The route picks which one by the company's switch `chatOneList`.
  */
-export async function chatList(ctx: OrgAccessContext, opts: { spaceId?: string } = {}): Promise<ChatListDto> {
+export async function chatList(ctx: OrgAccessContext, opts: { spaceId?: string } = {}): Promise<ChatListDto & { saved?: boolean }> {
   const org = await chatScope(ctx).org();
   if (!org || org.status !== "ACTIVE") return { scope: opts.spaceId ? "space" : "all", spaceId: opts.spaceId ?? null, rows: [], canOversee: false };
   const v = listViewerOf(ctx, org);
@@ -504,7 +529,7 @@ export async function chatList(ctx: OrgAccessContext, opts: { spaceId?: string }
   const rows = opts.spaceId
     ? [...items.filter((i) => i.rec.kind === "TOPIC").sort(byTopicOrder).map((i) => i.row), ...items.filter((i) => i.rec.kind !== "TOPIC").map((i) => i.row).sort(newestFirst)]
     : [...foldSpaces(items, v), ...items.filter((i) => i.rec.kind !== "TOPIC").map((i) => i.row)].sort(newestFirst);
-  return { scope: opts.spaceId ? "space" : "all", spaceId: opts.spaceId ?? null, rows, canOversee: v.oversight, personal: await v.scope.feature("chatPersonalState") };
+  return { scope: opts.spaceId ? "space" : "all", spaceId: opts.spaceId ?? null, rows, canOversee: v.oversight, personal: await v.scope.feature("chatPersonalState"), saved: !v.guest && (await v.scope.feature("savedMessages")) };
 }
 
 /** The forum view of one space: its topics the person reads (pinned first, then the newest activity), each with its numbers. ONE query. */

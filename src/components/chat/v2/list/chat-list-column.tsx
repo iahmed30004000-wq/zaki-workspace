@@ -1,8 +1,9 @@
 "use client";
 
 import React, { memo, useEffect, useId, useMemo, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { usePathname, useRouter } from "next/navigation";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { Bookmark } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
 import { MeetingButton } from "@/components/calls/meeting-button";
 import { WorkspaceCreateModal } from "@/components/create-forms";
@@ -12,10 +13,14 @@ import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { PhoneListBar } from "@/components/chat/v2/phone/list-bar";
 import { useListWidth } from "@/components/chat/v2/use-list-width";
 import { useChatList, useChatSpace, useChatUnreadSummary } from "@/lib/chat/cache/selectors";
+import { chatKeys } from "@/lib/chat/cache/keys";
+import { listQueryOptions } from "@/lib/chat/cache/queries";
+import { isSavedRow, type ListWithSaved } from "@/lib/chat/v2/menu/menu-context";
+import { openSavedChat } from "@/lib/chat/shortcuts";
 import { shortcutBridge } from "@/lib/chat/v2/menu/shortcut-bridge";
 import { foldersOf, folderBadge, folderKeyOf, isCompanyFolder, listRows, normalizeQuery, rowItems, type ListFolderKey } from "@/lib/chat/list-folders";
 import { ct } from "@/lib/chat/text";
-import { chatRouteOf, forumShown, nextForumSpace, selectedConversationId } from "@/lib/chat/v2/routes";
+import { chatHref, chatRouteOf, forumShown, nextForumSpace, selectedConversationId } from "@/lib/chat/v2/routes";
 import { useDayKey } from "@/lib/chat/v2/use-day";
 import { useForumHolds } from "@/lib/chat/v2/use-forum";
 import { useChatOrders } from "@/lib/chat/v2/use-orders";
@@ -23,6 +28,7 @@ import { cn } from "@/lib/utils";
 import { CompanyRows } from "./company-rows";
 import { FolderTabs } from "./folder-tabs";
 import { ListHeader } from "./list-header";
+import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
 import { ListEmpty, ListError, ListSkeleton } from "./list-states";
 import { NewMessageFab } from "./new-message-fab";
 import { VirtualRows } from "./virtual-rows";
@@ -98,12 +104,56 @@ export function ChatListColumn(props: ChatListColumnProps) {
   );
 }
 
+/**
+ * C3a.3 — «الرسائل المحفوظة» BEFORE the chat exists: the server makes it on first use (the dm door, `{ saved: true }`), so until then the list draws one pinned entry that
+ * does exactly that. It is drawn only while the cached list says the company's switch is on (`saved`) and holds no saved row; once the chat exists it is an ordinary
+ * (pinned) row of the list and this entry is gone.
+ */
+function SavedEntry({ tall }: { tall: boolean }) {
+  const router = useRouter();
+  const queries = useQueryClient();
+  const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const open = async () => {
+    if (busy) return;
+    setBusy(true);
+    setFailed(false);
+    const ok = await openSavedChat((id) => {
+      void queries.invalidateQueries({ queryKey: chatKeys.list() });
+      router.push(chatHref.conversation(id));
+    });
+    setBusy(false);
+    setFailed(!ok);
+  };
+  return (
+    <button
+      type="button"
+      data-saved-entry=""
+      disabled={busy}
+      onClick={() => void open()}
+      style={{ height: tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT }}
+      className="flex w-full shrink-0 items-center gap-3 border-b border-border/60 px-3 text-start hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-60"
+    >
+      <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-full bg-accent text-accent-fg", tall ? "size-14" : "size-12")}>
+        <Bookmark className="size-6" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-base font-medium">{ct("chatsaved.title")}</span>
+        <span className={cn("truncate text-sm", failed ? "text-danger" : "text-fg-muted")}>{ct(failed ? "chatsaved.open_failed" : "chatsaved.entry_hint")}</span>
+      </span>
+    </button>
+  );
+}
+
 /** The conversations list with its folders and search: every conversation the server put in the list, in the folder asked for. */
 const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, selectedId }: ChatListColumnProps & { selectedId: string | null }) {
   const tall = variant === "screen";
   const searchId = useId();
   const day = useDayKey();
   const list = useChatList("all");
+  // C3a.3: the company's switch for «الرسائل المحفوظة», as the cached list says it (it only reads the cache)
+  const savedOn = useQuery({ ...listQueryOptions(), select: (d: ListWithSaved) => d.saved === true, enabled: false }).data === true;
+  const hasSaved = list.rows.some((row) => isSavedRow(row, userId));
   const summary = useChatUnreadSummary();
   const orders = useChatOrders(!guest);
   const [folderKey, setFolderKey] = useState<ListFolderKey>("all");
@@ -169,6 +219,8 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
           <MeetingButton />
         </div>
       ) : null}
+      {/* C3a.3: «المحفوظة» before it exists: one pinned entry on top of the list (the folder «الكل», no search) */}
+      {savedOn && !hasSaved && !company && !words && folder === "all" && !list.isPending ? <SavedEntry tall={tall} /> : null}
       {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}
       {!company && list.isError && list.rows.length > 0 ? <ListError onRetry={() => void list.refetch()} /> : null}
 

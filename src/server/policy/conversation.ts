@@ -225,7 +225,16 @@ export async function loadConversationFacts(userId: string, conversationId: stri
     // (a DM of a space ends its key in `@<spaceId>`)
     const pair = conv.dmKey ? (conv.dmKey.split("@")[0] ?? "").split("|") : conv.members.map((m) => m.userId);
     const otherId = pair.find((id) => id !== userId);
-    if (otherId) {
+    if (!otherId && pair.length === 2 && pair[0] === userId && pair[1] === userId) {
+      // «الرسائل المحفوظة» (C3a.3): a DM whose two people are the VIEWER. There is no other person, so "the audience is active" is the viewer being ACTIVE
+      // and not a guest (a guest has no private chats). Nothing else is loosened: another viewer lands in the branch below (the pair's one person is "the
+      // other"), and he reads it only through the rules of `canRead` (a row of his own, which nobody gets, or silent oversight).
+      const me = await db.organizationMember.findUnique({
+        where: { organizationId_userId: { organizationId: conv.orgId, userId } },
+        select: { status: true, role: true },
+      });
+      dmOtherActive = me?.status === "ACTIVE" && me.role !== "GUEST";
+    } else if (otherId) {
       const other = await db.organizationMember.findUnique({
         where: { organizationId_userId: { organizationId: conv.orgId, userId: otherId } },
         select: { status: true },
