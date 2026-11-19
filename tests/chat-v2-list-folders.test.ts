@@ -1,4 +1,17 @@
+import { createElement, type FunctionComponent, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { I18nProvider } from "@/lib/i18n";
+import { CHAT_PREFS_KEY, type ChatPrefsDto } from "@/lib/chat/cache/queries";
+import { chatKeys } from "@/lib/chat/cache/keys";
+import { installChatDefaults } from "@/lib/chat/cache/share";
+import type { ChatListDto } from "@/lib/chat/cache/types";
 import { describe, expect, it } from "vitest";
+import { FolderTabs } from "@/components/chat/v2/list/folder-tabs";
+import { ChatFoldersSettings, FolderEditor } from "@/components/chat/v2/list/folder-editor";
+import { addFolder, tabsOf, toggleChat, toggleSpace, updateFolder } from "@/lib/chat/folders";
+import type { ChatFolderDef } from "@/lib/chat/prefs";
+import { render, textOf } from "./ui-render";
 import {
   folderBadge,
   folderKeyOf,
@@ -271,5 +284,166 @@ describe("C3a.1 — the forum view", () => {
     const items = forumItems(forumRows(topics, "s1"));
     expect(items.map((i) => i.type)).toEqual(["row", "row", "row", "section", "row", "row"]);
     expect(items[3]).toMatchObject({ type: "section", count: 2 });
+  });
+});
+
+// ───────────────────────────── C3a.2: the person's own folders ─────────────────────────────
+const mineFolders: ChatFolderDef[] = [
+  { id: "a", name: "عمل", emoji: "💼", include: { dms: true, conversationIds: [], spaceIds: [] }, exclude: { archived: true } },
+  { id: "b", name: "بيت", include: { conversationIds: ["dm2"], spaceIds: ["s2"] }, exclude: {} },
+];
+
+describe("C3a.2 — the folder tabs draw the person's own folders", () => {
+  it("the five built-in tabs and then the person's folders with their emoji and name, the badge on a folder, one tab selected", () => {
+    const html = render(createElement(FolderTabs, { folders: tabsOf({ canOversee: false, folders: mineFolders }), active: "f:a", badges: { "f:a": 4 }, onChange: () => {} }));
+    expect(textOf(html)).toBe("الكل غير مقروء خاص المساحات ذكروني 💼 عمل 4 بيت");
+    expect(html.match(/aria-selected="true"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-selected="true"[^>]*data-folder="f:a"/);
+    expect(html.match(/data-folder-custom=""/g)).toHaveLength(2);
+  });
+
+  it("a built-in tab the person hid is not drawn", () => {
+    const html = render(createElement(FolderTabs, { folders: tabsOf({ canOversee: false, folders: mineFolders, hidden: ["unread", "mentions"] }), active: "all", badges: {}, onChange: () => {} }));
+    expect(textOf(html)).toBe("الكل خاص المساحات 💼 عمل بيت");
+  });
+
+  it("the name is drawn as text: markup typed into a folder's name stays text", () => {
+    const sneaky: ChatFolderDef[] = [{ id: "x", name: "<b>x</b>", include: { conversationIds: [], spaceIds: [] }, exclude: {} }];
+    const html = render(createElement(FolderTabs, { folders: tabsOf({ canOversee: false, folders: sneaky }), active: "all", badges: {}, onChange: () => {} }));
+    expect(html).not.toContain("<b>x</b>");
+    expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+  });
+
+  it("still a strip of tabs a keyboard reaches: every tab is a button with a role", () => {
+    const html = render(createElement(FolderTabs, { folders: tabsOf({ canOversee: false, folders: mineFolders }), active: "all", badges: {}, onChange: () => {} }));
+    expect(html.match(/role="tab"/g)).toHaveLength(7);
+    expect(html.match(/<button/g)).toHaveLength(7);
+  });
+});
+
+describe("C3a.2 — the connected editor C4.1 mounts (prefs + the list cache)", () => {
+  const Translations = I18nProvider as unknown as FunctionComponent<{ initial: "ar"; children?: ReactNode }>;
+  const Queries = QueryClientProvider as unknown as FunctionComponent<{ client: QueryClient; children?: ReactNode }>;
+  const draw = (prefs: ChatPrefsDto | null, list: ChatRowDto[] = []) => {
+    const qc = new QueryClient();
+    installChatDefaults(qc);
+    if (prefs) qc.setQueryData(CHAT_PREFS_KEY, prefs);
+    qc.setQueryData(chatKeys.list(), { scope: "all", spaceId: null, canOversee: false, rows: list } satisfies ChatListDto);
+    return renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(Queries, { client: qc }, createElement(ChatFoldersSettings, {}))));
+  };
+
+  it("says it is loading before the prefs have come", () => {
+    expect(textOf(draw(null))).toContain("عم يحمّل");
+  });
+
+  it("with the company's switch off it says the folders are off and draws no editor", () => {
+    const html = draw({ prefs: {}, orgId: "org1", foldersOn: false });
+    expect(textOf(html)).toContain("المجلدات مطفية عند شركتك");
+    expect(html).not.toContain("data-folder-editor");
+  });
+
+  it("draws the editor with the active company's folders only and the built-in tabs' checkboxes", () => {
+    const html = draw({ prefs: { folders: { org1: mineFolders, org2: [{ id: "z", name: "غريب", include: { conversationIds: [], spaceIds: [] }, exclude: {} }] }, tabs: { hidden: ["mentions"] } }, orgId: "org1", foldersOn: true });
+    expect(html).toContain("data-folder-editor");
+    expect(html.match(/data-folder-id="/g)).toHaveLength(2);
+    expect(textOf(html)).not.toContain("غريب");
+    expect(/<input[^>]*data-builtin-tab="mentions"[^>]*>/.exec(html)?.[0]).not.toContain("checked");
+    expect(/<input[^>]*data-builtin-tab="all"[^>]*>/.exec(html)?.[0]).toContain("checked");
+  });
+});
+
+describe("C3a.2 — the folder editor (C4.1 mounts it on «المجلدات»)", () => {
+  const chats: ChatRowDto[] = [
+    row("dm1", { title: "أحمد" }),
+    row("dm2", { title: "سارة" }),
+    row("space1", { kind: "SPACE", title: "مبيعات", space: { id: "s1", name: "مبيعات" } }),
+    row("topic1", { kind: "TOPIC", title: "الطلبات", space: { id: "s1", name: "مبيعات" } }),
+    row("space2", { kind: "SPACE", title: "تصنيع", space: { id: "s2", name: "تصنيع" } }),
+  ];
+  /** the opening tag of the one input that carries this attribute */
+  const input = (html: string, attr: string) => new RegExp(`<input[^>]*${attr}[^>]*>`).exec(html)?.[0] ?? "";
+  const editor = (props: Record<string, unknown> = {}) => render(createElement(FolderEditor, { folders: mineFolders, onChange: () => {}, chats, ...props } as never));
+
+  it("lists the folders in order, each with a grip, its name and a delete button; one «مجلد جديد» button", () => {
+    const html = editor();
+    expect(html).toContain("data-folder-editor");
+    expect(html.match(/data-folder-id="/g)).toHaveLength(2);
+    expect(textOf(html)).toContain("عمل");
+    expect(textOf(html)).toContain("بيت");
+    expect(html.match(/data-folder-grip/g)).toHaveLength(2);
+    expect(html.match(/data-folder-delete/g)).toHaveLength(2);
+    expect(textOf(html)).toContain("مجلد جديد");
+    expect(html).not.toMatch(/data-folder-add=""[^>]* disabled=""/);
+  });
+
+  it("says so when there is nothing yet", () => {
+    expect(textOf(editor({ folders: [] }))).toContain("ما عندك مجلدات لسا");
+  });
+
+  it("the add button is off at ten folders and says why", () => {
+    let ten: ChatFolderDef[] = [];
+    for (let i = 0; i < 10; i++) ten = addFolder(ten, { id: `f${i}`, name: `م${i}` });
+    const html = editor({ folders: ten });
+    expect(html).toMatch(/data-folder-add=""[^>]* disabled=""/);
+    expect(textOf(html)).toContain("وصلت لأقصى عدد: 10 مجلدات");
+  });
+
+  it("an open folder shows its name (12 characters at most), the rules and the exclusions", () => {
+    const html = editor({ initiallyOpen: "a" });
+    expect(html).toContain("data-folder-detail");
+    expect(input(html, 'value="عمل"')).toMatch(/maxlength="12"/i);
+    for (const word of ["المحادثات الخاصة", "المساحات", "اللي ذكروني فيها", "المكتومة", "المقروءة", "المؤرشفة"]) expect(textOf(html)).toContain(word);
+    // «خاص» is on, the archive is excluded, the rest are off
+    expect(input(html, 'data-rule="dms"')).toContain("checked");
+    expect(input(html, 'data-rule="exclude-archived"')).toContain("checked");
+    expect(input(html, 'data-rule="exclude-muted"')).not.toContain("checked");
+    expect(input(html, 'data-rule="spaces"')).not.toContain("checked");
+  });
+
+  it("offers the chats to pick (not the spaces' own rows), ticks the chosen ones, and the spaces to pick whole", () => {
+    const html = editor({ initiallyOpen: "b" });
+    expect(html.match(/data-chat-pick="/g)).toHaveLength(3);
+    expect(html).not.toContain('data-chat-pick="space1"');
+    expect(input(html, 'data-chat-pick="dm2"')).toContain("checked");
+    expect(input(html, 'data-chat-pick="dm1"')).not.toContain("checked");
+    expect(html.match(/data-space-pick="/g)).toHaveLength(2);
+    expect(input(html, 'data-space-pick="s2"')).toContain("checked");
+    expect(input(html, 'data-space-pick="s1"')).not.toContain("checked");
+    for (const title of ["أحمد", "سارة", "الطلبات", "تصنيع"]) expect(textOf(html)).toContain(title);
+  });
+
+  it("a pick that is not among the rows the person sees is only counted, never named", () => {
+    const stale = toggleChat(toggleSpace(mineFolders, "b", "gone-space"), "b", "gone-chat");
+    const html = editor({ folders: stale, initiallyOpen: "b" });
+    expect(textOf(html)).toContain("اختيارات مش ظاهرة إلك هلأ: 2");
+    expect(html).not.toContain("gone-chat");
+  });
+
+  it("while the list has not loaded (or failed), no pick is called unavailable and nothing can be cleared", () => {
+    const stale = toggleChat(toggleSpace(mineFolders, "b", "gone-space"), "b", "gone-chat");
+    const html = editor({ folders: stale, initiallyOpen: "b", chats: [], chatsLoaded: false });
+    expect(textOf(html)).not.toContain("مش ظاهرة إلك هلأ");
+    expect(html).not.toContain("شيلها من المجلد");
+  });
+
+  it("the built-in tabs can be hidden: one checkbox per tab (shown = ticked), «خاص» not for a guest", () => {
+    const html = editor({ hiddenTabs: ["unread"], onHiddenTabsChange: () => {} });
+    expect(html.match(/data-builtin-tab="/g)).toHaveLength(5);
+    expect(input(html, 'data-builtin-tab="unread"')).not.toContain("checked");
+    expect(input(html, 'data-builtin-tab="all"')).toContain("checked");
+    expect(editor({ hiddenTabs: [], onHiddenTabsChange: () => {}, guest: true }).match(/data-builtin-tab="/g)).toHaveLength(4);
+    expect(editor()).not.toContain("data-builtin-tab");
+  });
+
+  it("every button has a name a screen reader can say (a label, or its own words)", () => {
+    const html = editor({ initiallyOpen: "a", hiddenTabs: [], onHiddenTabsChange: () => {} });
+    for (const tag of html.match(/<button[^>]*>/g) ?? []) {
+      expect(tag, tag).toMatch(/aria-label=|data-folder-add|data-folder-open/);
+    }
+  });
+
+  it("an emoji picked in the editor is kept on the folder", () => {
+    const next = updateFolder(mineFolders, "b", { emoji: "🏠" });
+    expect(next[1]!.emoji).toBe("🏠");
   });
 });
