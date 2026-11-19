@@ -8,7 +8,7 @@ import { FEATURE_DEFAULTS } from "@/lib/features";
  * C2 — THE SWEEP OF THE WHOLE PHASE (C2.8 is its last package). It checks, from the files themselves, the promises the spec made to the owner at the end of
  * the phase: nothing of Q1 was lost on the way (each carry-over has a render test), the guards that keep the new screen on the tokens and on logical sides
  * are in place and cover the folders C2.8 added, only «Ctrl» and «Esc» are Latin on screen, the old screen is still there (D-C1) and the switch is OFF.
- * It measures NOTHING about speed or feel: those need a browser and are the owner's list in docs/restructure/pr/C2.8.md.
+ * It measures NOTHING about speed or feel: those need a browser and are the owner's list in docs/restructure/pr/C2.8+C2.9.md.
  */
 const ROOT = path.resolve(__dirname, "..");
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8").replace(/\r\n/g, "\n");

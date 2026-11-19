@@ -12,7 +12,7 @@ const ROOT = path.resolve(__dirname, "..");
 
 /**
  * C2.8 — the pure rules of the phone screens (no React, no browser): the swipe from the start edge, the keyboard's inset, and which screen of the phone an
- * address is. The timing and the feel of them are the owner's check on a real phone (docs/restructure/pr/C2.8.md).
+ * address is. The timing and the feel of them are the owner's check on a real phone (docs/restructure/pr/C2.8+C2.9.md).
  */
 describe("the swipe from the start edge goes back", () => {
   it("starts only inside the edge strip of the START side: the right edge in this right-to-left layout, the left one in a left-to-right page", () => {

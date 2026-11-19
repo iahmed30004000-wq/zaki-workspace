@@ -238,7 +238,7 @@ allows exactly those key names and caps its allow-list below 14 entries. 🔧 Wr
       items by permission (reuse the registry tests), composer states (empty → mic, text → send, cannot post → reason).
 - [x] `chatLayoutV2` OFF renders the old screen unchanged (one render test). _(`chat-v2-shell-render`, `chat-v2-switch-combinations`)_
 
-> The five boxes above that need a browser (paint under 100 ms at 4× throttle, 1 000 messages smooth, the unread landing and older pages with no jump, the row move with only the C1 delta, the phone: slide, swipe back, composer above the keyboard, no horizontal scroll) are NOT ticked: they are the owner's list in `pr/C2.8.md`, never written as measured.
+> The five boxes above that need a browser (paint under 100 ms at 4× throttle, 1 000 messages smooth, the unread landing and older pages with no jump, the row move with only the C1 delta, the phone: slide, swipe back, composer above the keyboard, no horizontal scroll) are NOT ticked: they are the owner's list in `pr/C2.8+C2.9.md`, never written as measured.
 
 ## 11. Steps (step IDs are NOT the section numbers above; one branch each, small commits, each green)
 
@@ -251,8 +251,8 @@ allows exactly those key names and caps its allow-list below 14 entries. 🔧 Wr
 - [x] C2.5 Composer (emoji, attach menu, paste/drop, mic/send toggle) — reuse the existing upload/outbox code.
 - [x] C2.6 Message menu (quick reactions + registry) + hover actions + shortcuts.
 - [x] C2.7 Info panel (DM / topic, members) — media tabs are filled in C3.
-- [x] C2.8 Phone screens and motion (`pr/C2.8.md`).
-- [x] C2.9 Restyle calls UI entry points (call bar, ring) to the new tokens (`pr/C2.8.md`).
+- [x] C2.8 Phone screens and motion (`pr/C2.8+C2.9.md`).
+- [x] C2.9 Restyle calls UI entry points (call bar, ring) to the new tokens (`pr/C2.8+C2.9.md`).
 
 **Switch combinations:** `chatLayoutV2` and `navV2` (N1) are independent. With `navV2` OFF the chat's list column sits
 next to today's sidebar and the phone keeps today's bottom bar (the list screen shows no «☰»); with both ON it is the
