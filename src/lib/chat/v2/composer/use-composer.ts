@@ -69,6 +69,8 @@ export function useComposer(p: ComposerParams) {
   const [voice, setVoice] = React.useState<VoiceState>({ mode: "idle" });
   const [clientId, setClientId] = React.useState(() => messageClientId());
   const [pollOpen, setPollOpen] = React.useState(false);
+  /** C3b.2: ✕ was pressed on the preview of the link in the box (the surface reports it): the send carries `noPreview` and the server never visits the link */
+  const [noPreview, setNoPreview] = React.useState(false);
   const [recall, setRecall] = React.useState<{ kind: RecallKind | null; q: string } | null>(null);
   /** the images of a paste, waiting in the send dialog */
   const [pasted, setPasted] = React.useState<File[] | null>(null);
@@ -222,6 +224,7 @@ export function useComposer(p: ComposerParams) {
         ...(payload.replyToId ? { replyToId: payload.replyToId } : {}),
         ...(payload.attachmentIds.length ? { attachmentIds: payload.attachmentIds } : {}),
         ...(payload.mentionAll ? { mentionAll: true } : {}),
+        ...(payload.noPreview ? { noPreview: true } : {}),
       },
       Date.now(),
       retryAfterSec !== undefined ? { retryAfterSec } : {},
@@ -279,7 +282,7 @@ export function useComposer(p: ComposerParams) {
         { qc: optimistic.qc, outbox },
         {
           conversationId,
-          payload: { body: text.trim(), attachmentIds: [], mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), clientId: id },
+          payload: { body: text.trim(), attachmentIds: [], mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), clientId: id },
           author: { id: meId, name: me?.name ?? "", avatar: me?.avatarUrl ?? null },
           ...(reply ? { replyTo: { id: reply.id, preview: reply.deleted ? null : reply.body, authorName: reply.authorName } } : {}),
         },
@@ -323,7 +326,7 @@ export function useComposer(p: ComposerParams) {
         if (typeof result["id"] !== "string") throw new Error(ct("chatc.upload_failed"));
         attachmentIds.push(result["id"]);
       }
-      await postMessage({ body: text.trim(), attachmentIds, mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), clientId: id });
+      await postMessage({ body: text.trim(), attachmentIds, mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), clientId: id });
       for (const f of tray) if (f.preview) URL.revokeObjectURL(f.preview);
       if (draftOn) clearComposerDraft(meId, conversationId);
       setBody("");
@@ -542,7 +545,7 @@ export function useComposer(p: ComposerParams) {
     canSubmit: canSubmitNow({ text: body, fileCount: files.length, editing: editing !== null, voiceOn, busy }),
     choices, pickAt, setPick,
     hint: composerHintOf(body, detail, editing !== null),
-    pollOpen, setPollOpen, recall, setRecall, pasted, setPasted,
+    pollOpen, setPollOpen, recall, setRecall, pasted, setPasted, noPreview, setNoPreview,
     textRef, mediaInput, fileInput,
     addFiles, addDropped: (list: ArrayLike<File>, asFile: boolean) => addFiles(forDropMode(list, asFile ? "files" : "media")), removeFile, selectMention, insertAtCaret,
     onTextChange, onKeyDown, onPaste, submit, sendPasted,

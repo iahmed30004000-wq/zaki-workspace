@@ -17,6 +17,8 @@ import {
 import { dmStatusFor, messageInclude } from "@/server/chat/messages";
 import { presentMessage, type Viewer } from "@/server/chat/redact";
 import { decorateMustRead } from "@/server/services/must-read";
+import { linkPreviewsOn } from "@/server/chat/link-preview";
+import { isFeatureOn } from "@/server/services/features";
 import type { RealtimeKind } from "@/server/realtime/emit";
 
 /**
@@ -46,7 +48,7 @@ export const SYNC_DEFAULT_LIMIT = 500;
 const SPACE_EVENT_SKEW_MS = 5 * 60_000;
 
 /** The events the feed understands. The others (calls, whiteboard, watch) are stream-only. */
-const MESSAGE_EVENTS = new Set<RealtimeKind>(["message.created", "message.edited", "message.deleted", "message.reacted", "message.pinned", "poll.voted", "ticket.changed"]);
+const MESSAGE_EVENTS = new Set<RealtimeKind>(["message.created", "message.edited", "message.deleted", "message.reacted", "message.pinned", "poll.voted", "ticket.changed", "message.enriched"]);
 const ROW_EVENTS = new Set<RealtimeKind>(["message.created", "message.edited", "message.deleted", "conversation.changed", "membership.changed"]);
 const KNOWN = new Set<string>([...MESSAGE_EVENTS, ...ROW_EVENTS, "conversation.read", "conversation.delivered"]);
 
@@ -164,9 +166,11 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
     : [];
   const messages: MessageDto[] = [];
   const byConversation = new Map<string, { rows: typeof rows; dtos: MessageDto[] }>();
+  // C3b.2: the company's switch `linkPreviews`, asked once and only when a message of this answer carries a card
+  const linkPreviews = rows.some((r) => r.previewId !== null) ? await linkPreviewsOn(ctx.orgId) : false;
   for (const row of rows) {
     const rec = visible.get(row.conversationId)!;
-    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember };
+    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, linkPreviews };
     const dto = presentMessage(row as never, viewer, rec.kind === "DM" && row.authorId === mine ? dmStatusFor(peerMarks(rec), row.createdAt) : undefined);
     // a tombstone is a tombstone for everybody here: no text, no files, no reactions (the owner reads the original through the archive); no edit history
     delete dto.history;

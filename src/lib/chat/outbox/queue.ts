@@ -52,6 +52,8 @@ export interface OutboxItem {
   /** files already uploaded (their ids only; the bytes are on the server) */
   attachmentIds?: string[];
   mentionAll?: boolean;
+  /** C3b.2: ✕ was pressed on the link's preview: a retry (even after a reload) must not make the server visit the link */
+  noPreview?: boolean;
   /** epoch ms of the moment the person pressed send (the order of the log) */
   createdAt: number;
   /** failed attempts so far */
@@ -62,7 +64,7 @@ export interface OutboxItem {
   rateLimited?: boolean;
 }
 
-export type OutboxInput = Pick<OutboxItem, "clientId" | "conversationId" | "body" | "mentions"> & Partial<Pick<OutboxItem, "replyToId" | "attachmentIds" | "mentionAll">>;
+export type OutboxInput = Pick<OutboxItem, "clientId" | "conversationId" | "body" | "mentions"> & Partial<Pick<OutboxItem, "replyToId" | "attachmentIds" | "mentionAll" | "noPreview">>;
 
 /** What one attempt to send an item came to. */
 export type SendOutcome =
@@ -121,6 +123,7 @@ export function sanitizeItem(raw: unknown): OutboxItem | null {
   if (replyToId) item.replyToId = replyToId;
   if (attachmentIds && attachmentIds.length) item.attachmentIds = attachmentIds;
   if (r["mentionAll"] === true) item.mentionAll = true;
+  if (r["noPreview"] === true) item.noPreview = true;
   if (r["rateLimited"] === true) item.rateLimited = true;
   const f = r["failed"];
   if (typeof f === "object" && f !== null) {
@@ -246,6 +249,7 @@ export class Outbox {
       ...(input.replyToId ? { replyToId: input.replyToId } : {}),
       ...(input.attachmentIds?.length ? { attachmentIds: [...input.attachmentIds] } : {}),
       ...(input.mentionAll ? { mentionAll: true } : {}),
+      ...(input.noPreview ? { noPreview: true } : {}),
       ...(opts.retryAfterSec !== undefined ? { rateLimited: true } : {}),
       // C1.8: the first attempt was refused for good (the optimistic bubble already shows it red): kept marked, never sent by itself
       ...(opts.failed ? { failed: opts.failed } : {}),

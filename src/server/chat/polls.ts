@@ -8,6 +8,7 @@ import { presentMessage } from "@/server/chat/redact";
 import { guard, messageInclude, viewerOf, withViewer } from "@/server/chat/messages";
 import { isSilentOwner, pollIsClosed } from "@/server/chat/poll-shared";
 import { FixedWindowLimiter, RateLimitedError } from "@/server/rate-limit";
+import { linkPreviewsOn } from "@/server/chat/link-preview";
 import type { MessageDto } from "@/server/chat/dto";
 
 /**
@@ -41,7 +42,7 @@ async function loadPollMessage(ctx: OrgAccessContext, messageId: string) {
 
 async function present(ctx: OrgAccessContext, messageId: string, ctxFacts: Awaited<ReturnType<typeof loadPollMessage>>): Promise<MessageDto> {
   const row = await db.chatMessage.findUniqueOrThrow({ where: { id: messageId }, include: messageInclude() });
-  return presentMessage(row, withViewer(viewerOf(ctxFacts.facts, ctxFacts.org), ctx.userId));
+  return presentMessage(row, { ...withViewer(viewerOf(ctxFacts.facts, ctxFacts.org), ctx.userId), linkPreviews: await linkPreviewsOn(ctx.orgId) });
 }
 
 /** Locks the poll's row for the length of the transaction, so two votes of one person never interleave. */

@@ -202,7 +202,7 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 
 ### C3 — chat features
 - [x] C3a.1 Personal pin / archive / mark unread / mute presets (`pr/C3a.1.md`; ⚠️ the personal mute does not stop a push yet) · [x] C3a.2 Folders (`pr/C3a.2.md`; ⚠️ built, not yet mounted in the list column or C4.1's page) · [x] C3a.3 Saved messages (`pr/C3a.3.md`; ⚠️ the pane header's call button, the single ✓ on my own message and the old screens' lists are other packages' files: see the PR file)
-- [ ] C3b.1 Formatting · [ ] C3b.2 Link previews · [ ] C3b.3 Albums + media viewer · [x] C3b.4 Voice speed (`pr/C3b-4.md`)
+- [ ] C3b.1 Formatting · [x] C3b.2 Link previews (`pr/C3b-2.md`; the server side, the bubble card, the composer ✕ and «شيل المعاينة» are wired end to end) · [ ] C3b.3 Albums + media viewer · [x] C3b.4 Voice speed (`pr/C3b-4.md`)
 - [ ] C3b.5 Multi-select + forward many · [ ] C3b.6 «@» jump + «مين شاف» (`pr/C3b.6.md`: the door and the walk are built; tick when `message-viewport.tsx` calls `useMentionsWalk`)
 - [ ] C3c.1 **Checklists** · [ ] C3c.2 Send without sound · [ ] C3c.3 Scheduled messages · [ ] C3c.4 Channels look
 - [ ] C3d Info-panel tabs + list search + in-chat search

@@ -59,17 +59,17 @@
       `javascript:` links, HTML entities), 10 000-character body under 5 ms.
 
 ### C3b.2 Link previews
-- [ ] New table `LinkPreview` (`id`, `urlHash` unique, `url`, `title?`, `description?`, `siteName?`, `imageFileId?`,
+- [x] New table `LinkPreview` (`id`, `urlHash` unique, `url`, `title?`, `description?`, `siteName?`, `imageFileId?`,
       `status` OK|FAILED, `fetchedAt`) + `ChatMessage.previewId String?` (first link of the message). Nothing existing
       stores fetched page metadata.
-- [ ] Fetch after the send commits (in-app scheduler or fire-and-forget with logging), through
+- [x] Fetch after the send commits (in-app scheduler or fire-and-forget with logging), through
       `src/server/net-guard.ts` (public https only, no redirects to private addresses, 3 s timeout, 512 KB cap, HTML only).
       Read `og:title`, `og:description`, `og:site_name`, `og:image` (image downloaded through the same guard, ≤ 1 MB,
       sniffed, stored with `ingest` as purpose `CHAT`, served only through the attachment proxy).
-- [ ] New realtime kind `message.enriched` (add to `REALTIME_KINDS`; F0.4 makes replay carry it).
+- [x] New realtime kind `message.enriched` (add to `REALTIME_KINDS`; F0.4 makes replay carry it).
 - [ ] Switch `linkPreviews` (default on); the sender can remove the preview (✕ in the composer before sending, and
       «شيل المعاينة» on own messages).
-- [ ] ⚠️ The server visits the link (the site sees the server's address, never the person's). 🔧 Documented in the
+- [x] ⚠️ The server visits the link (the site sees the server's address, never the person's). 🔧 Documented in the
       guide; links inside topics with an external partner still preview (no company data is sent).
 
 ### C3b.3 Albums and the media viewer
@@ -194,6 +194,11 @@ controls are not drawn, data already made stays.
 - Built: `src/lib/chat/album-layout.ts` (the pure mosaic, `takeRoom` for the tray), `src/components/chat/v2/media-viewer.tsx` (the viewer, `viewerItemsOf` the one source function, `MediaViewerProvider`), the bubble's mosaic and the lone picture's button, `albumBox` and the opt-in album estimate in `viewport/sizes.ts`, the tray's count line and the pick-time limit of ten. No schema.
 - Decision: `estimateRowHeight(row, { albums: true })` is opt-in because C1.7's pinned test says two pictures stack. Say if the album should be the default (one test changes).
 - Not wired by this package (files of other packages): `chatAlbums` reaches `BubbleMedia` as the optional `albums` prop (default ON); `message-bubble.tsx` + the header DTO must pass it, the pane must wrap the messages in `MediaViewerProvider` (the viewer then steps through the whole loaded conversation and can jump to the message), and `use-message-viewport.ts` must pass `{ albums }` to the estimate. C3d swaps the one source function for `GET …/media`.
+
+### C3b.2 Link previews (`feat/link-previews`, `pr/C3b-2.md`)
+- Built: the table `LinkPreview` + `ChatMessage.previewId`, `src/server/chat/link-preview.ts` (the guarded fetch, the tag parser, the after-send step), `message.enriched` (sync returns the presented message), `DELETE …/messages/[id]/preview` (author only) and `GET …/preview/image` (the only way the picture is served), the DTO `preview`, the switch `linkPreviews` (ON), the guide's warning, the card `LinkPreviewCard`, the composer's ✕ line, the menu id `removePreview`. Switch OFF: no fetch, no card from send and sync, the routes 404, the data stays.
+- Decision: the picture is stored with `ingest` as `CHAT` and then tagged `LINKPREVIEW`, because `purgeOrphanUploads` deletes every unclaimed `CHAT` file after 24 hours. A one-line `purgeOrphanUploads` change (skip files a `LinkPreview` points at) would let it stay `CHAT`; say if you prefer that.
+- Not wired by this package (files of other packages): `topics.ts` (the messages window) must pass `linkPreviews` in its viewer so the switch hides cards there too; `message-bubble.tsx` must draw `<LinkPreviewCard preview={message.preview} />`; `menu-host.tsx` must run `removePreview` (DELETE); `use-composer.ts` must send `noPreview` while `ComposerSurface` reports `onNoPreviewChange(true)`. Details in `pr/C3b-2.md`.
 
 ### C3a.1 Personal pin, archive, mark unread, mute presets (`feat/chat-personal-state`, `pr/C3a.1.md`)
 - Built: the three columns, `PUT …/me` (`setMyChatState`), the flags in the ONE list query and the sync rows, one event for the person alone, the row menu items and the mute presets, the «الأرشيف» tab, the pins' order, the forum view's rules, the sidebar number that leaves out an archived chat. Switch `chatPersonalState` (ON).

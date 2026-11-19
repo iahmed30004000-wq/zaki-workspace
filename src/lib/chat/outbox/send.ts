@@ -55,6 +55,8 @@ export interface ChatSendPayload {
   clientId: string;
   mentionAll?: boolean;
   voice?: boolean;
+  /** C3b.2: ✕ on the link's preview was pressed before sending */
+  noPreview?: boolean;
 }
 
 type FetchLike = (input: string, init: { method: string; headers: Record<string, string>; body: string; signal?: AbortSignal }) => Promise<{ ok: boolean; status: number; headers?: { get(name: string): string | null }; json(): Promise<unknown> }>;
@@ -105,5 +107,6 @@ export function sendOutboxItem(item: OutboxItem): Promise<SendOutcome> {
     ...(item.replyToId ? { replyToId: item.replyToId } : {}),
     clientId: item.clientId,
     ...(item.mentionAll ? { mentionAll: true } : {}),
+    ...(item.noPreview ? { noPreview: true } : {}),
   });
 }

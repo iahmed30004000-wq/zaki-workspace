@@ -26,6 +26,8 @@ export const REALTIME_KINDS = [
   "watch.changed",
   // a ticket made from a message of this conversation changed state or hands (ids only: its chip under the message refreshes)
   "ticket.changed",
+  // a message got its link card, or its sender took the card off (C3b.2; ids only: the cards are fetched by the sync feed, never carried here)
+  "message.enriched",
 ] as const;
 
 export type RealtimeKind = (typeof REALTIME_KINDS)[number];

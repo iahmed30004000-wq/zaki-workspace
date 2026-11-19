@@ -77,6 +77,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         else if (id === "copyLink")
           void copyText(messageLinkOf(window.location.origin, conversationId, message.id), navigator.clipboard).then((ok) => (ok ? commands.say("chatui.menu.link_copied") : commands.say("chatc.menu.failed", "error")));
         else if (id === "mustread") void commands.setMustRead(message, !message.mustRead);
+        else if (id === "removePreview") void commands.removePreview(message);
         else if (id === "delete") void commands.remove(message);
         else if (id === "copy") commands.copy(message);
       },
