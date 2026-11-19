@@ -54,3 +54,4 @@
       reload anywhere in normal use, `/chat` never freezes on first load (Performance recording attached).
 
 - F1.4 built on `perf/no-refresh` (`pr/F1.4.md`): the space-edit reload is gone; the card delete invalidates the cards list; the other refreshes of the touched files draw server pages and stay (reasons in the PR file). The board's three reloads are W1.5's.
+- F1.6 built on `feat/place-skeletons` (`pr/F1.6.md`): 15 places have a page-shaped `loading.tsx` (`src/components/ui/skeletons.tsx`); the places a later step reshapes (my-work, projects, boards, requests, approvals, owner, analytics, settings, spaces, members, structure, development, calendar, list) get theirs in that step. Not a measured speed-up: the browser timing is the owner's check.
