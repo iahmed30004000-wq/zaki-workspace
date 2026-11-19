@@ -136,5 +136,16 @@
   "chatui.keys.folders": "المجلد الأول … التاسع",
   "chatui.keys.search": "بحث بالمحادثة المفتوحة، وبالقائمة إذا كنت فيها",
   "chatui.keys.escape": "سكّر اللوحة أو ارجع للقائمة",
-  "chatui.keys.sheet": "فتح هالقائمة"
+  "chatui.keys.sheet": "فتح هالقائمة",
+  "chatui.info.audience_space": "كل أعضاء المساحة ({n})",
+  "chatui.info.audience_team": "المقطع: {name}",
+  "chatui.info.audience_team_anon": "المقطع: أعضاء مقطع من المساحة",
+  "chatui.info.audience_private": "🔒 خاص — {people}",
+  "chatui.info.search": "🔍 بحث",
+  "chatui.info.close": "سكّر معلومات المحادثة",
+  "chatui.info.open_profile": "افتح الملف الشخصي",
+  "chatui.info.space": "المساحة",
+  "chatui.info.audience": "مين بيشوفها",
+  "chatui.info.job": "المسمى الوظيفي",
+  "chatui.info.bio": "نبذة"
 }

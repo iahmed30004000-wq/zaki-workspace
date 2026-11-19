@@ -53,9 +53,10 @@ describe("the four seams", () => {
     expect(src).not.toMatch(/\["reply",\s*"pin"/);
   });
 
-  it("the info host renders nothing yet and takes only the header", () => {
+  it("the info host (C2.7 filled it) takes only the header and draws the panel body in the shell's column or in a sheet", () => {
     const src = read("src/components/chat/v2/pane/seams/info-host.tsx");
-    expect(src).toMatch(/export function InfoHost\(_props: \{ header: ConversationHeaderDto \}\) \{\s*return null;/);
+    expect(src).toMatch(/export function InfoHost\(\{ header \}: \{ header: ConversationHeaderDto \}\)/);
+    expect(src).toContain("<InfoPanel");
   });
 
   it("each seam's component is imported by its own host and by nobody else in the pane", () => {
