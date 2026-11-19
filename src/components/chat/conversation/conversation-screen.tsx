@@ -27,6 +27,7 @@ import { ConversationSearch } from "./conversation-search";
 import { PrivacySheet } from "./privacy-sheet";
 import { privacyLabel, privacyState } from "@/lib/chat/privacy";
 import { canMarkReadNow } from "@/lib/chat/read-gate";
+import { composerBarOf, type ComposerBar } from "@/lib/chat/v2/pane/composer-bar";
 import { CallButton } from "@/components/calls/call-button";
 import { MakeWorkDialog, titleOf, type WorkKind } from "@/components/chat/message/make-work-dialog";
 import { ProblemDialog } from "@/components/chat/message/problem-dialog";
@@ -38,20 +39,11 @@ export interface ConversationScreenProps { conversationId: string; onBack: () =>
   /** open around this message (a search hit, `?m=`), scrolled to it and marked */
   focusMessageId?: string }
 /**
- * What sits under the messages: the composer whenever the server says I may post (`me.canPost` already
- * covers closed, muted, guests and «للمشرفين فقط» — a space admin posts in the announcements), else the
- * owner's «شارك بالمحادثة», else the one line that says why not.
+ * What sits under the messages: the composer whenever the server says I may post, else the owner's «شارك بالمحادثة», else the one line that says why
+ * not. C2.4 moved the function to `src/lib/chat/v2/pane/composer-bar.ts` (the new composer host reads it from there); it is re-exported here, unchanged.
  */
-export type ComposerBar = "composer" | "join" | "oversight" | "closed" | "muted" | "announcements" | "denied";
-export function composerBarOf(me: ConversationDto["me"], conv: Pick<ConversationDto, "closed" | "topicType">): ComposerBar {
- if (me.canPost) return "composer";
- if (me.canJoin) return "join";
- if (me.oversight) return "oversight";
- if (conv.closed) return "closed";
- if (me.muted) return "muted";
- if (conv.topicType === "ANNOUNCEMENTS") return "announcements";
- return "denied";
-}
+export type { ComposerBar };
+export { composerBarOf };
 /** The one reason line under the messages, from ar.chat-conversation.json (`chatc.bar.*`). */
 const barText = (bar: Exclude<ComposerBar, "composer" | "join">): string => ct(`chatc.bar.${bar}`);
 /** A message appended to the log unless the log already has it (the answer to my send and the live refetch can both bring it). */

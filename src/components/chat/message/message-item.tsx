@@ -11,7 +11,7 @@ import { PollCard } from "@/components/chat/message/poll-card";
 import { CardBubble } from "@/components/chat/message/card-bubble";
 import { OrderCardBubble, OrderText } from "@/components/chat/message/order-state-card";
 import { matchRule, ruleMode, type AutoRule } from "@/lib/tickets/auto-rules";
-import { customerDataHint } from "@/lib/chat/customer-data-hint";
+import { customerDataHint, type CustomerDataHint } from "@/lib/chat/customer-data-hint";
 import { AssistantLine } from "@/components/chat/message/assistant-line";
 import { VoicePlayer } from "@/components/chat/message/voice-player";
 import { VoiceTranscript } from "@/components/chat/message/voice-transcript";
@@ -35,6 +35,17 @@ import type { MessageMenuContext, MessageMenuId } from "@/components/chat/messag
  * message-menu-registry.ts, which mirrors the server's rules.
  */
 const OCR_MIMES=new Set(["image/png","image/jpeg","image/webp"]);
+/**
+ * C2.4 — the rules of a bubble that are DECISIONS (what the menu may offer, which suggestion chip, which hint line) as three pure functions. The old
+ * `MessageItem` below calls them, and the new screen's bubble (`src/components/chat/v2/message-bubble.tsx`) calls the very same ones, so the two cannot
+ * drift: a rule changed here changes both.
+ */
+export interface MenuFacts { conversationKind: "DM" | "GROUP" | "TOPIC"; canPost: boolean; canModerate: boolean; oversight: boolean; canMakeWork?: boolean; canMakeTask?: boolean; canMakeTicket?: boolean; canRemind?: boolean; canTranslate?: boolean; canProblem?: boolean; canMustRead?: boolean }
+export function messageMenuContext(message:MessageDto,f:MenuFacts):MessageMenuContext{return {mine:message.mine,deleted:message.deleted,kind:message.kind,hasText:Boolean(message.body&&message.body.trim()),pinned:message.pinned,conversationKind:f.conversationKind,canPost:f.canPost,canModerate:f.canModerate,oversight:f.oversight,canMakeWork:f.canMakeWork,canMakeTask:f.canMakeTask,canMakeTicket:f.canMakeTicket,canRemind:f.canRemind,canTranslate:f.canTranslate,canProblem:f.canProblem,canMustRead:f.canMustRead,mustReadOn:Boolean(message.mustRead)};}
+/** «بدك تعمليها تذكرة؟»: a «اقترح» rule that matches this message while no ticket was made of it; the rule's kind, or null. */
+export function suggestedProblemKind(message:MessageDto,f:{canProblem:boolean;problemRules:AutoRule[];conversationId?:string}):string|null{return f.canProblem&&message.kind==="TEXT"&&!message.deleted&&!message.work?.length&&message.body&&!message.body.startsWith("✅")?(f.problemRules.find(r=>ruleMode(r)==="suggest"&&matchRule(r,{body:message.body??"",conversationId:f.conversationId??"",spaceId:r.spaceId}))?.kindKey??null):null;}
+/** «تنبيه بيانات الزبون» (Q1.7): a line for the author and the moderators; the phone hint promises a ticket, so only where the «🎫 مشكلة» form can be used. */
+export function customerHintOf(message:MessageDto,f:{orderHints:boolean;canModerate:boolean;canProblem:boolean}):CustomerDataHint{const raw=f.orderHints&&(message.mine||f.canModerate)&&message.kind==="TEXT"&&!message.deleted&&!message.work?.length&&message.body?customerDataHint(message.body):null;return raw==="phone"&&!f.canProblem?null:raw;}
 export interface MessageItemProps { message: MessageDto; canModerate: boolean; oversight?: boolean; readers?: ReaderDto[]; conversationKind?: "DM" | "GROUP" | "TOPIC"; canPost?: boolean; canMakeWork?: boolean; canMakeTask?: boolean; canMakeTicket?: boolean; canRemind?: boolean; /** «ترجم» is offered in the menu (`me.canTranslate`) */ canTranslate?: boolean; /** «🎫 مشكلة» is offered (`me.problemKinds`), and the company's rules for this open topic (a suggestion chip «بدك تعمليها تذكرة؟») */ canProblem?: boolean; canMustRead?: boolean; /** the hint line for customer data is on in this open topic (`me.orderHints`) */ orderHints?: boolean; onHintTicket?: (message: MessageDto) => void; onAck?: (message: MessageDto, on: boolean) => void; problemRules?: AutoRule[]; onSuggestProblem?: (message: MessageDto, kindKey: string) => void; /** an order number in a message is a chip (`me.canOrderState`), asked for inside this conversation */ canOrderState?: boolean; conversationId?: string; /** «اكتب النص» is offered under a voice note */ canTranscribe?: boolean; /** «اقرا النص» is offered under a picture */ canReadImages?: boolean; onReact: (message: MessageDto, emoji: string) => void; onAction: (message: MessageDto, id: MessageMenuId) => void;
   /** the names «@» can point at here (the people of the conversation and «الكل»): their mentions are drawn highlighted */
   mentionNames?: string[];
@@ -65,7 +76,7 @@ export function MessageItem({message,canModerate,oversight=false,readers=[],conv
  // a system line is a quiet sentence in the middle, never a bubble with an empty body
  if(message.kind==="SYSTEM"&&message.system?.k==="assistant")return <AssistantLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt}/>;
  if(message.kind==="SYSTEM")return <p dir="rtl" role="note" className="my-2 text-center text-xs text-fg-muted">{systemSentence(message.system,message.authorName)}</p>;
- const context:MessageMenuContext={mine:message.mine,deleted:message.deleted,kind:message.kind,hasText:Boolean(message.body&&message.body.trim()),pinned:message.pinned,conversationKind,canPost,canModerate,oversight,canMakeWork,canMakeTask,canMakeTicket,canRemind,canTranslate,canProblem,canMustRead,mustReadOn:Boolean(message.mustRead)};
+ const context:MessageMenuContext=messageMenuContext(message,{conversationKind,canPost,canModerate,oversight,canMakeWork,canMakeTask,canMakeTicket,canRemind,canTranslate,canProblem,canMustRead});
  // a phone's long press opens the menu sheet; moving the finger (a scroll) or lifting early is no press
  const endPress=()=>{if(press.current){clearTimeout(press.current.timer);press.current=null;}};
  const onPointerDown=(e:React.PointerEvent)=>{if(e.pointerType==="mouse"||!canAct)return;const {clientX:x,clientY:y}=e;press.current={x,y,timer:setTimeout(()=>{press.current=null;setSheetOpen(true);},LONG_PRESS_MS)};};
@@ -77,11 +88,9 @@ export function MessageItem({message,canModerate,oversight=false,readers=[],conv
  // an order number in a plain text message is a chip (a «/طلب» card already is the card, so its own line stays a line)
  const chips=canOrderState&&!!conversationId&&message.kind=="TEXT";
  // a «اقترح» rule that matches this message and no ticket was made yet: one tap offers «بدك تعمليها تذكرة؟»
- const suggestKind=canProblem&&message.kind==="TEXT"&&!message.deleted&&!message.work?.length&&message.body&&!message.body.startsWith("✅")?(problemRules.find(r=>ruleMode(r)==="suggest"&&matchRule(r,{body:message.body??"",conversationId:conversationId??"",spaceId:r.spaceId}))?.kindKey??null):null;
+ const suggestKind=suggestedProblemKind(message,{canProblem,problemRules,conversationId});
  // «تنبيه بيانات الزبون» (Q1.7): a line for the author and the moderators, nothing is blocked or changed; not when a ticket was already made of it
- const rawHint=orderHints&&(message.mine||canModerate)&&message.kind==="TEXT"&&!message.deleted&&!message.work?.length&&message.body?customerDataHint(message.body):null;
- // the phone hint promises a ticket: only where the «🎫 مشكلة» form can be used
- const dataHint=rawHint==="phone"&&!canProblem?null:rawHint;
+ const dataHint=customerHintOf(message,{orderHints,canModerate,canProblem});
  const run=groupStart&&groupEnd?"single":groupStart?"start":groupEnd?"end":"middle";
  const timeLine=<span className="mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted">{message.edited&&<span>{ct("chatc.edited")}</span>}{message.pinned&&<span>{ct("chatc.pinned")}</span>}<time dateTime={message.createdAt} dir="ltr" className="tabular-nums">{time}</time>{message.mine&&message.status&&!message.deleted&&<MessageTicks status={message.status}/>}</span>;
  const menu=canAct?<MessageMenu context={context} onAction={id=>{if(id==="translate")void translation.ask();else onAction(message,id);}} onReact={emoji=>onReact(message,emoji)} sheetOpen={sheetOpen} onSheetOpenChange={setSheetOpen}/>:null;
