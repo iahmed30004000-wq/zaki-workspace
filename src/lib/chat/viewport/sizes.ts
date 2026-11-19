@@ -1,5 +1,6 @@
 import type { AttachmentDto } from "@/server/chat/dto";
 import type { Row } from "@/lib/chat/viewport/rows";
+import { albumMediaOf, layoutAlbum, type AlbumSize } from "@/lib/chat/album-layout";
 
 /**
  * C1.7 — what the virtual list knows about a row BEFORE it is drawn and measured. Pure.
@@ -8,6 +9,9 @@ import type { Row } from "@/lib/chat/viewport/rows";
  *   ONE fixed fallback box, so nothing moves when the picture loads. The bubble of C2 draws the same box (`imageBox`) with CSS
  *   `aspect-ratio`, so the estimate and the drawing agree.
  * - A voice row has a fixed height (`VOICE_ROW_PX`), whatever its length and waveform: the bubble of C2 is that tall.
+ * - C3b.3: a message with two or more pictures / videos reserves ONE box, the album's (`albumBox` = `layoutAlbum`, the same function the bubble draws), not the
+ *   pictures stacked. It is OPT-IN (`{ albums: true }`, which the viewport passes while `chatAlbums` is on): called with no option the estimate is the old
+ *   stack, exactly as C1.7 pinned it.
  * - Everything else is an estimate for the scrollbar and the first paint; the real height is measured (`measureElement`).
  */
 
@@ -44,13 +48,20 @@ export function imageBox(attachment: Pick<AttachmentDto, "width" | "height">, ma
   return { width: Math.max(1, Math.round(width * scale)), height: Math.max(1, Math.round(height * scale)) };
 }
 
+/** The box a message's media reserves: one picture is `imageBox` (unchanged); two or more are the album's. */
+export function albumBox(media: readonly AlbumSize[]): { width: number; height: number } {
+  if (media.length === 1) return imageBox(media[0]!);
+  const { width, height } = layoutAlbum(media);
+  return { width, height };
+}
+
 function attachmentPx(a: AttachmentDto): number {
   if (a.kind === "IMAGE" || a.kind === "VIDEO") return imageBox(a).height + ATTACHMENT_GAP_PX;
   if (a.kind === "AUDIO") return VOICE_ROW_PX;
   return FILE_ROW_PX;
 }
 
-export function estimateRowHeight(row: Row): number {
+export function estimateRowHeight(row: Row, options: { albums?: boolean } = {}): number {
   if (row.type === "day") return DAY_ROW_PX;
   if (row.type === "unread") return UNREAD_ROW_PX;
   if (row.type === "calls") return CALLS_ROW_PX;
@@ -62,7 +73,9 @@ export function estimateRowHeight(row: Row): number {
   if (m.kind === "CARD") return CARD_ROW_PX;
   const lines = m.body ? m.body.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0) : 0;
   let px = TEXT_BASE_PX + Math.max(1, lines) * TEXT_LINE_PX;
-  for (const a of m.attachments) px += attachmentPx(a);
+  const album = options.albums === true ? albumMediaOf(m.attachments) : [];
+  if (album.length >= 2) px += albumBox(album).height + ATTACHMENT_GAP_PX;
+  for (const a of m.attachments) if (!album.includes(a) || album.length < 2) px += attachmentPx(a);
   if (m.replyTo) px += REPLY_PX;
   if (m.reactions.length) px += REACTIONS_PX;
   return Math.round(px);
