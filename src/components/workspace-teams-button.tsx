@@ -3,9 +3,10 @@
 import { useState, type FormEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Minus, Plus, Trash2, UsersRound } from "lucide-react";
-import { apiDelete, apiGet, apiPost, ApiError } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
+import { Select } from "@/components/ui/select";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
 
@@ -13,6 +14,8 @@ interface TeamRow {
   id: string;
   name: string;
   description: string | null;
+  /** The «قائد الفرقة»: one of the team's own people (Team.leadId), or nobody. */
+  leadId: string | null;
   members: { id: string; name: string }[];
   projects: number;
   mine: boolean;
@@ -77,12 +80,24 @@ export function WorkspaceTeamsButton({ workspaceId }: { workspaceId: string }) {
     onSuccess: refresh,
     onError: (err) => toast(errText(err, t), "error"),
   });
+  // «قائد الفرقة»: written through the teams door (PATCH leadId), which refuses somebody who is not in the team or not active
+  const lead = useMutation({
+    mutationFn: ({ teamId, leadId }: { teamId: string; leadId: string | null }) => apiPatch(`/api/workspaces/${workspaceId}/teams/${teamId}`, { leadId }),
+    onSuccess: () => {
+      refresh();
+      toast(t("teamlead.saved"), "success");
+    },
+    onError: (err) => {
+      refresh();
+      toast(errText(err, t), "error");
+    },
+  });
   const remove = useMutation({
     mutationFn: (teamId: string) => apiDelete(`/api/workspaces/${workspaceId}/teams/${teamId}`),
     onSuccess: refresh,
     onError: (err) => toast(errText(err, t), "error"),
   });
-  const busy = create.isPending || members.isPending || remove.isPending;
+  const busy = create.isPending || members.isPending || remove.isPending || lead.isPending;
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -102,6 +117,7 @@ export function WorkspaceTeamsButton({ workspaceId }: { workspaceId: string }) {
         <Modal open onClose={() => setOpen(false)} title={t("spaceteams.title")}>
           <div className="space-y-4">
             <p className="text-xs leading-5 text-fg-muted">{t("spaceteams.hint")}</p>
+            {canManage ? <p className="text-xs leading-5 text-muted">{t("teamlead.hint")}</p> : null}
             {teams.isLoading ? <p className="text-xs text-muted">…</p> : null}
             {teams.isSuccess && rows.length === 0 ? <p className="text-sm text-fg-muted">{t("spaceteams.none")}</p> : null}
             <ul className="space-y-3">
@@ -147,6 +163,33 @@ export function WorkspaceTeamsButton({ workspaceId }: { workspaceId: string }) {
                       ))}
                       {team.members.length === 0 ? <li className="text-xs text-fg-muted">{t("spaceteams.no_members")}</li> : null}
                     </ul>
+                    {team.members.length > 0 && (canManage || team.leadId) ? (
+                      <div className="mt-2 flex items-center gap-2">
+                        <label htmlFor={`team-lead-${team.id}`} className="shrink-0 text-xs text-fg-muted">
+                          {t("teamlead.label")}
+                        </label>
+                        {canManage ? (
+                          <Select
+                            id={`team-lead-${team.id}`}
+                            value={team.leadId ?? ""}
+                            disabled={busy}
+                            onChange={(e) => lead.mutate({ teamId: team.id, leadId: e.target.value || null })}
+                            className="min-w-0 flex-1"
+                          >
+                            <option value="">{t("teamlead.none")}</option>
+                            {team.members.map((m) => (
+                              <option key={m.id} value={m.id}>
+                                {m.name}
+                              </option>
+                            ))}
+                          </Select>
+                        ) : (
+                          <span id={`team-lead-${team.id}`} className="min-w-0 flex-1 truncate text-xs text-fg">
+                            <bdi>{team.members.find((m) => m.id === team.leadId)?.name ?? ""}</bdi>
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
                     {canManage && addable.length ? (
                       <div className="mt-2 flex flex-wrap gap-1.5">
                         {addable.map((p) => (

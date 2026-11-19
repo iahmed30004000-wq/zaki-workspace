@@ -393,8 +393,9 @@ describe("capabilities the screen does not show are never lost", () => {
     const owner = actorOf("OWNER");
     expect(canResetCapabilities(person(), owner)).toBe(false);
     expect(canResetCapabilities(person({ capabilities: ["cash.view"], revokedCapabilities: [] }), owner)).toBe(false);
-    // announce.send is an ADMIN default (hidden today) switched off: not the screen's to clear
-    expect(canResetCapabilities(person({ role: "ADMIN", revokedCapabilities: ["announce.send"] }), owner)).toBe(false);
+    // A1.2: announce.send is offered again (Q1.6 wired it), so an ADMIN's default switched off IS the screen's to clear; the two still wired to nothing are not
+    expect(canResetCapabilities(person({ role: "ADMIN", revokedCapabilities: ["announce.send"] }), owner)).toBe(true);
+    expect(canResetCapabilities(person({ role: "ADMIN", revokedCapabilities: ["cash.view", "penalties.view"] }), owner)).toBe(false);
     expect(canResetCapabilities(person({ revokedCapabilities: ["crm.edit"] }), owner)).toBe(true);
   });
 

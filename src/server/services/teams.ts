@@ -127,6 +127,12 @@ export async function updateTeam(
     if (input.leadId) {
       const inTeam = await tx.teamMember.findUnique({ where: { teamId_userId: { teamId, userId: input.leadId } }, select: { id: true } });
       if (!inTeam) throw new ForbiddenError("teams.lead_not_member");
+      // «قائد الفرقة» reads as the lead on «لوحة الفريق»: somebody suspended or offboarded (still a row of the team) is not made one
+      const active = await tx.organizationMember.findFirst({
+        where: { organizationId: ctx.orgId, userId: input.leadId, status: "ACTIVE" },
+        select: { userId: true },
+      });
+      if (!active) throw new ForbiddenError("teams.lead_not_active");
     }
     await tx.team.update({
       where: { id: teamId },

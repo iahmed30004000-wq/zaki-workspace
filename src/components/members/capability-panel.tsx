@@ -1,31 +1,40 @@
 "use client";
 
 import { useId, type ReactNode } from "react";
-import { RotateCcw } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Check, ChevronDown, CircleHelp, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { apiGet } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
+import { FEATURES, withFeature, type FeatureKey } from "@/lib/features";
 import {
-  capabilityGroups,
   canResetCapabilities,
+  capabilityGroups,
+  explainAreas,
+  permissionAreas,
   SOON_CAPABILITIES,
   type ActorInfo,
   type CapabilityPanelMode,
   type CapabilityRow,
   type ContractMember,
+  type ExplainAreaRows,
+  type PermissionAreaRows,
   type TFn,
 } from "@/lib/members-ui";
-import type { Capability } from "@/server/policy/capabilities";
+import type { Capability, CapabilityExplanation } from "@/server/policy/capabilities";
 import { SectionGrid } from "./section-grid";
 import { SwitchRow } from "./switch-row";
 
 /**
- * The switches of one person, grouped by area, each with a plain Arabic title, a one-line
- * explanation and a small label that shows whether it is what the rank gives or something the owner
- * changed. A guest (external partner) shows the sentence that partners hold no capability instead of
- * switches. Only capabilities that are wired today are offered (see `capabilityGroups`): the owner-only
- * archive is never listed, and the ones a later phase will wire are named as «قريبًا» under the
- * switches — never as a switch, since a switch that does nothing is a lie.
+ * The permissions of one person (A1.2), read by AREA in plain words: «المهام والمشاريع», «الدردشة والمكالمات», «الملفات»,
+ * «الزبائن والأسعار», «التقارير واللوحات», «إدارة الناس والمساحات», «التكاملات». Each area is collapsed until opened and holds the
+ * grid's «يشوف / يضيف ويعدّل / يحذف» rows of its sections and its single switches, each with a plain title, a one-line
+ * explanation and a small label that shows whether it is what the rank gives or something the owner changed. Above them
+ * «شو بيقدر يعمل؟» lists every permission with ✓/✗ and WHY, from `explainCapabilities`, which agrees with the server's own
+ * `effectiveCapabilities` for every rank and switch. A guest (external partner) shows the sentence that partners hold no
+ * capability instead. Only capabilities wired to something are offered: the owner-only archive is listed only on a partner's sheet,
+ * and the ones a later phase will wire are named as «قريبًا» under the areas, never as a switch, since a switch that does nothing is a lie.
  * Each flip is saved at once by the caller.
  */
 export function CapabilityPanel({
@@ -48,52 +57,50 @@ export function CapabilityPanel({
 }) {
   const { t } = useI18n();
   const uid = useId();
+  // an owner's or a guest's sheet is one sentence: nothing to explain, nothing to fetch
+  const company = useCompanySettings(actor.sectionGrid !== false, mode === "editable" || mode === "readonly");
 
   if (mode === "owner") return <p className="text-sm text-fg-muted">{t("members.caps_owner")}</p>;
   if (mode === "guest") return <p className="rounded-lg bg-surface-2 p-3 text-sm leading-6 text-fg-muted">{t("members.caps_guest")}</p>;
 
   const editable = mode === "editable";
-  const groups = capabilityGroups(member, actor, editable);
+  const areas = permissionAreas(member, actor, editable);
+  // silent oversight: a switch of its own for the primary owner, on a partner's sheet only
+  const oversight = capabilityGroups(member, actor, editable).find((group) => group.id === "oversight");
 
   return (
     <div className="space-y-4">
       <p className="text-xs leading-5 text-fg-muted">{editable ? t("members.caps_intro") : t("members.caps_readonly")}</p>
 
-      <SectionGrid
-        member={member}
-        actor={actor}
-        editable={editable}
-        busy={busy}
-        pendingCapability={pendingCapability}
-        onToggle={onToggle}
-      />
+      <ExplainView member={member} settings={company.settings} ready={company.ready} />
 
-      {groups.map((group) => {
-        const headingId = `${uid}-${group.id}`;
-        return (
-          <section key={group.id} aria-labelledby={headingId} className="rounded-xl border border-border bg-surface">
-            <h4 id={headingId} className="border-b border-border px-3 py-2 text-xs font-semibold text-fg-muted">
-              {t(`members.group_${group.id}`)}
-            </h4>
-            <div className="divide-y divide-border p-1">
-              {group.rows.map((row) => (
-                <SwitchRow
-                  key={row.capability}
-                  checked={row.on}
-                  disabled={row.locked !== null}
-                  busy={pendingCapability === row.capability}
-                  waiting={busy && pendingCapability !== row.capability}
-                  title={t(`members.cap.${row.capability}.title`)}
-                  hint={t(`members.cap.${row.capability}.hint`)}
-                  tag={rowTag(row, t)}
-                  note={rowNote(row, t)}
-                  onChange={(next) => onToggle(row.capability, next)}
-                />
-              ))}
-            </div>
-          </section>
-        );
-      })}
+      {oversight ? (
+        <section aria-labelledby={`${uid}-oversight`} className="rounded-xl border border-border bg-surface">
+          <h4 id={`${uid}-oversight`} className="border-b border-border px-3 py-2 text-xs font-semibold text-fg-muted">
+            {t("members.group_oversight")}
+          </h4>
+          <div className="divide-y divide-border p-1">
+            {oversight.rows.map((row) => (
+              <CapabilitySwitch key={row.capability} row={row} busy={busy} pendingCapability={pendingCapability} onToggle={onToggle} t={t} />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      <p className="text-xs leading-5 text-muted">{t("perm.areas_hint")}</p>
+
+      <div className="space-y-2">
+        {areas.map((area) => (
+          <Area key={area.id} area={area} busy={busy} pendingCapability={pendingCapability} onToggle={onToggle} t={t} />
+        ))}
+      </div>
+
+      {areas.some((area) => area.grid.length > 0) ? (
+        <p className="text-xs leading-5 text-muted">
+          <span className="me-1 inline-block size-1.5 rounded-full bg-warn align-middle" aria-hidden="true" />
+          {t("members.sections_legend")}
+        </p>
+      ) : null}
 
       {SOON_CAPABILITIES.length > 0 ? (
         <section aria-labelledby={`${uid}-soon`} className="rounded-xl border border-dashed border-border p-3">
@@ -126,6 +133,151 @@ export function CapabilityPanel({
         </Button>
       ) : null}
     </div>
+  );
+}
+
+/** One area: collapsed by default (a native `<details>`), its name and how many of its boxes are on in the header. */
+function Area({
+  area,
+  busy,
+  pendingCapability,
+  onToggle,
+  t,
+}: {
+  area: PermissionAreaRows;
+  busy: boolean;
+  pendingCapability: Capability | null;
+  onToggle: (capability: Capability, on: boolean) => void;
+  t: TFn;
+}) {
+  const title = t(`perm.area.${area.id}`);
+  return (
+    <details data-area={area.id} className="group rounded-xl border border-border bg-surface">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
+        <h4 className="min-w-0 flex-1 text-sm font-semibold text-fg">{title}</h4>
+        <span className="shrink-0 text-xs text-muted">{t("perm.area_count", { on: area.on, total: area.total })}</span>
+        <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="border-t border-border">
+        <SectionGrid rows={area.grid} caption={title} busy={busy} pendingCapability={pendingCapability} onToggle={onToggle} />
+        {area.rows.length > 0 ? (
+          <div className={cn("divide-y divide-border p-1", area.grid.length > 0 && "border-t border-border")}>
+            {area.rows.map((row) => (
+              <CapabilitySwitch key={row.capability} row={row} busy={busy} pendingCapability={pendingCapability} onToggle={onToggle} t={t} />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </details>
+  );
+}
+
+function CapabilitySwitch({
+  row,
+  busy,
+  pendingCapability,
+  onToggle,
+  t,
+}: {
+  row: CapabilityRow;
+  busy: boolean;
+  pendingCapability: Capability | null;
+  onToggle: (capability: Capability, on: boolean) => void;
+  t: TFn;
+}) {
+  return (
+    <SwitchRow
+      checked={row.on}
+      disabled={row.locked !== null}
+      busy={pendingCapability === row.capability}
+      waiting={busy && pendingCapability !== row.capability}
+      title={t(`members.cap.${row.capability}.title`)}
+      hint={t(`members.cap.${row.capability}.hint`)}
+      tag={rowTag(row, t)}
+      note={rowNote(row, t)}
+      onChange={(next) => onToggle(row.capability, next)}
+    />
+  );
+}
+
+// ------------------------------------------------------------------------------------------ «شو بيقدر يعمل؟»
+
+/**
+ * The company's settings as far as «شو بيقدر يعمل؟» needs them: its switches («الميزات», readable by staff). While they load nothing
+ * is claimed; if they can not be read, every switch is taken as on, so the view shows what the person HOLDS (always right) and
+ * says nothing about a switch it could not see. «صلاحيات الأقسام» comes from the people list, as the rest of the sheet does.
+ */
+function useCompanySettings(sectionGrid: boolean, enabled: boolean): { settings: unknown; ready: boolean } {
+  const query = useQuery({
+    queryKey: ["member-sheet-features"],
+    queryFn: () => apiGet<{ features: { key: FeatureKey; on: boolean }[] }>("/api/settings/features"),
+    enabled,
+    retry: false,
+    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+  });
+  let settings: Record<string, unknown> = {};
+  if (query.isSuccess) {
+    for (const item of query.data.features) settings = withFeature(settings, item.key, item.on);
+  } else {
+    for (const key of FEATURES) settings = withFeature(settings, key, key !== "economyMode");
+  }
+  return { settings: withFeature(settings, "sectionPermissions", sectionGrid), ready: !query.isPending || !enabled };
+}
+
+/** Every permission the screen offers with ✓/✗ and why, by area, collapsed by default. */
+function ExplainView({ member, settings, ready }: { member: ContractMember; settings: unknown; ready: boolean }) {
+  const { t } = useI18n();
+  const areas: ExplainAreaRows[] = ready ? explainAreas(member, settings) : [];
+  const rows = areas.flatMap((area) => area.rows);
+  const usable = rows.filter((row) => row.usable).length;
+  return (
+    <details data-explain className="group rounded-xl border border-border bg-surface">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
+        <CircleHelp className="size-4 shrink-0 text-accent" aria-hidden="true" />
+        <h4 className="min-w-0 flex-1 text-sm font-semibold text-fg">{t("perm.explain.title")}</h4>
+        <ChevronDown className="size-4 shrink-0 text-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+      </summary>
+      <div className="space-y-3 border-t border-border p-3">
+        <p className="text-xs leading-5 text-fg-muted">
+          {t("perm.explain.hint")} {ready ? t("perm.explain.count", { on: usable, total: rows.length }) : "…"}
+        </p>
+        {areas.map((area) => (
+          <section key={area.id} aria-label={t(`perm.area.${area.id}`)}>
+            <h5 className="text-xs font-semibold text-fg-muted">{t(`perm.area.${area.id}`)}</h5>
+            <ul className="divide-y divide-border">
+              {area.rows.map((row) => (
+                <ExplainItem key={row.capability} row={row} t={t} />
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
+    </details>
+  );
+}
+
+function ExplainItem({ row, t }: { row: CapabilityExplanation; t: TFn }) {
+  const why =
+    row.reason === "feature_off" && row.feature
+      ? t("perm.why.feature_off", { name: t(`features.${row.feature}.name`) })
+      : t(`perm.why.${row.reason}`);
+  return (
+    <li data-capability={row.capability} data-usable={row.usable} className="flex items-start gap-2 py-2">
+      <span
+        aria-hidden="true"
+        className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full", row.usable ? "bg-ok/10 text-ok" : "bg-danger/10 text-danger")}
+      >
+        {row.usable ? <Check className="size-3.5" /> : <X className="size-3.5" />}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm text-fg">
+          {t(`members.cap.${row.capability}.title`)}
+          <span className="sr-only"> — {row.usable ? t("perm.explain.can") : t("perm.explain.cannot")}</span>
+        </span>
+        <span className="block text-xs leading-5 text-fg-muted">{why}</span>
+      </span>
+    </li>
   );
 }
 

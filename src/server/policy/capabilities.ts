@@ -1,4 +1,5 @@
 import type { OrgRole } from "@prisma/client";
+import { featureOn, type FeatureKey } from "@/lib/features";
 
 /**
  * Capabilities: what a person may do ON TOP of their rank. The rank gives a sensible default set;
@@ -128,6 +129,10 @@ export const WIRED_CAPABILITIES: readonly Capability[] = [
   "users.manage",
   "directory.view",
   "integrations.manage",
+  // A1.2: wired by Q1.6 (who may mark a message «لازم ينقرأ») and Q1.5 (the door of «المشاكل تصير تذاكر»), so the sheet offers them again;
+  // `cash.view` and `penalties.view` stay out until I1.3 wires them (R12 of docs/PHASE0-AUDIT.md)
+  "announce.send",
+  "escalation.configure",
   "prices.view",
   "board.self",
   "board.team",
@@ -349,6 +354,120 @@ function withoutGrid(member: CapabilitySource): Set<Capability> {
 
 export function can(source: CapabilitySource, capability: Capability, opts: CapabilityOptions = {}): boolean {
   return effectiveCapabilities(source, opts).has(capability);
+}
+
+// ---------------------------------------------------------------------------------------------------
+// «شو بيقدر يعمل؟»: what a person can do and WHY, as a pure function next to effectiveCapabilities
+// ---------------------------------------------------------------------------------------------------
+
+/**
+ * The capabilities that live behind one of the company's switches («الميزات»): the server refuses the door of that
+ * feature while its switch is off, whatever the person holds. Only doors that really check the switch are listed:
+ * calls (calls/*), «نتفرّج سوا» (watch routes), the owner board (`boardAccess`), «الأداء والتطوير» (`devAccess`), the stock
+ * ledger (its pages and services), «ضبط التصعيد» (`problem-settings.ts`: autoTickets) and «إعلانات للجميع» (the «لازم ينقرأ»
+ * door, `must-read.ts`: mustRead).
+ */
+export const CAPABILITY_FEATURE: Readonly<Partial<Record<Capability, FeatureKey>>> = {
+  "calls.view": "calls",
+  "calls.edit": "calls",
+  "watch.view": "watch",
+  "watch.edit": "watch",
+  "board.self": "ownerBoard",
+  "board.team": "ownerBoard",
+  "people.manage_lines": "teamDevelopment",
+  "people.review": "teamDevelopment",
+  "manufacturing.view": "mfgLedger",
+  "manufacturing.edit": "mfgLedger",
+  "manufacturing.cost": "mfgLedger",
+  "escalation.configure": "autoTickets",
+  "announce.send": "mustRead",
+};
+
+/**
+ * Why a person holds a capability or not (the verdict of `effectiveCapabilities`, in words):
+ *  - `owner`         the primary owner holds everything, and a partner everything the primary owner did not take away
+ *  - `rank_default`  the rank gives it
+ *  - `added`         the owner switched it on by hand, on top of the rank
+ *  - `removed`       the owner switched it off by hand (for a partner: took it away)
+ *  - `rank_lacks`    the rank does not give it and nobody added it
+ *  - `guest`         an external partner holds nothing
+ *  - `owner_only`    the owner rank's alone (`archive.view`), never grantable
+ *  - `needs_view`    an add/edit or delete box of a section whose «يشوف» is off
+ *  - `grid_off`      «صلاحيات الأقسام» is off: the section boxes are the rank's template, whatever was stored
+ *  - `feature_off`   the person holds it, but the company switched the feature behind it off (`reason` only, never `basis`)
+ */
+export type ExplainReason =
+  | "owner"
+  | "rank_default"
+  | "added"
+  | "removed"
+  | "rank_lacks"
+  | "guest"
+  | "owner_only"
+  | "needs_view"
+  | "grid_off"
+  | "feature_off";
+
+export interface CapabilityExplanation {
+  capability: Capability;
+  /** EXACTLY what `effectiveCapabilities` says: what the server holds against the person's rank and boxes. */
+  held: boolean;
+  /** `held` and the company's switch behind it (if any) is on: never more than `held`. */
+  usable: boolean;
+  /** Why `held` is what it is (never `feature_off`). */
+  basis: Exclude<ExplainReason, "feature_off">;
+  /** The reason to show: `basis`, except `feature_off` for a held capability whose company switch is off. */
+  reason: ExplainReason;
+  /** The company switch behind this capability, when it has one. */
+  feature?: FeatureKey;
+}
+
+/** A section's box of the grid (the customers' view and edit were switches of their own before it). */
+function isGridBox(capability: Capability): boolean {
+  return SECTION_CAPABILITIES.includes(capability) && !PRE_GRID_SWITCHES.includes(capability);
+}
+
+/**
+ * EVERY capability of the catalogue with ✓/✗ and the reason, for one person under one company's settings
+ * (`Organization.settings`). `held` is `effectiveCapabilities` itself (the screen may never promise what the server
+ * refuses: tests/policy-capabilities.test.ts compares them for every rank x switch); the reasons only describe it.
+ */
+export function explainCapabilities(member: CapabilitySource, settings: unknown): CapabilityExplanation[] {
+  const sectionGrid = featureOn(settings, "sectionPermissions");
+  const effective = effectiveCapabilities(member, { sectionGrid });
+  const partner = isPartner(member);
+  const primaryOwner = member.role === "OWNER" && !partner;
+  const defaults = new Set<Capability>(RANK_DEFAULTS[member.role]);
+  const added = new Set<Capability>((member.capabilities ?? []).filter(isCapability));
+  const removed = new Set<Capability>((member.revokedCapabilities ?? []).filter(isCapability));
+
+  const basisOf = (capability: Capability, held: boolean): CapabilityExplanation["basis"] => {
+    if (member.role === "GUEST") return "guest";
+    if (primaryOwner) return "owner";
+    if (!partner && OWNER_ONLY.includes(capability)) return "owner_only";
+    if (!sectionGrid && isGridBox(capability)) return "grid_off";
+    if (held) return partner ? "owner" : defaults.has(capability) ? "rank_default" : "added";
+    // the rank (or the owner's hand) would have given it: a partner has everything by default
+    const wouldHave = partner || defaults.has(capability) || added.has(capability);
+    if (removed.has(capability) && wouldHave) return "removed";
+    return wouldHave ? "needs_view" : "rank_lacks";
+  };
+
+  return CAPABILITIES.map((capability) => {
+    const held = effective.has(capability);
+    const basis = basisOf(capability, held);
+    const feature = CAPABILITY_FEATURE[capability];
+    const featureOff = feature !== undefined && !featureOn(settings, feature);
+    const usable = held && !featureOff;
+    return {
+      capability,
+      held,
+      usable,
+      basis,
+      reason: held && featureOff ? "feature_off" : basis,
+      ...(feature ? { feature } : {}),
+    };
+  });
 }
 
 export type GrantProblem = "unknown_capability" | "owner_only" | "not_for_guests" | "owner_has_all";
