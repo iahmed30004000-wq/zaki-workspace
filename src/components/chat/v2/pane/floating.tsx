@@ -4,7 +4,8 @@ import React from "react";
 import { ArrowDown, AtSign } from "lucide-react";
 import { ct, ctCount } from "@/lib/chat/text";
 import { MENTIONS_FORMS, counted } from "@/lib/chat/v2/pane/plural";
-import type { DownButton, MentionsButton } from "@/lib/chat/v2/pane/jump-model";
+import { fetchUnreadMentionIds } from "@/lib/chat/history/jump";
+import { mentionsButtonOf, pruneVisited, walkTargetsOf, type DownButton, type MentionsButton } from "@/lib/chat/v2/pane/jump-model";
 
 /**
  * C2.4 — what floats over the viewport: the date of the top visible message (the sticky chip) and the two round buttons at the bottom END (the left, in
@@ -22,6 +23,77 @@ export function StickyDateChip({ label, visible }: { label: string | null; visib
 }
 
 const round = "relative inline-flex min-h-11 items-center justify-center gap-1 rounded-full border border-border bg-surface text-accent shadow-lg transition-transform hover:scale-105 motion-reduce:transition-none";
+
+/**
+ * C3b.6 — the «@» button's WALK. The unread messages that mention me come from the server (`GET …/mentions`, oldest first, asked when the row says there are
+ * some and again when that number moves), so each press goes to the next one oldest to newest even when its message is not loaded (`jumpTo` loads the window
+ * around it). While the list is not here (not asked yet, or the request failed) the loaded mentions `loaded` are the walk, as before. Asking never reads
+ * anything: the read mark stays where it is, and for a reader in silent oversight the list is empty (the server writes nothing).
+ *
+ * Give the result to `JumpButtons`: `mentions` and `onMention`.
+ */
+export function useMentionsWalk({ conversationId, unread, loaded, jumpTo, toNewest }: {
+  conversationId: string;
+  /** the row's number of unread mentions (the server's, C1.2's rule: it is not changed by the walk) */
+  unread: number;
+  /** the loaded messages that mention me (the fallback walk) */
+  loaded: readonly string[];
+  jumpTo: (messageId: string) => void;
+  toNewest: () => void | Promise<unknown>;
+}): { mentions: MentionsButton; onMention: () => void } {
+  // both are kept WITH the conversation they belong to: for the one render after a switch they are nobody's, never the previous conversation's
+  const [listed, setListed] = React.useState<{ id: string; ids: string[] } | null>(null);
+  const [seen, setSeen] = React.useState<{ id: string; ids: string[] }>({ id: conversationId, ids: [] });
+  const ids = listed && listed.id === conversationId ? listed.ids : null;
+  const visited = React.useMemo(() => (seen.id === conversationId ? seen.ids : []), [seen, conversationId]);
+  const addVisited = React.useCallback((messageId: string) => setSeen((s) => ({ id: conversationId, ids: s.id === conversationId ? [...s.ids, messageId] : [messageId] })), [conversationId]);
+  const live = React.useRef(conversationId);
+  live.current = conversationId;
+
+  React.useEffect(() => {
+    if (unread <= 0) {
+      setListed(null);
+      setSeen({ id: conversationId, ids: [] });
+      return;
+    }
+    const ctl = new AbortController();
+    fetchUnreadMentionIds(conversationId, ctl.signal).then(
+      (got) => {
+        if (ctl.signal.aborted) return;
+        setListed({ id: conversationId, ids: got });
+        setSeen((s) => (s.id === conversationId ? { id: conversationId, ids: pruneVisited(s.ids, got) } : s));
+      },
+      () => undefined, // no list: the loaded mentions stay the walk
+    );
+    return () => ctl.abort();
+  }, [conversationId, unread]);
+
+  const mentions = mentionsButtonOf({ mentionsUnread: unread, targets: walkTargetsOf(ids, loaded), visited });
+  const target = mentions.target;
+  const onMention = React.useCallback(() => {
+    if (target) {
+      addVisited(target);
+      jumpTo(target);
+      return;
+    }
+    if (ids !== null) return void toNewest();
+    // the list was not here yet: ask now, then go to its first one — unless the person has gone to another conversation meanwhile (the answer is not theirs any more)
+    fetchUnreadMentionIds(conversationId).then(
+      (got) => {
+        if (live.current !== conversationId) return;
+        setListed({ id: conversationId, ids: got });
+        const first = got.find((id) => !visited.includes(id));
+        if (!first) return void toNewest();
+        addVisited(first);
+        jumpTo(first);
+      },
+      () => {
+        if (live.current === conversationId) void toNewest();
+      },
+    );
+  }, [target, ids, visited, conversationId, jumpTo, toNewest, addVisited]);
+  return { mentions, onMention };
+}
 
 /**
  * «↓» with the unread counter (the number of new messages), or «آخر الرسائل» when only the windows do not reach the newest one; «@» with the number of

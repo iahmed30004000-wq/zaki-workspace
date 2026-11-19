@@ -3,7 +3,8 @@ import { ct, ctCount } from "@/lib/chat/text";
 import { NAME_TONES, bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
 import { bubbleFactsOf, sameFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { headerMenuOf, subtitleOf } from "@/lib/chat/v2/pane/header-model";
-import { jumpButtonsOf, mentionTargetsOf, mentionsButtonOf } from "@/lib/chat/v2/pane/jump-model";
+import { jumpButtonsOf, mentionTargetsOf, mentionsButtonOf, pruneVisited, walkTargetsOf } from "@/lib/chat/v2/pane/jump-model";
+import { collectUnreadMentions, unreadMentionsUrl } from "@/lib/chat/history/jump";
 import { newestToConsider } from "@/lib/chat/v2/pane/read-model";
 import { latestGuard } from "@/lib/chat/v2/pane/latest";
 import { stableReaders } from "@/lib/chat/v2/pane/readers";
@@ -369,3 +370,70 @@ describe("the composer's detail and the people", () => {
   });
 });
 
+
+describe("C3b.6 — «@» walks the unread mentions the SERVER lists, oldest to newest", () => {
+  it("the server's list is the walk, even for mentions that are not loaded (the old rule saw only the newest N loaded messages)", () => {
+    expect(walkTargetsOf(["m1", "m2", "m3"], [])).toEqual(["m1", "m2", "m3"]);
+    expect(walkTargetsOf(["m1", "m2", "m3"], ["m3"])).toEqual(["m1", "m2", "m3"]);
+  });
+
+  it("without the server's list (not asked yet, or it failed) the loaded mentions are what is left; an empty server list does not hide a count the row still shows", () => {
+    expect(walkTargetsOf(null, ["c", "e"])).toEqual(["c", "e"]);
+    expect(walkTargetsOf([], ["c", "e"])).toEqual(["c", "e"]);
+    expect(walkTargetsOf(null, [])).toEqual([]);
+  });
+
+  it("each press goes to the next one not visited, oldest first, until none is left", () => {
+    const targets = walkTargetsOf(["m1", "m2", "m3"], []);
+    const visited: string[] = [];
+    const went: Array<string | null> = [];
+    for (let i = 0; i < 4; i++) {
+      const button = mentionsButtonOf({ mentionsUnread: 3, targets, visited });
+      went.push(button.target);
+      if (button.target) visited.push(button.target);
+    }
+    expect(went).toEqual(["m1", "m2", "m3", null]);
+  });
+
+  it("the visited list keeps only what the server still lists as unread (a mention read since leaves it)", () => {
+    expect(pruneVisited(["a", "b", "c"], ["b", "c", "d"])).toEqual(["b", "c"]);
+    expect(pruneVisited([], ["a"])).toEqual([]);
+    expect(pruneVisited(["a"], [])).toEqual([]);
+  });
+
+  it("the door's address: the conversation, the cursor and the page size, encoded", () => {
+    expect(unreadMentionsUrl("c 1")).toBe("/api/chat/conversations/c%201/mentions");
+    expect(unreadMentionsUrl("c1", "m/2", 50)).toBe("/api/chat/conversations/c1/mentions?after=m%2F2&limit=50");
+    expect(unreadMentionsUrl("c1", null, 20)).toBe("/api/chat/conversations/c1/mentions?limit=20");
+  });
+
+  it("pages are followed by their cursor until the server says there is no more, in order, each id once", async () => {
+    const pages: Record<string, { ids: string[]; next: string | null }> = {
+      start: { ids: ["a", "b"], next: "b" },
+      b: { ids: ["c", "c", "d"], next: "d" },
+      d: { ids: ["e"], next: null },
+    };
+    const asked: Array<string | null> = [];
+    const list = await collectUnreadMentions(async (after) => {
+      asked.push(after);
+      return pages[after ?? "start"]!;
+    });
+    expect(list).toEqual(["a", "b", "c", "d", "e"]);
+    expect(asked).toEqual([null, "b", "d"]);
+  });
+
+  it("it never follows more pages than the cap, and ANY failed page throws: a list cut short must not pass for the whole list (the loaded mentions stay the fallback)", async () => {
+    let calls = 0;
+    const endless = await collectUnreadMentions(async () => ({ ids: [`m${++calls}`], next: `m${calls}` }), 3);
+    expect(endless).toEqual(["m1", "m2", "m3"]);
+    expect(calls).toBe(3);
+    let n = 0;
+    await expect(
+      collectUnreadMentions(async () => {
+        if (++n === 2) throw new Error("offline");
+        return { ids: ["x"], next: "x" };
+      }),
+    ).rejects.toThrow("offline");
+    await expect(collectUnreadMentions(async () => Promise.reject(new Error("offline")))).rejects.toThrow("offline");
+  });
+});

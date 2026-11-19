@@ -94,8 +94,8 @@
       messages quoted with author and time; `sourceMessageId` = the first; visibility per P0.3.
 
 ### C3b.6 Jump buttons and «مين شاف»
-- [ ] `GET /api/chat/conversations/[id]/mentions?after=` → unread message ids mentioning me (the «@» button walks them).
-- [ ] «مين شاف» in the message menu (topics): today's readers list in a small sheet.
+- [ ] `GET /api/chat/conversations/[id]/mentions?after=` → unread message ids mentioning me (the «@» button walks them). Built (`pr/C3b.6.md`): the door, the walk's hook `useMentionsWalk` in `floating.tsx`; ⚠️ the pane's `message-viewport.tsx` still has to call the hook (another package's file).
+- [x] «مين شاف» in the message menu (topics): today's readers list in a small sheet. Already built in C2.6 (`pr/C2.6+C2.7.md`); checked in C3b.6, nothing added.
 
 ## C3c — New message kinds
 
