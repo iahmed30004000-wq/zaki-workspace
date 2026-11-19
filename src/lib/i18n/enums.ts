@@ -47,7 +47,8 @@ export type PrismaEnumName =
   | "TaskRuleRunStatus"
   | "IdeaStatus"
   | "IntegrationType"
-  | "OpportunityStage";
+  | "OpportunityStage"
+  | "ScheduledChatStatus";
 
 /** Values the schema stores as plain strings but a screen shows all the same. */
 export type VirtualEnumName = "IntegrationDirection" | "IntegrationEventStatus" | "TelegramChatType";
@@ -158,6 +159,8 @@ export const ENUM_KEYS: Record<EnumName, Readonly<Record<string, string>>> = {
     WON: "crm.stage_won",
     LOST: "crm.stage_lost",
   },
+  // a scheduled chat message (C3c.3): the words live with the chat features' own
+  ScheduledChatStatus: own("ScheduledChatStatus", ["PENDING", "SENT", "FAILED", "CANCELLED"]),
   IntegrationDirection: own("IntegrationDirection", ["OUT", "IN"]),
   IntegrationEventStatus: own("IntegrationEventStatus", ["OK", "FAILED"]),
   TelegramChatType: {

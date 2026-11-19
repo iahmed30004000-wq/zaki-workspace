@@ -147,5 +147,9 @@
   "chat.sched.e.too_late": "وقتها فات من أكتر من يوم",
   "chat.sched.e.save_failed": "ما انحفظت الرسالة المجدولة، جرّب كمان مرة",
   "chat.sched.e.action_failed": "ما زبطت العملية، جرّب كمان مرة",
-  "chat.sched.e.busy": "في عملية إرسال شغالة، استنى لحظة وجرّب كمان مرة"
+  "chat.sched.e.busy": "في عملية إرسال شغالة، استنى لحظة وجرّب كمان مرة",
+  "enum.ScheduledChatStatus.PENDING": "منتظرة",
+  "enum.ScheduledChatStatus.SENT": "انبعتت",
+  "enum.ScheduledChatStatus.FAILED": "ما انبعتت",
+  "enum.ScheduledChatStatus.CANCELLED": "ملغية"
 }
