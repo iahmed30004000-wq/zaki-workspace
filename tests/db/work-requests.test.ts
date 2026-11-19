@@ -26,6 +26,7 @@ import { SPACE_COOKIE } from "@/server/services/current-space";
 import { requireActor } from "@/server/policy/actor";
 import { createTask } from "@/server/services/tasks";
 import { waitingCount } from "@/server/services/approvals";
+import * as workRequestsService from "@/server/services/work-requests";
 import { waitingRequestCount, workRequestsOf } from "@/server/services/work-requests";
 import type { RequestSection, SectionKey, WorkRequestsView } from "@/components/work/requests/types";
 import { withFeature } from "@/lib/features";
@@ -355,13 +356,17 @@ describe("the number on «الشغل»", () => {
 
   it("a count that fails degrades to 0: the spaces, the unread numbers and the banner still answer", async () => {
     const w = await busy();
-    // (one rejected call; after it the spy passes through to the real count, so it needs no restore)
-    vi.spyOn(db.ticket, "count").mockRejectedValueOnce(new Error("boom"));
+    // the counter fails once (a spy on a MODEL of the shared client, like db.ticket.count, cannot be restored: it leaves the model without its method for every later file)
+    const failing = vi.spyOn(workRequestsService, "waitingRequestCount").mockRejectedValueOnce(new Error("boom"));
     await loginAs(w.member.id);
     const res = await call(workspacesRoute.GET, { url: "http://localhost/api/workspaces" });
     expect(res.status).toBe(200);
     expect((res.json as { waiting: number }).waiting).toBe(0);
     expect(((res.json as { organizations: unknown[] }).organizations ?? []).length).toBe(1);
+    expect(failing).toHaveBeenCalledTimes(1);
+    failing.mockRestore();
+    // the database suite shares ONE client between its files: this test leaves it whole for the files that run after it
+    expect(typeof db.ticket.count).toBe("function");
   });
 
   it("is 0 for a guest and while the switch is off; /api/workspaces keeps every old field", async () => {

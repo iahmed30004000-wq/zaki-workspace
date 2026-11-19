@@ -108,6 +108,14 @@ export const PAGE_HELP: readonly PageHelp[] = [
     nextKey: "guide.page.approvals.next",
     guestNextKey: INTERNAL,
   },
+  // «الطلبات» (W1.4): the one inbox of everything that waits for a decision (the page is the approvals page while `workRequests` is off)
+  {
+    id: "requests",
+    pattern: "/requests",
+    whatKey: "guide.page.requests.what",
+    nextKey: "guide.page.requests.next",
+    guestNextKey: INTERNAL,
+  },
   {
     id: "owner-board",
     pattern: "/owner",

@@ -18,6 +18,7 @@ const PAGES: [string, string][] = [
   ["/owner", "owner-board"],
   ["/owner/people/ckabc123", "owner-board-person"],
   ["/approvals", "approvals"],
+  ["/requests", "requests"],
   ["/approvals/ckabc123", "approval"],
   ["/approvals/forms", "approval-forms"],
   ["/structure", "structure"],
