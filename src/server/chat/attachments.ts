@@ -234,6 +234,9 @@ export async function claimUploads(
     const rows = (await tx.$queryRaw`SELECT meta FROM "StoredFile" WHERE id = ${id}`) as Array<{ meta: unknown }>;
     metaById.set(id, readMeta(rows[0]?.meta));
   }
+  // `findMany ... in` answers in no promised order: the position is the order the person gave
+  const given = new Map(ids.map((id, i) => [id, i] as const));
+  files.sort((x, y) => (given.get(x.id) ?? 0) - (given.get(y.id) ?? 0));
   await tx.messageAttachment.createMany({
     data: files.map((f, i) => {
       const meta = metaById.get(f.id) ?? { kind: "FILE" as const };
