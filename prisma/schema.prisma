@@ -487,6 +487,11 @@ model ConversationMember {
   // The person's own notification mute (Phase 5). It does NOT stop them posting: the moderators' mute is
   // WorkspaceMember.mutedUntil.
   mutedUntil      DateTime?
+  // C3a.1 «لإلي بس»: the person's OWN pin, archive and «علّم كغير مقروء» of this conversation. Nobody else ever reads them; the moderator's
+  // Conversation.pinnedAt / archivedAt (for everybody) are untouched. The order of the pins is UserChatOrder scope `pins`.
+  pinnedAt        DateTime?
+  archivedAt      DateTime?
+  markedUnread    Boolean   @default(false)
   joinedAt        DateTime  @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)

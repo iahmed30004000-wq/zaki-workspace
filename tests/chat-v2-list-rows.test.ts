@@ -19,6 +19,8 @@ import { ChatListColumn } from "@/components/chat/v2/list/chat-list-column";
 import { ChatRowItem, ROW_HEIGHT, ROW_HEIGHT_PHONE, RowView, rowHref } from "@/components/chat/v2/list/chat-row";
 import { CompanyRowsView, companyTitle } from "@/components/chat/v2/list/company-rows";
 import { FolderTabs } from "@/components/chat/v2/list/folder-tabs";
+import { PersonalMenuItems, rowHasMenu } from "@/components/chat/v2/row-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { foldersOf } from "@/lib/chat/list-folders";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { installChatDefaults } from "@/lib/chat/cache/share";
@@ -389,5 +391,117 @@ describe("a refresh that failed while the list holds rows", () => {
     expect(html).toContain("تعذّر تحميل المحادثات.");
     expect(html).toContain("<bdi>أحمد</bdi>");
     expect(html.indexOf("تعذّر تحميل المحادثات.")).toBeLessThan(html.indexOf("<bdi>أحمد</bdi>"));
+  });
+});
+
+// ───────────────────────────── C3a.1: my own pin, archive, mark unread and mute ─────────────────────────────
+describe("C3a.1 — the personal items of the row menu", () => {
+  const menuOf = (r: ChatRowDto) =>
+    render(
+      createElement(
+        DropdownMenu,
+        { open: true },
+        createElement(DropdownMenuTrigger, null, "س"),
+        createElement(DropdownMenuContent, { portal: false }, createElement(PersonalMenuItems, { row: r, call: async () => true })),
+      ),
+    );
+
+  it("a chat that is none of pinned, archived, muted or unread offers: pin, archive, mark unread, and the mute presets (an hour, 8 hours, a day, a week, for good)", () => {
+    const html = menuOf(row("dm1", { lastMessage: msg() }));
+    const text = textOf(html);
+    for (const word of ["تثبيت بقائمتي", "أرشفة", "علّم كغير مقروء", "كتم الإشعارات", "ساعة", "8 ساعات", "يوم", "أسبوع", "للأبد"]) expect(text, word).toContain(word);
+    for (const word of ["إلغاء التثبيت", "إخراج من الأرشيف", "علّم كمقروء", "رفع الكتم"]) expect(text, word).not.toContain(word);
+    expect(html.match(/role="menuitem"/g)).toHaveLength(8);
+  });
+
+  it("a pinned, archived, muted chat offers the way back instead: unpin, take out of the archive, lift the mute (and no presets)", () => {
+    const text = textOf(menuOf(row("dm1", { pinnedByMe: true, archivedByMe: true, muted: true })));
+    for (const word of ["إلغاء التثبيت", "إخراج من الأرشيف", "رفع الكتم"]) expect(text, word).toContain(word);
+    for (const word of ["تثبيت بقائمتي", "أرشفة", "8 ساعات", "للأبد"]) expect(text, word).not.toContain(word);
+  });
+
+  it("a chat with something unread, or marked unread by hand, offers «علّم كمقروء» instead of «علّم كغير مقروء»", () => {
+    expect(textOf(menuOf(row("dm1", { unread: 3 })))).toContain("علّم كمقروء");
+    expect(textOf(menuOf(row("dm1", { markedUnread: true })))).toContain("علّم كمقروء");
+    expect(textOf(menuOf(row("dm1", { unread: 3 })))).not.toContain("علّم كغير مقروء");
+  });
+
+  it("a space row is not a conversation: nothing personal for it", () => {
+    expect(textOf(menuOf(row("sp1", { kind: "SPACE" })))).not.toContain("تثبيت");
+  });
+
+  it("no Latin letters on the screen", () => {
+    expect(textOf(menuOf(row("dm1")))).not.toMatch(/[A-Za-z]/);
+  });
+
+  it("the menu exists for a chat on the personal switch alone; each switch has its own say", () => {
+    const off = { enabled: false, canPurge: false, canModerate: false };
+    expect(rowHasMenu(row("dm1"), off)).toBe(true);
+    expect(rowHasMenu(row("dm1"), { ...off, personal: false })).toBe(false);
+    expect(rowHasMenu(row("sp1", { kind: "SPACE" }), off)).toBe(false);
+    // the managers' items still come from today's menu switch and rank, as before
+    expect(rowHasMenu(row("t1", { kind: "TOPIC" }), { enabled: true, canPurge: false, canModerate: true, personal: false })).toBe(true);
+    expect(rowHasMenu(row("t1", { kind: "TOPIC" }), { enabled: false, canPurge: false, canModerate: true, personal: false })).toBe(false);
+  });
+
+  it("a connected row draws the «⋮» for a chat when the list says the switch is on, and nothing when the list says it is off", () => {
+    where.pathname = "/chat";
+    const dm = row("dm1", { title: "أحمد", lastMessage: msg() });
+    const menuCtx = { enabled: false, canPurge: false, canModerate: false };
+    const draw = (personal: boolean | undefined) => {
+      const qc = new QueryClient();
+      installChatDefaults(qc);
+      qc.setQueryData(chatKeys.list(), { scope: "all", spaceId: null, canOversee: false, rows: [dm], ...(personal === undefined ? {} : { personal }) } satisfies ChatListDto);
+      return render(createElement(ChatRowItem, { id: "dm1", selected: false, tall: false, userId: "u1", menu: menuCtx, day: "2026-11-17" }), qc);
+    };
+    expect(draw(true)).toContain('aria-label="خيارات «أحمد»"');
+    expect(draw(undefined)).toContain('aria-label="خيارات «أحمد»"'); // a copy saved before the switch existed reads as on
+    expect(draw(false)).not.toContain("خيارات");
+  });
+});
+
+describe("C3a.1 — the archived row and the «الأرشيف» tab", () => {
+  it("an archived row carries the archive icon, with its spoken name", () => {
+    const html = view(row("dm1", { archivedByMe: true, lastMessage: msg() }));
+    expect(html).toContain('aria-label="مؤرشفة"');
+    expect(view(row("dm1", { lastMessage: msg() }))).not.toContain("مؤرشفة");
+  });
+
+  it("a row marked unread by hand still draws its (empty) pill, with the sentence for the screen reader; a pinned one draws the pin when nothing is unread", () => {
+    expect(view(row("dm1", { markedUnread: true, lastMessage: msg() }))).toContain("معلّمة غير مقروءة");
+    expect(view(row("dm1", { pinnedByMe: true, lastMessage: msg() }))).toContain('aria-label="مثبّت"');
+  });
+
+  const dto = (rows: ChatRowDto[], over: Partial<ChatListDto> = {}): ChatListDto => ({ scope: "all", spaceId: null, canOversee: false, rows, ...over });
+  const seeded = (list: ChatListDto) => {
+    const qc = new QueryClient();
+    installChatDefaults(qc);
+    qc.setQueryData(chatKeys.list(), list);
+    return qc;
+  };
+  const props = { variant: "column" as const, userId: "u1", guest: false, canMeet: false, rowMenu: true, canPurge: false };
+  const rows = [row("dm1", { title: "أحمد", lastMessage: msg() }), row("dm2", { title: "سارة", archivedByMe: true, unread: 2, lastMessage: msg({ at: iso("07:00") }) })];
+
+  it("an archived chat is out of the main list, and the column offers «الأرشيف» after the other tabs — only while there is one", () => {
+    where.pathname = "/chat";
+    const html = render(createElement(ChatListColumn, props), seeded(dto(rows)));
+    expect(html).toContain('data-folder="archived"');
+    expect(html).toContain("الأرشيف");
+    expect(html).not.toContain("<bdi>سارة</bdi>");
+    expect(html).toContain("<bdi>أحمد</bdi>");
+    expect(html.indexOf('data-folder="mentions"')).toBeLessThan(html.indexOf('data-folder="archived"'));
+    expect(render(createElement(ChatListColumn, props), seeded(dto([rows[0]!])))).not.toContain('data-folder="archived"');
+  });
+
+  it("switched off: no tab, and no archived chat is hidden (the server sends none as archived)", () => {
+    where.pathname = "/chat";
+    const html = render(createElement(ChatListColumn, props), seeded(dto(rows, { personal: false })));
+    expect(html).not.toContain('data-folder="archived"');
+  });
+
+  it("the Q1 rows still draw: a card line, a poll, a deleted message, a mention", () => {
+    const html = view(row("dm1", { mentionsUnread: 1, unread: 1, lastMessage: msg({ kind: "CARD", preview: "بطاقة المنتج" }) }));
+    expect(html).toContain("🧾 بطاقة المنتج");
+    expect(html).toContain('aria-label="فيه رسالة بتذكرك"');
   });
 });

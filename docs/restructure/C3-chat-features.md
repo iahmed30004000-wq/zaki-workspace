@@ -8,19 +8,19 @@
 ## C3a — List features
 
 ### C3a.1 Personal pin, archive, mark unread, mute presets
-- [ ] Migration (additive): `ConversationMember` + `pinnedAt TIMESTAMP(3) NULL`, `archivedAt TIMESTAMP(3) NULL`,
+- [x] Migration (additive): `ConversationMember` + `pinnedAt TIMESTAMP(3) NULL`, `archivedAt TIMESTAMP(3) NULL`,
       `markedUnread BOOLEAN NOT NULL DEFAULT false`. (The moderator's `Conversation.pinnedAt` / `archivedAt` stay what they
       are: for everybody. These are «لإلي بس».) `mutedUntil` already exists — reuse it.
-- [ ] `PUT /api/chat/conversations/[id]/me` `{ pinned?, archived?, markedUnread?, mutedUntil? }` → service
+- [x] `PUT /api/chat/conversations/[id]/me` `{ pinned?, archived?, markedUnread?, mutedUntil? }` → service
       `setMyChatState` in `src/server/chat/read-state.ts`:
   - a row is upserted for an OPEN topic the person reads (same rule as `markRead`); for a restricted topic or a DM the
     row must already exist (no row = no audience = 404);
   - refused (404) while reading through oversight (no trace — the owner's rule);
   - personal pins: at most 10 per person (Telegram's limit 5–10), order kept in `UserChatOrder` scope `pins`.
-- [ ] Opening a conversation clears `markedUnread`.
-- [ ] An archived, NOT muted conversation comes back to the main list when a new message arrives after `archivedAt`
+- [x] Opening a conversation clears `markedUnread`.
+- [x] An archived, NOT muted conversation comes back to the main list when a new message arrives after `archivedAt`
       (Telegram behaviour); a muted one stays archived.
-- [ ] Tests: DB (rules above), render (row menu items, archived row).
+- [x] Tests: DB (rules above), render (row menu items, archived row).
 
 ### C3a.2 Folders
 - [ ] Migration (additive): `User.chatPrefs JSONB NULL` — the person's chat preferences (also used by C4), validated
@@ -192,3 +192,8 @@ controls are not drawn, data already made stays.
 - Built: `src/lib/chat/album-layout.ts` (the pure mosaic, `takeRoom` for the tray), `src/components/chat/v2/media-viewer.tsx` (the viewer, `viewerItemsOf` the one source function, `MediaViewerProvider`), the bubble's mosaic and the lone picture's button, `albumBox` and the opt-in album estimate in `viewport/sizes.ts`, the tray's count line and the pick-time limit of ten. No schema.
 - Decision: `estimateRowHeight(row, { albums: true })` is opt-in because C1.7's pinned test says two pictures stack. Say if the album should be the default (one test changes).
 - Not wired by this package (files of other packages): `chatAlbums` reaches `BubbleMedia` as the optional `albums` prop (default ON); `message-bubble.tsx` + the header DTO must pass it, the pane must wrap the messages in `MediaViewerProvider` (the viewer then steps through the whole loaded conversation and can jump to the message), and `use-message-viewport.ts` must pass `{ albums }` to the estimate. C3d swaps the one source function for `GET …/media`.
+
+### C3a.1 Personal pin, archive, mark unread, mute presets (`feat/chat-personal-state`, `pr/C3a.1.md`)
+- Built: the three columns, `PUT …/me` (`setMyChatState`), the flags in the ONE list query and the sync rows, one event for the person alone, the row menu items and the mute presets, the «الأرشيف» tab, the pins' order, the forum view's rules, the sidebar number that leaves out an archived chat. Switch `chatPersonalState` (ON).
+- Decision: a pin of a never-opened open topic makes the row with the read mark at «now» (as `markRead` does), so its old history stops counting as unread for that person; the alternative would put a whole topic's history into the sidebar number. Say if it should be the other way.
+- Not built (files of other packages): the personal mute does not stop a push yet (`notify.ts`); pins cannot be dragged (`scopeSchema` of `src/lib/chat/order.ts` does not accept `pins`); the C1.2 «`removed` for people dropped without a row» gap. Details in `pr/C3a.1.md`.

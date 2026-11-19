@@ -1,11 +1,11 @@
 "use client";
 
-import React, { memo, useState, type ReactNode } from "react";
+import React, { memo, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { BellOff, Check, CheckCheck, Lock, Megaphone, Pin, Users, type LucideIcon } from "lucide-react";
+import { Archive, BellOff, Check, CheckCheck, Lock, Megaphone, Pin, Users, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { RowActionsMenu, rowHasMenu, useRowMenuGestures, type RowMenuContext } from "@/components/chat/v2/row-menu";
-import { useChatRow } from "@/lib/chat/cache/selectors";
+import { useChatPersonalState, useChatRow } from "@/lib/chat/cache/selectors";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { ct } from "@/lib/chat/text";
 import { rowMarks, rowPinned, rowPreview, rowTicks, rowTicksLabel, rowTimeLabel, unreadText, type RowMark } from "@/lib/chat/row-preview";
@@ -26,6 +26,7 @@ export function rowHref(row: Pick<ChatRowDto, "kind" | "id">): string {
 
 const MARK_ICON: Record<RowMark["key"], LucideIcon> = {
   muted: BellOff,
+  archived: Archive,
   restricted: Lock,
   team: Users,
   announcements: Megaphone,
@@ -222,8 +223,11 @@ export const ChatRowItem = memo(function ChatRowItem({ id, selected, tall, userI
   return <ConnectedRow row={row} selected={selected} tall={tall} userId={userId} menu={menu} />;
 });
 
-function ConnectedRow({ row, selected, tall, userId, menu }: { row: ChatRowDto; selected: boolean; tall: boolean; userId: string; menu: RowMenuContext }) {
+function ConnectedRow({ row, selected, tall, userId, menu: given }: { row: ChatRowDto; selected: boolean; tall: boolean; userId: string; menu: RowMenuContext }) {
   const conversation = row.kind !== "SPACE";
+  // C3a.1: the company's switch for the person's own items, from the cached list (the forum view hands the same context without it)
+  const personal = useChatPersonalState();
+  const menu = useMemo<RowMenuContext>(() => ({ ...given, personal: given.personal !== false && personal }), [given, personal]);
   // a topic of a space row is a different conversation: «typing» and the draft belong to conversations only
   const typing = useTyping(conversation ? row.id : null);
   const draft = useRowDraft(userId, row.id, { selected, enabled: conversation });

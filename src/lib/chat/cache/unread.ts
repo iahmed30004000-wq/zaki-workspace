@@ -21,7 +21,7 @@ export function hasUnread(row: Pick<ChatRowDto, "unread" | "markedUnread">): boo
   return unreadOfRow(row) > 0;
 }
 
-/** Is this row in the folder? An archived row (C3, always false today) is only in no built-in folder. */
+/** Is this row in the folder? A row the person archived for themselves (C3a.1) is in no built-in folder: only the «الأرشيف» tab shows it. */
 export function inFolder(row: ChatRowDto, folder: ChatFolder): boolean {
   if (row.archivedByMe) return false;
   switch (folder) {

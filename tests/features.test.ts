@@ -195,6 +195,17 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.workRequests.hint"]).toContain("بانتظاري");
   });
 
+  it("«التثبيت والأرشفة الشخصية» (`chatPersonalState`, C3a.1): ON by default, off is the list as it was (nothing drawn, the routes 404, the data stays); its two lines are there", () => {
+    expect(FEATURES).toContain("chatPersonalState");
+    expect(FEATURE_DEFAULTS.chatPersonalState).toBe(true);
+    expect(featureOn({}, "chatPersonalState")).toBe(true);
+    expect(featureOn({ features: { chatPersonalState: false } }, "chatPersonalState")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatPersonalState");
+    expect(featuresOff({ features: { chatPersonalState: false } })).toContain("chatPersonalState");
+    expect(AR["features.chatPersonalState.name"]).toBe("التثبيت والأرشفة الشخصية");
+    expect(AR["features.chatPersonalState.hint"]).toContain("لإلك بس");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);

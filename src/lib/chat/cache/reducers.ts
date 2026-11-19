@@ -228,9 +228,17 @@ export function sortListRows(rows: ChatRowDto[]): ChatRowDto[] {
   return rows.slice().sort((a, b) => timeOf(b) - timeOf(a) || a.title.localeCompare(b.title, "ar"));
 }
 
-/** A forum view's order: an archived topic last, pinned first, then the newest activity (ties keep the server's order). */
+/** A forum view's order: an archived topic (by the moderators, or by me) last, my own pins first, the managers' pins next, then the newest activity (ties keep the server's order). */
 export function sortTopicRows(rows: ChatRowDto[]): ChatRowDto[] {
-  return rows.slice().sort((a, b) => Number(!!a.archived) - Number(!!b.archived) || Number(!!b.pinned) - Number(!!a.pinned) || timeOf(b) - timeOf(a));
+  return rows
+    .slice()
+    .sort(
+      (a, b) =>
+        Number(!!a.archived || a.archivedByMe) - Number(!!b.archived || b.archivedByMe) ||
+        Number(b.pinnedByMe) - Number(a.pinnedByMe) ||
+        Number(!!b.pinned) - Number(!!a.pinned) ||
+        timeOf(b) - timeOf(a),
+    );
 }
 
 function upsertById(rows: ChatRowDto[], incoming: ChatRowDto[]): ChatRowDto[] {
@@ -331,6 +339,8 @@ export function rowAfterMessage(row: ChatRowDto, m: MessageDto, opts: { mentions
     lastMessage: lastMessageOf(m),
     unread: counts ? row.unread + 1 : row.unread,
     mentionsUnread: counts && opts.mentionsMe ? row.mentionsUnread + 1 : row.mentionsUnread,
+    // C3a.1: an archived chat that is not muted comes back to the main list when a message (not a system line) arrives, as the server's row says too
+    ...(row.archivedByMe && !row.muted && m.kind !== "SYSTEM" && !m.deleted ? { archivedByMe: false } : {}),
   };
 }
 

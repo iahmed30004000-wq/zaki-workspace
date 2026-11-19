@@ -40,6 +40,10 @@ export interface ChatListView {
   spaceId: string | null;
   canOversee: boolean;
   rows: ChatRowDto[];
+  /** the company's switch `chatPersonalState` (C3a.1): off, nothing personal is drawn; a copy saved before it existed has no field and reads as on */
+  personal: boolean;
+  /** the rows the person archived for themselves (C3a.1): no built-in folder holds them, so `rows` never does; the «الأرشيف» tab reads them here */
+  archivedRows: ChatRowDto[];
 }
 
 export interface UnreadCount {
