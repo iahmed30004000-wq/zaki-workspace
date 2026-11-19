@@ -27,6 +27,7 @@ import {
 import type { Capability } from "@/server/policy/capabilities";
 import { cn } from "@/lib/utils";
 import {
+  applyTemplate,
   logoutEverywhere,
   offboardMember,
   reactivateMember,
@@ -41,13 +42,14 @@ import { CapabilityPanel } from "./capability-panel";
 import { CredentialsCard } from "./credentials-card";
 import { Field } from "./field";
 import { Sheet } from "./sheet";
+import { MemberTemplateSection, useRoleTemplates } from "./template-picker";
 
 type View =
   | { kind: "main" }
   | { kind: "confirm"; action: "suspend" | "offboard" }
   | { kind: "secret"; heading: string; password: string | null; note?: string };
 
-type Busy = "info" | "caps" | "reset" | "logout" | "suspend" | "offboard" | "reactivate" | null;
+type Busy = "info" | "caps" | "template" | "reset" | "logout" | "suspend" | "offboard" | "reactivate" | null;
 
 /**
  * Everything about one person, in the panel that opens when their card is tapped (a bottom sheet on
@@ -83,6 +85,8 @@ export function MemberSheet({
   const { toast } = useToast();
   const uid = useId();
   const acts = offeredActions(actor, member);
+  // A1.1: the «القالب» section appears only while the company's switch is on (the templates door answers «not found» otherwise)
+  const templates = useRoleTemplates(orgId);
 
   const [view, setView] = useState<View>({ kind: "main" });
   const [busy, setBusy] = useState<Busy>(null);
@@ -154,6 +158,22 @@ export function MemberSheet({
     }
     onChanged();
     toast(t("members.caps_saved"), "success");
+  }
+
+  async function applyChosenTemplate(templateId: string) {
+    if (busy) return;
+    setBusy("template");
+    const res = await applyTemplate(orgId, member, templateId, t);
+    setBusy(null);
+    if (!res.ok) {
+      toast(res.message, "error");
+      return;
+    }
+    onPatch(member.id, res.value);
+    // the rank may have changed: the form must not offer the old one back as an unsaved edit
+    if (res.value.role) setForm((f) => ({ ...f, role: res.value.role as InfoForm["role"] }));
+    onChanged();
+    toast(t("ptemplates.applied_done", { name: res.value.template?.name ?? "" }), "success");
   }
 
   async function resetAllCapabilities() {
@@ -448,6 +468,20 @@ export function MemberSheet({
             <ReadOnlyInfo member={member} />
           )}
         </Section>
+
+        {templates.enabled && acts.edit && member.role !== "OWNER" && member.role !== "GUEST" ? (
+          <Section title={t("ptemplates.section")}>
+            <MemberTemplateSection
+              id={`${uid}-template`}
+              member={member}
+              actor={actor}
+              templates={templates.templates}
+              busy={busy !== null}
+              applying={busy === "template"}
+              onApply={applyChosenTemplate}
+            />
+          </Section>
+        ) : null}
 
         <Section title={t("members.section_caps")}>
           <CapabilityPanel

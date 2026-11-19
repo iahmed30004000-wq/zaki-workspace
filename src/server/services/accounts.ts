@@ -11,11 +11,13 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, audit, hashPassword } from "@/server/auth";
 import { assertCan, requireActor, type Actor } from "@/server/policy/actor";
-import { CAPABILITIES } from "@/server/policy/capabilities";
+import { CAPABILITIES, isCapability } from "@/server/policy/capabilities";
 import { CREATABLE_ROLES } from "@/server/policy/rank";
 import { canManageWorkspaceMembers } from "@/server/services/access";
 import { canManageDepartments } from "@/server/services/departments";
 import { activeMember } from "@/server/services/active-people";
+import { assertFeatureOn } from "@/server/services/features";
+import { appliedMeta, roleTemplatesOf, templateLists, templateProblem, type RoleTemplate } from "@/lib/permission-templates";
 import { assignedTo } from "@/server/services/tasks";
 import { pushNotification } from "@/server/notify";
 import { emitRealtime } from "@/server/realtime/emit";
@@ -122,6 +124,11 @@ export const createAccountSchema = z.object({
   workspaceIds: z.array(idSchema).max(500).optional(),
   capabilities: capabilityListSchema.optional(),
   jobTitle: z.preprocess(blankToUndefined, jobTitleSchema.optional()),
+  /**
+   * A1.1 «قالب» (switch `permissionTemplates`): the template's rank, extras and revocations are the account's, through the same checks as
+   * a hand-made one (a template never gives more than the creator holds). Absent: exactly what it was.
+   */
+  templateId: z.preprocess(blankToUndefined, idSchema.optional()),
 });
 export type CreateAccountInput = z.infer<typeof createAccountSchema>;
 
@@ -346,15 +353,38 @@ export interface CreatedAccount {
   temporaryPassword?: string;
 }
 
+/**
+ * A1.1: the company's template of this id, for the one who applies it. A switched-off feature does not exist (404 `features.off`) and a template
+ * that is not in the company's list — a guest's, another company's, one that never was — is 404 `ptemplates.not_found`.
+ */
+export async function findRoleTemplate(orgId: string, templateId: string): Promise<RoleTemplate> {
+  await assertFeatureOn(orgId, "permissionTemplates");
+  const org = await db.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
+  const template = roleTemplatesOf(org?.settings).find((t) => t.id === templateId);
+  if (!template) throw new NotFoundError("ptemplates.not_found");
+  return template;
+}
+
 export async function createAccount(actor: Actor, input: CreateAccountInput): Promise<CreatedAccount> {
-  if (!grantableRoles(actor.role).includes(input.role)) throw new ForbiddenError("orgm.role_denied");
-  const caps = replaceCapabilityList(actor, input.role, [], input.capabilities ?? []);
+  const template = input.templateId ? await findRoleTemplate(actor.orgId, input.templateId) : null;
+  if (template) {
+    // the template's own rule first: a guest's, a rank not below the creator's, an extra the creator does not hold
+    const problem = templateProblem(actor, template);
+    if (problem) throw new ForbiddenError(problem);
+  }
+  const role = template ? template.rank : input.role;
+  if (!grantableRoles(actor.role).includes(role)) throw new ForbiddenError("orgm.role_denied");
+  const fromTemplate = template ? templateLists(actor, template, { capabilities: [], revokedCapabilities: [] }) : null;
+  const caps = replaceCapabilityList(actor, role, [], [...(fromTemplate?.capabilities ?? []), ...(input.capabilities ?? [])]);
   if (caps.problem) throw new ForbiddenError(caps.problem);
   // nobody produces an account holding more than they hold: the rank's defaults the creator lacks start switched off
-  const revokedCapabilities = inCatalogueOrder(unheldRankDefaults(actor, input.role, caps.next));
+  const revokedCapabilities = inCatalogueOrder([
+    ...(fromTemplate?.revokedCapabilities ?? []).filter((c) => !caps.next.includes(c)),
+    ...unheldRankDefaults(actor, role, caps.next),
+  ]);
   const managerId = input.managerId ?? null;
   if (managerId) {
-    if (input.role === "GUEST") throw invalid("managerId", "accounts.guest_no_manager");
+    if (role === "GUEST") throw invalid("managerId", "accounts.guest_no_manager");
     await assertManager(db, actor.orgId, managerId, null);
   }
   const workspaceIds = await checkedWorkspaces(actor, input.workspaceIds ?? []);
@@ -362,7 +392,7 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
 
   const temporaryPassword = input.password === undefined ? generateTemporaryPassword() : undefined;
   const passwordHash = await hashPassword(input.password ?? (temporaryPassword as string));
-  const spaceRole: WorkspaceRole = input.role === "GUEST" ? "GUEST" : "MEMBER";
+  const spaceRole: WorkspaceRole = role === "GUEST" ? "GUEST" : "MEMBER";
 
   let userId: string;
   try {
@@ -376,7 +406,7 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
           passwordHash,
           mustChangePassword: true,
           memberships: {
-            create: { organizationId: actor.orgId, role: input.role, capabilities: caps.next, revokedCapabilities, managerId },
+            create: { organizationId: actor.orgId, role, capabilities: caps.next, revokedCapabilities, managerId },
           },
         },
         select: { id: true },
@@ -386,7 +416,7 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
           data: workspaceIds.map((workspaceId) => ({ workspaceId, userId: user.id, role: spaceRole })),
         });
       }
-      await addPersonToHq(actor.orgId, user.id, input.role, tx);
+      await addPersonToHq(actor.orgId, user.id, role, tx);
       return user.id;
     });
   } catch (err) {
@@ -397,8 +427,11 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
     actorId: actor.userId,
     orgId: actor.orgId,
     target: userId,
-    meta: { role: input.role, username: input.username },
+    meta: { role, username: input.username },
   });
+  if (template) {
+    await audit("org.template_applied", { actorId: actor.userId, orgId: actor.orgId, target: userId, meta: appliedMeta(template, role, caps.next, revokedCapabilities) });
+  }
   const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { name: true } });
   const { t } = getServerT();
   await pushNotification({
@@ -426,9 +459,27 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
  * committed meanwhile freezes it), manager changes run one at a time per organization, and a
  * person who is not ACTIVE here hears nothing about a new rank.
  */
-export async function updateAccount(actor: Actor, userId: string, input: UpdateAccountInput): Promise<void> {
+export async function updateAccount(
+  actor: Actor,
+  userId: string,
+  requested: UpdateAccountInput,
+  /**
+   * A1.1: applying a company template (permission-templates.ts) — the template's rank and lists ARE the request, judged by every rule below
+   * (rank strictly below the caller's, nothing the caller does not hold), and the rank defaults the caller lacks start switched off even when the
+   * rank stays. Never reachable from a request body: only `applyRoleTemplate` passes it.
+   */
+  opts: { template?: RoleTemplate } = {},
+): Promise<{ role: OrgRole; capabilities: string[]; revokedCapabilities: string[] }> {
   const target = await administrableTarget(actor, userId);
   assertNotOffboarded(target); // the quick answer; decided again on the locked row below
+  const template = opts.template ?? null;
+  let input = requested;
+  if (template) {
+    const problem = templateProblem(actor, template, target.role);
+    if (problem) throw new ForbiddenError(problem);
+    const lists = templateLists(actor, template, target);
+    input = { role: template.rank, capabilities: lists.capabilities.filter(isCapability), revokedCapabilities: lists.revokedCapabilities.filter(isCapability) };
+  }
   const role = input.role ?? target.role;
   const roleChanged = role !== target.role;
   if (roleChanged && !canChangeRoleOf(rankedActor(actor), target, role)) throw new ForbiddenError("orgm.role_denied");
@@ -441,7 +492,7 @@ export async function updateAccount(actor: Actor, userId: string, input: UpdateA
   const revoked = replaceCapabilityList(actor, role, roleChanged && partner ? [] : target.revokedCapabilities, input.revokedCapabilities, partner);
   if (revoked.problem) throw new ForbiddenError(revoked.problem);
   // re-ranked by a non-owner: the new rank's defaults the caller does not hold start switched off
-  const revokedNext = roleChanged ? inCatalogueOrder([...revoked.next, ...unheldRankDefaults(actor, role, caps.next)]) : revoked.next;
+  const revokedNext = roleChanged || template ? inCatalogueOrder([...revoked.next, ...unheldRankDefaults(actor, role, caps.next)]) : revoked.next;
   if (caps.next.some((c) => revokedNext.includes(c))) throw invalid("revokedCapabilities", "accounts.cap_both_lists");
 
   let managerId = target.managerId;
@@ -531,6 +582,11 @@ export async function updateAccount(actor: Actor, userId: string, input: UpdateA
   if (passwordHash) {
     await audit("org.member_password_reset", { actorId: actor.userId, orgId: actor.orgId, target: userId });
   }
+  if (template) {
+    // the person's sheet reads this back for «القالب: X» and «معدّل» (permission-templates.ts: `templateStateOf`)
+    await audit("org.template_applied", { actorId: actor.userId, orgId: actor.orgId, target: userId, meta: appliedMeta(template, role, caps.next, revokedNext) });
+  }
+  return { role, capabilities: caps.next, revokedCapabilities: revokedNext };
 }
 
 function sameList(a: readonly string[], b: readonly string[]): boolean {
