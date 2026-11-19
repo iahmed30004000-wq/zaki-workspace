@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { NotFoundError, requireWorkspace } from "@/server/auth";
+import { ForbiddenError, NotFoundError, requireWorkspace } from "@/server/auth";
 import { withApi } from "@/server/api";
 import { parseJson } from "@/server/validation";
 import { activeOrgCtx } from "@/server/services/integrations";
 import { currentSpace } from "@/server/services/current-space";
-import { createInstantTask } from "@/server/services/instant-work";
+import { isFeatureOn } from "@/server/services/features";
+import { createInstantTask, inboxSpaceFor } from "@/server/services/instant-work";
 import { orgTimeZone } from "@/server/services/org-day";
 import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 import { rewardBodySchema, toRewardRequest } from "@/server/services/reward-input";
@@ -35,13 +36,20 @@ export async function POST(req: Request) {
     const who = await activeOrgCtx();
     const space = await currentSpace({ userId: who.userId, orgId: who.orgId, role: who.orgRole });
     if (!space) throw new NotFoundError("workspace.not_found");
-    const ctx = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
+    // «صندوق المهام» (W1.2): «الشركة» holds no project, so a task made while in it goes to the first standard space (D-N3)
+    let spaceId = space.id;
+    if (await isFeatureOn(who.orgId, "workInbox")) {
+      const inbox = await inboxSpaceFor({ userId: who.userId, orgId: who.orgId, role: who.orgRole }, space.id);
+      if (!inbox) throw new ForbiddenError("instant.no_space");
+      spaceId = inbox.id;
+    }
+    const ctx = await requireWorkspace(spaceId, ["ADMIN", "MEMBER"]);
     const dueDate = !input.dueDate
       ? null
       : parseDayText(input.dueDate)
         ? dueInstantForDay(input.dueDate, await orgTimeZone(ctx.orgId))
         : new Date(input.dueDate);
-    const task = await createInstantTask(ctx, space.id, {
+    const task = await createInstantTask(ctx, spaceId, {
       title: input.title,
       description: input.description ?? null,
       assigneeIds: input.assigneeIds?.length ? input.assigneeIds : [input.assigneeId!],

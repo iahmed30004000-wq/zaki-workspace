@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import type { MessageDto } from "@/server/chat/dto";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ct } from "@/lib/chat/text";
+import { WORK_INBOX_REF } from "@/lib/today";
 
 type Option = { id: string; name: string };
 type Space = Option & { holdsProjects: boolean };
@@ -25,6 +26,9 @@ async function getJson<T>(url: string): Promise<T> {
  * «اعمل منها مهمة» / «اعمل منها تذكرة» (the owner's ask, 2026-10-25): the message's first line is the title (it can be
  * changed); a task goes to a project's board of a space (the one the person is in first), a ticket to a department.
  * The server decides again (src/server/chat/make-work.ts) and keeps the link back to the message.
+ *
+ * «صندوق المهام» (W1.2, switch `workInbox`): the first choice of «المشروع», and the default — a task with no project chosen lands in
+ * the space's inbox, in «للتنفيذ». The inbox project itself is not listed a second time. Off: the list is as it was.
  */
 export function MakeWorkDialog({
   message,
@@ -44,6 +48,8 @@ export function MakeWorkDialog({
   privateSource?: boolean;
 }) {
   const [title, setTitle] = useState("");
+  // null: not known yet; true: the inbox is on for this company (`GET /api/instant`)
+  const [inboxOn, setInboxOn] = useState<boolean | null>(null);
   const [spaces, setSpaces] = useState<Space[] | null>(null);
   const [spaceId, setSpaceId] = useState("");
   const [projects, setProjects] = useState<Option[] | null>(null);
@@ -68,6 +74,10 @@ export function MakeWorkDialog({
     setMakePublic(false);
     let alive = true;
     if (kind === "task") {
+      getJson<{ inbox?: unknown }>("/api/instant").then(
+        (data) => alive && setInboxOn(data.inbox != null),
+        () => alive && setInboxOn(false),
+      );
       getJson<{ currentSpaceId: string | null; organizations: { workspaces: Space[] }[] }>("/api/workspaces")
         .then((data) => {
           if (!alive) return;
@@ -94,23 +104,31 @@ export function MakeWorkDialog({
   useEffect(() => {
     setProjects(null);
     setProjectId("");
-    if (!spaceId) return;
+    if (!spaceId || inboxOn === null) return;
     let alive = true;
     getJson<{ projects: Option[] }>(`/api/projects?workspaceId=${encodeURIComponent(spaceId)}`)
       .then((data) => {
         if (!alive) return;
-        setProjects(data.projects);
-        setProjectId(data.projects[0]?.id ?? "");
+        // the inbox is its own first choice: its project (still named as the old default, or the new one) is not listed again
+        const list = inboxOn ? data.projects.filter((p) => p.name !== ct("work.inbox.name") && p.name !== ct("instant.project")) : data.projects;
+        setProjects(list);
+        setProjectId(inboxOn ? WORK_INBOX_REF : (list[0]?.id ?? ""));
       })
       .catch(() => alive && setProjects([]));
     return () => {
       alive = false;
     };
-  }, [spaceId]);
+  }, [spaceId, inboxOn]);
   useEffect(() => {
     setBoards(null);
     setBoardId("");
     if (!projectId) return;
+    // the inbox's board is the server's to find (and make): the reference stands for it
+    if (projectId === WORK_INBOX_REF) {
+      setBoards([]);
+      setBoardId(WORK_INBOX_REF);
+      return;
+    }
     let alive = true;
     getJson<{ boards: Option[] }>(`/api/projects/${encodeURIComponent(projectId)}/boards`)
       .then((data) => {
@@ -183,12 +201,13 @@ export function MakeWorkDialog({
                 </div>
                 <div>
                   <label htmlFor="work-project" className={label}>{ct("chatc.work.project")}</label>
-                  <select id="work-project" value={projectId} onChange={(e) => setProjectId(e.currentTarget.value)} disabled={!projects?.length} className={field}>
+                  <select id="work-project" value={projectId} onChange={(e) => setProjectId(e.currentTarget.value)} disabled={!projects?.length && !inboxOn} className={field}>
+                    {inboxOn ? <option value={WORK_INBOX_REF}>{ct("work.inbox.name")}</option> : null}
                     {(projects ?? []).map((p) => (
                       <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
-                  {projects && projects.length === 0 && <p className="mt-1 text-xs text-fg-muted">{ct("chatc.work.no_projects")}</p>}
+                  {projects && projects.length === 0 && !inboxOn && <p className="mt-1 text-xs text-fg-muted">{ct("chatc.work.no_projects")}</p>}
                 </div>
                 {(boards?.length ?? 0) > 1 && (
                   <div>

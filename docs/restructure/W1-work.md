@@ -50,13 +50,14 @@
 - [ ] Rows use D1's `list-row`; the task opens in a side panel (URL `?task=<id>`), `/tasks/[id]` stays a full page.
 
 ### W1.2 Tasks without the project hunt — `feat/work-inbox-project`
-- [ ] The per-space hidden «مهام فورية» project becomes a visible, named **«صندوق المهام»** (same `systemKey`, same
+- [x] The per-space hidden «مهام فورية» project becomes a visible, named **«صندوق المهام»** (same `systemKey`, same
       service `instant-work.ts`): shown pinned on top of «المشاريع» with its own icon (not as an ordinary card); a quick
       task from anywhere (Today, chat «اعمل مهمة» without a chosen project, «جديد») lands there in «للتنفيذ».
-- [ ] «الشركة» (HQ) gets none — it holds no projects by the owner's decision of 2026-10-25 (N1 D-N3). A quick task made
+- [x] «الشركة» (HQ) gets none — it holds no projects by the owner's decision of 2026-10-25 (N1 D-N3). A quick task made
       while the person is in «الشركة» lands in the «صندوق المهام» of their first STANDARD space; with no such space the
       quick add explains why («لسا ما إلك مساحة شغل»).
-- [ ] Fix Today's quick add to use it instead of "the first project with a board".
+- [x] Fix Today's quick add to use it instead of "the first project with a board".
+      Built on `feat/work-inbox-project` behind the switch `workInbox` (OFF); notes: `docs/restructure/pr/W1.2.md`.
 
 ### W1.3 A normalized stage — `feat/work-stage`
 - [ ] Migration (additive): `BoardColumn.stage TEXT NOT NULL DEFAULT 'DOING'` (TODO | DOING | REVIEW | DONE);

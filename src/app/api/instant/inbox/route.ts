@@ -1,0 +1,51 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { ForbiddenError, requireWorkspace } from "@/server/auth";
+import { withApi } from "@/server/api";
+import { parseJson } from "@/server/validation";
+import { activeOrgCtx } from "@/server/services/integrations";
+import { currentSpace } from "@/server/services/current-space";
+import { assertFeatureOn } from "@/server/services/features";
+import { createInboxTask, inboxSpaceFor } from "@/server/services/instant-work";
+import { orgTimeZone } from "@/server/services/org-day";
+import { dueInstantForDay, parseDayText } from "@/lib/due-day";
+
+const schema = z.object({
+  title: z.string().trim().min(1, "title.required").max(280),
+  /** The person it is for; nobody named: the person's own. */
+  assigneeId: z.string().min(1).optional(),
+  assigneeIds: z.array(z.string().min(1)).max(50).optional(),
+  priority: z.enum(["URGENT", "HIGH", "NORMAL", "LOW"]).default("NORMAL"),
+  // a day ("2026-11-05") or a full instant: a day is noon in the COMPANY's zone, never the browser's (review B5)
+  dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
+});
+
+/**
+ * POST: a quick task into «صندوق المهام» (W1.2, switch `workInbox`; src/server/services/instant-work.ts). The space is the one the
+ * person is in — or, in «الشركة» (it holds no project, D-N3), their first standard space; with none: 403 `instant.no_space`
+ * («لسا ما إلك مساحة شغل»). Today's quick add posts here.
+ */
+export async function POST(req: Request) {
+  return withApi(async () => {
+    const input = await parseJson(schema, req);
+    const who = await activeOrgCtx();
+    await assertFeatureOn(who.orgId, "workInbox");
+    const subject = { userId: who.userId, orgId: who.orgId, role: who.orgRole };
+    const current = await currentSpace(subject);
+    const space = await inboxSpaceFor(subject, current?.id);
+    if (!space) throw new ForbiddenError("instant.no_space");
+    const ctx = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
+    const dueDate = !input.dueDate
+      ? null
+      : parseDayText(input.dueDate)
+        ? dueInstantForDay(input.dueDate, await orgTimeZone(ctx.orgId))
+        : new Date(input.dueDate);
+    const task = await createInboxTask(ctx, space.id, {
+      title: input.title,
+      assigneeIds: input.assigneeIds?.length ? input.assigneeIds : input.assigneeId ? [input.assigneeId] : undefined,
+      priority: input.priority,
+      dueDate,
+    });
+    return NextResponse.json({ task, space }, { status: 201 });
+  });
+}

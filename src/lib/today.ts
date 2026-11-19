@@ -237,6 +237,13 @@ function cutAt(text: string, max: number): string {
   return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
 }
 
+/** Noon of the wanted day in the company's zone as an ISO instant; undefined for «no date». */
+function quickDueAt(due: QuickDue, timeZone: string, now?: Date): string | undefined {
+  if (due === "none") return undefined;
+  const p = zonedParts(now ?? new Date(), timeZone);
+  return zonedWallTime({ year: p.year, month: p.month, day: due === "today" ? p.day : p.day + 1, hour: NOON_HOUR }, timeZone).toISOString();
+}
+
 /**
  * The request for the task the person typed, or null when there is nothing to send (a blank title, or a project
  * that is not on the list). Smart defaults, as the owner asked: the task is theirs, and due today unless they say
@@ -255,13 +262,7 @@ export function quickTaskBody(
   if (title === "") return null;
   const target = quickAdd.targets.find((x) => x.projectId === input.projectId);
   if (!target) return null;
-  let dueDate: string | undefined;
-  if (input.due !== "none") {
-    const clock = input.now ?? new Date();
-    const p = zonedParts(clock, input.timeZone);
-    const day = input.due === "today" ? p.day : p.day + 1;
-    dueDate = zonedWallTime({ year: p.year, month: p.month, day, hour: NOON_HOUR }, input.timeZone).toISOString();
-  }
+  const dueDate = quickDueAt(input.due, input.timeZone, input.now);
   return {
     workspaceId: target.workspaceId,
     projectId: target.projectId,
@@ -270,4 +271,35 @@ export function quickTaskBody(
     assigneeId: quickAdd.assigneeId,
     ...(dueDate ? { dueDate } : {}),
   };
+}
+
+// ───────────────────────────────────────── «صندوق المهام» (W1.2) ─────────────────────────────────────────
+
+/**
+ * What the quick add's «المشروع» list holds for «صندوق المهام»: not a project id (the inbox of the space may not exist yet, and
+ * «الشركة» holds none) but this word; the server turns it into the real project (`POST /api/instant/inbox`, and the project
+ * and board of «اعمل منها مهمة» in src/server/chat/make-work.ts).
+ */
+export const WORK_INBOX_REF = "inbox";
+
+/** What `GET /api/instant` says about the inbox: null while the switch `workInbox` is off (or for a guest). */
+export interface WorkInboxInfo {
+  /** Where a quick task goes: the person's space, or the first standard space when they are in «الشركة»; null: they have none. */
+  space: { id: string; name: string } | null;
+  /** The inbox project of that space once it exists (so the list of projects does not show it twice). */
+  projectId: string | null;
+}
+
+/** The body of POST /api/instant/inbox: the person's own task, due today unless they say otherwise. No project: the server knows where. */
+export interface QuickInboxBody {
+  title: string;
+  assigneeId: string;
+  dueDate?: string;
+}
+
+export function quickInboxBody(quickAdd: TodayQuickAddData, input: { title: string; due: QuickDue; timeZone: string; now?: Date }): QuickInboxBody | null {
+  const title = cutAt(input.title.trim(), TASK_TITLE_MAX).trimEnd();
+  if (title === "") return null;
+  const dueDate = quickDueAt(input.due, input.timeZone, input.now);
+  return { title, assigneeId: quickAdd.assigneeId, ...(dueDate ? { dueDate } : {}) };
 }

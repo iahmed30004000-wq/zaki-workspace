@@ -1,0 +1,9 @@
+{
+  "work.inbox.name": "صندوق المهام",
+  "work.inbox.hint": "المهام السريعة من أي مكان بتنزل هون بخانة «للتنفيذ».",
+  "work.inbox.pinned": "مثبّت",
+  "work.inbox.line": "المهام: {tasks}",
+  "work.inbox.sheet_hint": "رح تنزل المهمة بـ«صندوق المهام» بمساحتك.",
+  "work.inbox.no_space_hint": "اطلب من مديرك يضيفك لمساحة.",
+  "instant.no_space": "لسا ما إلك مساحة شغل"
+}

@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -282,6 +282,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // keyboard shortcuts (Ctrl+B, I, U, K and Ctrl+Shift+X, M) in its composer. The text stays plain text in `ChatMessage.body` (no schema); every preview, push, search snippet and text sent to a model shows the words without the markers.
   // ON by default. Off: the body is drawn as plain text and the composer draws no toolbar and answers no shortcut; what people wrote stays as typed, and switching it back on brings the formatting back.
   chatFormatting: true,
+  // «صندوق المهام» (src/server/services/instant-work.ts, W1.2, D-N3): the hidden «مهام فورية» project of each space becomes a visible, named, pinned inbox on top of
+  // «المشاريع»; a quick task from anywhere (Today's quick add, «اعمل منها مهمة» with no project chosen, «جديد») lands there in «للتنفيذ»; made while in «الشركة» (which holds no
+  // projects) it lands in the inbox of the person's first standard space, and with none the quick add says why. A quick task with an assignee is «المعنيين بس». OFF by default:
+  // off, «مهام فورية» is the hidden project it was, Today's quick add uses the first project with a board and nothing else changes; the projects and tasks already there are never moved or deleted.
+  workInbox: false,
   semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
   // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),
