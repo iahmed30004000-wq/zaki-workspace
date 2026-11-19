@@ -44,14 +44,17 @@ export function formatActionOf(e: KeyLike): FormatAction | null {
   return null;
 }
 
-/** The shortcut of each action as the toolbar's tooltip says it (Ctrl and the Latin letter are the only Latin on this screen). */
-export const FORMAT_SHORTCUTS: Readonly<Record<FormatAction, string>> = {
-  bold: "Ctrl+B",
-  italic: "Ctrl+I",
-  spoiler: "Ctrl+U",
-  strike: "Ctrl+Shift+X",
-  code: "Ctrl+Shift+M",
-  link: "Ctrl+K",
+/**
+ * The keys of each action's shortcut AFTER Ctrl, as data: whether Shift is held and the letter's key cap. The module holds no words: the toolbar writes the shortcut
+ * from these parts, with «Shift» in its Arabic key name (`chatui.keys.shift`, as the shortcuts sheet does). Only «Ctrl» and the single letter stay Latin on screen.
+ */
+export const FORMAT_SHORTCUT_KEYS: Readonly<Record<FormatAction, { shift: boolean; letter: string }>> = {
+  bold: { shift: false, letter: "B" },
+  italic: { shift: false, letter: "I" },
+  spoiler: { shift: false, letter: "U" },
+  strike: { shift: true, letter: "X" },
+  code: { shift: true, letter: "M" },
+  link: { shift: false, letter: "K" },
 };
 
 export const FORMAT_ACTIONS: readonly FormatAction[] = ["bold", "italic", "strike", "code", "spoiler", "link"];

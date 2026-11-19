@@ -27,7 +27,7 @@ import { FormatToolbar } from "@/components/chat/v2/composer/format-toolbar";
 import { parseFormatting } from "@/lib/chat/format/parse";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
 import { composerFaceOf } from "@/lib/chat/v2/composer/face";
-import { applyFormat, FORMAT_ACTIONS, FORMAT_SHORTCUTS, formatActionOf, type KeyLike } from "@/lib/chat/v2/composer/format-keys";
+import { applyFormat, FORMAT_ACTIONS, FORMAT_SHORTCUT_KEYS, formatActionOf, type KeyLike } from "@/lib/chat/v2/composer/format-keys";
 import type { PendingFile } from "@/lib/chat/v2/composer/types";
 import { I18nProvider } from "@/lib/i18n";
 import { AR } from "@/lib/i18n/dict";
@@ -338,10 +338,27 @@ describe("C3b.1 — formatting in the composer", () => {
     expect(html).toContain("data-format-toolbar");
     for (const action of FORMAT_ACTIONS) {
       expect(html).toContain(`data-format="${action}"`);
-      expect(html).toContain(AR[`chatfmt.act.${action}`]!.replace("{keys}", FORMAT_SHORTCUTS[action]));
+      const { shift, letter } = FORMAT_SHORTCUT_KEYS[action];
+      const keys = ["Ctrl", ...(shift ? [AR["chatui.keys.shift"]!] : []), letter].join("+");
+      expect(html).toContain(AR[`chatfmt.act.${action}`]!.replace("{keys}", keys));
     }
     expect((html.match(/<button/g) ?? []).length).toBe(6);
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(?:bg|text|border)-(?:white|black)\b/);
+  });
+
+  it("the toolbar writes Shift with its Arabic key name (as the shortcuts sheet does): no tooltip or aria-label of it has the Latin word Shift, only Ctrl and the letter stay Latin", () => {
+    const html = inI18n(createElement(FormatToolbar, { onAction: noop }));
+    const texts = [...html.matchAll(/(?:title|aria-label)="([^"]*)"/g)].map((m) => m[1]!);
+    expect(texts.length).toBe(12 + 1); // six titles, six aria-labels, the toolbar's own name
+    for (const text of texts) expect(text).not.toMatch(/shift/i);
+    const strike = html.match(/data-format="strike"[^>]*>/)![0];
+    expect(strike).toContain(`Ctrl+${AR["chatui.keys.shift"]}+X`);
+    const code = html.match(/data-format="code"[^>]*>/)![0];
+    expect(code).toContain(`Ctrl+${AR["chatui.keys.shift"]}+M`);
+    // a shortcut without Shift names no Shift at all
+    expect(html.match(/data-format="bold"[^>]*>/)![0]).toContain("Ctrl+B");
+    // no Latin literal for the shortcut travels through {keys}: the module exports parts, not a string
+    expect(Object.values(FORMAT_SHORTCUT_KEYS).every((k) => typeof k === "object" && typeof k.shift === "boolean" && /^[A-Z]$/.test(k.letter))).toBe(true);
   });
 
   it("the surface draws the toolbar only over a selection (never on a fresh box), with or without the switch", () => {
