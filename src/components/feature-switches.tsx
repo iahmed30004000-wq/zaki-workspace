@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { apiPatch } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { useOptionalToast } from "@/components/ui/toast";
-import { ECONOMY_FORCED_OFF, ECONOMY_POLL_FACTOR, type FeatureKey } from "@/lib/features";
+import { COMPANY_CHAT_GROUP, ECONOMY_FORCED_OFF, ECONOMY_POLL_FACTOR, type FeatureKey } from "@/lib/features";
 import { showModelWarning } from "@/lib/chat/customer-data-hint";
 import { cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
@@ -45,6 +45,41 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
     return <Switch checked={item.on} onChange={(on) => flip(item.key, on)} label={t(`features.${item.key}.name`)} disabled={busy === item.key} />;
   }
 
+  /** One switch: its name, its hint, the group's note and ⚠️/🔧 where it has them, and the toggle. */
+  function row(f: { key: FeatureKey; on: boolean }, extra?: { risk?: boolean; note?: boolean }) {
+    return (
+      <li key={f.key} className="flex items-center justify-between gap-4 py-3">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-fg">
+            {t(`features.${f.key}.name`)}
+            {notReady.includes(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("semantic.not_ready")}</span> : null}
+            {held.has(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("economy.held")}</span> : null}
+          </p>
+          <p className="text-xs text-muted">{t(`features.${f.key}.hint`)}</p>
+          {extra?.note ? <p className="text-xs text-muted">{t(`companyChat.note.${f.key}`)}</p> : null}
+          {showModelWarning(items, f.key) ? <p data-model-warning className="text-xs leading-6 text-warn">{t("features.model_warn")}</p> : null}
+          {notReady.includes(f.key) ? <p className="text-xs text-warn">{t("semantic.not_ready_hint")}</p> : null}
+          {extra?.risk ? (
+            <div className="space-y-0.5" data-risk={f.key}>
+              <p className="text-xs leading-6 text-warn">{t(`companyChat.warn.${f.key}`)}</p>
+              <p className="text-xs leading-6 text-fg">{t(`companyChat.fix.${f.key}`)}</p>
+            </div>
+          ) : null}
+        </div>
+        <div className={cn(held.has(f.key) && "opacity-50")}>
+          {toggle(f)}
+        </div>
+      </li>
+    );
+  }
+
+  // «الدردشة» (C4.3): the chat switches, grouped, first. A key the list was not given is skipped; the rest of the list is every other switch.
+  const chatRows = COMPANY_CHAT_GROUP.flatMap((g) => {
+    const item = items.find((f) => f.key === g.key);
+    return item ? [{ item, g }] : [];
+  });
+  const inChatGroup = new Set<FeatureKey>(COMPANY_CHAT_GROUP.map((g) => g.key));
+
   return (
     <div className="space-y-4">
       {/* «وضع التوفير»: the one switch for a server that is not strong enough; what it holds off is printed, with the way back */}
@@ -79,26 +114,19 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
           <p className="text-fg">{t("economy.fix")}</p>
         </div>
       </section>
+      {chatRows.length > 0 ? (
+        <section className="space-y-1 rounded-lg border border-border bg-surface-1 p-4" aria-labelledby="company-chat-title" data-company-chat-group>
+          <h3 id="company-chat-title" className="text-sm font-semibold text-fg">
+            {t("companyChat.title")}
+          </h3>
+          <p className="text-xs text-muted">{t("companyChat.subtitle")}</p>
+          <ul className="divide-y divide-border">{chatRows.map(({ item, g }) => row(item, g))}</ul>
+        </section>
+      ) : null}
       <ul className="divide-y divide-border">
         {items
-          .filter((f) => f.key !== "economyMode")
-          .map((f) => (
-            <li key={f.key} className="flex items-center justify-between gap-4 py-3">
-              <div className="min-w-0">
-                <p className="text-sm font-medium text-fg">
-                  {t(`features.${f.key}.name`)}
-                  {notReady.includes(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("semantic.not_ready")}</span> : null}
-                  {held.has(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("economy.held")}</span> : null}
-                </p>
-                <p className="text-xs text-muted">{t(`features.${f.key}.hint`)}</p>
-                {showModelWarning(items, f.key) ? <p data-model-warning className="text-xs leading-6 text-warn">{t("features.model_warn")}</p> : null}
-                {notReady.includes(f.key) ? <p className="text-xs text-warn">{t("semantic.not_ready_hint")}</p> : null}
-              </div>
-              <div className={cn(held.has(f.key) && "opacity-50")}>
-                {toggle(f)}
-              </div>
-            </li>
-          ))}
+          .filter((f) => f.key !== "economyMode" && !inChatGroup.has(f.key))
+          .map((f) => row(f))}
       </ul>
     </div>
   );
