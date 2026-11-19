@@ -10,6 +10,8 @@ import { ImageText } from "@/components/image-text";
 import { stripFormatting } from "@/lib/chat/format/parse";
 import { isAlbumMedia, safeMediaUrl } from "@/lib/chat/album-layout";
 import type { AttachmentDto, MessageDto } from "@/server/chat/dto";
+import { mediaPageUrl } from "@/lib/chat/v2/info/info-tabs";
+import type { MediaItemDto, MediaPageDto } from "@/server/chat/media";
 
 /**
  * C3b.3 — THE MEDIA VIEWER of the new chat screen: a full-screen dialog over everything for the pictures and videos of a conversation.
@@ -22,8 +24,9 @@ import type { AttachmentDto, MessageDto } from "@/server/chat/dto";
  * It is a real Radix dialog (focus kept inside and given back, the page behind inert and not scrolling, announced by its title) so the chat's own key layer
  * (`shortcuts.ts`: a `[role="dialog"]` on the page is an overlay) leaves Esc to it and the conversation stays open.
  *
- * ONE source of the list: `viewerItemsOf(messages)` — the media of the messages that are LOADED, oldest first, never the files of a deleted message. C3d swaps this
- * single function (and the provider's `items`) for `GET …/media` to reach the ones that are not loaded yet; nothing else here changes.
+ * The list (C3d): the media of the messages that are LOADED (`viewerItemsOf`, oldest first, never the files of a deleted message) joined, once the viewer is open, with
+ * the whole conversation's from `GET …/media?kind=MEDIA` (`viewerItemOfMedia` / `mergeViewerItems`), so the arrows reach pictures that were never loaded. The
+ * route never returns the file of a deleted message either, and a message the screen knows was deleted since is dropped from the fetched part at once.
  */
 
 export { safeMediaUrl };
@@ -41,29 +44,71 @@ export interface ViewerItem {
   /** the message's words without their markers, or null */
   caption: string | null;
   authorName: string | null;
+  /** C3d: the message's time (ISO) and the picture's place inside it, when the source knows them: what orders the loaded part and the fetched part together */
+  at?: string;
+  position?: number;
 }
 
-function itemOf(attachment: AttachmentDto, message: Pick<MessageDto, "id" | "body" | "authorName"> | null): ViewerItem | null {
+function itemOf(attachment: AttachmentDto, message: (Pick<MessageDto, "id" | "body" | "authorName"> & { createdAt?: string }) | null, position?: number): ViewerItem | null {
   const url = safeMediaUrl(attachment.url);
   if (!url || !isAlbumMedia(attachment)) return null;
   const caption = message?.body ? stripFormatting(message.body).trim() : "";
-  return { id: attachment.id, messageId: message?.id ?? null, attachment, url, caption: caption || null, authorName: message?.authorName ?? null };
+  return {
+    id: attachment.id,
+    messageId: message?.id ?? null,
+    attachment,
+    url,
+    caption: caption || null,
+    authorName: message?.authorName ?? null,
+    ...(message?.createdAt ? { at: message.createdAt } : {}),
+    ...(position !== undefined ? { position } : {}),
+  };
 }
 
 /**
- * THE source of the viewer's list (the one function C3d replaces): the pictures and videos of the given messages, in the order given (oldest first).
+ * The LOADED part of the viewer's list: the pictures and videos of the given messages, in the order given (oldest first).
  * A deleted message gives nothing (its files are never exposed), nor does a voice note, a message that is only pending, or an address that is not ours.
  */
 export function viewerItemsOf(messages: readonly MessageDto[]): ViewerItem[] {
   const out: ViewerItem[] = [];
   for (const message of messages) {
     if (message.deleted || message.kind === "VOICE" || message.kind === "SYSTEM" || message.pending || message.id.includes(":")) continue;
-    for (const attachment of message.attachments) {
-      const item = itemOf(attachment, message);
+    message.attachments.forEach((attachment, index) => {
+      const item = itemOf(attachment, message, index);
       if (item) out.push(item);
-    }
+    });
   }
   return out;
+}
+
+/** C3d — the fetched part: the items of `GET …/media?kind=MEDIA` (newest first, as the route sends them) as viewer items, oldest first. */
+export function viewerItemsOfMedia(items: readonly MediaItemDto[]): ViewerItem[] {
+  const out: ViewerItem[] = [];
+  for (const row of items) {
+    const item = itemOf(row.attachment, { id: row.messageId, body: row.caption ?? "", authorName: row.authorName, createdAt: row.at }, row.position);
+    if (item) out.push(item);
+  }
+  return out.reverse();
+}
+
+/**
+ * C3d — the loaded part and the fetched part as ONE list, oldest first, each picture once (the loaded copy wins: it is the live one). A fetched picture whose message the
+ * screen knows is deleted is dropped (the list was fetched a moment ago; the files of a deleted message never show). Items are ordered by the message's time, then
+ * the picture's place in it; an item with no time (a source that does not know it) keeps its place next to the one before it.
+ */
+export function mergeViewerItems(loaded: readonly ViewerItem[], fetched: readonly ViewerItem[], deletedMessageIds: ReadonlySet<string> = new Set()): ViewerItem[] {
+  const have = new Set(loaded.map((item) => item.id));
+  const extra = fetched.filter((item) => !have.has(item.id) && !(item.messageId && deletedMessageIds.has(item.messageId)));
+  if (extra.length === 0) return [...loaded];
+  const all = [...loaded, ...extra];
+  const keyed = all.map((item, index) => ({ item, index }));
+  keyed.sort((a, b) => {
+    const [x, y] = [a.item.at ?? "", b.item.at ?? ""];
+    if (x !== y) return x < y ? -1 : 1;
+    if (a.item.messageId && a.item.messageId === b.item.messageId) return (a.item.position ?? 0) - (b.item.position ?? 0) || a.index - b.index;
+    return a.index - b.index;
+  });
+  return keyed.map((k) => k.item);
 }
 
 /** The viewer's list when nothing else is known: the media of one bubble. */
@@ -144,19 +189,56 @@ export interface MediaViewerSource {
 }
 export const MediaViewerContext = React.createContext<MediaViewerSource | null>(null);
 
+const NO_ITEMS: ViewerItem[] = [];
+/** The most pages of the media route one opening reads (60 each: the last thousand pictures and videos; the loaded ones always count). */
+const MAX_MEDIA_PAGES = 16;
+
+/**
+ * C3d — the conversation's media as `GET …/media?kind=MEDIA` has it, read page by page while the viewer is open (and abandoned when it closes). A failure or a
+ * refusal leaves the loaded part alone: the viewer then works exactly as it did before the route existed.
+ */
+function useFetchedMedia(conversationId: string | undefined, open: boolean): ViewerItem[] {
+  const [fetched, setFetched] = React.useState<{ id: string; items: ViewerItem[] } | null>(null);
+  React.useEffect(() => {
+    if (!open || !conversationId) return;
+    const controller = new AbortController();
+    void (async () => {
+      const rows: MediaItemDto[] = [];
+      let before: string | null = null;
+      for (let page = 0; page < MAX_MEDIA_PAGES; page++) {
+        try {
+          const res = await fetch(mediaPageUrl(conversationId, "MEDIA", before), { signal: controller.signal, cache: "no-store" });
+          if (!res.ok) return;
+          const body = (await res.json()) as MediaPageDto;
+          rows.push(...body.items);
+          setFetched({ id: conversationId, items: viewerItemsOfMedia(rows) });
+          if (!body.next) return;
+          before = body.next;
+        } catch {
+          return;
+        }
+      }
+    })();
+    return () => controller.abort();
+  }, [open, conversationId]);
+  return fetched && fetched.id === conversationId ? fetched.items : NO_ITEMS;
+}
+
 /**
  * Wrap the conversation's messages once: every bubble's tap opens the viewer on the conversation's media (not only its own), and the viewer is drawn HERE, above
  * the virtual list, so a bubble that is deleted or scrolled out of the window while the viewer is open does not take the viewer with it. The list is asked again on
  * every render (a deleted message's files drop out at once).
  */
-export function MediaViewerProvider({ messages, onShowInChat, children }: { messages: readonly MessageDto[]; onShowInChat?: (messageId: string) => void; children?: React.ReactNode }) {
+export function MediaViewerProvider({ messages, conversationId, onShowInChat, children }: { messages: readonly MessageDto[]; /** C3d: with it, the viewer also steps through the media that is not loaded (`GET …/media`) */ conversationId?: string; onShowInChat?: (messageId: string) => void; children?: React.ReactNode }) {
   const [request, setRequest] = React.useState<ViewerRequest | null>(null);
   const close = React.useCallback(() => setRequest(null), []);
+  const fetched = useFetchedMedia(conversationId, request !== null);
   const value = React.useMemo<MediaViewerSource>(() => ({ items: () => viewerItemsOf(messages), onShowInChat, open: setRequest }), [messages, onShowInChat]);
   let items: ViewerItem[] = [];
   if (request) {
-    const loaded = viewerItemsOf(messages);
-    items = loaded.some((item) => item.id === request.startId) ? loaded : request.fallback;
+    const deleted = new Set(messages.filter((m) => m.deleted).map((m) => m.id));
+    const merged = mergeViewerItems(viewerItemsOf(messages), fetched, deleted);
+    items = merged.some((item) => item.id === request.startId) ? merged : request.fallback;
   }
   return (
     <MediaViewerContext.Provider value={value}>

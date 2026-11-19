@@ -6,7 +6,7 @@ import { ForbiddenError } from "@/server/auth";
 import { currentSpace } from "@/server/services/current-space";
 import { actorCan, actorCanWork, requireActor } from "@/server/policy/actor";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
-import { searchChat } from "@/server/chat/search";
+import { chatScopeAnswer, searchChat } from "@/server/chat/search";
 import { searchLibrary } from "@/server/services/files";
 import { searchDocuments } from "@/server/services/documents";
 import { arabicSearch, cleanQuery } from "@/lib/search/arabic";
@@ -27,11 +27,16 @@ const NOTHING = { tasks: [], projects: [], topics: [], messages: [], people: [],
  * (`accessibleWorkspaceIds`: the org OWNER sees every workspace of the company, everyone
  * else — an ADMIN included — only the workspaces they were put in, and only while they are
  * an ACTIVE member) — never client-side.
+ *
+ * `?scope=chat` (C3d) is the chat list's own question — ONE request that answers only the chat: `{ chats, people, messages }`, or, with `conversationId`, the search
+ * inside that conversation (`{ messages }`, with `from` and `since`). Without `scope` (and for any scope this route does not know) the answer is exactly what the
+ * search palette has always read.
  */
 export async function GET(req: Request) {
   return withApi(async () => {
     const user = await requireUser();
     const url = new URL(req.url);
+    if (url.searchParams.get("scope") === "chat") return NextResponse.json(await chatScopeAnswer(await requireActor(), url.searchParams));
     // what was typed, cleaned (control characters out, spaces collapsed, 100 characters at most)
     const q = cleanQuery(url.searchParams.get("q") ?? "");
     const search = arabicSearch(q);

@@ -149,16 +149,16 @@ ONE shared done-state each.
 
 ## C3d — Info panel tabs and search
 
-- [ ] `GET /api/chat/conversations/[id]/media?kind=IMAGE|VIDEO|FILE|AUDIO|LINK&before=&limit=60` — attachments of
+- [x] `GET /api/chat/conversations/[id]/media?kind=IMAGE|VIDEO|FILE|AUDIO|LINK&before=&limit=60` — attachments of
       non-deleted messages (and messages with a `previewId` for LINK), after `canRead`; never the files of a deleted
       message.
-- [ ] Tab «الشغل»: tasks and tickets whose `sourceMessage.conversationId` is this conversation, filtered by P0.2 task
+- [x] Tab «الشغل»: tasks and tickets whose `sourceMessage.conversationId` is this conversation, filtered by P0.2 task
       visibility and ticket access.
-- [ ] Tab «المثبّتة»: the pinned messages.
-- [ ] List search (C2 header): one request `GET /api/search?scope=chat&q=` (extend `src/app/api/search/route.ts`) returning
+- [x] Tab «المثبّتة»: the pinned messages.
+- [x] List search (C2 header): one request `GET /api/search?scope=chat&q=` (extend `src/app/api/search/route.ts`) returning
       chats (topics/DMs/spaces by title), people (directory rules: guests get names only), messages (snippet, chat,
       date) — the existing Arabic folding search and its access rule (`src/server/chat/search.ts`).
-- [ ] In-chat search: ↑/↓ between hits, «من:» person filter, date jump (calendar) — extend `conversation-search.tsx`.
+- [x] In-chat search: ↑/↓ between hits, «من:» person filter, date jump (calendar) — extend `conversation-search.tsx`.
 
 ## Feature switches (each new feature has its own, R7)
 
@@ -197,6 +197,11 @@ controls are not drawn, data already made stays.
 - Built: `src/lib/chat/album-layout.ts` (the pure mosaic, `takeRoom` for the tray), `src/components/chat/v2/media-viewer.tsx` (the viewer, `viewerItemsOf` the one source function, `MediaViewerProvider`), the bubble's mosaic and the lone picture's button, `albumBox` and the opt-in album estimate in `viewport/sizes.ts`, the tray's count line and the pick-time limit of ten. No schema.
 - Decision: `estimateRowHeight(row, { albums: true })` is opt-in because C1.7's pinned test says two pictures stack. Say if the album should be the default (one test changes).
 - Not wired by this package (files of other packages): `chatAlbums` reaches `BubbleMedia` as the optional `albums` prop (default ON); `message-bubble.tsx` + the header DTO must pass it, the pane must wrap the messages in `MediaViewerProvider` (the viewer then steps through the whole loaded conversation and can jump to the message), and `use-message-viewport.ts` must pass `{ albums }` to the estimate. C3d swaps the one source function for `GET …/media`.
+
+### C3d Info-panel tabs, the list's search and the in-chat search (`feat/chat-info-search`, `pr/C3d.md`)
+- Built: `GET …/media?kind=&before=&limit=` and `?counts=1` and `GET …/media/work` (`src/server/chat/media.ts`: never the file of a deleted message, the owner too; the work tab by P0.2's task rule and the ticket door's rule, a guest none; read-only, so the silent eye leaves no trace), the info panel's six tabs (drawn only when they have data), the media viewer reading the route (`mergeViewerItems`), `GET /api/search?scope=chat&q=` → `{ chats, people, messages }` (the existing folding search and reading rule; the directory rule for people: a guest gets names only) shown as a panel under the list's field and the phone's bar, and the in-chat search's ↑/↓, «من:» and date jump (`conversation-search.tsx` extended, the old screen unchanged). No schema, no new switch.
+- Decision: the in-chat search goes through `/api/search?scope=chat&conversationId=` because the old per-conversation route is another package's file; a guest never gets the «الشغل» tab.
+- Not wired by this package (files of other packages): `pending-search.ts` is untouched (nothing needed it); `message-bubble.tsx` still has to pass `albums` (C3b.3). Details in `pr/C3d.md`.
 
 ### C3b.2 Link previews (`feat/link-previews`, `pr/C3b-2.md`)
 - Built: the table `LinkPreview` + `ChatMessage.previewId`, `src/server/chat/link-preview.ts` (the guarded fetch, the tag parser, the after-send step), `message.enriched` (sync returns the presented message), `DELETE …/messages/[id]/preview` (author only) and `GET …/preview/image` (the only way the picture is served), the DTO `preview`, the switch `linkPreviews` (ON), the guide's warning, the card `LinkPreviewCard`, the composer's ✕ line, the menu id `removePreview`. Switch OFF: no fetch, no card from send and sync, the routes 404, the data stays.

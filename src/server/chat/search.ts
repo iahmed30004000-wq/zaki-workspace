@@ -1,12 +1,17 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { stripFormatting } from "@/lib/chat/format/parse";
-import { arabicSearch, cleanQuery, findSpelled } from "@/lib/search/arabic";
+import { z } from "zod";
+import { arabicSearch, cleanQuery, findSpelled, foldedIncludes, foldForSearch } from "@/lib/search/arabic";
 import { rankedSearch } from "@/server/search/ranked";
-import { NotFoundError, type OrgAccessContext } from "@/server/auth";
+import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { canRead, loadConversationFacts, loadOrgFacts, type OrgFacts } from "@/server/policy/conversation";
 import type { MessageHitDto, TopicHitDto } from "@/server/chat/dto";
 import { isFeatureOn } from "@/server/services/features";
+import { dmPlaceWhere } from "@/server/chat/dm";
+import { currentSpace } from "@/server/services/current-space";
+import type { Actor } from "@/server/policy/actor";
+import { loadWorkScope, scopeSpaceIds } from "@/server/services/team-scope";
 
 /**
  * SEARCH IN THE CHAT (the owner's ask, 2026-10-25): inside one conversation, and across the topics and messages of
@@ -35,28 +40,47 @@ export function snippetOf(body: string, q: string, width = 120, format = true): 
 const searchable = { deletedAt: null, kind: { not: "SYSTEM" as const } };
 const searchableSql = [Prisma.sql`"deletedAt" IS NULL`, Prisma.sql`"kind" <> 'SYSTEM'`];
 
+/**
+ * C3d — what the in-chat search adds to the words, both optional and both only ever NARROWING what the reading rule already lets through:
+ *  - `from`: «من:» — only the messages of this person (an id; a person who wrote nothing here, or of another company, leaves nothing);
+ *  - `since`: the date jump — the FIRST message at or after this instant (the screen sends the local midnight of the day picked); the words are not used.
+ * `from` alone lists that person's messages, newest first.
+ */
+export interface ConversationSearchOptions {
+  from?: string | undefined;
+  since?: Date | undefined;
+}
+
 /** The messages of ONE conversation that carry the words (newest first). Not readable: «not found». */
-export async function searchConversation(ctx: OrgAccessContext, conversationId: string, raw: string): Promise<MessageHitDto[]> {
+export async function searchConversation(ctx: OrgAccessContext, conversationId: string, raw: string, options: ConversationSearchOptions = {}): Promise<MessageHitDto[]> {
   const facts = await loadConversationFacts(ctx.userId, conversationId);
   if (!facts || facts.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
   if (!canRead(facts, await loadOrgFacts(ctx.userId, ctx.orgId))) throw new NotFoundError("chat.e.not_found");
   const q = searchText(raw);
   const search = arabicSearch(q);
+  const extras = options.from !== undefined || options.since !== undefined;
+  if (extras) {
+    // «البحث الشامل» off: the jump and the person filter are part of the search, so they are off with it
+    if (!(await isFeatureOn(ctx.orgId, "search"))) return [];
+    if (options.since) return conversationJump(conversationId, options.since, options.from);
+    if (!search || search.text.length < 2) return options.from ? personMessages(conversationId, options.from) : [];
+  }
   if (!search || search.text.length < 2) return [];
   // «البحث الشامل» off (or economy mode with it held off): no hits, and no query over the messages
   if (!(await isFeatureOn(ctx.orgId, "search"))) return [];
+  const byPerson = options.from ? { authorId: options.from } : {};
   const rows = await rankedSearch({
     query: {
       table: "ChatMessage",
       search,
       rank: false,
-      where: [Prisma.sql`"conversationId" = ${conversationId}`, ...searchableSql],
+      where: [Prisma.sql`"conversationId" = ${conversationId}`, ...(options.from ? [Prisma.sql`"authorId" = ${options.from}`] : []), ...searchableSql],
       order: Prisma.sql`"createdAt" DESC`,
     },
     take: 30,
     load: (ids) =>
       db.chatMessage.findMany({
-        where: { conversationId, ...searchable, id: { in: ids } },
+        where: { conversationId, ...searchable, ...byPerson, id: { in: ids } },
         select: { id: true, body: true, createdAt: true, author: { select: { name: true } } },
       }),
   });
@@ -70,7 +94,14 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
   }));
   // …and the messages whose pictures carry the words (the same conversation, already judged readable above)
   const seen = new Set(hits.map((h) => h.id));
-  for (const pic of await pictureTextHits(ctx.orgId, search, Prisma.sql`m."conversationId" = ${conversationId}`, { conversationId }, 30)) {
+  const pictures = await pictureTextHits(
+    ctx.orgId,
+    search,
+    options.from ? Prisma.sql`m."conversationId" = ${conversationId} AND m."authorId" = ${options.from}` : Prisma.sql`m."conversationId" = ${conversationId}`,
+    { conversationId, ...byPerson },
+    30,
+  );
+  for (const pic of pictures) {
     for (const link of pic.file.chatLinks) {
       const m = link.message;
       if (!m || seen.has(m.id) || hits.length >= 30) continue;
@@ -79,6 +110,37 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
     }
   }
   return hits;
+}
+
+const hitSelect = { id: true, body: true, createdAt: true, author: { select: { name: true } } } as const;
+const hitOf = (conversationId: string, m: { id: string; body: string; createdAt: Date; author: { name: string } }): MessageHitDto => ({
+  id: m.id,
+  conversationId,
+  conversationTitle: "",
+  authorName: m.author.name,
+  at: m.createdAt.toISOString(),
+  snippet: snippetOf(m.body, ""),
+});
+
+/** C3d — the date jump: the first message (of this person, when given) at or after the instant. */
+async function conversationJump(conversationId: string, since: Date, from: string | undefined): Promise<MessageHitDto[]> {
+  const first = await db.chatMessage.findFirst({
+    where: { conversationId, ...searchable, createdAt: { gte: since }, ...(from ? { authorId: from } : {}) },
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: hitSelect,
+  });
+  return first ? [hitOf(conversationId, first)] : [];
+}
+
+/** C3d — «من:» alone: the person's messages here, newest first. */
+async function personMessages(conversationId: string, from: string): Promise<MessageHitDto[]> {
+  const rows = await db.chatMessage.findMany({
+    where: { conversationId, ...searchable, authorId: from },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take: 30,
+    select: hitSelect,
+  });
+  return rows.map((m) => hitOf(conversationId, m));
 }
 
 /**
@@ -156,6 +218,7 @@ export async function searchChat(
   ctx: OrgAccessContext,
   space: { id: string; isHq: boolean },
   raw: string,
+  caps: { topics: number; messages: number } = { topics: 6, messages: 8 },
 ): Promise<{ topics: TopicHitDto[]; messages: MessageHitDto[] }> {
   const q = searchText(raw);
   const search = arabicSearch(q);
@@ -199,7 +262,7 @@ export async function searchChat(
         ],
         order: Prisma.sql`"createdAt" DESC`,
       },
-      take: 60,
+      take: Math.max(60, caps.messages * 4),
       load: (ids) =>
         db.chatMessage.findMany({
           where: { orgId: ctx.orgId, conversation: { orgId: ctx.orgId, ...here }, ...searchable, id: { in: ids } },
@@ -223,12 +286,12 @@ export async function searchChat(
 
   const topics: TopicHitDto[] = [];
   for (const t of topicRows) {
-    if (topics.length >= 6) break;
+    if (topics.length >= caps.topics) break;
     if (await reads(t.id)) topics.push({ id: t.id, title: t.title ?? "", emoji: t.emoji });
   }
   const messages: MessageHitDto[] = [];
   for (const m of messageRows) {
-    if (messages.length >= 8) break;
+    if (messages.length >= caps.messages) break;
     if (!(await reads(m.conversationId))) continue;
     messages.push({
       id: m.id,
@@ -243,7 +306,7 @@ export async function searchChat(
   const seen = new Set(messages.map((m) => m.id));
   for (const pic of await pictureTextHits(ctx.orgId, search, Prisma.sql`m."conversationId" IN (SELECT "id" FROM "Conversation" WHERE "orgId" = ${ctx.orgId} AND ${placeSql})`, { conversation: { orgId: ctx.orgId, ...here } }, 60)) {
     for (const link of pic.file.chatLinks) {
-      if (messages.length >= 8) break;
+      if (messages.length >= caps.messages) break;
       const m = link.message;
       if (!m || seen.has(m.id) || !(await reads(m.conversationId))) continue;
       seen.add(m.id);
@@ -258,4 +321,174 @@ export async function searchChat(
     }
   }
   return { topics, messages };
+}
+
+// ───────────────────────────── C3d: the chat list's search — ONE request ─────────────────────────────
+
+/** A chat the list can open: a topic, a private chat (titled by the other person) or a whole space (its forum view). */
+export interface ChatHitDto {
+  id: string;
+  kind: "TOPIC" | "DM" | "SPACE";
+  title: string;
+  emoji: string | null;
+  /** the space a topic lives in; null for a private chat and a space */
+  context: string | null;
+}
+
+/** A person of the space. A guest's rows carry `id` and `name` ONLY (the directory rule); `dmId` is the private chat already open with them, when there is one. */
+export interface PersonHitDto {
+  id: string;
+  name: string;
+  avatarUrl?: string | null;
+  jobTitle?: string | null;
+  dmId?: string | null;
+}
+
+export interface ChatListSearchDto {
+  chats: ChatHitDto[];
+  people: PersonHitDto[];
+  messages: MessageHitDto[];
+}
+
+const NO_CHAT_RESULTS: ChatListSearchDto = { chats: [], people: [], messages: [] };
+const CHATS_MAX = 8;
+const PEOPLE_MAX = 8;
+const LIST_MESSAGES_MAX = 20;
+
+/**
+ * `GET /api/search?scope=chat&q=`: the chats, the people and the messages that carry the words — in the space the person is in (the spaces they can open are
+ * offered by name), through the SAME arabic-folding pool and the SAME reading rule as every other search here:
+ *  - topics and messages: `searchChat` as it is (a hit of a conversation the caller cannot read is never returned; a deleted message and a system line are never found;
+ *    the snippet has no formatting markers);
+ *  - private chats: the caller's OWN, titled and found by the other person's name (a private chat of two other people is not a result; a guest has none);
+ *  - people: the space's people. The directory rule decides what a row carries: the picture and the job title only with `directory.view`; a guest gets the NAME only,
+ *    and only of the people of the space they share.
+ * It reads and writes nothing else.
+ */
+export async function searchChatList(actor: Actor, place: { id: string; name: string; isHq: boolean } | null, spaceIds: readonly string[], raw: string): Promise<ChatListSearchDto> {
+  const q = searchText(raw);
+  const search = arabicSearch(q);
+  if (!search || search.text.length < 2 || !(await isFeatureOn(actor.orgId, "search"))) return NO_CHAT_RESULTS;
+  const ctx = { orgId: actor.orgId, userId: actor.userId, orgRole: actor.role };
+  const [found, dms, spaces, people] = await Promise.all([
+    place ? searchChat(ctx, place, q, { topics: CHATS_MAX, messages: LIST_MESSAGES_MAX }) : { topics: [] as TopicHitDto[], messages: [] as MessageHitDto[] },
+    place && !actor.isExternal ? privateChatHits(ctx, place.id, q) : [],
+    spaceHits(actor.orgId, spaceIds, q),
+    place ? peopleHits(actor, place.id, search) : [],
+  ]);
+  const chats: ChatHitDto[] = [
+    ...found.topics.map((t) => ({ id: t.id, kind: "TOPIC" as const, title: t.title, emoji: t.emoji, context: place?.name ?? null })),
+    ...dms.map(({ peerId: _peerId, ...chat }) => chat),
+    ...spaces,
+  ];
+  // the private chat already open with each person found (a guest has none)
+  const dmOf = new Map(dms.map((d) => [d.peerId, d.id]));
+  const missing = people.filter((p) => !dmOf.has(p.id)).map((p) => p.id);
+  if (place && !actor.isExternal && missing.length > 0) for (const [peerId, id] of await openPrivateChats(ctx, place.id, missing)) dmOf.set(peerId, id);
+  return {
+    chats,
+    people: people.map((p) => (actor.isExternal ? { id: p.id, name: p.name } : { ...p, dmId: dmOf.get(p.id) ?? null })),
+    messages: found.messages,
+  };
+}
+
+/** The caller's own private chats whose other person's name carries the words, best first (a name that STARTS with them first). */
+async function privateChatHits(ctx: OrgAccessContext, placeId: string, q: string): Promise<(ChatHitDto & { peerId: string })[]> {
+  const mine = await db.conversation.findMany({
+    where: { orgId: ctx.orgId, kind: "DM", members: { some: { userId: ctx.userId } }, ...(await dmPlaceWhere(placeId)) },
+    orderBy: [{ lastMessageAt: { sort: "desc", nulls: "last" } }, { id: "asc" }],
+    take: 500,
+    select: { id: true, members: { where: { userId: { not: ctx.userId } }, take: 1, select: { user: { select: { id: true, name: true } } } } },
+  });
+  const typed = foldForSearch(q);
+  const named = mine.flatMap((c) => {
+    const peer = c.members[0]?.user;
+    return peer && foldedIncludes(peer.name, q) ? [{ id: c.id, peer }] : [];
+  });
+  const starts = (name: string) => Number(foldForSearch(name).startsWith(typed));
+  named.sort((a, b) => starts(b.peer.name) - starts(a.peer.name));
+  const reads = readerOf(ctx.userId, await loadOrgFacts(ctx.userId, ctx.orgId));
+  const out: (ChatHitDto & { peerId: string })[] = [];
+  for (const c of named) {
+    if (out.length >= CHATS_MAX) break;
+    if (await reads(c.id)) out.push({ id: c.id, kind: "DM", title: c.peer.name, emoji: null, context: null, peerId: c.peer.id });
+  }
+  return out;
+}
+
+/** The private chats the caller already has with these people, in this place: person id and chat id. */
+async function openPrivateChats(ctx: OrgAccessContext, placeId: string, peerIds: string[]): Promise<[string, string][]> {
+  const rows = await db.conversation.findMany({
+    where: { orgId: ctx.orgId, kind: "DM", AND: [{ members: { some: { userId: ctx.userId } } }, { members: { some: { userId: { in: peerIds } } } }], ...(await dmPlaceWhere(placeId)) },
+    select: { id: true, members: { where: { userId: { in: peerIds } }, select: { userId: true } } },
+  });
+  return rows.flatMap((c) => c.members.map((m) => [m.userId, c.id] as [string, string]));
+}
+
+/** The spaces the person can open whose name carries the words. */
+async function spaceHits(orgId: string, spaceIds: readonly string[], q: string): Promise<ChatHitDto[]> {
+  if (spaceIds.length === 0) return [];
+  const rows = await db.workspace.findMany({ where: { organizationId: orgId, id: { in: [...spaceIds] } }, orderBy: { name: "asc" }, select: { id: true, name: true, emoji: true } });
+  return rows.filter((w) => foldedIncludes(w.name, q)).slice(0, CHATS_MAX).map((w) => ({ id: w.id, kind: "SPACE" as const, title: w.name, emoji: w.emoji, context: null }));
+}
+
+/**
+ * The people of this space whose name carries the words. The pool and the rule are the palette's own (the space's members, ACTIVE in this company); what a row
+ * carries is the directory rule: a guest and a person without `directory.view` get id and name only.
+ */
+async function peopleHits(actor: Actor, spaceId: string, search: NonNullable<ReturnType<typeof arabicSearch>>): Promise<{ id: string; name: string; avatarUrl?: string | null; jobTitle?: string | null }[]> {
+  const rich = !actor.isExternal && actor.caps.has("directory.view");
+  const rows = await rankedSearch({
+    query: {
+      table: "User",
+      search,
+      rank: true,
+      where: [Prisma.sql`"id" IN (SELECT "userId" FROM "WorkspaceMember" WHERE "workspaceId" = ${spaceId})`, Prisma.sql`"id" <> ${actor.userId}`],
+      order: Prisma.sql`"name" ASC`,
+    },
+    take: PEOPLE_MAX,
+    load: async (ids) => {
+      const members = await db.workspaceMember.findMany({
+        where: { workspaceId: spaceId, userId: { in: ids }, user: { memberships: { some: { organizationId: actor.orgId, status: "ACTIVE" } } } },
+        select: { user: { select: { id: true, name: true, avatarUrl: true, jobTitle: true } } },
+      });
+      return members.map((m) => m.user);
+    },
+  });
+  return rows.map((u) => (rich ? { id: u.id, name: u.name, avatarUrl: u.avatarUrl, jobTitle: u.jobTitle } : { id: u.id, name: u.name }));
+}
+
+// ── the route's glue ──
+
+const scopeQuerySchema = z.object({
+  q: z.string().max(400).optional(),
+  conversationId: z.string().min(1).max(64).optional(),
+  from: z.string().min(1).max(64).optional(),
+  since: z.string().datetime().optional(),
+});
+
+/**
+ * `scope=chat`: one question, two shapes. Without `conversationId` the chat list's search (`searchChatList`: chats, people, messages). With it, the search INSIDE that
+ * conversation (`searchConversation`: `{ messages }`, with the optional «من:» `from` and the date jump `since`) — the same door the old screen's own route answers,
+ * so a guest still reaches topics only and a conversation the caller cannot read is «not found».
+ */
+export async function chatScopeAnswer(actor: Actor, params: URLSearchParams): Promise<ChatListSearchDto | { messages: MessageHitDto[] }> {
+  const parsed = scopeQuerySchema.safeParse({
+    q: params.get("q") ?? undefined,
+    conversationId: params.get("conversationId") ?? undefined,
+    from: params.get("from") ?? undefined,
+    since: params.get("since") ?? undefined,
+  });
+  if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => ({ path: i.path.join("."), message: i.message })));
+  const p = parsed.data;
+  const ctx = { orgId: actor.orgId, userId: actor.userId, orgRole: actor.role };
+  if (p.conversationId) {
+    if (actor.isExternal && (await loadConversationFacts(actor.userId, p.conversationId))?.kind !== "TOPIC") throw new ForbiddenError("chat.guest_forbidden");
+    return { messages: await searchConversation(ctx, p.conversationId, p.q ?? "", { from: p.from, since: p.since ? new Date(p.since) : undefined }) };
+  }
+  const space = await currentSpace(actor);
+  const place = space ? { id: space.id, name: space.name, isHq: space.kind === "HQ" } : null;
+  // every space the person can open (not only the one they are in): the list offers them by name
+  const spaceIds = scopeSpaceIds(await loadWorkScope(actor.userId));
+  return searchChatList(actor, place, spaceIds, p.q ?? "");
 }

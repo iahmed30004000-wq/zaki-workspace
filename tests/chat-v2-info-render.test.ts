@@ -14,8 +14,15 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+import { ConversationSearch } from "@/components/chat/conversation/conversation-search";
 import { InfoPanel } from "@/components/chat/v2/info/info-panel";
+import { ListSearchResults } from "@/components/chat/v2/info/list-search-results";
+import { ListHeader } from "@/components/chat/v2/list/list-header";
+import { PhoneListBar } from "@/components/chat/v2/phone/list-bar";
 import { peerProfileKey } from "@/lib/chat/v2/info/use-info-data";
+import { mediaCountsKey, mediaPagesKey, workKey } from "@/lib/chat/v2/info/use-info-tabs";
+import type { ChatListSearchDto } from "@/server/chat/search";
+import type { ConversationWorkDto, LinkItemDto, MediaCountsDto, MediaItemDto, MediaPageDto } from "@/server/chat/media";
 import { I18nProvider } from "@/lib/i18n";
 import { AR } from "@/lib/i18n/dict";
 import type { ConversationHeaderDto, MemberDto } from "@/server/chat/dto";
@@ -145,7 +152,7 @@ describe("a topic", () => {
 });
 
 describe("what is not drawn", () => {
-  it("none of the six tabs of C3d, and no empty placeholder for them", () => {
+  it("with nothing known, none of the six tabs of C3d (they draw only what has data: see below), and no empty placeholder for them", () => {
     const html = draw(makeHeader({ me: { canModerate: true } }));
     for (const word of ["الوسائط", "الملفات", "الروابط", "الصوتيات", "الشغل", "المثبّتة"]) expect(html).not.toContain(word);
     expect(html).not.toContain('role="tablist"');
@@ -217,5 +224,272 @@ describe("where the panel is drawn (read from the source: there is no browser he
     for (const file of ["src/components/chat/v2/info/info-panel.tsx", "src/components/chat/v2/pane/seams/info-host.tsx", "src/lib/chat/v2/info/info-model.ts"]) {
       expect(code(read(file)), file).not.toMatch(/🔔|اكتم الإشعارات|["'`]mute["'`]|menu\.mute/);
     }
+  });
+});
+
+// ───────────────────────────── C3d: the tabs, the in-chat search and the list's results ─────────────────────────────
+const media = (over: Partial<MediaItemDto> & { id: string; kind?: "IMAGE" | "VIDEO" | "FILE" | "AUDIO"; name?: string; url?: string }): MediaItemDto => ({
+  id: over.id,
+  messageId: over.messageId ?? `m-${over.id}`,
+  at: over.at ?? "2026-11-02T09:00:00.000Z",
+  position: 0,
+  authorName: over.authorName ?? "سلمى",
+  caption: over.caption ?? null,
+  attachment: {
+    id: over.id,
+    kind: over.kind ?? "IMAGE",
+    name: over.name ?? `${over.id}.png`,
+    mime: over.kind === "VIDEO" ? "video/mp4" : over.kind === "FILE" ? "application/pdf" : over.kind === "AUDIO" ? "audio/ogg" : "image/png",
+    size: 2048,
+    url: over.url ?? `/api/chat/attachments/${over.id}`,
+  },
+});
+const page = (items: MediaItemDto[], links: LinkItemDto[] = []): MediaPageDto => ({ items, links, next: null });
+const counts = (over: Partial<MediaCountsDto["counts"]> = {}): MediaCountsDto["counts"] => ({ IMAGE: 0, VIDEO: 0, FILE: 0, AUDIO: 0, LINK: 0, ...over });
+
+/** a client that already holds what the tabs ask for (the render is synchronous: nothing is fetched) */
+function seeded(parts: { counts?: MediaCountsDto["counts"]; work?: ConversationWorkDto; pages?: Partial<Record<"media" | "files" | "links" | "voice", MediaPageDto>> }): QueryClient {
+  const client = new QueryClient();
+  if (parts.counts) client.setQueryData(mediaCountsKey("c1"), parts.counts);
+  if (parts.work) client.setQueryData(workKey("c1"), parts.work);
+  for (const [tab, data] of Object.entries(parts.pages ?? {})) client.setQueryData(mediaPagesKey("c1", tab as "media"), { pages: [data], pageParams: [null] });
+  return client;
+}
+const tabWords = ["الوسائط", "الملفات", "الروابط", "الصوتيات", "الشغل", "المثبّتة"] as const;
+const tabIds = (html: string) => [...html.matchAll(/data-info-tab="([a-z]+)"/g)].map((m) => m[1]);
+
+describe("C3d — the tabs draw only what has data", () => {
+  it("nothing known, nothing drawn: no tab list, no placeholder (the cache holds no counts yet)", () => {
+    const html = draw(makeHeader());
+    expect(html).not.toContain("data-info-tabs");
+    for (const word of tabWords) expect(html).not.toContain(word);
+  });
+
+  it("counts of zero and an empty work list draw nothing either", () => {
+    const html = draw(makeHeader(), { client: seeded({ counts: counts(), work: { tasks: [], tickets: [] } }) });
+    expect(html).not.toContain("data-info-tabs");
+  });
+
+  it("only the tabs that have data: pictures and videos count together in «الوسائط»; the rest follow in the plan's order", () => {
+    const header = makeHeader({ pinnedMessages: [{ id: "p1", authorName: "ليلى", preview: "اجتماع الخميس" }] });
+    const work: ConversationWorkDto = { tasks: [{ id: "t1", key: "ZK-12", title: "جهّزي العرض", done: false, assigneeName: "ليلى", messageId: "m1" }], tickets: [] };
+    const html = draw(header, { client: seeded({ counts: counts({ IMAGE: 2, VIDEO: 1, AUDIO: 4 }), work, pages: { media: page([media({ id: "a" })]) } }) });
+    expect(tabIds(html)).toEqual(["media", "voice", "work", "pinned"]);
+    for (const word of ["الوسائط", "الصوتيات", "الشغل", "المثبّتة"]) expect(html).toContain(word);
+    for (const word of ["الملفات", "الروابط"]) expect(html).not.toContain(word);
+    // the number beside «الوسائط» is 2 + 1
+    expect(html).toMatch(/data-info-tab="media"[^>]*>\s*<span>الوسائط<\/span><span aria-hidden="true" class="[^"]*">3<\/span>/);
+  });
+
+  it("is a real tab list: the first tab is selected, the others are out of the tab order, the panel is labelled by its tab", () => {
+    const html = draw(makeHeader({ pinnedMessages: [{ id: "p1", authorName: "ليلى", preview: "نص" }] }), { client: seeded({ counts: counts({ FILE: 1 }), pages: { files: page([media({ id: "f", kind: "FILE", name: "تقرير.pdf" })]) } }) });
+    expect(html).toContain('role="tablist"');
+    expect(html).toMatch(/role="tab"[^>]*id="info-tab-files"[^>]*aria-selected="true"/);
+    expect(html).toMatch(/role="tab"[^>]*id="info-tab-pinned"[^>]*aria-selected="false"[^>]*tabindex="-1"/);
+    expect(html).toContain('role="tabpanel" id="info-panel-files" aria-labelledby="info-tab-files"');
+  });
+
+  it("«الوسائط»: a tile per picture or video, a video marked by its name, an address that is not ours is never drawn", () => {
+    const pages = page([media({ id: "a", name: "صورة.png" }), media({ id: "v", kind: "VIDEO", name: "فيديو.mp4" }), media({ id: "bad", url: "https://elsewhere.example/a.png" })]);
+    const html = draw(makeHeader(), { client: seeded({ counts: counts({ IMAGE: 2, VIDEO: 1 }), pages: { media: pages } }) });
+    expect(html).toContain('data-info-media-item="a"');
+    expect(html).toContain('data-info-media-item="v"');
+    expect(html).not.toContain('data-info-media-item="bad"');
+    expect(html).not.toContain("elsewhere.example");
+    expect(html).toContain(AR["chatinfo.media.video"]!.replace("{name}", "فيديو.mp4"));
+    expect(html).toContain('src="/api/chat/attachments/a"');
+  });
+
+  it("«الملفات»: the name, the size and the author, a download link on our own address, and «اعرض بالمحادثة»", () => {
+    const html = draw(makeHeader(), { client: seeded({ counts: counts({ FILE: 1 }), pages: { files: page([media({ id: "f", kind: "FILE", name: "تقرير.pdf", authorName: "ليلى" })]) } }) });
+    expect(html).toContain("تقرير.pdf");
+    expect(html).toContain('href="/api/chat/attachments/f"');
+    expect(html).toContain("download=");
+    expect(html).toContain("ليلى");
+    expect(html).toContain('data-info-show="m-f"');
+    expect(html).toContain(AR["chatinfo.show"]!);
+  });
+
+  it("«الصوتيات»: a player per recording that loads nothing until it is played", () => {
+    const html = draw(makeHeader(), { client: seeded({ counts: counts({ AUDIO: 1 }), pages: { voice: page([media({ id: "n", kind: "AUDIO", name: "voice.ogg" })]) } }) });
+    expect(html).toMatch(/<audio [^>]*preload="none"[^>]*src="\/api\/chat\/attachments\/n"/);
+  });
+
+  it("«الروابط»: the title and the site, opened in a new tab with no referrer; a link that is not http(s) is shown but never made a link", () => {
+    const link = (id: string, url: string): LinkItemDto => ({ id, messageId: id, at: "2026-11-02T09:00:00.000Z", authorName: "سلمى", url, title: `عنوان ${id}`, description: null, siteName: "example.com", image: null });
+    const html = draw(makeHeader(), { client: seeded({ counts: counts({ LINK: 2 }), pages: { links: page([], [link("l1", "https://example.com/a"), link("l2", "javascript:alert(1)")]) } }) });
+    expect(html).toContain('href="https://example.com/a"');
+    expect(html).toContain('rel="noopener noreferrer nofollow"');
+    expect(html).toContain("عنوان l2");
+    expect(html).not.toContain("javascript:alert");
+  });
+
+  it("«الشغل»: tasks (a done one marked) and tickets (with their state), each with «اعرض بالمحادثة»", () => {
+    const work: ConversationWorkDto = {
+      tasks: [
+        { id: "t1", key: "ZK-12", title: "جهّزي العرض", done: false, assigneeName: "ليلى", messageId: "m1" },
+        { id: "t2", key: "ZK-13", title: "راجعي العقد", done: true, assigneeName: null, messageId: "m2" },
+      ],
+      tickets: [{ id: "k1", key: "ZK-T4", title: "الطلب متأخر", status: "IN_PROGRESS", assigneeName: "سامر", messageId: "m3" }],
+    };
+    const html = draw(makeHeader(), { client: seeded({ work }) });
+    expect(tabIds(html)).toEqual(["work"]);
+    expect(html).toContain('href="/tasks/t1"');
+    expect(html).toContain("ZK-12");
+    expect(html).toContain(AR["chatinfo.work.done"]!);
+    expect(html).toContain('data-info-ticket="k1"');
+    expect(html).toContain("ZK-T4");
+    expect(html).toContain(AR["tickets.chip.in_progress"]!);
+    for (const m of ["m1", "m2", "m3"]) expect(html).toContain(`data-info-show="${m}"`);
+  });
+
+  it("«المثبّتة»: the header's pinned messages, nothing asked of the server for them", () => {
+    const html = draw(makeHeader({ pinnedMessages: [{ id: "p1", authorName: "ليلى", preview: "اجتماع الخميس" }, { id: "p2", authorName: "سامر", preview: null }] }));
+    expect(tabIds(html)).toEqual(["pinned"]);
+    expect(html).toContain('data-info-pinned="p1"');
+    expect(html).toContain("اجتماع الخميس");
+    expect(html).toContain(AR["chatinfo.pinned.empty_preview"]!);
+  });
+
+  it("uses theme tokens and logical sides only, with 44 px targets, and no Latin word on screen", () => {
+    const work: ConversationWorkDto = { tasks: [{ id: "t1", key: "ZK-12", title: "مهمة", done: true, assigneeName: null, messageId: "m1" }], tickets: [] };
+    const html = draw(makeHeader({ pinnedMessages: [{ id: "p1", authorName: "ليلى", preview: "نص" }] }), { client: seeded({ counts: counts({ IMAGE: 1, FILE: 1 }), work, pages: { media: page([media({ id: "a" })]) } }) });
+    expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(?:bg|text|border)-(?:white|black)\b/);
+    const physical = /^-?(?:ml|mr|pl|pr|left|right|border-l|border-r|rounded-l|rounded-r|text-left|text-right)(?:-|$)/;
+    expect(classTokens(html).filter((t) => physical.test(t))).toEqual([]);
+    expect(classTokens(html)).toContain("min-h-11");
+    for (const word of ["Media", "Files", "Links", "Voice", "Work", "Pinned", "undefined", "chatinfo."]) expect(html).not.toContain(word);
+  });
+});
+
+describe("C3d — the in-chat search", () => {
+  const search = (props: Partial<React.ComponentProps<typeof ConversationSearch>> = {}) =>
+    renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(ConversationSearch, { conversationId: "c1", onPick: noop, onClose: noop, ...props })));
+
+  it("the OLD screen's search is exactly as it was: the field and «سكّر», nothing of the new controls", () => {
+    const html = search();
+    expect(html).toContain('type="search"');
+    expect(html).not.toContain("data-conversation-search-tools");
+    expect(html).not.toContain("data-search-from");
+    expect(html).not.toContain("data-search-date");
+    expect(html).not.toContain("data-search-step");
+    // …even when it is handed the new props without `enhanced`
+    expect(search({ people: [{ id: "u1", name: "أحمد" }], onJump: noop })).not.toContain("data-conversation-search-tools");
+  });
+
+  it("the new screen's search has «من:» with the people, a date, and the two step buttons (disabled before there is a hit)", () => {
+    const html = search({ enhanced: true, people: [{ id: "u1", name: "أحمد" }, { id: "u2", name: "سلمى" }], onJump: noop });
+    expect(html).toContain("data-conversation-search-tools");
+    expect(html).toContain(AR["chatcs.from"]!);
+    expect(html).toMatch(/<select[^>]*data-search-from[^>]*>/);
+    expect(html).toMatch(new RegExp(`<option value=""[^>]*>${AR["chatcs.from_all"]!}</option>`));
+    expect(html).toContain('<option value="u1">أحمد</option>');
+    expect(html).toContain('type="date"');
+    expect(html).toMatch(/data-search-step="older"[^>]*disabled/);
+    expect(html).toMatch(/data-search-step="newer"[^>]*disabled/);
+    expect(html).toContain(AR["chatcs.prev"]!);
+    expect(html).toContain(AR["chatcs.next"]!);
+  });
+
+  it("no people, no «من:»; the date and the steps stay", () => {
+    const html = search({ enhanced: true });
+    expect(html).not.toContain("data-search-from");
+    expect(html).toContain("data-search-date");
+  });
+
+  it("the pane asks for the new search with the conversation's people and keeps it open on a jump (read from the source)", () => {
+    const pane = read("src/components/chat/v2/pane/conversation-pane.tsx");
+    expect(pane).toMatch(/<ConversationSearch[\s\S]*?enhanced[\s\S]*?people=\{members\}[\s\S]*?onJump=\{a\.jumpTo\}/);
+    // the old screen does not pass it
+    expect(read("src/components/chat/conversation/conversation-screen.tsx")).not.toContain("enhanced");
+  });
+});
+
+describe("C3d — the list's search results", () => {
+  const results = (data: ChatListSearchDto) => renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(ListSearchResults, { data, onPick: noop })));
+  const data: ChatListSearchDto = {
+    chats: [
+      { id: "c9", kind: "TOPIC", title: "طلبات اليوم", emoji: "📦", context: "المبيعات" },
+      { id: "d1", kind: "DM", title: "سلمى", emoji: null, context: null },
+      { id: "s1", kind: "SPACE", title: "المبيعات", emoji: null, context: null },
+    ],
+    people: [
+      { id: "u1", name: "أحمد", avatarUrl: null, jobTitle: "مدير", dmId: "d7" },
+      { id: "u2", name: "ليلى", avatarUrl: null, jobTitle: null, dmId: null },
+    ],
+    messages: [{ id: "m1", conversationId: "c9", conversationTitle: "طلبات اليوم", authorName: "سامر", at: "2026-11-02T09:00:00.000Z", snippet: "وصلت الشحنة" }],
+  };
+
+  it("three sections, each link where it should go: a topic and a private chat to their conversation, a space to its forum, a message around itself", () => {
+    const html = results(data);
+    for (const key of ["chatls.chats", "chatls.people", "chatls.messages"]) expect(html).toContain(AR[key]!);
+    expect(html).toContain('href="/chat/c9"');
+    expect(html).toContain('href="/chat/d1"');
+    expect(html).toContain('href="/chat/s/s1"');
+    expect(html).toContain('href="/chat/c9?m=m1"');
+    expect(html).toContain("وصلت الشحنة");
+    expect(html).toContain(AR["chatls.space"]!);
+  });
+
+  it("a person with a private chat open is a link to it; one without is a button that opens it; a guest's row (the name only) is neither", () => {
+    const html = results({ ...data, people: [...data.people, { id: "g1", name: "ضيف" }] });
+    expect(html).toContain('href="/chat/d7"');
+    expect(html).toMatch(/<button[^>]*data-list-search-person="u2"/);
+    expect(html).toMatch(/<li data-list-search-person="g1"/);
+    expect(html).not.toMatch(/<(?:a|button)[^>]*data-list-search-person="g1"/);
+    expect(html).toContain("مدير");
+  });
+
+  it("a section with nothing in it is not drawn", () => {
+    const html = results({ chats: [], people: [], messages: data.messages });
+    expect(html).toContain(AR["chatls.messages"]!);
+    expect(html).not.toContain(AR["chatls.chats"]!);
+    expect(html).not.toContain(AR["chatls.people"]!);
+  });
+
+  it("the headers draw no panel and no wrapper change while nothing is typed (the old screens' markup is the same)", () => {
+    const header = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(ListHeader, { query: "", onQuery: noop, searchId: "s" })));
+    expect(header).not.toContain("data-list-search-panel");
+    const typed = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(ListHeader, { query: "طلب", onQuery: noop, searchId: "s" })));
+    // asked for after a pause, in an effect: the first paint has no panel
+    expect(typed).not.toContain("data-list-search-panel");
+    const bar = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(PhoneListBar, { title: "زاكي", query: "طلب", onQuery: noop, searchId: "s" })));
+    expect(bar).toContain("data-chat-phone-search=\"open\"");
+    expect(bar).not.toContain("data-list-search-panel");
+  });
+
+  it("the headers mount the panel (read from the source), and the results use theme tokens only", () => {
+    expect(read("src/components/chat/v2/list/list-header.tsx")).toContain("<ListSearchPanel query={query}");
+    expect(read("src/components/chat/v2/phone/list-bar.tsx")).toContain("<ListSearchPanel query={query} onPick={fold} />");
+    const html = results(data);
+    expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(?:bg|text|border)-(?:white|black)\b/);
+    const physical = /^-?(?:ml|mr|pl|pr|left|right|border-l|border-r|rounded-l|rounded-r|text-left|text-right)(?:-|$)/;
+    expect(classTokens(html).filter((t) => physical.test(t))).toEqual([]);
+  });
+});
+
+describe("C3d — where it is wired (read from the source: there is no browser here)", () => {
+  it("the pane wraps its messages in the media viewer's provider with the conversation id (so the viewer reads `GET …/media`) and gives the info panel its jump", () => {
+    const pane = read("src/components/chat/v2/pane/conversation-pane.tsx");
+    expect(pane).toContain("<MediaViewerProvider messages={history.messages} conversationId={header.id} onShowInChat={commands.jumpTo}>");
+    expect(pane).toContain("InfoJumpContext.Provider");
+    // the sheet covers the conversation: it is closed before the jump; the docked column stays
+    expect(pane).toMatch(/if \(!docked\) commands\.closeInfo\(\)/);
+  });
+
+  it("the panel mounts the tabs and still imports nothing of the pane's provider", () => {
+    const panel = read("src/components/chat/v2/info/info-panel.tsx");
+    expect(panel).toContain("<InfoTabs header={header} />");
+    for (const file of ["info-panel.tsx", "info-tabs.tsx", "info-jump.tsx", "list-search-results.tsx"]) {
+      expect(read(`src/components/chat/v2/info/${file}`), file).not.toContain("pane-actions");
+    }
+  });
+
+  it("the tabs ask only the two doors of the media route and never filter a privacy rule themselves", () => {
+    const hooks = read("src/lib/chat/v2/info/use-info-tabs.ts");
+    expect(hooks).toContain("mediaCountsUrl");
+    expect(hooks).toContain("workUrl");
+    expect(read("src/lib/chat/v2/info/info-tabs.ts")).toContain("/media/work");
+    expect(read("src/components/chat/v2/media-viewer.tsx")).toContain('mediaPageUrl(conversationId, "MEDIA", before)');
   });
 });

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bookmark, X } from "lucide-react";
 import type { ConversationHeaderDto, MemberDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
+import { InfoTabs } from "@/components/chat/v2/info/info-tabs";
 import { CallButton } from "@/components/calls/call-button";
 import { TopicSettingsDialog } from "@/components/chat/conversation/topic-settings-dialog";
 import { useChatRow } from "@/lib/chat/cache/selectors";
@@ -40,8 +41,8 @@ function Names({ names }: { names: MemberDto[] }) {
  *   a private chat: the job title and the bio (the profile door; nothing when it refuses) and «افتح الملف الشخصي»
  *   a topic: the space, who sees it (P0.4: a private topic says so WITHOUT names unless the door gave them) and, for its moderators, «إعدادات الموضوع», close, archive
  *
- * The tabs «الوسائط · الملفات · الروابط · الصوتيات · الشغل · المثبّتة» are C3d: not drawn, and no empty placeholder for them. The server decides every
- * action again.
+ * C3d: under all of that, the tabs «الوسائط · الملفات · الروابط · الصوتيات · الشغل · المثبّتة» (`InfoTabs`). A tab is drawn only when it has data — nothing empty,
+ * no placeholder. The server decides every action again.
  */
 export interface InfoPanelProps {
   header: ConversationHeaderDto;
@@ -177,6 +178,7 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
             )}
           </div>
         ) : null}
+        <InfoTabs header={header} />
       </div>
       {header.kind === "TOPIC" && header.me.canModerate ? <TopicSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} topic={settingsTopic} onSaved={() => onSettingsSaved?.()} /> : null}
     </div>

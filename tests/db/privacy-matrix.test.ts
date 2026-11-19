@@ -30,6 +30,10 @@ import * as previewRemoveRoute from "@/app/api/chat/messages/[id]/preview/route"
 import * as scheduleRoute from "@/app/api/chat/conversations/[id]/scheduled/route";
 import * as oneRoute from "@/app/api/chat/scheduled/[id]/route";
 import * as sendNowRoute from "@/app/api/chat/scheduled/[id]/send/route";
+import * as mediaRoute from "@/app/api/chat/conversations/[id]/media/route";
+import * as workRoute from "@/app/api/chat/conversations/[id]/media/work/route";
+import * as searchRoute from "@/app/api/search/route";
+import { SPACE_COOKIE } from "@/server/services/current-space";
 import { linkPreviewAfterSend, setLinkPreviewDepsForTests } from "@/server/chat/link-preview";
 import { folderRows } from "@/lib/chat/folders";
 import { chatHome } from "@/server/chat/home";
@@ -795,5 +799,147 @@ describe("privacy matrix — the C3c.3 scheduled messages", () => {
 
   it("the table has one cell per persona in every row", () => {
     for (const row of Object.values(SCHEDULE_WRITE)) expect(cells(row)).toHaveLength(PERSONAS.length);
+  });
+});
+
+// ───────────────────────────── C3d: the media route, the list's search and the «الشغل» tab ─────────────────────────────
+// The same table, three more surfaces:
+//  - MEDIA (`GET …/media`): the door's own answer (the table's conversation rows) — and, for everybody who may list, never the file of a deleted message (the owner too);
+//  - LIST SEARCH (`GET /api/search?scope=chat`): a message hit of a conversation appears exactly where the table lets the person read it (the silent eye included);
+//  - WORK (`GET …/media/work`): a task made from a message of that conversation is named only to a person who may read the conversation AND may see the task
+//    (the TASKS table, P0.2) — and a guest learns of no task and no ticket at all, whatever the table says of the task's own door. A ticket is named to whoever raised
+//    or holds it and to the OWNER and ADMIN ranks (the ticket door's rule), again only inside a conversation they can read.
+const MEDIA_WORD = "ملفمصفوفةسرية";
+const WORK_WORD = "شغلمصفوفةسري";
+//                                    owner pW pWo oAO sA mIn mOut tM guest
+const WORK_TICKET = "1 1 1 0 0 1 0 0 0"; // a ticket the member raised, made from a message of the open topic
+const WORK_GUEST_EXCEPT: Persona[] = ["guest"];
+
+describe("privacy matrix — C3d: the media route", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: only the readers list the media; never the file of a deleted message; the silent eye leaves no trace`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      const author = w.people.memberIn;
+      const file = (name: string) =>
+        db.storedFile.create({ data: { orgId: w.orgId, uploaderId: author.id, familyId: `f_${name}`, name, mimeType: "image/png", size: 5, path: `p_${name}`, purpose: "CHAT" } });
+      const live = await file(`${MEDIA_WORD}-live-${kind}.png`);
+      const gone = await file(`${MEDIA_WORD}-gone-${kind}.png`);
+      const liveMsg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: author.id, body: `${MEDIA_WORD} ${kind}` } });
+      const goneMsg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: author.id, body: `${MEDIA_WORD} deleted ${kind}`, deletedAt: new Date(), deletedById: author.id } });
+      const liveAtt = await db.messageAttachment.create({ data: { messageId: liveMsg.id, fileId: live.id, kind: "IMAGE", name: live.name } });
+      await db.messageAttachment.create({ data: { messageId: goneMsg.id, fileId: gone.id, kind: "IMAGE", name: gone.name } });
+
+      const members = await db.conversationMember.count({ where: { conversationId: id } });
+      const events = await db.realtimeEvent.count({ where: { orgId: w.orgId } });
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        const want = expected(CONVERSATIONS, kind, who);
+        for (const query of ["?kind=IMAGE", "?kind=MEDIA", "?counts=1"]) {
+          const res = await call(mediaRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/media${query}`, params: { id } });
+          if ((res.status === 200) !== want) wrong.push(`${who} · ${query}: expected ${want ? "sees" : "does not see"} (status ${res.status})`);
+          if (res.text.includes(`${MEDIA_WORD}-gone`)) wrong.push(`${who} · ${query}: carried the file of a deleted message`);
+          if (!want && (res.text.includes(MEDIA_WORD) || res.text.includes(liveAtt.id))) wrong.push(`${who} · ${query}: a refusal carried the media`);
+          if (want && query === "?kind=IMAGE" && !res.text.includes(liveAtt.id)) wrong.push(`${who} · ${query}: a reader did not get the live picture`);
+        }
+      }
+      // listing is a read: no read row for the silent eye, no event for anybody
+      if ((await db.conversationMember.count({ where: { conversationId: id } })) !== members) wrong.push("a listing wrote a member row");
+      if ((await db.realtimeEvent.count({ where: { orgId: w.orgId } })) !== events) wrong.push("a listing wrote an event");
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+});
+
+describe("privacy matrix — C3d: the list's search", () => {
+  const enter = (spaceId: string) => (globalThis as { __zkCookieJar?: Map<string, string> }).__zkCookieJar?.set(SPACE_COOKIE, spaceId);
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: a message of it is found exactly where the table lets the person read it, and the chats and people never name it to anybody else`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        enter(w.space.id);
+        const want = expected(CONVERSATIONS, kind, who);
+        const res = await call(searchRoute.GET, { url: `http://localhost/api/search?scope=chat&q=${encodeURIComponent(WORD)}` });
+        const found = res.status === 200 && ((res.json?.["messages"] as { conversationId: string }[]) ?? []).some((m) => m.conversationId === id);
+        if (found !== want) wrong.push(`${who} · messages: expected ${want ? "sees" : "does not see"}`);
+        // the three keys, nothing else
+        if (res.status === 200 && Object.keys(res.json ?? {}).sort().join() !== "chats,messages,people") wrong.push(`${who} · the answer has other keys`);
+        // a person who may not read it never gets its words, nor its id, in any section
+        if (!want && (res.text.includes(`${WORD} ${kind}`) || res.text.includes(id))) wrong.push(`${who} · a section named a conversation they cannot read`);
+        // the same through the in-chat door: the readers only
+        const inside = await call(searchRoute.GET, { url: `http://localhost/api/search?scope=chat&conversationId=${id}&q=${encodeURIComponent(WORD)}` });
+        if ((inside.status === 200) !== want) wrong.push(`${who} · inside the conversation: expected ${want ? "200" : "a refusal"} (status ${inside.status})`);
+        if (!want && inside.text.includes(WORD)) wrong.push(`${who} · a refusal carried a text`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("the people section follows the directory rule: a guest's rows are the name only", async () => {
+    const w = await getWorld();
+    await loginAs(w.people.guest.id);
+    enter(w.space.id);
+    const res = await call(searchRoute.GET, { url: "http://localhost/api/search?scope=chat&q=Member" });
+    expect(res.status).toBe(200);
+    const people = (res.json?.["people"] as Record<string, unknown>[]) ?? [];
+    expect(people.length).toBeGreaterThan(0);
+    for (const p of people) expect(Object.keys(p).sort()).toEqual(["id", "name"]);
+    expect((res.json?.["chats"] as { kind: string }[]).filter((c) => c.kind === "DM")).toEqual([]);
+  });
+});
+
+describe("privacy matrix — C3d: the «الشغل» tab", () => {
+  const sourceOf: Record<string, string> = { public: "open", private: "open", fromPrivate: "restricted" };
+  it("a task is named to the people who may read the conversation AND see the task; a hidden task is not counted; a guest learns of none", async () => {
+    const w = await getWorld();
+    // the two tasks of the world become «made from a message» of the open topic (the third was made from the restricted one through the door)
+    const openMsg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: w.ids["open"]!, authorId: w.people.memberIn.id, body: `${WORK_WORD} open` } });
+    await db.task.update({ where: { id: w.tasks["public"]! }, data: { sourceMessageId: openMsg.id, title: `${WORK_WORD} public` } });
+    await db.task.update({ where: { id: w.tasks["private"]! }, data: { sourceMessageId: openMsg.id, title: `${WORK_WORD} private` } });
+    await db.task.update({ where: { id: w.tasks["fromPrivate"]! }, data: { title: `${WORK_WORD} fromPrivate` } });
+    const wrong: string[] = [];
+    for (const kind of Object.keys(TASKS)) {
+      const conv = sourceOf[kind]!;
+      const id = w.ids[conv]!;
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        const res = await call(workRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/media/work`, params: { id } });
+        const reads = expected(CONVERSATIONS, conv, who);
+        const want = reads && expected(TASKS, kind, who) && !WORK_GUEST_EXCEPT.includes(who);
+        const named = res.status === 200 && ((res.json?.["tasks"] as { id: string }[]) ?? []).some((t) => t.id === w.tasks[kind]);
+        if (named !== want) wrong.push(`${kind} · ${who}: expected ${want ? "named" : "not named"} (status ${res.status})`);
+        if ((res.status === 200) !== reads) wrong.push(`${kind} · ${who}: the door expected ${reads ? "200" : "a refusal"} (status ${res.status})`);
+        // not named: not a word of it — the hidden task is not even counted
+        if (!want && res.text.includes(`${WORK_WORD} ${kind}`)) wrong.push(`${kind} · ${who}: a task they may not see was named`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("a ticket is named to whoever raised or holds it and to the OWNER and ADMIN ranks — inside a conversation they can read; a guest to nobody", async () => {
+    const w = await getWorld();
+    const id = w.ids["open"]!;
+    const msg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: w.people.memberIn.id, body: `${WORK_WORD} ticket` } });
+    const number = ((await db.ticket.aggregate({ where: { orgId: w.orgId }, _max: { number: true } }))._max.number ?? 0) + 1;
+    const ticket = await db.ticket.create({ data: { orgId: w.orgId, number, title: `${WORK_WORD} ticket title`, creatorId: w.people.memberIn.id, sourceMessageId: msg.id } });
+    const wrong: string[] = [];
+    for (const who of PERSONAS) {
+      await loginAs(w.people[who].id);
+      const res = await call(workRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/media/work`, params: { id } });
+      const reads = expected(CONVERSATIONS, "open", who);
+      const want = reads && cells(WORK_TICKET)[PERSONAS.indexOf(who)]!;
+      const named = res.status === 200 && ((res.json?.["tickets"] as { id: string }[]) ?? []).some((t) => t.id === ticket.id);
+      if (named !== want) wrong.push(`${who}: expected ${want ? "named" : "not named"} (status ${res.status})`);
+      if (!want && res.text.includes(`${WORK_WORD} ticket title`)) wrong.push(`${who}: a ticket they may not read was named`);
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("the table has one cell per persona", () => {
+    expect(cells(WORK_TICKET)).toHaveLength(PERSONAS.length);
   });
 });
