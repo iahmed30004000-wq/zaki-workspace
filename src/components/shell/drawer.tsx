@@ -3,7 +3,7 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { Settings, X } from "lucide-react";
 import { InstallAppButton } from "@/components/pwa/install-hint";
 import { Dialog, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -190,6 +190,11 @@ export function Drawer({
 
         <div data-shell="drawer-foot" className="shrink-0 space-y-0.5 border-t border-border px-2 py-2">
           {editing && onEditDone && onReset ? <NavOrderControls onDone={onEditDone} onReset={onReset} canReset={canReset} className="pb-1" /> : null}
+          {/* C4.1: «إعداداتي» for everybody (the person's own settings); the company's «الإعدادات», where the person has it, stays in the list below */}
+          <Link href="/settings/me" onClick={close} data-settings-me-link className="flex h-11 items-center gap-3 rounded-xl px-3 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg">
+            <Settings aria-hidden="true" className="size-5 shrink-0" />
+            {t("settingsMe.drawer")}
+          </Link>
           <NavOptions variant="drawer" orderLocked={orderLocked} onEditStart={editing ? undefined : onEditStart} settingsHref={settingsHref} onNavigate={close} />
           <InstallAppButton />
           <AvatarMenu user={user} rank={rank} variant="sidebar" />

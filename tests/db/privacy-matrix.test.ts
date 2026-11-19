@@ -29,6 +29,8 @@ import * as staleRoute from "@/app/api/work/stale/route";
 import * as taskSourceDoor from "@/app/api/production/task-source/[taskId]/route";
 import * as workTaskDoor from "@/app/api/work/tasks/[id]/route";
 import * as chatPrefsRoute from "@/app/api/me/chat-prefs/route";
+import * as myPushList from "@/app/api/me/push/route";
+import * as myPushOne from "@/app/api/me/push/[id]/route";
 import * as previewImageRoute from "@/app/api/chat/messages/[id]/preview/image/route";
 import * as previewRemoveRoute from "@/app/api/chat/messages/[id]/preview/route";
 import * as scheduleRoute from "@/app/api/chat/conversations/[id]/scheduled/route";
@@ -1272,4 +1274,33 @@ describe("privacy matrix — the W1.6 task-source door", () => {
       expect(wrong, kind).toEqual([]);
     });
   }
+});
+// ───────────────────────────── C4.1: «إعداداتي» is the caller's alone ─────────────────────────────
+
+describe("C4.1: the settings of a person (their notification choices, their browsers) are theirs: nobody of any rank reads or removes another person's", () => {
+  it("every rank sees only its own browsers and notification choices, and cannot remove or read another person's", async () => {
+    const t = await makeTeam();
+    const people = { owner: t.owner, admin: t.admin, member: t.member, guest: t.guest };
+    const subscription: Record<string, string> = {};
+    const wrong: string[] = [];
+    for (const [who, person] of Object.entries(people)) {
+      subscription[who] = (await db.pushSubscription.create({ data: { userId: person.id, endpoint: `https://push.test.local/${person.id}`, p256dh: "p", auth: "a", userAgent: `agent of ${who}` } })).id;
+      await loginAs(person.id);
+      const saved = await call(chatPrefsRoute.PUT, { method: "PUT", url: "http://localhost/api/me/chat-prefs", body: { notifications: { private: { on: false }, topics: { preview: false } } } });
+      if (saved.status !== 200) wrong.push(`${who} · save: ${saved.status}`);
+    }
+    for (const [who, person] of Object.entries(people)) {
+      await loginAs(person.id);
+      const list = await call(myPushList.GET);
+      const ids = ((list.json?.["subscriptions"] ?? []) as { id: string }[]).map((x) => x.id);
+      if (JSON.stringify(ids) !== JSON.stringify([subscription[who]])) wrong.push(`${who} · listed ${JSON.stringify(ids)}`);
+      for (const [other, id] of Object.entries(subscription)) {
+        if (other === who) continue;
+        const removed = await call(myPushOne.DELETE, { method: "DELETE", params: { id } });
+        if (removed.status !== 404) wrong.push(`${who} · removing the browser of ${other}: ${removed.status}`);
+      }
+    }
+    expect(await db.pushSubscription.count({ where: { id: { in: Object.values(subscription) } } })).toBe(4);
+    expect(wrong).toEqual([]);
+  });
 });

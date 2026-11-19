@@ -8,6 +8,13 @@
  */
 
 export const MAX_SIDE = 1600;
+/** C4.1 «جودة الصور المرسلة: عالية» (a choice of this device): the longest side may be twice as long. */
+export const HIGH_MAX_SIDE = 3200;
+
+/** The longest side a picture is kept to for the device's choice («عادية» is today's 1600 px). */
+export function maxSideFor(quality: string | undefined): number {
+  return quality === "high" ? HIGH_MAX_SIDE : MAX_SIDE;
+}
 export const QUALITY = 0.8;
 /** Below this a compression buys nothing worth the wait. */
 export const SKIP_BELOW_BYTES = 300 * 1024;
@@ -15,7 +22,7 @@ export const SKIP_BELOW_BYTES = 300 * 1024;
 export type CompressedImage = { blob: Blob; width: number; height: number; mime: string };
 
 /** GIFs (and anything the browser cannot decode) go up as they are. */
-export async function compressImage(file: Blob, fileName = ""): Promise<CompressedImage | null> {
+export async function compressImage(file: Blob, fileName = "", opts: { maxSide?: number } = {}): Promise<CompressedImage | null> {
   if (file.size < SKIP_BELOW_BYTES) return null;
   const type = (file as Blob & { type?: string }).type ?? "";
   if (type === "image/gif" || fileName.toLowerCase().endsWith(".gif")) return null;
@@ -29,7 +36,8 @@ export async function compressImage(file: Blob, fileName = ""): Promise<Compress
   }
   try {
     const longest = Math.max(source.width, source.height);
-    const scale = longest > MAX_SIDE ? MAX_SIDE / longest : 1;
+    const limit = opts.maxSide ?? MAX_SIDE;
+    const scale = longest > limit ? limit / longest : 1;
     const width = Math.max(1, Math.round(source.width * scale));
     const height = Math.max(1, Math.round(source.height * scale));
     const canvas = new OffscreenCanvas(width, height);

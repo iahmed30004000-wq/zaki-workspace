@@ -8,7 +8,9 @@ import { editChangesTime, type ScheduleSubmit } from "@/components/chat/v2/compo
 import type { OutboxRestore } from "@/components/chat/composer/chat-composer";
 import { dropStalePending, replacePending, syncPendingWithOutbox } from "@/lib/chat/cache/pending";
 import { clearComposerDraft, loadComposerDraft, saveComposerDraft } from "@/lib/chat/composer-draft";
-import { compressImage } from "@/lib/chat/compress-image";
+import { compressImage, maxSideFor } from "@/lib/chat/compress-image";
+import { readDevicePrefs } from "@/lib/device-prefs";
+import { sendKeyAllows } from "@/lib/chat/prefs";
 import { createChatUploadFormData, createVoiceUploadFormData, enterSends, messageClientId } from "@/lib/chat/conversation/client";
 import { ASSISTANT_MENTION_ID, filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
 import { classifyFile, exceedsKindLimit, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/chat/file-kinds";
@@ -294,7 +296,7 @@ export function useComposer(p: ComposerParams) {
       let upload = item.file;
       // «ابعتها كملف»: the original bytes, never compressed
       if (item.kind === "IMAGE" && !item.asFile) {
-        const compressed = await compressImage(item.file, item.file.name);
+        const compressed = await compressImage(item.file, item.file.name, { maxSide: maxSideFor(readDevicePrefs().imageQuality) });
         if (compressed) upload = new File([compressed.blob], item.file.name, { type: compressed.mime });
       }
       if (exceedsKindLimit(upload.size, item.kind)) throw new Error(ct("chatc.file_too_large"));
@@ -691,8 +693,9 @@ export function useComposer(p: ComposerParams) {
       editLast();
       return;
     }
-    // Enter sends, Shift+Enter is a new line; never while an input method is composing a word (the Ctrl+Enter setting is C4)
-    if (enterSends({ key: event.key, shiftKey: event.shiftKey, isComposing: composing })) {
+    // Enter sends, Shift+Enter is a new line; never while an input method is composing a word. C4.1's «مفتاح الإرسال»: with «كنترول مع إنتر» only Ctrl+Enter sends
+    // and a plain Enter is a new line (the choice is read from this device's copy of the person's settings, at the moment of the key)
+    if (enterSends({ key: event.key, shiftKey: event.shiftKey, isComposing: composing }) && sendKeyAllows(readDevicePrefs().mirror?.sendKey, event)) {
       event.preventDefault();
       if (canSubmitNow({ text: body, fileCount: files.length, editing: editing !== null, voiceOn, busy })) event.currentTarget.form?.requestSubmit();
     }

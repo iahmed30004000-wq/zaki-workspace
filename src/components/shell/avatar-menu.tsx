@@ -5,7 +5,7 @@ import { wipeChatCache } from "@/lib/chat/cache/wipe";
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation } from "@tanstack/react-query";
-import { BookOpen, LogOut, Palette, UserRound } from "lucide-react";
+import { BookOpen, LogOut, Palette, Settings, UserRound } from "lucide-react";
 import { apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -17,6 +17,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { useToast } from "@/components/ui/toast";
+import { MeEffects } from "@/components/settings-me/me-effects";
+import { clearMirror } from "@/lib/device-prefs";
 
 /** What the menu shows of the signed-in person (CurrentUser fits as it is). */
 export interface AvatarUser {
@@ -52,7 +54,9 @@ export function Initial({ name, src, large = false }: { name: string; src?: stri
 /**
  * The avatar menu: who is signed in (name, @username or the e-mail, and the rank in Arabic), then
  * «المظهر» (the theme picker, in a sheet), «الدليل», «حسابي», and «تسجيل الخروج». Nothing else: no
- * button for something that does not exist yet.
+ * button for something that does not exist yet. C4.1 adds «إعداداتي» (`/settings/me`) as the gear beside the person's name at the top of the menu (the four items below are
+ * pinned by tests/shell-render.test.ts; «حسابي» is the first section of «إعداداتي» and its old address `/profile` redirects there), and mounts `MeEffects` (draws nothing):
+ * the device's copy of the person's choices and Ctrl+, .
  *
  * The theme sheet opens only once the menu has closed and handed focus back to the avatar, so the sheet
  * remembers the avatar as its opener and gives focus back to it when it closes.
@@ -85,6 +89,8 @@ export function AvatarMenu({
       await clearAllOutboxes();
       // ⚠️ message text is kept on the device for the instant start (C1.5): 🔧 gone with the person who signed out
       await wipeChatCache();
+      // the copy of this person's settings (theme, text size, send key) leaves with them (C4.1)
+      clearMirror();
       window.location.href = "/login";
     },
     onError: () => toast(t("common.error"), "error"),
@@ -94,6 +100,7 @@ export function AvatarMenu({
 
   return (
     <>
+      <MeEffects />
       <DropdownMenu defaultOpen={defaultOpen}>
         <DropdownMenuTrigger asChild>
           <button
@@ -131,9 +138,18 @@ export function AvatarMenu({
             window.setTimeout(() => setThemeOpen(true), 0);
           }}
         >
-          <div className="flex items-center gap-3 px-3 pb-3 pt-2">
+          <div className="relative flex items-center gap-3 px-3 pb-3 pt-2">
+            <Link
+              href="/settings/me"
+              data-settings-me-link
+              aria-label={t("settingsMe.avatar")}
+              title={t("settingsMe.avatar")}
+              className="absolute end-1 top-0 grid size-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+            >
+              <Settings aria-hidden="true" className="size-4" />
+            </Link>
             <Initial name={user.name} src={user.avatarUrl} large />
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 pe-9">
               <p className="truncate text-sm font-semibold text-fg"><bdi>{user.name}</bdi></p>
               {handle ? (
                 <p dir="ltr" className="truncate text-end text-xs text-fg-muted">

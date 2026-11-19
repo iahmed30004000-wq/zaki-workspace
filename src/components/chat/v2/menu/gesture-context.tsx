@@ -12,6 +12,12 @@ import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 export interface BubbleGestures {
   /** a double click on a message (the computer): starts a reply when the registry offers «رد» for this person on this message */
   reply: (message: MessageDto, facts: BubbleFacts) => void;
+  /**
+   * C4.1: a double tap of a finger (the phone) on a message: puts the person's chosen reaction (`doubleTapEmojiOf`) on it, and does nothing when none is chosen or
+   * the person's own reaction with that emoji is already there (`shouldQuickReact`; a double tap never takes a reaction away). The tracker of the taps is
+   * `touchTap` (src/lib/chat/v2/menu/quick-reactions.ts); the bubble calls this only where it may act (`canAct`).
+   */
+  quickReact?: (message: MessageDto, facts: BubbleFacts) => void;
 }
 
 export const BubbleGesturesContext = React.createContext<BubbleGestures | null>(null);

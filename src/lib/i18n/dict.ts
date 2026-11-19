@@ -89,6 +89,7 @@ import chatFeatures from "./ar.chat-features.json";
 import workV2 from "./ar.work-v2.json";
 import permissionsV2 from "./ar.permissions-v2.json";
 import settingsCompanyChat from "./ar.settings-company-chat.json";
+import settingsMe from "./ar.settings-me.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -189,4 +190,5 @@ export const AR: Record<string, string> = {
   ...workV2,
   ...permissionsV2,
   ...settingsCompanyChat,
+  ...settingsMe,
 };

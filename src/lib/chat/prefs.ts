@@ -100,10 +100,88 @@ const tabsSchema = z
   .strict();
 
 const KEY = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
-/** C4.1's sections: a bounded map for now (its fields arrive with C4.1; the 64 KB cap bounds the rest). */
-const sectionSchema = z
-  .record(z.string().regex(KEY, "chatprefs.bad_key"), z.unknown())
-  .refine((value) => Object.keys(value).length <= 64, "chatprefs.too_many_keys");
+
+// ───────────────────────────────────────── C4.1: the sections of «إعداداتي» ─────────────────────────────────────────
+
+/**
+ * The five kinds of chat notification a person can switch (C4 §3): a private chat, a topic, a mention («@» and «@الكل»), a reply to me, a call.
+ * Each has a rule with two flags, both optional (default ON): `on` (off = nothing is sent for it: no bell row, no push) and `preview` (off = the push says
+ * «رسالة جديدة» only, never the words). The company's own switches are not here: nothing that belongs to the company moves into a person's settings.
+ */
+export const NOTIFY_TYPES = ["private", "topics", "mentions", "replies", "calls"] as const;
+export type NotifyType = (typeof NOTIFY_TYPES)[number];
+
+const notifyRuleSchema = z.object({ on: flag, preview: flag }).strict();
+export type NotifyRule = z.infer<typeof notifyRuleSchema>;
+
+/** The text a push carries instead of the words when the person switched the preview off. */
+export const PREVIEW_OFF_TEXT = "رسالة جديدة";
+
+/** Text size: five steps (the middle one is today's). `--chat-font-scale` is set from `FONT_SCALES[step]`. */
+export const FONT_SCALES = [0.875, 0.9375, 1, 1.125, 1.25] as const;
+export const DEFAULT_FONT_STEP = 2;
+/** The wallpapers of the chat: «plain» (nothing drawn) and the six in-house patterns (D1.4). */
+export const WALLPAPERS = ["plain", "boxes", "phones", "bubbles", "stars", "leaves", "coins"] as const;
+export type Wallpaper = (typeof WALLPAPERS)[number];
+/** What sends a message from the keyboard: «enter» (Shift+Enter is a new line) or «ctrl» (Ctrl+Enter sends, Enter is a new line). */
+export const SEND_KEYS = ["enter", "ctrl"] as const;
+export type SendKey = (typeof SEND_KEYS)[number];
+export const QUICK_REACTION_COUNT = 6;
+
+/** One emoji and nothing else: no spaces, no letters or digits, one grapheme at the start that is an emoji (the server checks again). */
+export function isOneEmoji(value: unknown): value is string {
+  if (typeof value !== "string" || !value || value.length > 16 || /\s/.test(value) || /[\p{L}\p{N}]/u.test(value)) return false;
+  if (!/^(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})/u.test(value)) return false;
+  // exactly ONE grapheme (a flag, a family or a skin tone is one; two emojis side by side are two) where the engine can count them
+  const Segmenter = (Intl as unknown as { Segmenter?: new (locale?: string, options?: { granularity: "grapheme" }) => { segment(text: string): Iterable<unknown> } }).Segmenter;
+  if (Segmenter) return [...new Segmenter(undefined, { granularity: "grapheme" }).segment(value)].length === 1;
+  return true;
+}
+
+const emojiOne = z.string().refine(isOneEmoji, "chatprefs.emoji_bad");
+const quickSix = z.array(emojiOne).length(QUICK_REACTION_COUNT, "chatprefs.quick_six").refine(unique, "chatprefs.quick_six");
+
+/** A section keeps its known keys under their own rule and any other key as it is (a short plain name; at most 64 keys in all; the 64 KB cap bounds the rest). */
+function sectionRules(value: Record<string, unknown>, ctx: z.RefinementCtx): void {
+  const keys = Object.keys(value);
+  if (keys.length > 64) ctx.addIssue({ code: "custom", message: "chatprefs.too_many_keys" });
+  if (keys.some((key) => !KEY.test(key))) ctx.addIssue({ code: "custom", message: "chatprefs.bad_key" });
+}
+
+const notificationsShape = {
+  private: notifyRuleSchema.optional(),
+  topics: notifyRuleSchema.optional(),
+  mentions: notifyRuleSchema.optional(),
+  replies: notifyRuleSchema.optional(),
+  calls: notifyRuleSchema.optional(),
+};
+const chatShape = {
+  fontStep: z.number().int().min(0).max(FONT_SCALES.length - 1).optional(),
+  wallpaper: z.enum(WALLPAPERS).optional(),
+  sendKey: z.enum(SEND_KEYS).optional(),
+  quickReactions: quickSix.optional(),
+  doubleTap: emojiOne.optional(),
+  themeAuto: z.boolean().optional(),
+};
+const notificationsSchema = z.object(notificationsShape).catchall(z.unknown()).superRefine(sectionRules);
+const chatSectionSchema = z.object(chatShape).catchall(z.unknown()).superRefine(sectionRules);
+
+/** Reads a section the forgiving way: a known key that is damaged is dropped and the rest stays; a section that is not an object is dropped whole. */
+function readSection<S extends z.ZodTypeAny>(raw: unknown, known: Record<string, S>): Record<string, unknown> | undefined {
+  if (!isPlain(raw)) return undefined;
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(raw).slice(0, 64)) {
+    if (!KEY.test(key)) continue;
+    const rule = Object.prototype.hasOwnProperty.call(known, key) ? known[key] : undefined;
+    if (!rule) {
+      out[key] = value;
+      continue;
+    }
+    const parsed = rule.safeParse(value);
+    if (parsed.success) out[key] = parsed.data;
+  }
+  return out;
+}
 
 const voiceSpeedSchema = z.union([z.literal(1), z.literal(1.5), z.literal(2)]);
 
@@ -115,8 +193,8 @@ export const chatPrefsSchema = z
   .object({
     folders: foldersByCompany.optional(),
     tabs: tabsSchema.optional(),
-    notifications: sectionSchema.optional(),
-    chat: sectionSchema.optional(),
+    notifications: notificationsSchema.optional(),
+    chat: chatSectionSchema.optional(),
     voiceSpeed: voiceSpeedSchema.optional(),
   })
   .strict();
@@ -135,8 +213,8 @@ export const chatPrefsPatchSchema = z
       .nullable()
       .optional(),
     tabs: tabsSchema.nullable().optional(),
-    notifications: sectionSchema.nullable().optional(),
-    chat: sectionSchema.nullable().optional(),
+    notifications: notificationsSchema.nullable().optional(),
+    chat: chatSectionSchema.nullable().optional(),
     voiceSpeed: voiceSpeedSchema.nullable().optional(),
   })
   .strict();
@@ -175,10 +253,10 @@ export function readChatPrefs(raw: unknown): ChatPrefs {
 
   const tabs = tabsSchema.safeParse(raw["tabs"]);
   if (tabs.success && tabs.data.hidden) out.tabs = tabs.data;
-  for (const section of ["notifications", "chat"] as const) {
-    const parsed = sectionSchema.safeParse(raw[section]);
-    if (parsed.success) out[section] = parsed.data;
-  }
+  const notifications = readSection(raw["notifications"], notificationsShape);
+  if (notifications) out.notifications = notifications as NonNullable<ChatPrefs["notifications"]>;
+  const chat = readSection(raw["chat"], chatShape);
+  if (chat) out.chat = chat as NonNullable<ChatPrefs["chat"]>;
   const speed = voiceSpeedSchema.safeParse(raw["voiceSpeed"]);
   if (speed.success) out.voiceSpeed = speed.data;
   return out;
@@ -216,8 +294,8 @@ export function foldersOfOrg(prefs: ChatPrefs, orgId: string): ChatFolderDef[] {
 export interface ResolvedChatPrefs {
   folders: Record<string, ChatFolderDef[]>;
   tabs: { hidden: BuiltinTab[] };
-  notifications: Record<string, unknown>;
-  chat: Record<string, unknown>;
+  notifications: NonNullable<ChatPrefs["notifications"]>;
+  chat: NonNullable<ChatPrefs["chat"]>;
   voiceSpeed: VoiceSpeed;
 }
 
@@ -230,4 +308,64 @@ export function resolveChatPrefs(prefs: ChatPrefs): ResolvedChatPrefs {
     chat: prefs.chat ?? {},
     voiceSpeed: prefs.voiceSpeed ?? DEFAULT_VOICE_SPEED,
   };
+}
+
+// ───────────────────────────────────────── C4.1: reading the person's choices ─────────────────────────────────────────
+
+/** The rule of one kind of notification (an empty rule is «all on»). */
+export function notifyRuleOf(prefs: ChatPrefs | null | undefined, type: NotifyType): NotifyRule {
+  return prefs?.notifications?.[type] ?? {};
+}
+
+/** Is this kind of notification on for the person? (default yes) */
+export function notifyOn(prefs: ChatPrefs | null | undefined, type: NotifyType): boolean {
+  return notifyRuleOf(prefs, type).on !== false;
+}
+
+/**
+ * THE PAYLOAD BUILDER of a chat push: what the push's body says for this person. With the preview switched off for the kind it is «رسالة جديدة» and nothing
+ * of the message; otherwise the words as they are. Pure: `src/server/chat/notify.ts` hands its answer to the push as the body (the bell keeps the full text).
+ */
+export function pushBodyFor(prefs: ChatPrefs | null | undefined, type: NotifyType, body: string): string {
+  return notifyRuleOf(prefs, type).preview === false ? PREVIEW_OFF_TEXT : body;
+}
+
+/**
+ * Which kind a chat message is FOR a person: a private chat → private (it is addressed to them by being theirs: a switch for mentions never silences it); addressed
+ * («@» or «@الكل») in a topic or a group → mentions; a reply to their message there → replies; anything else there → topics («المواضيع» covers the old groups too).
+ */
+export function notifyTypeOf(opts: { kind: "DM" | "GROUP" | "TOPIC"; mentioned: boolean; replied: boolean }): NotifyType {
+  if (opts.kind === "DM") return "private";
+  if (opts.mentioned) return "mentions";
+  return opts.replied ? "replies" : "topics";
+}
+
+/** The person's text size step (0-4), the middle one when they never chose. */
+export function fontStepOf(prefs: ChatPrefs | null | undefined): number {
+  const step = prefs?.chat?.fontStep;
+  return typeof step === "number" && Number.isInteger(step) && step >= 0 && step < FONT_SCALES.length ? step : DEFAULT_FONT_STEP;
+}
+
+/** The scale a text size step means (an unknown step is today's size). */
+export function fontScaleOf(step: unknown): number {
+  return typeof step === "number" && Number.isInteger(step) && step >= 0 && step < FONT_SCALES.length ? FONT_SCALES[step]! : FONT_SCALES[DEFAULT_FONT_STEP]!;
+}
+
+/** The person's quick reactions as stored (six distinct emojis) or undefined; `quickReactionsOf` falls back to today's six on anything else. */
+export function quickReactionsPref(prefs: ChatPrefs | null | undefined): readonly string[] | undefined {
+  const list = prefs?.chat?.quickReactions;
+  return Array.isArray(list) && list.length === QUICK_REACTION_COUNT ? list : undefined;
+}
+
+/**
+ * C4.1 «مفتاح الإرسال»: does the person's choice let this Enter send? «enter» (default): yes, as always (Shift+Enter stays a new line, decided by the caller).
+ * «ctrl»: only with Ctrl (or the command key): a plain Enter is a new line.
+ */
+export function sendKeyAllows(sendKey: SendKey | undefined, e: { ctrlKey: boolean; metaKey?: boolean }): boolean {
+  return sendKey !== "ctrl" || e.ctrlKey || e.metaKey === true;
+}
+
+/** The whole rule in one place (the composer asks `enterSends` and `sendKeyAllows` separately): Enter, no Shift, not while an input method composes a word, and the choice. */
+export function sendsOnKey(sendKey: SendKey | undefined, e: { key: string; shiftKey: boolean; ctrlKey: boolean; metaKey?: boolean; isComposing?: boolean }): boolean {
+  return e.key === "Enter" && !e.isComposing && !e.shiftKey && sendKeyAllows(sendKey, e);
 }

@@ -77,6 +77,17 @@ export function savedShortcutOf(e: KeyEventLike): boolean {
 }
 export const SAVED_SHORTCUT = { id: "saved", keys: ["ctrl", "0"], labelKey: "chatsaved.keys.open" } as const;
 
+/**
+ * C4.1 — Ctrl+, (comma) opens «إعداداتي» from anywhere in the app. By the PHYSICAL key (`Comma`), so an Arabic layout works the same; never with Alt, Shift or the
+ * command key, and never while an input method is composing. Like `SAVED_SHORTCUT` it is NOT a row of `SHORTCUT_ROWS` (the chat sheet's table is pinned at 8):
+ * «إعداداتي» lists it in its own «الاختصارات».
+ */
+export function settingsShortcutOf(e: KeyEventLike): boolean {
+  if (e.metaKey || e.isComposing || e.defaultPrevented) return false;
+  return e.ctrlKey && !e.altKey && !e.shiftKey && e.code === "Comma";
+}
+export const SETTINGS_SHORTCUT = { id: "settings", keys: ["ctrl", "comma"], labelKey: "settingsMe.k.settings" } as const;
+
 /** Opens (or makes) the person's saved chat through the dm door and hands its id to `open`. Nothing happens when the door refuses (the switch is off). */
 export async function openSavedChat(open: (conversationId: string) => void, fetchImpl: typeof fetch = fetch): Promise<boolean> {
   const id = await openSavedId(fetchImpl);

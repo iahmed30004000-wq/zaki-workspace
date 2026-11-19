@@ -4,6 +4,7 @@ import { db } from "@/server/db";
 import { appUrl } from "@/server/env";
 import { log } from "@/server/log";
 import { deliverToDevices } from "@/server/devices/hub";
+import { notifyOn, readChatPrefs } from "@/lib/chat/prefs";
 
 /**
  * RINGING WHEN THE SITE IS CLOSED — Web Push (the owner's «اشعار بالمكالمة او رنين»). The browser's own push service
@@ -65,6 +66,9 @@ export function setPushSenderForTests(next: Sender | null): void {
  * call; a browser the service no longer knows (404 / 410) is forgotten.
  */
 export async function pushTo(userIds: string[], message: PushMessage): Promise<void> {
+  // C4.1: a person who switched «المكالمات» off in their own settings is not rung or told of a missed call when the site is closed (the live ring in an open tab is
+  // not a push and is not touched)
+  if (message.kind === "ring" || message.kind === "missed") userIds = await withCallsOn(userIds);
   if (userIds.length === 0) return;
   // the Android app's live line first (src/server/devices/hub.ts): a ring or a note reaches the phone as its own full-screen call or notification
   const onPhone = deliverToDevices(userIds, { kind: message.kind, title: message.title, body: message.body, url: message.url, tag: message.tag });
@@ -102,6 +106,20 @@ export async function pushTo(userIds: string[], message: PushMessage): Promise<v
   );
 }
 
+/** The people among `userIds` who have not switched calls off (`User.chatPrefs.notifications.calls.on`). */
+async function withCallsOn(userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return userIds;
+  try {
+    const rows = await db.user.findMany({ where: { id: { in: userIds } }, select: { id: true, chatPrefs: true } });
+    const off = new Set(rows.filter((row) => !notifyOn(readChatPrefs(row.chatPrefs), "calls")).map((row) => row.id));
+    return off.size === 0 ? userIds : userIds.filter((id) => !off.has(id));
+  } catch (err) {
+    // a failed read of the choices never stops a ring: everybody is rung, as before this step
+    log.warn("push.prefs_failed", { message: err instanceof Error ? err.message : String(err) });
+    return userIds;
+  }
+}
+
 /** This browser of this person agrees to be rung (one row per browser; a browser that changed hands moves). */
 export async function subscribe(userId: string, sub: { endpoint: string; p256dh: string; auth: string; userAgent?: string | null }): Promise<void> {
   const userAgent = sub.userAgent ? sub.userAgent.slice(0, 300) : null;
@@ -115,4 +133,14 @@ export async function subscribe(userId: string, sub: { endpoint: string; p256dh:
 /** This browser no longer wants to be rung. Only its own person removes it. */
 export async function unsubscribe(userId: string, endpoint: string): Promise<void> {
   await db.pushSubscription.deleteMany({ where: { endpoint, userId } });
+}
+
+/** C4.1 «الأجهزة»: the browsers this person allowed to receive notifications (never the keys: the address and the keys stay on the server). */
+export async function listSubscriptions(userId: string): Promise<{ id: string; userAgent: string | null; createdAt: Date; lastUsedAt: Date | null }[]> {
+  return db.pushSubscription.findMany({ where: { userId }, orderBy: { createdAt: "desc" }, select: { id: true, userAgent: true, createdAt: true, lastUsedAt: true } });
+}
+
+/** C4.1 «افصل»: removes ONE of the person's own browsers by its id. Somebody else's id (or one that does not exist) removes nothing and answers false. */
+export async function removeSubscription(userId: string, id: string): Promise<boolean> {
+  return (await db.pushSubscription.deleteMany({ where: { id, userId } })).count > 0;
 }

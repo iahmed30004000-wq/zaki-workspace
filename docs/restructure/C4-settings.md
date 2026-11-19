@@ -68,3 +68,7 @@ note where it has a risk.
 - It is data: `COMPANY_CHAT_GROUP` in `src/lib/features.ts` (key, `risk`, `note`); `FeatureSwitches` draws it and then the rest of the list. A1.4 replaces the flat list with groups and `dependsOn` and absorbs this array as its chat group; A2 moves the whole screen to «إعدادات الشركة» → «الدردشة».
 - ⚠️/🔧 strings: `ar.settings-company-chat.json` (`companyChat.warn.<key>` / `companyChat.fix.<key>`), for voiceTranscript, messageTranslate, linkPreviews, lastSeen, ownerHiddenOnline. The model-sending ones say no customer data goes to an outside model.
 - Not here: the person's own override of `chatBubbles` (C4.1, `chatPrefs.chat`).
+
+## 7. Status of C4.1 (2026-11-20)
+
+Built on `feat/settings-me`: every section of §3 except «قفل التطبيق» (LATER), «شو الجديد» and «خبّي الأماكن الاختيارية», with these differences from the table: «الإشعارات والأصوات» offers the five kinds with `on` and `preview` (the per-type sound, vibration and the badge count need `public/sw.js` and the unread code: not offered); «الدردشة» does not offer the bubble-shape override (the new chat does not read `chatBubbles`; the old screen reads it from `topics.ts`) and the double tap is stored but not yet wired to the messages (see `pr/C4.1.md`); «البيانات والتخزين» stores the automatic download per device but the chat's media parts do not ask for it yet. Everything is in `pr/C4.1.md`.

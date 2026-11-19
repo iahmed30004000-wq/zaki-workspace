@@ -75,6 +75,8 @@ import AutomationPage from "@/app/(app)/automation/page";
 import TelegramPage from "@/app/(app)/telegram/page";
 import SettingsPage from "@/app/(app)/settings/page";
 import ProfilePage from "@/app/(app)/profile/page";
+import SettingsMePage from "@/app/(app)/settings/me/page";
+import SettingsMeSectionPage from "@/app/(app)/settings/me/[section]/page";
 import PublicProfilePage from "@/app/(app)/u/[id]/page";
 import AppLinkPage from "@/app/(app)/app-link/page";
 import GuidePage from "@/app/(app)/guide/page";
@@ -90,11 +92,12 @@ import RegisterCheckEmailPage from "@/app/register/check-email/page";
 import RegisterConfirmPage from "@/app/register/confirm/page";
 import OnboardingPage from "@/app/onboarding/page";
 import { ARTICLES } from "@/lib/guide/articles";
+import { SECTION_KEYS as SETTINGS_ME_SECTIONS } from "@/components/settings-me/sections";
 import { LEGACY_ROUTES, type NavRole } from "@/lib/nav/places";
 import type { Landing } from "@/server/policy/org-settings";
 import { requireActor } from "@/server/policy/actor";
 import { SPACE_COOKIE } from "@/server/services/current-space";
-import { db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorkspace, uid } from "./helpers";
+import { db, loginAs, logout, makeProject, makeTask, makeTeam, makeUser, makeWorkspace, uid } from "./helpers";
 import { html } from "./pages-access-helpers";
 import { resolveServerTree } from "./today-helpers";
 
@@ -128,7 +131,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -234,6 +237,9 @@ const PAGES: Record<string, PageCall> = {
   "/telegram": () => TelegramPage(),
   "/settings": () => SettingsPage(),
   "/profile": () => ProfilePage(),
+  // C4.1 «إعداداتي»: `/profile` now REDIRECTS to its first section (the old address keeps working); the sections are one dynamic page
+  "/settings/me": () => SettingsMePage(),
+  "/settings/me/[section]": ({ params }) => SettingsMeSectionPage({ params: { section: params["section"] ?? "" } }),
   "/u/[id]": (args) => PublicProfilePage({ params: idOf(args) }),
   "/app-link": ({ searchParams }) => AppLinkPage({ searchParams }),
   "/guide": () => GuidePage(),
@@ -452,6 +458,9 @@ function addressesOf(route: string, w: World): string[] {
       return [w.owner.id, w.admin.id, w.lead.id, w.member.id, GONE].map((id) => `/development/people/${id}`);
     case "/u/[id]":
       return [w.owner.id, w.admin.id, w.lead.id, w.member.id, w.guest.id, GONE].map((id) => `/u/${id}`);
+    case "/settings/me/[section]":
+      // C4.1: every section of «إعداداتي», and one that does not exist (not found)
+      return [...SETTINGS_ME_SECTIONS, GONE].map((section) => `/settings/me/${section}`);
     case "/guide/[slug]":
       return [...ARTICLES.map((article) => article.slug), GONE].map((slug) => `/guide/${slug}`);
     default:
@@ -690,5 +699,34 @@ describe("W1.1: with the switch `workMyTasks` ON, /list and /calendar land on «
         expect(end.kind, `${person.name} ${address}`).toMatch(/^(?:rendered|not-found)$/);
       }
     }
+// ───────────────────────────── 6. C4.1: /profile redirects to «إعداداتي» and keeps working ─────────────────────────────
+
+describe("C4.1: /profile is still an address: it redirects to «حسابي», the first section of «إعداداتي»", () => {
+  it("every rank is sent to /settings/me/account, which draws (a signed-out visitor still goes to the sign-in)", async () => {
+    const w = await linkWorld();
+    for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
+      await loginAs(person.id);
+      await expect(ProfilePage(), person.name).rejects.toThrow("NEXT_REDIRECT:/settings/me/account");
+      const { end, chain } = await land("/profile");
+      expect(chain.map(pathOf), person.name).toEqual(["/profile", "/settings/me/account"]);
+      expect(end.kind, person.name).toBe("rendered");
+    }
+    logout();
+    await expect(ProfilePage()).rejects.toThrow("NEXT_REDIRECT:/login");
+  });
+
+  it("the sections draw for every rank, the company's switch hides «المجلدات» (not found) and an unknown section is not found", async () => {
+    const w = await linkWorld();
+    for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
+      await loginAs(person.id);
+      for (const section of SETTINGS_ME_SECTIONS) {
+        if (section === "folders") continue;
+        expect((await land(`/settings/me/${section}`)).end.kind, `${person.name} ${section}`).toBe("rendered");
+      }
+      expect((await land(`/settings/me/${GONE}`)).end.kind, person.name).toBe("not-found");
+    }
+    await db.organization.update({ where: { id: w.org.id }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true, chatFolders: false } } } });
+    await loginAs(w.member.id);
+    expect((await land("/settings/me/folders")).end.kind).toBe("not-found");
   });
 });
