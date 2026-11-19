@@ -55,23 +55,26 @@
   SCREEN where the owner names and edits the templates is not (it belongs in A2.1's control panel). Switch `permissionTemplates` (OFF), strings in `ar.permissions-v2.json`.
 
 ### A1.2 One clear permissions sheet — `feat/permissions-sheet`
-- [ ] The person sheet (`src/components/members/member-sheet.tsx`) reorganised in plain words by AREA («المهام
+- [x] The person sheet (`src/components/members/member-sheet.tsx`) reorganised in plain words by AREA («المهام
       والمشاريع», «الدردشة والمكالمات», «الملفات», «الزبائن والأسعار», «التقارير واللوحات», «إدارة الناس والمساحات»,
       «التكاملات»), each area a short list of switches with one-line explanations, the grid's three columns kept but
       labelled «يشوف / يضيف ويعدّل / يحذف» per area, collapsed by default.
-- [ ] **«شو بيقدر يعمل؟»** — an effective-permissions view: every capability with ✓/✗ and WHY (rank default · added by
+- [x] **«شو بيقدر يعمل؟»** — an effective-permissions view: every capability with ✓/✗ and WHY (rank default · added by
       hand · removed by hand · the company switched the feature off · «صلاحيات الأقسام» off). Pure function
       `explainCapabilities(member, settings)` next to `effectiveCapabilities` in `src/server/policy/capabilities.ts`,
       unit-tested against it (both must agree for every rank × switch combination).
-- [ ] Hide the capabilities that are still wired to nothing when this step runs (four today; `penalties.view` alone
+- [x] Hide the capabilities that are still wired to nothing when this step runs (four today; `penalties.view` alone
       once Q1 and I1.3 are in) from the sheet (they stay in the catalogue — R12 in
       `docs/PHASE0-AUDIT.md`); show them again in the phase that wires them.
-- [ ] `tasks.delete`: D-A1 — recommended: the route honours the capability for the task's creator and space managers;
+- [x] `tasks.delete`: D-A1 — recommended: the route honours the capability for the task's creator and space managers;
       until decided, the box shows «بيحتاج كمان يكون مدير المساحة».
-- [ ] Team lead: a «قائد الفرقة» picker in the teams dialog (`src/components/workspace-teams-button.tsx`) writing
+- [x] Team lead: a «قائد الفرقة» picker in the teams dialog (`src/components/workspace-teams-button.tsx`) writing
       `Team.leadId` through `src/server/services/teams.ts` (API exists).
-- [ ] Rank hints rewritten to match `src/server/policy/capabilities.ts` (`src/lib/i18n/ar.members.json` `rank_hint_*`);
+- [x] Rank hints rewritten to match `src/server/policy/capabilities.ts` (`src/lib/i18n/ar.members.json` `rank_hint_*`);
       a test compares the hint's claims (a small data table) with the rank defaults.
+- Note (A1.2 built): `announce.send` and `escalation.configure` are wired (Q1.6, Q1.5) and shown again; only `cash.view` and `penalties.view` stay hidden (named «قريبًا»). `tasks.delete` only gets the hint
+  «بيحتاج كمان يكون مدير المساحة» (D-A1 is not answered: the route's rule stays). «شو بيقدر يعمل؟» also says «الشركة طفّت ميزة …» when the feature behind a capability is off (the company's switches are read from
+  `/api/settings/features`). The sheet's tests changed in `members-ui-render` / `members-ui-logic` for the same reason (see `pr/A1.2.md`).
 
 ### A1.3 One meaning per rule — `fix/permission-consistency`
 - [ ] **Space manager** (D-A2): recommended ONE definition = OWNER (or partner) OR a space-ADMIN row. An org ADMIN

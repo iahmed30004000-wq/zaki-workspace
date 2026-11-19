@@ -3,42 +3,37 @@
 import { Check, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
-import { SECTION_ACTIONS, sectionGrid, type ActorInfo, type ContractMember, type SectionCell } from "@/lib/members-ui";
+import { SECTION_ACTIONS, type SectionCell, type SectionGridRow } from "@/lib/members-ui";
 import type { Capability } from "@/server/policy/capabilities";
 
 /**
- * «الأقسام»: the per-person grid (the owner's decision, 2026-10-26). A row per section, «يشوف / يضيف ويعدّل / يحذف»
- * across; each box is the same switch as the list above it and is saved at once by the caller. A box the owner changed
- * from the rank's template carries a small dot, and a section the person can not see greys out its other boxes.
+ * The per-person grid of ONE area (the owner's decision, 2026-10-26; A1.2 splits it by area): a row per section of the area,
+ * «يشوف / يضيف ويعدّل / يحذف» across. Each box is saved at once by the caller. A box the owner changed from the rank's template
+ * carries a small dot, and a section the person can not see greys out its other boxes. The caller (`CapabilityPanel`) draws the
+ * area's frame and heading; the rows are computed by `sectionGrid` / `permissionAreas`, the server's own questions.
  */
 export function SectionGrid({
-  member,
-  actor,
-  editable,
+  rows,
+  caption,
   busy,
   pendingCapability,
   onToggle,
 }: {
-  member: ContractMember;
-  actor: ActorInfo;
-  editable: boolean;
+  rows: readonly SectionGridRow[];
+  /** The area's name: read out as the table's caption, never drawn. */
+  caption: string;
   busy: boolean;
   pendingCapability: Capability | null;
   onToggle: (capability: Capability, on: boolean) => void;
 }) {
   const { t } = useI18n();
-  const rows = sectionGrid(member, actor, editable);
   if (rows.length === 0) return null;
+  const hasTasks = rows.some((row) => row.section === "tasks");
 
   return (
-    <section aria-labelledby="section-grid-title" className="rounded-xl border border-border bg-surface">
-      <header className="border-b border-border px-3 py-2">
-        <h4 id="section-grid-title" className="text-xs font-semibold text-fg-muted">
-          {t("members.sections_title")}
-        </h4>
-        <p className="mt-0.5 text-xs leading-5 text-muted">{t("members.sections_intro")}</p>
-      </header>
+    <div>
       <table className="w-full table-fixed text-sm">
+        <caption className="sr-only">{`${t("members.sections_title")}: ${caption}`}</caption>
         <thead>
           <tr className="text-xs text-fg-muted">
             <th scope="col" className="w-[34%] px-3 py-2 text-start font-medium">
@@ -81,11 +76,11 @@ export function SectionGrid({
           ))}
         </tbody>
       </table>
-      <p className="border-t border-border px-3 py-2 text-xs leading-5 text-muted">
-        <span className="me-1 inline-block size-1.5 rounded-full bg-warn align-middle" aria-hidden="true" />
-        {t("members.sections_legend")}
-      </p>
-    </section>
+      {hasTasks ? (
+        // D-A1 is still open: the box alone does not delete a task, the route also needs the space's manager
+        <p className="border-t border-border px-3 py-2 text-xs leading-5 text-fg-muted">{t("perm.tasks_delete_note")}</p>
+      ) : null}
+    </div>
   );
 }
 
@@ -105,7 +100,13 @@ function GridBox({
 }) {
   const { t } = useI18n();
   const locked = cell.locked !== null;
-  const title = cell.needsView ? t("members.sections_needs_view") : cell.locked === "actor_lacks" ? t("members.caps_locked_actor") : undefined;
+  const title = cell.needsView
+    ? t("members.sections_needs_view")
+    : cell.locked === "actor_lacks"
+      ? t("members.caps_locked_actor")
+      : cell.capability === "tasks.delete"
+        ? t("perm.tasks_delete_note")
+        : undefined;
   return (
     <button
       type="button"

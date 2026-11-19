@@ -16,9 +16,11 @@ import {
   SECTION_CAPABILITIES,
   WIRED_CAPABILITIES,
   effectiveCapabilities,
+  explainCapabilities,
   isCapability,
   sectionCapability,
   type Capability,
+  type CapabilityExplanation,
   type SectionAction,
   type SectionId,
 } from "@/server/policy/capabilities";
@@ -274,7 +276,8 @@ export function isOffered(capability: Capability): boolean {
 
 /**
  * The capabilities the catalogue has a group for, and nothing in this repository asks yet (the
- * security review's C3: `cash.view`, `penalties.view`, `announce.send`, `escalation.configure`).
+ * security review's C3 counted four; A1.2: `announce.send` and `escalation.configure` are wired now, so what is left is
+ * `cash.view` and `penalties.view`, until I1.3).
  * They are not switches — a switch that does nothing is a lie — but hiding them completely let the
  * owner believe he had closed a door that is not built yet, so the panel lists them as «قريبًا».
  * The list empties by itself as each phase wires its capability.
@@ -416,6 +419,109 @@ export function sectionGrid(member: CapabilityTarget, actor: ActorInfo, editable
     }
     return { section: section.id, cells };
   });
+}
+
+// ---------------------------------------------------------------------------------- areas (A1.2)
+
+export type PermissionAreaId = "work" | "chat" | "files" | "customers" | "reports" | "people" | "integrations" | "manufacturing";
+
+/**
+ * A person's sheet is read by AREA, in plain words, not by the catalogue's groups: each area holds the grid's sections that belong to
+ * it («يشوف / يضيف ويعدّل / يحذف» per section) and the single switches that belong to it. Every capability of the catalogue is in exactly
+ * one area (the owner-only archive is the one exception: it is a switch of its own on a partner's sheet), including the ones still wired to
+ * nothing (`cash.view`, `penalties.view`): they are in the list so the phase that wires them finds its place, and `isOffered` keeps them
+ * off the screen until then (R12 of docs/PHASE0-AUDIT.md).
+ */
+export const PERMISSION_AREAS: readonly { id: PermissionAreaId; sections: readonly SectionId[]; switches: readonly Capability[] }[] = [
+  { id: "work", sections: ["projects", "tasks", "goals", "production", "ideas", "tickets"], switches: ["escalation.configure"] },
+  { id: "chat", sections: ["calls", "watch"], switches: ["announce.send"] },
+  { id: "files", sections: ["files"], switches: [] },
+  { id: "customers", sections: ["crm", "campaigns"], switches: ["prices.view", "cash.view", "penalties.view"] },
+  { id: "reports", sections: ["reports"], switches: ["board.self", "board.team"] },
+  { id: "people", sections: [], switches: ["spaces.create", "users.manage", "directory.view", "people.manage_lines", "people.review"] },
+  { id: "integrations", sections: [], switches: ["integrations.manage"] },
+  { id: "manufacturing", sections: [], switches: ["manufacturing.view", "manufacturing.edit", "manufacturing.cost"] },
+];
+
+export interface PermissionAreaRows {
+  id: PermissionAreaId;
+  /** The grid's rows of this area's sections (empty while «صلاحيات الأقسام» is off). */
+  grid: SectionGridRow[];
+  /** The single switches of this area that the screen offers. */
+  rows: CapabilityRow[];
+  /** How many of its boxes and switches are on, out of how many are shown (for the collapsed header). */
+  on: number;
+  total: number;
+}
+
+/** Every capability an area holds: its sections' boxes, then its single switches. */
+function capabilitiesOfArea(area: (typeof PERMISSION_AREAS)[number]): Capability[] {
+  return [
+    ...area.sections.flatMap((section) => SECTIONS.find((s) => s.id === section)!.actions.map((action) => `${section}.${action}` as Capability)),
+    ...area.switches,
+  ];
+}
+
+/** The area a capability sits in (null: the owner-only archive). */
+export function areaOf(capability: Capability): PermissionAreaId | null {
+  return PERMISSION_AREAS.find((area) => capabilitiesOfArea(area).includes(capability))?.id ?? null;
+}
+
+/**
+ * The sheet's body: one entry per area that has something to show, in the plan's order. The states and the locks are the ones of
+ * `capabilityGroups` and `sectionGrid` (the server's own questions); only the arrangement is new. With the grid switched off the
+ * customers' view and add/edit are the two switches they were before it.
+ */
+export function permissionAreas(member: CapabilityTarget, actor: ActorInfo, editable: boolean): PermissionAreaRows[] {
+  const rowOf = rowBuilder(member, actor, editable);
+  const grid = sectionGrid(member, actor, editable);
+  const out: PermissionAreaRows[] = [];
+  for (const area of PERMISSION_AREAS) {
+    const gridRows = grid.filter((row) => area.sections.includes(row.section));
+    const switches: Capability[] = [...area.switches];
+    if (area.id === "customers" && actor.sectionGrid === false) switches.unshift("crm.view", "crm.edit");
+    const rows = switches.filter(isOffered).map(rowOf);
+    const boxes = [...gridRows.flatMap((row) => Object.values(row.cells).filter((cell): cell is SectionCell => cell !== null)), ...rows];
+    if (boxes.length === 0) continue;
+    out.push({ id: area.id, grid: gridRows, rows, on: boxes.filter((box) => box.on).length, total: boxes.length });
+  }
+  return out;
+}
+
+export interface ExplainAreaRows {
+  id: PermissionAreaId;
+  rows: CapabilityExplanation[];
+}
+
+/**
+ * «شو بيقدر يعمل؟»: the effective-permissions view, by area, for the capabilities the screen offers (plus the archive on a partner's sheet).
+ * `settings` is the company's `Organization.settings` (only its `features` matter). The verdicts are `explainCapabilities`'s, which agree with
+ * `effectiveCapabilities` for every rank and switch, so this view can not promise what the server refuses.
+ */
+export function explainAreas(member: CapabilityTarget, settings: unknown): ExplainAreaRows[] {
+  const explained = new Map(explainCapabilities(member, settings).map((e) => [e.capability, e] as const));
+  // the customers' view and edit are boxes of the grid (CRM rows) while it is on and the two switches they were before it while it is off: offered either way
+  const out: ExplainAreaRows[] = [];
+  for (const area of PERMISSION_AREAS) {
+    const wanted = capabilitiesOfArea(area).filter(isOffered);
+    // the owner's silent oversight is a switch of its own, only on a partner's sheet
+    if (area.id === "people" && partnerOf(member)) wanted.unshift("archive.view");
+    const rows = wanted.flatMap((c) => explained.get(c) ?? []);
+    if (rows.length > 0) out.push({ id: area.id, rows });
+  }
+  return out;
+}
+
+export type ExplainState = "can" | "cannot" | "unknown";
+
+/**
+ * ✓, ✗ or «unknown» for one row of «شو بيقدر يعمل؟». While the company's switches could not be read (`switchesKnown` false) a permission the
+ * person HOLDS but that lives behind one of them is «unknown»: the view may not promise what the server may refuse. Everything else is
+ * answered as it is (a permission nobody holds is ✗ whatever the switches say; one with no switch behind it needs none).
+ */
+export function explainState(row: CapabilityExplanation, switchesKnown: boolean): ExplainState {
+  if (!switchesKnown && row.held && row.feature !== undefined) return "unknown";
+  return row.usable ? "can" : "cannot";
 }
 
 export interface CapabilityLists {
