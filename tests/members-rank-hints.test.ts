@@ -13,6 +13,7 @@ import {
   areaOf,
   capabilityGroups,
   explainAreas,
+  explainState,
   permissionAreas,
   sectionGrid,
   type ActorInfo,
@@ -240,6 +241,23 @@ describe("«شو بيقدر يعمل؟» by area", () => {
     expect(rows.find((r) => r.capability === "tasks.edit")).toMatchObject({ held: false, basis: "needs_view" });
     expect(rows.find((r) => r.capability === "integrations.manage")).toMatchObject({ held: true, basis: "added" });
     expect(rows.find((r) => r.capability === "prices.view")).toMatchObject({ held: false, basis: "rank_lacks" });
+  });
+
+  it("when the company's switches can not be read, a permission behind one is neither ✓ nor ✗: the view will not promise what the server may refuse", () => {
+    const rows = explainAreas(person({ role: "ADMIN" }), allOn).flatMap((a) => a.rows);
+    const of = (cap: Capability) => rows.find((r) => r.capability === cap)!;
+    for (const cap of ["announce.send", "escalation.configure", "calls.view", "board.self"] as const) {
+      expect(explainState(of(cap), true), `${cap} known`).toBe("can");
+      expect(explainState(of(cap), false), `${cap} unknown`).toBe("unknown");
+    }
+    // no switch behind it: answered either way; nobody holds it: ✗ whatever the switches say
+    expect(explainState(of("tasks.view"), false)).toBe("can");
+    const without = explainAreas(person({ revokedCapabilities: ["calls.view", "users.manage"] }), allOn).flatMap((a) => a.rows);
+    expect(explainState(without.find((r) => r.capability === "calls.view")!, false)).toBe("cannot");
+    expect(explainState(without.find((r) => r.capability === "users.manage")!, false)).toBe("cannot");
+    // a switch that is really off is ✗ when the switches are known
+    const off = explainAreas(person({ role: "ADMIN" }), { features: { ...allOn.features, calls: false } }).flatMap((a) => a.rows);
+    expect(explainState(off.find((r) => r.capability === "calls.view")!, true)).toBe("cannot");
   });
 
   it("never lists cash.view or penalties.view, and lists the archive only on a partner's sheet", () => {

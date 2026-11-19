@@ -12,6 +12,7 @@ import {
   canResetCapabilities,
   capabilityGroups,
   explainAreas,
+  explainState,
   permissionAreas,
   SOON_CAPABILITIES,
   type ActorInfo,
@@ -19,6 +20,7 @@ import {
   type CapabilityRow,
   type ContractMember,
   type ExplainAreaRows,
+  type ExplainState,
   type PermissionAreaRows,
   type TFn,
 } from "@/lib/members-ui";
@@ -72,7 +74,7 @@ export function CapabilityPanel({
     <div className="space-y-4">
       <p className="text-xs leading-5 text-fg-muted">{editable ? t("members.caps_intro") : t("members.caps_readonly")}</p>
 
-      <ExplainView member={member} settings={company.settings} ready={company.ready} />
+      <ExplainView member={member} settings={company.settings} ready={company.ready} known={company.known} />
 
       {oversight ? (
         <section aria-labelledby={`${uid}-oversight`} className="rounded-xl border border-border bg-surface">
@@ -87,7 +89,10 @@ export function CapabilityPanel({
         </section>
       ) : null}
 
-      <p className="text-xs leading-5 text-muted">{t("perm.areas_hint")}</p>
+      <p className="text-xs leading-5 text-muted">
+        {t("perm.areas_hint")}
+        {areas.some((area) => area.grid.length > 0) ? ` ${t("members.sections_intro")}` : ""}
+      </p>
 
       <div className="space-y-2">
         {areas.map((area) => (
@@ -207,7 +212,7 @@ function CapabilitySwitch({
  * is claimed; if they can not be read, every switch is taken as on, so the view shows what the person HOLDS (always right) and
  * says nothing about a switch it could not see. «صلاحيات الأقسام» comes from the people list, as the rest of the sheet does.
  */
-function useCompanySettings(sectionGrid: boolean, enabled: boolean): { settings: unknown; ready: boolean } {
+function useCompanySettings(sectionGrid: boolean, enabled: boolean): { settings: unknown; ready: boolean; known: boolean } {
   const query = useQuery({
     queryKey: ["member-sheet-features"],
     queryFn: () => apiGet<{ features: { key: FeatureKey; on: boolean }[] }>("/api/settings/features"),
@@ -222,15 +227,15 @@ function useCompanySettings(sectionGrid: boolean, enabled: boolean): { settings:
   } else {
     for (const key of FEATURES) settings = withFeature(settings, key, key !== "economyMode");
   }
-  return { settings: withFeature(settings, "sectionPermissions", sectionGrid), ready: !query.isPending || !enabled };
+  return { settings: withFeature(settings, "sectionPermissions", sectionGrid), ready: !query.isPending || !enabled, known: query.isSuccess };
 }
 
 /** Every permission the screen offers with ✓/✗ and why, by area, collapsed by default. */
-function ExplainView({ member, settings, ready }: { member: ContractMember; settings: unknown; ready: boolean }) {
+function ExplainView({ member, settings, ready, known }: { member: ContractMember; settings: unknown; ready: boolean; known: boolean }) {
   const { t } = useI18n();
   const areas: ExplainAreaRows[] = ready ? explainAreas(member, settings) : [];
   const rows = areas.flatMap((area) => area.rows);
-  const usable = rows.filter((row) => row.usable).length;
+  const usable = rows.filter((row) => explainState(row, known) === "can").length;
   return (
     <details data-explain className="group rounded-xl border border-border bg-surface">
       <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
@@ -247,7 +252,7 @@ function ExplainView({ member, settings, ready }: { member: ContractMember; sett
             <h5 className="text-xs font-semibold text-fg-muted">{t(`perm.area.${area.id}`)}</h5>
             <ul className="divide-y divide-border">
               {area.rows.map((row) => (
-                <ExplainItem key={row.capability} row={row} t={t} />
+                <ExplainItem key={row.capability} row={row} state={explainState(row, known)} t={t} />
               ))}
             </ul>
           </section>
@@ -257,23 +262,28 @@ function ExplainView({ member, settings, ready }: { member: ContractMember; sett
   );
 }
 
-function ExplainItem({ row, t }: { row: CapabilityExplanation; t: TFn }) {
-  const why =
-    row.reason === "feature_off" && row.feature
+function ExplainItem({ row, state, t }: { row: CapabilityExplanation; state: ExplainState; t: TFn }) {
+  const unknown = state === "unknown";
+  const why = unknown
+    ? t("perm.why.feature_unknown", { name: t(`features.${row.feature}.name`) })
+    : row.reason === "feature_off" && row.feature
       ? t("perm.why.feature_off", { name: t(`features.${row.feature}.name`) })
       : t(`perm.why.${row.reason}`);
   return (
-    <li data-capability={row.capability} data-usable={row.usable} className="flex items-start gap-2 py-2">
+    <li data-capability={row.capability} data-usable={unknown ? "unknown" : state === "can"} className="flex items-start gap-2 py-2">
       <span
         aria-hidden="true"
-        className={cn("mt-0.5 grid size-5 shrink-0 place-items-center rounded-full", row.usable ? "bg-ok/10 text-ok" : "bg-danger/10 text-danger")}
+        className={cn(
+          "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full",
+          unknown ? "bg-surface-2 text-muted" : state === "can" ? "bg-ok/10 text-ok" : "bg-danger/10 text-danger",
+        )}
       >
-        {row.usable ? <Check className="size-3.5" /> : <X className="size-3.5" />}
+        {unknown ? <CircleHelp className="size-3.5" /> : state === "can" ? <Check className="size-3.5" /> : <X className="size-3.5" />}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm text-fg">
           {t(`members.cap.${row.capability}.title`)}
-          <span className="sr-only"> — {row.usable ? t("perm.explain.can") : t("perm.explain.cannot")}</span>
+          {unknown ? null : <span className="sr-only"> — {state === "can" ? t("perm.explain.can") : t("perm.explain.cannot")}</span>}
         </span>
         <span className="block text-xs leading-5 text-fg-muted">{why}</span>
       </span>

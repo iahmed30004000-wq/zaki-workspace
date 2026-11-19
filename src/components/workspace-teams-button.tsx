@@ -173,7 +173,10 @@ export function WorkspaceTeamsButton({ workspaceId }: { workspaceId: string }) {
                             id={`team-lead-${team.id}`}
                             value={team.leadId ?? ""}
                             disabled={busy}
-                            onChange={(e) => lead.mutate({ teamId: team.id, leadId: e.target.value || null })}
+                            onChange={(e) => {
+                              const next = e.target.value || null;
+                              if (next !== team.leadId) lead.mutate({ teamId: team.id, leadId: next });
+                            }}
                             className="min-w-0 flex-1"
                           >
                             <option value="">{t("teamlead.none")}</option>
@@ -185,7 +188,7 @@ export function WorkspaceTeamsButton({ workspaceId }: { workspaceId: string }) {
                           </Select>
                         ) : (
                           <span id={`team-lead-${team.id}`} className="min-w-0 flex-1 truncate text-xs text-fg">
-                            <bdi>{team.members.find((m) => m.id === team.leadId)?.name ?? ""}</bdi>
+                            <bdi>{team.members.find((m) => m.id === team.leadId)?.name ?? t("teamlead.none")}</bdi>
                           </span>
                         )}
                       </div>

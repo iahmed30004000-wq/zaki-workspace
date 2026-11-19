@@ -276,7 +276,8 @@ export function isOffered(capability: Capability): boolean {
 
 /**
  * The capabilities the catalogue has a group for, and nothing in this repository asks yet (the
- * security review's C3: `cash.view`, `penalties.view`, `announce.send`, `escalation.configure`).
+ * security review's C3 counted four; A1.2: `announce.send` and `escalation.configure` are wired now, so what is left is
+ * `cash.view` and `penalties.view`, until I1.3).
  * They are not switches — a switch that does nothing is a lie — but hiding them completely let the
  * owner believe he had closed a door that is not built yet, so the panel lists them as «قريبًا».
  * The list empties by itself as each phase wires its capability.
@@ -509,6 +510,18 @@ export function explainAreas(member: CapabilityTarget, settings: unknown): Expla
     if (rows.length > 0) out.push({ id: area.id, rows });
   }
   return out;
+}
+
+export type ExplainState = "can" | "cannot" | "unknown";
+
+/**
+ * ✓, ✗ or «unknown» for one row of «شو بيقدر يعمل؟». While the company's switches could not be read (`switchesKnown` false) a permission the
+ * person HOLDS but that lives behind one of them is «unknown»: the view may not promise what the server may refuse. Everything else is
+ * answered as it is (a permission nobody holds is ✗ whatever the switches say; one with no switch behind it needs none).
+ */
+export function explainState(row: CapabilityExplanation, switchesKnown: boolean): ExplainState {
+  if (!switchesKnown && row.held && row.feature !== undefined) return "unknown";
+  return row.usable ? "can" : "cannot";
 }
 
 export interface CapabilityLists {
