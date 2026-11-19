@@ -97,10 +97,12 @@
       with copies, never a drop). Not in this plan's scope.
 
 ### W1.7 Today, simplified — `feat/today-simple`
-- [ ] Up to six cards, in this order: «مهامي اليوم» (today + overdue, quick add) · «بانتظار قرارك» (W1.4 count + top 5) ·
+- [x] Up to six cards, in this order: «مهامي اليوم» (today + overdue, quick add) · «بانتظار قرارك» (W1.4 count + top 5) ·
       «ذكروك» (unread mentions, links into chat) · «تذكيراتي» · «التسجيل اليومي» (switch) · ONE team card for managers
       (A2 defines its scope). The rest (TeamPulse, dashboard team card, digest, time) move to «لوحة التحكم» or «اليوم ›
       المزيد». The «اليوم» strip (decoration) follows D1.
+      Built on `feat/today-simple` behind `navV2` (no switch of its own): `todayLayout` and `TODAY_HAND_OFF` in `src/lib/today.ts` say which cards exist and where every moved part went;
+      notes: `docs/restructure/pr/W1.7.md`. A2.3 edits `today.ts` and `today-dashboard.ts` after this step (the team card's scope).
 
 ### W1.8 Make the tabs honest — `fix/work-tabs-honest`
 - [ ] Every tab's `requires` in `places.ts` equals its page's rule (departments / tickets / campaigns need

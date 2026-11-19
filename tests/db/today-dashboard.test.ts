@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { getTodayDashboard } from "@/server/services/today-dashboard";
+import type { Prisma } from "@prisma/client";
+import { getTodayDashboard, getTodayFollowUps, getTodayMentions, getTodayWaiting } from "@/server/services/today-dashboard";
+import { withFeature } from "@/lib/features";
+import { waitingRequestCount } from "@/server/services/work-requests";
+import { makeDepartment, makeTicket } from "./guest-helpers";
 import { db, makeProject, makeTask, makeTeam, makeUser, makeWorkspace } from "./helpers";
 import { joinOrg, joinWorkspace } from "./scoping-helpers";
 import { actorOf, at, isPlain, put, setMember, setZone, world, type World } from "./today-helpers";
@@ -250,4 +254,138 @@ it("hands over plain data only", async () => {
   const w = await world();
   await put(w, "in", { assigneeId: w.member.id, due: at("2026-10-22T15:00:00Z") });
   for (const who of [w.member.id, w.owner.id, w.guest.id]) expect(isPlain(await dashFor(who)), who).toBe(true);
+});
+
+// ───────────────────────────────────────── W1.7: the cards of the simplified «اليوم» ─────────────────────────────────────────
+
+describe("W1.7 «بانتظار قرارك»: the inbox's own count and newest five", () => {
+  async function turnOn(orgId: string, on: boolean) {
+    const org = await db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { settings: true } });
+    await db.organization.update({ where: { id: orgId }, data: { settings: withFeature(org.settings, "workRequests", on) as Prisma.InputJsonValue } });
+  }
+  async function tickets(w: World, memberIds: string[], n: number) {
+    const dept = await makeDepartment(w.org.id, { memberIds, leadId: w.lead.id });
+    for (let i = 0; i < n; i++) await makeTicket({ orgId: w.org.id, departmentId: dept.id, creatorId: w.lead.id, title: `تذكرة ${i + 1}` });
+  }
+
+  it("is the length of «بانتظاري» and its newest five; nothing while the switch is off; nothing for a partner or when nothing waits", async () => {
+    const w = await world();
+    await tickets(w, [w.member.id, w.guest.id], 7);
+    expect(await getTodayWaiting(await actorOf(w.member.id))).toBeNull(); // switch off (the default)
+    await turnOn(w.org.id, true);
+    const got = await getTodayWaiting(await actorOf(w.member.id));
+    expect(got?.total).toBe(7);
+    expect(got?.rows).toHaveLength(5);
+    expect(got?.total).toBe(await waitingRequestCount(await actorOf(w.member.id)));
+    expect(isPlain(got)).toBe(true);
+    expect(await getTodayWaiting(await actorOf(w.guest.id))).toBeNull();
+    expect(await getTodayWaiting(await actorOf(w.admin.id))).toBeNull(); // in no department: nothing waits
+  });
+
+  it("never counts a request on a private task the person may not open", async () => {
+    const w = await world();
+    await turnOn(w.org.id, true);
+    const task = await put(w, "in", { title: "مهمة خاصة", assigneeId: w.lead.id });
+    await db.task.update({ where: { id: task.id }, data: { visibility: "PARTICIPANTS" } });
+    await db.taskAssignRequest.create({ data: { taskId: task.id, fromUserId: w.lead.id, toUserId: w.member.id, orgId: w.org.id } });
+    expect(await getTodayWaiting(await actorOf(w.member.id))).toBeNull();
+  });
+});
+
+describe("W1.7 «ذكروك»: unread mentions from the chat list's own numbers", () => {
+  const old = new Date("2020-01-01T00:00:00Z");
+  async function topic(w: World, spaceId: string, title: string, members: string[]) {
+    return db.conversation.create({
+      data: { orgId: w.org.id, kind: "TOPIC", spaceId, title, members: { create: members.map((userId) => ({ userId, lastReadAt: old })) } },
+    });
+  }
+  const say = (w: World, conversationId: string, authorId: string, mentions: string[] = [], extra: Record<string, unknown> = {}) =>
+    db.chatMessage.create({ data: { orgId: w.org.id, conversationId, authorId, body: "نص", mentions, ...extra } });
+
+  it("counts what mentions the person (by name or «@الكل»), after their read mark, never their own or a deleted or a system line", async () => {
+    const w = await world();
+    const conv = await topic(w, w.wsIn.id, "موضوع الفريق", [w.member.id, w.lead.id]);
+    await say(w, conv.id, w.lead.id, [w.member.id]);
+    await say(w, conv.id, w.lead.id, ["*"]);
+    await say(w, conv.id, w.lead.id, []); // no mention
+    await say(w, conv.id, w.member.id, [w.member.id]); // their own
+    await say(w, conv.id, w.lead.id, [w.member.id], { deletedAt: new Date() });
+    await say(w, conv.id, w.lead.id, [w.member.id], { kind: "SYSTEM" });
+    const got = await getTodayMentions(await actorOf(w.member.id), { space: { id: w.wsIn.id } });
+    expect(got?.total).toBe(2);
+    expect(got?.rows).toEqual([expect.objectContaining({ id: conv.id, title: "موضوع الفريق", count: 2, href: `/chat/${conv.id}`, place: "مساحة الفريق" })]);
+    expect(isPlain(got)).toBe(true);
+    // after a read mark nothing is unread
+    await db.conversationMember.update({ where: { conversationId_userId: { conversationId: conv.id, userId: w.member.id } }, data: { lastReadAt: new Date() } });
+    expect(await getTodayMentions(await actorOf(w.member.id), { space: { id: w.wsIn.id } })).toBeNull();
+  });
+
+  it("only conversations the person can read: a space they are not in, a restricted topic without their row, an archived topic", async () => {
+    const w = await world();
+    const hiddenSpace = await topic(w, w.wsOut.id, "مساحة غريبة", [w.member.id, w.lead.id]);
+    const restricted = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", spaceId: w.wsIn.id, title: "مقيّد", restricted: true, members: { create: [{ userId: w.lead.id, lastReadAt: old }] } } });
+    const archived = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", spaceId: w.wsIn.id, title: "مؤرشف", archivedAt: new Date(), members: { create: [{ userId: w.member.id, lastReadAt: old }] } } });
+    for (const c of [hiddenSpace, restricted, archived]) await say(w, c.id, w.lead.id, [w.member.id]);
+    expect(await getTodayMentions(await actorOf(w.member.id), { space: { id: w.wsIn.id } })).toBeNull();
+    expect(await getTodayMentions(await actorOf(w.member.id))).toBeNull();
+  });
+
+  it("with no space given it reads every space (a space as its forum); a guest gets none", async () => {
+    const w = await world();
+    const conv = await topic(w, w.wsIn.id, "موضوع الفريق", [w.member.id, w.lead.id]);
+    await say(w, conv.id, w.lead.id, [w.member.id]);
+    const all = await getTodayMentions(await actorOf(w.member.id));
+    expect(all?.total).toBe(1);
+    expect(all?.rows[0]?.href).toBe(`/chat/s/${w.wsIn.id}`);
+    expect(await getTodayMentions(await actorOf(w.guest.id))).toBeNull();
+  });
+
+  it("the owner's silent reading adds nothing and writes nothing: only a topic he joined has a mention for him", async () => {
+    const w = await world();
+    const conv = await topic(w, w.wsIn.id, "موضوع الفريق", [w.member.id, w.lead.id]);
+    await say(w, conv.id, w.lead.id, [w.owner.id]);
+    expect(await getTodayMentions(await actorOf(w.owner.id), { space: { id: w.wsIn.id } })).toBeNull();
+    expect(await db.conversationMember.count({ where: { conversationId: conv.id, userId: w.owner.id } })).toBe(0);
+    await db.conversationMember.create({ data: { conversationId: conv.id, userId: w.owner.id, lastReadAt: old } });
+    expect((await getTodayMentions(await actorOf(w.owner.id), { space: { id: w.wsIn.id } }))?.total).toBe(1);
+  });
+});
+
+describe("W1.7 «مواعيد اليوم»: Q1.5's follow-up day", () => {
+  it("lists the person's own unfinished tickets whose day has come, by the company's calendar, oldest first; their own only", async () => {
+    const now = at("2026-11-18T10:00:00Z");
+    const w = await world("Asia/Damascus");
+    const dept = await makeDepartment(w.org.id, { memberIds: [w.member.id, w.lead.id], leadId: w.lead.id });
+    const mk = async (title: string, assigneeId: string, followUpAt: string | null, status: "OPEN" | "IN_PROGRESS" | "RESOLVED" = "OPEN") => {
+      const row = await makeTicket({ orgId: w.org.id, departmentId: dept.id, creatorId: w.lead.id, assigneeId, title, status });
+      await db.ticket.update({ where: { id: row.id }, data: { followUpAt: followUpAt ? at(followUpAt) : null } });
+      return row;
+    };
+    const today = await mk("اليوم", w.member.id, "2026-11-18T00:00:00Z");
+    const late = await mk("متأخر", w.member.id, "2026-11-16T00:00:00Z", "IN_PROGRESS");
+    await mk("بكرا", w.member.id, "2026-11-19T00:00:00Z");
+    await mk("بلا موعد", w.member.id, null);
+    await mk("منتهي", w.member.id, "2026-11-17T00:00:00Z", "RESOLVED");
+    await mk("للزميل", w.lead.id, "2026-11-18T00:00:00Z");
+    const got = await getTodayFollowUps(await actorOf(w.member.id), { now });
+    expect(got.map((r) => r.id)).toEqual([late.id, today.id]);
+    expect(got.map((r) => r.late)).toEqual([true, false]);
+    expect(got[1]?.dueLabel).toBe("اليوم");
+    expect(got.every((r) => Object.keys(r).sort().join() === "dueLabel,id,late,title")).toBe(true);
+    expect(isPlain(got)).toBe(true);
+    // one minute before the company's midnight it is still the 18th; after it, the 19th's ticket is due as well
+    const late18 = await getTodayFollowUps(await actorOf(w.member.id), { now: at("2026-11-18T21:30:00Z") });
+    expect(late18.map((r) => r.title)).toContain("بكرا");
+  });
+
+  it("a partner and somebody without the tickets box get none", async () => {
+    const w = await world();
+    const dept = await makeDepartment(w.org.id, { memberIds: [w.member.id], leadId: w.lead.id });
+    const row = await makeTicket({ orgId: w.org.id, departmentId: dept.id, creatorId: w.lead.id, assigneeId: w.member.id });
+    await db.ticket.update({ where: { id: row.id }, data: { followUpAt: at("2020-01-01T00:00:00Z") } });
+    expect(await getTodayFollowUps(await actorOf(w.member.id))).toHaveLength(1);
+    await setMember(w.org.id, w.member.id, { revokedCapabilities: ["tickets.view"] });
+    expect(await getTodayFollowUps(await actorOf(w.member.id))).toEqual([]);
+    expect(await getTodayFollowUps(await actorOf(w.guest.id))).toEqual([]);
+  });
 });
