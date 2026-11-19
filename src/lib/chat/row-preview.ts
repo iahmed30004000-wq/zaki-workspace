@@ -2,6 +2,7 @@ import { stripFormatting } from "@/lib/chat/format/parse";
 import { ct, ctCount } from "@/lib/chat/text";
 import { dayDiff, weekdayName } from "@/lib/format";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
+import { hasUnread } from "@/lib/chat/cache/unread";
 
 /**
  * C2.2 — what ONE row of the chat list says, as pure functions of the row the cache holds (and, for the two things the cache does not
@@ -71,7 +72,7 @@ export function rowPreview(row: ChatRowDto, extra: { typingNames?: readonly stri
   return { tone: "text", author, text: words };
 }
 
-export type RowMarkKey = "muted" | "restricted" | "team" | "announcements" | "closed";
+export type RowMarkKey = "muted" | "restricted" | "team" | "announcements" | "closed" | "archived";
 
 export interface RowMark {
   key: RowMarkKey;
@@ -79,7 +80,7 @@ export interface RowMark {
   labelKey: string;
 }
 
-/** The small icons after the title: muted, private (lock), for a «مقطع» (people), an announcements topic (megaphone), closed. */
+/** The small icons after the title: muted, archived (C3a.1: shown in the «الأرشيف» tab), private (lock), for a «مقطع» (people), an announcements topic (megaphone), closed. */
 export function rowMarks(row: ChatRowDto): RowMark[] {
   const out: RowMark[] = [];
   if (row.kind === "TOPIC") {
@@ -89,7 +90,49 @@ export function rowMarks(row: ChatRowDto): RowMark[] {
     if (row.closed) out.push({ key: "closed", labelKey: "chatui.row.closed" });
   }
   if (row.muted) out.push({ key: "muted", labelKey: "chatui.row.muted" });
+  if (row.archivedByMe) out.push({ key: "archived", labelKey: "chatps.row.archived" });
   return out;
+}
+
+// ───────────────────────────────────────── C3a.1: my own pin, archive, mark unread and mute ─────────────────────────────────────────
+
+/**
+ * The mute presets of a row's menu, counted from now: an hour, 8 hours, a day, a week, for good. «للأبد» is a date a hundred years away (the column holds a
+ * date, never a flag): the server cuts anything further.
+ */
+export const MUTE_PRESETS = [
+  { key: "hour", labelKey: "chatps.mute.hour", ms: 3_600_000 },
+  { key: "hours8", labelKey: "chatps.mute.hours8", ms: 8 * 3_600_000 },
+  { key: "day", labelKey: "chatps.mute.day", ms: 24 * 3_600_000 },
+  { key: "week", labelKey: "chatps.mute.week", ms: 7 * 24 * 3_600_000 },
+  { key: "forever", labelKey: "chatps.mute.forever", ms: 100 * 365 * 24 * 3_600_000 },
+] as const;
+
+/** The moment a preset's mute ends, as the ISO time `PUT …/me` takes. */
+export function mutedUntilOf(preset: (typeof MUTE_PRESETS)[number], now: Date = new Date()): string {
+  return new Date(now.getTime() + preset.ms).toISOString();
+}
+
+/**
+ * What the personal part of a row's menu offers, from the row alone: each item says which way it goes (pin or unpin, archive or take out, mark unread or read,
+ * the mute presets or lift the mute). A space row is not a conversation: it has none. A chat with something unread, or one marked unread by hand, offers
+ * «علّم كمقروء» (with real unread messages it is the read mark; with only the hand mark it clears the mark).
+ */
+export interface PersonalOffers {
+  pin: "pin" | "unpin";
+  archive: "archive" | "unarchive";
+  read: "unread" | "read";
+  mute: "presets" | "lift";
+}
+
+export function personalOffers(row: ChatRowDto): PersonalOffers | null {
+  if (row.kind === "SPACE") return null;
+  return {
+    pin: row.pinnedByMe ? "unpin" : "pin",
+    archive: row.archivedByMe ? "unarchive" : "archive",
+    read: hasUnread(row) ? "read" : "unread",
+    mute: row.muted ? "lift" : "presets",
+  };
 }
 
 export type RowTicks = "sent" | "delivered" | "read";

@@ -111,14 +111,16 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const [newDm, setNewDm] = useState(false);
   const [creatingSpace, setCreatingSpace] = useState(false);
 
-  const folders = useMemo(() => foldersOf({ canOversee: list.canOversee, guest }), [list.canOversee, guest]);
+  // C3a.1: «الأرشيف» is offered only while the switch is on AND the person has a chat they archived (the server sends none as archived while it is off)
+  const archived = list.personal && list.archivedRows.length > 0;
+  const folders = useMemo(() => foldersOf({ canOversee: list.canOversee, guest, archived }), [list.canOversee, guest, archived]);
   const folder = folderKeyOf(folderKey, folders);
   const company = isCompanyFolder(folder);
   const words = normalizeQuery(query);
 
   const rows = useMemo(
-    () => (isCompanyFolder(folder) ? [] : listRows(list.rows, { scope: list.scope, spaceId: list.spaceId, folder, query: words, orders })),
-    [list.rows, list.scope, list.spaceId, folder, words, orders],
+    () => (isCompanyFolder(folder) ? [] : listRows(folder === "archived" ? list.archivedRows : list.rows, { scope: list.scope, spaceId: list.spaceId, folder, query: words, orders })),
+    [list.rows, list.archivedRows, list.scope, list.spaceId, folder, words, orders],
   );
   const items = useMemo(() => rowItems(rows), [rows]);
 
@@ -142,7 +144,10 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
 
   // the list of ONE space (D-N2 «كل مساحة حساب»): its topics have no manager flag of their own, so the space's own view says whether the viewer manages it
   const oneSpace = useChatSpace(list.scope === "space" ? list.spaceId : null);
-  const menu = useMemo<RowMenuContext>(() => ({ enabled: rowMenu, canPurge, canModerate: oneSpace.space?.canModerate === true }), [rowMenu, canPurge, oneSpace.space?.canModerate]);
+  const menu = useMemo<RowMenuContext>(
+    () => ({ enabled: rowMenu, canPurge, canModerate: oneSpace.space?.canModerate === true, personal: list.personal }),
+    [rowMenu, canPurge, oneSpace.space?.canModerate, list.personal],
+  );
 
   // «افتح مساحة» only for whoever may open one and only when there is nothing at all in the list (the old home's rule, the shell's own query)
   const empty = !list.isPending && list.rows.length === 0;

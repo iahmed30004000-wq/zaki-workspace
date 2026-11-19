@@ -322,7 +322,7 @@ export interface ChatRowDto {
   mentionsUnread: number;
   /** my own mute of this conversation; a SPACE is muted when every topic I take part in is */
   muted: boolean;
-  /** no storage yet (C3a): always false today */
+  /** C3a.1, «لإلي بس»: my own pin, my own archive (an unmuted chat that a message came to after the archive is not archived any more) and my «علّم كغير مقروء»; all false while `chatPersonalState` is off */
   pinnedByMe: boolean;
   archivedByMe: boolean;
   markedUnread: boolean;
@@ -351,6 +351,8 @@ export interface ChatListDto {
   spaceId: string | null;
   rows: ChatRowDto[];
   canOversee: boolean;
+  /** the company's switch `chatPersonalState` (C3a.1): off, the menu draws no personal item and no «الأرشيف» tab; a copy saved before it existed has no field and reads as on */
+  personal?: boolean;
 }
 
 /** `GET /api/chat/spaces/[spaceId]/topics`: the forum view of one space. */

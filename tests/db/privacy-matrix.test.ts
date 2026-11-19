@@ -21,6 +21,7 @@ import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route
 import * as readMarkRoute from "@/app/api/chat/conversations/[id]/read/route";
 import * as deliveredMarkRoute from "@/app/api/chat/conversations/[id]/delivered/route";
 import * as mentionsRoute from "@/app/api/chat/conversations/[id]/mentions/route";
+import * as personalStateRoute from "@/app/api/chat/conversations/[id]/me/route";
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import * as workRequestsRoute from "@/app/api/work/requests/route";
 import { chatHome } from "@/server/chat/home";
@@ -459,4 +460,58 @@ describe("privacy matrix — the W1.4 inbox (assignment requests)", () => {
       expect(wrong, kind).toEqual([]);
     });
   }
+});
+
+// ───────────────────────────── C3a.1: a person's own pin, archive and «علّم كغير مقروء» ─────────────────────────────
+// `PUT /api/chat/conversations/[id]/me` is a small WRITE made by the reader (a row of their own, and an event for them alone). Who may make it is the reading rule
+// plus the markRead rule: the same people who may read, EXCEPT the silent eye, whose reading leaves no trace (no row, no event — a 404 as if there were nothing
+// there); a restricted topic and a private chat need a row the person already has (no row = no audience).
+const PERSONAL_STATE: Record<string, string> = {
+  open: "0 0 1 0 1 1 1 1 1", //       an open topic: everybody who reads it, except the two silent eyes (an open topic gets the reader a row, like markRead)
+  restricted: "0 0 0 0 0 1 0 0 0", // only the people who already have a row in it
+  team: "0 0 1 0 1 0 0 1 0", //       the team's people and the space's managers
+  dm: "0 0 0 0 0 1 0 0 0", //         the private chat's own person
+};
+
+describe("privacy matrix — the C3a.1 personal state", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: who may set their own pin, archive and mark, and who leaves a trace`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        await loginAs(person.id);
+        const rowsBefore = await db.conversationMember.count({ where: { conversationId: id } });
+        const eventsBefore = await db.realtimeEvent.count({ where: { kind: "conversation.changed" } });
+        const res = await call(personalStateRoute.PUT, { method: "PUT", params: { id }, body: { markedUnread: true } });
+        const may = res.status === 200;
+        const want = cells(PERSONAL_STATE[kind]!)[PERSONAS.indexOf(who)]!;
+        if (may !== want) wrong.push(`${who} · may set: expected ${want} (status ${res.status})`);
+        const row = await db.conversationMember.findUnique({ where: { conversationId_userId: { conversationId: id, userId: person.id } } });
+        const events = (await db.realtimeEvent.count({ where: { kind: "conversation.changed" } })) - eventsBefore;
+        if (want && (row?.markedUnread !== true || events !== 1)) wrong.push(`${who} · should have a mark and one event for them (row ${row?.markedUnread}, events ${events})`);
+        if (!want) {
+          // a refusal is 404 and leaves nothing: no row made, no event, no word of what the conversation is
+          if (res.status !== 404) wrong.push(`${who} · a refusal must be a 404 (got ${res.status})`);
+          if (row?.markedUnread) wrong.push(`${who} · a refused person got a mark`);
+          if (events !== 0) wrong.push(`${who} · a refused person left an event`);
+          if ((await db.conversationMember.count({ where: { conversationId: id } })) !== rowsBefore) wrong.push(`${who} · a refused person got a row`);
+          if (res.text.includes(WORD)) wrong.push(`${who} · the refusal carried a text`);
+        }
+        if (want) {
+          // the event is for the person alone: ids only, no text
+          const last = await db.realtimeEvent.findFirst({ where: { kind: "conversation.changed" }, orderBy: { id: "desc" } });
+          const ids = (last?.ids ?? {}) as Record<string, unknown>;
+          if (ids["targetUserId"] !== person.id) wrong.push(`${who} · the event is not aimed at them alone`);
+          if (JSON.stringify(ids).includes(WORD)) wrong.push(`${who} · the event carried a text`);
+        }
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("the table has one cell per persona in every row", () => {
+    for (const row of Object.values(PERSONAL_STATE)) expect(cells(row)).toHaveLength(PERSONAS.length);
+  });
 });

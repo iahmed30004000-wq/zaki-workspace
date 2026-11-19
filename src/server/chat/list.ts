@@ -11,6 +11,7 @@ import { canRead, hasOversight, loadOrgFacts, type ConversationFacts, type OrgFa
 import type { ChatListDto, ChatRowDto, ChatRowLastMessageDto, MessageKind } from "@/server/chat/dto";
 import { previewOf } from "@/server/chat/redact";
 import { dmStatusFor } from "@/server/chat/messages";
+import { archivedByMeSql, personalOnSql } from "@/server/chat/read-state";
 
 /**
  * C1.2 — THE CHAT LIST, and the batch of conversation facts the sync feed decides with.
@@ -83,6 +84,8 @@ export interface ListViewer {
   userId: string;
   orgId: string;
   org: OrgFacts;
+  /** the request's scope: the company's switches are read once from it (the list's answer says whether `chatPersonalState` is on) */
+  scope: ChatScope;
   /** the OWNER rank: a space ADMIN of every space (management), with or without oversight */
   ownerRank: boolean;
   /** silent oversight (`archive.view`) */
@@ -96,6 +99,7 @@ export function listViewerOf(ctx: OrgAccessContext, org: OrgFacts): ListViewer {
     userId: ctx.userId,
     orgId: ctx.orgId,
     org,
+    scope: chatScope(ctx),
     ownerRank: org.status === "ACTIVE" && org.role === "OWNER", // oversight-ok: the rank is a space ADMIN of every space; what he reads in silence is `oversight`
     oversight: hasOversight(org),
     guest: org.role === "GUEST",
@@ -166,6 +170,10 @@ export interface ConvRecord {
   lmCreatedAt?: Date | null;
   lmAuthorId?: string | null;
   lmAuthorName?: string | null;
+  // C3a.1: the viewer's OWN pin, archive (as it stands now: an unmuted one a message came after is not) and mark; all empty while `chatPersonalState` is off
+  myPinnedAt?: Date | null;
+  archivedByMe?: boolean;
+  markedUnreadByMe?: boolean;
   unreadCount?: number;
   mentionCount?: number;
   hasExternal?: boolean;
@@ -217,8 +225,13 @@ function visibleSql(v: ListViewer): Prisma.Sql {
 async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: boolean; visibleOnly: boolean }): Promise<ConvRecord[]> {
   const uid = v.userId;
   const stats = opts.stats;
+  // C3a.1: the company's switch is read INSIDE this query (the sync feed reads no settings of its own); off: the row says none of it and the data stays
+  const personal = personalOnSql(v.orgId);
   const statSelect = stats
     ? Prisma.sql`,
+      CASE WHEN ${personal} THEN cm."pinnedAt" END AS "myPinnedAt",
+      ${archivedByMeSql(v.orgId)} AS "archivedByMe",
+      (${personal} AND COALESCE(cm."markedUnread", false)) AS "markedUnreadByMe",
       lm.id AS "lmId", lm.body AS "lmBody", lm.kind AS "lmKind", lm."deletedAt" AS "lmDeletedAt", lm."createdAt" AS "lmCreatedAt", lm."authorId" AS "lmAuthorId", lm."authorName" AS "lmAuthorName",
       COALESCE(un.n, 0)::int AS "unreadCount", COALESCE(un.mn, 0)::int AS "mentionCount",
       CASE WHEN c.kind = 'TOPIC' AND ${!v.guest}::boolean THEN EXISTS (
@@ -364,6 +377,9 @@ function lastOf(r: ConvRecord, v: ListViewer): ChatRowLastMessageDto | null {
   return out;
 }
 
+/** When a row's own pin was made (the newest pin is on top); kept off the DTO, which carries only the yes / no. */
+const pinStamp = new WeakMap<object, number>();
+
 const hqChip = (r: ConvRecord) => (r.shownSpaceId ? { id: r.shownSpaceId, name: r.shownSpaceName ?? "" } : null);
 const muted = (until: Date | null) => !!until && until > new Date();
 
@@ -380,11 +396,12 @@ function conversationRow(r: ConvRecord, v: ListViewer): ChatRowDto {
     unread: r.unreadCount ?? 0,
     mentionsUnread: r.isMember ? (r.mentionCount ?? 0) : 0,
     muted: muted(r.mutedUntil),
-    pinnedByMe: false,
-    archivedByMe: false,
-    markedUnread: false,
+    pinnedByMe: !!r.myPinnedAt,
+    archivedByMe: r.archivedByMe === true,
+    markedUnread: r.markedUnreadByMe === true,
     restricted: topic && r.restricted,
   };
+  if (r.myPinnedAt) pinStamp.set(row, r.myPinnedAt.getTime());
   if (r.kind === "DM") {
     row.avatarUrl = r.peerAvatar;
     if (r.peerId) row.peerId = r.peerId;
@@ -405,7 +422,8 @@ const at = (row: ChatRowDto) => (row.lastMessage ? Date.parse(row.lastMessage.at
 /** One space's forum row, folded from the topics of it the person reads. */
 function spaceRow(topics: { rec: ConvRecord; row: ChatRowDto }[], v: ListViewer): ChatRowDto {
   const first = topics[0]!.rec;
-  const live = topics.filter((t) => !t.rec.archivedAt);
+  // a topic the moderators archived, or this person archived for themselves (C3a.1), is out of the space's numbers and chips; the forum view still lists it
+  const live = topics.filter((t) => !t.rec.archivedAt && !t.row.archivedByMe);
   const unread = live.reduce((n, t) => n + t.row.unread, 0);
   const newest = live.map((t) => t.row.lastMessage).filter((m): m is ChatRowLastMessageDto => !!m).sort((a, b) => Date.parse(b.at) - Date.parse(a.at))[0] ?? null;
   const chips = [...live].sort((a, b) => Number(b.row.unread > 0) - Number(a.row.unread > 0) || at(b.row) - at(a.row) || a.rec.position - b.rec.position);
@@ -432,10 +450,15 @@ function spaceRow(topics: { rec: ConvRecord; row: ChatRowDto }[], v: ListViewer)
   };
 }
 
-/** A topic's order inside its space: pinned first (the newest pin on top), then the newest activity, an archived one last. */
+/**
+ * A topic's order inside its space: archived (by the moderators, or by this person) last; then THEIR own pins (the newest pin on top, C3a.1); then the
+ * managers' pins (the newest on top); then the newest activity.
+ */
 export function byTopicOrder(a: { rec: ConvRecord; row: ChatRowDto }, b: { rec: ConvRecord; row: ChatRowDto }): number {
   return (
-    Number(!!a.rec.archivedAt) - Number(!!b.rec.archivedAt) ||
+    Number(!!a.rec.archivedAt || a.row.archivedByMe) - Number(!!b.rec.archivedAt || b.row.archivedByMe) ||
+    Number(b.row.pinnedByMe) - Number(a.row.pinnedByMe) ||
+    (b.rec.myPinnedAt?.getTime() ?? 0) - (a.rec.myPinnedAt?.getTime() ?? 0) ||
     (b.rec.pinnedAt?.getTime() ?? 0) - (a.rec.pinnedAt?.getTime() ?? 0) ||
     at(b.row) - at(a.row) ||
     a.rec.position - b.rec.position ||
@@ -471,11 +494,17 @@ export async function chatList(ctx: OrgAccessContext, opts: { spaceId?: string }
   const v = listViewerOf(ctx, org);
   const records = await queryConversations(v, opts.spaceId ? { spaceId: opts.spaceId } : { all: true }, { stats: true, visibleOnly: true });
   const items = toRows(records, v);
-  const newestFirst = (a: ChatRowDto, b: ChatRowDto) => at(b) - at(a) || a.title.localeCompare(b.title, "ar");
+  // C3a.1: the person's own pins first (the newest pin on top), the chats they archived last, then the newest activity
+  const newestFirst = (a: ChatRowDto, b: ChatRowDto) =>
+    Number(a.archivedByMe) - Number(b.archivedByMe) ||
+    Number(b.pinnedByMe) - Number(a.pinnedByMe) ||
+    (pinStamp.get(b) ?? 0) - (pinStamp.get(a) ?? 0) ||
+    at(b) - at(a) ||
+    a.title.localeCompare(b.title, "ar");
   const rows = opts.spaceId
     ? [...items.filter((i) => i.rec.kind === "TOPIC").sort(byTopicOrder).map((i) => i.row), ...items.filter((i) => i.rec.kind !== "TOPIC").map((i) => i.row).sort(newestFirst)]
     : [...foldSpaces(items, v), ...items.filter((i) => i.rec.kind !== "TOPIC").map((i) => i.row)].sort(newestFirst);
-  return { scope: opts.spaceId ? "space" : "all", spaceId: opts.spaceId ?? null, rows, canOversee: v.oversight };
+  return { scope: opts.spaceId ? "space" : "all", spaceId: opts.spaceId ?? null, rows, canOversee: v.oversight, personal: await v.scope.feature("chatPersonalState") };
 }
 
 /** The forum view of one space: its topics the person reads (pinned first, then the newest activity), each with its numbers. ONE query. */

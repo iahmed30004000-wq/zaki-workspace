@@ -33,6 +33,9 @@ import type { RealtimeKind } from "@/server/realtime/emit";
  * (the original is read through the archive, not here); the edit history is never sent. `typing`, `call.ring`, `call.changed`,
  * `whiteboard.changed` and `watch.changed` are not in it: they live on the stream only.
  *
+ * A change of the person's OWN pin, archive, mark or mute (C3a.1) is an event for them alone (`conversation.changed` with `targetUserId`, ids only): it
+ * falls into `rowCandidates` like any row event, and the row they get back carries `pinnedByMe`, `archivedByMe` and `markedUnread` from the one list query.
+ *
  * `removed` holds the conversations the person can no longer read: a topic made private for the people dropped, a chat they left, a
  * conversation that no longer exists. It is built from `conversation.changed` and from `membership.changed` about THEM, and it names only a
  * conversation they could have known: they have a row in it, it is a private chat with their id in its key, or it is a topic of a space they

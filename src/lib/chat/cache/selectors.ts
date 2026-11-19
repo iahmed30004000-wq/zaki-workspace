@@ -28,7 +28,7 @@ const NO_READERS: ReaderDto[] = [];
 export function useChatList(folder: ChatFolder = "all") {
   const qc = useQueryClient();
   const select = useCallback(
-    (d: ChatListDto): ChatListView => ({ scope: d.scope, spaceId: d.spaceId, canOversee: d.canOversee, rows: filterRows(d.rows, folder) }),
+    (d: ChatListDto): ChatListView => ({ scope: d.scope, spaceId: d.spaceId, canOversee: d.canOversee, rows: filterRows(d.rows, folder), personal: d.personal !== false, archivedRows: d.rows.filter((r) => r.archivedByMe) }),
     [folder],
   );
   const query = useQuery({ ...listQueryOptions(), select });
@@ -45,6 +45,8 @@ export function useChatList(folder: ChatFolder = "all") {
     scope: query.data?.scope ?? "all",
     spaceId: query.data?.spaceId ?? null,
     canOversee: query.data?.canOversee ?? false,
+    personal: query.data?.personal ?? true,
+    archivedRows: query.data?.archivedRows ?? EMPTY_ROWS,
     unread,
     isPending: query.isPending,
     isFetching: query.isFetching,
@@ -62,6 +64,16 @@ export function useChatUnreadSummary(opts: { enabled?: boolean; includeMuted?: b
   const select = useCallback((d: ChatListDto) => summarizeUnread(d.rows, { includeMuted }), [includeMuted]);
   const query = useQuery({ ...listQueryOptions(), select, enabled: opts.enabled ?? true });
   return query.data;
+}
+
+/**
+ * The company's switch `chatPersonalState` (C3a.1), as the cached list says it: off, no personal item is drawn in a row's menu and no «الأرشيف» tab. It only READS
+ * the cache (a row asks it too, so it never fetches); a copy saved before the switch existed has no field and reads as on.
+ */
+export function useChatPersonalState(): boolean {
+  const select = useCallback((d: ChatListDto) => d.personal !== false, []);
+  const query = useQuery({ ...listQueryOptions(), select, enabled: false });
+  return query.data ?? true;
 }
 
 /** The forum view of one space: its topics. */

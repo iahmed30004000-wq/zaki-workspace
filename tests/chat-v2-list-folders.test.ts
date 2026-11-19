@@ -15,6 +15,7 @@ import {
 import { summarizeUnread } from "@/lib/chat/cache/unread";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 
+
 /**
  * C2.2 — the folders are a PURE function over the cache's rows: no React, no network. Every rule the list column draws is pinned here.
  */
@@ -212,5 +213,63 @@ describe("the forum view's topics", () => {
   it("row keys are unique even when a space and a conversation share nothing but their kind", () => {
     const keys = rowItems(rows).map((i) => i.key);
     expect(new Set(keys).size).toBe(keys.length);
+  });
+});
+
+// ───────────────────────────── C3a.1: my own pin, archive and mark ─────────────────────────────
+describe("C3a.1 — the archive folder", () => {
+  it("«الأرشيف» is offered only when the person has an archived chat, after the built-in tabs and before «كل الشركة»", () => {
+    expect(foldersOf({ canOversee: false, archived: true }).map((f) => f.key)).toEqual(["all", "unread", "dm", "spaces", "mentions", "archived"]);
+    expect(foldersOf({ canOversee: true, archived: true }).map((f) => f.key)).toEqual(["all", "unread", "dm", "spaces", "mentions", "archived", "company"]);
+    expect(foldersOf({ canOversee: false, archived: false }).map((f) => f.key)).not.toContain("archived");
+    expect(foldersOf({ canOversee: false, guest: true, archived: true }).map((f) => f.key)).toEqual(["all", "unread", "spaces", "mentions", "archived"]);
+    expect(foldersOf({ canOversee: false, archived: true }).find((f) => f.key === "archived")!.labelKey).toBe("chatui.folder.archived");
+  });
+
+  it("it shows ONLY the archived chats; every other folder still leaves them out; the archive tab has no number", () => {
+    expect(ids(listRows(rows, { ...shapeAll, folder: "archived" }))).toEqual(["old"]);
+    expect(ids(listRows(rows, { ...shapeAll, folder: "all" }))).not.toContain("old");
+    expect(ids(listRows(rows, { ...shapeAll, folder: "unread" }))).not.toContain("old");
+    expect(folderBadge(summarizeUnread(rows), "archived")).toBe(0);
+  });
+
+  it("a person who un-archived their last chat is sent back to the first folder (the tab is gone)", () => {
+    expect(folderKeyOf("archived", foldersOf({ canOversee: false }))).toBe("all");
+    expect(folderKeyOf("archived", foldersOf({ canOversee: false, archived: true }))).toBe("archived");
+  });
+
+  it("search works inside it, like in any folder", () => {
+    expect(ids(listRows(rows, { ...shapeAll, folder: "archived", query: "مؤرشفة" }))).toEqual(["old"]);
+    expect(ids(listRows(rows, { ...shapeAll, folder: "archived", query: "سارة" }))).toEqual([]);
+  });
+});
+
+describe("C3a.1 — the person's own pins keep their own order", () => {
+  const chats = [row("a"), row("b", { pinnedByMe: true }), row("c"), row("d", { pinnedByMe: true }), row("e", { pinnedByMe: true })];
+
+  it("the pins float first, in the order of the person's `pins` list (the newest pin on top); a pin the list does not know goes after the known ones", () => {
+    expect(ids(orderedRows(chats, shapeAll, { pins: ["e", "b", "d"] }))).toEqual(["e", "b", "d", "a", "c"]);
+    expect(ids(orderedRows(chats, shapeAll, { pins: ["d"] }))).toEqual(["d", "b", "e", "a", "c"]);
+    expect(ids(orderedRows(chats, shapeAll, {}))).toEqual(["b", "d", "e", "a", "c"]);
+  });
+
+  it("an id of `pins` that is not pinned (any more) floats nothing", () => {
+    expect(ids(orderedRows(chats, shapeAll, { pins: ["a", "c", "e"] }))).toEqual(["e", "b", "d", "a", "c"]);
+  });
+
+  it("the pins do not disturb the saved order of the other chats", () => {
+    expect(ids(orderedRows(chats, shapeAll, { pins: ["e", "b", "d"], dm: ["c", "a"] }))).toEqual(["e", "b", "d", "c", "a"]);
+  });
+});
+
+describe("C3a.1 — the forum view", () => {
+  const topic = (id: string, over: Partial<ChatRowDto> = {}) => row(id, { kind: "TOPIC", ...over });
+
+  it("a topic I archived for myself goes down with the moderators' archived ones, under the «المؤرشفة» line; a topic I pinned goes first", () => {
+    const topics = [topic("p", { pinned: true }), topic("a"), topic("mine", { archivedByMe: true }), topic("z", { archived: true }), topic("star", { pinnedByMe: true })];
+    expect(ids(forumRows(topics, "s1"))).toEqual(["star", "p", "a", "mine", "z"]);
+    const items = forumItems(forumRows(topics, "s1"));
+    expect(items.map((i) => i.type)).toEqual(["row", "row", "row", "section", "row", "row"]);
+    expect(items[3]).toMatchObject({ type: "section", count: 2 });
   });
 });
