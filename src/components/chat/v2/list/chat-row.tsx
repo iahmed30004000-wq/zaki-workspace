@@ -2,7 +2,7 @@
 
 import React, { memo, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Archive, BellOff, Check, CheckCheck, Lock, Megaphone, Pin, Users, type LucideIcon } from "lucide-react";
+import { Archive, BellOff, Bookmark, Check, CheckCheck, Lock, Megaphone, Pin, Users, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { RowActionsMenu, rowHasMenu, useRowMenuGestures, type RowMenuContext } from "@/components/chat/v2/row-menu";
 import { useChatPersonalState, useChatRow } from "@/lib/chat/cache/selectors";
@@ -10,6 +10,7 @@ import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { ct } from "@/lib/chat/text";
 import { rowMarks, rowPinned, rowPreview, rowTicks, rowTicksLabel, rowTimeLabel, unreadText, type RowMark } from "@/lib/chat/row-preview";
 import { chatHref } from "@/lib/chat/v2/routes";
+import { isSavedRow } from "@/lib/chat/v2/menu/menu-context";
 import { useRowDraft } from "@/lib/chat/v2/use-draft";
 import { useTyping } from "@/lib/realtime/use-realtime";
 import { hasUnread } from "@/lib/chat/cache/unread";
@@ -33,8 +34,16 @@ const MARK_ICON: Record<RowMark["key"], LucideIcon> = {
   closed: Lock,
 };
 
-function RowAvatar({ row, tall }: { row: ChatRowDto; tall: boolean }) {
+function RowAvatar({ row, tall, saved = false }: { row: ChatRowDto; tall: boolean; saved?: boolean }) {
   const size = tall ? "size-14" : "size-12";
+  // C3a.3: «الرسائل المحفوظة» has no other person to show: a bookmark in the accent
+  if (saved) {
+    return (
+      <span aria-hidden="true" data-saved-avatar="" className={cn("grid shrink-0 place-items-center rounded-full bg-accent text-accent-fg", size)}>
+        <Bookmark className="size-6" />
+      </span>
+    );
+  }
   if (row.kind === "TOPIC") {
     return (
       <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-full bg-surface-2 text-xl", size)}>
@@ -62,10 +71,13 @@ export function RowView({
   draft,
   now,
   menu,
+  saved = false,
 }: {
   row: ChatRowDto;
   selected: boolean;
   tall?: boolean;
+  /** C3a.3: this row is «الرسائل المحفوظة» (the connected row knows it from the viewer's id): a bookmark for a picture, no typing line, no ticks */
+  saved?: boolean;
   typingNames?: readonly string[];
   draft?: string | null;
   now?: Date;
@@ -75,7 +87,7 @@ export function RowView({
   const unread = hasUnread(row);
   const preview = rowPreview(row, { ...(typingNames ? { typingNames } : {}), ...(draft !== undefined ? { draft } : {}) });
   const marks = rowMarks(row);
-  const ticks = rowTicks(row);
+  const ticks = saved ? null : rowTicks(row);
   const time = rowTimeLabel(row.lastMessage?.at, now);
   const space = row.kind === "SPACE";
   const chips = space ? (row.topicChips ?? []) : [];
@@ -99,7 +111,7 @@ export function RowView({
       )}
       style={{ height: tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT }}
     >
-      <RowAvatar row={row} tall={tall} />
+      <RowAvatar row={row} tall={tall} saved={saved} />
 
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         {/* line 1: the title (heavier when something is unread), its small icons, then the time at the end */}
@@ -229,7 +241,9 @@ function ConnectedRow({ row, selected, tall, userId, menu: given }: { row: ChatR
   const personal = useChatPersonalState();
   const menu = useMemo<RowMenuContext>(() => ({ ...given, personal: given.personal !== false && personal }), [given, personal]);
   // a topic of a space row is a different conversation: «typing» and the draft belong to conversations only
-  const typing = useTyping(conversation ? row.id : null);
+  // C3a.3: nobody else can type in a chat with myself
+  const saved = isSavedRow(row, userId);
+  const typing = useTyping(conversation && !saved ? row.id : null);
   const draft = useRowDraft(userId, row.id, { selected, enabled: conversation });
   const [open, setOpen] = useState(false);
   const has = rowHasMenu(row, menu);
@@ -242,6 +256,7 @@ function ConnectedRow({ row, selected, tall, userId, menu: given }: { row: ChatR
         tall={tall}
         typingNames={typing.typingNames}
         draft={draft}
+        saved={saved}
         menu={has ? <RowActionsMenu row={row} ctx={menu} open={open} onOpenChange={setOpen} openConversationId={selected ? row.id : null} className="ms-1" /> : null}
       />
     </div>

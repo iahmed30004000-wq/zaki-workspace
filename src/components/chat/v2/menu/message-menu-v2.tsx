@@ -1,6 +1,8 @@
 "use client";
 
 import React from "react";
+import { usePathname } from "next/navigation";
+import { QueryClientContext } from "@tanstack/react-query";
 import { Ellipsis, Reply, SmilePlus } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -9,6 +11,9 @@ import { Button } from "@/components/ui/button";
 import { menuFor, menuOpen, type MessageMenuContext, type MessageMenuId } from "@/components/chat/message/message-menu-registry";
 import { EmojiPickerDialog } from "@/components/chat/v2/menu/emoji-picker";
 import { ReactionBar } from "@/components/chat/v2/menu/reaction-bar";
+import { useOptionalToast } from "@/components/ui/toast";
+import { chatKeys } from "@/lib/chat/cache/keys";
+import { keepInSaved, savedFlagsOf, type ListWithSaved } from "@/lib/chat/v2/menu/menu-context";
 import { ct } from "@/lib/chat/text";
 
 export interface MessageMenuV2Props {
@@ -47,15 +52,32 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [reactOpen, setReactOpen] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  // C3a.3: «حوّل للمحفوظة» runs HERE (the item is the registry's; the doors are today's dm and forward doors). Whether it is on offer comes from the cached list, read only
+  // while a menu is open and only when a query client is above (a render on its own has none: no item); the server decides again
+  const queries = React.useContext(QueryClientContext);
+  const toast = useOptionalToast();
+  const pathname = usePathname();
+  const asked = open || sheetOpen;
+  const offered = React.useMemo(() => {
+    if (!asked || !queries) return context;
+    const flags = savedFlagsOf(queries.getQueryData<ListWithSaved>(chatKeys.list()), context.viewerId, pathname);
+    return flags.canSaved ? { ...context, canSaved: true, inSaved: flags.inSaved } : context;
+  }, [asked, queries, context, pathname]);
   if (!menuOpen(context)) return null;
-  const actions = menuFor(context);
+  const actions = menuFor(asked ? offered : context);
   const canReply = actions.some((a) => a.id === "reply");
 
   const pick = (id: MessageMenuId) => {
     onMenuOpenChange(false);
     onSheetOpenChange(false);
     if (id === "delete") setConfirmDelete(true);
-    else onAction(id);
+    else if (id === "saved") {
+      const messageId = context.messageId;
+      if (!messageId) return;
+      void keepInSaved(messageId).then((ok) => {
+        toast?.toast(ct(ok ? "chatsaved.done" : "chatsaved.failed"), ok ? "success" : "error");
+      });
+    } else onAction(id);
   };
   const react = (emoji: string) => {
     setReactOpen(false);

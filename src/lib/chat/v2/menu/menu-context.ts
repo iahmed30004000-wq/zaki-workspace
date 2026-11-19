@@ -1,4 +1,6 @@
-import type { AttachmentDto, ConversationHeaderDto, MessageDto } from "@/server/chat/dto";
+import type { AttachmentDto, ChatListDto, ChatRowDto, ConversationHeaderDto, MessageDto } from "@/server/chat/dto";
+import { ct } from "@/lib/chat/text";
+import { chatRouteOf } from "@/lib/chat/v2/routes";
 import { messageMenuContext } from "@/components/chat/message/message-item";
 import type { MessageMenuContext } from "@/components/chat/message/message-menu-registry";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
@@ -21,10 +23,70 @@ export function askKindOf(kinds: ConversationHeaderDto["me"]["problemKinds"]): b
   return !!kinds?.some((k) => k.key === ASK_KIND_KEY);
 }
 
+/**
+ * C3a.3 — «الرسائل المحفوظة»: the saved chat is a private chat whose OTHER person is me (its row says `peerId` = my id; the server never makes any other chat like that).
+ * Pure, so the list, the menu and the info panel know it the same way.
+ */
+export function isSavedRow(row: Pick<ChatRowDto, "kind" | "peerId">, userId: string | null | undefined): boolean {
+  return row.kind === "DM" && !!userId && row.peerId === userId;
+}
+
+/**
+ * The header of the saved chat, when the list's row is not in the cache to say so: a private chat with no other person (or with me as that person) that carries the saved
+ * chat's title. The title keeps it apart from an old DM that lost the other person's row (it has no peer either, and no title).
+ */
+export function isSavedHeader(header: Pick<ConversationHeaderDto, "kind" | "peer" | "me" | "title">): boolean {
+  return header.kind === "DM" && header.title === ct("chatsaved.title") && (!header.peer || (!!header.me.id && header.peer.id === header.me.id));
+}
+
+/** The list as the cache holds it, with the answer's `saved` (the company's switch for the saved chat; `ChatListDto` itself is another package's type). */
+export type ListWithSaved = ChatListDto & { saved?: boolean };
+
+/**
+ * What the menu may offer about the saved chat, from the cached list (no fetch): «حوّل للمحفوظة» is offered when the list holds the saved row, or says the company's
+ * switch is on (the chat is then made by the door on first use); it is not offered inside the saved chat itself. The server decides again.
+ */
+export function savedFlagsOf(list: Pick<ListWithSaved, "rows" | "saved"> | null | undefined, viewerId: string | null | undefined, pathname: string | null | undefined): { canSaved: boolean; inSaved: boolean; savedId: string | null } {
+  if (!list || !viewerId) return { canSaved: false, inSaved: false, savedId: null };
+  const row = list.rows.find((r) => isSavedRow(r, viewerId)) ?? null;
+  const route = chatRouteOf(pathname);
+  return { canSaved: !!row || list.saved === true, inSaved: !!row && route.kind === "conversation" && route.id === row.id, savedId: row?.id ?? null };
+}
+
+/** The dm door with `{ saved: true }`: the id of my saved chat (made on first use), or null when the door refuses (the switch is off, a guest) or fails. The ONE place that asks. */
+export async function openSavedId(fetchImpl: typeof fetch = fetch): Promise<string | null> {
+  try {
+    const res = await fetchImpl("/api/chat/dm", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ saved: true }) });
+    if (!res.ok) return null;
+    const { id } = (await res.json()) as { id?: unknown };
+    return typeof id === "string" && id ? id : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * «حوّل للمحفوظة»: open (or make) my saved chat through the dm door, then forward the message into it through the forward door — both doors are today's; nothing is new
+ * on the server but the door's `{ saved: true }`. True when the copy was made.
+ */
+export async function keepInSaved(messageId: string, fetchImpl: typeof fetch = fetch): Promise<boolean> {
+  try {
+    const json = { "content-type": "application/json" };
+    const id = await openSavedId(fetchImpl);
+    if (!id) return false;
+    const copied = await fetchImpl(`/api/chat/messages/${encodeURIComponent(messageId)}/forward`, { method: "POST", headers: json, body: JSON.stringify({ conversationId: id }) });
+    return copied.ok;
+  } catch {
+    return false;
+  }
+}
+
 export function menuContextV2(message: MessageDto, facts: BubbleFacts, extras: { readerCount: number; askKind: boolean }): MessageMenuContext {
   return {
     ...messageMenuContext(message, facts),
     surface: "v2",
+    messageId: message.id,
+    ...(facts.meId ? { viewerId: facts.meId } : {}),
     canReadText: facts.canReadImages && message.attachments.some((f) => f.kind === "IMAGE" && OCR_MIMES.has(f.mime) && ours(f)),
     canTranscribe: facts.canTranscribe && message.kind === "VOICE" && message.attachments.some((f) => f.mime.startsWith("audio/") && ours(f)),
     readerCount: extras.readerCount,

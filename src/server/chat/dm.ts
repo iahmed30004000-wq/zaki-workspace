@@ -1,6 +1,9 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { loadOrgFacts } from "@/server/policy/conversation";
+import { PINS_MAX } from "@/server/chat/read-state";
+import { AR } from "@/lib/i18n/dict";
 import { emitRealtime } from "@/server/realtime/emit";
 import { writeSystemMessage } from "@/server/chat/system";
 import { systemSentenceOfBody } from "@/lib/chat/system-sentence";
@@ -25,6 +28,22 @@ export const dmKeyOf = (a: string, b: string, spaceId: string | null = null): st
 
 /** The two people of a DM key (`a|b`, or `a|b@space`). */
 export const dmPairOf = (dmKey: string): string[] => (dmKey.split("@")[0] ?? "").split("|");
+
+/**
+ * «الرسائل المحفوظة» (C3a.3): a DM with oneself. The key is `<me>|<me>` with NO space suffix: it is the person's own, one per company, shown in every
+ * space they are in (a space's DMs belong to the space; this one does not). The existing unique (orgId, dmKey) is what makes it one.
+ */
+export const savedKeyOf = (userId: string): string => dmKeyOf(userId, userId, null);
+
+/** Is this key a DM of one person with themselves (whoever's, with or without a space suffix)? */
+export const isSelfDmKey = (dmKey: string | null | undefined): boolean => {
+  if (!dmKey) return false;
+  const pair = dmPairOf(dmKey);
+  return pair.length === 2 && !!pair[0] && pair[0] === pair[1];
+};
+
+/** The title a saved chat is stored with and shown under (the screens draw the dictionary's own line, so an old stored title never shows). */
+export const SAVED_TITLE_KEY = "chatsaved.title";
 
 /**
  * Where a person's DMs are listed: the DMs of the space they are in, and in «الشركة» also the ones from before
@@ -84,6 +103,57 @@ export async function openDm(ctx: OrgAccessContext, otherId: string, spaceId: st
   return { id: created.id, created: true };
 }
 
+/**
+ * Opens (or finds) the person's own saved chat: a DM with ONE row (theirs), `dmKey = <me>|<me>`. Idempotent: the second call, and two tabs at once, end at the
+ * same conversation (the unique (orgId, dmKey) decides; the loser of the race reads the winner's row). A guest has none; a suspended person is nobody. A new
+ * saved chat is pinned for the person through C3a.1's own column (`ConversationMember.pinnedAt`, while they have fewer than `PINS_MAX` pins); they may
+ * unpin it, and opening it again never pins it again. The caller checks the company's switch `savedMessages` (the door does).
+ */
+export async function openSavedMessages(ctx: OrgAccessContext): Promise<{ id: string; created: boolean }> {
+  const me = await loadOrgFacts(ctx.userId, ctx.orgId);
+  if (!me || me.status !== "ACTIVE") throw new NotFoundError("chat.e.not_found");
+  if (me.role === "GUEST") throw new ForbiddenError("chat.guest_forbidden");
+  const dmKey = savedKeyOf(ctx.userId);
+
+  const found = async (): Promise<{ id: string; created: boolean } | null> => {
+    const existing = await db.conversation.findFirst({ where: { orgId: ctx.orgId, dmKey }, select: { id: true } });
+    if (!existing) return null;
+    // a row lost before the rule that a DM is never left is put back: the person is never locked out of their own saved messages
+    await db.conversationMember.createMany({ data: [{ conversationId: existing.id, userId: ctx.userId }], skipDuplicates: true });
+    return { id: existing.id, created: false };
+  };
+  const already = await found();
+  if (already) return already;
+
+  try {
+    const created = await db.$transaction(async (tx) => {
+      const pins = await tx.conversationMember.count({ where: { userId: ctx.userId, pinnedAt: { not: null }, conversation: { orgId: ctx.orgId } } });
+      const c = await tx.conversation.create({
+        data: {
+          orgId: ctx.orgId,
+          kind: "DM",
+          dmKey,
+          spaceId: null,
+          title: AR[SAVED_TITLE_KEY] ?? null,
+          members: { create: [{ userId: ctx.userId, ...(pins < PINS_MAX ? { pinnedAt: new Date() } : {}) }] },
+        },
+        select: { id: true },
+      });
+      // the person's other tabs and devices get the row through the sync feed (ids only, for them alone: the same event as C3a.1)
+      await emitRealtime(tx, ctx.orgId, "conversation.changed", { conversationId: c.id, targetUserId: ctx.userId });
+      return c;
+    });
+    return { id: created.id, created: true };
+  } catch (err) {
+    // two tabs at once: the other one made it first (the unique key refused ours); read theirs
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      const winner = await found();
+      if (winner) return winner;
+    }
+    throw err;
+  }
+}
+
 /** The DM list of a person (in the space they are in, when given): peers, last message, unread count. */
 export async function listDms(ctx: OrgAccessContext, spaceId?: string | null) {
   const org = await loadOrgFacts(ctx.userId, ctx.orgId);
@@ -106,8 +176,9 @@ export async function listDms(ctx: OrgAccessContext, spaceId?: string | null) {
     orderBy: { updatedAt: "desc" },
   });
 
+  // the saved chat has no peer: the old lists would draw a nameless row (it is the new screen's)
   return Promise.all(
-    rows.map(async (c) => {
+    rows.filter((c) => !isSelfDmKey(c.dmKey)).map(async (c) => {
       const mine = c.members.find((m) => m.userId === ctx.userId);
       const other = c.members.find((m) => m.userId !== ctx.userId);
       const last = c.messages[0] ?? null;
