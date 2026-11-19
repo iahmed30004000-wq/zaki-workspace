@@ -18,6 +18,7 @@ import { JumpButtons, StickyDateChip } from "@/components/chat/v2/pane/floating"
 import { PaneActionsProvider } from "@/components/chat/v2/pane/pane-actions";
 import { PaneHeader } from "@/components/chat/v2/pane/pane-header";
 import { PinnedBar } from "@/components/chat/v2/pane/pinned-bar";
+import { VoiceMiniPlayer } from "@/components/chat/v2/pane/voice-mini-player";
 import { ComposerHost } from "@/components/chat/v2/pane/seams/composer-host";
 import { MenuHost } from "@/components/chat/v2/pane/seams/menu-host";
 import { ViewportRow, rowPadding, type RowEnv } from "@/components/chat/v2/pane/viewport-row";
@@ -335,5 +336,12 @@ describe("the pane's frame", () => {
     const down = failed(500);
     expect(down).toContain('data-pane-state="error"');
     expect(down).toContain(AR["chatui.pane.retry"]);
+  });
+});
+
+describe("the voice mini bar (C3b.4)", () => {
+  it("draws nothing while no voice note plays: a pane with no voice note is exactly what it was", () => {
+    const header = makeHeader();
+    expect(inPane(header, createElement(VoiceMiniPlayer, { conversationId: header.id, messages: [], onJump: noop }))).toBe("");
   });
 });
