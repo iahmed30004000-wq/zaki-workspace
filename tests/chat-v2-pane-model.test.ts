@@ -1,8 +1,13 @@
+import * as React from "react";
+import { createElement, type FunctionComponent, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { ct, ctCount } from "@/lib/chat/text";
 import { NAME_TONES, bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
 import { bubbleFactsOf, sameFacts } from "@/lib/chat/v2/pane/bubble-facts";
-import { headerMenuOf, subtitleOf } from "@/lib/chat/v2/pane/header-model";
+import { channelOf, headerMenuOf, subtitleOf } from "@/lib/chat/v2/pane/header-model";
+import { composerBarOf } from "@/lib/chat/v2/pane/composer-bar";
 import { jumpButtonsOf, mentionTargetsOf, mentionsButtonOf, pruneVisited, walkTargetsOf } from "@/lib/chat/v2/pane/jump-model";
 import { collectUnreadMentions, unreadMentionsUrl } from "@/lib/chat/history/jump";
 import { newestToConsider } from "@/lib/chat/v2/pane/read-model";
@@ -14,6 +19,17 @@ import { composerDetailOf } from "@/lib/chat/v2/pane/composer-detail";
 import { conversationPeopleUrl } from "@/lib/chat/conversation/client";
 import { messageMenuContext } from "@/components/chat/message/message-item";
 import { makeHeader, makeMessage } from "./chat-v2-pane-fixtures.test";
+import { PaneHeader } from "@/components/chat/v2/pane/pane-header";
+import { PaneActionsProvider } from "@/components/chat/v2/pane/pane-actions";
+import { I18nProvider } from "@/lib/i18n";
+import type { ConversationHeaderDto } from "@/server/chat/dto";
+
+(globalThis as { React?: typeof React }).React = React;
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/chat/c1",
+  useRouter: () => ({ push: () => {}, replace: () => {}, refresh: () => {} }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 
 /**
  * C2.4 — the pure half of the conversation pane: what a bubble looks like (runs, tails, the name colour), what the header says under the title and
@@ -159,6 +175,50 @@ describe("the line under the title", () => {
   it("typing wins the line: «عم يكتب…» in a private chat, «سلمى عم يكتب…» in a topic", () => {
     expect(subtitleOf(makeHeader({ kind: "DM", space: null }), { typingNames: ["أحمد"], now })).toMatchObject({ line: ct("chatui.row.typing"), typing: true });
     expect(subtitleOf(makeHeader(), { typingNames: ["سلمى"], now })).toMatchObject({ line: ct("chatui.row.typing_one", { name: "سلمى" }), typing: true });
+  });
+});
+
+describe("C3c.4 — a channel («قناة»): the header's word and the bar that replaces the composer", () => {
+  const channel = (over: Parameters<typeof makeHeader>[0] = {}) => makeHeader({ topicType: "ANNOUNCEMENTS", postingPolicy: "ADMINS", ...over });
+
+  it("announcements that only admins post in: the header says «قناة» (the megaphone is drawn with it)", () => {
+    expect(channelOf(channel())).toBe("قناة");
+    expect(channelOf(channel({ me: { canPost: false } }))).toBe("قناة");
+  });
+
+  it("the word comes from the topic's own two fields: announcements for everybody, any other type, a private chat are not channels", () => {
+    expect(channelOf(makeHeader({ topicType: "ANNOUNCEMENTS", postingPolicy: "ALL" }))).toBeNull();
+    expect(channelOf(makeHeader({ topicType: "DISCUSSION", postingPolicy: "ADMINS" }))).toBeNull();
+    expect(channelOf(makeHeader())).toBeNull();
+    expect(channelOf(channel({ kind: "DM" }))).toBeNull();
+    // a header that does not say the policy is not guessed at
+    const { postingPolicy: _unused, ...bare } = channel();
+    expect(channelOf(bare)).toBeNull();
+  });
+
+  it("a person who may NOT post sees «بس المشرفين بينشروا هون» instead of the composer", () => {
+    const h = channel({ me: { canPost: false } });
+    expect(composerBarOf(h.me, h)).toBe("channel");
+    expect(ct("chatc.bar.channel")).toBe("بس المشرفين بينشروا هون");
+  });
+
+  it("the server decides who posts: me.canPost true (an admin) keeps the composer, and the other reasons still come first", () => {
+    const admin = channel();
+    expect(composerBarOf(admin.me, admin)).toBe("composer");
+    const closed = channel({ closed: true, me: { canPost: false } });
+    expect(composerBarOf(closed.me, closed)).toBe("closed");
+    const muted = channel({ me: { canPost: false, muted: true } });
+    expect(composerBarOf(muted.me, muted)).toBe("muted");
+    const joinable = channel({ me: { canPost: false, canJoin: true, oversight: true } });
+    expect(composerBarOf(joinable.me, joinable)).toBe("join");
+  });
+
+  it("the guest rule is unchanged: a guest cannot post in announcements, and where the policy is not «للمشرفين» the old line stays", () => {
+    const open = makeHeader({ topicType: "ANNOUNCEMENTS", postingPolicy: "ALL", me: { canPost: false } });
+    expect(composerBarOf(open.me, open)).toBe("announcements");
+    expect(composerBarOf(open.me, { closed: false, topicType: "ANNOUNCEMENTS" })).toBe("announcements");
+    const ordinary = makeHeader({ me: { canPost: false } });
+    expect(composerBarOf(ordinary.me, ordinary)).toBe("denied");
   });
 });
 
@@ -435,5 +495,31 @@ describe("C3b.6 — «@» walks the unread mentions the SERVER lists, oldest to 
       }),
     ).rejects.toThrow("offline");
     await expect(collectUnreadMentions(async () => Promise.reject(new Error("offline")))).rejects.toThrow("offline");
+  });
+});
+
+describe("C3c.4 — the header of a channel, drawn", () => {
+  const Translations = I18nProvider as unknown as FunctionComponent<{ initial: "ar"; children?: ReactNode }>;
+  const Queries = QueryClientProvider as unknown as FunctionComponent<{ client: QueryClient; children?: ReactNode }>;
+  const Actions = PaneActionsProvider as unknown as FunctionComponent<{ conversationId: string; jumpTo: () => void; toNewest: () => void; children?: ReactNode }>;
+  const noop = () => undefined;
+  const draw = (header: ConversationHeaderDto) =>
+    renderToStaticMarkup(
+      createElement(
+        Translations,
+        { initial: "ar" },
+        createElement(Queries, { client: new QueryClient() }, createElement(Actions, { conversationId: header.id, jumpTo: noop, toNewest: noop }, createElement(PaneHeader, { header, people: null, watch: false, system: false }))),
+      ),
+    );
+
+  it("announcements that only admins post in: the megaphone and «قناة» under the title, next to the space and the people", () => {
+    const html = draw(makeHeader({ topicType: "ANNOUNCEMENTS", postingPolicy: "ADMINS" }));
+    expect(html).toContain("data-header-channel");
+    expect(html).toContain("قناة");
+    expect(html).toContain("المبيعات");
+  });
+  it("an ordinary topic has no such word", () => {
+    expect(draw(makeHeader())).not.toContain("data-header-channel");
+    expect(draw(makeHeader({ topicType: "ANNOUNCEMENTS", postingPolicy: "ALL" }))).not.toContain("data-header-channel");
   });
 });

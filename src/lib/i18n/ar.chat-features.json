@@ -151,5 +151,7 @@
   "enum.ScheduledChatStatus.PENDING": "منتظرة",
   "enum.ScheduledChatStatus.SENT": "انبعتت",
   "enum.ScheduledChatStatus.FAILED": "ما انبعتت",
-  "enum.ScheduledChatStatus.CANCELLED": "ملغية"
+  "enum.ScheduledChatStatus.CANCELLED": "ملغية",
+  "chatch.word": "قناة",
+  "chatc.bar.channel": "بس المشرفين بينشروا هون"
 }

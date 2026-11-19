@@ -1,6 +1,14 @@
+import * as React from "react";
+import { createElement, type FunctionComponent, type ReactNode } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { dayKeyOf, msUntilNextDay, rowMarks, rowPinned, rowPreview, rowSpokenLabel, rowTicks, rowTimeLabel, typingText, unreadText } from "@/lib/chat/row-preview";
+import { RowView } from "@/components/chat/v2/list/chat-row";
+import { I18nProvider } from "@/lib/i18n";
+import { dayKeyOf, msUntilNextDay, rowChannelWord, rowMarks, rowPinned, rowPreview, rowSpokenLabel, rowTicks, rowTimeLabel, typingText, unreadText } from "@/lib/chat/row-preview";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
+import type { PostingPolicy } from "@/server/chat/dto";
+
+(globalThis as { React?: typeof React }).React = React;
 
 /**
  * C2.2 — what a row says, as pure functions of the row the cache holds (row anatomy of the spec, C2 §3).
@@ -21,6 +29,8 @@ const row = (over: Partial<ChatRowDto> = {}): ChatRowDto => ({
   restricted: false,
   ...over,
 });
+/** C3c.4: a row plus the posting policy the list row will carry (the field is read when it is there; the row type of C1.2 has none yet) */
+const withPolicy = (over: Partial<ChatRowDto>, postingPolicy?: PostingPolicy) => ({ ...row(over), ...(postingPolicy ? { postingPolicy } : {}) });
 const msg = (over: Record<string, unknown> = {}) => ({ id: "m1", authorName: "سلمى", preview: "وصلت الشحنة", kind: "TEXT" as const, at: "2026-11-17T09:05:00.000Z", mine: false, ...over });
 const NOW = new Date("2026-11-17T15:00:00");
 
@@ -107,6 +117,21 @@ describe("the small marks after the title", () => {
   it("announcements: the megaphone; closed; muted last", () => {
     expect(rowMarks(row({ topicType: "ANNOUNCEMENTS", closed: true, muted: true })).map((m) => m.key)).toEqual(["announcements", "closed", "muted"]);
   });
+  it("C3c.4: a topic of announcements that only admins post in is a channel: the megaphone AND the word «قناة»", () => {
+    const channel = withPolicy({ topicType: "ANNOUNCEMENTS" }, "ADMINS");
+    expect(rowChannelWord(channel)).toBe("قناة");
+    expect(rowMarks(channel).map((m) => m.key)).toEqual(["announcements"]);
+  });
+  it("C3c.4: announcements that EVERYBODY may post in, an ordinary topic and a private chat or a space are not channels", () => {
+    expect(rowChannelWord(withPolicy({ topicType: "ANNOUNCEMENTS" }, "ALL"))).toBeNull();
+    expect(rowChannelWord(withPolicy({ topicType: "DISCUSSION" }, "ADMINS"))).toBeNull();
+    expect(rowChannelWord(row({ topicType: "DISCUSSION" }))).toBeNull();
+    expect(rowChannelWord(withPolicy({ kind: "DM", topicType: "ANNOUNCEMENTS" }, "ADMINS"))).toBeNull();
+    expect(rowChannelWord(withPolicy({ kind: "SPACE", topicType: "ANNOUNCEMENTS" }, "ADMINS"))).toBeNull();
+  });
+  it("C3c.4: the list row does not carry the policy yet, so an announcements topic without one reads as a channel (the server's default for it is «للمشرفين»)", () => {
+    expect(rowChannelWord(row({ topicType: "ANNOUNCEMENTS" }))).toBe("قناة");
+  });
   it("a private chat has no topic marks (only muted)", () => {
     expect(rowMarks(row({ kind: "DM", restricted: true, topicType: "ANNOUNCEMENTS" }))).toEqual([]);
     expect(rowMarks(row({ kind: "DM", muted: true })).map((m) => m.key)).toEqual(["muted"]);
@@ -150,5 +175,21 @@ describe("the labels roll over at midnight", () => {
     expect(msUntilNextDay(new Date("2026-11-17T23:00:00"))).toBe(3_600_000 + 500);
     expect(msUntilNextDay(new Date("2026-11-17T23:59:59.999"))).toBe(1000);
     expect(msUntilNextDay(new Date("2026-11-17T00:00:00"))).toBe(86_400_000 + 500);
+  });
+});
+
+describe("C3c.4 — the list row of a channel, drawn", () => {
+  const Translations = I18nProvider as unknown as FunctionComponent<{ initial: "ar"; children?: ReactNode }>;
+  const view = (r: ChatRowDto) => renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(RowView, { row: r, selected: false, now: NOW })));
+
+  it("a channel shows the megaphone and the word «قناة»", () => {
+    const html = view(withPolicy({ topicType: "ANNOUNCEMENTS", lastMessage: msg() }, "ADMINS"));
+    expect(html).toContain("data-row-channel");
+    expect(html).toContain("قناة");
+    expect(html).toContain('aria-label="تنبيهات"');
+  });
+  it("an ordinary topic and announcements for everybody show no such word", () => {
+    expect(view(row({ lastMessage: msg() }))).not.toContain("data-row-channel");
+    expect(view(withPolicy({ topicType: "ANNOUNCEMENTS", lastMessage: msg() }, "ALL"))).not.toContain("data-row-channel");
   });
 });

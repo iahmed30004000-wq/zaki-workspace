@@ -2,6 +2,7 @@ import { stripFormatting } from "@/lib/chat/format/parse";
 import { ct, ctCount } from "@/lib/chat/text";
 import { dayDiff, weekdayName } from "@/lib/format";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
+import type { PostingPolicy } from "@/server/chat/dto";
 import { hasUnread } from "@/lib/chat/cache/unread";
 
 /**
@@ -78,6 +79,24 @@ export interface RowMark {
   key: RowMarkKey;
   /** the key of the icon's spoken name in `ar.chat-ui.json` */
   labelKey: string;
+}
+
+/**
+ * C3c.4 — a CHANNEL («قناة»): a topic of type ANNOUNCEMENTS whose posting policy is «للمشرفين» (ADMINS). No schema and no new field: it is a name for two
+ * fields the topic already has. It is only a LOOK (the megaphone and the word); WHO may post is never decided here — the composer comes from the
+ * server's `me.canPost`.
+ */
+export function isChannelTopic(c: { kind?: string; topicType?: string | null; postingPolicy?: PostingPolicy | null }): boolean {
+  return c.kind === "TOPIC" && c.topicType === "ANNOUNCEMENTS" && c.postingPolicy === "ADMINS";
+}
+
+/**
+ * The word «قناة» for a LIST row, or null. The list row (C1.2) does not carry `postingPolicy` yet (the list query reads it, the row type has no field), so a row
+ * that has none is read with the server's own default for an announcements topic, which is «للمشرفين»; a row that does carry it (`ALL`) is not a channel.
+ * The day the row type gets the field, nothing here changes.
+ */
+export function rowChannelWord(row: ChatRowDto & { postingPolicy?: PostingPolicy | null }): string | null {
+  return isChannelTopic({ kind: row.kind, topicType: row.topicType, postingPolicy: row.postingPolicy ?? "ADMINS" }) ? ct("chatch.word") : null;
 }
 
 /** The small icons after the title: muted, archived (C3a.1: shown in the «الأرشيف» tab), private (lock), for a «مقطع» (people), an announcements topic (megaphone), closed. */

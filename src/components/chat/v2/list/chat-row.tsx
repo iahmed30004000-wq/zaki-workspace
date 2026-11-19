@@ -8,7 +8,7 @@ import { RowActionsMenu, rowHasMenu, useRowMenuGestures, type RowMenuContext } f
 import { useChatPersonalState, useChatRow } from "@/lib/chat/cache/selectors";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { ct } from "@/lib/chat/text";
-import { rowMarks, rowPinned, rowPreview, rowTicks, rowTicksLabel, rowTimeLabel, unreadText, type RowMark } from "@/lib/chat/row-preview";
+import { rowChannelWord, rowMarks, rowPinned, rowPreview, rowTicks, rowTicksLabel, rowTimeLabel, unreadText, type RowMark } from "@/lib/chat/row-preview";
 import { chatHref } from "@/lib/chat/v2/routes";
 import { isSavedRow } from "@/lib/chat/v2/menu/menu-context";
 import { useRowDraft } from "@/lib/chat/v2/use-draft";
@@ -87,6 +87,8 @@ export function RowView({
   const unread = hasUnread(row);
   const preview = rowPreview(row, { ...(typingNames ? { typingNames } : {}), ...(draft !== undefined ? { draft } : {}) });
   const marks = rowMarks(row);
+  // C3c.4: a channel («قناة») says its word next to the megaphone
+  const channel = rowChannelWord(row);
   const ticks = saved ? null : rowTicks(row);
   const time = rowTimeLabel(row.lastMessage?.at, now);
   const space = row.kind === "SPACE";
@@ -134,6 +136,11 @@ export function RowView({
             const Icon = MARK_ICON[mark.key];
             return <Icon key={mark.key} className={cn("size-3.5 shrink-0", quiet)} aria-label={ct(mark.labelKey)} role="img" />;
           })}
+          {channel ? (
+            <span data-row-channel="" className={cn("shrink-0 text-xs font-medium", on ? "text-accent-fg" : "text-accent")}>
+              {channel}
+            </span>
+          ) : null}
           <span className="ms-auto flex shrink-0 items-center gap-1 ps-1">
             {ticks ? (
               ticks === "sent" ? (

@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, MoreVertical, Search } from "lucide-react";
+import { ArrowRight, Megaphone, MoreVertical, Search } from "lucide-react";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -19,7 +19,7 @@ import { privacyState } from "@/lib/chat/privacy";
 import { setSoundsEnabled, soundsEnabled } from "@/lib/chat/sounds";
 import { ct } from "@/lib/chat/text";
 import { composerDetailOf, type PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
-import { headerMenuOf, subtitleOf, type HeaderMenuId } from "@/lib/chat/v2/pane/header-model";
+import { channelOf, headerMenuOf, subtitleOf, type HeaderMenuId } from "@/lib/chat/v2/pane/header-model";
 import { doors } from "@/lib/chat/v2/pane/message-actions";
 import { useTyping } from "@/lib/realtime/use-realtime";
 import { chatHref } from "@/lib/chat/v2/routes";
@@ -51,6 +51,8 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
   const { onLinkClick } = usePhoneBack();
   const { typingNames } = useTyping(header.id);
   const subtitle = subtitleOf(header, { typingNames });
+  // C3c.4: «قناة» with the megaphone, from the topic's own two fields (announcements, only admins post)
+  const channel = channelOf(header);
   const [privacyOpen, setPrivacyOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [sounds, setSounds] = React.useState(true);
@@ -157,8 +159,15 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
         <button type="button" data-header-title aria-expanded={a.infoOpen} aria-label={ct("chatui.pane.menu.info")} onClick={a.toggleInfo} className="block w-full min-w-0 text-start">
           <h1 className="truncate font-semibold leading-tight">{header.title}</h1>
         </button>
-        {subtitle.privacy || subtitle.line ? (
+        {channel || subtitle.privacy || subtitle.line ? (
           <p data-header-subtitle className={`flex min-w-0 items-center gap-1.5 text-xs ${subtitle.typing ? "text-accent" : "text-fg-muted"}`}>
+            {channel && !subtitle.typing ? (
+              <span data-header-channel="" className="inline-flex shrink-0 items-center gap-1 font-medium text-accent">
+                <Megaphone aria-hidden="true" className="size-3.5" />
+                {channel}
+              </span>
+            ) : null}
+            {channel && !subtitle.typing && (subtitle.privacy || subtitle.line) ? <span aria-hidden="true">·</span> : null}
             {subtitle.privacy && !subtitle.typing ? (
               <button type="button" data-privacy aria-label={ct("chatp.open_sheet")} onClick={() => setPrivacyOpen(true)} className="shrink-0 rounded-md px-1 text-accent hover:bg-surface-2">
                 {subtitle.privacy}

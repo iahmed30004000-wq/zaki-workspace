@@ -1,8 +1,8 @@
 import type { ConversationHeaderDto } from "@/server/chat/dto";
-import { ctCount } from "@/lib/chat/text";
+import { ct, ctCount } from "@/lib/chat/text";
 import { dmSubtitle } from "@/lib/chat/conversation/last-seen-line";
 import { privacyLabel, privacyState } from "@/lib/chat/privacy";
-import { typingText } from "@/lib/chat/row-preview";
+import { isChannelTopic, typingText } from "@/lib/chat/row-preview";
 
 /**
  * C2.4 — what the conversation's header says and offers, as pure functions of the header the cache holds.
@@ -31,6 +31,11 @@ export function subtitleOf(header: ConversationHeaderDto, opts: { typingNames: r
   // an open topic: the space and its people (the count is the header's own, never a guess); a private one has the count in its lock chip already
   const line = state === "open" ? [space, ctCount("chatc.members", header.memberCount)].filter(Boolean).join(SEP) : space;
   return { privacy, line: line || null, typing: false };
+}
+
+/** C3c.4: «قناة» in the header (with the megaphone) when the topic is announcements that only admins post in; the header carries both fields, so nothing is guessed. */
+export function channelOf(header: Pick<ConversationHeaderDto, "kind" | "topicType" | "postingPolicy">): string | null {
+  return isChannelTopic(header) ? ct("chatch.word") : null;
 }
 
 export type HeaderMenuId = "search" | "whiteboard" | "watch" | "digest" | "info" | "settings" | "close" | "reopen" | "archive" | "unarchive";
