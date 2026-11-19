@@ -246,7 +246,7 @@ allows exactly those key names and caps its allow-list below 14 entries. 🔧 Wr
 - [x] C2.3 Forum view `/chat/s/[spaceId]`.
 - [x] C2.4 `ConversationPane` header + viewport (virtualized, reverse) + bubbles + service lines + sticky dates + unread
       separator + jump buttons.
-- [ ] C2.5 Composer (emoji, attach menu, paste/drop, mic/send toggle) — reuse the existing upload/outbox code.
+- [x] C2.5 Composer (emoji, attach menu, paste/drop, mic/send toggle) — reuse the existing upload/outbox code.
 - [ ] C2.6 Message menu (quick reactions + registry) + hover actions + shortcuts.
 - [ ] C2.7 Info panel (DM / topic, members) — media tabs are filled in C3.
 - [ ] C2.8 Phone screens and motion.
