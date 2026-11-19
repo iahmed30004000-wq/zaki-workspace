@@ -35,11 +35,7 @@
  *
  * Nothing at all on a deleted message, a system line, or for the owner in silent oversight.
  */
-<<<<<<< HEAD
-export type MessageMenuId = "reply" | "pin" | "forward" | "saved" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask";
-=======
-export type MessageMenuId = "reply" | "pin" | "forward" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask" | "removePreview";
->>>>>>> b9caf40 (C3b.2: link previews - the server reads the first link after the send commits (linkPreviews))
+export type MessageMenuId = "reply" | "pin" | "forward" | "saved" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask" | "removePreview";
 
 export interface MessageMenuContext {
   mine: boolean;
@@ -75,7 +71,6 @@ export interface MessageMenuContext {
   readerCount?: number;
   /** the company's problem kinds include the question kind («اسألي مشرفتك») */
   canAsk?: boolean;
-<<<<<<< HEAD
   /** C3a.3: the person has «الرسائل المحفوظة» (the switch is on), so «حوّل للمحفوظة» can run */
   canSaved?: boolean;
   /** C3a.3: the open conversation IS the saved chat (the item makes no sense there) */
@@ -83,10 +78,8 @@ export interface MessageMenuContext {
   /** the message and the viewer, for an item that runs itself inside the menu (`saved`); set by `menuContextV2` */
   messageId?: string;
   viewerId?: string;
-=======
   /** C3b.2: the message carries a link card (`message.preview`), so its author may take it off («شيل المعاينة») */
   hasPreview?: boolean;
->>>>>>> b9caf40 (C3b.2: link previews - the server reads the first link after the send commits (linkPreviews))
 }
 
 /** `labelKey`: a key of ar.chat-conversation.json (the strings live there, not here). */
@@ -123,11 +116,7 @@ export const messageMenuItems: MessageMenuAction[] = [
  * مشرفتك، ذكّرني، ملاحظة، «لازم ينقرأ»، ترجم، اقرأ النص، حوّل الصوت لنص، مين شاف). The old screen keeps the order of `messageMenuItems` (the dangerous one last);
  * every id has a place here (a test fails for an id without one), so a new item has to choose.
  */
-<<<<<<< HEAD
-export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "saved", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen"];
-=======
-export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen", "removePreview"];
->>>>>>> b9caf40 (C3b.2: link previews - the server reads the first link after the send commits (linkPreviews))
+export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "saved", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen", "removePreview"];
 
 /** Is there a menu at all for this message (and a reaction bar)? */
 export function menuOpen(c: MessageMenuContext): boolean {
