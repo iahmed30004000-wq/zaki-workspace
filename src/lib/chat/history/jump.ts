@@ -1,5 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { chatKeys } from "@/lib/chat/cache/keys";
+import { fetchChatJson } from "@/lib/chat/cache/http";
 import { hasMessage, isNotFound, showAround, showNewest } from "@/lib/chat/cache/pages";
 import type { MessagesData } from "@/lib/chat/cache/types";
 
@@ -108,4 +109,46 @@ export class JumpSignals {
     this.state = next;
     for (const fn of [...this.listeners]) fn();
   }
+}
+
+/**
+ * C3b.6 — the unread messages that mention me, from the server (`GET /api/chat/conversations/[id]/mentions`): ids oldest first, in pages. The «@» button walks
+ * them through `jumpToMessage`, so a mention that is not loaded is reached too.
+ */
+export const MENTIONS_PAGE_SIZE = 50;
+/** At most this many pages are followed (500 mentions): a person with more has the button anyway, and the walk goes on after the next read. */
+export const MENTIONS_MAX_PAGES = 10;
+
+export function unreadMentionsUrl(conversationId: string, after?: string | null, limit?: number): string {
+  const q = new URLSearchParams();
+  if (after) q.set("after", after);
+  if (limit) q.set("limit", String(limit));
+  const query = q.toString();
+  return `/api/chat/conversations/${encodeURIComponent(conversationId)}/mentions${query ? `?${query}` : ""}`;
+}
+
+export interface UnreadMentionsPage {
+  ids: string[];
+  next: string | null;
+}
+
+/**
+ * Follows the pages by their cursor until the server says there are no more (or `maxPages`). ANY failed page throws: a list cut short must not pass for
+ * the whole list (the caller keeps the loaded mentions as its walk).
+ */
+export async function collectUnreadMentions(fetchPage: (after: string | null) => Promise<UnreadMentionsPage>, maxPages: number = MENTIONS_MAX_PAGES): Promise<string[]> {
+  const out = new Set<string>();
+  let after: string | null = null;
+  for (let page = 0; page < maxPages; page++) {
+    const got: UnreadMentionsPage = await fetchPage(after);
+    for (const id of got.ids) out.add(id);
+    if (!got.next) break;
+    after = got.next;
+  }
+  return [...out];
+}
+
+/** The whole list for one conversation, from the server. */
+export function fetchUnreadMentionIds(conversationId: string, signal?: AbortSignal): Promise<string[]> {
+  return collectUnreadMentions((after) => fetchChatJson<UnreadMentionsPage>(unreadMentionsUrl(conversationId, after, MENTIONS_PAGE_SIZE), signal));
 }

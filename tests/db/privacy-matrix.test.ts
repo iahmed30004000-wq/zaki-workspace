@@ -20,6 +20,7 @@ import * as headerRoute from "@/app/api/chat/conversations/[id]/header/route";
 import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
 import * as readMarkRoute from "@/app/api/chat/conversations/[id]/read/route";
 import * as deliveredMarkRoute from "@/app/api/chat/conversations/[id]/delivered/route";
+import * as mentionsRoute from "@/app/api/chat/conversations/[id]/mentions/route";
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import { chatHome } from "@/server/chat/home";
 import { chatList } from "@/server/chat/list";
@@ -385,4 +386,40 @@ describe("privacy matrix — the C1.8 read and delivered marks", () => {
   it("the tables have one cell per persona", () => {
     for (const row of [...Object.values(READ_TRACE_BY_KIND), ...Object.values(DELIVERED_MARK)]) expect(cells(row)).toHaveLength(PERSONAS.length);
   });
+});
+
+// ───────────────────────────── C3b.6: the «@» button's list ─────────────────────────────
+describe("privacy matrix — the C3b.6 unread mentions of a conversation", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: who may ask (the reading rule), who gets ids (only a person with a read mark of their own), and nobody leaves a trace`, async () => {
+      const w = await getWorld();
+      const id = w.ids[kind]!;
+      // «@الكل» by somebody other than the people under test, newer than every mark made so far
+      const author = await db.conversationMember.findFirst({ where: { conversationId: id, NOT: { userId: w.people.memberIn.id } }, select: { userId: true } });
+      const writer = author?.userId ?? w.people.memberIn.id;
+      const msg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: id, authorId: writer, body: `${WORD} mention ${kind}`, mentions: ["*"], createdAt: new Date(Date.now() + 5_000) } });
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        const row = await db.conversationMember.findUnique({ where: { conversationId_userId: { conversationId: id, userId: person.id } } });
+        const rowsBefore = await db.conversationMember.count({ where: { conversationId: id } });
+        const eventsBefore = await db.realtimeEvent.count();
+        await loginAs(person.id);
+        const res = await call(mentionsRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/mentions`, params: { id } });
+        const mayAsk = res.status === 200;
+        const wantAsk = expected(CONVERSATIONS, kind, who);
+        if (mayAsk !== wantAsk) wrong.push(`${who} · may ask: expected ${wantAsk} (status ${res.status})`);
+        if (mayAsk) {
+          // ids only for a person who has a row of their own older than the message, and not for its writer; the silent eye has no row: nothing
+          const wantIds = row && row.lastReadAt < msg.createdAt && person.id !== writer ? [msg.id] : [];
+          if (JSON.stringify(res.json?.["ids"]) !== JSON.stringify(wantIds)) wrong.push(`${who} · ids: expected ${wantIds.length}, got ${JSON.stringify(res.json?.["ids"])}`);
+        } else if (res.text.includes(WORD)) wrong.push(`${who} · a refusal carried the text`);
+        if (res.text.includes(WORD)) wrong.push(`${who} · the answer carried a text`);
+        // no trace of any kind: no new row, no event
+        if ((await db.conversationMember.count({ where: { conversationId: id } })) !== rowsBefore) wrong.push(`${who} · left a row`);
+        if ((await db.realtimeEvent.count()) !== eventsBefore) wrong.push(`${who} · left an event`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
 });

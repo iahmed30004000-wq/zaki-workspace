@@ -48,3 +48,18 @@ export function mentionsButtonOf(s: { mentionsUnread: number; targets: readonly 
   const count = Math.max(remaining.length, s.mentionsUnread - visitedStillUnread);
   return { show: count > 0, count, target: remaining[0] ?? null };
 }
+
+/**
+ * C3b.6 — the walk of the «@» button. The SERVER lists the unread messages that mention me (`GET …/mentions`, oldest first), so the button reaches a mention
+ * whose message is not loaded (the jump loads its window); the loaded mentions above stay the fallback while that list is not here (not asked yet, or the
+ * request failed) or says nothing though the row still counts some.
+ */
+export function walkTargetsOf(server: readonly string[] | null, loaded: readonly string[]): string[] {
+  return server && server.length > 0 ? [...server] : [...loaded];
+}
+
+/** The visited ids that the server still lists as unread: a mention that was read since is out of the list, so it leaves the visited ones too. */
+export function pruneVisited(visited: readonly string[], listed: readonly string[]): string[] {
+  const still = new Set(listed);
+  return visited.filter((id) => still.has(id));
+}
