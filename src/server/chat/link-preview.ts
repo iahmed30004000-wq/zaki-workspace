@@ -38,7 +38,9 @@ import { isFeatureOn } from "@/server/services/features";
  * exist only on the new screen: with it off, a person would have a server that visits his links and stores pictures with no way to see the card or to remove it. So
  * nothing is visited, presented or served until both are on (the data already made stays).
  */
-export async function linkPreviewsOn(orgId: string): Promise<boolean> {
+export async function linkPreviewsOn(orgId: string, feature?: (key: "linkPreviews" | "chatLayoutV2") => Promise<boolean>): Promise<boolean> {
+  // a request that already holds the company's settings (the header, the messages window: one read per request) passes its own reader
+  if (feature) return (await feature("linkPreviews")) && (await feature("chatLayoutV2"));
   return (await isFeatureOn(orgId, "linkPreviews")) && (await isFeatureOn(orgId, "chatLayoutV2"));
 }
 

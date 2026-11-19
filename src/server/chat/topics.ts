@@ -733,7 +733,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     pinnedMessages: pinned.map((m) => ({ id: m.id, authorName: m.author.name, preview: previewOf(m.body, m.deletedAt) })),
     chatBubbles,
     chatOutbox,
-    linkPreviews: await linkPreviewsOn(ctx.orgId),
+    linkPreviews: await linkPreviewsOn(ctx.orgId, feature),
     calls,
     whiteboard,
     voiceNotes,
@@ -832,7 +832,7 @@ export async function conversationMessages(
   ]);
 
   const silent = hasOversight(org);
-  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId) };
+  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId, scope.feature) };
   // DM ticks: the OTHER person's marks decide my own messages' status; the owner's silent reading never shows as «قرأ»
   let other: { lastDeliveredAt: Date | null; lastReadAt: Date | null } | null = null;
   if (facts.kind === "DM") {
