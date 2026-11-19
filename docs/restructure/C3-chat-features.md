@@ -140,9 +140,12 @@ ONE shared done-state each.
 - [x] Tests: DB (send at time, permission re-check, cancel), job idempotency.
 
 ### C3c.4 Channels («قناة»)
-- [ ] No schema change: a topic of type ANNOUNCEMENTS with posting «للمشرفين» shows the megaphone icon and the word
+- [x] No schema change: a topic of type ANNOUNCEMENTS with posting «للمشرفين» shows the megaphone icon and the word
       «قناة» in the list and the header; non-posters see «بس المشرفين بينشروا هون» instead of the composer (today's
       `chatc.bar.announcements`).
+      Built (C3c.4): `isChannelTopic` (row-preview.ts), `rowChannelWord` (list row), `channelOf` (header), `composerBarOf` returns the new
+      `channel` bar (key `chatc.bar.channel`, «بس المشرفين بينشروا هون») only for ANNOUNCEMENTS with `postingPolicy` ADMINS and `me.canPost` false.
+      The old key `chatc.bar.announcements` ("هذا الموضوع للقراءة فقط") stays for announcements everybody may post in (a guest never posts there).
 
 ## C3d — Info panel tabs and search
 
