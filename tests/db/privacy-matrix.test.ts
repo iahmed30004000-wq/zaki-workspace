@@ -24,6 +24,8 @@ import * as mentionsRoute from "@/app/api/chat/conversations/[id]/mentions/route
 import * as personalStateRoute from "@/app/api/chat/conversations/[id]/me/route";
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import * as workRequestsRoute from "@/app/api/work/requests/route";
+import * as chatPrefsRoute from "@/app/api/me/chat-prefs/route";
+import { folderRows } from "@/lib/chat/folders";
 import { chatHome } from "@/server/chat/home";
 import { chatList } from "@/server/chat/list";
 import { syncFeed } from "@/server/chat/sync";
@@ -513,5 +515,47 @@ describe("privacy matrix — the C3a.1 personal state", () => {
 
   it("the table has one cell per persona in every row", () => {
     for (const row of Object.values(PERSONAL_STATE)) expect(cells(row)).toHaveLength(PERSONAS.length);
+  });
+});
+
+// ───────────────────────────── C3a.2: a person's own folders (User.chatPrefs) ─────────────────────────────
+// `GET/PUT /api/me/chat-prefs` keeps ONE person's folders, which list conversations by id. A folder is only a FILTER over the rows of that person's own list: it
+// can show only conversations the list already holds a row for, never one the table says the person cannot read, and what the route answers carries ids, never a
+// title or a word of a message. One person's folders never reach another person.
+describe("privacy matrix — the C3a.2 folders", () => {
+  it("a folder that lists every conversation shows each person exactly the ones their own list holds; the route names none of them and keeps each person's folders apart", async () => {
+    const w = await getWorld();
+    const kinds = Object.keys(CONVERSATIONS);
+    const wrong: string[] = [];
+    for (const [index, who] of PERSONAS.entries()) {
+      const person = w.people[who];
+      await loginAs(person.id);
+      const folder = { id: `f${index}`, name: `م${index}`, include: { conversationIds: kinds.map((k) => w.ids[k]!), spaceIds: [] }, exclude: {} };
+      const saved = await call(chatPrefsRoute.PUT, { method: "PUT", url: "http://localhost/api/me/chat-prefs", body: { folders: { [w.orgId]: [folder] } } });
+      if (saved.status !== 200) wrong.push(`${who} · save: ${saved.status}`);
+      const read = await call(chatPrefsRoute.GET, { method: "GET", url: "http://localhost/api/me/chat-prefs" });
+      // ids only: no title of any conversation, no word of any message
+      for (const secret of [WORD, "Restricted", "Team", "Open"]) if (read.text.includes(secret)) wrong.push(`${who} · the prefs carried «${secret}»`);
+      // only this person's folder
+      const mine = (read.json?.["prefs"] as { folders?: Record<string, { id: string }[]> }).folders?.[w.orgId]?.map((f) => f.id);
+      if (JSON.stringify(mine) !== JSON.stringify([folder.id])) wrong.push(`${who} · saw folders ${JSON.stringify(mine)}`);
+
+      // the one list (a space is ONE row, its topics are chips) and the list of the one space (its topics are rows): a folder keeps or drops rows of THESE and makes none
+      const ctx = { orgId: w.orgId, userId: person.id, orgRole: await w.roleOf(person.id) };
+      for (const [shape, list] of [
+        [{ scope: "all" as const, spaceId: null }, await chatList(ctx)],
+        [{ scope: "space" as const, spaceId: w.space.id }, await chatList(ctx, { spaceId: w.space.id })],
+      ] as const) {
+        const shown = new Set(folderRows(list.rows, folder, shape).map((r) => r.id));
+        for (const kind of kinds) {
+          const id = w.ids[kind]!;
+          const inRows = list.rows.some((r) => r.id === id);
+          if (shown.has(id) !== inRows) wrong.push(`${who} · ${kind} · ${shape.scope}: the folder ${shown.has(id) ? "shows" : "hides"} it but the list ${inRows ? "has" : "has no"} row for it`);
+          if (shown.has(id) && !expected(CONVERSATIONS, kind, who)) wrong.push(`${who} · ${kind} · ${shape.scope}: the folder shows a conversation the person cannot read`);
+        }
+        for (const id of shown) if (!list.rows.some((r) => r.id === id)) wrong.push(`${who} · the folder made a row of its own (${id})`);
+      }
+    }
+    expect(wrong).toEqual([]);
   });
 });

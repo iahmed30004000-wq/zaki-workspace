@@ -41,6 +41,8 @@ model User {
   bio          String?
   // «ترتيبي»: the person's own order of the menu's places and of the tabs inside each place — { places: string[], tabs: Record<placeKey, string[]> }, null = the code's order (src/lib/nav/order.ts)
   navOrder     Json?
+  // C3a.2: the person's chat preferences — { folders (by company id), tabs, notifications, chat, voiceSpeed }; null = all defaults (one zod schema: src/lib/chat/prefs.ts; C4.1 and C3b.4 reuse it)
+  chatPrefs    Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

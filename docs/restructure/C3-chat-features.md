@@ -23,14 +23,15 @@
 - [x] Tests: DB (rules above), render (row menu items, archived row).
 
 ### C3a.2 Folders
-- [ ] Migration (additive): `User.chatPrefs JSONB NULL` — the person's chat preferences (also used by C4), validated
+- [x] Migration (additive): `User.chatPrefs JSONB NULL` — the person's chat preferences (also used by C4), validated
       by one zod schema in `src/lib/chat/prefs.ts`. Folders live in it: `folders: [{ id, name ≤ 12, emoji?, include:
       { dms?: bool, spaces?: bool, mentions?: bool, conversationIds: string[] ≤ 100, spaceIds: string[] ≤ 50 },
       exclude: { muted?: bool, read?: bool, archived?: bool } }] ≤ 10`, keyed by organization id.
-- [ ] `GET/PUT /api/me/chat-prefs` (the person's own row only; zod; 64 KB cap).
-- [ ] Filtering is client-side over the C1 list cache (`src/lib/chat/folders.ts`, pure, unit-tested).
-- [ ] UI: folder tabs (C2) + «المجلدات» settings page (C4): create, rename, emoji, choose chats, reorder (drag).
-- [ ] The built-in tabs «الكل · غير مقروء · خاص · المساحات · ذكروني» are not stored; the person may hide them.
+- [x] `GET/PUT /api/me/chat-prefs` (the person's own row only; zod; 64 KB cap).
+- [x] Filtering is client-side over the C1 list cache (`src/lib/chat/folders.ts`, pure, unit-tested).
+- [ ] UI: folder tabs (C2) + «المجلدات» settings page (C4): create, rename, emoji, choose chats, reorder (drag). Built: `FolderTabs`
+      (custom tabs), `FolderEditor` and the connected `ChatFoldersSettings`; NOT yet mounted: the list column and C4.1's page (`pr/C3a.2.md`).
+- [x] The built-in tabs «الكل · غير مقروء · خاص · المساحات · ذكروني» are not stored; the person may hide them.
 
 ### C3a.3 Saved messages («الرسائل المحفوظة»)
 - [ ] A DM with oneself: `kind = "DM"`, `dmKey = "<me>|<me>"`, one `ConversationMember`. Service
@@ -197,3 +198,8 @@ controls are not drawn, data already made stays.
 - Built: the three columns, `PUT …/me` (`setMyChatState`), the flags in the ONE list query and the sync rows, one event for the person alone, the row menu items and the mute presets, the «الأرشيف» tab, the pins' order, the forum view's rules, the sidebar number that leaves out an archived chat. Switch `chatPersonalState` (ON).
 - Decision: a pin of a never-opened open topic makes the row with the read mark at «now» (as `markRead` does), so its old history stops counting as unread for that person; the alternative would put a whole topic's history into the sidebar number. Say if it should be the other way.
 - Not built (files of other packages): the personal mute does not stop a push yet (`notify.ts`); pins cannot be dragged (`scopeSchema` of `src/lib/chat/order.ts` does not accept `pins`); the C1.2 «`removed` for people dropped without a row» gap. Details in `pr/C3a.1.md`.
+
+### C3a.2 Folders (`feat/chat-folders`, `pr/C3a.2.md`)
+- Built: the additive column `User.chatPrefs` and its ONE zod schema (`src/lib/chat/prefs.ts`: folders by company id, `tabs.hidden`, room for C4.1's `notifications` and `chat` and C3b.4's `voiceSpeed`), `GET/PUT /api/me/chat-prefs` (a PATCH, the caller's own row, 64 KB), the pure filter and tab logic (`src/lib/chat/folders.ts`), the custom tabs in `FolderTabs`, the reusable `FolderEditor` and the connected `ChatFoldersSettings`, switch `chatFolders` (ON).
+- Decision: the exclusions (muted · read · archived) take out of everything a folder holds, chats picked by hand included; a chat the person archived is in a folder unless the folder excludes the archive (the editor makes new folders exclude it). Say if a hand-picked chat should survive the exclusions.
+- Not wired by this package (files of other packages): `chat-list-column.tsx` must call `useChatPrefs` + `tabsOf` + `folderRows` / `folderBadge` (six lines, in `pr/C3a.2.md`), and C4.1's «المجلدات» page must mount `ChatFoldersSettings`. In the one-list shape a topic is folded into its space's row, so a topic is reached through its space (the picker offers private chats and groups; whole spaces are a separate list).

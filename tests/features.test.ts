@@ -206,6 +206,17 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.chatPersonalState.hint"]).toContain("لإلك بس");
   });
 
+  it("«مجلدات الدردشة» (`chatFolders`, C3a.2): ON by default, off is the five built-in tabs (no folder drawn, the folders not answered or saved, the data stays); its two lines are there", () => {
+    expect(FEATURES).toContain("chatFolders");
+    expect(FEATURE_DEFAULTS.chatFolders).toBe(true);
+    expect(featureOn({}, "chatFolders")).toBe(true);
+    expect(featureOn({ features: { chatFolders: false } }, "chatFolders")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatFolders");
+    expect(featuresOff({ features: { chatFolders: false } })).toContain("chatFolders");
+    expect(AR["features.chatFolders.name"]).toBe("مجلدات الدردشة");
+    expect(AR["features.chatFolders.hint"]).toContain("لإلك بس");
+  });
+
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);
