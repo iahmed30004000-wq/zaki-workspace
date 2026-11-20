@@ -231,7 +231,7 @@
   "chatcl.menu": "قائمة مهام",
   "chatcl.dialog.title": "قائمة مهام",
   "chatcl.dialog.title_label": "العنوان",
-  "chatcl.dialog.title_placeholder": "مثلاً: مشتريات الحفلة",
+  "chatcl.dialog.title_placeholder": "مثلًا: مشتريات الحفلة",
   "chatcl.dialog.item": "البند {n}",
   "chatcl.dialog.add_item": "+ أضف بند",
   "chatcl.dialog.remove_item": "شيل البند {n}",
