@@ -85,7 +85,8 @@ export const FIRST_STEPS: readonly FirstStepDef[] = [
     id: "first-task",
     titleKey: "guide.first.first-task.title",
     hintKey: "guide.first.first-task.hint",
-    href: "/",
+    // «اليوم» by name: with the new map «/» alone is the landing page and may be the chat (N1.8)
+    href: "/?view=today",
     availableFrom: 2,
     audience: "staff",
     fact: "task-created",

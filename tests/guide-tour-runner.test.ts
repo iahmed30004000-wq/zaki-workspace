@@ -5,7 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 (globalThis as { React?: typeof React }).React = React;
 
-import { TourRunner, findHookElement, hasSeenTour, startTour, stopTour } from "@/components/guide/tour-runner";
+import { TourRunner, findHookElement, hasSeenTour, navModeOf, startTour, stopTour } from "@/components/guide/tour-runner";
 import { I18nProvider } from "@/lib/i18n";
 import { AR } from "@/lib/i18n/dict";
 
@@ -59,6 +59,45 @@ describe("findHookElement: the element a hook points at", () => {
   });
 });
 
+describe("findHookElement: a hook with several marks (the phone's ☰ in the app bar or in the chat's list bar)", () => {
+  it("asks every selector of the hook, in order, and points at the first one that is shown", () => {
+    const asked: string[] = [];
+    const burger: FakeEl = { name: "chat burger", w: 44, h: 44 };
+    const root = fakePage({ "[data-chat-drawer-open]": [burger] });
+    const spy = root as unknown as { querySelectorAll: (selector: string) => unknown[] };
+    const original = spy.querySelectorAll;
+    spy.querySelectorAll = (selector: string) => (asked.push(selector), original(selector));
+    expect((findHookElement("menu", root) as unknown as FakeEl).name).toBe("chat burger");
+    expect(asked).toEqual(['[data-shell="drawer-open"]', "[data-chat-drawer-open]"]);
+  });
+
+  it("the app bar's ☰ wins when both are shown, and a hidden one is passed over", () => {
+    const hidden: FakeEl = { name: "app bar burger", w: 0, h: 0, display: "none" };
+    const chat: FakeEl = { name: "chat burger", w: 44, h: 44 };
+    const root = fakePage({ '[data-shell="drawer-open"]': [hidden], "[data-chat-drawer-open]": [chat] });
+    expect((findHookElement("menu", root) as unknown as FakeEl).name).toBe("chat burger");
+    const shown: FakeEl = { name: "app bar burger", w: 44, h: 44 };
+    const both = fakePage({ '[data-shell="drawer-open"]': [shown], "[data-chat-drawer-open]": [chat] });
+    expect((findHookElement("menu", both) as unknown as FakeEl).name).toBe("app bar burger");
+  });
+
+  it("the «الشغل» stops are found inside the tab strip by their address, the inbox by its pinned mark", () => {
+    const mine: FakeEl = { name: "mine", w: 80, h: 44 };
+    const inbox: FakeEl = { name: "inbox", w: 300, h: 80 };
+    const root = fakePage({ '[data-tour="tabs"] a[href="/my-work"]': [mine], '[data-work-inbox="pinned"]': [inbox] });
+    expect((findHookElement("work-mine", root) as unknown as FakeEl).name).toBe("mine");
+    expect((findHookElement("work-inbox", root) as unknown as FakeEl).name).toBe("inbox");
+    expect(findHookElement("work-requests", root)).toBeNull();
+  });
+});
+
+describe("navModeOf: which map is on the page", () => {
+  it("the new map draws the app bar; the old one never does", () => {
+    expect(navModeOf(fakePage({ '[data-shell="app-bar"]': [{ name: "bar", w: 800, h: 64 }] }))).toBe("v2");
+    expect(navModeOf(fakePage({}))).toBe("v1");
+  });
+});
+
 describe("startTour", () => {
   it("does nothing on the server (no document) and says so", async () => {
     expect(await startTour("shell", t)).toBe(false);
@@ -68,6 +107,12 @@ describe("startTour", () => {
     vi.stubGlobal("document", fakePage({}));
     expect(await startTour("shell", t)).toBe(false);
     expect(await startTour("today", t)).toBe(false);
+    expect(await startTour("work", t)).toBe(false);
+  });
+
+  it("on a page of «الشغل» with none of the place's elements and none of the shell's, nothing starts either", async () => {
+    vi.stubGlobal("document", fakePage({}));
+    expect(await startTour("shell", t, { pathname: "/my-work" })).toBe(false);
   });
 });
 
