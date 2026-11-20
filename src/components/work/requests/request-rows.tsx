@@ -2,6 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
+import { ClipboardCheck, FileText, LayoutGrid, LifeBuoy, UserPlus, type LucideIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,18 +43,32 @@ function useAct() {
   return { busy, error, run, setError };
 }
 
-function Shell({ row, meta, children, error }: { row: RequestRow; meta: ReactNode; children?: ReactNode; error: string | null }) {
+/** The round icon at the start of a row: what kind of request it is (the mock-up's `.av.em`). */
+const KIND_ICON: Record<RequestRow["kind"], LucideIcon> = { approval: ClipboardCheck, assign: UserPlus, ticket: LifeBuoy, card: LayoutGrid, sheet: FileText };
+
+/**
+ * One line of the inbox, in a rounded white list (`WORK_LIST`): the kind's round icon, the title with who/where/when under it, and the row's own actions at the
+ * end. `stacked` puts the children under the line instead (a banner or a reason box is too wide to share it).
+ */
+function Shell({ row, meta, children, error, stacked = false }: { row: RequestRow; meta: ReactNode; children?: ReactNode; error: string | null; stacked?: boolean }) {
+  const Icon = KIND_ICON[row.kind];
   return (
-    <li className="list-none space-y-2 rounded-xl border border-border bg-surface-1 p-3" data-request-row={row.kind} data-request-id={row.id}>
-      <div className="space-y-1">
-        <Link href={row.href} className="block truncate text-sm font-semibold text-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
-          {row.title}
-        </Link>
-        <p className="text-xs text-fg-muted">{meta}</p>
+    <li className="list-none border-b border-border px-3.5 py-2.5 last:border-b-0" data-request-row={row.kind} data-request-id={row.id}>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-accent/10 text-accent">
+          <Icon className="size-5" />
+        </span>
+        <div className="min-w-0 flex-1 basis-52">
+          <Link href={row.href} className="block truncate text-[15px] font-semibold text-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent">
+            {row.title}
+          </Link>
+          <p className="text-[13px] text-fg-muted">{meta}</p>
+        </div>
+        {children && !stacked ? <div className="shrink-0 max-md:w-full">{children}</div> : null}
       </div>
-      {children}
+      {children && stacked ? <div className="mt-2">{children}</div> : null}
       {error ? (
-        <p className="text-xs text-danger" role="alert">
+        <p className="mt-1.5 text-xs text-danger" role="alert">
           {error}
         </p>
       ) : null}
@@ -112,6 +127,7 @@ export function ApprovalRowView({ row }: { row: ApprovalRow }) {
     <Shell
       row={row}
       error={error}
+      stacked={asking !== null}
       meta={metaLine([
         t("workreq.row.by", { name: row.byName }),
         row.place,
@@ -147,7 +163,7 @@ export function ApprovalRowView({ row }: { row: ApprovalRow }) {
 export function AssignRowView({ row }: { row: AssignRow }) {
   const { busy, error, run } = useAct();
   return (
-    <Shell row={row} error={error} meta={metaLine([row.key, row.place, fmtDMY(row.at)])}>
+    <Shell row={row} error={error} stacked meta={metaLine([row.key, row.place, fmtDMY(row.at)])}>
       <TaskAssignRequestBanner
         mode={row.canAnswer ? "addressee" : "waiting"}
         fromName={row.fromName}

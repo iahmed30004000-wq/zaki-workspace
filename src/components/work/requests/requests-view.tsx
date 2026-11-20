@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
-import { EmptyState } from "@/components/ui/card";
+import { GROUP_HEADING, QuietEmpty, WORK_LIST } from "@/components/work/look";
 import { apiGet } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import { fmtNumber } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { REQUEST_TABS, type RequestSection, type RequestTab, type WorkRequestsView } from "./types";
@@ -28,26 +29,26 @@ export function RequestsView({ initial }: { initial: WorkRequestsView }) {
   const view = query.data;
   const visible = view.sections.filter((section) => section.total > 0);
   return (
-    <div dir="rtl" className="mx-auto max-w-4xl space-y-6 p-4 md:p-6" data-work-requests={tab}>
-      <header className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight">{t("workreq.title")}</h1>
-        <p className="text-sm text-muted">{t("workreq.subtitle")}</p>
+    <div dir="rtl" className="mx-auto max-w-4xl space-y-3 p-4 md:p-5" data-work-requests={tab}>
+      <header className="space-y-0.5">
+        <h1 className="text-[19px] font-bold leading-tight text-fg">{t("workreq.title")}</h1>
+        <p className="text-[13px] text-fg-muted">{t("workreq.subtitle")}</p>
       </header>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <nav aria-label={t("workreq.tabs")} className="flex flex-wrap gap-1">
+        <nav aria-label={t("workreq.tabs")} className="inline-flex shrink-0 rounded-[10px] bg-surface-2 p-[3px]">
           {REQUEST_TABS.map((key) => (
             <TabLink key={key} tab={key} current={tab} count={key === "waiting" && key === tab ? view.total : null} />
           ))}
         </nav>
         <div className="flex flex-wrap gap-2">
-          <Link href="/approvals?new=1" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-sm font-medium text-accent-fg hover:bg-accent/90 md:min-h-9">
+          <Link href="/approvals?new=1" className="inline-flex min-h-11 items-center rounded-[10px] bg-accent px-4 text-[13.5px] font-semibold text-accent-fg transition-[filter] hover:brightness-110 md:min-h-9">
             {t("workreq.link.new")}
           </Link>
-          <Link href="/approvals/forms" className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 text-sm text-fg hover:bg-surface-2 md:min-h-9">
+          <Link href="/approvals/forms" className="inline-flex min-h-11 items-center rounded-[10px] bg-accent/10 px-4 text-[13.5px] font-semibold text-accent transition-colors hover:bg-accent/20 md:min-h-9">
             {t("workreq.link.forms")}
           </Link>
           {/* the lists the other pages keep: «الموافقات» is the full approvals page */}
-          <Link href={`/approvals?v=${tab}`} className="inline-flex min-h-11 items-center rounded-lg border border-border px-4 text-sm text-fg hover:bg-surface-2 md:min-h-9">
+          <Link href={`/approvals?v=${tab}`} className="inline-flex min-h-11 items-center rounded-[10px] bg-accent/10 px-4 text-[13.5px] font-semibold text-accent transition-colors hover:bg-accent/20 md:min-h-9">
             {t("workreq.open_all")}
           </Link>
         </div>
@@ -61,7 +62,7 @@ export function RequestsView({ initial }: { initial: WorkRequestsView }) {
         </div>
       ) : null}
       {visible.length === 0 ? (
-        <EmptyState title={t(`workreq.empty.${tab}.title`)} hint={t(`workreq.empty.${tab}.hint`)} />
+        <QuietEmpty title={t(`workreq.empty.${tab}.title`)} hint={t(`workreq.empty.${tab}.hint`)} />
       ) : (
         visible.map((section) => <SectionBlock key={section.key} section={section} tab={tab} viewerId={view.viewerId} />)
       )}
@@ -77,7 +78,7 @@ function TabLink({ tab, current, count }: { tab: RequestTab; current: RequestTab
     <Link
       href={`/requests?tab=${tab}`}
       aria-current={active ? "page" : undefined}
-      className={`rounded-lg border px-3 py-1.5 text-sm ${active ? "border-accent/60 bg-accent/10 font-medium text-fg" : "border-border text-fg-muted hover:bg-surface-2"}`}
+      className={cn("inline-flex min-h-8 items-center whitespace-nowrap rounded-lg px-3 text-[13.5px] font-semibold transition-colors", active ? "bg-surface-1 text-fg shadow-card" : "text-fg-muted hover:text-fg")}
     >
       {count && count > 0 ? `${label} (${fmtNumber(count)})` : label}
     </Link>
@@ -89,18 +90,19 @@ function SectionBlock({ section, tab, viewerId }: { section: RequestSection; tab
   const id = `workreq-${section.key}`;
   const hidden = section.total - section.rows.length;
   return (
-    <section aria-labelledby={id} className="space-y-2" data-request-section={section.key}>
-      <h2 id={id} className="flex flex-wrap items-baseline gap-2 text-base font-semibold text-fg">
+    <section aria-labelledby={id} data-request-section={section.key}>
+      <h2 id={id} className={GROUP_HEADING}>
         {t(tab === "mine" ? `workreq.section.${section.key}.mine` : `workreq.section.${section.key}`)}
-        <span className="text-xs font-normal text-fg-muted">{t("workreq.count", { n: fmtNumber(section.total) })}</span>
+        <span aria-hidden="true">·</span>
+        <span className="font-semibold">{t("workreq.count", { n: fmtNumber(section.total) })}</span>
       </h2>
-      <ul className="space-y-2">
+      <ul className={WORK_LIST}>
         {section.rows.map((row) => (
           <RequestRowView key={`${row.kind}:${row.id}`} row={row} viewerId={viewerId} />
         ))}
       </ul>
       {hidden > 0 ? (
-        <p className="text-xs text-fg-muted">
+        <p className="px-1 pt-2 text-[13px] text-fg-muted">
           {t("workreq.more", { n: fmtNumber(hidden) })}
           {section.allHref ? (
             <>

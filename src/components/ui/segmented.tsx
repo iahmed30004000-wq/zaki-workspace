@@ -18,7 +18,7 @@ export function nextSegment(count: number, index: number, key: string, rtl: bool
   return null;
 }
 
-/** A segmented control (D1): two to five exclusive choices in one row; one is selected (the accent); a radio group for the keyboard (one tab stop, arrows inside) and for screen readers. */
+/** A segmented control (D1): two to five exclusive choices in one row; one is selected (the raised segment: `surface-1` over the `surface-2` track, the Telegram-like look); a radio group for the keyboard (one tab stop, arrows inside) and for screen readers. */
 export function Segmented<T extends string>({
   value,
   options,
@@ -39,7 +39,7 @@ export function Segmented<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={cn("inline-flex rounded-[10px] bg-surface-2 p-0.5", className)}
+      className={cn("inline-flex shrink-0 rounded-[10px] bg-surface-2 p-[3px]", className)}
       onKeyDown={(e) => {
         const rtl = getComputedStyle(e.currentTarget).direction === "rtl";
         const to = nextSegment(options.length, at, e.key, rtl);
@@ -63,8 +63,8 @@ export function Segmented<T extends string>({
             tabIndex={on ? 0 : -1}
             onClick={() => onChange(o.value)}
             className={cn(
-              "min-h-9 rounded-[8px] px-3 text-sm font-medium transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-              on ? "bg-accent text-accent-fg" : "text-fg-muted hover:text-fg",
+              "inline-flex min-h-8 items-center gap-1.5 whitespace-nowrap rounded-lg px-3 text-[13.5px] font-semibold transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+              on ? "bg-surface-1 text-fg shadow-card" : "text-fg-muted hover:text-fg",
             )}
           >
             {o.label}

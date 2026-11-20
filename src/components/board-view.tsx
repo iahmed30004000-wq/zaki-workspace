@@ -25,6 +25,7 @@ import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/card";
+import { Badge as CountBadge } from "@/components/ui/badge";
 import { peopleLine } from "@/components/ui/people-multi";
 import { PRIORITY_STYLES, fmtDMY, fmtRelative, isOverdue } from "@/lib/format";
 import { columnLabel, enumLabel } from "@/lib/i18n/enums";
@@ -277,10 +278,10 @@ export function BoardView({ board, columns: serverColumns, tasks, canEdit, field
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
+      <header className="flex items-center justify-between gap-3 px-4 pt-3">
         <div className={view ? "min-w-0" : undefined}>
           {view?.crumbs ? <Breadcrumbs items={view.crumbs} className="mb-1" /> : null}
-          <h1 className="text-base font-semibold text-fg">{board.name}</h1>
+          <h1 className="text-[17px] font-bold text-fg">{board.name}</h1>
           {view?.embedded ? null : <p className="text-xs text-fg-muted">{board.projectName}</p>}
         </div>
         <FieldChipPicker defs={fieldDefs} />
@@ -327,7 +328,7 @@ export function BoardView({ board, columns: serverColumns, tasks, canEdit, field
             <button
               onClick={() => addColumn.mutate()}
               disabled={addColumn.isPending}
-              className="flex h-9 w-72 min-w-72 shrink-0 items-center justify-center gap-1.5 rounded-xl border border-dashed border-border text-xs text-muted transition-colors hover:border-accent/50 hover:text-fg"
+              className="flex h-10 w-72 min-w-72 shrink-0 items-center justify-center gap-1.5 rounded-2xl bg-surface-2 text-[13px] font-semibold text-fg-muted transition-colors hover:text-fg"
             >
               <Plus className="h-3.5 w-3.5" />
               {t("board.addColumn")}
@@ -450,19 +451,19 @@ function BoardColumn({
     <div
       ref={setNodeRef}
       className={cn(
-        "flex w-72 min-w-72 shrink-0 flex-col rounded-xl border border-border bg-surface-1",
-        isOver && "border-accent/60",
+        "flex w-72 min-w-72 shrink-0 flex-col rounded-2xl bg-surface-2",
+        isOver && "ring-2 ring-accent/50",
       )}
     >
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
-        <span className="flex items-center gap-2 text-xs font-semibold text-fg">
+      <div className="flex items-center justify-between px-3 pb-1 pt-2.5">
+        <span className="flex items-center gap-2 text-[13.5px] font-bold text-fg">
           <span
             aria-hidden
             className="h-2 w-2 rounded-full"
             style={{ backgroundColor: column.color }}
           />
           {columnLabel(column.name)}
-          <span className="font-normal text-muted">{tasks.length}</span>
+          <CountBadge tone="accent">{tasks.length}</CountBadge>
         </span>
         {canEdit ? (
           <span className="flex items-center gap-0.5">
@@ -488,7 +489,7 @@ function BoardColumn({
       </div>
 
       {stage ? (
-        <label className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted">
+        <label className="flex items-center gap-2 px-3 py-1 text-xs text-muted">
           <span className="shrink-0">{t("work.stage.label")}</span>
           <select
             value={stage}
@@ -496,7 +497,7 @@ function BoardColumn({
             aria-label={rt("work.stage.aria", { name: columnLabel(column.name) })}
             title={t("work.stage.hint")}
             onChange={(e) => setStage.mutate(e.currentTarget.value as WorkStage)}
-            className="h-7 min-w-0 flex-1 rounded-md border border-border bg-surface px-1 text-xs text-fg disabled:opacity-50"
+            className="h-7 min-w-0 flex-1 rounded-lg border-0 bg-surface-1 px-1 text-xs text-fg disabled:opacity-50"
           >
             {WORK_STAGES.map((value) => (
               <option key={value} value={value}>
@@ -510,7 +511,7 @@ function BoardColumn({
       <div className="min-h-16 flex-1 space-y-2 overflow-y-auto p-2">
         {quick.columnId === column.id ? (
           <form
-            className="rounded-lg border border-accent/50 bg-surface p-2"
+            className="rounded-[10px] bg-surface-1 p-2 ring-1 ring-accent/50"
             onSubmit={(ev) => {
               ev.preventDefault();
               onSubmit();
@@ -543,7 +544,7 @@ function BoardColumn({
         </SortableContext>
 
         {tasks.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border p-3 text-center text-xs text-muted">
+          <p className="px-3 py-5 text-center text-[13px] text-muted">
             {t("board.dropHere")}
           </p>
         ) : null}
@@ -599,13 +600,13 @@ function TaskCardContent({ task }: { task: TaskCardData }) {
   const { t } = useI18n();
   const overdue = task.dueDate && isOverdue(task.dueDate) && !task.completed;
   return (
-    <div className="rounded-lg border border-border bg-surface p-2.5 shadow-sm transition-colors hover:border-accent/40">
+    <div className="rounded-[10px] bg-surface-1 px-2.5 py-2 shadow-card transition-shadow hover:shadow-card-hover">
       <div className="flex items-center gap-1.5">
         <span dir="ltr" className="font-mono text-xs text-muted">{task.key}</span>
         {overdue ? <span className="text-xs font-medium text-danger">{t("dash.overdue")}</span> : null}
         {task.pinned ? <PinMark className="ms-auto" /> : null}
       </div>
-      <p className={cn("mt-1 text-xs font-medium text-fg", task.completed && "line-through opacity-60")}>
+      <p className={cn("mt-1 text-[13.5px] font-semibold text-fg", task.completed && "line-through opacity-60")}>
         {task.title}
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-1">

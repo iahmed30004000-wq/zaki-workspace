@@ -89,10 +89,12 @@ export function MyTasksView({
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
       <Header count={data.tasks.length} />
-      <Toolbar params={params} data={data} onChange={go} staleHref={staleHref} />
-      {data.canAdd ? <QuickAdd onAdd={(title) => actions.add.mutateAsync(title)} pending={actions.add.isPending} /> : null}
+      <div className="mx-auto w-full max-w-6xl px-4 md:px-5">
+        <Toolbar params={params} data={data} onChange={go} staleHref={staleHref} />
+        {data.canAdd ? <QuickAdd onAdd={(title) => actions.add.mutateAsync(title)} pending={actions.add.isPending} /> : null}
+      </div>
 
-      <div className={cn("flex-1 px-3 py-3 transition-opacity", stale && "opacity-60")} aria-busy={stale}>
+      <div className={cn("mx-auto w-full max-w-6xl flex-1 px-4 pb-7 pt-1 transition-opacity md:px-5", stale && "opacity-60")} aria-busy={stale}>
         {query.isError ? (
           <p role="alert" className="px-2 pb-3 text-center text-xs text-danger">
             {t("mytasks.error.load")}{" "}
@@ -130,9 +132,9 @@ export function MyTasksView({
             onMove={(id, to) => actions.stage.mutate({ id, to })}
           />
         ) : data.tasks.length === 0 ? (
-          <div className="px-2 py-10 text-center">
-            <p className="text-sm text-fg">{t("mytasks.empty.title")}</p>
-            <p className="mt-1 text-xs text-muted">{t("mytasks.empty.hint")}</p>
+          <div className="px-4 py-14 text-center text-fg-muted">
+            <p className="text-[15px]">{t("mytasks.empty.title")}</p>
+            <p className="mt-1 text-[13px] text-muted">{t("mytasks.empty.hint")}</p>
           </div>
         ) : (
           <TaskList tasks={data.tasks} group={params.group} todayIso={data.todayIso} timeZone={data.timeZone} showSpace={showSpace} openId={params.taskId} actions={rowActions} />
@@ -153,10 +155,10 @@ export function MyTasksView({
 function Header({ count }: { count?: number }) {
   const { t } = useI18n();
   return (
-    <header className="flex items-center gap-3 border-b border-border bg-surface px-5 py-4">
+    <header className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 pb-1 pt-4 md:px-5">
       <div className="min-w-0 flex-1">
-        <h1 className="text-base font-semibold text-fg">{t("mywork.title")}</h1>
-        <p className="text-xs text-fg-muted">{count === undefined ? t("mytasks.subtitle") : `${t("mytasks.subtitle")} · ${t("mytasks.count", { n: fmtNumber(count) })}`}</p>
+        <h1 className="text-[19px] font-bold leading-tight text-fg">{t("mywork.title")}</h1>
+        <p className="text-[13px] text-fg-muted">{count === undefined ? t("mytasks.subtitle") : `${t("mytasks.subtitle")} · ${t("mytasks.count", { n: fmtNumber(count) })}`}</p>
       </div>
     </header>
   );

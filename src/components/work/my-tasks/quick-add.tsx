@@ -26,8 +26,8 @@ export function QuickAdd({ onAdd, pending }: { onAdd: (title: string) => Promise
   }
 
   return (
-    <form onSubmit={submit} className="flex items-center gap-2 border-b border-border px-3 py-2" aria-label={t("mytasks.quick.label")}>
-      <Plus className="size-4 shrink-0 text-fg-muted" aria-hidden />
+    <form onSubmit={submit} className="mt-2 flex items-center gap-2 rounded-[10px] bg-surface-2 px-2.5 py-0.5 text-muted" aria-label={t("mytasks.quick.label")}>
+      <Plus className="size-4 shrink-0" aria-hidden />
       <input
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -39,7 +39,7 @@ export function QuickAdd({ onAdd, pending }: { onAdd: (title: string) => Promise
       <button
         type="submit"
         disabled={pending || title.trim() === ""}
-        className="min-h-9 rounded-lg bg-accent px-3 text-xs font-medium text-accent-fg disabled:opacity-40"
+        className="min-h-8 rounded-lg bg-accent/10 px-3 text-[13px] font-semibold text-accent transition-colors hover:bg-accent/20 disabled:opacity-40"
       >
         {t("mytasks.quick.add")}
       </button>

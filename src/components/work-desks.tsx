@@ -94,12 +94,12 @@ export function TicketsDesk({ me, defaultDepartmentId }: { me: Me; defaultDepart
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
       <div className="flex items-center gap-3">
-        <h1 className="min-w-0 flex-1 text-xl font-semibold">{t("nav.tickets")}</h1>
+        <h1 className="min-w-0 flex-1 text-[19px] font-bold">{t("nav.tickets")}</h1>
         <InstantWorkButton kind="ticket" onSent={() => qc.invalidateQueries({ queryKey: ["tickets"] })} />
       </div>
 
-      <section aria-labelledby="my-tickets" className="rounded-xl border border-border bg-surface-1 p-4">
-        <h2 id="my-tickets" className="mb-2 text-sm font-semibold">{t("desk.myTickets")}</h2>
+      <section aria-labelledby="my-tickets" className="rounded-2xl bg-surface-1 p-4">
+        <h2 id="my-tickets" className="mb-2 text-[15px] font-bold">{t("desk.myTickets")}</h2>
         {mine.data && mine.data.tickets.length === 0 && <p className="text-sm text-muted">{t("desk.noMyTickets")}</p>}
         <ul className="divide-y divide-border">
           {(mine.data?.tickets ?? []).map((r) => (
@@ -109,7 +109,7 @@ export function TicketsDesk({ me, defaultDepartmentId }: { me: Me; defaultDepart
                   {r.department ? `${r.department.emoji ?? "🏢"} ${r.department.name}` : `⚡ ${t("instant.badge")}`}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm">{r.title}</span>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CHIP[r.status] ?? ""}`}>{enumLabel("TicketStatus", r.status)}</span>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-semibold ${STATUS_CHIP[r.status] ?? ""}`}>{enumLabel("TicketStatus", r.status)}</span>
               </button>
             </li>
           ))}
@@ -117,15 +117,15 @@ export function TicketsDesk({ me, defaultDepartmentId }: { me: Me; defaultDepart
       </section>
 
       {manage && instant.data && instant.data.tickets.length > 0 ? (
-        <section aria-labelledby="instant-tickets" className="rounded-xl border border-border bg-surface-1 p-4">
-          <h2 id="instant-tickets" className="mb-2 text-sm font-semibold">⚡ {t("instant.section")}</h2>
+        <section aria-labelledby="instant-tickets" className="rounded-2xl bg-surface-1 p-4">
+          <h2 id="instant-tickets" className="mb-2 text-[15px] font-bold">⚡ {t("instant.section")}</h2>
           <ul className="divide-y divide-border">
             {instant.data.tickets.map((r) => (
               <li key={r.id}>
                 <button type="button" onClick={() => setDetailId(r.id)} className="flex min-h-11 w-full items-center gap-2 py-2 text-start hover:bg-surface-2">
                   <span className="min-w-0 flex-1 truncate text-sm">{r.title}</span>
                   <span className="shrink-0 text-xs text-muted">{r.assignee?.name ?? "—"}</span>
-                  <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CHIP[r.status] ?? ""}`}>{enumLabel("TicketStatus", r.status)}</span>
+                  <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-semibold ${STATUS_CHIP[r.status] ?? ""}`}>{enumLabel("TicketStatus", r.status)}</span>
                 </button>
               </li>
             ))}
@@ -166,10 +166,10 @@ export function CampaignsDesk({ me, defaultDepartmentId }: { me: Me; defaultDepa
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
-      <h1 className="text-xl font-semibold">{t("nav.campaigns")}</h1>
+      <h1 className="text-[19px] font-bold">{t("nav.campaigns")}</h1>
 
-      <section aria-labelledby="my-campaigns" className="rounded-xl border border-border bg-surface-1 p-4">
-        <h2 id="my-campaigns" className="mb-2 text-sm font-semibold">{t("desk.myCampaigns")}</h2>
+      <section aria-labelledby="my-campaigns" className="rounded-2xl bg-surface-1 p-4">
+        <h2 id="my-campaigns" className="mb-2 text-[15px] font-bold">{t("desk.myCampaigns")}</h2>
         {mine.data && mine.data.campaigns.length === 0 && <p className="text-sm text-muted">{t("desk.noMyCampaigns")}</p>}
         <ul className="divide-y divide-border">
           {(mine.data?.campaigns ?? []).map((r) => (
@@ -180,7 +180,7 @@ export function CampaignsDesk({ me, defaultDepartmentId }: { me: Me; defaultDepa
                   {r.department.emoji ?? "🏢"} {r.department.name}
                 </span>
                 <span className="min-w-0 flex-1 truncate text-sm">{r.title}</span>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CHIP[r.status] ?? ""}`}>{enumLabel("CampaignStatus", r.status)}</span>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-semibold ${STATUS_CHIP[r.status] ?? ""}`}>{enumLabel("CampaignStatus", r.status)}</span>
               </button>
             </li>
           ))}
