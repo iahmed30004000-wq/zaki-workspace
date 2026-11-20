@@ -123,7 +123,9 @@ export type TabKey =
   | "structure"
   | "development"
   // «الطلبات» (N1.1, the new map only; its own page /requests since W1.4): everything that waits for a decision - approvals, assignment requests, the person's department tickets, cards and sheets.
-  | "requests";
+  | "requests"
+  // «مهام قديمة» (W1.9, the new map only, under «المزيد»): the review list of open tasks nobody touched, for the owner and whoever manages a space.
+  | "stale";
 
 /** An icon by NAME: the shell maps it to a drawing (src/components/shell/nav-icons.tsx). Data only, so it crosses from server to browser. */
 export type NavIconKey = "today" | "chat" | "work" | "library" | "admin" | "team" | "reports" | "automation" | "telegram" | "settings" | "watch" | "cards";
@@ -351,8 +353,24 @@ export const PLACES: readonly PlaceDef[] = PLACES_V1;
 export const MAX_TABS = 4;
 /** The most optional tools the owner may pin as tabs (`Organization.settings.workTabs`). */
 export const MAX_PINNED_TABS = 2;
-/** The optional tools of «الشغل»: the tabs of the old map that are not «مهامي» «المشاريع» «الطلبات» (each behind its own switch or box). */
-export const WORK_OPTIONAL_TABS: readonly TabKey[] = ["goals", "ideas", "production", "departments", "tickets", "campaigns", "crm", "checkins"];
+/** The optional tools of «الشغل»: the tabs of the old map that are not «مهامي» «المشاريع» «الطلبات» (each behind its own switch or box), and «مهام قديمة» (W1.9, the new map's own). */
+export const WORK_OPTIONAL_TABS: readonly TabKey[] = ["goals", "ideas", "production", "departments", "tickets", "campaigns", "crm", "checkins", "stale"];
+
+/**
+ * «مهام قديمة» (W1.9, switch `workStaleSweep`): /my-work/stale. Offered to the owner rank (a partner manages every space) and to whoever manages the space they are in (the
+ * layout's `spaceManager`); the page decides again from the spaces the person manages (`managedSpacesOf`) and refuses a guest. While the switch is off the page is not found, so the
+ * tab is not offered either. A guest never holds it: `spaceManager` is false for an outsider and the rank is below OWNER.
+ */
+const STALE_TAB: TabDef = {
+  key: "stale",
+  href: "/my-work/stale",
+  labelKey: "nav.tab.stale",
+  requires: { anyOf: [{ rankAtLeast: "OWNER" }, { spaceManager: true }] },
+  feature: "workStaleSweep",
+};
+
+/** An optional tool of «الشغل» on the new map: a tab of the old map reused as it is, or «مهام قديمة» which only the new map has. */
+const optionalTab = (key: TabKey): TabDef => (key === "stale" ? STALE_TAB : v1Tab(key));
 
 /** A tab of the old map, by key: the new map reuses the definition (the same page, the same rule, the same box). */
 function v1Tab(key: TabKey): TabDef {
@@ -401,7 +419,7 @@ export const PLACES_V2: readonly PlaceDef[] = [
         hideFor: (subject) => subject.off?.includes("approvals") === true && subject.off.includes("workRequests"),
       },
     ],
-    more: WORK_OPTIONAL_TABS.map(v1Tab),
+    more: WORK_OPTIONAL_TABS.map(optionalTab),
   },
   {
     key: "library",

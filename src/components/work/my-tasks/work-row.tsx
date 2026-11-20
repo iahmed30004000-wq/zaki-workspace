@@ -7,6 +7,7 @@ import { PinMark, RewardBadge, type RewardBadgeData } from "@/components/rewards
 import { StepProgressChip } from "@/components/task-steps/step-progress";
 import { RunningChip } from "@/components/time/running-chip";
 import { RecurringBadge } from "@/components/recurrence/recurring-badge";
+import { AutoMark } from "@/components/work/stale/auto-mark";
 import { PRIORITY_STYLES, fmtDMY, fmtRelative } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
 import { useI18n } from "@/lib/i18n";
@@ -88,6 +89,7 @@ export function WorkRow({
           <RecurringBadge recurring={task.recurring} />
           {task.pinnedAt ? <PinMark /> : null}
           <RewardBadge reward={task.reward as RewardBadgeData | null | undefined} />
+          {task.automated ? <AutoMark /> : null}
         </span>
       }
       trailing={

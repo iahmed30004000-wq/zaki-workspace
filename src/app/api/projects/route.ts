@@ -4,6 +4,8 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { requireWorkspace, audit, ForbiddenError } from "@/server/auth";
 import { withApi } from "@/server/api";
+import { isFeatureOn } from "@/server/services/features";
+import { INSTANT_PROJECT_KEY } from "@/server/services/instant-work";
 import { taskParticipantFilter, teamFilterInSpace } from "@/server/services/team-scope";
 import { assertMayCreateInTeam } from "@/server/services/teams";
 import { parse, parseJson } from "@/server/validation";
@@ -37,7 +39,10 @@ export async function GET(req: Request) {
     const team = await teamFilterInSpace(ctx.userId, workspaceId, ctx.spaceManager === true);
     // the count of a project is the tasks the caller may open: a private one of somebody else is not counted (P0 review)
     const participants = await taskParticipantFilter(ctx.userId);
-    const projects = await db.project.findMany({
+    // «صندوق المهام» (W1.2, `workInbox` ON) is the quick-task place, not a project to pick (the chat dialog, goals, ideas, the cards' picker): it has its own pinned card on
+    // «المشاريع» and its own first choice where tasks are made. OFF: the hidden quick-task project is an ordinary row, as it was.
+    const inbox = await isFeatureOn(ctx.orgId, "workInbox");
+    const rows = await db.project.findMany({
       where: { workspaceId, ...team },
       orderBy: { updatedAt: "desc" },
       select: {
@@ -49,10 +54,14 @@ export async function GET(req: Request) {
         startDate: true,
         targetDate: true,
         ownerId: true,
+        systemKey: true,
         updatedAt: true,
         _count: { select: { tasks: { where: { archived: false, AND: [participants] } }, boards: true } },
       },
     });
+    // hidden only while there is something else to pick: a space whose only project is the inbox still offers it (the cards' «حوّلها لمهمة» has no other target)
+    const others = inbox ? rows.filter((p) => p.systemKey !== INSTANT_PROJECT_KEY) : rows;
+    const projects = (others.length > 0 ? others : rows).map(({ systemKey: _systemKey, ...project }) => project);
     return NextResponse.json({ projects, orgId: ctx.orgId });
   });
 }

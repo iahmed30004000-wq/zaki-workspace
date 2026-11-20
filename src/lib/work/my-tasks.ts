@@ -182,6 +182,8 @@ export interface WorkTaskDto {
   recurring?: boolean;
   pinnedAt?: string | null;
   reward?: { status: string; amountMinor: number; currency: string } | null;
+  /** «آلي» (W1.9, D-W4): the task came in through the door (`Task.apiTokenId` is set). The row draws the mark when it is true; absent or false draws nothing. */
+  automated?: boolean;
 }
 
 export interface WorkSpaceOption {

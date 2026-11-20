@@ -29,8 +29,11 @@ import type { RewardRequest } from "@/server/services/rewards";
 
 export const INSTANT_PROJECT_KEY = "instant";
 
-/** The space's «مهام فورية» board and its «to do» column, made on first use (two at once: one wins, both use it). */
-async function instantBoard(workspaceId: string, inbox: boolean): Promise<{ projectId: string; boardId: string; columnId: string }> {
+/**
+ * The space's «مهام فورية» board and its «to do» column, made on first use (two at once: one wins, both use it). `inbox`: the project wears the inbox's name
+ * («صندوق المهام», switch `workInbox`) instead of the old one. Exported (W1w) so the conversions of W1.6 find or make the same place instead of repeating it.
+ */
+export async function instantBoard(workspaceId: string, inbox: boolean): Promise<{ projectId: string; boardId: string; columnId: string }> {
   const find = () =>
     db.project.findUnique({
       where: { workspaceId_systemKey: { workspaceId, systemKey: INSTANT_PROJECT_KEY } },

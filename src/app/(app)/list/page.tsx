@@ -12,6 +12,7 @@ import { TaskRow, type RowMember } from "@/components/task-row";
 import { ListFilters } from "@/components/list-filters";
 import { getServerT } from "@/lib/i18n/server";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
+import { automatedTaskIds } from "@/app/(app)/my-work/automated";
 import { currentSpace } from "@/server/services/current-space";
 import { columnLabel, enumLabel } from "@/lib/i18n/enums";
 import { actorFeatureOn } from "@/server/services/features";
@@ -122,6 +123,8 @@ export default async function ListPage({
 
   // «🔁 متكررة» on the rows: one read for the page, and only while the company's «مهمة متكررة» switch is on
   const recurring = (await actorFeatureOn(actor, "recurringTasks")) ? await recurringTaskIds(tasks.map((t) => t.id)) : new Set<string>();
+  // «آلي» (W1.9): the tasks that came in through the door, by the person's own read
+  const automated = await automatedTaskIds(actor, tasks.map((t) => t.id));
 
   // «حقول مخصصة»: the chips of the rows (one read for the page), and the exact total of the sorted number field over the rows shown
   const fieldCells = fieldList ? await fieldCellsFor({ orgId: ctx.orgId, userId: actor.userId, orgRole: ctx.orgRole }, ctx.workspaceId, tasks.map((t) => ({ id: t.id, projectId: t.projectId }))) : null;
@@ -249,7 +252,7 @@ export default async function ListPage({
                   {b.rows.map((task) => (
                     <TaskRow
                       key={task.id}
-                      task={{ ...task, steps: progress.get(task.id), running: task.id === runningTaskId, recurring: recurring.has(task.id), reward: task.reward ?? null, pinnedAt: task.pinnedAt ?? null, ...(fieldCells?.cells[task.id] ? { fields: fieldCells.cells[task.id] } : {}) }}
+                      task={{ ...task, steps: progress.get(task.id), running: task.id === runningTaskId, recurring: recurring.has(task.id), ...(automated.has(task.id) ? { automated: true } : {}), reward: task.reward ?? null, pinnedAt: task.pinnedAt ?? null, ...(fieldCells?.cells[task.id] ? { fields: fieldCells.cells[task.id] } : {}) }}
                       editable={ctx.editable}
                       members={members}
                       showProject={group !== "project"}

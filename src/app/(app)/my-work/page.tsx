@@ -4,6 +4,7 @@ import { MyTasksView } from "@/components/work/my-tasks/my-tasks-view";
 import { actorCanWork } from "@/server/policy/actor";
 import { isFeatureOn } from "@/server/services/features";
 import { workScreenFor } from "@/server/services/my-work";
+import { managedSpacesOf } from "@/server/services/stale-tasks";
 import { myTasksApiQuery, parseMyTasksParams } from "@/lib/work/my-tasks";
 
 /**
@@ -14,6 +15,8 @@ import { myTasksApiQuery, parseMyTasksParams } from "@/lib/work/my-tasks";
  * rule: a task hidden from the person is not listed, not counted and not found by the search.
  *
  * With the switch OFF (the default) this address serves today's page unchanged (`legacy-page.tsx`), so nothing moves until the owner decides.
+ *
+ * W1.9: the bar carries a link «مهام قديمة» to /my-work/stale, only for somebody who manages a space, and only while `workStaleSweep` is on (the page behind the link decides again).
  */
 export default async function MyWorkPage({ searchParams }: { searchParams: Record<string, string | string[] | undefined> }) {
   const { actor } = await pageActor();
@@ -23,10 +26,16 @@ export default async function MyWorkPage({ searchParams }: { searchParams: Recor
 
   const requested = parseMyTasksParams(searchParams ?? {});
   const now = new Date();
-  const initial = await workScreenFor(actor, requested, now);
+  const [initial, staleHref] = await Promise.all([workScreenFor(actor, requested, now), staleLinkFor(actor)]);
   const query = myTasksApiQuery(requested);
   // `key`: an address the screen did not make itself (the menu's link, a pasted one) is a NEW screen, not a stale one
-  return <MyTasksView key={query} requested={requested} initial={initial} initialQuery={query} initialAt={now.getTime()} />;
+  return <MyTasksView key={query} requested={requested} initial={initial} initialQuery={query} initialAt={now.getTime()} staleHref={staleHref} />;
+}
+
+/** The review list's address for a person who may open it (a guest never; nobody while its switch is off; somebody who manages no space is told on the page itself, so no link). */
+async function staleLinkFor(actor: Awaited<ReturnType<typeof pageActor>>["actor"]): Promise<string | null> {
+  if (actor.isExternal || !(await isFeatureOn(actor.orgId, "workStaleSweep"))) return null;
+  return (await managedSpacesOf(actor)).length > 0 ? "/my-work/stale" : null;
 }
 
 const firstOf = (value: string | string[] | undefined): string | undefined => (Array.isArray(value) ? value[0] : value);

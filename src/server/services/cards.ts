@@ -12,6 +12,7 @@ import { canPostInConversation } from "@/server/policy/conversation";
 import { sendMessage } from "@/server/chat/messages";
 import { canWriteInWorkspace, isSpaceManager } from "@/server/workspace-role";
 import { recordCard } from "@/server/services/card-audit";
+import { log } from "@/server/log";
 import { AR } from "@/lib/i18n/dict";
 import {
   CARD_COLORS,
@@ -616,6 +617,14 @@ export async function cardToTask(actor: Actor, cardId: string, target: z.infer<t
       description: cardTaskDescription(item),
     },
   );
+  // W1.6: the task holds the link to its card from the first moment (`Task.sourceCardId`), as a task made from a message holds its message. A single statement on purpose: it
+  // moves only the link column (the card's «آخر تعديل» is not touched, and no second `task.update` door appears in tests/rewards-logic.test.ts's list of task writers). A failure
+  // never undoes the task that was made: the card's links read the audit line below and fill the column when they are opened (card-links.ts).
+  try {
+    await db.$executeRaw`UPDATE "Task" SET "sourceCardId" = ${row.id} WHERE "id" = ${task.id} AND "orgId" = ${actor.orgId}`;
+  } catch (err) {
+    log.error("cards.source_link_failed", { message: err instanceof Error ? err.message : String(err) });
+  }
   await recordCard(actor, row, "task", { taskId: task.id });
   return { taskId: task.id };
 }

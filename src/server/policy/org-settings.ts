@@ -71,9 +71,10 @@ export function workTabsOf(settings: unknown): TabKey[] {
 }
 
 /**
- * The two things the map needs from the company's settings, ready to spread into a `NavSubject`: `{ ...navSubject, ...navExtrasOf(settings) }` —
- * whether the new map is on (`navV2`, OFF by default) and the pinned work tabs.
+ * What the map needs from the company's settings, ready to spread into a `NavSubject`: `{ ...navSubject, ...navExtrasOf(settings) }` —
+ * whether the new map is on (`navV2`, OFF by default), whether «مهامي» is the one screen of tasks (`workMyTasks`, OFF by default: with it on the OLD map stops drawing
+ * «القائمة» and «التقويم», which are views of it, W1.1) and the pinned work tabs.
  */
-export function navExtrasOf(settings: unknown): { navV2: boolean; workTabs: TabKey[] } {
-  return { navV2: featureOn(settings, "navV2"), workTabs: workTabsOf(settings) };
+export function navExtrasOf(settings: unknown): { navV2: boolean; workMyTasks: boolean; workTabs: TabKey[] } {
+  return { navV2: featureOn(settings, "navV2"), workMyTasks: featureOn(settings, "workMyTasks"), workTabs: workTabsOf(settings) };
 }

@@ -155,7 +155,7 @@ export function BottomNav({
               >
                 <span className={cn("relative grid h-7 w-12 place-items-center rounded-full transition-colors", active && "bg-accent/15 text-accent")}>
                   <NavIcon icon={place.icon} className="size-5" />
-                  <PlaceBadge count={badges[place.key]} className="absolute end-1 top-0" />
+                  <PlaceBadge count={badges[place.key]} place={place.key} className="absolute end-1 top-0" />
                 </span>
                 <span className="max-w-full truncate">{t(place.labelKey)}</span>
               </Link>

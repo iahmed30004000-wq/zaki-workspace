@@ -177,10 +177,10 @@ export function Sidebar({
                   >
                     <span className="relative shrink-0">
                       <NavIcon icon={place.icon} className={cn("size-5 shrink-0", active && "text-accent")} />
-                      {collapsed && <PlaceBadge count={badges[place.key]} className="absolute -end-2 -top-2" />}
+                      {collapsed && <PlaceBadge count={badges[place.key]} place={place.key} className="absolute -end-2 -top-2" />}
                     </span>
                     <span className={cn("truncate", collapsed && "sr-only")}>{label}</span>
-                    {!collapsed && <PlaceBadge count={badges[place.key]} className="ms-auto" />}
+                    {!collapsed && <PlaceBadge count={badges[place.key]} place={place.key} className="ms-auto" />}
                     {active && !collapsed ? (
                       <span aria-hidden="true" className={cn("zk-star size-3 shrink-0 text-accent-2", !badges[place.key] && "ms-auto")} />
                     ) : null}
