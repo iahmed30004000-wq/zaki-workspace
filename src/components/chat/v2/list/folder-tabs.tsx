@@ -108,7 +108,7 @@ export function FolderRail<K extends string>({
             {...(custom ? { "data-folder-custom": "" } : {})}
             onClick={() => onChange(folder.key)}
             className={cn(
-              "relative flex w-16 shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-[11px] font-semibold leading-tight focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+              "relative flex w-16 shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-xs font-semibold leading-tight focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
               on ? "bg-accent/15 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
             )}
           >
