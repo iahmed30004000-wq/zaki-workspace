@@ -15,9 +15,10 @@ const COUNTS = ["projects", "tasks", "conversations", "messages", "files", "idea
 /**
  * «احذف المساحة» on a card of «كل المساحات» (the OWNER only; never «الشركة» or a department's space): shows what goes
  * with it, asks for its name typed, then deletes it with all its work (src/server/services/space-delete.ts decides
- * again).
+ * again). A2.2: on the space's own settings page («خطر») the page would be gone, so `onDeleted` replaces the refresh (the page leaves), and `labelled`
+ * draws the button with its words instead of the card's trash icon.
  */
-export function SpaceDeleteButton({ id, name }: { id: string; name: string }) {
+export function SpaceDeleteButton({ id, name, onDeleted, labelled = false }: { id: string; name: string; onDeleted?: () => void; labelled?: boolean }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -63,7 +64,8 @@ export function SpaceDeleteButton({ id, name }: { id: string; name: string }) {
       }
       setOpen(false);
       toast(t("spaces.delete.done"), "success");
-      router.refresh();
+      if (onDeleted) onDeleted();
+      else router.refresh();
     } catch {
       setError(t("spaces.delete.failed"));
     } finally {
@@ -79,9 +81,14 @@ export function SpaceDeleteButton({ id, name }: { id: string; name: string }) {
         type="button"
         onClick={() => setOpen(true)}
         aria-label={`${t("spaces.delete.open")}: ${name}`}
-        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-muted hover:bg-danger/10 hover:text-danger"
+        className={
+          labelled
+            ? "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-danger/40 px-3 text-sm font-medium text-danger hover:bg-danger/10"
+            : "inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-muted hover:bg-danger/10 hover:text-danger"
+        }
       >
         <Trash2 aria-hidden="true" className="size-4" />
+        {labelled ? t("spaces.delete.open") : null}
       </button>
       <Modal open={open} onClose={() => setOpen(false)} title={t("spaces.delete.title", { name })}>
         <div className="space-y-3 text-sm">

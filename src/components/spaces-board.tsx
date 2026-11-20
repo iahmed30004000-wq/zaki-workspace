@@ -17,6 +17,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { SpaceDeleteButton } from "@/components/space-delete-button";
 import { fmtNumber } from "@/lib/format";
 import { goHref } from "@/lib/space-link";
+import { settingsHref } from "@/components/space-settings/tabs";
 
 export interface BoardCard {
   id: string;
@@ -33,9 +34,10 @@ export interface BoardCard {
  * The cards of «كل المساحات», managed in place (the owner's asks, 2026-10-26): drag a card by its handle to put the spaces
  * in order (it is the order of the switcher too; «الشركة» stays first and does not move), and a «⋯» on each card: edit
  * the name, archive, delete (the OWNER, a standard space; a department's space says where it is deleted). The server
- * decides again (src/server/services/space-manage.ts, space-delete.ts).
+ * decides again (src/server/services/space-manage.ts, space-delete.ts). `settingsLinks` (A2.2: the switch `controlPanelV2` is ON) adds «إعدادات المساحة» to the
+ * menu, the way into the space's own settings page.
  */
-export function SpacesBoard({ cards, hereId, manage, owner }: { cards: BoardCard[]; hereId: string | null; manage: boolean; owner: boolean }) {
+export function SpacesBoard({ cards, hereId, manage, owner, settingsLinks = false }: { cards: BoardCard[]; hereId: string | null; manage: boolean; owner: boolean; settingsLinks?: boolean }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -75,7 +77,7 @@ export function SpacesBoard({ cards, hereId, manage, owner }: { cards: BoardCard
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
           <SortableContext items={rest.map((c) => c.id)} strategy={rectSortingStrategy}>
             {rest.map((s) => (
-              <SortableCard key={s.id} card={s} here={s.id === hereId} owner={owner} />
+              <SortableCard key={s.id} card={s} here={s.id === hereId} owner={owner} settingsLinks={settingsLinks} />
             ))}
           </SortableContext>
         </DndContext>
@@ -90,13 +92,13 @@ export function SpacesBoard({ cards, hereId, manage, owner }: { cards: BoardCard
   );
 }
 
-function SortableCard({ card, here, owner }: { card: BoardCard; here: boolean; owner: boolean }) {
+function SortableCard({ card, here, owner, settingsLinks }: { card: BoardCard; here: boolean; owner: boolean; settingsLinks: boolean }) {
   const { t } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={isDragging ? "relative z-20 opacity-80" : "relative"}>
       <div className="absolute end-2 top-2 z-10 flex items-center gap-1">
-        <CardActions card={card} owner={owner} />
+        <CardActions card={card} owner={owner} settingsLinks={settingsLinks} />
         <button
           type="button"
           aria-label={`${t("spaces.card.drag")}: ${card.name}`}
@@ -112,7 +114,7 @@ function SortableCard({ card, here, owner }: { card: BoardCard; here: boolean; o
   );
 }
 
-function CardActions({ card, owner }: { card: BoardCard; owner: boolean }) {
+function CardActions({ card, owner, settingsLinks }: { card: BoardCard; owner: boolean; settingsLinks: boolean }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -154,6 +156,7 @@ function CardActions({ card, owner }: { card: BoardCard; owner: boolean }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {settingsLinks && <DropdownMenuItem onSelect={() => router.push(settingsHref(card.id))}>⚙️ {t("spset.open")}</DropdownMenuItem>}
           {card.kind !== "DEPARTMENT" && <DropdownMenuItem onSelect={() => setRenaming(true)}>✏️ {t("spaces.card.rename")}</DropdownMenuItem>}
           <DropdownMenuItem onSelect={() => void archive()}>🗄 {t("spaces.card.archive")}</DropdownMenuItem>
         </DropdownMenuContent>
