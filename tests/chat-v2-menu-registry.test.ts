@@ -456,8 +456,8 @@ describe("Ctrl+0 opens «المحفوظة»: the registry's own function, by the
     expect(savedShortcutOf(key({ code: "Digit1", key: "1", ctrlKey: true }))).toBe(false);
   });
 
-  it("the folders' map is untouched (Ctrl+0 is no folder there) and its sheet still lists the eight rows C2.6 pinned; the saved row is its own, with words from the dictionary", () => {
-    expect(shortcutOf(key({ code: "Digit0", key: "0", ctrlKey: true }))).toBeNull();
+  it("the folders' map is untouched (Ctrl+0 is no folder: since C3w.2 it is the map's own «saved» action) and the table still holds the eight rows C2.6 pinned; the saved row is its own, with words from the dictionary", () => {
+    expect(shortcutOf(key({ code: "Digit0", key: "0", ctrlKey: true }))).toEqual({ type: "saved" });
     expect(SHORTCUT_ROWS).toHaveLength(8);
     expect(SAVED_SHORTCUT.keys).toEqual(["ctrl", "0"]);
     expect(AR[SAVED_SHORTCUT.labelKey]).toBe("افتح المحفوظة");

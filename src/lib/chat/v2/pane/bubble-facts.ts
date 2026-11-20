@@ -1,6 +1,7 @@
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import type { AutoRule } from "@/lib/tickets/auto-rules";
 import type { MenuFacts } from "@/components/chat/message/message-item";
+import { isSavedHeader } from "@/lib/chat/v2/menu/menu-context";
 
 /**
  * C2.4 — what a bubble needs to know about the conversation and about me in it, read ONCE from the header (never from a rank): the same flags the old
@@ -22,6 +23,12 @@ export interface BubbleFacts extends MenuFacts {
   canReadImages: boolean;
   /** C3b.2: the company's switch `linkPreviews`; off, a card the cache still holds is not drawn */
   linkPreviews: boolean;
+  /** C3b.1: the company's switch `chatFormatting` (the header says `false` to switch it off; absent: on): off, a body is drawn as typed, markers and all */
+  formatting: boolean;
+  /** C3b.3: the company's switch `chatAlbums` (absent: on): off, a message's pictures are one box each, not a mosaic */
+  albums: boolean;
+  /** C3a.3: this is the person's saved chat (a private chat with nobody else in it): its messages have the single ✓ and no typing */
+  saved: boolean;
   problemRules: AutoRule[];
 }
 
@@ -47,6 +54,9 @@ export function bubbleFactsOf(header: ConversationHeaderDto): BubbleFacts {
     canTranscribe: header.voiceTranscript === true,
     canReadImages: header.imageOcr === true,
     linkPreviews: header.linkPreviews === true,
+    formatting: header.chatFormatting !== false,
+    albums: header.chatAlbums !== false,
+    saved: isSavedHeader(header),
     problemRules: me.problemRules ?? NO_RULES,
   };
 }

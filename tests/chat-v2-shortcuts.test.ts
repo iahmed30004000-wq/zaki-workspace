@@ -9,6 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { ShortcutsSheet } from "@/components/chat/v2/menu/shortcuts-sheet";
 import {
+  SHEET_ROWS,
   SHORTCUT_ROWS,
   escapeStep,
   neighbourChat,
@@ -24,8 +25,8 @@ import { AR } from "@/lib/i18n/dict";
 /**
  * C2.6 — the keyboard of the new chat screen: ONE module (`src/lib/chat/shortcuts.ts`: a pure map, the rules that act on it, and the hook the shell mounts).
  * Alt+↑/↓ the previous / next chat, Alt+Shift+↑/↓ the previous / next UNREAD chat, Ctrl+1…9 the folders, Ctrl+F search (the open conversation, or the list when the
- * list has the focus), Esc closes the panel or goes back to the list, Ctrl+Shift+? the sheet that lists them. Ctrl+0 (saved messages) and Ctrl+B/I/U/K
- * (formatting) are C3: NOT registered. The ↑ that edits my last message and Esc of a reply or an edit are the composer's (C2.5).
+ * list has the focus), Esc closes the panel or goes back to the list, Ctrl+Shift+? the sheet that lists them. Ctrl+B/I/U/K (formatting) are the composer's: NOT
+ * registered. C3w.2: Ctrl+0 (saved messages) IS registered now (C3a.3 had it beside the table; it is folded in). The ↑ that edits my last message and Esc of a reply or an edit are the composer's (C2.5).
  */
 const ROOT = path.resolve(__dirname, "..");
 const read = (rel: string) => readFileSync(path.join(ROOT, rel), "utf8").replace(/\r\n/g, "\n");
@@ -40,10 +41,10 @@ describe("the map: which key is which action", () => {
     expect(shortcutOf(key({ key: "ArrowDown", altKey: true, shiftKey: true }))).toEqual({ type: "chat", step: 1, unread: true });
   });
 
-  it("Ctrl+1 … Ctrl+9 are the folders (by the physical key, so an Arabic keyboard works), Ctrl+0 is not (saved messages are C3)", () => {
+  it("Ctrl+1 … Ctrl+9 are the folders (by the physical key, so an Arabic keyboard works), Ctrl+0 is the saved chat (C3w.2: it was null before the fold, a pin that said «saved messages are C3»)", () => {
     for (let n = 1; n <= 9; n++) expect(shortcutOf(key({ code: `Digit${n}`, key: String(n), ctrlKey: true }))).toEqual({ type: "folder", index: n - 1 });
     expect(shortcutOf(key({ code: "Digit1", key: "١", ctrlKey: true }))).toEqual({ type: "folder", index: 0 });
-    expect(shortcutOf(key({ code: "Digit0", key: "0", ctrlKey: true }))).toBeNull();
+    expect(shortcutOf(key({ code: "Digit0", key: "0", ctrlKey: true }))).toEqual({ type: "saved" });
   });
 
   it("Ctrl+F is the search (on any keyboard layout); Ctrl+Shift+F is not", () => {
@@ -150,6 +151,7 @@ describe("running a shortcut", () => {
       toList: calls.toList,
       focusListSearch: calls.focusListSearch,
       openSheet: calls.openSheet,
+      openSaved: () => true,
       ...over,
     };
     return { deps, calls };
@@ -238,9 +240,10 @@ describe("the sheet that lists them", () => {
   const Translations = I18nProvider as unknown as FunctionComponent<{ initial: "ar"; children?: ReactNode }>;
   const html = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(ShortcutsSheet, { open: true, onOpenChange: () => undefined, portal: false })));
 
-  it("lists every registered shortcut with its words from the dictionary", () => {
+  it("lists every registered shortcut with its words from the dictionary (C3w.2: the eight of C2.6 and Ctrl+0 — the pin said 8 before the fold)", () => {
     expect(SHORTCUT_ROWS.length).toBe(8);
-    for (const row of SHORTCUT_ROWS) {
+    expect(SHEET_ROWS.length).toBe(9);
+    for (const row of SHEET_ROWS) {
       expect(AR[row.labelKey], row.labelKey).toMatch(/[؀-ۿ]/);
       expect(html).toContain(AR[row.labelKey]!);
     }
@@ -267,8 +270,8 @@ describe("the sheet that lists them", () => {
     expect(html).not.toMatch(/\b(?:ml|mr|pl|pr|text-left|text-right)-/);
   });
 
-  it("does not list what is not registered (saved messages, formatting)", () => {
-    expect(html).not.toContain("Ctrl + 0");
+  it("does not list what is not registered (formatting has its own toolbar); Ctrl+0 is listed since C3w.2", () => {
+    expect(html).toContain("Ctrl");
     expect(html).not.toMatch(/\bB\b|\bI\b|\bU\b|\bK\b/);
   });
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CalendarClock, Check, LoaderCircle, Mic, Send, Smile, X, Zap } from "lucide-react";
+import { CalendarClock, Check, LoaderCircle, Mic, Send, Smile, Star, X, Zap } from "lucide-react";
 import type { MessageDto } from "@/server/chat/dto";
 import { CustomerHint } from "@/components/chat/v2/bubble/bubble-extras";
 import { AttachMenu } from "@/components/chat/v2/composer/attach-menu";
@@ -30,13 +30,13 @@ export type SurfaceEngine = Pick<
   | "setPollOpen" | "setRecall"
 > &
   /** C3c.2: «ابعت بدون صوت» (the send button's menu); an engine without them (a test's) draws no menu */
-  Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn">> &
+  Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn" | "setFeedback">> &
   /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
-  Partial<Pick<ComposerEngine, "scheduling" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
+  Partial<Pick<ComposerEngine, "scheduling" | "scheduledCount" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
 
 export interface SurfaceProps {
   c: SurfaceEngine;
-  me: { canPoll?: boolean; canRecall?: boolean };
+  me: { canPoll?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
   reply: MessageDto | null;
   editing: MessageDto | null;
   onCancelReply: () => void;
@@ -124,7 +124,7 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
   // C3c.2: the send button's menu (right-click, long press): only an engine that can send silently, only while the company's switch is on (absent: on)
   // C3c.3: and «جدول الإرسال», only where the scheduled list said the person may write here (the company's switch on)
   const sendItems = c.submitSilent || c.scheduling ? sendMenuItemsOf({ silentSend: c.submitSilent !== undefined && c.silentSendOn !== false, editing: editing !== null, canSubmit: c.canSubmit, scheduling: c.scheduling === true }) : [];
-  const scheduledCount = c.scheduledItems?.length ?? 0;
+  const scheduledCount = c.scheduledCount ?? c.scheduledItems?.length ?? 0;
   const dialogEdit = c.scheduleDialog?.edit ?? null;
   return (
     <>
@@ -192,6 +192,11 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
         {!editing && me.canRecall ? (
           <button type="button" data-recall-button className={COMPOSER_ICON_BUTTON} aria-label={ct("recall.menu")} title={ct("recall.menu")} onClick={() => c.setRecall({ kind: null, q: "" })}>
             <Zap aria-hidden="true" className="size-6" />
+          </button>
+        ) : null}
+        {!editing && me.canRecall && me.recallKinds?.includes("product") && c.setFeedback ? (
+          <button type="button" data-feedback-button className={COMPOSER_ICON_BUTTON} aria-label={ct("chatui.feedback.button")} title={ct("chatui.feedback.button")} onClick={() => c.setFeedback?.({ q: "" })}>
+            <Star aria-hidden="true" className="size-6" />
           </button>
         ) : null}
         </div>

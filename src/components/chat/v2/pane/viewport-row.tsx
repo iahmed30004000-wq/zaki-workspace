@@ -84,7 +84,7 @@ function ViewportRowView({ row, env, start, end, highlighted }: ViewportRowProps
     const item = outboxItemOfPending(env.conversationId, message);
     return <PendingBubble item={item} onRetry={env.pending.retry} onDelete={env.pending.discard} onCopy={env.pending.copy} onEdit={env.pending.edit} />;
   }
-  if (message.kind === "SYSTEM") return <ServiceLine message={message} />;
+  if (message.kind === "SYSTEM") return <ServiceLine message={message} formatting={env.facts.formatting} />;
   return <BubbleRow message={message} start={start} end={end} env={env} highlighted={highlighted} />;
 }
 

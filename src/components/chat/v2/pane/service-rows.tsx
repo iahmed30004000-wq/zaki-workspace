@@ -41,8 +41,8 @@ export function UnreadLine() {
 }
 
 /** A system line is a quiet sentence in the middle, never a bubble with an empty body; the assistant's answer is its own block. */
-export function ServiceLine({ message }: { message: MessageDto }) {
-  if (message.system?.k === "assistant") return <AssistantLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt} />;
+export function ServiceLine({ message, formatting = true }: { message: MessageDto; /** C3b.1: the company's `chatFormatting`, from the header's facts: the assistant's answer is drawn with its formatting unless it is off */ formatting?: boolean }) {
+  if (message.system?.k === "assistant") return <AssistantLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt} formatting={formatting} />;
   return (
     <p dir="rtl" role="note" data-service-line={message.system?.k ?? "other"} className={chip}>
       {systemSentence(message.system, message.authorName)}

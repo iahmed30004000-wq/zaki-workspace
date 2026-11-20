@@ -16,8 +16,8 @@ import { usePaneActions } from "@/components/chat/v2/pane/pane-actions";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { scheduleSync } from "@/lib/chat/cache/runtime";
 import { privacyState } from "@/lib/chat/privacy";
-import { setSoundsEnabled, soundsEnabled } from "@/lib/chat/sounds";
 import { ct } from "@/lib/chat/text";
+import { isSavedHeader } from "@/lib/chat/v2/menu/menu-context";
 import { composerDetailOf, type PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { channelOf, headerMenuOf, subtitleOf, type HeaderMenuId } from "@/lib/chat/v2/pane/header-model";
 import { doors } from "@/lib/chat/v2/pane/message-actions";
@@ -43,20 +43,21 @@ function HeaderAvatar({ header }: { header: ConversationHeaderDto }) {
  * The title and its line are ONE button: a press only TOGGLES `infoOpen` in the pane's actions (C2.7 draws the panel in `seams/info-host.tsx`).
  * The line says what the spec says — a private chat: the other person's last seen (the old head's line); a topic: «المساحة · 42 عضو», or «🔒 خاص · 4
  * أشخاص» with the P0.4 wording and NO name (the header carries a count, the names are in the sheet the lock chip opens); «عم يكتب…» whenever somebody
- * types. The «⋮» draws only the items that already have a server door (`headerMenuOf`): «اكتم الإشعارات» has none before C3a, so it is not drawn.
+ * types. The «⋮» draws only the items that already have a server door (`headerMenuOf`): «اكتم الإشعارات» has none before C3a, so it is not drawn. The in-app sounds
+ * switch is no longer here: it is «أصوات الدردشة جوا التطبيق» in «إعداداتي» (C4.1; the same `zk.chat.sounds` key).
  */
 export function PaneHeader({ header, people, watch, system }: { header: ConversationHeaderDto; people: PaneMembers | null; watch: boolean; system: boolean }) {
   const qc = useQueryClient();
   const a = usePaneActions();
   const { onLinkClick } = usePhoneBack();
   const { typingNames } = useTyping(header.id);
-  const subtitle = subtitleOf(header, { typingNames });
+  // C3a.3: the saved chat has nobody to call and nobody who types: no call button and no typing line there
+  const saved = isSavedHeader(header);
+  const subtitle = subtitleOf(header, { typingNames: saved ? [] : typingNames, saved });
   // C3c.4: «قناة» with the megaphone, from the topic's own two fields (announcements, only admins post)
   const channel = channelOf(header);
   const [privacyOpen, setPrivacyOpen] = React.useState(false);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
-  const [sounds, setSounds] = React.useState(true);
-  React.useEffect(() => setSounds(soundsEnabled()), []);
   const summaryHolder = React.useRef<HTMLSpanElement>(null);
   // ONE object per header (the settings dialog resets its fields whenever the topic it was given changes, so a new object on every typing line would wipe what is typed)
   const settingsTopic = React.useMemo(() => composerDetailOf(header, people), [header, people]);
@@ -183,7 +184,7 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
       </button>
       {header.assistantCall ? (
         <AssistantCallButton />
-      ) : header.calls !== false ? (
+      ) : header.calls !== false && !saved ? (
         <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart={header.me.canPost && header.me.canCall !== false} />
       ) : null}
       <DropdownMenu>
@@ -194,14 +195,6 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {common.map(item)}
-          <DropdownMenuItem
-            onSelect={() => {
-              setSoundsEnabled(!sounds);
-              setSounds(!sounds);
-            }}
-          >
-            {ct("chatc.sounds")}: {ct(sounds ? "chatui.pane.on" : "chatui.pane.off")}
-          </DropdownMenuItem>
           {topic.length ? <DropdownMenuSeparator /> : null}
           {topic.map(item)}
         </DropdownMenuContent>

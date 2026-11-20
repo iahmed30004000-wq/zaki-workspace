@@ -37,7 +37,7 @@ export function ReplyBlock({ replyTo, onJump }: { replyTo: NonNullable<MessageDt
 }
 
 /** The footer inside the bubble, at the end: «معدّلة», «مثبّتة», the time (`HH:MM`, left-to-right, tabular) and, on my own message, the ticks. */
-export function BubbleFooter({ message }: { message: MessageDto }) {
+export function BubbleFooter({ message, singleTick = false }: { message: MessageDto; /** C3a.3: the saved chat has nobody to deliver to or to read: my message there has the single ✓ whatever status it carries */ singleTick?: boolean }) {
   return (
     <span data-bubble-footer className="mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted">
       {message.edited && <span>{ct("chatc.edited")}</span>}
@@ -45,7 +45,7 @@ export function BubbleFooter({ message }: { message: MessageDto }) {
       <time dateTime={message.createdAt} dir="ltr" className="tabular-nums">
         {fmtTime(message.createdAt)}
       </time>
-      {message.mine && message.status && !message.deleted && <MessageTicks status={message.status} />}
+      {message.mine && (singleTick || message.status) && !message.deleted && <MessageTicks status={singleTick ? "sent" : message.status!} />}
     </span>
   );
 }

@@ -18,6 +18,7 @@ import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { ct } from "@/lib/chat/text";
 import { replyOnDoubleClick } from "@/lib/chat/v2/menu/gestures";
 import { isFreshArrival } from "@/lib/chat/v2/phone/motion";
+import { touchTap, type TapPoint } from "@/lib/chat/v2/menu/quick-reactions";
 import { pressInlineButton, type InlineKind } from "@/lib/chat/v2/menu/inline-press";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
@@ -91,6 +92,9 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const [fresh] = React.useState(() => isFreshArrival(message.createdAt, Date.now()));
   // what the last press on this bubble was made with: a right click or a double click is the computer's, a finger's long press is the sheet's
   const pointer = React.useRef("");
+  // C4.1: the phone's double tap (two quick taps of a finger) is the person's quick reaction; `touchTap` is the pure tracker over the taps of THIS bubble
+  const lastTap = React.useRef<TapPoint | null>(null);
+  const downAt = React.useRef(0);
   const gestures = useBubbleGestures();
   const translation = useTranslation(message.id);
   const canAct = !facts.oversight && !message.deleted && message.kind !== "SYSTEM";
@@ -116,10 +120,16 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               data-message-id={message.id}
               onPointerDown={(e) => {
                 pointer.current = e.pointerType;
+                downAt.current = Date.now();
                 longPress.onPointerDown(e);
               }}
               onPointerMove={longPress.onPointerMove}
-              onPointerUp={longPress.onPointerUp}
+              onPointerUp={(e) => {
+                const tap = touchTap(lastTap.current, { pointerType: e.pointerType, target: e.target, at: Date.now(), x: e.clientX, y: e.clientY, downAt: downAt.current });
+                lastTap.current = tap.last;
+                if (canAct && gestures && tap.double) gestures.quickReact?.(message, facts);
+                longPress.onPointerUp();
+              }}
               onPointerCancel={longPress.onPointerCancel}
               onContextMenu={(e) => {
                 if (sheetOpen || longPress.pressing()) e.preventDefault();
@@ -147,12 +157,12 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
                   {ct("chatc.mention_me")}
                 </span>
               ) : null}
-              <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} />
+              <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} formatting={facts.formatting} />
               {!message.deleted && <MessageTranslation state={translation.state} onHide={translation.hide} />}
               {!message.deleted ? <LinkPreviewCard preview={message.preview} enabled={facts.linkPreviews} /> : null}
               {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} /> : null}
               {message.card && !message.deleted ? message.card.type === "order" ? facts.canOrderState ? <OrderCardBubble number={message.card.number} conversationId={conversationId} /> : null : <CardBubble card={message.card} /> : null}
-              {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} /> : null}
+              {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} albums={facts.albums} /> : null}
               {message.work?.length ? <WorkChips work={message.work} onOpenWork={onOpenWork} /> : null}
               <MustReadBlock message={message} onAck={onAck} />
               <CustomerHint hint={hint} canProblem={facts.canProblem} onTicket={onHintTicket ? () => onHintTicket(message) : undefined} />
@@ -160,7 +170,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               <ReactionPop reactions={message.reactions}>
                 <ReactionChips message={message} canAct={canAct} onReact={onReact} />
               </ReactionPop>
-              <BubbleFooter message={message} />
+              <BubbleFooter message={message} singleTick={facts.saved} />
             </article>
             {hoverNode}
             {menuNode}

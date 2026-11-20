@@ -2,6 +2,7 @@ import React from "react";
 import type { SystemMeta } from "@/server/chat/dto";
 import { ct } from "@/lib/chat/text";
 import { AssistantProposals } from "@/components/chat/message/assistant-proposals";
+import { FormattedText } from "@/lib/chat/format/render";
 
 /**
  * «المساعد»'s answer, drawn as what it is: an AI line in the middle of the conversation, never as a person's bubble. It is a system
@@ -9,11 +10,13 @@ import { AssistantProposals } from "@/components/chat/message/assistant-proposal
  * conversation's own visibility.
  *
  * A local model (`p.local`) is named as such in the note; the ⚠️ stays either way.
+ * C3b.1 / C3w.2: the answer is drawn WITH its formatting (bold, code, links: `FormattedText`, the same parser as a bubble) where the screen asks for it (`formatting`:
+ * the new pane passes the company's `chatFormatting` switch from the header); the old screen asks nothing and draws plain text as before. The stored answer is already free of math markup.
  * ⚠️ + 🔧 stay visible with it: the FIRST answer of a conversation says in full that it read the recent messages of this conversation and
  *    that an external model processed redacted text; every later one carries the short reminder. A refusal (a guest in the
  *    conversation, no key, a limit) is a notice in the warning colour, not an answer.
  */
-export function AssistantLine({ meta, time, createdAt }: { meta: SystemMeta; time: string; createdAt: string }) {
+export function AssistantLine({ meta, time, createdAt, formatting = false }: { meta: SystemMeta; time: string; createdAt: string; /** `true` only where the screen can say the company's `chatFormatting` is on (the new pane does); the old screen has no switch to read, so its line stays as plain as it was */ formatting?: boolean }) {
   const p = meta.p ?? {};
   const text = typeof p["text"] === "string" ? p["text"] : "";
   const refusal = typeof p["err"] === "string";
@@ -35,7 +38,7 @@ export function AssistantLine({ meta, time, createdAt }: { meta: SystemMeta; tim
           <span className="rounded-full bg-info/15 px-2 py-0.5 text-info">{ct("chatai.badge")}</span>
           <time dateTime={createdAt} dir="ltr" className="ms-auto font-normal tabular-nums text-fg-muted">{time}</time>
         </p>
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</p>
+        {formatting && !refusal ? <FormattedText body={text} className="whitespace-pre-wrap break-words text-sm leading-relaxed" /> : <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</p>}
         {!refusal && props ? <AssistantProposals ids={props} /> : null}
         {!refusal && (
           <div className="mt-2 border-t border-border pt-1 text-xs text-fg-muted">
