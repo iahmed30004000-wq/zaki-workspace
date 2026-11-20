@@ -306,6 +306,8 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.workStaleSweep.hint"]).toContain("🔧");
     expect(AR["features.workStaleSweep.hint"]).toContain("آلي");
     expect(buildNav({ ...owner, off: ["workStaleSweep"] }).places).toEqual(buildNav(owner).places);
+  });
+
   it("«المظهر الجديد كافتراضي» (`themeV2Default`, C4.1): OFF until the owner turns it on, so it is in the list of the ones that are off, and its hint carries the warning and the fix", () => {
     expect(FEATURES).toContain("themeV2Default");
     expect(FEATURE_DEFAULTS.themeV2Default).toBe(false);

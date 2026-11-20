@@ -699,7 +699,10 @@ describe("W1.1: with the switch `workMyTasks` ON, /list and /calendar land on «
         expect(end.kind, `${person.name} ${address}`).toMatch(/^(?:rendered|not-found)$/);
       }
     }
-// ───────────────────────────── 6. C4.1: /profile redirects to «إعداداتي» and keeps working ─────────────────────────────
+  });
+});
+
+// ───────────────────────────── 7. C4.1: /profile redirects to «إعداداتي» and keeps working ─────────────────────────────
 
 describe("C4.1: /profile is still an address: it redirects to «حسابي», the first section of «إعداداتي»", () => {
   it("every rank is sent to /settings/me/account, which draws (a signed-out visitor still goes to the sign-in)", async () => {
