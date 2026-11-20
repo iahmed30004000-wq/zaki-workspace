@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
-import { NotFoundError, type OrgAccessContext } from "@/server/auth";
+import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import type { SpaceTopicsDto } from "@/server/chat/dto";
+import { templateTopicIdOf, type TemplateTopic } from "@/lib/spaces/templates";
 
 /**
  * The topics every space starts with, so its chat is never an empty page (a space is like a separate site: it
@@ -34,6 +35,37 @@ export async function ensureStarterTopics(orgId: string, spaceId: string): Promi
       position: t.position,
     })),
     skipDuplicates: true,
+  });
+}
+
+/**
+ * I1.2 «قوالب المساحات»: the topics of a template, made INSIDE ONE space. The space must be the company's own and `creatorId` a person of it (nobody is
+ * written into a topic of a space they are not in). Each topic has a fixed id (`templateTopicIdOf`), so a second apply, or two at once, makes each once;
+ * «عام» is the starter topic (its own id and `systemKey`), never a copy. A `privateByDefault` topic is created restricted with ONLY the creator in it,
+ * and only when it is NEW: a person who left it, or a topic a manager opened up by hand, is not put back the way it was. No message, no other member.
+ * The whole thing is one transaction, and `createMany` + `skipDuplicates` counts what it really inserted, so of two requests at once only the winner adds the creator.
+ */
+export async function applyTemplateTopics(orgId: string, spaceId: string, creatorId: string, topics: readonly TemplateTopic[]): Promise<void> {
+  const space = await db.workspace.findFirst({ where: { id: spaceId, organizationId: orgId }, select: { id: true } });
+  if (!space) throw new NotFoundError("workspace.not_found");
+  const inSpace = await db.workspaceMember.count({
+    where: { workspaceId: spaceId, userId: creatorId, user: { memberships: { some: { organizationId: orgId, status: "ACTIVE" } } } },
+  });
+  if (!inSpace) throw new ForbiddenError("teams.member_not_in_space");
+  const starter = SPACE_STARTER_TOPICS[0];
+  let next = SPACE_STARTER_TOPICS.length;
+  const rows = topics.map((t) => {
+    const common = { orgId, spaceId, kind: "TOPIC" as const };
+    if (t.key === starter.key) {
+      return { ...common, id: spaceTopicIdOf(spaceId, starter.key), title: starter.title, emoji: starter.emoji, topicType: starter.topicType, postingPolicy: starter.postingPolicy, systemKey: starter.key as string | null, position: starter.position, restricted: false };
+    }
+    return { ...common, id: templateTopicIdOf(spaceId, t.key), title: t.title, emoji: t.emoji, topicType: t.topicType, postingPolicy: t.postingPolicy, systemKey: null as string | null, position: next++, restricted: t.privateByDefault === true };
+  });
+  await db.$transaction(async (tx) => {
+    for (const row of rows) {
+      const made = await tx.conversation.createMany({ data: [row], skipDuplicates: true });
+      if (made.count === 1 && row.restricted) await tx.conversationMember.createMany({ data: [{ conversationId: row.id, userId: creatorId }], skipDuplicates: true });
+    }
   });
 }
 
