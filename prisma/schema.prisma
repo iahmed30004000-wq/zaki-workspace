@@ -106,7 +106,28 @@ model User {
   callSeats       CallPerson[]
   pushDevices     PushSubscription[]
   appDevices      AppDevice[]
+  sessions        UserSession[]
   issuedApiTokens ApiToken[]           @relation("ApiTokenIssuer")
+}
+
+// One signed-in browser or phone of a person (C4.2, src/server/services/sessions.ts). The session cookie carries this row's id (`sid`); currentUser()
+// refuses a cookie whose row is revoked or gone, so ONE device can be ended without moving `User.tokenVersion` (which ends them all). A cookie issued
+// before this table existed has no `sid` and keeps working until it expires (it is migrated to a row the first time its owner opens «الأجهزة»).
+// `tokenVersion` is the person's version this session was issued under: a bump (suspend, password reset, «اطلع من كل الأجهزة») leaves the row behind,
+// and the list hides it. `lastSeenAt` is written at most once every few minutes per session (never on every request). The user agent is stored trimmed.
+model UserSession {
+  id           String    @id @default(cuid())
+  userId       String
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  expiresAt    DateTime
+  userAgent    String?
+  tokenVersion Int       @default(0)
+  revokedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
 }
 
 // ---------- departments (the company's pools: design / dev / IT / sales) ----------

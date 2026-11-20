@@ -204,5 +204,18 @@
   "settingsMe.h.guide.hint": "شرح الشاشات خطوة خطوة",
   "settingsMe.h.contact": "تواصل مع الإدارة",
   "settingsMe.h.contact.hint": "بتفتح محادثة خاصة مع مدير الشركة.",
-  "settingsMe.h.contact.failed": "ما قدرنا نفتح المحادثة"
+  "settingsMe.h.contact.failed": "ما قدرنا نفتح المحادثة",
+  "settingsMe.v.sessions": "الجلسات المفتوحة",
+  "settingsMe.v.sessions.hint": "كل جهاز دخّلت منه على حسابك. بتقدر تطلّع جهاز واحد من غير ما يتأثر الباقي.",
+  "settingsMe.v.sessions.none": "ما في جلسات مفتوحة.",
+  "settingsMe.v.sessions.current": "هالجهاز",
+  "settingsMe.v.sessions.last": "آخر نشاط: {when}",
+  "settingsMe.v.sessions.since": "دخل: {when}",
+  "settingsMe.v.sessions.app": "تطبيق زاكي على أندرويد",
+  "settingsMe.v.sessions.on": "على",
+  "settingsMe.v.sessions.end": "اطلع من هالجهاز",
+  "settingsMe.v.sessions.ended": "طلع الجهاز من حسابك",
+  "settingsMe.v.sessions.confirm": "هاد الجهاز اللي عم تستعمله هلأ. رح تطلع منه وتحتاج تدخل من جديد. تكمل؟",
+  "settingsMe.v.sessions.failed": "ما قدرنا نطلّع الجهاز، جرّب مرة تانية",
+  "session.not_found": "هاي الجلسة مش موجودة بقائمتك"
 }
