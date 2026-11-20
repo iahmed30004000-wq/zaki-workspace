@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 381 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 86 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 172 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -382,7 +382,7 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 102 · `(none)` 40 · `requir
 | POST | `/api/rt/typing` | requireActor | — |
 | POST | `/api/rt/visibility` | requireActor | — |
 | GET | `/api/search` | requireUser | `current-space`: currentSpace<br>`team-scope`: loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, …<br>`files`: searchLibrary<br>`documents`: searchDocuments<br>`features`: isFeatureOn<br>`search-semantic`: semanticHits, SEMANTIC_MESSAGES, SEMANTIC_TASKS<br>`search-embeddings`: mergeHits |
-| GET, PATCH | `/api/settings/features` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: listFeatures, setFeature |
+| GET, PATCH, POST | `/api/settings/features` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: applyFeaturePreset, listFeatures, setFeature |
 | GET | `/api/settings/server-health` | activeOrgCtx | `integrations`: activeOrgCtx<br>`server-health`: serverHealth |
 | POST | `/api/site-guide/step` | requireActor † | `site-guide`: guideStep |
 | GET | `/api/spaces/unplaced` | requireActor | `move-to-space`: listUnplaced |
@@ -496,7 +496,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 63 | 152 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 87 | 152 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 117 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 67 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 273 | 46 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -696,7 +696,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `PushSubscription` | 6 | `server/calls/push.ts`: 5<br>`app/api/me/logout-everywhere/route.ts`: 1 |
 | `AppDevice` | 5 | `server/devices/devices.ts`: 4<br>`app/api/me/logout-everywhere/route.ts`: 1 |
 | `WatchSession` | 4 | `server/services/watch.ts`: 4 |
-| `Organization` | 9 | `server/services/google.ts`: 2<br>`app/api/organizations/[id]/route.ts`: 1<br>`server/services/db-backup.ts`: 1<br>`server/services/features.ts`: 1<br>+4 more |
+| `Organization` | 10 | `server/services/features.ts`: 2<br>`server/services/google.ts`: 2<br>`app/api/organizations/[id]/route.ts`: 1<br>`server/services/db-backup.ts`: 1<br>+4 more |
 | `OrganizationMember` | 6 | `server/services/accounts.ts`: 4<br>`server/services/last-seen.ts`: 1<br>`server/services/team-lines.ts`: 1 |
 | `Workspace` | 9 | `server/services/department-space.ts`: 2<br>`server/services/space-manage.ts`: 2<br>`server/services/workspaces.ts`: 2<br>`app/api/workspaces/[id]/route.ts`: 1<br>+2 more |
 | `WorkspaceMember` | 17 | `server/services/accounts.ts`: 6<br>`server/services/workspaces.ts`: 5<br>`server/services/department-space.ts`: 3<br>`server/chat/hq.ts`: 2<br>+1 more |
@@ -720,7 +720,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `TaskComment` | 3 | `app/api/tasks/[id]/comments/[commentId]/route.ts`: 2<br>`app/api/tasks/[id]/comments/route.ts`: 1 |
 | `TaskActivity` | 13 | `server/services/tasks.ts`: 5<br>`server/services/task-assign.ts`: 3<br>`app/api/tasks/[id]/comments/route.ts`: 1<br>`server/activity.ts`: 1<br>+3 more |
 | `Notification` | 8 | `server/notify.ts`: 3<br>`app/api/notifications/[id]/route.ts`: 1<br>`app/api/notifications/read/route.ts`: 1<br>`server/chat/notify.ts`: 1<br>+2 more |
-| `AuditLog` | 52 | `server/services/owner-assistant-settings.ts`: 5<br>`server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/db-backup.ts`: 4<br>+21 more |
+| `AuditLog` | 53 | `server/services/owner-assistant-settings.ts`: 5<br>`server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/db-backup.ts`: 4<br>+22 more |
 | `Idea` | 6 | `server/services/ideas.ts`: 4<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `IdeaVote` | 2 | `server/services/ideas.ts`: 2 |
 | `Integration` | 12 | `server/integrations/oms-events.ts`: 4<br>`server/integrations/oms-sync.ts`: 2<br>`server/services/integrations.ts`: 2<br>`server/services/oms-link.ts`: 2<br>+2 more |
@@ -798,7 +798,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 | Switch | Places that read it |
 |---|---|
-| `watch` | 20 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
+| `watch` | 21 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
 | `sectionPermissions` | 3 — `components/members/capability-panel.tsx`, `server/policy/capabilities.ts`, `server/policy/section-grid.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
 | `pushEverything` | 2 — `app/api/device/stream/route.ts`, `server/notify.ts` |
@@ -809,32 +809,32 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `avatars` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/avatar/route.ts` |
 | `peopleDock` | 1 — `app/api/presence/route.ts` |
 | `chatBubbles` | 1 — `server/chat/topics.ts` |
-| `taskLinks` | 3 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts` |
-| `milestones` | 7 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/(app)/tasks/[id]/page.tsx`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts` |
+| `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
+| `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/(app)/tasks/[id]/page.tsx`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts` |
 | `ownerHiddenOnline` | 5 — `app/api/presence/route.ts`, `server/chat/directory.ts`, `server/chat/topics.ts`, `server/realtime/hub.ts`, `server/services/last-seen.ts` |
 | `quickChat` | 0 —  |
 | `taskSteps` | 6 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/my-work.ts`, `server/services/task-rules-run.ts`, `server/services/task-steps.ts` |
 | `reminders` | 7 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `lib/today.ts`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/calendar-feed.ts`, `server/services/reminders.ts` |
-| `timeTracking` | 5 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `server/services/time-section.ts`, `server/services/time-tracking.ts` |
+| `timeTracking` | 6 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `lib/feature-groups.ts`, `server/services/time-section.ts`, `server/services/time-tracking.ts` |
 | `recurringTasks` | 6 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/my-work.ts`, `server/services/production.ts`, `server/services/task-recurrence.ts` |
 | `calendarFeed` | 2 — `app/(app)/calendar/page.tsx`, `server/services/calendar-feed.ts` |
 | `ownerBoard` | 5 — `app/(app)/analytics/page.tsx`, `lib/nav/places.ts`, `server/policy/board.ts`, `server/policy/capabilities.ts`, `server/services/assistant-work.ts` |
-| `taskRewards` | 4 — `app/api/instant/route.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
+| `taskRewards` | 5 — `app/api/instant/route.ts`, `lib/feature-groups.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
 | `ownerAssistant` | 9 — `lib/nav/places.ts`, `server/calls/assistant-agent.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts`, `server/services/owner-assistant-access.ts`, `server/services/site-guide.ts`, `server/services/zaki-ai.ts` |
 | `chatAssistant` | 5 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts` |
 | `chatOutbox` | 1 — `server/chat/topics.ts` |
-| `customFields` | 4 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
-| `checkins` | 9 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
+| `customFields` | 5 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
+| `checkins` | 10 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
 | `lastSeen` | 5 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/last-seen/route.ts`, `server/chat/topics.ts`, `server/realtime/presence.ts`, `server/services/last-seen.ts` |
 | `approvals` | 8 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
 | `teamDevelopment` | 5 — `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/policy/capabilities.ts`, `server/policy/team-development.ts`, `server/services/team-score.ts` |
-| `okr` | 3 — `app/api/goals/route.ts`, `server/services/goals.ts`, `server/services/okr.ts` |
-| `taskRules` | 5 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
+| `okr` | 4 — `app/api/goals/route.ts`, `lib/feature-groups.ts`, `server/services/goals.ts`, `server/services/okr.ts` |
+| `taskRules` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
 | `apiDoor` | 3 — `server/door/messages.ts`, `server/services/api-door.ts`, `server/services/api-tokens.ts` |
 | `spaceDocs` | 3 — `app/(app)/documents/page.tsx`, `lib/nav/places.ts`, `server/services/documents.ts` |
 | `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
 | `calls` | 16 — `app/(app)/calls/[id]/page.tsx`, `components/chat/v2/pane/message-viewport.tsx`, `components/chat/v2/pane/viewport-row.tsx`, `components/settings-me/notifications-section.tsx`, `lib/chat/prefs.ts`, `lib/chat/viewport/rows.ts`, `lib/chat/viewport/sizes.ts`, `lib/chat/viewport/use-message-viewport.ts`, `lib/guide/articles.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `server/calls/assistant-agent.ts`, `server/calls/calls.ts`, `server/calls/push.ts`, `server/chat/topics.ts`, `server/policy/capabilities.ts` |
-| `whiteboard` | 5 — `app/(app)/chat/[id]/whiteboard/page.tsx`, `components/chat/v2/pane/pane-header.tsx`, `lib/chat/v2/pane/header-model.ts`, `server/chat/topics.ts`, `server/chat/whiteboard.ts` |
+| `whiteboard` | 6 — `app/(app)/chat/[id]/whiteboard/page.tsx`, `components/chat/v2/pane/pane-header.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/feature-groups.ts`, `server/chat/topics.ts`, `server/chat/whiteboard.ts` |
 | `voiceNotes` | 3 — `server/chat/attachments.ts`, `server/chat/messages.ts`, `server/chat/topics.ts` |
 | `voiceTranscript` | 2 — `server/chat/topics.ts`, `server/services/voice-transcript.ts` |
 | `externalGateway` | 2 — `server/services/gateway-address.ts`, `server/services/owner-assistant-settings.ts` |
@@ -846,9 +846,9 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
 | `messageTranslate` | 3 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/message-translate.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
-| `search` | 25 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `search` | 26 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
-| `economyMode` | 3 — `components/feature-switches.tsx`, `components/members/capability-panel.tsx`, `server/features-sql.ts` |
+| `economyMode` | 4 — `components/feature-switches.tsx`, `components/members/capability-panel.tsx`, `lib/feature-groups.ts`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
 | `controlPanel` | 5 — `app/(app)/analytics/page.tsx`, `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `lib/today.ts`, `server/services/control-panel.ts` |
 | `taskPrivacy` | 1 — `server/services/tasks.ts` |
@@ -884,6 +884,92 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
 | `assistantInMeetings` | 1 — `server/calls/assistant-agent.ts` |
 | `themeSwitchFx` | 1 — `app/(app)/theme-gallery/page.tsx` |
+| `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
+| `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
+| `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/(app)/tasks/[id]/page.tsx`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts` |
+| `taskSteps` | 6 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/my-work.ts`, `server/services/task-rules-run.ts`, `server/services/task-steps.ts` |
+| `reminders` | 7 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `lib/today.ts`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/calendar-feed.ts`, `server/services/reminders.ts` |
+| `calendarFeed` | 2 — `app/(app)/calendar/page.tsx`, `server/services/calendar-feed.ts` |
+| `recurringTasks` | 6 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/my-work.ts`, `server/services/production.ts`, `server/services/task-recurrence.ts` |
+| `timeTracking` | 6 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `lib/feature-groups.ts`, `server/services/time-section.ts`, `server/services/time-tracking.ts` |
+| `taskRewards` | 5 — `app/api/instant/route.ts`, `lib/feature-groups.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
+| `customFields` | 5 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
+| `checkins` | 10 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts` |
+| `okr` | 4 — `app/api/goals/route.ts`, `lib/feature-groups.ts`, `server/services/goals.ts`, `server/services/okr.ts` |
+| `taskRules` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
+| `approvals` | 8 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
+| `taskPrivacy` | 1 — `server/services/tasks.ts` |
+| `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
+| `workInbox` | 7 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts` |
+| `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
+| `workStages` | 1 — `app/api/boards/[id]/columns/route.ts` |
+| `workMyTasks` | 8 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts` |
+| `workStaleSweep` | 2 — `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts` |
+| `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
+| `libraryDrive` | 1 — `server/services/google.ts` |
+| `spaceDocs` | 3 — `app/(app)/documents/page.tsx`, `lib/nav/places.ts`, `server/services/documents.ts` |
+| `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
+| `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
+| `knowledgeCards` | 7 — `app/(app)/knowledge/[cardId]/page.tsx`, `app/(app)/knowledge/page.tsx`, `lib/nav/places.ts`, `server/chat/topics.ts`, `server/integrations/oms-sync.ts`, `server/services/knowledge.ts`, `server/services/work-requests.ts` |
+| `quickRecall` | 2 — `server/chat/recall.ts`, `server/chat/topics.ts` |
+| `chatBubbles` | 1 — `server/chat/topics.ts` |
+| `chatOutbox` | 1 — `server/chat/topics.ts` |
+| `voiceNotes` | 3 — `server/chat/attachments.ts`, `server/chat/messages.ts`, `server/chat/topics.ts` |
+| `voiceTranscript` | 2 — `server/chat/topics.ts`, `server/services/voice-transcript.ts` |
+| `messageTranslate` | 3 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/message-translate.ts` |
+| `whiteboard` | 6 — `app/(app)/chat/[id]/whiteboard/page.tsx`, `components/chat/v2/pane/pane-header.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/feature-groups.ts`, `server/chat/topics.ts`, `server/chat/whiteboard.ts` |
+| `calls` | 16 — `app/(app)/calls/[id]/page.tsx`, `components/chat/v2/pane/message-viewport.tsx`, `components/chat/v2/pane/viewport-row.tsx`, `components/settings-me/notifications-section.tsx`, `lib/chat/prefs.ts`, `lib/chat/viewport/rows.ts`, `lib/chat/viewport/sizes.ts`, `lib/chat/viewport/use-message-viewport.ts`, `lib/guide/articles.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `server/calls/assistant-agent.ts`, `server/calls/calls.ts`, `server/calls/push.ts`, `server/chat/topics.ts`, `server/policy/capabilities.ts` |
+| `callNoiseFilter` | 1 — `server/calls/calls.ts` |
+| `quickChat` | 0 —  |
+| `linkPreviews` | 1 — `server/chat/link-preview.ts` |
+| `chatLayoutV2` | 5 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/link-preview.ts` |
+| `lastSeen` | 5 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/last-seen/route.ts`, `server/chat/topics.ts`, `server/realtime/presence.ts`, `server/services/last-seen.ts` |
+| `ownerHiddenOnline` | 5 — `app/api/presence/route.ts`, `server/chat/directory.ts`, `server/chat/topics.ts`, `server/realtime/hub.ts`, `server/services/last-seen.ts` |
+| `chatRowMenu` | 3 — `app/(app)/chat/layout.tsx`, `server/chat/home.ts`, `server/chat/purge.ts` |
+| `chatOneList` | 1 — `app/api/chat/list/route.ts` |
+| `chatFormatting` | 0 —  |
+| `chatAlbums` | 0 —  |
+| `chatPersonalState` | 3 — `app/api/chat/conversations/[id]/me/route.ts`, `server/chat/list.ts`, `server/chat/read-state.ts` |
+| `chatFolders` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx`, `server/services/chat-prefs.ts` |
+| `savedMessages` | 2 — `app/api/chat/dm/route.ts`, `server/chat/list.ts` |
+| `chatSilentSend` | 1 — `server/chat/messages.ts` |
+| `chatScheduled` | 2 — `server/chat/scheduled.ts`, `server/jobs/scheduler.ts` |
+| `mustRead` | 7 — `lib/chat/cache/reducers.ts`, `server/chat/messages.ts`, `server/chat/topics.ts`, `server/door/messages.ts`, `server/jobs/run.ts`, `server/policy/capabilities.ts`, `server/services/must-read.ts` |
+| `autoTickets` | 7 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/policy/capabilities.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
+| `orderTemplateHint` | 1 — `server/chat/topics.ts` |
+| `orderStatus` | 2 — `server/chat/topics.ts`, `server/services/order-state.ts` |
+| `watch` | 21 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
+| `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
+| `sectionPermissions` | 3 — `components/members/capability-panel.tsx`, `server/policy/capabilities.ts`, `server/policy/section-grid.ts` |
+| `permissionTemplates` | 3 — `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
+| `avatars` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/avatar/route.ts` |
+| `peopleDock` | 1 — `app/api/presence/route.ts` |
+| `teamDevelopment` | 5 — `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/policy/capabilities.ts`, `server/policy/team-development.ts`, `server/services/team-score.ts` |
+| `ownerBoard` | 5 — `app/(app)/analytics/page.tsx`, `lib/nav/places.ts`, `server/policy/board.ts`, `server/policy/capabilities.ts`, `server/services/assistant-work.ts` |
+| `controlPanel` | 5 — `app/(app)/analytics/page.tsx`, `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `lib/today.ts`, `server/services/control-panel.ts` |
+| `ownerAssistant` | 9 — `lib/nav/places.ts`, `server/calls/assistant-agent.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts`, `server/services/owner-assistant-access.ts`, `server/services/site-guide.ts`, `server/services/zaki-ai.ts` |
+| `chatAssistant` | 5 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts` |
+| `assistantContact` | 2 — `server/services/assistant-chat.ts`, `server/services/chat-assistant.ts` |
+| `assistantWorkData` | 1 — `server/services/assistant-work.ts` |
+| `assistantProposals` | 1 — `server/services/chat-assistant.ts` |
+| `assistantInMeetings` | 1 — `server/calls/assistant-agent.ts` |
+| `siteGuide` | 2 — `server/chat/topics.ts`, `server/services/site-guide.ts` |
+| `morningDigest` | 2 — `server/chat/topics.ts`, `server/services/digest.ts` |
+| `pushEverything` | 2 — `app/api/device/stream/route.ts`, `server/notify.ts` |
+| `appConnection` | 4 — `app/(app)/app-link/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/app-devices/route.ts`, `server/devices/devices.ts` |
+| `search` | 26 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
+| `economyMode` | 4 — `components/feature-switches.tsx`, `components/members/capability-panel.tsx`, `lib/feature-groups.ts`, `server/features-sql.ts` |
+| `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
+| `externalGateway` | 2 — `server/services/gateway-address.ts`, `server/services/owner-assistant-settings.ts` |
+| `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
+| `apiDoor` | 3 — `server/door/messages.ts`, `server/services/api-door.ts`, `server/services/api-tokens.ts` |
+| `doorMessages` | 1 — `server/door/messages.ts` |
+| `omsLink` | 5 — `components/oms-link-card.tsx`, `server/chat/topics.ts`, `server/integrations/oms-sync.ts`, `server/services/oms-link.ts`, `server/services/order-state.ts` |
+| `omsEvents` | 2 — `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
+| `navV2` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/boards/[id]/trail/route.ts`, `app/(app)/page.tsx`, `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/timeline/page.tsx`, `app/api/workspaces/route.ts`, `server/policy/org-settings.ts`, `server/services/current-space.ts`, `server/services/landing.ts` |
+| `themeSwitchFx` | 1 — `app/(app)/theme-gallery/page.tsx` |
+| `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 
 ## 9. What this map noticed
 
