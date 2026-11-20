@@ -36,6 +36,7 @@ import * as taskSource from "@/app/api/production/task-source/[taskId]/route";
 import * as cardTask from "@/app/api/cards/[id]/task/route";
 import * as cardLinks from "@/app/api/cards/[id]/links/route";
 import * as taskDoor from "@/app/api/tasks/[id]/route";
+import * as tasksRoute from "@/app/api/tasks/route";
 import * as dmRoute from "@/app/api/chat/dm/route";
 import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
 import { TaskSourcesView } from "@/components/task-detail";
@@ -351,8 +352,35 @@ describe("C. a ticket → «حوّل لمهمة»", () => {
     const task = await db.task.findUniqueOrThrow({ where: { id: link.id! }, include: { project: true } });
     expect(task).toMatchObject({ title: "الطابعة معطلة", sourceTicketId: w.ticket.id, creatorId: w.deptMember.id, workspaceId: w.ws.id });
     expect(task.project.systemKey).toBe(INSTANT_PROJECT_KEY);
-    expect(task.visibility).toBe("SPACE");
+    // a ticket is read by its department only: its task starts «المعنيين بس» whatever the company's default is
+    expect(task.visibility).toBe("PARTICIPANTS");
     expect((await detail(w.ticket.id)).task).toMatchObject({ state: "visible", id: task.id, title: "الطابعة معطلة" });
+  });
+
+  it("a department-only ticket's task is NOT readable by a space member who is no part of it (no leak of the ticket's title or words)", async () => {
+    const w = await ticketWorld();
+    await db.ticket.update({ where: { id: w.ticket.id }, data: { description: "وصف خاص بالقسم" } });
+    await loginAs(w.deptMember.id);
+    const id = taskOf(await make(w.ticket.id)).id!;
+    expect((await db.task.findUniqueOrThrow({ where: { id } })).visibility).toBe("PARTICIPANTS");
+    // `bystander` is in the space, not in the department, no part of the task: «not found», and the task is in no list of theirs
+    await loginAs(w.bystander.id);
+    expect((await call(taskDoor.GET, { params: { id } })).status).toBe(404);
+    const list = await call(tasksRoute.GET, { url: `http://localhost/api/tasks?workspaceId=${w.ws.id}` });
+    expect(list.text).not.toContain(id);
+    expect(list.text).not.toContain("الطابعة معطلة");
+    expect(list.text).not.toContain("وصف خاص بالقسم");
+    // the one who converted it still reads it
+    await loginAs(w.deptMember.id);
+    expect((await call(taskDoor.GET, { params: { id } })).status).toBe(200);
+  });
+
+  it("naming «المساحة كلها» for a ticket that is no private talk is the person's own choice and needs no confirmation", async () => {
+    const w = await ticketWorld();
+    await loginAs(w.deptMember.id);
+    const res = await make(w.ticket.id, { visibility: "SPACE" });
+    expect(res.status).toBe(201);
+    expect((await db.task.findUniqueOrThrow({ where: { id: taskOf(res).id! } })).visibility).toBe("SPACE");
   });
 
   it("is idempotent: a second click (or two at once) returns the same task", async () => {
@@ -479,7 +507,8 @@ describe("E. a task shows its source, to those who may read it", () => {
     const w = await world();
     const ticket = await makeTicket({ orgId: w.org.id, departmentId: w.dept.id, creatorId: w.deptMember.id, title: "تذكرة سرّية الاسم" });
     await loginAs(w.deptMember.id);
-    const id = taskOf(await call(ticketTask.POST, { method: "POST", params: { id: ticket.id }, body: {} })).id!;
+    // the person opens the task to the whole space (their own choice): the space member outside the department may then open it, but not its ticket
+    const id = taskOf(await call(ticketTask.POST, { method: "POST", params: { id: ticket.id }, body: { visibility: "SPACE" } })).id!;
 
     const read = await call(taskSource.GET, { params: { taskId: id } });
     expect(read.status).toBe(200);

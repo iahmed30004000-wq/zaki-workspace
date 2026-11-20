@@ -271,7 +271,9 @@ export async function ticketToTask(ctx: OrgAccessContext, ticketId: string, inpu
   if (privateSource && input.visibility === "SPACE" && input.confirmPublic !== true) {
     throw new ValidationError([{ path: "confirmPublic", message: "work.confirm_public_required" }]);
   }
-  const visibility = privateSource ? (input.visibility ?? "PARTICIPANTS") : input.visibility;
+  // A ticket is read by its department only, so the task made from it starts «المعنيين بس» for EVERY ticket (not only one from a private chat):
+  // «المساحة كلها» would show the ticket's title and words to the whole space. The person may open it up on purpose; from a private chat it also needs confirmPublic (above).
+  const visibility = input.visibility ?? "PARTICIPANTS";
 
   let created = false;
   const taskId = await withSourceLock(`ticket:${ticket.id}`, async () => {
