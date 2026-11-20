@@ -11,6 +11,7 @@ import type { NavIconKey, NavModel } from "@/lib/nav/places";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { NavIcon } from "@/components/shell/nav-icons";
+import { railCellClass } from "@/components/shell/rail-style";
 
 interface SearchResponse {
   tasks: { id: string; key: string; title: string; priority: string; projectId: string; projectName: string; semantic?: boolean }[];
@@ -119,7 +120,7 @@ interface Row {
  *
  * `defaultOpen` and `portal={false}` are for server-render tests (a portal draws nothing on the server).
  */
-export function CommandPalette({ nav, defaultOpen = false, portal = true }: { nav: NavModel; defaultOpen?: boolean; portal?: boolean }) {
+export function CommandPalette({ nav, defaultOpen = false, portal = true, variant = "bar" }: { nav: NavModel; defaultOpen?: boolean; portal?: boolean; /** `rail`: the trigger is a cell of the chat's rail (an icon over «بحث»); the palette itself is the same. */ variant?: "bar" | "rail" }) {
   const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
@@ -272,19 +273,26 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
 
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        aria-label={t("pal.open")}
-        className="flex h-11 w-full min-w-0 items-center gap-2 rounded-xl border-muted bg-surface-1 px-3 text-sm text-muted transition-colors hover:border-accent/50 hover:text-fg-muted"
-      >
-        <Search aria-hidden="true" className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1 truncate text-start">{t("pal.open")}</span>
-        <kbd dir="ltr" className="hidden shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-muted md:inline">
-          Ctrl K
-        </kbd>
-      </button>
+      {variant === "rail" ? (
+        <button type="button" onClick={() => setOpen(true)} aria-haspopup="dialog" aria-label={t("pal.open")} title={t("pal.open")} className={railCellClass()}>
+          <Search aria-hidden="true" className="size-6 shrink-0" />
+          <span className="max-w-full break-words">{t("shell.rail.search")}</span>
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-haspopup="dialog"
+          aria-label={t("pal.open")}
+          className="flex h-11 w-full min-w-0 items-center gap-2 rounded-xl border-muted bg-surface-1 px-3 text-sm text-muted transition-colors hover:border-accent/50 hover:text-fg-muted"
+        >
+          <Search aria-hidden="true" className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-start">{t("pal.open")}</span>
+          <kbd dir="ltr" className="hidden shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-muted md:inline">
+            Ctrl K
+          </kbd>
+        </button>
+      )}
 
       <Dialog open={open} onOpenChange={changeOpen}>
         <DialogContent portal={portal} size="xl" aria-describedby={undefined} className="mb-auto mt-[10dvh]">

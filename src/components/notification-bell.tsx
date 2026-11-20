@@ -11,6 +11,7 @@ import { fmtAgo } from "@/lib/format";
 import { ensurePush, pushState, type PushState } from "@/components/calls/push-client";
 import { pollMs } from "@/lib/economy";
 import { useFrameRefresh } from "@/lib/realtime/live-refresh";
+import { railCellClass } from "@/components/shell/rail-style";
 
 /** The frames after which a notification of the CHAT may have been written (a mention, a private message, a ticket's answer). */
 const CHAT_NOTIFIES = new Set(["message.created", "ticket.changed"]);
@@ -42,7 +43,7 @@ interface NotificationsResponse {
  *
  * `defaultOpen` is for server-render tests.
  */
-export function NotificationBell({ defaultOpen = false }: { defaultOpen?: boolean }) {
+export function NotificationBell({ defaultOpen = false, variant = "bar" }: { defaultOpen?: boolean; /** `rail`: a cell of the chat's rail (the bell over «الإشعارات»); the panel opens beside the rail, at its foot. */ variant?: "bar" | "rail" }) {
   const { t } = useI18n();
   const [open, setOpen] = useState(defaultOpen);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -93,6 +94,7 @@ export function NotificationBell({ defaultOpen = false }: { defaultOpen?: boolea
 
   const unread = query.data?.unreadCount ?? 0;
   const items = query.data?.items ?? [];
+  const rail = variant === "rail";
 
   return (
     <div ref={rootRef} data-tour="inbox" className="relative">
@@ -103,13 +105,21 @@ export function NotificationBell({ defaultOpen = false }: { defaultOpen?: boolea
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
         onClick={() => setOpen((v) => !v)}
-        className="relative grid size-11 place-items-center rounded-full text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset md:hover:bg-transparent md:hover:text-fg-muted md:hover:[@media(hover:hover)]:bg-surface-2 md:hover:[@media(hover:hover)]:text-fg"
+        className={
+          rail
+            ? railCellClass(open)
+            : "relative grid size-11 place-items-center rounded-full text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset md:hover:bg-transparent md:hover:text-fg-muted md:hover:[@media(hover:hover)]:bg-surface-2 md:hover:[@media(hover:hover)]:text-fg"
+        }
       >
-        <Bell aria-hidden="true" className="size-5" />
+        <Bell aria-hidden="true" className={rail ? "size-6 shrink-0" : "size-5"} />
+        {rail ? <span className="max-w-full break-words">{t("notif.title")}</span> : null}
         {unread > 0 ? (
           <span
             aria-hidden="true"
-            className="absolute end-1 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-xs font-semibold leading-none text-danger-fg"
+            className={cn(
+              "absolute flex items-center justify-center rounded-full leading-none",
+              rail ? "end-1.5 top-px h-5 min-w-5 bg-accent px-1.5 text-xs font-bold tabular-nums text-accent-fg" : "end-1 top-1 h-4 min-w-4 bg-danger px-1 text-xs font-semibold text-danger-fg",
+            )}
           >
             {unread > 9 ? "9+" : unread}
           </span>
@@ -120,7 +130,11 @@ export function NotificationBell({ defaultOpen = false }: { defaultOpen?: boolea
         <section
           id={panelId}
           aria-labelledby={headingId}
-          className="fixed end-2 start-2 top-[calc(3.5rem+0.25rem+env(safe-area-inset-top))] z-50 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-surface-1 shadow-lg animate-fade-in motion-reduce:animate-none md:absolute md:end-0 md:start-auto md:top-12 md:w-80"
+          className={cn(
+            "fixed end-2 start-2 top-[calc(3.5rem+0.25rem+env(safe-area-inset-top))] z-50 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-surface-1 shadow-lg animate-fade-in motion-reduce:animate-none md:absolute md:w-80",
+            // under the bell in the bar; beside the rail (in the content's direction) and level with the cell's bottom when the bell is a cell of the rail
+            rail ? "md:bottom-0 md:end-auto md:start-full md:top-auto md:ms-3" : "md:end-0 md:start-auto md:top-12",
+          )}
         >
           <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border pe-1 ps-4">
             <h2 id={headingId} className="font-sans text-sm font-semibold text-fg">

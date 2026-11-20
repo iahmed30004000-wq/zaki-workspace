@@ -20,7 +20,7 @@ export function PlaceBadge({ count, className, place }: { count: number | undefi
       <span
         aria-hidden="true"
         data-badge
-        className={cn("flex h-4 min-w-4 items-center justify-center rounded-full bg-danger px-1 text-xs font-semibold leading-none text-danger-fg", className)}
+        className={cn("flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-bold leading-none tabular-nums text-accent-fg", className)}
       >
         {text}
       </span>

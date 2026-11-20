@@ -86,10 +86,12 @@ describe("Toast: the notifications of the whole app", () => {
     expect(classes).not.toContain("end-4");
   });
 
-  it("on a wide screen it goes back to the bottom corner at the end of the line, 20rem wide", () => {
-    expect(classesOf(markup, container)).toEqual(
-      expect.arrayContaining(["md:top-auto", "md:bottom-4", "md:end-4", "md:start-auto", "md:w-80", "md:p-0"]),
-    );
+  it("on a wide screen it goes to the bottom CENTRE (the owner's mock-up), full width of the screen so the pill centres itself", () => {
+    const classes = classesOf(markup, container);
+    expect(classes).toEqual(expect.arrayContaining(["md:top-auto", "md:bottom-6", "md:p-0"]));
+    // no longer a 20rem column in the corner
+    expect(classes).not.toContain("md:end-4");
+    expect(classes).not.toContain("md:w-80");
   });
 
   it("does not block the page under it, and sits above dialogs", () => {
@@ -128,9 +130,9 @@ describe("Toast: the notifications of the whole app", () => {
     expect(classesOf(row("info"), /<div[^>]*role="status"[^>]*>/)).toEqual(expect.arrayContaining(["animate-fade-in", "motion-reduce:animate-none"]));
   });
 
-  it("a row is as wide as the stack on a wide screen and a comfortable card on a phone", () => {
+  it("a row is a comfortable pill on a phone and shrinks to its text on a wide screen (the owner's mock-up: dark, centred)", () => {
     expect(classesOf(row("info"), /<div[^>]*role="status"[^>]*>/)).toEqual(
-      expect.arrayContaining(["pointer-events-auto", "w-full", "max-w-sm", "md:max-w-none", "bg-surface-1", "border-border", "rounded-xl"]),
+      expect.arrayContaining(["pointer-events-auto", "w-full", "max-w-sm", "md:w-auto", "md:max-w-md", "bg-fg", "text-surface", "dark:bg-surface-2", "dark:text-fg", "rounded-xl"]),
     );
   });
 });
