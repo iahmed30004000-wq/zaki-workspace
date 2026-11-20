@@ -1050,6 +1050,9 @@ describe("privacy matrix — the W1.8 palette: boards, ideas, tickets, customers
       }
     }
     expect(wrong).toEqual([]);
+  });
+});
+
 // ───────────────────────────── W1.5: the board screen and the project page ─────────────────────────────
 // The same TASKS table on two more surfaces: the BOARD page (every card goes through `taskVisibleWhere`; the project page's board tab draws this same screen) and the
 // PROJECT PAGE with tabs (switch `navV2`: the cards of the board tab and the counts). A card the table hides from a person is not on the board, not on the page. With
