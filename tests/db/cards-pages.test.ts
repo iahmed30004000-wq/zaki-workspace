@@ -54,7 +54,7 @@ describe("a space of cards opens on its cards", () => {
     enter(w.cardsSpace.id);
     await expect(HomePage({})).rejects.toThrow("NEXT_REDIRECT:/cards");
     await expect(ChatPage()).rejects.toThrow("NEXT_REDIRECT:/cards");
-    const page = (await CardsPage()) as PageElement;
+    const page = (await CardsPage({})) as PageElement;
     expect(page.props).toMatchObject({ layout: "MANUFACTURING", canWrite: true });
   });
 
@@ -76,27 +76,27 @@ describe("/cards", () => {
 
     await loginAs(w.member.id);
     enter(w.cardsSpace.id);
-    let page = (await CardsPage()) as PageElement;
+    let page = (await CardsPage({})) as PageElement;
     expect(page.type).toBe(CardsView);
     expect((page.props.initial as Array<{ title: string }>).map((c) => c.title)).toEqual(["here"]);
     expect(page.props).toMatchObject({ spaceId: w.cardsSpace.id, canWrite: true, owner: false });
 
     // it also opens in a general space: that space's own cards
     enter(w.general.id);
-    page = (await CardsPage()) as PageElement;
+    page = (await CardsPage({})) as PageElement;
     expect((page.props.initial as Array<{ title: string }>).map((c) => c.title)).toEqual(["elsewhere"]);
 
     // an external partner reads, never writes
     await loginAs(w.guest.id);
     enter(w.cardsSpace.id);
-    page = (await CardsPage()) as PageElement;
+    page = (await CardsPage({})) as PageElement;
     expect(page.props).toMatchObject({ canWrite: false, owner: false });
     expect((page.props.initial as Array<{ title: string }>).map((c) => c.title)).toEqual(["here"]);
 
     // the owner reads silently
     await loginAs(w.owner.id);
     enter(w.cardsSpace.id);
-    page = (await CardsPage()) as PageElement;
+    page = (await CardsPage({})) as PageElement;
     expect(page.props).toMatchObject({ canWrite: true, owner: true });
   });
 
@@ -106,12 +106,12 @@ describe("/cards", () => {
     await db.card.create({ data: { orgId: w.org.id, workspaceId: outsiderSpace.id, createdById: w.owner.id, kind: "NOTE", title: "secret", position: 1000 } });
     await loginAs(w.member.id);
     enter(outsiderSpace.id);
-    const page = (await CardsPage()) as PageElement;
+    const page = (await CardsPage({})) as PageElement;
     expect(JSON.stringify(page.props)).not.toContain("secret");
   });
 
   it("an anonymous visitor is sent to sign in", async () => {
     logout();
-    await expect(CardsPage()).rejects.toThrow(/NEXT_REDIRECT/);
+    await expect(CardsPage({})).rejects.toThrow(/NEXT_REDIRECT/);
   });
 });

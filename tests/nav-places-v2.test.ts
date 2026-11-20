@@ -453,3 +453,60 @@ describe("the module stays pure", () => {
     }
   });
 });
+
+// ───────────────────────────── W1.8: the optional tools are honest too ─────────────────────────────
+
+describe("W1.8: «المزيد» draws «الأقسام» «التذاكر» «الحملات» only for a person whose page opens (D-W3 pending: the pages are not relaxed)", () => {
+  it("a member with the rank's boxes finds the three under «المزيد»", () => {
+    const nav = buildNav(v2("MEMBER"));
+    for (const key of ["departments", "tickets", "campaigns"]) expect(more(nav, "work"), key).toContain(key);
+  });
+
+  it("directory.view switched off: the three leave «المزيد», and the owner pinning them as tabs changes nothing for that person", () => {
+    const nav = buildNav(v2("MEMBER", { revokedCapabilities: ["directory.view"] }, { workTabs: ["departments", "tickets"] }));
+    for (const key of ["departments", "tickets", "campaigns"]) {
+      expect(more(nav, "work"), key).not.toContain(key);
+      expect(tabs(nav, "work"), key).not.toContain(key);
+    }
+  });
+
+  it("only the tickets box off: «التذاكر» leaves, and a pin on it is ignored, while «الأقسام» stays", () => {
+    const nav = buildNav(v2("LEAD", { revokedCapabilities: ["tickets.view"] }, { workTabs: ["tickets", "departments"] }));
+    expect([...tabs(nav, "work"), ...more(nav, "work")]).not.toContain("tickets");
+    expect(tabs(nav, "work")).toContain("departments");
+  });
+
+  it("a guest never gets them on the new map either", () => {
+    for (const key of ["departments", "tickets", "campaigns"] as const) expect(canOpenTab({ role: "GUEST", caps: ["directory.view", "tickets.view", "campaigns.view"], navV2: true }, key), key).toBe(false);
+  });
+});
+
+// ───────────────────────────── W1.8: «جديد → مهمة» keeps its intent in a space of cards ─────────────────────────────
+
+describe("W1.8: «مهمة» in a space of cards goes to /cards with its intent (new-actions.ts)", () => {
+  it("newHrefFor(task) in a CARDS or MANUFACTURING space is /cards?new=task, on either map; every other case is as it was", async () => {
+    const { newHrefFor, NEW_HREF, NEW_ACTIONS, CARDS_TASK_HREF } = await import("@/lib/nav/new-actions");
+    expect(CARDS_TASK_HREF).toBe("/cards?new=task");
+    for (const layout of ["CARDS", "MANUFACTURING"] as const) {
+      expect(newHrefFor("task", false, layout), layout).toBe("/cards?new=task");
+      expect(newHrefFor("task", true, layout), `${layout} (new map)`).toBe("/cards?new=task");
+    }
+    expect(newHrefFor("task", false, "STANDARD")).toBe(NEW_HREF.task);
+    expect(newHrefFor("task", true, "STANDARD")).toBe("/?view=today&new=task");
+    expect(newHrefFor("task", true)).toBe("/?view=today&new=task");
+    expect(newHrefFor("task")).toBe(NEW_HREF.task);
+    // no other action changes with the layout
+    for (const key of NEW_ACTIONS.filter((k) => k !== "task")) expect(newHrefFor(key, true, "CARDS"), key).toBe(NEW_HREF[key]);
+  });
+
+  it("cardsIntentOf / cardsHomeHref: only the task intent travels, never what the visitor typed", async () => {
+    const { cardsIntentOf, cardsHomeHref } = await import("@/lib/nav/new-actions");
+    expect(cardsIntentOf({ new: "task" })).toBe("task");
+    expect(cardsIntentOf({ new: ["task", "project"] })).toBe("task");
+    for (const other of [undefined, {}, { new: "project" }, { new: "doc" }, { new: "https://evil.example" }, { new: ["x", "task"] }, { view: "today" }]) expect(cardsIntentOf(other), JSON.stringify(other)).toBeNull();
+    expect(cardsHomeHref({ new: "task" })).toBe("/cards?new=task");
+    expect(cardsHomeHref({ new: "project" })).toBe("/cards");
+    expect(cardsHomeHref(undefined)).toBe("/cards");
+    expect(cardsHomeHref({ new: "/cards?next=//evil.example" })).toBe("/cards");
+  });
+});

@@ -172,5 +172,9 @@
   "mytasks.panel.loading": "جارٍ تحميل المهمة",
   "mytasks.panel.not_found": "ما لقينا هالمهمة",
   "mytasks.panel.error": "ما قدرنا نفتح المهمة",
-  "mytasks.panel.close": "سكّر"
+  "mytasks.panel.close": "سكّر",
+  "pal.board": "لوحة",
+  "pal.idea": "فكرة",
+  "pal.ticket": "تذكرة",
+  "pal.customer": "عميل"
 }

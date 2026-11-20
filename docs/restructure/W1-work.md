@@ -111,11 +111,18 @@
       notes: `docs/restructure/pr/W1.7.md`. A2.3 edits `today.ts` and `today-dashboard.ts` after this step (the team card's scope).
 
 ### W1.8 Make the tabs honest — `fix/work-tabs-honest`
-- [ ] Every tab's `requires` in `places.ts` equals its page's rule (departments / tickets / campaigns need
+- [x] Every tab's `requires` in `places.ts` equals its page's rule (departments / tickets / campaigns need
       `directory.view` → either require it in the tab or relax the pages for staff — D-W3, recommended: relax the pages
       for staff, the department data is not secret inside the company).
-- [ ] «جديد → مهمة» in a card space keeps the intent (open the task sheet on `/cards`).
-- [ ] Search palette also finds boards, ideas, tickets, customers (with their own access rules — `crm.view` for customers).
+      Built on `fix/work-tabs-honest`: D-W3 is PENDING, so the TABS require `directory.view` (`tickets` / `campaigns` also their own box, through the new `{ allOf }` requirement)
+      and NO page is relaxed; `tests/db/work-tabs-honest.test.ts` pins page = tab for every optional work tool and the refusal itself. The owner's yes is ONE commit
+      (the three tabs, the three pages, that test; then record it in DECISIONS.md). Notes: `docs/restructure/pr/W1.8.md`.
+- [x] «جديد → مهمة» in a card space keeps the intent (open the task sheet on `/cards`).
+      `/cards?new=task` mounts the quick add (the same sheet as Today) beside the cards; `newHrefFor(task, v2, layout)` and `cardsHomeHref` (new-actions.ts) carry the intent, and `src/app/(app)/page.tsx` redirects a card space with
+      `cardsHomeHref(searchParams)`, so «جديد → مهمة» (the wheel's `/?view=today&new=task`) ends at `/cards?new=task` (tested: `tests/db/work-tabs-honest.test.ts` C). Not wired: the wheel does not pass the
+      space layout to `newHrefFor` (the shell has no layout on the client; it would save one redirect hop) — see the PR notes.
+- [x] Search palette also finds boards, ideas, tickets, customers (with their own access rules — `crm.view` for customers).
+      `src/server/search/work-search.ts`; the answer gains `boards` / `ideas` / `tickets` / `customers` ONLY when there is a hit (the old shape is byte for byte as before); the palette is the wide one (`xl`).
 
 ### W1.9 Old tasks nobody touches — `feat/work-stale-sweep`
 Seen live on 2026-11-16: 262 open tasks; 196 of them on ONE account; 42 with nobody assigned; 183 not touched for 14

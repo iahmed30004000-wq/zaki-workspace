@@ -29,6 +29,11 @@ const COLUMN = {
   StoredFile: "name",
   User: "name",
   Document: "title",
+  // W1.8: the palette also finds a board, an idea, a ticket and a customer (src/server/search/work-search.ts: each with its own access rule)
+  Board: "name",
+  Idea: "title",
+  Ticket: "title",
+  Customer: "name",
   // the words read out of a picture («قراءة نص الصور»): the pool only; the caller's own access where decides, as for every table
   FileText: "text",
 } as const;

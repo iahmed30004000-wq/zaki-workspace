@@ -128,7 +128,8 @@ describe("the layout draws each person's own places", () => {
     });
     let shell = await frame();
     expect(places(shell)).toEqual(["today", "chat", "work", "library", "watch"]);
-    expect(tabs(shell, "work")).toEqual(WORK_ALL.filter((t) => t !== "crm"));
+    // W1.8: «الأقسام» «التذاكر» «الحملات» need the directory on their pages (D-W3 pending), so with it switched off the tabs are not offered either
+    expect(tabs(shell, "work")).toEqual(WORK_ALL.filter((t) => !["crm", "departments", "tickets", "campaigns"].includes(t)));
 
     await db.organizationMember.update({
       where: { organizationId_userId: { organizationId: org.id, userId: member.id } },

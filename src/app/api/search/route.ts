@@ -11,6 +11,7 @@ import { searchLibrary } from "@/server/services/files";
 import { searchDocuments } from "@/server/services/documents";
 import { arabicSearch, cleanQuery } from "@/lib/search/arabic";
 import { rankedSearch, sqlIn } from "@/server/search/ranked";
+import { searchWork } from "@/server/search/work-search";
 import { Prisma } from "@prisma/client";
 import { isFeatureOn } from "@/server/services/features";
 import { semanticHits, SEMANTIC_MESSAGES, SEMANTIC_TASKS } from "@/server/services/search-semantic";
@@ -23,6 +24,10 @@ const NOTHING = { tasks: [], projects: [], topics: [], messages: [], people: [],
  * (topics and messages, each one only if they could open it: src/server/chat/search.ts), its people and its library
  * (never for a guest: no staff directory, no library), and its text documents by title (the list's own rule: an external
  * partner finds only the shared ones, a deleted one is never found; src/server/services/documents.ts).
+ *
+ * W1.8 — also boards, ideas, tickets and customers, each by the rule of the page that opens it (src/server/search/work-search.ts; a guest finds none of them).
+ * They are ADDITIVE: `boards`, `ideas`, `tickets` and `customers` are keys of the answer only when the person has a hit of that kind, so an answer with
+ * none of them is exactly the answer this route always gave.
  * Authorization is enforced in SQL by the same rule every other view uses
  * (`accessibleWorkspaceIds`: the org OWNER sees every workspace of the company, everyone
  * else — an ADMIN included — only the workspaces they were put in, and only while they are
@@ -67,7 +72,7 @@ export async function GET(req: Request) {
     const projectSpaces = actorCanWork(actor, "projects.view") ? workspaceIds : [];
     // «بحث بالمعنى»: asked at the same time as the words, and only ever AFTER them (the switch, the service and the person are judged inside)
     const byMeaning = semanticHits({ actor, q, place, scope, taskSpaces });
-    const [tasks, projects, chat, people, files, documents] = await Promise.all([
+    const [tasks, projects, chat, people, files, documents, work] = await Promise.all([
       // the pool of ids by spelling (src/server/search/ranked.ts), then the SAME access where as ever on those ids
       taskSpaces.length === 0
         ? []
@@ -145,6 +150,8 @@ export async function GET(req: Request) {
       actor.isExternal || !place || !actorCan(actor, "files.view") ? [] : searchLibrary(actor.orgId, place, q),
       // the space's text documents (their switch, the space and the partner rule are decided inside)
       place ? searchDocuments(actor, place.spaceId, search) : [],
+      // W1.8: boards, ideas, tickets and customers, each by its own rule
+      searchWork({ actor, search, place, scope, projectSpaces }),
     ]);
 
     const meaning = await byMeaning;
@@ -172,6 +179,10 @@ export async function GET(req: Request) {
       people: people.map((m) => m.user),
       files,
       documents,
+      ...(work.boards.length > 0 ? { boards: work.boards } : {}),
+      ...(work.ideas.length > 0 ? { ideas: work.ideas } : {}),
+      ...(work.tickets.length > 0 ? { tickets: work.tickets } : {}),
+      ...(work.customers.length > 0 ? { customers: work.customers } : {}),
     });
   });
 }

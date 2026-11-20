@@ -471,3 +471,69 @@ describe("the module stays pure (the layout on the server and the shell in the b
     expect(source).not.toMatch(/\bimport\s+[^;]*["']server-only["']/);
   });
 });
+
+// ───────────────────────────── W1.8: the tabs are honest (D-W3 is pending: the pages are NOT relaxed) ─────────────────────────────
+
+describe("W1.8: «الأقسام» «التذاكر» «الحملات» are offered exactly to whom their page opens for (the pages need directory.view)", () => {
+  // The three pages refuse a person whose `directory.view` is off (the «not enabled for you» notice), and the tickets and campaigns pages also need their own box.
+  // Until the owner answers D-W3 («آه للموظفين»), the TABS say the same: `requires` = the page's rule. When he says yes the change is one commit (the tabs, the pages, this test).
+  const WORK_HONEST: TabKey[] = ["departments", "tickets", "campaigns"];
+
+  it("a member (rank defaults) is offered the three; the departments tab is no longer «anybody on staff»", () => {
+    const nav = buildNav(who("MEMBER"));
+    for (const key of WORK_HONEST) expect(tabs(nav, "work"), key).toContain(key);
+  });
+
+  it("directory.view switched off: none of the three is offered, whatever their own boxes say (the pages show the notice)", () => {
+    for (const role of ["ADMIN", "LEAD", "MEMBER"] as const) {
+      const subject = who(role, { revokedCapabilities: ["directory.view"] });
+      for (const key of WORK_HONEST) expect(canOpenTab(subject, key), `${role} · ${key}`).toBe(false);
+      expect(tabs(buildNav(subject), "work"), role).not.toEqual(expect.arrayContaining(["departments"]));
+    }
+  });
+
+  it("directory.view on but the tickets box off: «الأقسام» and «الحملات» stay, «التذاكر» goes (the page needs both)", () => {
+    const subject = who("MEMBER", { revokedCapabilities: ["tickets.view"] });
+    expect(canOpenTab(subject, "departments")).toBe(true);
+    expect(canOpenTab(subject, "campaigns")).toBe(true);
+    expect(canOpenTab(subject, "tickets")).toBe(false);
+  });
+
+  it("directory.view on but the campaigns box off: «الحملات» goes, the other two stay", () => {
+    const subject = who("MEMBER", { revokedCapabilities: ["campaigns.view"] });
+    expect(canOpenTab(subject, "departments")).toBe(true);
+    expect(canOpenTab(subject, "tickets")).toBe(true);
+    expect(canOpenTab(subject, "campaigns")).toBe(false);
+  });
+
+  it("the tickets box alone is not enough: a person with tickets.view and no directory.view is not offered the tab (it used to be, and led to a notice)", () => {
+    const subject: NavSubject = { role: "MEMBER", caps: ["tickets.view", "campaigns.view"] };
+    for (const key of WORK_HONEST) expect(canOpenTab(subject, key), key).toBe(false);
+  });
+
+  it("a guest is offered none of the three, whatever capabilities were stored for them", () => {
+    for (const key of WORK_HONEST) {
+      expect(offeredToGuests(key), key).toBe(false);
+      expect(canOpenTab({ role: "GUEST", caps: ["directory.view", "tickets.view", "campaigns.view"] }, key), key).toBe(false);
+    }
+  });
+
+  it("every one of the three: the tab is open exactly when the page's own rule holds (staff, directory.view, and the section's own box)", () => {
+    const pageRule: Record<string, (caps: readonly string[]) => boolean> = {
+      departments: (caps) => caps.includes("directory.view"),
+      tickets: (caps) => caps.includes("directory.view") && caps.includes("tickets.view"),
+      campaigns: (caps) => caps.includes("directory.view") && caps.includes("campaigns.view"),
+    };
+    const switches = ["directory.view", "tickets.view", "campaigns.view"];
+    for (const role of ["OWNER", "ADMIN", "LEAD", "MEMBER"] as const) {
+      for (let mask = 0; mask < 1 << switches.length; mask++) {
+        const revoked = switches.filter((_, i) => (mask & (1 << i)) !== 0);
+        const subject = who(role, { revokedCapabilities: revoked });
+        for (const key of WORK_HONEST) {
+          expect(canOpenTab(subject, key), `${role} without [${revoked.join(", ")}] · ${key}`).toBe(pageRule[key]!(subject.caps));
+          expect(canOpenTab({ ...subject, navV2: true }, key), `V2 ${role} without [${revoked.join(", ")}] · ${key}`).toBe(pageRule[key]!(subject.caps));
+        }
+      }
+    }
+  });
+});

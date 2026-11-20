@@ -17,6 +17,7 @@
  * ⚠️ Like the map, this is discoverability only: each form is refused by the server on its own.
  * 🔧 When a form's rule changes, change its `requires` here too (tests/shell-new-actions.test.ts pins it).
  */
+import { opensOnCards, type SpaceLayout } from "../cards/shared";
 import { canOpenPlace, canOpenTab, type NavSubject } from "./places";
 
 export const NEW_ACTIONS = ["task", "project", "doc", "document", "message", "watch", "space", "person"] as const;
@@ -38,12 +39,41 @@ export const NEW_HREF: Record<NewActionKey, string | null> = {
 };
 
 /**
- * Where an action goes. On the new map (`navV2`) «/» alone may be the company's landing page and send the person to the chat (N1.8), which would
- * drop the intent of «مهمة» (`/?new=task`): there the address is «اليوم»'s own, `/?view=today&new=task`. Every other address is the same.
+ * W1.8 — «مهمة» in a space of CARDS (`opensOnCards`): «اليوم» is not drawn there, «/» sends the person to `/cards` and a query would be dropped on the way,
+ * so the intent travels to the cards page itself, which opens the task sheet (src/app/(app)/cards/page.tsx).
  */
-export function newHrefFor(key: NewActionKey, v2 = false): string | null {
+export const CARDS_TASK_HREF = "/cards?new=task";
+
+/**
+ * Where an action goes. On the new map (`navV2`) «/» alone may be the company's landing page and send the person to the chat (N1.8), which would
+ * drop the intent of «مهمة» (`/?new=task`): there the address is «اليوم»'s own, `/?view=today&new=task`. In a space of cards (`layout`) «مهمة» keeps its
+ * intent on `/cards` (W1.8). Every other address is the same.
+ */
+export function newHrefFor(key: NewActionKey, v2 = false, layout?: SpaceLayout): string | null {
+  if (key === "task" && opensOnCards(layout)) return CARDS_TASK_HREF;
   if (v2 && key === "task") return "/?view=today&new=task";
   return NEW_HREF[key];
+}
+
+/** The intents the cards page serves: the task sheet. (A project, a file… are not started from a space of cards.) */
+export const CARDS_INTENTS: readonly NewActionKey[] = ["task"];
+
+/**
+ * The `?new=` of a page's search parameters when the cards page serves it (`task`), else null. A repeated parameter counts by its first value.
+ */
+export function cardsIntentOf(searchParams: Record<string, string | string[] | undefined> | undefined): NewActionKey | null {
+  const raw = searchParams?.[NEW_PARAM];
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  return typeof value === "string" && isNewAction(value) && CARDS_INTENTS.includes(value) ? value : null;
+}
+
+/**
+ * Where a space of cards sends a person who asked for «اليوم» (or the chat): `/cards`, and with a served intent `/cards?new=task`, so «جديد → مهمة» still
+ * opens the sheet. The only value that ever reaches the address is one of `CARDS_INTENTS`, never what the visitor typed.
+ */
+export function cardsHomeHref(searchParams: Record<string, string | string[] | undefined> | undefined): string {
+  const intent = cardsIntentOf(searchParams);
+  return intent ? `/cards?${NEW_PARAM}=${intent}` : "/cards";
 }
 
 const staff = (s: NavSubject) => s.role !== "GUEST";

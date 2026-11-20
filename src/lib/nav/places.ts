@@ -135,6 +135,7 @@ export type NavIconKey = "today" | "chat" | "work" | "library" | "admin" | "team
  *   { capability }        holds that switch (a guest never does, whatever was stored)
  *   { rankAtLeast }       that rank or above
  *   { anyOf }             one of these
+ *   { allOf }             all of these (W1.8: a page that needs two boxes, e.g. «التذاكر» = the directory AND the tickets box)
  *   { spaceManager }      staff who manage the space they are in (`NavSubject.spaceManager`)
  *   { supervisor }        staff somebody answers to (`NavSubject.supervisor`)
  *   { workCapability }    an external partner (the space's own rules decide for them), or staff holding that box
@@ -145,6 +146,7 @@ export type Requirement =
   | { readonly capability: string }
   | { readonly rankAtLeast: NavRole }
   | { readonly anyOf: readonly Requirement[] }
+  | { readonly allOf: readonly Requirement[] }
   | { readonly workCapability: string }
   | { readonly spaceManager: true }
   | { readonly supervisor: true };
@@ -219,10 +221,13 @@ export const PLACES_V1: readonly PlaceDef[] = [
       // temporary: becomes a chat topic in Phase 3
       { key: "ideas", href: "/ideas", labelKey: "nav.ideas", requires: { capability: "ideas.view" } },
       { key: "production", href: "/production", labelKey: "nav.production", requires: { capability: "production.view" } },
-      { key: "departments", href: "/departments", labelKey: "nav.departments", requires: "staff" },
+      // W1.8 — HONEST TABS (D-W3 is pending, so no page is relaxed yet): the three department pages refuse a person whose `directory.view` is off (the «not enabled for you» notice),
+      // so their tabs say the same. «التذاكر» and «الحملات» also need their own section box. When the owner answers D-W3 («آه للموظفين»): drop `directory.view` here AND in the
+      // three pages, and flip tests/db/work-tabs-honest.test.ts, in ONE commit (recorded in docs/restructure/DECISIONS.md).
+      { key: "departments", href: "/departments", labelKey: "nav.departments", requires: { capability: "directory.view" } },
       // a department's tickets and campaigns, each a page of its own (the owner's ask, 2026-10-25)
-      { key: "tickets", href: "/tickets", labelKey: "nav.tickets", requires: { capability: "tickets.view" } },
-      { key: "campaigns", href: "/campaigns", labelKey: "nav.campaigns", requires: { capability: "campaigns.view" } },
+      { key: "tickets", href: "/tickets", labelKey: "nav.tickets", requires: { allOf: [{ capability: "directory.view" }, { capability: "tickets.view" }] } },
+      { key: "campaigns", href: "/campaigns", labelKey: "nav.campaigns", requires: { allOf: [{ capability: "directory.view" }, { capability: "campaigns.view" }] } },
       { key: "crm", href: "/crm", labelKey: "nav.crm", requires: { capability: "crm.view" } },
       // «الموافقات» (the owner's backlog, 2026-10-31): requests for a decision from one approver or a chain, and the forms that create
       // them. For staff (a guest never asks, sees or is asked: the pages and /api/approvals refuse them too), behind its switch.
@@ -514,6 +519,7 @@ function meets(req: Requirement, subject: NavSubject): boolean {
   if (req === "everyone") return true;
   if (req === "staff") return !outsider;
   if ("anyOf" in req) return req.anyOf.some((r) => meets(r, subject));
+  if ("allOf" in req) return req.allOf.every((r) => meets(r, subject));
   // an outsider works in what is shared with them by the space's rules; staff need the box
   if ("spaceManager" in req) return !outsider && subject.spaceManager === true;
   if ("supervisor" in req) return !outsider && subject.supervisor === true;

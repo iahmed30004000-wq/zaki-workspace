@@ -94,7 +94,7 @@ describe("the tab beside «اللوحات»", () => {
   const stockTab = async (userId: string, spaceId: string) => {
     await loginAs(userId);
     enter(spaceId);
-    const page = (await CardsPage()) as PageElement;
+    const page = (await CardsPage({})) as PageElement;
     expect(page.type).toBe(CardsView);
     return page.props["stockTab"];
   };
