@@ -355,7 +355,8 @@ async function notifyAfterSend(
     mentionedIds: mentionIds,
     allIds: allIds.filter((id) => !mentionIds.includes(id)),
     ...(dto.silent === true ? { silent: true } : {}),
-    preview: dto.body ? dto.body.slice(0, 140) : "أرسل مرفقًا",
+    // the WHOLE body: `notify.ts` strips the markers and then cuts (a bold run is never cut inside its markers)
+    preview: dto.body ? dto.body : "أرسل مرفقًا",
   });
 }
 
@@ -396,7 +397,7 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
     const cardStays = msg.preview !== null && previewUrlOf(input.body) === msg.preview.url;
     const m = await tx.chatMessage.update({ where: { id: messageId }, data: { body: input.body, editedAt: new Date(), ...(msg.preview !== null && !cardStays ? { previewId: null } : {}) }, include: messageInclude() });
     // a bell that showed the old words shows the new ones
-    await rewriteMessagePreviews(tx, msg.conversationId, messageId, input.body.slice(0, 140));
+    await rewriteMessagePreviews(tx, msg.conversationId, messageId, input.body);
     await emitRealtime(tx, ctx.orgId, "message.edited", { conversationId: msg.conversationId, messageId, spaceId: facts.spaceId ?? undefined });
     return m;
   });

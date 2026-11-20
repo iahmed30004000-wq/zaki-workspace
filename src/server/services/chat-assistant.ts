@@ -11,7 +11,7 @@ import { capText, redactTitle } from "@/server/ai/redact";
 import { cleanMath } from "@/lib/chat/format/math";
 import { PROPOSE_TOOL } from "@/server/ai/actions";
 import { CHAT_MAX_OUTPUT_TOKENS, CHAT_PROPOSE_PROMPT, CHAT_SYSTEM_PROMPT, CHAT_TOPICS_PROMPT, CHAT_WORK_PROMPT, REPLY_MAX_CHARS, buildChatPrompt, type ChatRow } from "@/server/ai/redact-chat";
-import { systemMessage } from "@/server/chat/system";
+import { moveLastMessageAt, systemMessage } from "@/server/chat/system";
 import { canRead, loadConversationFacts, loadOrgFacts, type ConversationFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
 import { FixedWindowLimiter } from "@/server/rate-limit";
@@ -183,9 +183,11 @@ async function postLine(
           kind: "SYSTEM",
           clientId: replyClientId(ctx.messageId),
         },
-        select: { id: true },
+        select: { id: true, createdAt: true },
       });
       await tx.conversation.update({ where: { id: ctx.conversationId }, data: { updatedAt: new Date() } });
+      // C1.8: the answer is a line of the conversation: the list's time moves with it, in this transaction (it never goes backwards)
+      await moveLastMessageAt(tx, ctx.conversationId, msg.createdAt);
       await emitRealtime(tx, ctx.orgId, "message.created", { conversationId: ctx.conversationId, messageId: msg.id, ...(ctx.spaceId ? { spaceId: ctx.spaceId } : {}) });
       await tx.auditLog.create({
         data: {

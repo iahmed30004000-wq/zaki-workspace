@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import type { AttachmentDto, MessageDto, ReactionDto, SystemMeta } from "./dto";
 import { attachmentView } from "./attachments";
 import { presentPoll, type PollRow } from "./poll-shared";
+import { stripFormatting } from "@/lib/chat/format/parse";
 
 export { attachmentView };
 
@@ -26,6 +27,8 @@ export type Viewer = {
   isMember?: boolean;
   /** the company's switch `linkPreviews` (C3b.2); a card is presented ONLY when it is `true` (the data stays when it is off). Absent reads as off: a caller that forgets to ask the switch hides the cards instead of showing them while the company turned them off. */
   linkPreviews?: boolean;
+  /** the company's switch `chatFormatting` (C3b.1): present and `true` means the quote of a reply shows the words without the markers (a spoiler is masked). Absent reads as off: the old detail and the Android app get the quote as it always was. */
+  formatting?: boolean;
 };
 
 type MessageRow = {
@@ -43,6 +46,8 @@ type MessageRow = {
   /** a CARD message: what it points at (Q1.3) */
   card?: unknown;
   pinned: boolean;
+  /** «ابعت بدون صوت» (C3c.2): the sender chose silence */
+  silent?: boolean;
   editedAt: Date | null;
   deletedAt: Date | null;
   deletedById?: string | null;
@@ -135,6 +140,8 @@ export function presentMessage(
     system: systemMeta(row),
   };
   if (row.videoAtSec !== null && row.videoAtSec !== undefined) dto.videoAtSec = row.videoAtSec;
+  // «ابعت بدون صوت» (C3c.2): `true` only when it was; the other screen reads it to make no arrival sound
+  if (row.silent) dto.silent = true;
 
   // a poll: a deleted message hides it like any message (the owner reads the question in `original`)
   if (row.kind === "POLL" && row.poll && !deleted) {
@@ -165,7 +172,8 @@ export function presentMessage(
   if (row.replyTo) {
     dto.replyTo = {
       id: row.replyTo.id,
-      preview: row.replyTo.deletedAt ? null : row.replyTo.body,
+      // C3b.1: the words, not the markers (`**bold**`, a spoiler's bars, a link's address), where the company's formatting switch is on
+      preview: row.replyTo.deletedAt ? null : viewer.formatting === true ? stripFormatting(row.replyTo.body, { math: true }) : row.replyTo.body,
       authorName: row.replyTo.author.name,
       deleted: !!row.replyTo.deletedAt,
     };
@@ -218,10 +226,14 @@ export function presentMessage(
   return dto;
 }
 
-/** A safe preview for lists (home, reply quotes): null when the message is deleted. */
-export function previewOf(body: string | null, deletedAt: Date | null): string | null {
+/**
+ * A safe preview for lists (home, the pinned bar): null when the message is deleted. `format: true` (C3b.1) gives the words without the markers, the WHOLE body stripped
+ * and then cut (a bold run is never cut inside its markers); the default keeps the raw cut that the old screen and `chatHome` always had.
+ */
+export function previewOf(body: string | null, deletedAt: Date | null, opts: { format?: boolean } = {}): string | null {
   if (deletedAt) return null;
-  return body === null ? null : body.slice(0, 140);
+  if (body === null) return null;
+  return (opts.format === true ? stripFormatting(body, { math: true }) : body).slice(0, 140); // 140: the same length as the bell and the push (`PREVIEW_CHARS` in notify.ts)
 }
 
 export type PrismaTx = Prisma.TransactionClient;

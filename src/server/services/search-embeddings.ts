@@ -4,6 +4,7 @@ import { LocalQueue } from "@/server/ai/local-queue";
 import { callLocal, jsonOf, type LocalTransport } from "@/server/ai/local-transport";
 import { AiProviderError } from "@/server/ai/provider";
 import { redactChatText } from "@/server/ai/redact-chat";
+import { stripFormatting } from "@/lib/chat/format/parse";
 import { isFeatureOn } from "@/server/services/features";
 
 /**
@@ -83,7 +84,8 @@ export async function semanticAvailable(orgId: string, source: Readonly<Record<s
 
 /** The text of a chat message as it may leave: filtered, then cut. null: not worth indexing (too short, or nothing left). */
 export function messageText(body: string): string | null {
-  const flat = body.replace(/\s+/g, " ").trim();
+  // C3b.1: the words, not the markers (a vector of `**` and `||` characters finds nothing); a spoiler's words are kept, as for every model path (its askers can read them)
+  const flat = stripFormatting(body, { spoilers: "keep" }).replace(/\s+/g, " ").trim();
   if (flat.length < MIN_MESSAGE_CHARS) return null;
   return filtered(flat);
 }

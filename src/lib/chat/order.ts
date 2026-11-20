@@ -11,11 +11,17 @@ import { z } from "zod";
 
 export const ORDER_MAX = 500;
 
-/** `space:<spaceId>` (the topics of a space), `dm` (the private chats outside a space) or `dm:<spaceId>`. */
+/**
+ * `space:<spaceId>` (the topics of a space), `dm` (the private chats outside a space) or `dm:<spaceId>`; and `pins` (C3a.1): the person's own pins, across every list
+ * (saved by `savePinsOrder`, never by `saveOrder`: a pin may be a topic, a private chat or a group).
+ */
 export const scopeSchema = z
   .string()
   .max(60)
-  .regex(/^(space:[A-Za-z0-9_-]{1,40}|dm(:[A-Za-z0-9_-]{1,40})?)$/);
+  .regex(/^(space:[A-Za-z0-9_-]{1,40}|dm(:[A-Za-z0-9_-]{1,40})?|pins)$/);
+
+/** The scope of the person's own pins. */
+export const PINS_ORDER_SCOPE = "pins";
 
 export const orderSchema = z.array(z.string().min(1).max(64)).max(ORDER_MAX);
 

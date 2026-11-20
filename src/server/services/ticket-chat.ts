@@ -2,6 +2,7 @@ import { db } from "@/server/db";
 import type { OrgAccessContext } from "@/server/auth";
 import { isFeatureOn } from "@/server/services/features";
 import { emitRealtime } from "@/server/realtime/emit";
+import { moveLastMessageAt } from "@/server/chat/system";
 import { maskPhonesIn } from "@/lib/tickets/customer-number";
 import { canPost, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 
@@ -28,9 +29,11 @@ export async function announceTicketChange(ctx: OrgAccessContext, ticketId: stri
     const note = opts.note?.trim() ? maskPhonesIn(opts.note.trim()).slice(0, 300) : "";
     const reply = await tx.chatMessage.create({
       data: { orgId: ctx.orgId, conversationId: source.conversationId, authorId: ctx.userId, replyToId: source.id, body: note ? `✅ انحلّت: ${note}` : "✅ انحلّت" },
-      select: { id: true },
+      select: { id: true, createdAt: true },
     });
     await tx.conversation.update({ where: { id: source.conversationId }, data: { updatedAt: new Date() } });
+    // C1.1: the reply is a message of the conversation: the list's time moves with it, in this transaction (it never goes backwards)
+    await moveLastMessageAt(tx, source.conversationId, reply.createdAt);
     await emitRealtime(tx, ctx.orgId, "message.created", { conversationId: source.conversationId, messageId: reply.id, ...(source.conversation.spaceId ? { spaceId: source.conversation.spaceId } : {}) });
   });
 }

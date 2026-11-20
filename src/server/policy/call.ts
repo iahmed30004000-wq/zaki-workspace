@@ -51,9 +51,13 @@ function ofThisOrg(call: CallFacts | null, org: OrgFacts | null): call is CallFa
   return !!call && isActiveOf(org) && org!.orgId === call.orgId;
 }
 
-/** May the viewer start a call in this conversation? Writing there comes first. */
-export function canStartCall(facts: ConversationFacts | null, org: OrgFacts | null): boolean {
+/**
+ * May the viewer start a call in this conversation? Writing there comes first. `selfDm` (C3a.3): the conversation is a private chat of the viewer with themselves
+ * («الرسائل المحفوظة»): nobody else is there to ring, so there is no call.
+ */
+export function canStartCall(facts: ConversationFacts | null, org: OrgFacts | null, opts: { selfDm?: boolean } = {}): boolean {
   if (!facts || !org || !isActiveOf(org) || facts.orgId !== org.orgId) return false;
+  if (opts.selfDm === true) return false;
   return canPost(facts, org, { ownerJoined: facts.viewerIsMember });
 }
 

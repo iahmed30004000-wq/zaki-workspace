@@ -287,6 +287,12 @@ export interface ConversationDto {
   linkPreviews?: boolean;
   /** the company's «الإرسال بدون صوت» switch (`chatSilentSend`, C3c.2): off, the send button's menu has no «ابعت بدون صوت»; absent: on */
   silentSend?: boolean;
+  /** the company's «تنسيق الرسائل» switch (`chatFormatting`, C3b.1): off, the composer draws no formatting toolbar and a bubble shows its markers as typed; absent: on */
+  chatFormatting?: boolean;
+  /** the company's «ألبومات الصور» switch (`chatAlbums`, C3b.3): off, a message's pictures are not drawn as one mosaic; absent: on */
+  chatAlbums?: boolean;
+  /** «جدول الإرسال» (C3c.3): how many messages of MINE are waiting in this conversation. ABSENT: the switch is off, or I may not write here (the composer asks no list then) */
+  scheduled?: number;
   /** the company's «المكالمات» switch (`calls`, economy mode applied): off, the header draws no call button; absent: on */
   calls?: boolean;
   /** the company's «السبورة» switch (`whiteboard`, economy mode applied): off, the header draws no link to it; absent: on */
@@ -359,6 +365,8 @@ export interface ChatRowDto {
   canModerate?: boolean;
   /** TOPIC */
   topicType?: TopicType;
+  /** TOPIC: who may write here (C3c.4): an announcements topic that a manager opened to everybody (`ALL`) is not drawn as a channel */
+  postingPolicy?: PostingPolicy;
   closed?: boolean;
   pinned?: boolean;
   archived?: boolean;

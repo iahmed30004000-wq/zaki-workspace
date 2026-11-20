@@ -7,6 +7,7 @@ import { canModerate, canPost, canRead, hasOversight, loadConversationFacts, loa
 import { emitRealtime } from "@/server/realtime/emit";
 import { isSpaceAdmin } from "@/server/policy/conversation";
 import { writeSystemMessage } from "@/server/chat/system";
+import { forgetTypingFacts } from "@/server/chat/typing-gate";
 import type { AudienceDto, ConversationDto, ConversationHeaderDto, MemberDto, MessageDto, MessagesPageDto, ReaderDto } from "@/server/chat/dto";
 import { chatScope, silentOwnerIds, type ChatScope } from "@/server/chat/list";
 import type { FeatureKey } from "@/lib/features";
@@ -190,6 +191,7 @@ export async function leaveTopic(ctx: OrgAccessContext, conversationId: string):
     await tx.conversationMember.delete({ where: { conversationId_userId: { conversationId, userId: ctx.userId } } });
     await emitRealtime(tx, ctx.orgId, "membership.changed", { conversationId, userId: ctx.userId, spaceId: facts.spaceId ?? undefined });
   });
+  forgetTypingFacts(ctx.userId, conversationId); // C1.8: typing ends at once, not after the 30 s the memory keeps
 }
 
 /** ---------- add / remove member (space admins + owner; restricted topics only) ---------- */
@@ -216,9 +218,11 @@ export async function removeMember(ctx: OrgAccessContext, conversationId: string
   const { facts, org } = await guardTopic(ctx, conversationId);
   if (!canModerate(facts, org)) throw new ForbiddenError("chat.e.moderator_only");
   await db.$transaction(async (tx) => {
-    await tx.conversationMember.deleteMany({ where: { conversationId, userId } });
-    await emitRealtime(tx, ctx.orgId, "membership.changed", { conversationId, userId, spaceId: facts.spaceId ?? undefined });
+    const { count } = await tx.conversationMember.deleteMany({ where: { conversationId, userId } });
+    // nothing to tell when nobody was in it: the sync feed trusts a `membership.changed` about a person as «they had a place here»
+    if (count > 0) await emitRealtime(tx, ctx.orgId, "membership.changed", { conversationId, userId, spaceId: facts.spaceId ?? undefined });
   });
+  forgetTypingFacts(userId, conversationId); // C1.8: typing ends at once, not after the 30 s the memory keeps
 }
 
 /** ---------- close / reopen (space admins + owner) ---------- */
@@ -286,6 +290,8 @@ export async function deleteTopic(ctx: OrgAccessContext, conversationId: string)
   }
   await db.$transaction(async (tx) => {
     await tx.conversation.delete({ where: { id: conversationId } });
+    // C3w.1: the sync feed's `removed` needs the id (the hub drops a frame that names a conversation that is gone, so the space-only event below is what wakes the other tabs)
+    await emitRealtime(tx, ctx.orgId, "conversation.changed", { conversationId, spaceId: facts.spaceId ?? undefined });
     await emitRealtime(tx, ctx.orgId, "conversation.changed", { spaceId: facts.spaceId ?? undefined });
   });
 }
@@ -650,9 +656,13 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
 
   // the switches: ONE read of the settings. A service that decides "is it offered" by itself (a ready model, a service address) is asked only
   // while its own switches are on, so a company that never turned them on pays no read for them.
-  const [chatBubbles, chatOutbox, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn] = await Promise.all([
+  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn] = await Promise.all([
     feature("chatBubbles"),
     feature("chatOutbox"),
+    feature("chatFormatting"),
+    feature("chatAlbums"),
+    feature("chatSilentSend"),
+    feature("chatScheduled"),
     feature("calls"),
     feature("whiteboard"),
     feature("voiceNotes"),
@@ -666,6 +676,8 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     feature("mustRead"),
   ]);
   const hidden = silent && !joined;
+  // «جدول الإرسال» (C3c.3): the person's OWN waiting messages here, asked only where they may use it (the switch is on and they may write; the silent eye cannot schedule)
+  const scheduled = scheduledOn && mayPost ? await db.scheduledChatMessage.count({ where: { conversationId, authorId: ctx.userId, orgId: ctx.orgId, status: { in: ["PENDING", "FAILED"] } } }) : undefined;
   const [recall, problem, canTranslate, hasGuest] = await Promise.all([
     recallOffer(ctx.orgId, staff, mayPost, feature),
     problemOffer(ctx.orgId, staff, facts, feature, () => scope.settings()),
@@ -730,9 +742,13 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
       canMustRead: staff && mustReadOn && facts.kind === "TOPIC" && (canModerateHere || canAnnounce),
       id: ctx.userId,
     },
-    pinnedMessages: pinned.map((m) => ({ id: m.id, authorName: m.author.name, preview: previewOf(m.body, m.deletedAt) })),
+    pinnedMessages: pinned.map((m) => ({ id: m.id, authorName: m.author.name, preview: previewOf(m.body, m.deletedAt, { format: chatFormatting }) })),
     chatBubbles,
     chatOutbox,
+    chatFormatting,
+    chatAlbums,
+    silentSend,
+    ...(scheduled !== undefined ? { scheduled } : {}),
     linkPreviews: await linkPreviewsOn(ctx.orgId, feature),
     calls,
     whiteboard,
@@ -832,7 +848,7 @@ export async function conversationMessages(
   ]);
 
   const silent = hasOversight(org);
-  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId, scope.feature) };
+  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId, scope.feature), formatting: await scope.feature("chatFormatting") };
   // DM ticks: the OTHER person's marks decide my own messages' status; the owner's silent reading never shows as «قرأ»
   let other: { lastDeliveredAt: Date | null; lastReadAt: Date | null } | null = null;
   if (facts.kind === "DM") {

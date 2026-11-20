@@ -5,6 +5,7 @@ import { ForbiddenError, NotFoundError, requireUser, type OrgAccessContext } fro
 import { canManageWorkspaceMembers } from "@/server/services/access";
 import { workspaceRoleOf, type WorkspaceRoleName } from "@/server/workspace-role";
 import { emitRealtime } from "@/server/realtime/emit";
+import { forgetTypingFacts } from "@/server/chat/typing-gate";
 import type { SpaceLayout } from "@/lib/cards/shared";
 import { ensureStarterTopics, SPACE_STARTER_TOPICS, spaceTopicIdOf } from "@/server/chat/space-topics";
 
@@ -202,7 +203,7 @@ export async function changeWorkspaceMembers(
   const promote = unique(changes.promote);
   const demote = unique(changes.demote);
 
-  return db.$transaction(async (tx) => {
+  const result = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Workspace" WHERE "id" = ${workspaceId} FOR UPDATE`;
     const ws = await tx.workspace.findUnique({ where: { id: workspaceId }, select: { organizationId: true } });
     if (!ws) throw new NotFoundError("workspace.not_found");
@@ -300,6 +301,8 @@ export async function changeWorkspaceMembers(
     }
     return { added: add.filter((id) => !rowRole.has(id)) };
   });
+  for (const id of [...remove, ...promote, ...demote]) forgetTypingFacts(id); // C1.8: a removal or a role change ends typing at once, not after the 30 s the memory keeps
+  return result;
 }
 
 // ---------- deleting ----------

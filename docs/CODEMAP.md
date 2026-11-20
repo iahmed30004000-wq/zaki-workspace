@@ -527,16 +527,16 @@ high count is a wide surface: changing its signature reaches all of them.
 | `ideas` | 419 | 9 | Membership context resolved from the idea's own org (shared by API routes). |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
-| `accounts` | 940 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
+| `accounts` | 942 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
 | `active-people` | 71 | 8 | "Nobody who was suspended or removed still counts." A suspended or offboarded member keeps their OrganizationMember row (history, authorship), so a query that reads that table w… |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
-| `chat-assistant` | 497 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
+| `chat-assistant` | 499 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `instant-work` | 204 | 8 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
 | `owner-assistant-proposals` | 400 | 8 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
-| `workspaces` | 331 | 8 | Spaces (workspaces): who is in one, who may change it. |
+| `workspaces` | 334 | 8 | Spaces (workspaces): who is in one, who may change it. |
 | `approval-forms` | 263 | 7 | «نموذج» — reusable forms that create approval requests. |
 | `assistant-provider` | 78 | 7 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `campaigns` | 307 | 7 | Campaigns live inside a department (marketing calendars). |
@@ -579,7 +579,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `reward-guard` | 39 | 4 | «مهمة بمكافأة» — the guard every writer of a task goes through (tasks.ts `updateTask` / `deleteTask` / `createTask`, the reward routes). |
 | `reward-input` | 30 | 4 | What a request body says about a reward: the amount as the person typed it (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency (optiona… |
 | `search-embed-index` | 314 | 4 | «بحث بالمعنى» — WHAT GETS A VECTOR, and when. |
-| `search-embeddings` | 276 | 4 | «بحث بالمعنى» — the connector and the pure rules. |
+| `search-embeddings` | 278 | 4 | «بحث بالمعنى» — the connector and the pure rules. |
 | `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `work-requests` | 365 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
@@ -619,7 +619,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `storage` | 300 | 2 | THE STORAGE OF THE COMPANY'S FILES — what the owner sees and does about the server's disk filling up (his decision, 2026-11-01). |
 | `task-links` | 173 | 2 | «التبعيات» — the links between two tasks (the owner, 2026-10-30: the table existed and nothing wrote it). |
 | `team-people` | 115 | 2 | «الأداء والتطوير» — the front door: the people the viewer reads, and the header of one person's file. |
-| `ticket-chat` | 37 | 2 | A ticket made from a message tells its conversation (Q1.5): `ticket.changed` (ids only) so the chip under the message refreshes, and when the ticket is RESOLVED a reply to the o… |
+| `ticket-chat` | 40 | 2 | A ticket made from a message tells its conversation (Q1.5): `ticket.changed` (ids only) so the chip under the message refreshes, and when the ticket is RESOLVED a reply to the o… |
 | `time-section` | 50 | 2 | «الوقت المسجّل» — ONE section for two screens: the owner board's people table (registered in `BOARD_SECTIONS`) and the number beside a person's score (registered in `SCORE_SECTI… |
 | `timeline` | 77 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
 | `today` | 299 | 2 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
@@ -685,11 +685,11 @@ to be added to, and the places a bug can leave the row half-written.
 | `ChatReaction` | 4 | `server/chat/messages.ts`: 2<br>`server/services/must-read.ts`: 2 |
 | `Poll` | 2 | `components/chat/composer/poll-dialog.tsx`: 1<br>`server/chat/polls.ts`: 1 |
 | `PollVote` | 2 | `server/chat/polls.ts`: 2 |
-| `UserChatOrder` | 5 | `server/chat/order.ts`: 3<br>`server/chat/read-state.ts`: 2 |
+| `UserChatOrder` | 7 | `server/chat/read-state.ts`: 4<br>`server/chat/order.ts`: 3 |
 | `MessageRevision` | 1 | `server/chat/messages.ts`: 1 |
 | `MessageNote` | 1 | `server/chat/messages.ts`: 1 |
 | `MessageAttachment` | 2 | `server/chat/attachments.ts`: 1<br>`server/chat/messages.ts`: 1 |
-| `RealtimeEvent` | 1 | `server/realtime/emit.ts`: 1 |
+| `RealtimeEvent` | 2 | `server/chat/moderation.ts`: 1<br>`server/realtime/emit.ts`: 1 |
 | `Whiteboard` | 2 | `server/chat/whiteboard.ts`: 2 |
 | `Call` | 4 | `server/calls/calls.ts`: 4 |
 | `CallPerson` | 4 | `server/calls/calls.ts`: 4 |
@@ -864,17 +864,17 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `omsEvents` | 2 — `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
 | `doorMessages` | 1 — `server/door/messages.ts` |
 | `chatLayoutV2` | 5 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/link-preview.ts` |
-| `chatFormatting` | 0 —  |
+| `chatFormatting` | 2 — `server/chat/sync.ts`, `server/chat/topics.ts` |
 | `workInbox` | 8 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts` |
-| `chatAlbums` | 0 —  |
+| `chatAlbums` | 1 — `server/chat/topics.ts` |
 | `permissionTemplates` | 3 — `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
 | `chatPersonalState` | 3 — `app/api/chat/conversations/[id]/me/route.ts`, `server/chat/list.ts`, `server/chat/read-state.ts` |
 | `chatFolders` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx`, `server/services/chat-prefs.ts` |
 | `savedMessages` | 2 — `app/api/chat/dm/route.ts`, `server/chat/list.ts` |
 | `linkPreviews` | 1 — `server/chat/link-preview.ts` |
-| `chatSilentSend` | 1 — `server/chat/messages.ts` |
-| `chatScheduled` | 2 — `server/chat/scheduled.ts`, `server/jobs/scheduler.ts` |
+| `chatSilentSend` | 2 — `server/chat/messages.ts`, `server/chat/topics.ts` |
+| `chatScheduled` | 3 — `server/chat/scheduled.ts`, `server/chat/topics.ts`, `server/jobs/scheduler.ts` |
 | `workStages` | 1 — `app/api/boards/[id]/columns/route.ts` |
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
@@ -927,13 +927,13 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `ownerHiddenOnline` | 5 — `app/api/presence/route.ts`, `server/chat/directory.ts`, `server/chat/topics.ts`, `server/realtime/hub.ts`, `server/services/last-seen.ts` |
 | `chatRowMenu` | 3 — `app/(app)/chat/layout.tsx`, `server/chat/home.ts`, `server/chat/purge.ts` |
 | `chatOneList` | 1 — `app/api/chat/list/route.ts` |
-| `chatFormatting` | 0 —  |
-| `chatAlbums` | 0 —  |
+| `chatFormatting` | 2 — `server/chat/sync.ts`, `server/chat/topics.ts` |
+| `chatAlbums` | 1 — `server/chat/topics.ts` |
 | `chatPersonalState` | 3 — `app/api/chat/conversations/[id]/me/route.ts`, `server/chat/list.ts`, `server/chat/read-state.ts` |
 | `chatFolders` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx`, `server/services/chat-prefs.ts` |
 | `savedMessages` | 2 — `app/api/chat/dm/route.ts`, `server/chat/list.ts` |
-| `chatSilentSend` | 1 — `server/chat/messages.ts` |
-| `chatScheduled` | 2 — `server/chat/scheduled.ts`, `server/jobs/scheduler.ts` |
+| `chatSilentSend` | 2 — `server/chat/messages.ts`, `server/chat/topics.ts` |
+| `chatScheduled` | 3 — `server/chat/scheduled.ts`, `server/chat/topics.ts`, `server/jobs/scheduler.ts` |
 | `mustRead` | 7 — `lib/chat/cache/reducers.ts`, `server/chat/messages.ts`, `server/chat/topics.ts`, `server/door/messages.ts`, `server/jobs/run.ts`, `server/policy/capabilities.ts`, `server/services/must-read.ts` |
 | `autoTickets` | 7 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/policy/capabilities.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
 | `orderTemplateHint` | 1 — `server/chat/topics.ts` |

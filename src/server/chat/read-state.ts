@@ -4,7 +4,7 @@ import { db } from "@/server/db";
 import { NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { canRead, hasOversight, loadConversationFacts, loadOrgFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
-import { cleanOrder } from "@/lib/chat/order";
+import { cleanOrder, ORDER_MAX, PINS_ORDER_SCOPE } from "@/lib/chat/order";
 
 /**
  * REALTIME owns the implementation; the signature is the contract from
@@ -52,7 +52,7 @@ export const PINS_MAX = 10;
 /** «للأبد» is a date far away, not a flag (the same choice as the space's mute): the column stays simple. */
 const MUTE_MAX_MS = 100 * 365 * 24 * 60 * 60_000;
 /** The scope of `UserChatOrder` that keeps the order of a person's pins, the newest on top. */
-export const PINS_SCOPE = "pins";
+export const PINS_SCOPE = PINS_ORDER_SCOPE;
 
 export const myChatStateSchema = z
   .object({
@@ -212,6 +212,37 @@ async function writePinsOrder(tx: Prisma.TransactionClient, ctx: OrgAccessContex
     return;
   }
   await tx.userChatOrder.upsert({ where: key, create: { userId: ctx.userId, orgId: ctx.orgId, scope: PINS_SCOPE, order }, update: { order } });
+}
+
+/**
+ * `PUT /api/chat/order` with the scope `pins` (C3a.1): the person drags their own pins into a new order. Only the person's OWN pins are kept (an id that is not one of
+ * them is dropped: another person's pin, a conversation that was never pinned), in the order sent; the pins the list did not name follow in the order they had. The same
+ * lock as a pin and an un-pin (one writer per person at a time). It writes the person's own row only: no event, nobody else's list moves.
+ */
+export async function savePinsOrder(ctx: OrgAccessContext, ids: readonly string[]): Promise<string[]> {
+  const wanted = [...new Set(ids)].slice(0, ORDER_MAX);
+  const key = { userId_orgId_scope: { userId: ctx.userId, orgId: ctx.orgId, scope: PINS_SCOPE } };
+  return db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT 1 AS locked FROM (SELECT pg_advisory_xact_lock(hashtext(${`chatpins:${ctx.userId}`}))) l`;
+    const rows = await tx.conversationMember.findMany({
+      where: { userId: ctx.userId, pinnedAt: { not: null }, conversation: { orgId: ctx.orgId } },
+      orderBy: { pinnedAt: "desc" },
+      select: { conversationId: true },
+    });
+    const alive = new Set(rows.map((r) => r.conversationId));
+    const sent = wanted.filter((id) => alive.has(id));
+    const named = new Set(sent);
+    const stored = cleanOrder((await tx.userChatOrder.findUnique({ where: key, select: { order: true } }))?.order).filter((id) => alive.has(id) && !named.has(id));
+    const known = new Set(stored);
+    // pins the saved order does not know (made by another path) come first, newest first, as `writePinsOrder` puts them
+    const order = [...sent, ...rows.map((r) => r.conversationId).filter((id) => !named.has(id) && !known.has(id)), ...stored];
+    if (order.length === 0) {
+      await tx.userChatOrder.deleteMany({ where: { userId: ctx.userId, orgId: ctx.orgId, scope: PINS_SCOPE } });
+      return [];
+    }
+    await tx.userChatOrder.upsert({ where: key, create: { userId: ctx.userId, orgId: ctx.orgId, scope: PINS_SCOPE, order }, update: { order } });
+    return order;
+  });
 }
 
 /**

@@ -3,7 +3,8 @@ import { withApi } from "@/server/api";
 import { parse, parseJson } from "@/server/validation";
 import { activeOrgCtx } from "@/server/services/integrations";
 import { listOrders, resetOrder, saveOrder } from "@/server/chat/order";
-import { saveOrderSchema, scopeSchema } from "@/lib/chat/order";
+import { PINS_ORDER_SCOPE, saveOrderSchema, scopeSchema } from "@/lib/chat/order";
+import { savePinsOrder } from "@/server/chat/read-state";
 
 /** GET: the person's own saved orders of the chat list, `{ orders: { scope: [ids] } }`. Nobody else's. */
 export async function GET() {
@@ -13,12 +14,12 @@ export async function GET() {
   });
 }
 
-/** PUT `{ scope, order }`: saves the person's order of one list (topics of a space, or their private chats). */
+/** PUT `{ scope, order }`: saves the person's order of one list (topics of a space, their private chats, or their own pins: `pins`). */
 export async function PUT(req: Request) {
   return withApi(async () => {
     const input = await parseJson(saveOrderSchema, req);
     const ctx = await activeOrgCtx();
-    const order = await saveOrder(ctx, input.scope, input.order);
+    const order = input.scope === PINS_ORDER_SCOPE ? await savePinsOrder(ctx, input.order) : await saveOrder(ctx, input.scope, input.order);
     return NextResponse.json({ scope: input.scope, order });
   });
 }

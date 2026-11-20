@@ -8,7 +8,8 @@ import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext }
 import { canRead, loadConversationFacts, loadOrgFacts, type OrgFacts } from "@/server/policy/conversation";
 import type { MessageHitDto, TopicHitDto } from "@/server/chat/dto";
 import { isFeatureOn } from "@/server/services/features";
-import { dmPlaceWhere } from "@/server/chat/dm";
+import { dmPlaceWhere, isSelfDmKey, SAVED_TITLE_KEY } from "@/server/chat/dm";
+import { AR } from "@/lib/i18n/dict";
 import { currentSpace } from "@/server/services/current-space";
 import type { Actor } from "@/server/policy/actor";
 import { loadWorkScope, scopeSpaceIds } from "@/server/services/team-scope";
@@ -186,7 +187,7 @@ async function pictureTextHits(
                       createdAt: true,
                       conversationId: true,
                       author: { select: { name: true } },
-                      conversation: { select: { kind: true, title: true, members: { take: 2, select: { userId: true, user: { select: { name: true } } } } } },
+                      conversation: { select: { kind: true, title: true, dmKey: true, members: { take: 2, select: { userId: true, user: { select: { name: true } } } } } },
                     },
                   },
                 },
@@ -276,6 +277,7 @@ export async function searchChat(
               select: {
                 kind: true,
                 title: true,
+                dmKey: true,
                 members: { where: { userId: { not: ctx.userId } }, take: 1, select: { user: { select: { name: true } } } },
               },
             },
@@ -296,7 +298,7 @@ export async function searchChat(
     messages.push({
       id: m.id,
       conversationId: m.conversationId,
-      conversationTitle: m.conversation.kind === "DM" ? (m.conversation.members[0]?.user.name ?? "") : (m.conversation.title ?? ""),
+      conversationTitle: m.conversation.kind === "DM" ? (isSelfDmKey(m.conversation.dmKey) ? (AR[SAVED_TITLE_KEY] ?? "") : (m.conversation.members[0]?.user.name ?? "")) : (m.conversation.title ?? ""),
       authorName: m.author.name,
       at: m.createdAt.toISOString(),
       snippet: snippetOf(m.body, q, 90),
@@ -313,7 +315,7 @@ export async function searchChat(
       messages.push({
         id: m.id,
         conversationId: m.conversationId,
-        conversationTitle: m.conversation.kind === "DM" ? (m.conversation.members.find((x) => x.userId !== ctx.userId)?.user.name ?? "") : (m.conversation.title ?? ""),
+        conversationTitle: m.conversation.kind === "DM" ? (isSelfDmKey(m.conversation.dmKey) ? (AR[SAVED_TITLE_KEY] ?? "") : (m.conversation.members.find((x) => x.userId !== ctx.userId)?.user.name ?? "")) : (m.conversation.title ?? ""),
         authorName: m.author.name,
         at: m.createdAt.toISOString(),
         snippet: snippetOf(pic.text, q, 90, false),
