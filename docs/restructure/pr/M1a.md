@@ -1,4 +1,4 @@
-Base: `origin/main` (0d70253). Branch `feat/pwa-shell`. No schema, no migration, no new dependency, no new switch.
+Base: `origin/main` (9a00591). Branch `feat/pwa-shell`. No schema, no migration, no new dependency, no new switch.
 
 # M1a — The installed site: shortcuts, share target, service-worker shell, push ask, badge, grouped notifications
 
@@ -36,9 +36,9 @@ None. The worker, the banner, the badge and the share target are on for everybod
 - ⚠️ The shared words reach the composer through its draft store, which the composer reads only while the company's outbox switch (`chatOutbox`) is on and the person is not an overseer. With the switch off the conversation opens without the words (the draft stays stored); the composer is another package's file.
 - The page is not cached in the worker (network-first, no copy): the spec's «network-first for HTML» is kept for the network, but an HTML page carries the person's own data and would outlive their sign-out, so the only page the worker keeps is the offline page. The cached shell is therefore a speed-up for the hashed files, not an offline reading mode (the data is C1's IndexedDB).
 - The Android app (M1b: the share sheet's `ACTION_SEND`, notification channels, reply and mark-read, the back bridge) is another package. Files in `share_target` are LATER.
-- ⚠️ **`tests/db/legacy-routes.test.ts` is RED (7 cases) until `/share` is added to it**: it walks every `page.tsx` on disk and a new page needs a line there. It is outside this package's paths (and its two one-line arrays, `DOOR_PAGES` and `SHELL_PAGES_SINCE_PHASE_2`, are where every package's new page lands, so the integrator adds them in one go). 🔧 `DOOR_PAGES` += `"/share"` (it is outside the app frame, like sign-in and onboarding), and `PAGES` gets the line of `/share` as the other door pages have it (a page call with `searchParams: { text: "x" }`).
+- **Lead-owned integration change in `tests/db/legacy-routes.test.ts` (outside M1a's own paths, made at the lead's request):** the file walks every `page.tsx` on disk, so a new page needs a line there (it was RED, 7 cases, without it). `DOOR_PAGES` += `"/share"` (outside the app frame, like sign-in and onboarding), `PAGES` has the line of `/share` (a page call with `searchParams: { text: "x" }`, opened as each of the five ranks by the walk), and one small test pins that a signed-out visitor is sent to `/login`. `docs/CODEMAP.md` is regenerated with `node scripts/codemap.mjs` and committed (`tests/codemap.test.ts` passes).
 - The first push of an unread run still reaches `pushNotification`, whose tag is per message (`chat_message:/chat/<id>?m=<message>`); the worker turns it into the conversation's tag, so a server-side tag option was not needed.
-- Not measured in a browser or on a phone (the worker's logic is run in a sandbox with a fake `caches` and `fetch`; the install, update and offline behaviours of a real Chrome are the owner's checks above). The full unit and database suites and `npm run build` are the integrator's (shared `node_modules`).
+- Not measured in a browser or on a phone (the worker's logic is run in a sandbox with a fake `caches` and `fetch`; the install, update and offline behaviours of a real Chrome are the owner's checks above). The full suites and the build were run after the two fixes above: see Gates.
 
 ## Independent review (read-only agent)
 One read-only reviewer read the whole diff (no tests run). Real, each fixed:
@@ -52,3 +52,5 @@ Answered without a change: a failed navigation that is not an offline one (a TLS
 
 ## Gates
 Run for this package: `tsc --noEmit`, eslint on every file touched, the new unit and database tests above, the guard tests that read the sources (arabic-ui, encoding-hygiene, no-hardcoded-colors, chat-v2-*, shell-*, themes-*, repo-hygiene, features, pwa-*, ui-tokens, wp-arabic2, settings-me-render, guide-articles), and the database tests `push-chat`, `share-page`, `notify-prefs`, `chat-notify-audience`, `chat-viewing-push`, `push-everything`, `call-ring-push`, `chat-wiring-notify`, `space-notifications`, `notification-company`, `realtime-notify`.
+
+After the lead's two fixes (code map regenerated, `/share` registered in `legacy-routes`), on this branch, same base as `origin/main` (9a00591c): the full unit suite `vitest run` (381 files, 6887 tests passed, 1 skipped, 3 todo), the full database suite `vitest run --config vitest.db.config.ts` (312 files, 4707 tests passed), `tsc --noEmit` (clean) and `npx next build` (compiled, `/share` listed as a dynamic page).
