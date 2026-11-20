@@ -627,7 +627,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `ticket-chat` | 40 | 2 | A ticket made from a message tells its conversation (Q1.5): `ticket.changed` (ids only) so the chip under the message refreshes, and when the ticket is RESOLVED a reply to the o… |
 | `time-section` | 50 | 2 | «الوقت المسجّل» — ONE section for two screens: the owner board's people table (registered in `BOARD_SECTIONS`) and the number beside a person's score (registered in `SCORE_SECTI… |
 | `timeline` | 77 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
-| `today` | 299 | 2 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
+| `today` | 338 | 2 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
 | `voice-transcript` | 201 | 2 | «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine. |
 | `zaki-ai` | 171 | 2 | «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
 | `ai-settings` | 30 | 1 | THE AI CONNECTION — ONE PLACE (A2.1). |
@@ -654,7 +654,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `task-rules-run` | 298 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
 | `ticket-escalation` | 73 | 1 | Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). |
-| `today-dashboard` | 181 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
+| `today-dashboard` | 219 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
 | `approval-notify` | 128 | 0 | The bell of «طلبات الموافقة». |
 | `manufacturing-access` | 107 | 0 | «مخزون التصنيع» — WHO MAY DO WHAT, in one place. |
 | `manufacturing-costing` | 114 | 0 | «مخزون التصنيع» — reads the lots and movements of a material and turns them into its POSITION (balance, value of what has a price, the stock that has none, and the lots as first… |
