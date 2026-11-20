@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 383 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 385 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 180 feature switches and every place that reads them (§8).
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 383 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 385 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 160 services — the business rules (§6) |
+| `src/server/services/` | 161 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requireTeamWork` 14 · `requireUser` 12 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requireTeamWork` 14 · `requireUser` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -102,7 +102,7 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requir
 | POST | `/api/approvals/[id]/resubmit` | requireActor † | `approval-access`: approvalsGate<br>`approval-input`: amountOf, resubmitBodySchema<br>`approvals`: getApproval, resubmitApproval<br>`approval-forms`: resubmitForm |
 | GET | `/api/approvals/approvers` | requireActor † | `approval-access`: approvalsGate, eligibleApprovers, notFound, spaceViewer |
 | POST | `/api/auth/login` | **none** (public by design) ‡ | — |
-| POST | `/api/auth/logout` | currentUser | — |
+| POST | `/api/auth/logout` | currentUser | `sessions`: revokeOwnSession |
 | POST | `/api/auth/register` | **none** (public by design) | `registration`: RegistrationUnavailableError, requestRegistration |
 | POST | `/api/auth/register/confirm` | **none** (public by design) | `registration`: confirmRegistration |
 | GET | `/api/avatars/[id]` | requireActor | `avatars`: readAvatar |
@@ -327,6 +327,8 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requir
 | POST | `/api/me/password` | requireUser | `onboarding`: changeOwnPassword |
 | GET | `/api/me/push` | requireActor | — |
 | DELETE | `/api/me/push/[id]` | requireActor | — |
+| GET | `/api/me/sessions` | requireUser | `sessions`: listSessions, mayManageSessionsOf |
+| DELETE | `/api/me/sessions/[id]` | requireUser | `sessions`: revokeSessionFor |
 | POST | `/api/me/switch` | requireUser ‡ | — |
 | POST | `/api/me/theme` | requireUser ‡ | — |
 | POST | `/api/me/transparency` | requireUser | `onboarding`: acceptTransparency |
@@ -477,7 +479,7 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 383. Each one is a door that cannot have a session, or one that is closed.
+Six of 385. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -593,6 +595,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `order-state` | 118 | 3 | AN ORDER'S STATE (Q1.4): what the chip and the «/طلب» card show. |
 | `owner-assistant-names` | 85 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
+| `sessions` | 159 | 3 | C4.2 — the person's signed-in devices (`UserSession`), the one place that reads and writes them. |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
 | `stale-tasks` | 361 | 3 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
 | `system-tokens` | 59 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
@@ -668,6 +671,7 @@ to be added to, and the places a bug can leave the row half-written.
 | Model | Writes | Written by (file: calls) |
 |---|---|---|
 | `User` | 17 | `server/services/accounts.ts`: 3<br>`server/services/avatars.ts`: 2<br>`server/services/nav-order.ts`: 2<br>`server/services/onboarding.ts`: 2<br>+8 more |
+| `UserSession` | 7 | `server/services/sessions.ts`: 6<br>`app/api/me/logout-everywhere/route.ts`: 1 |
 | `Department` | 4 | `server/services/departments.ts`: 3<br>`server/services/accounts.ts`: 1 |
 | `Ticket` | 7 | `server/services/tickets.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1<br>`server/services/problem-tickets.ts`: 1 |
 | `TicketComment` | 3 | `server/services/tickets.ts`: 3 |
@@ -986,7 +990,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 377 of 383 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Every guarded route asks a guard — none compares a role name.** 379 of 385 routes open with a function from §3; the other 6 are the doors listed in §5.
 - **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 278 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **18 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 5 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **24 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
