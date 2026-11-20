@@ -75,3 +75,8 @@ export async function saveMyChatPrefs(actor: Pick<Actor, "userId" | "orgId">, pa
   });
   return answerOf(actor, next, orgs);
 }
+
+/** C4.1: the company switch that decides what «تلقائي حسب الجهاز» resolves to (the flat pair when ON, the old pair when OFF). Nothing else of the company is told. */
+export async function getMyAppearanceFacts(actor: Pick<Actor, "orgId">): Promise<{ themeV2: boolean }> {
+  return { themeV2: await isFeatureOn(actor.orgId, "themeV2Default") };
+}

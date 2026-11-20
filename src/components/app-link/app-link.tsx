@@ -26,20 +26,61 @@ function phoneName(): string {
 }
 
 /**
- * «ربط التطبيق»: pairs this phone with the Android app. The site asks the server for a key and hands it to the app through the link
- * `zaki://pair` (the app is the one that opens it); nothing else keeps the key. The app opens this page itself with `?app=1` when it has
- * no key yet, and the pairing then happens by itself.
+ * The phones paired with the person's account (`AppDevice`: name, last seen, «افصل»). ONE list for two screens: «ربط التطبيق» and C4.1's «إعداداتي» → «الأجهزة».
+ * `reloadKey` asks it to read again (the pairing page changes it after a new phone is paired). «افصل» is `DELETE /api/me/app-devices/[id]`: only the person's own.
  */
-export function AppLink({ auto }: { auto: boolean }) {
+export function AppDevices({ reloadKey = 0, headingId = "app-devices", showHeading = true }: { reloadKey?: number; headingId?: string; showHeading?: boolean }) {
   const [devices, setDevices] = useState<Device[] | null>(null);
-  const [phase, setPhase] = useState<Phase>("idle");
-  const [link, setLink] = useState<string | null>(null);
-  const started = useRef(false);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/me/app-devices", { cache: "no-store" });
     if (res.ok) setDevices(((await res.json()) as { devices: Device[] }).devices);
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load, reloadKey]);
+
+  async function remove(id: string) {
+    await fetch(`/api/me/app-devices/${id}`, { method: "DELETE" });
+    await load();
+  }
+
+  return (
+    <section aria-labelledby={showHeading ? headingId : undefined} data-app-devices className="space-y-2">
+      {showHeading ? (
+        <h2 id={headingId} className="text-base font-semibold text-fg">
+          {ct("appLink.devices")}
+        </h2>
+      ) : null}
+      {devices && devices.length === 0 ? <p className="text-sm text-fg-muted">{ct("appLink.none")}</p> : null}
+      <ul className="space-y-2">
+        {(devices ?? []).map((d) => (
+          <li key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-muted bg-surface p-3">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-fg">{d.name}</p>
+              <p className="text-xs text-fg-muted">{d.lastSeenAt ? ct("appLink.last_seen", { when: fmtDateTime(d.lastSeenAt) }) : ct("appLink.never")}</p>
+            </div>
+            <Button type="button" size="sm" variant="ghost" onClick={() => void remove(d.id)}>
+              {ct("appLink.remove")}
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+/**
+ * «ربط التطبيق»: pairs this phone with the Android app. The site asks the server for a key and hands it to the app through the link
+ * `zaki://pair` (the app is the one that opens it); nothing else keeps the key. The app opens this page itself with `?app=1` when it has
+ * no key yet, and the pairing then happens by itself.
+ */
+export function AppLink({ auto }: { auto: boolean }) {
+  const [reloadKey, setReloadKey] = useState(0);
+  const [phase, setPhase] = useState<Phase>("idle");
+  const [link, setLink] = useState<string | null>(null);
+  const started = useRef(false);
 
   const pair = useCallback(async () => {
     setPhase("pairing");
@@ -55,24 +96,18 @@ export function AppLink({ auto }: { auto: boolean }) {
       const link = pairingLink(token);
       setLink(link);
       window.location.href = link;
-      void load();
+      setReloadKey((n) => n + 1);
     } catch {
       setPhase("failed");
     }
-  }, [load]);
+  }, []);
 
   useEffect(() => {
-    void load();
     if (auto && !started.current) {
       started.current = true;
       void pair();
     }
-  }, [auto, load, pair]);
-
-  async function remove(id: string) {
-    await fetch(`/api/me/app-devices/${id}`, { method: "DELETE" });
-    await load();
-  }
+  }, [auto, pair]);
 
   return (
     <div className="space-y-5">
@@ -97,27 +132,7 @@ export function AppLink({ auto }: { auto: boolean }) {
           </p>
         ) : null}
       </div>
-      <section aria-labelledby="app-devices" className="space-y-2">
-        <h2 id="app-devices" className="text-base font-semibold text-fg">
-          {ct("appLink.devices")}
-        </h2>
-        {devices && devices.length === 0 ? <p className="text-sm text-fg-muted">{ct("appLink.none")}</p> : null}
-        <ul className="space-y-2">
-          {(devices ?? []).map((d) => (
-            <li key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-muted bg-surface p-3">
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-fg">{d.name}</p>
-                <p className="text-xs text-fg-muted">
-                  {d.lastSeenAt ? ct("appLink.last_seen", { when: fmtDateTime(d.lastSeenAt) }) : ct("appLink.never")}
-                </p>
-              </div>
-              <Button type="button" size="sm" variant="ghost" onClick={() => void remove(d.id)}>
-                {ct("appLink.remove")}
-              </Button>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <AppDevices reloadKey={reloadKey} />
     </div>
   );
 }

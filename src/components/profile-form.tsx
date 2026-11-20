@@ -43,11 +43,17 @@ export function ProfileForm({
   me,
   withPicture = true,
   lastSeen,
+  embedded = false,
+  identity,
 }: {
   me: MeData;
   withPicture?: boolean;
   /** «إخفاء آخر ظهوري»: given only when the company's «آخر ظهور» switch is on and the person is not a guest */
   lastSeen?: { hide: boolean };
+  /** C4.1: drawn inside «إعداداتي» → «حسابي» (the section brings its own heading and padding) */
+  embedded?: boolean;
+  /** C4.1: the read-only identity lines of «حسابي» (the username and who may change it) */
+  identity?: { username: string | null; usernameManaged: boolean };
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -132,9 +138,9 @@ export function ProfileForm({
   }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5 p-4 md:p-6">
+    <div className={embedded ? "space-y-5 px-3 pb-6 md:px-0" : "mx-auto max-w-2xl space-y-5 p-4 md:p-6"}>
       <section>
-        <h1 className="mb-3 text-base font-semibold text-fg">{t("profile.title")}</h1>
+        {embedded ? null : <h1 className="mb-3 text-base font-semibold text-fg">{t("profile.title")}</h1>}
         <div className="mb-3 flex flex-wrap items-center gap-4 rounded-xl border border-border bg-surface p-4">
           <Avatar name={me.name} src={avatarUrl} className="h-16 w-16 text-lg" />
           <div className="min-w-0 flex-1">
@@ -179,6 +185,28 @@ export function ProfileForm({
             <Label>{t("profile.bio")}</Label>
             <Textarea name="bio" defaultValue={me.bio ?? ""} maxLength={500} rows={3} />
           </div>
+          {identity ? (
+            <div data-identity className="space-y-2 border-t border-border pt-3 text-sm">
+              {identity.username ? (
+                <div>
+                  <p className="text-fg-muted">{t("settingsMe.account.username")}</p>
+                  <p dir="ltr" className="text-end text-fg">
+                    @{identity.username}
+                  </p>
+                  <p className="text-xs text-fg-muted">{identity.usernameManaged ? t("settingsMe.account.username_manager") : t("settingsMe.account.username_member")}</p>
+                </div>
+              ) : null}
+              {me.email ? (
+                <div>
+                  <p className="text-fg-muted">{t("settingsMe.account.email")}</p>
+                  <p dir="ltr" className="break-all text-end text-fg">
+                    {me.email}
+                  </p>
+                  <p className="text-xs text-fg-muted">{t("settingsMe.account.readonly")}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
           <Button type="submit" disabled={pending}>
             {t("task.save")}
           </Button>

@@ -6,6 +6,7 @@ import "./globals.css";
 import { Providers } from "./providers";
 import { DECOR_COOKIE, THEME_COOKIE, decorLevelOf, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";
+import { bootScript } from "@/lib/themes/boot";
 import { DIGITS_COOKIE, digitsOf } from "@/lib/digits";
 
 /** The body face of every theme. */
@@ -52,6 +53,9 @@ export const metadata: Metadata = {
   formatDetection: { telephone: false, address: false, email: false, date: false },
 };
 
+/** C4.1: «تلقائي حسب الجهاز» and the text size, finished in the browser before the first paint (src/lib/themes/boot.ts). */
+const BOOT = bootScript();
+
 /** The theme and decoration level this browser chose (cookies; anything unknown is the default). */
 function chosen() {
   const store = cookies();
@@ -85,6 +89,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="ar" dir="rtl" data-theme={attrs["data-theme"]} data-decor={attrs["data-decor"]} data-digits={digits} className={className} suppressHydrationWarning>
       <body>
         <Providers theme={theme} decor={decor} digits={digits}>
+          {/* the first thing in the page: «تلقائي حسب الجهاز» (prefers-color-scheme) and the person's text size, before anything is drawn */}
+          <script id="zk-boot" dangerouslySetInnerHTML={{ __html: BOOT }} />
           {children}
         </Providers>
       </body>

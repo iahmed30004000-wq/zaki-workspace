@@ -3,7 +3,9 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import manifest from "@/app/manifest";
 import { PALETTES } from "@/lib/themes/palettes";
-import { DEFAULT_THEME } from "@/lib/themes/registry";
+import { DEFAULT_THEME, systemTheme } from "@/lib/themes/registry";
+import { bootData } from "@/lib/themes/boot";
+import { featureOn } from "@/lib/features";
 
 /**
  * Three checks below read the icon files with `sharp`, or take the colour from scripts/make-icons.mjs, which imports
@@ -65,6 +67,38 @@ describe("the web app manifest (served by Next at /manifest.webmanifest)", () =>
 
   it("no icon claims two purposes: a maskable icon is drawn for the mask, an ordinary one is not", () => {
     for (const icon of m.icons ?? []) expect(icon.purpose, icon.src).toMatch(/^(any|maskable)$/);
+  });
+
+  // C4.1 — the switch `themeV2Default` (OFF by default) decides what a person who never chose a theme sees, in the browser: the installed app itself (its start page, its
+  // splash and title-bar colours, the ones every device is given once at install time) is never touched by it, ON or OFF.
+  describe("with the switch «المظهر الجديد كافتراضي» (themeV2Default) ON", () => {
+    const on = { features: { themeV2Default: true } };
+
+    it("the switch is OFF until the owner turns it on, and ON means ON", () => {
+      expect(featureOn({}, "themeV2Default")).toBe(false);
+      expect(featureOn(on, "themeV2Default")).toBe(true);
+    });
+
+    it("the manifest is the same: start_url stays `/` (M1a / D-N1), and the splash and title bar stay the default theme's surface", () => {
+      expect(featureOn(on, "themeV2Default")).toBe(true);
+      const after = manifest();
+      expect(after.start_url).toBe("/");
+      expect(after.scope).toBe("/");
+      expect(after.id).toBe("/");
+      expect(after.background_color).toBe(PALETTES[DEFAULT_THEME].colors.surface);
+      expect(after.theme_color).toBe(after.background_color);
+      expect(after).toEqual(m);
+    });
+
+    it("DEFAULT_THEME does not change; only the device's own pair does: the flat pair when ON, the old pair when OFF", () => {
+      expect(DEFAULT_THEME).toBe("night");
+      expect(systemTheme({ dark: true, v2: true })).toBe("blue-night");
+      expect(systemTheme({ dark: false, v2: true })).toBe("sky");
+      expect(systemTheme({ dark: true, v2: false })).toBe("night");
+      expect(systemTheme({ dark: false, v2: false })).toBe("day");
+      const data = bootData();
+      expect([data.v2.dark.key, data.v2.light.key, data.v1.dark.key, data.v1.light.key]).toEqual(["blue-night", "sky", "night", "day"]);
+    });
   });
 
   describe.skipIf(!sharp)("its icons, read with sharp (skipped only where sharp cannot be loaded)", () => {

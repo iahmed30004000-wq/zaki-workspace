@@ -1,14 +1,21 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { log } from "@/server/log";
 import { stripFormatting } from "@/lib/chat/format/parse";
 import { pushNotification } from "@/server/notify";
 import { isViewing } from "@/server/realtime/viewing";
 import { canReadConversation, type ConversationFacts } from "@/server/policy/conversation";
 import { hqSpaceId } from "@/server/chat/hq";
+import { notifyOn, notifyTypeOf, pushBodyFor, readChatPrefs, type ChatPrefs } from "@/lib/chat/prefs";
 
 /**
  * Chat notifications: a message reaches the people of its audience that are NOT looking at the
  * app right now. Online people see the message live; a notification for them would be noise.
  * A DM notifies its other person once per unread thread (no stacking of the same conversation).
+ *
+ * C4.1: each person's own choices (`User.chatPrefs.notifications`) are read here. A message is one of five kinds FOR a person (private · topic · mention · reply
+ * to me · call: `notifyTypeOf`); a kind they switched off notifies them of nothing (no bell row, no push), and a kind whose preview they switched off sends the
+ * push as «رسالة جديدة» only (the bell keeps the words). A person who never chose anything is told exactly as before.
  */
 
 export async function notifyMessageToAudience(opts: {
@@ -33,8 +40,15 @@ export async function notifyMessageToAudience(opts: {
   const workspaceId = conv?.spaceId ?? (conv ? await hqSpaceId(conv.orgId) : null);
   const named = new Set(opts.mentionedIds ?? []);
   const everyone = new Set(opts.allIds ?? []);
+  const prefs = await prefsOf(targets);
+  // who the message answers (a reply to MY message is its own kind): read only when somebody here has chosen something and the chat is not a private one
+  const repliedTo = prefs.size > 0 && opts.kind !== "DM" ? await replyAuthorOf(opts.messageId) : null;
   for (const userId of targets) {
     const addressed = named.has(userId) || everyone.has(userId);
+    const chosen = prefs.get(userId);
+    const type = notifyTypeOf({ kind: opts.kind, mentioned: addressed, replied: repliedTo === userId });
+    // the person switched this kind off: nothing for them, not even the bell
+    if (chosen && !notifyOn(chosen, type)) continue;
     // held back only for a person who is LOOKING at the app (a visible tab); an open but hidden tab still gets the push (F0.5)
     if (!addressed && (await isViewing(userId))) continue;
     if (!addressed && opts.kind === "DM") {
@@ -50,10 +64,37 @@ export async function notifyMessageToAudience(opts: {
       title: named.has(userId) ? `${opts.title} ${MENTION_TITLE}` : everyone.has(userId) ? `${opts.title} ${MENTION_ALL_TITLE}` : opts.title,
       // C3b.1: the words, not the markers (`**bold**`, a link's `[label](address)`); a spoiler's words are not read out on a lock screen, even when the preview was cut inside the spoiler (`partial`)
       body: stripFormatting(opts.preview, { math: true, partial: true }),
+      // C4.1: preview off = the push carries «رسالة جديدة», never the words (the bell above keeps its body)
+      ...(chosen ? { pushBody: pushBodyFor(chosen, type, stripFormatting(opts.preview, { math: true, partial: true })) } : {}),
       linkUrl: messageLink(opts.conversationId, opts.messageId),
       workspaceId,
     });
   }
+}
+
+/** The prefs of the people who HAVE chosen something about notifications (the others are not in the map: they are told as before). One read for the whole audience. */
+async function prefsOf(userIds: Iterable<string>): Promise<Map<string, ChatPrefs>> {
+  const ids = [...userIds];
+  const out = new Map<string, ChatPrefs>();
+  if (ids.length === 0) return out;
+  try {
+    const rows = await db.user.findMany({ where: { id: { in: ids }, NOT: { chatPrefs: { equals: Prisma.DbNull } } }, select: { id: true, chatPrefs: true } });
+    for (const row of rows) {
+      const prefs = readChatPrefs(row.chatPrefs);
+      if (prefs.notifications && Object.keys(prefs.notifications).length > 0) out.set(row.id, prefs);
+    }
+  } catch (err) {
+    // a failed read of the choices never stops a notification: everybody is told, as before this step
+    log.warn("notify.prefs_failed", { message: err instanceof Error ? err.message : String(err) });
+    out.clear();
+  }
+  return out;
+}
+
+/** The author of the message this one replies to (null: it is no reply). */
+async function replyAuthorOf(messageId: string): Promise<string | null> {
+  const row = await db.chatMessage.findUnique({ where: { id: messageId }, select: { replyTo: { select: { authorId: true } } } });
+  return row?.replyTo?.authorId ?? null;
 }
 
 /** What follows the author's name in the bell when the message is addressed to the person. */
