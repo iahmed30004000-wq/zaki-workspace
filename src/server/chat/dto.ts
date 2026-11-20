@@ -285,6 +285,8 @@ export interface ConversationDto {
   chatOutbox?: boolean;
   /** the company's «معاينة الروابط بالدردشة» switch (`linkPreviews`, C3b.2): off, the composer draws no line about a preview and a bubble draws no card; absent: off */
   linkPreviews?: boolean;
+  /** the company's «إيموجي زكي» switch (`zakiEmojis`): off, the emoji picker has no «ذكي» tab; absent: on (a bubble draws a code it already holds either way) */
+  zakiEmojis?: boolean;
   /** the company's «الإرسال بدون صوت» switch (`chatSilentSend`, C3c.2): off, the send button's menu has no «ابعت بدون صوت»; absent: on */
   silentSend?: boolean;
   /** the company's «تنسيق الرسائل» switch (`chatFormatting`, C3b.1): off, the composer draws no formatting toolbar and a bubble shows its markers as typed; absent: on */

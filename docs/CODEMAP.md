@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 381 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 172 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 174 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -846,7 +846,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
 | `messageTranslate` | 3 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/message-translate.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
-| `search` | 26 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `search` | 27 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/zaki-emoji.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `economyMode` | 4 — `components/feature-switches.tsx`, `components/members/capability-panel.tsx`, `lib/feature-groups.ts`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
@@ -878,6 +878,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workStages` | 1 — `app/api/boards/[id]/columns/route.ts` |
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
+| `zakiEmojis` | 1 — `server/chat/topics.ts` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
@@ -905,6 +906,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workStages` | 1 — `app/api/boards/[id]/columns/route.ts` |
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
+| `zakiEmojis` | 1 — `server/chat/topics.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
 | `spaceDocs` | 3 — `app/(app)/documents/page.tsx`, `lib/nav/places.ts`, `server/services/documents.ts` |
@@ -957,7 +959,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `morningDigest` | 2 — `server/chat/topics.ts`, `server/services/digest.ts` |
 | `pushEverything` | 2 — `app/api/device/stream/route.ts`, `server/notify.ts` |
 | `appConnection` | 4 — `app/(app)/app-link/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/app-devices/route.ts`, `server/devices/devices.ts` |
-| `search` | 26 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `search` | 27 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-editor.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/zaki-emoji.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `economyMode` | 4 — `components/feature-switches.tsx`, `components/members/capability-panel.tsx`, `lib/feature-groups.ts`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |

@@ -45,6 +45,8 @@ export interface SurfaceProps {
   onEmoji: (emoji: string) => void;
   /** the company's switch `chatFormatting` (C3b.1; absent: on): off, no toolbar over the selection and no formatting shortcut */
   formatting?: boolean;
+  /** the company's switch `zakiEmojis` (the composer passes the header's answer; absent: off): on, the emoji picker's first tab is the Zaki stickers */
+  zakiEmojis?: boolean;
   /** the company's switch `linkPreviews` (C3b.2; absent: on): off, the line about the link's preview is not drawn */
   linkPreviews?: boolean;
   /**
@@ -59,7 +61,7 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, onNoPreviewChange }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, onNoPreviewChange }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   // C3b.2: the first https link of the draft is what the server will visit after the send; ✕ says «no preview» for THAT link (another first link brings the line back)
   const draftLink = linkPreviews && !editing ? firstLink(c.body) : null;
@@ -150,6 +152,7 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
           open={emojiOpen}
           onClose={closeEmoji}
           recents={recents}
+          zaki={zakiEmojis}
           onPick={(emoji) => {
             onEmoji(emoji);
           }}

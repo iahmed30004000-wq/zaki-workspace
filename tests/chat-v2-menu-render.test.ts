@@ -60,8 +60,8 @@ describe("the quick-reaction bar", () => {
     expect(html).toContain('role="group"');
   });
 
-  it("each target is 40 px and every colour is a theme token, every side logical", () => {
-    expect(classTokens(html)).toContain("size-10");
+  it("each target is 38 px and every colour is a theme token, every side logical", () => {
+    expect(classTokens(html)).toContain("size-[38px]");
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(?:bg|text|border)-(?:white|black)\b/);
     const physical = /^-?(?:ml|mr|pl|pr|left|right|border-l|border-r|rounded-l|rounded-r|text-left|text-right)(?:-|$)/;
     expect(classTokens(html).filter((t) => physical.test(t))).toEqual([]);

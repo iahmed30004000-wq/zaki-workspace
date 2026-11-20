@@ -31,8 +31,10 @@ export function ChatComposerV2(props: ComposerParams) {
         onCancelEdit={onCancelEdit}
         recents={recents}
         linkPreviews={detail.linkPreviews !== false}
+        zakiEmojis={detail.zakiEmojis !== false}
         onNoPreviewChange={c.setNoPreview}
         onEmoji={(emoji) => {
+          // a Zaki sticker goes in as its text code like an emoji, but it is not a recent emoji (`rememberEmoji` keeps it out)
           setRecents(rememberEmoji(emoji));
           c.insertAtCaret(emoji);
         }}

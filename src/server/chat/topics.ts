@@ -656,7 +656,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
 
   // the switches: ONE read of the settings. A service that decides "is it offered" by itself (a ready model, a service address) is asked only
   // while its own switches are on, so a company that never turned them on pays no read for them.
-  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn] = await Promise.all([
+  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn, zakiEmojis] = await Promise.all([
     feature("chatBubbles"),
     feature("chatOutbox"),
     feature("chatFormatting"),
@@ -674,6 +674,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     feature("siteGuide"),
     feature("orderTemplateHint"),
     feature("mustRead"),
+    feature("zakiEmojis"),
   ]);
   const hidden = silent && !joined;
   // «جدول الإرسال» (C3c.3): the person's OWN waiting messages here, asked only where they may use it (the switch is on and they may write; the silent eye cannot schedule)
@@ -748,6 +749,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     chatFormatting,
     chatAlbums,
     silentSend,
+    zakiEmojis,
     ...(scheduled !== undefined ? { scheduled } : {}),
     linkPreviews: await linkPreviewsOn(ctx.orgId, feature),
     calls,
