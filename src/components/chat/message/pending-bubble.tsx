@@ -32,7 +32,7 @@ export function PendingBubble({ item, onRetry, onDelete, onCopy, onEdit }: Pendi
           <article
             dir="rtl"
             aria-label={failed ? ct("outbox.failed_aria") : ct("outbox.pending_aria")}
-            className={`max-w-[85%] min-w-0 break-words rounded-2xl rounded-ee-md border border-dashed px-3 py-2 sm:max-w-[75%] ${failed ? "border-danger/50 bg-danger/10" : "border-accent/40 bg-accent/10 opacity-80"}`}
+            className={`max-w-[85%] min-w-0 break-words rounded-[17px] rounded-ee-md border border-dashed px-3 py-1.5 sm:max-w-[75%] ${failed ? "border-danger/50 bg-danger/10" : "border-bubble-out/60 bg-bubble-out text-bubble-out-fg opacity-80"}`}
           >
             {hasText
               ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{item.body}</p>

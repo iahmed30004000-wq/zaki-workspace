@@ -53,10 +53,10 @@ describe("bubble runs, tails and the name colour", () => {
     expect(bubbleClass({ mine: true, mentionsMe: false, tail: true, highlighted: true })).not.toMatch(/\b(?:rounded-[lr]|ml-|mr-|pl-|pr-|left-|right-|text-left|text-right)/);
   });
 
-  it("mine takes the accent tint, a mention of me the warn tint, the others the surface; a jump's target a ring", () => {
-    expect(bubbleClass({ mine: true, mentionsMe: false, tail: false, highlighted: false })).toContain("bg-accent/10");
+  it("mine takes the own-bubble colour of the theme, a mention of me the warn tint, the others the incoming-bubble colour; a jump's target a ring", () => {
+    expect(bubbleClass({ mine: true, mentionsMe: false, tail: false, highlighted: false })).toContain("bg-bubble-out");
     expect(bubbleClass({ mine: false, mentionsMe: true, tail: false, highlighted: false })).toContain("bg-warn/10");
-    expect(bubbleClass({ mine: false, mentionsMe: false, tail: false, highlighted: false })).toContain("bg-surface");
+    expect(bubbleClass({ mine: false, mentionsMe: false, tail: false, highlighted: false })).toContain("bg-bubble-in");
     expect(bubbleClass({ mine: false, mentionsMe: false, tail: false, highlighted: true })).toContain("ring-accent");
     expect(bubbleClass({ mine: false, mentionsMe: false, tail: false, highlighted: false })).not.toContain("ring-");
   });

@@ -33,6 +33,7 @@ import {
   NOTIFY_TYPES,
   PREVIEW_OFF_TEXT,
   WALLPAPERS,
+  DEFAULT_WALLPAPER,
   chatPrefsPatchSchema,
   chatPrefsSchema,
   fontScaleOf,
@@ -404,6 +405,9 @@ describe("C4.1 · text size and wallpaper apply live, without a reload", () => {
     expect(nodes.size).toBe(0);
     for (const key of WALLPAPERS.filter((w) => w !== "plain")) expect(read(`public/brand/wallpapers/${key}.svg`), key).toContain('stroke="#000"');
     expect(tintSvg('<g stroke="#000"/>', "bad")).toBe('<g stroke="#000"/>');
+    // a person who never chose gets a drawn pattern out of the box (the chat looks like a messenger), never the bare wall
+    expect(DEFAULT_WALLPAPER).not.toBe("plain");
+    expect(WALLPAPERS).toContain(DEFAULT_WALLPAPER);
   });
 
   it("the settings screen saves the size through the same line as the folders, and the cache's effect applies it (no reload)", () => {

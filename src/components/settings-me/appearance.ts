@@ -1,4 +1,4 @@
-import { WALLPAPERS, fontScaleOf, type Wallpaper } from "@/lib/chat/prefs";
+import { DEFAULT_WALLPAPER, WALLPAPERS, fontScaleOf, type Wallpaper } from "@/lib/chat/prefs";
 import { effectiveFontStep, type DevicePrefs } from "@/lib/device-prefs";
 
 /**
@@ -93,7 +93,7 @@ function paint(): void {
 export function applyAppearance(device: DevicePrefs): void {
   if (typeof document === "undefined") return;
   applyFontScale(document, fontScaleOf(effectiveFontStep(device)));
-  active = device.mirror?.wallpaper;
+  active = device.mirror?.wallpaper ?? DEFAULT_WALLPAPER;
   paint();
   if (!watching && typeof MutationObserver !== "undefined") {
     watching = true;

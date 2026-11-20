@@ -123,6 +123,8 @@ export const DEFAULT_FONT_STEP = 2;
 /** The wallpapers of the chat: «plain» (nothing drawn) and the six in-house patterns (D1.4). */
 export const WALLPAPERS = ["plain", "boxes", "phones", "bubbles", "stars", "leaves", "coins"] as const;
 export type Wallpaper = (typeof WALLPAPERS)[number];
+/** What a person who never chose gets: the first pattern, so the chat looks like a messenger out of the box (they can pick «plain»). */
+export const DEFAULT_WALLPAPER: Wallpaper = "boxes";
 /** What sends a message from the keyboard: «enter» (Shift+Enter is a new line) or «ctrl» (Ctrl+Enter sends, Enter is a new line). */
 export const SEND_KEYS = ["enter", "ctrl"] as const;
 export type SendKey = (typeof SEND_KEYS)[number];

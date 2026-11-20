@@ -28,7 +28,7 @@ describe("the pending bubble", () => {
     expect(html).toContain("احذف");
     expect(html).toContain('data-outbox-state="pending"');
     expect(html).toContain('data-message-row="mine"'); // in my style (the accent bubble, my side)
-    expect(html).toContain("bg-accent/10");
+    expect(html).toContain("bg-bubble-out");
     // nothing about failing, and no copy/edit while it is still just waiting
     expect(html).not.toContain("تعذّر الإرسال");
     expect(html).not.toContain("انسخ");
