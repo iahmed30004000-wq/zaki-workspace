@@ -79,6 +79,13 @@ describe("the recent emojis", () => {
     for (let i = 0; i < 40; i += 1) rememberEmoji(String.fromCodePoint(0x1f600 + i), s);
     expect(loadRecentEmoji(s)).toHaveLength(MAX_RECENT_EMOJI);
   });
+  it("a Zaki sticker code is a sticker, not a recent emoji: it is never kept in the list", () => {
+    const s = mem();
+    rememberEmoji(":zaki_smile:", s);
+    expect(loadRecentEmoji(s)).toEqual([]);
+    s.setItem(RECENT_EMOJI_KEY, JSON.stringify([":zaki_smile:", "😀"]));
+    expect(loadRecentEmoji(s)).toEqual(["😀"]);
+  });
   it("what is not an emoji-sized word is never kept, and a broken or missing storage is an empty list", () => {
     const s = mem();
     rememberEmoji("هذه جملة طويلة وليست إيموجي أبدا أبدا أبدا", s);

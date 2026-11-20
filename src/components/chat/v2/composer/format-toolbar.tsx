@@ -28,7 +28,7 @@ function shortcutText(action: FormatAction): string {
  */
 export function FormatToolbar({ onAction }: { onAction: (action: FormatAction) => void }) {
   return (
-    <div role="toolbar" aria-label={ct("chatfmt.toolbar")} data-format-toolbar className="absolute bottom-full z-10 mb-1 flex items-center gap-0.5 rounded-xl border border-border bg-surface p-1 shadow-card">
+    <div role="toolbar" aria-label={ct("chatfmt.toolbar")} data-format-toolbar className="absolute bottom-full z-10 mb-1 flex items-center gap-0.5 rounded-xl bg-surface-1 p-1 shadow-lg">
       {FORMAT_ACTIONS.map((action) => {
         const Icon = ICONS[action];
         const label = ct(`chatfmt.act.${action}`, { keys: shortcutText(action) });

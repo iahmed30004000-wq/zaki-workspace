@@ -113,7 +113,7 @@ describe("what is inside", () => {
     const html = draw(message);
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('aria-pressed="false"');
-    expect(html).toContain("border-accent bg-accent/10");
+    expect(html).toContain("ring-accent");
     expect(html).toContain("تفاعل 👍، 2");
     expect(draw(message, { facts: { ...facts, oversight: true } })).toMatch(/<button[^>]*disabled=""[^>]*aria-pressed="true"/);
   });
