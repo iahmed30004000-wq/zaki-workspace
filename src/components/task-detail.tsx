@@ -26,6 +26,9 @@ import type { StepDto } from "@/lib/task-steps";
 import { TaskAssignRequestBanner, type RequestBannerMode } from "@/components/task-assign-request-banner";
 import { errText } from "@/components/department-tickets";
 import { PeopleMulti, peopleLine } from "@/components/ui/people-multi";
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
+import type { Crumb } from "@/components/work/project/crumbs";
+import { useTaskTrail } from "@/components/work/project/use-task-trail";
 
 export interface TaskDetailData {
   id: string;
@@ -72,6 +75,7 @@ export function TaskDetail({
   recurrence = null,
   customFieldsSlot = null,
   approvalsSlot = null,
+  crumbs,
 }: {
   task: TaskDetailData;
   /** Whether the API would let this person change the task (see canWriteInWorkspace). */
@@ -104,12 +108,19 @@ export function TaskDetail({
   customFieldsSlot?: ReactNode;
   /** «طلب موافقة»: the button and the linked requests (the page draws it only while the switch is on, never for a partner). */
   approvalsSlot?: ReactNode;
+  /**
+   * N1.5 (switch `navV2`): the trail «المساحة › المشروع › اللوحة › المهمة» above the task (`taskTrail`). A page that knows its trail hands it in (`null`: none);
+   * left out, the task asks for it once by its board (`GET /boards/<id>/trail`), which answers `show: false` while the switch is off - so the old task page is as it was.
+   */
+  crumbs?: Crumb[] | null;
 }) {
   // «مهمة بمكافأة»: what the person may still change on a reward task is who holds it and the comments
   const fieldsEdit = canEdit && !lockedFields;
   const router = useRouter();
   const { toast } = useToast();
   const { t } = useI18n();
+  const askedTrail = useTaskTrail(task.boardId, task.key, crumbs === undefined);
+  const trail = crumbs === undefined ? askedTrail : crumbs;
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
   const [priority, setPriority] = useState(task.priority);
@@ -232,6 +243,7 @@ export function TaskDetail({
 
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
+      {trail ? <Breadcrumbs items={trail} /> : null}
       <header className="flex flex-wrap items-center gap-2">
         <span dir="ltr" className="font-mono text-xs text-muted">{task.key}</span>
         <Badge>{columnLabel(task.status)}</Badge>

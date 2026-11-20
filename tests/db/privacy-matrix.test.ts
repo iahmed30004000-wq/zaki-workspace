@@ -35,6 +35,10 @@ import * as sendNowRoute from "@/app/api/chat/scheduled/[id]/send/route";
 import * as mediaRoute from "@/app/api/chat/conversations/[id]/media/route";
 import * as workRoute from "@/app/api/chat/conversations/[id]/media/work/route";
 import * as searchRoute from "@/app/api/search/route";
+import BoardPage from "@/app/(app)/boards/[id]/page";
+import * as boardTrail from "@/app/(app)/boards/[id]/trail/route";
+import ProjectPage from "@/app/(app)/projects/[id]/page";
+import * as React from "react";
 import { SPACE_COOKIE } from "@/server/services/current-space";
 import { linkPreviewAfterSend, setLinkPreviewDepsForTests } from "@/server/chat/link-preview";
 import { folderRows } from "@/lib/chat/folders";
@@ -1046,5 +1050,165 @@ describe("privacy matrix — the W1.8 palette: boards, ideas, tickets, customers
       }
     }
     expect(wrong).toEqual([]);
+  });
+});
+
+// ───────────────────────────── W1.5: the board screen and the project page ─────────────────────────────
+// The same TASKS table on two more surfaces: the BOARD page (every card goes through `taskVisibleWhere`; the project page's board tab draws this same screen) and the
+// PROJECT PAGE with tabs (switch `navV2`: the cards of the board tab and the counts). A card the table hides from a person is not on the board, not on the page. With
+// the switch off the project page is the old page.
+
+type Node_ = { type?: unknown; props?: Record<string, unknown> } | null | undefined;
+function walkElements(node: unknown, found: { name: string; props: Record<string, unknown> }[] = []) {
+  if (Array.isArray(node)) {
+    for (const child of node) walkElements(child, found);
+    return found;
+  }
+  const el = node as Node_;
+  if (!el || typeof el !== "object" || !("props" in el)) return found;
+  const type = el.type as { name?: string; displayName?: string } | string | undefined;
+  found.push({ name: typeof type === "string" ? type : (type?.displayName ?? type?.name ?? ""), props: el.props ?? {} });
+  walkElements(el.props?.["children"], found);
+  return found;
+}
+
+async function setFeature(orgId: string, key: string, on: boolean) {
+  const org = await db.organization.findUniqueOrThrow({ where: { id: orgId }, select: { settings: true } });
+  const settings = (org.settings ?? {}) as { features?: Record<string, boolean> };
+  await db.organization.update({ where: { id: orgId }, data: { settings: { ...settings, features: { ...(settings.features ?? {}), [key]: on } } } });
+}
+
+describe("privacy matrix — the W1.5 board screen and project page", () => {
+  (globalThis as { React?: typeof React }).React = React;
+
+  async function board(w: World) {
+    return db.board.findFirstOrThrow({ where: { project: { workspaceId: w.space.id } }, select: { id: true, projectId: true } });
+  }
+  /** The board page as a person gets it: its cards, or null when the shell's «not found» (or the section notice) is what they meet. */
+  async function boardCards(boardId: string): Promise<string | null> {
+    try {
+      const page = (await BoardPage({ params: { id: boardId } })) as React.ReactElement<{ tasks?: unknown }> | null;
+      return page && page.props && "tasks" in page.props ? JSON.stringify(page.props.tasks) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  for (const kind of Object.keys(TASKS)) {
+    it(`${kind}: the board page lists the card exactly when the table says`, async () => {
+      const w = await getWorld();
+      const b = await board(w);
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        const cards = await boardCards(b.id);
+        const listed = cards !== null && cards.includes(w.tasks[kind]!);
+        const want = expected(TASKS, kind, who);
+        if (listed !== want) wrong.push(`${who}: expected ${want ? "sees" : "does not see"}`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("the task page's trail door (GET /boards/<id>/trail): names only, 404 for a person who may not open the project, shown only while navV2 is on", async () => {
+    const w = await getWorld();
+    const b = await board(w);
+    await setFeature(w.orgId, "navV2", false);
+    try {
+      const wrong: string[] = [];
+      for (const on of [false, true]) {
+        await setFeature(w.orgId, "navV2", on);
+        for (const who of PERSONAS) {
+          await loginAs(w.people[who].id);
+          const res = await call(boardTrail.GET, { params: { id: b.id } });
+          // may open the project ⇔ sees the table's public task
+          const opens = expected(TASKS, "public", who);
+          if ((res.status === 200) !== opens) wrong.push(`${who}: status ${res.status}`);
+          if (res.status === 200) {
+            if (Object.keys(res.json ?? {}).sort().join() !== "boardId,boardName,projectId,projectName,show,spaceName") wrong.push(`${who}: the answer holds more than names`);
+            if (on && res.json?.["show"] !== true) wrong.push(`${who}: navV2 on but not shown`);
+            if (!on && res.json?.["show"] !== false) wrong.push(`${who}: navV2 off but shown`);
+            if (JSON.stringify(res.json).includes("private task")) wrong.push(`${who}: a task title leaked into the trail`);
+          }
+        }
+      }
+      expect(wrong).toEqual([]);
+    } finally {
+      await setFeature(w.orgId, "navV2", false);
+    }
+  });
+
+  it("the project page with the switch OFF is the old page (no trail, no strip, its own cards); ON it has the trail, the strip, and the same cards as the board page", async () => {
+    const w = await getWorld();
+    const b = await board(w);
+    const params = { id: b.projectId };
+    await setFeature(w.orgId, "navV2", false);
+    try {
+      await loginAs(w.people.memberIn.id);
+      const off = walkElements((await ProjectPage({ params })) as React.ReactElement).map((e) => e.name);
+      for (const old of ["TimelineBadgeButton", "ProjectTeamPicker", "PinnedStrip", "BoardCreateButton"]) expect(off, old).toContain(old);
+      for (const fresh of ["Breadcrumbs", "ProjectTabs", "BoardView", "BoardPicker"]) expect(off, fresh).not.toContain(fresh);
+
+      await setFeature(w.orgId, "navV2", true);
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        let page: React.ReactElement | null = null;
+        try {
+          page = (await ProjectPage({ params, searchParams: {} })) as React.ReactElement;
+        } catch {
+          // a person who cannot open the project meets the shell's «not found»
+          page = null;
+        }
+        const found = page ? walkElements(page) : [];
+        const names = found.map((e) => e.name);
+        const shownProps = JSON.stringify(found.find((e) => e.name === "BoardView")?.props ?? {});
+        for (const kind of Object.keys(TASKS)) {
+          const want = expected(TASKS, kind, who);
+          const shown = names.includes("ProjectTabs") && shownProps.includes(w.tasks[kind]!);
+          if (shown !== want) wrong.push(`${who} · ${kind}: expected ${want ? "sees" : "does not see"} on the board tab`);
+        }
+      }
+      expect(wrong).toEqual([]);
+
+      // the tab strip and the trail say where the person is
+      await loginAs(w.people.memberIn.id);
+      const page = (await ProjectPage({ params, searchParams: {} })) as React.ReactElement;
+      const found = walkElements(page);
+      expect(found.find((e) => e.name === "ProjectTabs")?.props["current"]).toBe("board");
+      expect((found.find((e) => e.name === "Breadcrumbs")?.props["items"] as { label: string }[]).length).toBe(2);
+      // the board inside the tab is dressed for it: no project line, no second trail
+      expect(found.find((e) => e.name === "BoardView")?.props["view"]).toMatchObject({ crumbs: null, embedded: true });
+      const settings = walkElements((await ProjectPage({ params, searchParams: { tab: "settings" } })) as React.ReactElement);
+      expect(settings.find((e) => e.name === "ProjectTabs")?.props["current"]).toBe("settings");
+      // a tab that is not offered lands on the board; the list goes to the old page while «مهامي» is off
+      const fields = walkElements((await ProjectPage({ params, searchParams: { tab: "fields" } })) as React.ReactElement);
+      expect(["board", "fields"]).toContain(String(fields.find((e) => e.name === "ProjectTabs")?.props["current"]));
+      await setFeature(w.orgId, "workMyTasks", false);
+      await expect(ProjectPage({ params, searchParams: { tab: "list" } })).rejects.toMatchObject({ digest: expect.stringContaining(`/list?project=${b.projectId}`) });
+
+      // with «مهامي» on, «القائمة» is W1.1's view with the scope «مشروع»: the same table decides which rows it holds, and the scope cannot be widened by the address
+      await setFeature(w.orgId, "workMyTasks", true);
+      const listWrong: string[] = [];
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        let listPage: React.ReactElement | null = null;
+        try {
+          listPage = (await ProjectPage({ params, searchParams: { tab: "list", scope: "me", project: "someone-else" } })) as React.ReactElement;
+        } catch {
+          listPage = null;
+        }
+        const view = listPage ? walkElements(listPage).find((e) => e.name === "ProjectTasksView") : undefined;
+        if (view && (view.props["projectId"] !== b.projectId || (view.props["requested"] as { scope: string }).scope !== "project")) listWrong.push(`${who}: the list was not held to this project`);
+        const rows = JSON.stringify((view?.props["initial"] as { tasks?: unknown } | undefined)?.tasks ?? []);
+        for (const kind of Object.keys(TASKS)) {
+          const want = expected(TASKS, kind, who);
+          if (rows.includes(w.tasks[kind]!) !== want && (want || view)) listWrong.push(`${who} · ${kind}: expected ${want ? "sees" : "does not see"} in the list tab`);
+        }
+      }
+      expect(listWrong).toEqual([]);
+    } finally {
+      await setFeature(w.orgId, "navV2", false);
+    }
   });
 });

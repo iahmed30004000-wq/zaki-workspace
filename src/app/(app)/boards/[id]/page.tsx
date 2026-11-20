@@ -4,7 +4,7 @@ import { actorCanWork, requireActor } from "@/server/policy/actor";
 import { SectionOffNotice } from "@/app/(app)/_access";
 import { keepInSpace } from "@/server/services/current-space";
 import { db } from "@/server/db";
-import { loadWorkScope, projectVisibleWhere, taskParticipantFilter } from "@/server/services/team-scope";
+import { loadWorkScope, projectVisibleWhere, taskVisibleWhere } from "@/server/services/team-scope";
 import { TASK_INCLUDE } from "@/server/services/tasks";
 import { canWriteInWorkspace } from "@/server/workspace-role";
 import { BoardView, type TaskCardData } from "@/components/board-view";
@@ -15,12 +15,17 @@ import { listBadgeStatus } from "@/lib/rewards";
 import { myRunningTaskId } from "@/server/services/time-tracking";
 import { recurringTaskIds } from "@/server/services/task-recurrence";
 import { fieldCellsFor } from "@/server/services/custom-fields";
+import { boardTrail } from "@/components/work/project/crumbs";
 
 /**
  * A board opens for whoever may open its space (`accessibleWorkspaceIds`: a row in the space, or the owner) and is
  * an ACTIVE member of its company. Anybody else - and an old link to a board that is gone - gets the shell's «not
  * found» page through `notFound()`: one answer for «not there» and «not yours», so it does not tell a stranger the
  * board exists. A thrown domain error would reach the visitor as Next's bare «Application error» screen.
+ *
+ * W1.5: with the switch `navV2` ON the board wears the trail «المساحة › المشروع › اللوحة» (the way back) and - when «مهامي» (`workMyTasks`) is on too - a
+ * card opens in a side panel over the board instead of leaving it. With it OFF the board is the page it always was. Every card is read through the
+ * task-visibility rule (`taskVisibleWhere`, P0.2). The project page's board tab draws this same screen (`project-page.tsx` calls this page).
  */
 export default async function BoardPage({ params }: { params: { id: string } }) {
   const user = await pageUser();
@@ -64,7 +69,7 @@ export default async function BoardPage({ params }: { params: { id: string } }) 
       select: { id: true, name: true, color: true, position: true, done: true },
     }),
     db.task.findMany({
-      where: { boardId: board.id, archived: false, AND: [await taskParticipantFilter(user.id)] },
+      where: { boardId: board.id, archived: false, AND: [taskVisibleWhere(scope)] },
       orderBy: [{ position: "asc" }, { id: "asc" }],
       include: TASK_INCLUDE,
     }),
@@ -109,6 +114,10 @@ export default async function BoardPage({ params }: { params: { id: string } }) 
     ...(fieldCells?.cells[t.id] ? { fields: fieldCells.cells[t.id] } : {}),
   }));
 
+  // W1.5: the new map's dress (the trail, the side panel); the old board has none of it
+  const v2 = await actorFeatureOn(actor, "navV2");
+  const panel = v2 && (await actorFeatureOn(actor, "workMyTasks"));
+
   return (
     <BoardView
       board={{
@@ -123,6 +132,9 @@ export default async function BoardPage({ params }: { params: { id: string } }) 
       fieldDefs={fieldCells?.defs ?? []}
       // the space's rule, and the tasks row's «يضيف ويعدّل» box of the section grid (add, drag, edit)
       canEdit={canWriteInWorkspace(member.role, wsRow?.role) && actorCanWork(actor, "tasks.edit")}
+      {...(v2
+        ? { view: { crumbs: boardTrail({ spaceName: board.project.workspace.name, projectId: board.project.id, projectName: board.project.name }, board.name), panel, embedded: false } }
+        : {})}
     />
   );
 }

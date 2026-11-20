@@ -99,7 +99,10 @@ work → «مهمة»). A card space keeps the `?new=` intent through the redire
       (`current-space.ts` `keepInSpace` called from the banner's button). Whether the chat list is one list or per space
       is D-N2 (C1's `GET /api/chat/list` serves both).
 - [ ] N1.4 Glossary renames in the `ar*.json` fragments (no key in two files; `tests/encoding-hygiene.test.ts`).
-- [ ] N1.5 Breadcrumb component `src/components/shell/breadcrumbs.tsx` used by project, board, list, timeline, task.
+- [x] N1.5 Breadcrumb component `src/components/shell/breadcrumbs.tsx` used by project, board, list, timeline, task.
+      Built 2026-11-20 inside W1.5 (`feat/work-project-page`, behind `navV2`): `Breadcrumbs` (client, logical properties, the last crumb is the page), the pure builders `projectTrail` / `boardTrail` /
+      `taskTrail` (`src/components/work/project/crumbs.ts`); on the project page and its tabs (list and calendar are tabs, so they wear it), the timeline, the board, and the task (which asks `GET /boards/<id>/trail`
+      once by its board, because the task page is not this package's file). Tests: `tests/breadcrumbs.test.ts`.
 - [ ] N1.6 Guide tours (`src/lib/guide/tours.ts`) rewritten for the new map + a «الشغل» tour.
 - [ ] N1.7 `LEGACY_ROUTES`: every old address still a page (redirects where a page moved, e.g. `/list` →
       `/my-work?view=list&scope=space` once W1.1 lands).

@@ -82,12 +82,17 @@
 - [x] `/approvals` keeps its pages (forms, detail); «الطلبات» links into them. (built; the tab is `/requests`, the switch `workRequests` is OFF)
 
 ### W1.5 The project page — `feat/work-project-page`
-- [ ] `src/app/(app)/projects/[id]/page.tsx` gets tabs: «اللوحة» (default; the board picker when there are several),
+- [x] `src/app/(app)/projects/[id]/page.tsx` gets tabs: «اللوحة» (default; the board picker when there are several),
       «القائمة», «التقويم», «الجدول الزمني» (existing timeline), «الحقول والقواعد» (custom fields, rules, milestones —
       today cards on the page), «الإعدادات».
-- [ ] Breadcrumbs (N1) on every project view and on the task.
-- [ ] Board: the three `window.location.reload()` replaced (column add/delete and the third one at line 187) (TanStack mutation + `invalidateQueries`), optimistic card moves (keep
+- [x] Breadcrumbs (N1) on every project view and on the task.
+- [x] Board: the three `window.location.reload()` replaced (column add/delete and the third one at line 187) (TanStack mutation + `invalidateQueries`), optimistic card moves (keep
       the restore-on-failure behaviour).
+      Built 2026-11-20 on `feat/work-project-page` (rides on `navV2`, no switch of its own): with it ON `/projects/[id]` is the page with tabs (`project-page.tsx`: the trail, the title with its
+      progress, ONE strip — «اللوحة» with a picker for several boards · «القائمة» · «التقويم» (W1.1's rows and calendar with the scope fixed to this project, the address stays on the project page) ·
+      «الجدول الزمني» (its own page, which wears the same strip) · «الحقول والقواعد» (the old three cards, offered only when one exists for the person) · «الإعدادات» (team, boards)); with it OFF the old page
+      is untouched. The board no longer reloads the page (the card, the new column and the deleted column change the board at once and ask the server again with `router.refresh()`), a card opens in W1.1's
+      side panel while `workMyTasks` is on. Notes, deviations and what is NOT done: `docs/restructure/pr/W1.5.md`.
 
 ### W1.6 Duplicates marked, with a way out — `feat/work-duplicates-marked`
 - [ ] «الروتين اليومي» (Routine): a ⚠️ banner «هاد مكرّر مع المهام المتكررة» + 🔧 «حوّل الروتين لمهام متكررة»: ONE

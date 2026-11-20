@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -38,6 +39,12 @@ import { FIELDS_ANCHOR, requiredFieldsOf } from "@/lib/custom-fields";
 import type { FieldCell } from "@/lib/custom-fields-display";
 import { rt } from "@/lib/reminders/client";
 import { WORK_STAGES, stageOrDefault, type WorkStage } from "@/lib/work/stage";
+import { WORK_TASKS_ROOT } from "@/lib/work/my-tasks";
+import { Breadcrumbs } from "@/components/shell/breadcrumbs";
+import { TaskPanel } from "@/components/work/my-tasks/task-panel";
+import { withColumnAdded, withColumnRemoved, withTaskMoved } from "@/components/work/project/board-cache";
+import type { Crumb } from "@/components/work/project/crumbs";
+import { useOpenTask } from "@/components/work/project/use-open-task";
 
 export interface ColumnData {
   id: string;
@@ -76,6 +83,17 @@ export interface TaskCardData {
   pinned?: boolean;
 }
 
+/**
+ * W1.5 (switch `navV2`): how the board is dressed on the new map. Absent = the board it always was. `crumbs` is the trail «المساحة › المشروع › اللوحة» above
+ * the title; `panel` opens a card in a side panel over the board (`?task=<id>`) instead of leaving it (needs «مهامي»'s door, switch `workMyTasks`);
+ * `embedded` is the board inside the project page's tab (the project's name and trail are already above it).
+ */
+export interface BoardViewMode {
+  crumbs: Crumb[] | null;
+  panel: boolean;
+  embedded: boolean;
+}
+
 interface BoardViewProps {
   board: { id: string; workspaceId: string; projectId: string; name: string; projectName: string };
   columns: ColumnData[];
@@ -83,6 +101,7 @@ interface BoardViewProps {
   canEdit: boolean;
   /** «حقول مخصصة»: the fields the person may pick to show on the cards (empty: no picker). */
   fieldDefs?: PickerDef[];
+  view?: BoardViewMode;
 }
 
 /** W1.3: what `GET /api/boards/[id]/columns` answers - the stages, whether the company's switch `workStages` is on, whether the viewer is a space manager. */
@@ -98,14 +117,39 @@ interface QuickAddState {
   error: string | null;
 }
 
-/** Kanban board. Optimistic DnD with server rollback on failure. */
-export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: BoardViewProps) {
+/**
+ * Kanban board. Optimistic DnD with server rollback on failure. W1.5: the page is never reloaded - adding a column, adding a card and deleting a column are
+ * TanStack mutations that change what the board holds at once and then ask the server for the page's own answer (`router.refresh()`, which keeps this
+ * screen and its state, like every other edit of the app); a fresh answer from the server replaces what the board holds.
+ */
+export function BoardView({ board, columns: serverColumns, tasks, canEdit, fieldDefs = [], view }: BoardViewProps) {
   const { t } = useI18n();
   const { toast } = useToast();
+  const router = useRouter();
   const [items, setItems] = useState<TaskCardData[]>(tasks);
+  const [columns, setColumns] = useState<ColumnData[]>(serverColumns);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [quick, setQuick] = useState<QuickAddState>({ columnId: null, title: "", error: null });
   const queryClient = useQueryClient();
+  const [openId, openTask] = useOpenTask(view?.panel === true);
+
+  // the server's fresh answer (after `router.refresh()`) is the truth: the board takes it; the first render is the page's own
+  const seen = useRef(false);
+  const movingRef = useRef(false);
+  useEffect(() => {
+    if (!seen.current) {
+      seen.current = true;
+      return;
+    }
+    // a card still travelling to the server keeps the board's own order: an answer that predates the move must not snap it back
+    if (!movingRef.current) setItems(tasks);
+    setColumns(serverColumns);
+  }, [tasks, serverColumns]);
+  /** Asks the server for the page again and the stages of the columns (no reload: the screen stays). */
+  const askAgain = () => {
+    void queryClient.invalidateQueries({ queryKey: ["board-stages", board.id] });
+    router.refresh();
+  };
 
   // W1.3: the choice of a column's stage is offered to a space manager while the company's switch `workStages` is on; the board page
   // does not carry it, so the screen asks (only a person who can edit asks)
@@ -130,6 +174,8 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
         index: input.index,
       }),
   });
+
+  movingRef.current = moveMutation.isPending;
 
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, TaskCardData[]>();
@@ -162,7 +208,7 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
 
     // optimistic move
     const previous = items;
-    setItems(items.map((t) => (t.id === activeTaskId ? { ...t, columnId: targetColumnId } : t)));
+    setItems(withTaskMoved(items, activeTaskId, targetColumnId));
 
     moveMutation.mutate(
       { taskId: activeTaskId, columnId: targetColumnId, index },
@@ -170,7 +216,7 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
         onError: (err) => {
           // rollback — never show success when the server rejected the move
           setItems(previous);
-          queryClient.invalidateQueries({ queryKey: ["board"] });
+          router.refresh();
           // «حقول مخصصة»: finishing needs the project's required fields: say which, and open the task where they are filled
           const missing = requiredFieldsOf(err);
           if (missing) {
@@ -205,7 +251,8 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
         title,
       });
       setQuick({ columnId: null, title: "", error: null });
-      window.location.reload(); // server page refetch keeps DB authoritative
+      // the card appears with the server's own answer (no page reload), so the DB stays authoritative
+      askAgain();
     } catch {
       toast(t("task.createFailed"), "error");
       setQuick((q) => ({ ...q, error: t("task.createFailed") }));
@@ -217,7 +264,12 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
       apiPost<{ column: unknown }>(`/api/boards/${board.id}/columns`, {
         name: t("board.columnName"),
       }),
-    onSuccess: () => window.location.reload(),
+    onSuccess: (made) => {
+      // the new column is on the board at once; the server's answer follows
+      const column = made.column as ColumnData | undefined;
+      if (column?.id) setColumns((now) => withColumnAdded(now, column));
+      askAgain();
+    },
     onError: () => toast(t("common.error"), "error"),
   });
 
@@ -226,9 +278,10 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
   return (
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between gap-3 border-b border-border bg-surface px-4 py-3">
-        <div>
+        <div className={view ? "min-w-0" : undefined}>
+          {view?.crumbs ? <Breadcrumbs items={view.crumbs} className="mb-1" /> : null}
           <h1 className="text-base font-semibold text-fg">{board.name}</h1>
-          <p className="text-xs text-fg-muted">{board.projectName}</p>
+          {view?.embedded ? null : <p className="text-xs text-fg-muted">{board.projectName}</p>}
         </div>
         <FieldChipPicker defs={fieldDefs} />
       </header>
@@ -261,6 +314,11 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
                 onTitleChange={(title) => setQuick((q) => ({ ...q, title }))}
                 onCancel={() => setQuick({ columnId: null, title: "", error: null })}
                 onSubmit={() => void addTask(column.id)}
+                onOpenTask={view?.panel ? openTask : undefined}
+                onRemoved={(id) => {
+                  setColumns((now) => withColumnRemoved(now, id));
+                  askAgain();
+                }}
               />
             );
           })}
@@ -285,8 +343,49 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
           ) : null}
         </DragOverlay>
       </DndContext>
+
+      {view?.panel ? <CardPanel boardId={board.id} taskId={openId} onClose={() => openTask(null)} onChanged={() => router.refresh()} /> : null}
     </div>
   );
+}
+
+/**
+ * W1.5: the side panel of a card opened from the board (`?task=<id>`). It is W1.1's panel (the task beside the screen, `GET /api/work/tasks/<id>`, the link to
+ * the full page `/tasks/<id>` for everything else); ticking it or changing its day goes through the same doors as the full page and then asks the board, the
+ * panel and «مهامي» again, so every place shows the same card.
+ */
+function CardPanel({ boardId, taskId, onClose, onChanged }: { boardId: string; taskId: string | null; onClose: () => void; onChanged: () => void }) {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const settle = () => {
+    void queryClient.invalidateQueries({ queryKey: ["board-stages", boardId] });
+    void queryClient.invalidateQueries({ queryKey: ["work", "task"] });
+    void queryClient.invalidateQueries({ queryKey: WORK_TASKS_ROOT });
+    onChanged();
+  };
+  const fail = (err: unknown, id: string) => {
+    // «حقول مخصصة»: finishing needs the project's required fields: say which, and open the task where they are filled
+    const missing = requiredFieldsOf(err);
+    if (missing) {
+      toast(rt("fields.required_toast", { labels: missing.map((m) => m.label).join("، ") }), "error");
+      window.location.assign(`/tasks/${id}#${FIELDS_ANCHOR}`);
+      return;
+    }
+    toast(err instanceof ApiError && err.code === "forbidden" ? t("forbidden") : t("common.error"), "error");
+  };
+  const complete = useMutation({
+    mutationFn: ({ id, done }: { id: string; done: boolean }) => apiPost(`/api/tasks/${id}/complete`, { complete: done }),
+    onError: (err, { id }) => fail(err, id),
+    onSettled: settle,
+  });
+  // the day as picked (`YYYY-MM-DD`): the server makes it noon in the COMPANY's zone, never the browser's
+  const due = useMutation({
+    mutationFn: ({ id, day }: { id: string; day: string | null }) => apiPatch(`/api/tasks/${id}`, { dueDate: day }),
+    onError: (err, { id }) => fail(err, id),
+    onSettled: settle,
+  });
+  return <TaskPanel taskId={taskId} onClose={onClose} onToggle={(id, done) => complete.mutate({ id, done })} onDue={(id, day) => due.mutate({ id, day })} />;
 }
 
 function BoardColumn({
@@ -300,6 +399,8 @@ function BoardColumn({
   onTitleChange,
   onCancel,
   onSubmit,
+  onOpenTask,
+  onRemoved,
 }: {
   column: ColumnData;
   tasks: TaskCardData[];
@@ -312,6 +413,10 @@ function BoardColumn({
   onTitleChange: (t: string) => void;
   onCancel: () => void;
   onSubmit: () => void;
+  /** W1.5: opens a card in the side panel (the new map); absent = the card is a link to its page, as it always was. */
+  onOpenTask?: (id: string) => void;
+  /** W1.5: the column is gone (the server deleted it): the board drops it at once and asks the server again. */
+  onRemoved: (columnId: string) => void;
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
@@ -334,7 +439,7 @@ function BoardColumn({
   });
   const deleteColumn = useMutation({
     mutationFn: () => apiDelete(`/api/boards/${boardId}/columns/${column.id}`),
-    onSuccess: () => window.location.reload(),
+    onSuccess: () => onRemoved(column.id),
     // a refused delete (a column that still holds cards, 409) was SILENT: say why, in the column
     onError: (err) => {
       const key = err instanceof ApiError && err.messageKey ? err.messageKey : "common.error";
@@ -433,7 +538,7 @@ function BoardColumn({
 
         <SortableContext items={tasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
           {tasks.map((task) => (
-            <TaskCard key={task.id} task={task} />
+            <TaskCard key={task.id} task={task} onOpen={onOpenTask} />
           ))}
         </SortableContext>
 
@@ -447,7 +552,7 @@ function BoardColumn({
   );
 }
 
-function TaskCard({ task }: { task: TaskCardData }) {
+function TaskCard({ task, onOpen }: { task: TaskCardData; onOpen?: (id: string) => void }) {
   const { t } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: task.id,
@@ -468,7 +573,20 @@ function TaskCard({ task }: { task: TaskCardData }) {
           <GripVertical className="h-3.5 w-3.5" />
         </button>
         <div className="min-w-0 flex-1">
-          <Link href={`/tasks/${task.id}`} className="block">
+          <Link
+            href={`/tasks/${task.id}`}
+            className="block"
+            onClick={
+              onOpen
+                ? (e) => {
+                    // W1.5: a plain click opens the card in the panel over the board; a new-tab click (ctrl, cmd, shift, middle) still goes to its page
+                    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+                    e.preventDefault();
+                    onOpen(task.id);
+                  }
+                : undefined
+            }
+          >
             <TaskCardContent task={task} />
           </Link>
         </div>
