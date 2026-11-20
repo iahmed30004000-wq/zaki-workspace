@@ -166,6 +166,7 @@ function Bar({ tab, params, data, onChange }: { tab: keyof typeof TAB_VIEW; para
           }}
         >
           <input
+            key={params.q}
             name="q"
             type="search"
             defaultValue={params.q}

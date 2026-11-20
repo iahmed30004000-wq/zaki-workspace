@@ -12,6 +12,8 @@ import { projectTabsFor, type TabOffer } from "@/components/work/project/tabs";
  * partner; «القواعد» for the space's managers and the owner only, never a partner.
  */
 export interface ProjectCardAccess {
+  /** The same write rule the API applies for a project's boards and cards: the real rank in the space plus the projects row's «يضيف ويعدّل» box. */
+  canEdit: boolean;
   milestonesOn: boolean;
   canEditMilestones: boolean;
   fieldsOn: boolean;
@@ -21,21 +23,18 @@ export interface ProjectCardAccess {
 
 export async function projectCardAccess(actor: Actor, project: { workspaceId: string; organizationId: string }): Promise<ProjectCardAccess> {
   const userId = actor.userId;
-  const milestonesOn = await actorFeatureOn(actor, "milestones");
-  // the same write rule the API applies: the real rank in the space, plus the projects row's «يضيف ويعدّل» box
-  const membership = await db.organizationMember.findFirst({
-    where: { userId, organizationId: project.organizationId, status: "ACTIVE" },
-    select: { role: true },
-  });
-  const spaceRow = await db.workspaceMember.findUnique({
-    where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } },
-    select: { role: true },
-  });
-  const canEditMilestones = milestonesOn && membership != null && canWriteInWorkspace(membership.role, spaceRow?.role) && actorCanWork(actor, "projects.edit");
+  // independent reads together: the switches, the rank in the company and the row in the space
+  const [milestonesOn, fieldsSwitch, rulesSwitch, membership, spaceRow] = await Promise.all([
+    actorFeatureOn(actor, "milestones"),
+    actorFeatureOn(actor, "customFields"),
+    actorFeatureOn(actor, "taskRules"),
+    db.organizationMember.findFirst({ where: { userId, organizationId: project.organizationId, status: "ACTIVE" }, select: { role: true } }),
+    db.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: project.workspaceId, userId } }, select: { role: true } }),
+  ]);
+  const canEdit = membership != null && canWriteInWorkspace(membership.role, spaceRow?.role) && actorCanWork(actor, "projects.edit");
+  const canEditMilestones = milestonesOn && canEdit;
 
-  const fieldsOn =
-    (await actorFeatureOn(actor, "customFields")) &&
-    !(await isPartnerIn({ orgId: actor.orgId, userId, orgRole: membership?.role ?? actor.role }, project.workspaceId));
+  const fieldsOn = fieldsSwitch && !(await isPartnerIn({ orgId: actor.orgId, userId, orgRole: membership?.role ?? actor.role }, project.workspaceId));
   const canManageFields =
     fieldsOn &&
     membership != null &&
@@ -43,13 +42,13 @@ export async function projectCardAccess(actor: Actor, project: { workspaceId: st
     actorCanWork(actor, "projects.edit");
 
   const rulesOn =
-    (await actorFeatureOn(actor, "taskRules")) &&
+    rulesSwitch &&
     membership != null &&
     membership.role !== "GUEST" &&
     isSpaceManager(membership.role, spaceRow?.role) &&
     actorCanWork(actor, "projects.edit");
 
-  return { milestonesOn, canEditMilestones, fieldsOn, canManageFields, rulesOn };
+  return { canEdit, milestonesOn, canEditMilestones, fieldsOn, canManageFields, rulesOn };
 }
 
 /** The tab «الحقول والقواعد» exists only when at least one of its cards does for this person. */
@@ -59,7 +58,7 @@ export const hasFieldsTab = (access: ProjectCardAccess): boolean => access.field
  * The tabs of a project for this person. «القائمة» and «التقويم» are W1.1's views while the company's switch `workMyTasks` is on (it owns their data door);
  * with it off they are the old pages for this project, so no tab is a dead end.
  */
-export async function projectTabOffers(actor: Actor, projectId: string, access: ProjectCardAccess, boardId: string | null = null): Promise<{ tabs: TabOffer[]; embeddedViews: boolean }> {
+export async function projectTabOffers(actor: Actor, projectId: string, access: ProjectCardAccess): Promise<{ tabs: TabOffer[]; embeddedViews: boolean }> {
   const embeddedViews = await actorFeatureOn(actor, "workMyTasks");
-  return { tabs: projectTabsFor({ projectId, embeddedViews, fieldsTab: hasFieldsTab(access), boardId }), embeddedViews };
+  return { tabs: projectTabsFor({ projectId, embeddedViews, fieldsTab: hasFieldsTab(access) }), embeddedViews };
 }

@@ -27,6 +27,7 @@ import { listRulesOf, ruleOptionsOf } from "@/server/services/task-rules";
 import { RulesCard } from "@/components/task-rules/rules-card";
 import { workScreenFor } from "@/server/services/my-work";
 import { projectTrail } from "@/components/work/project/crumbs";
+import { projectProgress } from "@/components/work/project/progress";
 import { BoardPicker } from "@/components/work/project/board-picker";
 import { ProjectTabs } from "@/components/work/project/project-tabs";
 import { ProjectTasksView } from "@/components/work/project/project-tasks-view";
@@ -73,8 +74,7 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
 
   const doneColumns = await db.boardColumn.findMany({ where: { board: { projectId: project.id }, done: true }, select: { id: true } });
   const doneCount = doneColumns.length ? await db.task.count({ where: { projectId: project.id, archived: false, columnId: { in: doneColumns.map((c) => c.id) }, AND: [visible] } }) : 0;
-  const open = project._count.tasks;
-  const pct = open + doneCount > 0 ? Math.round((doneCount / (open + doneCount)) * 100) : 0;
+  const { open, pct } = projectProgress(project._count.tasks, doneCount);
 
   const places = { spaceName: project.workspace.name, projectId: project.id, projectName: project.name };
   const boardAsked = parseBoardParam(searchParams?.["board"]);
@@ -107,7 +107,7 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
           ) : (
             <div className="space-y-2">
               <p className="text-sm text-fg-muted">{t("board.empty")}</p>
-              <BoardCreateButton projectId={project.id} />
+              {access.canEdit ? <BoardCreateButton projectId={project.id} /> : null}
             </div>
           )}
         </section>
@@ -132,7 +132,7 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-fg">{t("projpage.settings.boards")}</h2>
-                <BoardCreateButton projectId={project.id} />
+                {access.canEdit ? <BoardCreateButton projectId={project.id} /> : null}
               </div>
             </CardHeader>
             <CardBody>
@@ -170,7 +170,7 @@ async function embeddedBoard({ actor, boardId, projectId, workspaceId, panel }: 
   return (
     <>
       <PinnedStrip tasks={pinned} />
-      <div className="min-h-[32rem] overflow-hidden rounded-xl border border-border">{cloneElement(screen, { view: { crumbs: null, panel, embedded: true } })}</div>
+      <div className="min-h-[32rem] overflow-hidden rounded-xl border border-border">{cloneElement(screen, { key: boardId, view: { crumbs: null, panel, embedded: true } })}</div>
     </>
   );
 }

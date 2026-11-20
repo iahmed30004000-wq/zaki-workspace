@@ -23,6 +23,7 @@ import { BoardView, type ColumnData, type TaskCardData } from "@/components/boar
 import { BoardPicker } from "@/components/work/project/board-picker";
 import { ProjectTabs } from "@/components/work/project/project-tabs";
 import { ProjectTasksView } from "@/components/work/project/project-tasks-view";
+import { projectProgress } from "@/components/work/project/progress";
 import { withColumnAdded, withColumnRemoved, withTaskMoved, withTaskParam } from "@/components/work/project/board-cache";
 import { PROJECT_TABS, parseBoardParam, parseProjectTab, projectTabHref, projectTabsFor, projectTasksHref, projectTasksParams, projectTasksQuery } from "@/components/work/project/tabs";
 import ProjectLoading from "@/app/(app)/projects/[id]/loading";
@@ -100,6 +101,17 @@ describe("the tabs", () => {
       expect(name).not.toMatch(/[A-Za-z0-9]/);
     }
     expect(["اللوحة", "القائمة", "التقويم", "الجدول الزمني", "الحقول والقواعد", "الإعدادات"].map((n) => Object.values(AR).includes(n))).toEqual([true, true, true, true, true, true]);
+  });
+});
+
+describe("the progress line", () => {
+  it("done tasks are not counted twice (3 done of 10 is 30 percent, 7 open)", () => {
+    expect(projectProgress(10, 3)).toEqual({ open: 7, done: 3, pct: 30 });
+    expect(projectProgress(0, 0)).toEqual({ open: 0, done: 0, pct: 0 });
+    expect(projectProgress(4, 4)).toEqual({ open: 0, done: 4, pct: 100 });
+    // never a negative or a done count above the total
+    expect(projectProgress(2, 5)).toEqual({ open: 0, done: 2, pct: 100 });
+    expect(projectProgress(-1, 1)).toEqual({ open: 0, done: 0, pct: 0 });
   });
 });
 
@@ -320,7 +332,7 @@ describe("the board never reloads the page (W1.5)", () => {
     expect(source).toContain("withColumnRemoved(now, id)");
     expect(source).toContain("onSuccess: () => onRemoved(column.id)");
     // a fresh answer from the server replaces what the board holds
-    expect(source).toContain("setItems(tasks);");
+    expect(source).toContain("if (!movingRef.current) setItems(tasks);");
     expect(source).toContain("setColumns(serverColumns);");
   });
 
@@ -410,6 +422,9 @@ describe("the new files follow the house rules", () => {
     "src/components/work/project/project-tabs.tsx",
     "src/components/work/project/project-tasks-view.tsx",
     "src/components/work/project/use-open-task.ts",
+    "src/components/work/project/use-task-trail.ts",
+    "src/components/work/project/progress.ts",
+    "src/app/(app)/boards/[id]/trail/route.ts",
     "src/app/(app)/projects/[id]/project-page.tsx",
     "src/app/(app)/projects/[id]/project-chrome.ts",
     "src/app/(app)/projects/[id]/loading.tsx",

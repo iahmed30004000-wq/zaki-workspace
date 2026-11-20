@@ -57,11 +57,6 @@ export function projectTabsFor(opts: { projectId: string; embeddedViews: boolean
   });
 }
 
-/** The tab a path/query is on (the strip highlights it); the timeline page is the timeline tab. */
-export function tabOfProjectAddress(pathname: string, searchTab: string | null | undefined): ProjectTab {
-  return /\/timeline\/?$/.test(pathname) ? "timeline" : parseProjectTab(searchTab);
-}
-
 // ───────────────────────────────── the embedded task views (list, calendar) ─────────────────────────────────
 
 /** The view each embedded tab draws. */

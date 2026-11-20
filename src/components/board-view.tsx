@@ -135,12 +135,14 @@ export function BoardView({ board, columns: serverColumns, tasks, canEdit, field
 
   // the server's fresh answer (after `router.refresh()`) is the truth: the board takes it; the first render is the page's own
   const seen = useRef(false);
+  const movingRef = useRef(false);
   useEffect(() => {
     if (!seen.current) {
       seen.current = true;
       return;
     }
-    setItems(tasks);
+    // a card still travelling to the server keeps the board's own order: an answer that predates the move must not snap it back
+    if (!movingRef.current) setItems(tasks);
     setColumns(serverColumns);
   }, [tasks, serverColumns]);
   /** Asks the server for the page again and the stages of the columns (no reload: the screen stays). */
@@ -172,6 +174,8 @@ export function BoardView({ board, columns: serverColumns, tasks, canEdit, field
         index: input.index,
       }),
   });
+
+  movingRef.current = moveMutation.isPending;
 
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, TaskCardData[]>();
