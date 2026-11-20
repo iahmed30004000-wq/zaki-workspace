@@ -16,7 +16,7 @@ import { SpaceSwitcher, type ShellSpace } from "./space-switcher";
 
 /**
  * THE RAIL — the computer's menu on the new map (switch `navV2`, from `md`), the owner's mock-up: a 72px column on the START side, the logo (the accent
- * tile with the gold star) at the top, the places as an icon over a 10.5px label (the current one accent on accent-soft), the unread number as a round
+ * tile with the gold star) at the top, the places as an icon over a 12px label (the current one accent on accent-soft), the unread number as a round
  * badge on «الدردشة», and at the foot «⋯» (the guide, «ترتيب»), the space the person is in (its counts open from it) and the avatar. It is not foldable:
  * there is nothing wider to fold to. The old side menu stays for `navV2` OFF (src/components/shell/sidebar.tsx).
  *
@@ -103,7 +103,7 @@ export function Rail({
                         <div
                           {...props}
                           aria-label={t("navorder.grip", { label })}
-                          className="flex min-h-14 w-full touch-none cursor-grab flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-border px-0.5 py-1 text-center text-[10.5px] font-semibold leading-tight text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+                          className="flex min-h-14 w-full touch-none cursor-grab flex-col items-center justify-center gap-0.5 rounded-xl border border-dashed border-border px-0.5 py-1 text-center text-xs font-semibold leading-tight text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
                         >
                           <NavIcon icon={place.icon} className="size-6 shrink-0" />
                           <span className="max-w-full break-words">{label}</span>

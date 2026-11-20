@@ -143,7 +143,7 @@ describe("the rail wears the mock-up (72 px, icon over a 10.5 px label)", () => 
     const html = rail();
     const places = /<nav[^>]*data-tour="places"[^>]*>[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
     const current = /<a\b[^>]*href="\/my-work"[^>]*>[\s\S]*?<\/a>/.exec(places)?.[0] ?? "";
-    expect(classTokens(current)).toEqual(expect.arrayContaining(["text-accent", "text-[10.5px]", "flex-col"]));
+    expect(classTokens(current)).toEqual(expect.arrayContaining(["text-accent", "text-xs", "flex-col"]));
     expect(current).toMatch(/bg-accent\/(10|12|15|\[0\.12\])/);
     const other = /<a\b[^>]*href="\/chat"[^>]*>[\s\S]*?<\/a>/.exec(places)?.[0] ?? "";
     expect(other).not.toMatch(/bg-accent\//);
@@ -181,7 +181,7 @@ describe("the roster in the rail (the bottom strip, moved)", () => {
     });
     const html = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(Queries, { client }, createElement(PeopleDock, { variant: "rail" } as never))));
     expect(html).toContain('data-shell="rail-dock"');
-    expect(html).toContain("text-[10.5px]");
+    expect(html).toContain("text-xs");
     expect(html).toContain(AR["shell.dock.online.one"]?.replace("{n}", "1") ?? "?");
     // the strip's own 40 px row is not drawn in the rail
     expect(html).not.toContain("h-10 shrink-0");
