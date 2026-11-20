@@ -10,6 +10,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Button } from "@/components/ui/button";
 import { menuFor, menuOpen, type MessageMenuContext, type MessageMenuId } from "@/components/chat/message/message-menu-registry";
 import { EmojiPickerDialog } from "@/components/chat/v2/menu/emoji-picker";
+import { menuIconOf } from "@/components/chat/v2/menu/menu-icons";
 import { ReactionBar } from "@/components/chat/v2/menu/reaction-bar";
 import { useOptionalToast } from "@/components/ui/toast";
 import { chatKeys } from "@/lib/chat/cache/keys";
@@ -34,8 +35,12 @@ export interface MessageMenuV2Props {
   portal?: boolean;
 }
 
+/** a row of the menu, Telegram's: a rounded 8 px row (36 px with a mouse, 44 px for a thumb), the outline icon first, the highlight a quiet grey (no accent stripe) */
+const ROW = "gap-3 border-s-0 ps-3";
+const ROW_HOVER = "data-[highlighted]:bg-surface-2";
+
 const small =
-  "flex size-8 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-fg-muted opacity-0 shadow-sm transition-opacity hover:bg-surface-2 hover:text-fg focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:none)]:hidden";
+  "flex size-8 shrink-0 items-center justify-center rounded-full bg-surface-1 text-fg-muted opacity-0 shadow-card transition-opacity hover:bg-surface-2 hover:text-fg focus-visible:opacity-100 group-hover:opacity-100 group-focus-within:opacity-100 data-[state=open]:opacity-100 motion-reduce:transition-none [@media(hover:none)]:hidden";
 
 /**
  * C2.6 — the menu of ONE message on the new screen, drawn from the registry (`menuFor` with `surface: "v2"`: Telegram's order and words) and never from a
@@ -119,11 +124,15 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
           <DropdownMenuContent portal={portal} align="start" className="min-w-56">
             <ReactionBar emojis={quick} onPick={react} onMore={more} />
             {actions.length > 0 && <DropdownMenuSeparator />}
-            {actions.map((a) => (
-              <DropdownMenuItem key={a.id} data-menu-item={a.id} tone={a.danger ? "danger" : undefined} onSelect={() => pick(a.id)}>
-                {ct(a.labelKey(context))}
-              </DropdownMenuItem>
-            ))}
+            {actions.map((a) => {
+              const Icon = menuIconOf(a.id, context.pinned);
+              return (
+                <DropdownMenuItem key={a.id} data-menu-item={a.id} tone={a.danger ? "danger" : undefined} className={a.danger ? ROW : `${ROW} ${ROW_HOVER}`} onSelect={() => pick(a.id)}>
+                  <Icon aria-hidden="true" className={`size-5 shrink-0 ${a.danger ? "" : "text-fg-muted"} ${a.id === "reply" || a.id === "forward" ? "rtl:-scale-x-100" : ""}`} />
+                  {ct(a.labelKey(context))}
+                </DropdownMenuItem>
+              );
+            })}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -136,13 +145,17 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
           <SheetBody>
             <ReactionBar emojis={quick} onPick={react} onMore={more} />
             <ul className="mt-2 flex flex-col">
-              {actions.map((a) => (
-                <li key={a.id}>
-                  <button type="button" data-menu-item={a.id} className={`min-h-11 w-full rounded-md px-3 text-start hover:bg-surface-2 ${a.danger ? "text-danger" : ""}`} onClick={() => pick(a.id)}>
-                    {ct(a.labelKey(context))}
-                  </button>
-                </li>
-              ))}
+              {actions.map((a) => {
+                const Icon = menuIconOf(a.id, context.pinned);
+                return (
+                  <li key={a.id}>
+                    <button type="button" data-menu-item={a.id} className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-base hover:bg-surface-2 ${a.danger ? "text-danger" : ""}`} onClick={() => pick(a.id)}>
+                      <Icon aria-hidden="true" className={`size-5 shrink-0 ${a.danger ? "" : "text-fg-muted"} ${a.id === "reply" || a.id === "forward" ? "rtl:-scale-x-100" : ""}`} />
+                      {ct(a.labelKey(context))}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           </SheetBody>
         </SheetContent>

@@ -232,7 +232,7 @@ describe("what Q1 put in the composer", () => {
   it("«/» and its «⚡» button: only where the server says I may recall (`me.canRecall`), never while editing", () => {
     const on = surface(engine(), { me: { canRecall: true } });
     expect(on).toContain("data-recall-button");
-    expect(on).toContain("⚡");
+    expect(on).toContain("lucide-zap");
     expect(on).toContain(AR["recall.menu"]!);
     expect(surface(engine())).not.toContain("data-recall-button");
     expect(surface(engine({ body: "x", face: "save" }), { me: { canRecall: true }, editing: makeMessage({ mine: true }) })).not.toContain("data-recall-button");

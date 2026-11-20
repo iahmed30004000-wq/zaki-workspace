@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { Button } from "@/components/ui/button";
+import { CalendarClock, Check, LoaderCircle, Mic, Send, Smile, X, Zap } from "lucide-react";
 import type { MessageDto } from "@/server/chat/dto";
 import { CustomerHint } from "@/components/chat/v2/bubble/bubble-extras";
 import { AttachMenu } from "@/components/chat/v2/composer/attach-menu";
@@ -14,6 +14,7 @@ import { ScheduledList } from "@/components/chat/v2/composer/scheduled-list";
 import { ScheduleDialog } from "@/components/chat/v2/composer/schedule-dialog";
 import { SendMenu, sendMenuItemsOf } from "@/components/chat/v2/composer/send-menu";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
+import { COMPOSER_ICON_BUTTON, ROUND_BUTTON } from "@/components/chat/v2/composer/composer-styles";
 import { ct } from "@/lib/chat/text";
 import { firstLink, hostOf } from "@/lib/chat/format/links";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
@@ -54,7 +55,7 @@ export interface SurfaceProps {
 }
 
 /**
- * C2.5 — the composer as it is drawn: `[😊] [ textarea ] [📎] [⚡] [🎤 ⇄ ➤]` under the reply / edit bar, the tray, the customer-data line and the «@» list.
+ * C2.5 — the composer as it is drawn: a pill `[smile] [ textarea ] [clip] [bolt]` and, after it, the one round button `[mic ⇄ send]` under the reply / edit bar, the tray, the customer-data line and the «@» list.
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
@@ -125,12 +126,12 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
   const dialogEdit = c.scheduleDialog?.edit ?? null;
   return (
     <>
-    <form onSubmit={c.submit} className="flex flex-col gap-2" data-composer-surface>
+    <form onSubmit={c.submit} className="mx-auto flex w-full max-w-[904px] flex-col gap-2" data-composer-surface>
       <ReplyEditBar reply={reply} editing={editing} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} />
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
       <MentionList choices={c.choices} pickAt={c.pickAt} onHover={c.setPick} onChoose={c.selectMention} />
       {previewHref && !noPreview ? (
-        <div data-link-preview-chip className="flex items-start gap-2 rounded-lg border border-border bg-surface-2 px-2 py-1 text-xs">
+        <div data-link-preview-chip className="flex items-start gap-2 rounded-xl bg-surface-1 px-3 py-1.5 text-xs shadow-card">
           <div className="min-w-0 flex-1 space-y-0.5">
             <p dir="auto" className="truncate font-semibold">
               {ct("chatlp.composer", { host: hostOf(previewHref) ?? "" })}
@@ -138,12 +139,12 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
             <p className="text-warn">{ct("chatlp.warn")}</p>
             <p className="text-fg-muted">{ct("chatlp.fix")}</p>
           </div>
-          <button type="button" data-link-preview-off aria-label={ct("chatlp.composer_off")} title={ct("chatlp.composer_off")} onClick={() => setPreviewOff(previewHref)} className="flex size-8 shrink-0 items-center justify-center rounded-full text-fg-muted hover:bg-surface-1 hover:text-fg">
-            <span aria-hidden="true">✕</span>
+          <button type="button" data-link-preview-off aria-label={ct("chatlp.composer_off")} title={ct("chatlp.composer_off")} onClick={() => setPreviewOff(previewHref)} className="flex size-8 shrink-0 items-center justify-center rounded-full text-fg-muted hover:bg-surface-2 hover:text-fg">
+            <X aria-hidden="true" className="size-5" />
           </button>
         </div>
       ) : null}
-      <div className="relative flex min-w-0 items-end gap-1.5 sm:gap-2">
+      <div className="relative flex min-w-0 items-end gap-2">
         {formatting && selected ? <FormatToolbar onAction={applyAction} /> : null}
         <EmojiPopover
           open={emojiOpen}
@@ -153,11 +154,10 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
             onEmoji(emoji);
           }}
         />
-        <Button type="button" variant="ghost" size="icon" data-emoji-toggle aria-label={ct("chatui.composer.emoji")} aria-expanded={emojiOpen} onClick={() => setEmojiOpen((open) => !open)}>
-          <span aria-hidden="true" className="text-xl">
-            😊
-          </span>
-        </Button>
+        <div data-composer-pill className="flex min-w-0 flex-1 items-end rounded-[23px] bg-surface-1 px-1 py-[3px] shadow-card">
+        <button type="button" data-emoji-toggle className={COMPOSER_ICON_BUTTON} aria-label={ct("chatui.composer.emoji")} aria-expanded={emojiOpen} onClick={() => setEmojiOpen((open) => !open)}>
+          <Smile aria-hidden="true" className="size-6" />
+        </button>
         <label className="sr-only" htmlFor="chat-message">
           {ct("chatc.message")}
         </label>
@@ -177,46 +177,41 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
           aria-autocomplete="list"
           aria-activedescendant={c.choices.length > 0 ? `chat-mention-${c.pickAt}` : undefined}
           enterKeyHint="send"
-          className="max-h-60 min-h-11 min-w-0 flex-1 resize-none rounded-2xl border border-border bg-surface px-3 py-2 text-base"
+          className="max-h-60 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1.5 py-[11px] text-base leading-[1.45] text-fg outline-none placeholder:text-fg-muted md:min-h-10 md:py-[9px]"
           placeholder={ct("chatc.message")}
         />
         {!editing ? <AttachMenu items={attachItemsOf(me)} disabled={c.busy} onPick={(id) => (id === "media" ? c.mediaInput.current?.click() : id === "file" ? c.fileInput.current?.click() : c.setPollOpen(true))} /> : null}
         {!editing && scheduledCount > 0 ? (
-          <Button type="button" variant="ghost" size="icon" data-sched-icon aria-label={ct("chatsched.icon", { n: scheduledCount })} title={ct("chatsched.icon", { n: scheduledCount })} onClick={() => c.setScheduledOpen?.(true)}>
-            <span aria-hidden="true" className="text-xl">
-              📅
-            </span>
-          </Button>
+          <button type="button" data-sched-icon className={COMPOSER_ICON_BUTTON} aria-label={ct("chatsched.icon", { n: scheduledCount })} title={ct("chatsched.icon", { n: scheduledCount })} onClick={() => c.setScheduledOpen?.(true)}>
+            <CalendarClock aria-hidden="true" className="size-6" />
+          </button>
         ) : null}
         {!editing && me.canRecall ? (
-          <Button type="button" variant="ghost" size="icon" data-recall-button aria-label={ct("recall.menu")} title={ct("recall.menu")} onClick={() => c.setRecall({ kind: null, q: "" })}>
-            <span aria-hidden="true" className="text-xl">
-              ⚡
-            </span>
-          </Button>
+          <button type="button" data-recall-button className={COMPOSER_ICON_BUTTON} aria-label={ct("recall.menu")} title={ct("recall.menu")} onClick={() => c.setRecall({ kind: null, q: "" })}>
+            <Zap aria-hidden="true" className="size-6" />
+          </button>
         ) : null}
+        </div>
         <input ref={c.mediaInput} type="file" accept="image/*,video/*" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(event) => { c.addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
         <input ref={c.fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(event) => { c.addFiles(event.currentTarget.files, true); event.currentTarget.value = ""; }} />
         {mic ? (
-          <Button
+          <button
             type="button"
-            variant="primary"
-            size="icon"
             data-composer-face="mic"
-            className="touch-none select-none"
+            className={`${ROUND_BUTTON} touch-none select-none`}
             aria-label={ct("chat.f.record")}
             title={ct("chat.f.hold_to_record")}
             disabled={c.busy}
             onClick={c.onMicClick}
             onPointerDown={c.onMicPointerDown}
           >
-            <span aria-hidden="true">🎤</span>
-          </Button>
+            <Mic aria-hidden="true" className="size-6" />
+          </button>
         ) : (
           <SendMenu items={sendItems} onPick={(id) => (id === "silent" ? c.submitSilent?.() : id === "schedule" ? c.openScheduleDialog?.() : undefined)}>
-            <Button type="submit" variant="primary" size="icon" data-composer-face={c.face} disabled={!c.canSubmit} aria-label={c.face === "save" ? ct("chatc.save") : c.busy ? ct("chatc.sending") : ct("chatc.send")}>
-              <span aria-hidden="true">{c.busy ? "…" : c.face === "save" ? "✓" : "➤"}</span>
-            </Button>
+            <button type="submit" data-composer-face={c.face} className={ROUND_BUTTON} disabled={!c.canSubmit} aria-label={c.face === "save" ? ct("chatc.save") : c.busy ? ct("chatc.sending") : ct("chatc.send")}>
+              {c.busy ? <LoaderCircle aria-hidden="true" className="size-6 motion-safe:animate-spin" /> : c.face === "save" ? <Check aria-hidden="true" className="size-6" /> : <Send aria-hidden="true" className="size-6" />}
+            </button>
           </SendMenu>
         )}
       </div>

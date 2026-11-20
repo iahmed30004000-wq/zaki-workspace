@@ -2,6 +2,7 @@
 
 import React from "react";
 import { EmojiPicker } from "frimousse";
+import { Car, Dumbbell, Flag, Hash, Lightbulb, PawPrint, Search, Smile, ThumbsUp, Utensils, type LucideIcon } from "lucide-react";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ct } from "@/lib/chat/text";
 import { resolveBundledEmojiData } from "@/lib/chat/v2/composer/emoji-data";
@@ -9,9 +10,11 @@ import { emojiGroupOf, type EmojiGroup } from "@/lib/chat/v2/composer/emoji-grou
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
 
 /**
- * C2.5 — the emoji picker (`frimousse`, already a dependency): a popover over the box on the computer, a bottom sheet on the phone, the person's recent
- * emojis on top (kept on this device, `recent-emoji.ts`). The picker's data is Emojibase's English set read from the package we already ship (`emoji-data.ts`:
- * no third-party address is asked); the nine group names on screen are the dictionary's.
+ * C2.5 — the emoji picker (`frimousse`, already a dependency), drawn like Telegram's: a rounded search field, a row of round category tabs with outline
+ * icons (the active one in the accent: it follows the scrolling and a press scrolls to its group), the person's recent emojis, then a grid of large emojis
+ * (40 px cells, 28 px glyphs) under quiet group titles. A popover over the box on the computer, a bottom sheet on the phone (recent emojis are kept on this
+ * device, `recent-emoji.ts`). The data is Emojibase's English set read from the package we already ship (`emoji-data.ts`: no third-party address is asked); the
+ * group names on screen are the dictionary's.
  */
 function groupLabels(): Record<EmojiGroup, string> {
   return {
@@ -27,48 +30,137 @@ function groupLabels(): Record<EmojiGroup, string> {
   };
 }
 
+/** The tabs, in the order of the data (`emoji-data.ts` lists the nine groups in this order). */
+export const EMOJI_TABS: ReadonlyArray<{ group: EmojiGroup; icon: LucideIcon }> = [
+  { group: "smileys", icon: Smile },
+  { group: "people", icon: ThumbsUp },
+  { group: "animals", icon: PawPrint },
+  { group: "food", icon: Utensils },
+  { group: "travel", icon: Car },
+  { group: "activities", icon: Dumbbell },
+  { group: "objects", icon: Lightbulb },
+  { group: "symbols", icon: Hash },
+  { group: "flags", icon: Flag },
+];
+const COLUMNS = 8;
+
 const LIST_PARTS = {
   CategoryHeader: ({ category, ...props }: { category: { label: string } } & React.ComponentProps<"div">) => {
     const group = emojiGroupOf(category.label);
     return (
-      <div {...props} className="bg-surface-1 px-2 py-1 text-xs font-semibold text-fg-muted">
+      <div {...props} className="bg-surface-1 px-3 pb-1 pt-2 text-xs font-semibold text-fg-muted">
         {group ? groupLabels()[group] : null}
       </div>
     );
   },
   Row: ({ children, ...props }: React.ComponentProps<"div">) => (
-    <div {...props} className="flex scroll-my-1 px-1">
+    <div {...props} className="flex scroll-my-1 px-1.5">
       {children}
     </div>
   ),
   Emoji: ({ emoji, ...props }: { emoji: { emoji: string; label: string; isActive: boolean } } & React.ComponentProps<"button">) => (
-    <button {...props} type="button" className="flex size-9 shrink-0 items-center justify-center rounded-md text-xl data-[active]:bg-surface-2">
+    <button {...props} type="button" className="flex h-10 flex-1 items-center justify-center rounded-lg text-[28px] leading-none data-[active]:bg-surface-2">
       {emoji.emoji}
     </button>
   ),
 };
 
-/** The picker itself (search, the list, the recents on top). */
+/** The offsets (px from the top of the grid) at which each of the nine groups starts, from the group sizes and the picker's own measured row and header heights. */
+function offsetsOf(counts: readonly number[], rowHeight: number, headerHeight: number): number[] {
+  const offsets: number[] = [];
+  let at = 0;
+  for (const n of counts) {
+    offsets.push(at);
+    at += headerHeight + Math.ceil(n / COLUMNS) * rowHeight;
+  }
+  return offsets;
+}
+
+/** The picker itself (search, the tabs, the recents, the grid). */
 export function EmojiPanel({ recents, onPick }: { recents: string[]; onPick: (emoji: string) => void }) {
+  const root = React.useRef<HTMLDivElement | null>(null);
+  const viewport = React.useRef<HTMLDivElement | null>(null);
+  const [counts, setCounts] = React.useState<number[]>([]);
+  const [tab, setTab] = React.useState(0);
+  React.useEffect(() => {
+    let live = true;
+    void resolveBundledEmojiData().then((data) => {
+      if (!live) return;
+      const sizes = new Map<number, number>();
+      for (const e of data.emojis) sizes.set(e.category, (sizes.get(e.category) ?? 0) + 1);
+      setCounts(data.categories.map((c) => sizes.get(c.index) ?? 0));
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
+  const heights = () => {
+    const style = root.current ? getComputedStyle(root.current) : null;
+    const row = style ? Number.parseFloat(style.getPropertyValue("--frimousse-row-height")) : NaN;
+    const header = style ? Number.parseFloat(style.getPropertyValue("--frimousse-category-header-height")) : NaN;
+    return Number.isFinite(row) && Number.isFinite(header) ? { row, header } : null;
+  };
+  const goTo = (index: number) => {
+    const h = heights();
+    const view = viewport.current;
+    if (!h || !view || counts.length === 0) return;
+    setTab(index);
+    view.scrollTo({ top: offsetsOf(counts, h.row, h.header)[index] ?? 0 });
+  };
+  const onScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    const h = heights();
+    if (!h || counts.length === 0) return;
+    const top = event.currentTarget.scrollTop + 1;
+    let active = 0;
+    offsetsOf(counts, h.row, h.header).forEach((offset, i) => {
+      if (offset <= top) active = i;
+    });
+    setTab((now) => (now === active ? now : active));
+  };
+  const labels = groupLabels();
   return (
-    <div data-emoji-panel className="flex flex-col gap-2">
-      {recents.length > 0 ? (
-        <div data-emoji-recents>
-          <p className="px-1 pb-1 text-xs font-semibold text-fg-muted">{ct("chatui.composer.emoji_recent")}</p>
-          <ul className="flex flex-wrap gap-0.5">
-            {recents.map((emoji) => (
-              <li key={emoji}>
-                <button type="button" className="flex size-9 items-center justify-center rounded-md text-xl hover:bg-surface-2" onClick={() => onPick(emoji)}>
-                  {emoji}
-                </button>
-              </li>
-            ))}
-          </ul>
+    <div data-emoji-panel className="flex flex-col gap-1.5">
+      <EmojiPicker.Root ref={root} onEmojiSelect={({ emoji }) => onPick(emoji)} resolveEmojiData={resolveBundledEmojiData} columns={COLUMNS} className="flex h-[22rem] w-full flex-col gap-1.5">
+        <div className="relative">
+          <Search aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
+          <EmojiPicker.Search
+            placeholder={ct("chatui.composer.emoji_search")}
+            aria-label={ct("chatui.composer.emoji_search")}
+            className="h-10 w-full rounded-full bg-surface-2 ps-10 pe-3 text-base text-fg outline-none placeholder:text-fg-muted focus-visible:ring-2 focus-visible:ring-accent/40"
+          />
         </div>
-      ) : null}
-      <EmojiPicker.Root onEmojiSelect={({ emoji }) => onPick(emoji)} resolveEmojiData={resolveBundledEmojiData} columns={8} className="flex h-72 w-full flex-col">
-        <EmojiPicker.Search placeholder={ct("chatui.composer.emoji_search")} aria-label={ct("chatui.composer.emoji_search")} className="mb-1 h-10 rounded-lg border border-border bg-surface px-3 text-base" />
-        <EmojiPicker.Viewport className="min-h-0 flex-1 overflow-y-auto">
+        <div role="tablist" aria-label={ct("chatui.composer.emoji")} data-emoji-tabs className="flex items-center justify-between gap-0.5 border-b border-border pb-1.5">
+          {EMOJI_TABS.map(({ group, icon: Icon }, i) => (
+            <button
+              key={group}
+              type="button"
+              role="tab"
+              aria-selected={tab === i}
+              aria-label={labels[group]}
+              title={labels[group]}
+              data-emoji-tab={group}
+              onClick={() => goTo(i)}
+              className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${tab === i ? "bg-accent/10 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg"}`}
+            >
+              <Icon aria-hidden="true" className="size-5" />
+            </button>
+          ))}
+        </div>
+        {recents.length > 0 ? (
+          <div data-emoji-recents>
+            <p className="px-3 pb-0.5 text-xs font-semibold text-fg-muted">{ct("chatui.composer.emoji_recent")}</p>
+            <ul className="flex px-1.5">
+              {recents.slice(0, COLUMNS).map((emoji) => (
+                <li key={emoji} className="flex-1">
+                  <button type="button" className="flex h-10 w-full items-center justify-center rounded-lg text-[28px] leading-none hover:bg-surface-2" onClick={() => onPick(emoji)}>
+                    {emoji}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        <EmojiPicker.Viewport ref={viewport} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
           <EmojiPicker.Loading>
             <span className="block p-3 text-center text-sm text-fg-muted">{ct("chatui.composer.emoji_loading")}</span>
           </EmojiPicker.Loading>
@@ -128,7 +220,7 @@ export function EmojiPopover({ open, onClose, recents, onPick }: { open: boolean
     );
   }
   return (
-    <div ref={ref} role="dialog" aria-label={ct("chatui.composer.emoji")} data-emoji-popover className="absolute bottom-full start-0 z-20 mb-2 w-80 max-w-full rounded-xl border border-border bg-surface-1 p-2 shadow-lg">
+    <div ref={ref} role="dialog" aria-label={ct("chatui.composer.emoji")} data-emoji-popover className="absolute bottom-full start-0 z-20 mb-2 w-[22rem] max-w-full rounded-xl bg-surface-1 p-2 shadow-lg">
       <EmojiPanel recents={recents} onPick={onPick} />
     </div>
   );

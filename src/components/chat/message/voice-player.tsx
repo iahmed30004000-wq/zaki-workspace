@@ -1,5 +1,6 @@
 "use client";
 import React from "react";
+import { Pause, Play } from "lucide-react";
 import { AR } from "@/lib/i18n/dict";
 import { ct } from "@/lib/chat/text";
 import { nextVoiceSpeed, type VoiceSpeed } from "@/lib/chat/prefs";
@@ -67,15 +68,15 @@ export function VoicePlayer({ src, peaks = [], durationMs = 0 }: { src: string; 
     type="button"
     onClick={() => voiceEngine.toggle(src)}
     aria-label={playing ? AR["chat.f.pause"] : AR["chat.f.play"]}
-    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-accent text-accent-fg"
+    className="flex size-[42px] shrink-0 items-center justify-center rounded-full bg-accent text-accent-fg shadow-card transition-colors hover:bg-accent/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
    >
-    <span aria-hidden="true">{playing ? "❚❚" : "▶"}</span>
+    {playing ? <Pause aria-hidden="true" className="size-5 fill-current" /> : <Play aria-hidden="true" className="size-5 fill-current" />}
    </button>
-   <div aria-hidden="true" className="flex h-8 flex-1 items-center gap-px" dir="ltr">
+   <div aria-hidden="true" className="flex h-8 flex-1 items-center gap-[2px]" dir="ltr">
     {bars.map((p, i) => (
      <span
       key={i}
-      className={`w-1 rounded-full ${i / BARS < at ? "bg-accent" : "bg-fg-muted/40"}`}
+      className={`w-[3px] rounded-full ${i / BARS < at ? "bg-accent" : "bg-accent/45"}`}
       style={{ height: `${Math.max(12, p)}%` }}
      />
     ))}
@@ -87,7 +88,7 @@ export function VoicePlayer({ src, peaks = [], durationMs = 0 }: { src: string; 
      data-voice-speed={speed}
      onClick={() => voiceEngine.setSpeed(nextVoiceSpeed(speed))}
      aria-label={ct("chatvoice.speed", { speed: voiceSpeedLabel(speed) })}
-     className="inline-flex min-h-8 min-w-10 shrink-0 items-center justify-center rounded-full border border-border px-2 text-xs font-semibold tabular-nums text-fg-muted hover:bg-surface-2"
+     className="inline-flex min-h-7 min-w-10 shrink-0 items-center justify-center rounded-full bg-accent/15 px-2 text-xs font-bold tabular-nums text-accent hover:bg-accent/25"
      dir="ltr"
     >
      {voiceSpeedLabel(speed)}
