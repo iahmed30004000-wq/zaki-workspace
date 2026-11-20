@@ -37,8 +37,8 @@ import { nextZonedDayStart, resolveTimeZone, zonedDayStart, zonedParts, zonedWal
  *    person, open (or finished this week) and not archived.
  *  - THE TEAM («الفريق هالأسبوع») is «فريقي» (A2.3, D-A3, `policy/people-scope.ts`): the company for the OWNER rank that holds `board.team`,
  *    otherwise exactly the people under the person in the reporting line (nobody under them: no strip, never a 0; `users.manage` no
- *    longer decides it). Counts only: finished this week, due today, and HOW MANY people of the scope hold something overdue — all
- *    through `taskVisibleWhere`, so a task the person may not open is in no number. No name, no title, no customer, no price.
+ *    longer decides it). Counts only: finished this week, due today, and HOW MANY people of the scope hold something overdue (as the
+ *    primary person, or — for «my team» — beside somebody else; each once) — all through `taskVisibleWhere`, so a task the person may not open is in no number. No name, no title, no customer, no price.
  *    It says what it counted (`scope`).
  *  - UNREAD CHAT is `unreadTotal` itself, the count behind the badge on «الدردشة»: it already leaves out every
  *    topic of a space the person is not in, and the owner's silent reading adds nothing.
@@ -123,21 +123,27 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
     if (teamSpaces.length === 0) return null;
     const teamVisible = { orgId: actor.orgId, workspaceId: { in: teamSpaces }, archived: false, AND: [taskVisibleWhere(teamScope), teamTaskWhere(people)] } satisfies Prisma.TaskWhereInput;
     const teamOpen = { ...teamVisible, completedAt: null } satisfies Prisma.TaskWhereInput;
-    const [nDone, nToday, late] = await Promise.all([
+    const teamLate = { ...teamOpen, dueDate: { lt: todayStart } } satisfies Prisma.TaskWhereInput;
+    const [nDone, nToday, late, lateShared] = await Promise.all([
       db.task.count({ where: { ...teamVisible, completedAt: { gte: weekStart, lt: weekEnd } } }),
       db.task.count({ where: { ...teamOpen, dueDate: { gte: todayStart, lt: tomorrowStart } } }),
       db.task.groupBy({
         by: ["assigneeId"],
         where: {
-          ...teamOpen,
-          dueDate: { lt: todayStart },
+          ...teamLate,
           // somebody who still works here: a suspended or offboarded person is not counted, and neither is a task nobody holds
           assignee: { memberships: { some: { organizationId: actor.orgId, status: "ACTIVE" } } },
         },
       }),
+      // «فريقي»: a team-mate who only SHARES an overdue task is late too (the same rule the count of tasks used: the task is theirs beside somebody else)
+      people.kind === "reports"
+        ? db.taskCoAssignee.findMany({ where: { userId: { in: [...people.reportIds] }, task: teamLate }, select: { userId: true }, distinct: ["userId"] })
+        : Promise.resolve([] as { userId: string }[]),
     ]);
-    // only people OF THE SCOPE are counted as late: a task of somebody outside it that merely names a team-mate beside them adds nobody
-    const peopleLate = late.filter((r) => r.assigneeId !== null && inTeam(people, r.assigneeId)).length;
+    // only people OF THE SCOPE are counted as late, each once: an outsider who holds a task that merely names a team-mate beside them adds nobody
+    const lateIds = new Set<string>(lateShared.map((r) => r.userId));
+    for (const r of late) if (r.assigneeId !== null && inTeam(people, r.assigneeId)) lateIds.add(r.assigneeId);
+    const peopleLate = lateIds.size;
     const spaceName = !opts.teamWide && opts.space?.id && teamSpaces.length === 1 ? await spaceNameOf(opts.space.id) : null;
     return { scope: teamScopeInfoOf(people, spaceName) as TeamScopeInfo, doneWeek: nDone, dueToday: nToday, peopleLate };
   }

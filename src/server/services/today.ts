@@ -248,6 +248,8 @@ export async function getToday(actor: Actor, opts: TodayOptions = {}): Promise<S
           dueDate: { lt: todayStart },
           // somebody who still works here: a suspended or offboarded person is not named, and neither is a task nobody holds
           assignee: { memberships: { some: { organizationId: actor.orgId, status: "ACTIVE" } } },
+          // and the person named is OF THE TEAM: a task an outsider holds that merely shares a team-mate is counted above but never names the outsider
+          ...(people.kind === "reports" ? { assigneeId: { in: [...people.reportIds] } } : {}),
         },
         orderBy: [{ dueDate: "asc" }, { id: "asc" }],
         take: TODAY_LIMITS.pulse,

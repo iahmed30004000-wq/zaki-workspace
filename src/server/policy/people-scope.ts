@@ -1,5 +1,6 @@
 import type { OrgRole, Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { perRequest } from "@/server/env";
 import type { Actor } from "@/server/policy/actor";
 import { isSpaceManager } from "@/server/workspace-role";
 
@@ -105,18 +106,24 @@ export function teamTaskWhere(scope: PeopleScope): Prisma.TaskWhereInput {
 export const inTeam = (scope: PeopleScope, userId: string): boolean => scope.kind === "company" || scope.reportIds.has(userId);
 
 /**
- * Who is «my team» for this person. One query over the company's lines (all statuses, so a chain through a suspended person holds), at
- * most one. An external partner has none; the OWNER rank holding `board.team` has the company.
+ * The company's lines (all statuses, so a chain through a suspended person holds), read ONCE per server render (`perRequest`): the page, the
+ * pulse, the strip and the board all ask. The key is the company's id (a string); nothing outlives the render, a line changed is seen by the
+ * very next request. The array is shared by the render's callers: nobody changes it.
+ */
+const orgLines = perRequest(
+  async (orgId: string): Promise<LineRow[]> =>
+    db.organizationMember.findMany({ where: { organizationId: orgId }, select: { userId: true, managerId: true, role: true, status: true } }),
+);
+
+/**
+ * Who is «my team» for this person. At most one query over the company's lines (once per render). An external partner has none; the OWNER rank
+ * holding `board.team` has the company.
  */
 export async function loadPeopleScope(actor: Pick<Actor, "userId" | "orgId" | "isOwner" | "isExternal" | "caps">): Promise<PeopleScope> {
   const base = { orgId: actor.orgId, viewerId: actor.userId };
   if (actor.isExternal) return { ...base, kind: "none", reportIds: new Set() };
   if (actor.isOwner && actor.caps.has("board.team")) return { ...base, kind: "company", reportIds: new Set() };
-  const rows = await db.organizationMember.findMany({
-    where: { organizationId: actor.orgId },
-    select: { userId: true, managerId: true, role: true, status: true },
-  });
-  const reportIds = new Set(reportsFromLines(rows, actor.userId));
+  const reportIds = new Set(reportsFromLines(await orgLines(actor.orgId), actor.userId));
   return { ...base, kind: reportIds.size > 0 ? "reports" : "none", reportIds };
 }
 

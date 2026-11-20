@@ -122,7 +122,11 @@ describe("the pulse is «فريقي»: the people under the person, over what th
     const w = await teamWorld();
     const shared = await put(w, "in", { title: "SHARED", assigneeId: w.owner.id, due: at("2026-10-05T12:00:00Z") });
     await db.taskCoAssignee.create({ data: { taskId: shared.id, userId: w.member.id } });
-    expect(await pulseOf(w.admin.id)).toMatchObject({ open: 1, overdue: 1 });
+    const pulse = await pulseOf(w.admin.id);
+    expect(pulse).toMatchObject({ open: 1, overdue: 1 });
+    // the list names only people OF THE TEAM: the owner holds it, so the task is counted but the owner is never shown to the manager
+    expect(pulse?.worst).toEqual([]);
+    expect(JSON.stringify(pulse)).not.toContain("Owner");
   });
 
   it("the OWNER rank has the company; a partner whose board.team was taken away has only the people under them", async () => {
@@ -227,11 +231,19 @@ describe("the strip is «فريقي» too", () => {
     expect(await stripOf(w.admin.id)).toEqual({ scope: { who: "reports", spaceName: null }, doneWeek: 2, dueToday: 1, peopleLate: 1 });
   });
 
-  it("a task of somebody outside the team that only names a team-mate beside them adds nobody to «people late»", async () => {
+  it("a team-mate who only shares an overdue task is late (one person), and the outsider who holds it is not counted", async () => {
     const w = await teamWorld();
     const shared = await put(w, "in", { assigneeId: w.owner.id, due: at("2026-10-05T12:00:00Z") });
     await db.taskCoAssignee.create({ data: { taskId: shared.id, userId: w.member.id } });
-    expect(await stripOf(w.admin.id)).toMatchObject({ peopleLate: 0 });
+    expect(await stripOf(w.admin.id)).toMatchObject({ peopleLate: 1 });
+    // when the team-mate also holds one of their own, still one person
+    await put(w, "in", { assigneeId: w.member.id, due: at("2026-10-06T12:00:00Z") });
+    expect(await stripOf(w.admin.id)).toMatchObject({ peopleLate: 1 });
+    // and an overdue task of an outsider alone adds nobody
+    const alone = await makeUser({ orgId: w.org.id, role: "MEMBER", name: "Alone" });
+    await joinWorkspace(alone.id, w.wsIn.id);
+    await put(w, "in", { assigneeId: alone.id, due: at("2026-10-06T12:00:00Z") });
+    expect(await stripOf(w.admin.id)).toMatchObject({ peopleLate: 1 });
   });
 });
 
