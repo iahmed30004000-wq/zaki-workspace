@@ -124,7 +124,7 @@ export function KnowledgeView({ initial }: { initial: SheetList }) {
 
       {creating ? (
         <form
-          className="space-y-3 rounded-xl border border-border bg-surface-1 p-4"
+          className="space-y-3 rounded-[14px] bg-surface-1 p-4"
           onSubmit={(e) => {
             e.preventDefault();
             if (busy) return;
@@ -158,35 +158,35 @@ export function KnowledgeView({ initial }: { initial: SheetList }) {
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
-        <Input className="max-w-xs" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("knowledge.search")} aria-label={t("knowledge.search")} />
+        <Input className="max-w-xs rounded-full border-transparent bg-surface-2" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("knowledge.search")} aria-label={t("knowledge.search")} />
         {(initial.canEdit ? (["all", "out", "test", "lacking"] as const) : (["all", "out", "test"] as const)).map((f) => (
-          <button key={f} type="button" onClick={() => setFilter(f)} aria-pressed={filter === f} className={`rounded-full border px-3 py-1 text-xs ${filter === f ? "border-accent bg-accent/10" : "border-border text-muted"}`}>
+          <button key={f} type="button" onClick={() => setFilter(f)} aria-pressed={filter === f} className={`rounded-full px-3 py-1 text-[13px] font-semibold transition-colors ${filter === f ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg-muted hover:text-fg"}`}>
             {t(`knowledge.filter.${f}`)}
           </button>
         ))}
       </div>
       {categories.length > 0 ? (
         <div className="flex flex-wrap gap-2">
-          <button type="button" onClick={() => setCategory(null)} aria-pressed={category === null} className={`rounded-full border px-3 py-1 text-xs ${category === null ? "border-accent bg-accent/10" : "border-border text-muted"}`}>
+          <button type="button" onClick={() => setCategory(null)} aria-pressed={category === null} className={`rounded-full px-3 py-1 text-[13px] font-semibold transition-colors ${category === null ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg-muted hover:text-fg"}`}>
             {t("knowledge.filter.all")}
           </button>
           {categories.map((c) => (
-            <button key={c} type="button" onClick={() => setCategory(c)} aria-pressed={category === c} className={`rounded-full border px-3 py-1 text-xs ${category === c ? "border-accent bg-accent/10" : "border-border text-muted"}`}>
+            <button key={c} type="button" onClick={() => setCategory(c)} aria-pressed={category === c} className={`rounded-full px-3 py-1 text-[13px] font-semibold transition-colors ${category === c ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg-muted hover:text-fg"}`}>
               {c}
             </button>
           ))}
         </div>
       ) : null}
 
-      {shown.length === 0 ? <p className="p-6 text-center text-sm text-muted">{t(initial.sheets.length === 0 ? "knowledge.empty" : "knowledge.no_match")}</p> : null}
-      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {shown.length === 0 ? <p className="rounded-[14px] bg-surface-1 px-4 py-7 text-center text-sm text-fg-muted">{t(initial.sheets.length === 0 ? "knowledge.empty" : "knowledge.no_match")}</p> : null}
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fill,minmax(186px,1fr))]">
         {shown.map((s) => {
           const stock = stockWord(s.stockStatus);
           return (
             <li key={s.id}>
-              <Link href={`/knowledge/${s.id}`} className="block h-full space-y-1 rounded-xl border border-border bg-surface-1 p-3 hover:border-accent">
+              <Link href={`/knowledge/${s.id}`} className="block h-full space-y-1.5 rounded-[14px] bg-surface-1 p-3 transition-shadow hover:shadow-card-hover">
                 <div className="flex items-start justify-between gap-2">
-                  <span className="font-semibold">{s.name}</span>
+                  <span className="text-[15.5px] font-bold">{s.name}</span>
                   {stock ? <span className={`rounded-full px-2 py-0.5 text-xs ${stock === "out" ? "bg-danger/15 text-danger" : "bg-ok/15 text-ok"}`}>{t(stock === "out" ? "knowledge.stock.out" : "knowledge.stock.in")}</span> : null}
                 </div>
                 {s.category ? <p className="text-xs text-muted">{s.category}</p> : null}

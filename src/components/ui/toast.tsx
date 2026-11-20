@@ -30,7 +30,9 @@ export const TOAST_DISMISS_MS = 4000;
  *
  * Where they appear: at the TOP of the screen on phones, below the notch (safe-area inset) and
  * below the 56px top bar, so a toast never covers the bottom bar or the bottom of a sheet; in the
- * bottom corner at the end of the line from the `md` breakpoint (768px). The stack is a polite
+ * bottom CENTRE from the `md` breakpoint (768px), as in the owner's mock-up. The toast itself is the mock-up's dark pill: the ink (`fg`) with
+ * the page colour as its text on the light themes, `surface-2` with the normal text on the dark ones — never a white card. (`scrim` is the dimming layer
+ * behind a dialog and nothing else: tests/ui-tokens.test.ts.) The stack is a polite
  * live region: `aria-live` is also what keeps it announced while a dialog hides the rest of the
  * page from screen readers.
  *
@@ -55,7 +57,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
       {children}
       <div
         aria-live="polite"
-        className="pointer-events-none fixed end-0 start-0 top-14 z-[70] flex flex-col items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:bottom-4 md:end-4 md:start-auto md:top-auto md:w-80 md:items-stretch md:p-0"
+        className="pointer-events-none fixed end-0 start-0 top-14 z-[70] flex flex-col items-center gap-2 px-4 pt-[max(0.75rem,env(safe-area-inset-top))] md:bottom-6 md:top-auto md:p-0"
       >
         {items.map((t) => (
           <ToastRow key={t.id} item={t} onDismiss={() => setItems((p) => p.filter((x) => x.id !== t.id))} />
@@ -89,16 +91,16 @@ export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () =
       onFocus={() => setPaused(true)}
       onBlur={() => setPaused(false)}
       className={cn(
-        "pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-xl border border-border bg-surface-1 ps-3 shadow-md animate-fade-in motion-reduce:animate-none md:max-w-none",
+        "pointer-events-auto flex w-full max-w-sm items-center gap-2 rounded-xl bg-fg ps-3 text-surface shadow-lg dark:bg-surface-2 dark:text-fg animate-fade-in motion-reduce:animate-none md:w-auto md:min-w-64 md:max-w-md",
       )}
     >
       {icons[item.kind]}
-      <p className="min-w-0 flex-1 py-3 text-sm text-fg">{item.message}</p>
+      <p className="min-w-0 flex-1 py-3 text-sm">{item.message}</p>
       <button
         type="button"
         onClick={onDismiss}
         aria-label={t("ui.toast_close")}
-        className="flex size-11 shrink-0 items-center justify-center rounded-lg text-muted hover:text-fg"
+        className="flex size-11 shrink-0 items-center justify-center rounded-lg opacity-70 transition-opacity hover:opacity-100"
       >
         <X className="size-4" aria-hidden="true" />
       </button>

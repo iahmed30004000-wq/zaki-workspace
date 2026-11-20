@@ -13,6 +13,7 @@ import { lastSeenLabel } from "@/lib/last-seen";
 import { cn } from "@/lib/utils";
 import { frameDrivenQuery, useFrameRefresh } from "@/lib/realtime/live-refresh";
 import { Avatar } from "@/components/ui/avatar";
+import { railCellClass } from "./rail-style";
 
 /** What `GET /api/presence` answers (src/server/services/presence-roster.ts). */
 export interface PresencePersonDto {
@@ -56,7 +57,7 @@ export interface PresenceRosterDto {
  *
  * `defaultOpen` is for server-render tests.
  */
-export function PeopleDock({ enabled = true, defaultOpen = false }: { enabled?: boolean; defaultOpen?: boolean }) {
+export function PeopleDock({ enabled = true, defaultOpen = false, variant = "strip" }: { enabled?: boolean; defaultOpen?: boolean; /** `rail`: the chat on a computer has no bottom strip, so the same roster is a cell of the rail (the people over «N متصل») and opens beside it. */ variant?: "strip" | "rail" }) {
   const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
@@ -121,14 +122,18 @@ export function PeopleDock({ enabled = true, defaultOpen = false }: { enabled?: 
   const faces = online.slice(0, 4);
   const extra = online.length - faces.length;
   const onlineText = t(`shell.dock.online.${arabicPlural(online.length)}`, { n: online.length });
+  const rail = variant === "rail";
 
   return (
-    <div ref={rootRef} className="relative flex h-10 shrink-0 items-center gap-2 border-t border-border bg-surface-1/60 px-2">
+    <div ref={rootRef} {...(rail ? { "data-shell": "rail-dock" } : {})} className={rail ? "relative flex w-full justify-center" : "relative flex h-10 shrink-0 items-center gap-2 border-t border-border bg-surface-1/60 px-2"}>
       {open ? (
         <section
           id={panelId}
           aria-labelledby={headingId}
-          className="absolute bottom-full start-2 z-40 mb-1 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-surface-1 shadow-lg animate-fade-in motion-reduce:animate-none"
+          className={cn(
+            "absolute z-40 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-surface-1 shadow-lg animate-fade-in motion-reduce:animate-none",
+            rail ? "bottom-0 start-full ms-3" : "bottom-full start-2 mb-1",
+          )}
         >
           <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border pe-3 ps-4">
             <h2 id={headingId} className="font-sans text-sm font-semibold text-fg">
@@ -194,9 +199,17 @@ export function PeopleDock({ enabled = true, defaultOpen = false }: { enabled?: 
         aria-controls={open ? panelId : undefined}
         aria-label={online.length > 0 ? onlineText : t("shell.dock.title")}
         onClick={() => setOpen((v) => !v)}
-        className="flex h-8 min-w-0 items-center gap-2 rounded-full px-1 text-xs font-semibold text-fg transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"
+        className={rail ? railCellClass(open) : "flex h-8 min-w-0 items-center gap-2 rounded-full px-1 text-xs font-semibold text-fg transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"}
       >
-        {faces.length > 0 ? (
+        {rail ? (
+          <>
+            <span aria-hidden="true" className="relative shrink-0">
+              <Users className="size-6" />
+              {online.length > 0 ? <span className="absolute -bottom-0.5 -end-0.5 size-2.5 rounded-full border-2 border-surface-1 bg-ok" /> : null}
+            </span>
+            <span className="max-w-full break-words">{online.length > 0 ? onlineText : t("shell.dock.title")}</span>
+          </>
+        ) : faces.length > 0 ? (
           <span aria-hidden="true" className="flex items-center">
             {faces.map((p, i) => (
               <span key={p.userId} className={cn("relative", i > 0 && "-ms-2")} style={{ zIndex: faces.length - i }}>
@@ -215,7 +228,7 @@ export function PeopleDock({ enabled = true, defaultOpen = false }: { enabled?: 
             <Users className="size-3.5" />
           </span>
         )}
-        <span className="truncate pe-1">{online.length > 0 ? onlineText : t("shell.dock.title")}</span>
+        {rail ? null : <span className="truncate pe-1">{online.length > 0 ? onlineText : t("shell.dock.title")}</span>}
       </button>
     </div>
   );

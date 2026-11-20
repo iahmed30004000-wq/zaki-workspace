@@ -9,7 +9,7 @@ import type { Audience } from "@/lib/guide/audience";
 import { browserStore } from "@/lib/guide/storage";
 import { locate, type NavModel, type NavRole } from "@/lib/nav/places";
 import { applyNavOrder, hasOrder, withPlaceOrder, withTabOrder, type NavOrder } from "@/lib/nav/order";
-import { holdsNoWork, tabIsDrawn } from "@/lib/nav/shell-v2";
+import { chatChromeOf, holdsNoWork, tabIsDrawn } from "@/lib/nav/shell-v2";
 import { useOptionalToast } from "@/components/ui/toast";
 import type { NewActionKey } from "@/lib/nav/new-actions";
 import { AvatarMenu, type AvatarUser } from "@/components/shell/avatar-menu";
@@ -22,6 +22,7 @@ import { PeopleDock } from "@/components/shell/people-dock";
 import { useWorkWaiting } from "@/components/shell/place-badge";
 import { PlaceTabs } from "@/components/shell/place-tabs";
 import { Rail } from "@/components/shell/rail";
+import { RailTools } from "@/components/shell/rail-tools";
 import { Sidebar } from "@/components/shell/sidebar";
 import { NoWorkSpace, SpaceBanner } from "@/components/shell/space-banner";
 import { SpaceSwitcher, useCurrentSpace, useSpaces, type ShellSpace } from "@/components/shell/space-switcher";
@@ -29,6 +30,7 @@ import { TopBar } from "@/components/shell/top-bar";
 import { SwitchFxProvider } from "@/components/theme/switch-fx-provider";
 import { readSidebarCollapsed, writeSidebarCollapsed } from "@/components/shell/sidebar-state";
 import { useChatUnread } from "@/lib/chat/use-chat-unread";
+import { useIsDesktop } from "@/lib/chat/v2/use-media";
 import { FrameBridgeContext, type FrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
 
@@ -85,6 +87,12 @@ export interface AppShellProps {
   orderLocked?: boolean;
   /** D-N3: the person has no space that holds projects (only «الشركة»): «الشغل» says who to ask instead of showing empty lists. */
   noWorkSpace?: boolean;
+  /**
+   * The company's `chatLayoutV2` switch (the new chat screen) is ON: on the CHAT pages the computer draws no global bar and no bottom strip — the chat's list
+   * column is the page's own bar, as in the owner's mock-up — and their tools (search, «جديد», the bell, who is online) move into the rail
+   * (`chatChromeOf`, src/lib/nav/shell-v2.ts). Only with `navV2` (the old menu has no rail to hold them). A phone keeps the bar.
+   */
+  chatBare?: boolean;
   /** C2: the chat list column (beside the rail) and its folders (in the drawer) — drawn by the SAME rail and drawer, which are never made twice. */
   listSlot?: ReactNode;
   children: ReactNode;
@@ -113,7 +121,7 @@ export function AppShell(props: AppShellProps) {
   );
 }
 
-function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, siteGuide = false, economy = false, navV2 = false, orderLocked = false, noWorkSpace = false, listSlot, children }: AppShellProps) {
+function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, siteGuide = false, economy = false, navV2 = false, orderLocked = false, noWorkSpace = false, chatBare = false, listSlot, children }: AppShellProps) {
   // set while rendering, on purpose: the shell renders before its children, so every timer below reads the right period
   setEconomy(economy);
   const { t } = useI18n();
@@ -153,6 +161,9 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   // the space the person is in (the layout's answer, then the server's after each navigation)
   const space = useCurrentSpace(initialSpace);
   const pathname = usePathname() ?? "/";
+  // the chat on a computer: no bar, no strip — the rail carries their tools (decided here, so exactly one copy of each tool is ever mounted)
+  const desktop = useIsDesktop();
+  const chrome = chatChromeOf({ navV2, chatBare, pathname, desktop });
   // the page against the person's own map: the new one when the company's switch is on («اليوم» is matched by its path, «/?view=today» is «/»)
   const here = locate(pathname, navV2 ? "v2" : "v1");
   // a page of a place this person is not offered (a guest who typed /files) marks nothing
@@ -242,6 +253,8 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
           orderLocked={orderLocked}
           settingsHref={settings?.href}
           listSlot={listSlot}
+          tools={chrome === "moved" ? <RailTools nav={nav} place={place?.key ?? null} newActions={isGuest ? [] : newActions} /> : undefined}
+          dock={chrome === "moved" ? <PeopleDock variant="rail" enabled={!isGuest && peopleDock} /> : undefined}
         />
       ) : (
         <Sidebar
@@ -270,7 +283,10 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
       <div className="flex min-w-0 flex-1 flex-col">
         <div className="contents group-has-[[data-frame-bars]]/frame:max-md:hidden">
         {navV2 ? (
+          chrome === "moved" ? null : (
           <AppBar
+            hideOnDesktop={chrome === "pending"}
+            tabs={<PlaceTabs embedded place={place} tab={tab} pathname={pathname} editing={editing} onReorder={reorderTabs} />}
             nav={nav}
             place={place?.key ?? null}
             pathname={pathname}
@@ -282,6 +298,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             newActions={isGuest ? [] : newActions}
             onOpenDrawer={() => setDrawerOpen(true)}
           />
+          )
         ) : (
           <TopBar
             nav={nav}
@@ -295,21 +312,24 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
           />
         )}
         </div>
-        <PlaceTabs
-          place={place}
-          tab={tab}
-          pathname={pathname}
-          editing={editing}
-          onReorder={reorderTabs}
-          end={
-            // the old phone has no side menu, so «الشغل» carries the space switcher; the new one has it in the drawer's header
-            !navV2 && place?.key === "work" ? (
-              <div className="shrink-0 border-s border-border px-1 md:hidden">
-                <SpaceSwitcher variant="strip" isGuest={isGuest} current={space} canOverview={canOverview} />
-              </div>
-            ) : null
-          }
-        />
+        {/* the new map draws the tabs INSIDE its page bar (above); the old map keeps its own strip under the top bar */}
+        {navV2 ? null : (
+          <PlaceTabs
+            place={place}
+            tab={tab}
+            pathname={pathname}
+            editing={editing}
+            onReorder={reorderTabs}
+            end={
+              // the old phone has no side menu, so «الشغل» carries the space switcher; the new one has it in the drawer's header
+              place?.key === "work" ? (
+                <div className="shrink-0 border-s border-border px-1 md:hidden">
+                  <SpaceSwitcher variant="strip" isGuest={isGuest} current={space} canOverview={canOverview} />
+                </div>
+              ) : null
+            }
+          />
+        )}
         {/* N1.3: a thing of another space says so in one line instead of switching the app's space by itself */}
         {navV2 ? <SpaceBanner /> : null}
         {/* on the old phone the content stops above the fixed bottom bar (its 56px, its border and the home-indicator inset); the drawer has no bar */}
@@ -319,8 +339,9 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             {noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : children}
           </main>
           {/* who is here and who is at their screen: its own 40px row above the phone's bar, so it covers no page (never for a guest) */}
-          <div className="contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden">
-            <PeopleDock enabled={!isGuest && peopleDock} />
+          <div className={chrome === "pending" ? "contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden md:hidden" : "contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden"}>
+            {/* the chat on a computer holds the roster in the rail instead (a second copy would ask the same question twice) */}
+            {chrome === "moved" ? null : <PeopleDock enabled={!isGuest && peopleDock} />}
           </div>
         </div>
       </div>

@@ -149,7 +149,7 @@ export function AutomationView({ ctx, doorCard = null, backupCard = null, mailCa
       </header>
 
       {/* ---------------- n8n ---------------- */}
-      <section className="space-y-4 rounded-xl border border-border bg-surface-1 p-5">
+      <section className="space-y-4 rounded-[14px] bg-surface-1 p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="grid size-9 place-items-center rounded-lg bg-cat-2/10 text-cat-2">
@@ -296,7 +296,7 @@ x-zaki-signature: sha256=HMAC_SHA256(secret, "{timestamp}.{raw body}")`}
       </section>
 
       {/* ---------------- Google Drive ---------------- */}
-      <section className="space-y-4 rounded-xl border border-border bg-surface-1 p-5">
+      <section className="space-y-4 rounded-[14px] bg-surface-1 p-5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="grid size-9 place-items-center rounded-lg bg-warn/10 text-warn">

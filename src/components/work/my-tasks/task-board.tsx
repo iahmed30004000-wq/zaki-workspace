@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { PRIORITY_STYLES, fmtRelative, fmtNumber } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
 import { useI18n } from "@/lib/i18n";
@@ -39,7 +40,7 @@ export function TaskBoard({
   const columns = groupWorkTasks(tasks, "stage", words, { todayIso, timeZone, keepEmptyStages: true });
 
   return (
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4" role="group" aria-label={t("mytasks.board.aria")}>
+    <div className="mt-2 grid items-start gap-3 md:grid-cols-2 xl:grid-cols-4" role="group" aria-label={t("mytasks.board.aria")}>
       {columns.map((column, index) => {
         const stage = WORK_STAGES[index] as WorkStage;
         return (
@@ -61,13 +62,13 @@ export function TaskBoard({
               const moved = id ? tasks.find((x) => x.id === id) : undefined;
               if (id && moved && moved.columnStage !== stage) onMove(id, stage);
             }}
-            className={cn("flex min-h-40 flex-col rounded-xl border border-border bg-surface-1 p-2", overStage === stage && "bg-surface-2")}
+            className={cn("flex min-h-40 flex-col rounded-2xl bg-surface-2 p-2", overStage === stage && "ring-2 ring-accent/40")}
           >
-            <h2 className="mb-2 flex items-center gap-2 px-1 text-xs font-semibold text-fg-muted">
+            <h2 className="mb-2 flex items-center justify-between gap-2 px-1.5 py-1 text-[13.5px] font-bold text-fg">
               {column.label}
-              <span className="rounded-full bg-surface-2 px-1.5 text-xs font-normal tabular-nums">{fmtNumber(column.tasks.length)}</span>
+              <Badge tone="accent">{fmtNumber(column.tasks.length)}</Badge>
             </h2>
-            {column.tasks.length === 0 ? <p className="px-1 py-6 text-center text-xs text-muted">{t("mytasks.empty.board")}</p> : null}
+            {column.tasks.length === 0 ? <p className="px-1 py-6 text-center text-[13px] text-muted">{t("mytasks.empty.board")}</p> : null}
             <div className="space-y-2">
               {column.tasks.map((task) => (
                 <article
@@ -80,10 +81,10 @@ export function TaskBoard({
                     setOverStage(null);
                   }}
                   className={cn(
-                    "rounded-lg border border-border bg-surface p-2 text-sm",
+                    "rounded-[10px] bg-surface-1 px-2.5 py-2 text-sm shadow-card",
                     task.editable && "cursor-grab active:cursor-grabbing",
                     dragId === task.id && "opacity-40",
-                    task.id === openId && "border-accent",
+                    task.id === openId && "ring-2 ring-accent",
                   )}
                 >
                   <div className="flex items-start gap-2">
@@ -93,8 +94,8 @@ export function TaskBoard({
                       onClick={() => actions.onToggle(task.id, task.completedAt === null)}
                       aria-label={task.completedAt ? t("task.reopen") : t("task.complete")}
                       className={cn(
-                        "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border",
-                        task.completedAt ? "border-ok bg-ok text-ok-fg" : "border-muted/50 hover:border-ok",
+                        "mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full border-2",
+                        task.completedAt ? "border-ok bg-ok text-ok-fg" : "border-badge-muted hover:border-ok",
                         !task.editable && "opacity-40",
                       )}
                     >
@@ -118,17 +119,17 @@ export function TaskBoard({
                       style={{ backgroundColor: PRIORITY_STYLES[task.priority]?.color ?? "rgb(var(--border))" }}
                     />
                   </div>
-                  <p dir="auto" className="mt-1 truncate text-xs text-fg-muted">
+                  <p dir="auto" className="mt-1 truncate text-[13px] text-fg-muted">
                     {[task.key, ...(showSpace ? [task.spaceName] : []), task.projectName].join(" · ")}
                   </p>
-                  <div className="mt-1 flex items-center justify-between gap-2 text-xs text-fg-muted">
+                  <div className="mt-1.5 flex items-center justify-between gap-2 text-[13px] text-fg-muted">
                     <span suppressHydrationWarning>{task.dueDate ? fmtRelative(task.dueDate) : ""}</span>
                     {task.editable ? (
                       <select
                         aria-label={t("mytasks.board.move")}
                         value={task.columnStage}
                         onChange={(e) => onMove(task.id, e.target.value as WorkStage)}
-                        className="max-w-32 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs hover:border-border focus:border-border focus:outline-none"
+                        className="max-w-32 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[13px] hover:border-border focus:border-border focus:outline-none"
                       >
                         {WORK_STAGES.map((s) => (
                           <option key={s} value={s}>

@@ -27,7 +27,7 @@ export function LinksSection({ cardId, version, initial }: { cardId: string; ver
   if (!data) return null;
   const empty = data.tasks.length === 0 && data.topics.length === 0;
   return (
-    <section aria-label={t("cards.p.links")} className="flex flex-col gap-2 rounded-xl border border-border bg-surface-1 p-3">
+    <section aria-label={t("cards.p.links")} className="flex flex-col gap-2 rounded-[14px] bg-surface-1 p-3">
       <h3 className="text-sm font-semibold text-fg">{t("cards.p.links")}</h3>
       {empty ? <p className="text-xs text-fg-muted">{t("cards.p.links_none")}</p> : null}
       {data.tasks.length > 0 ? (

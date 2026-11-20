@@ -115,7 +115,7 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
   if (!hasAny) return null;
 
   return (
-    <section aria-label={t("media.title")} className="space-y-3 rounded-xl border border-border bg-surface-1 p-3" data-sheet-media>
+    <section aria-label={t("media.title")} className="space-y-3 rounded-[14px] bg-surface-1 p-3" data-sheet-media>
       <h2 className="text-sm font-semibold">{t("media.photos")}</h2>
       {data.gallery.length > 0 ? (
         <ul className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1" data-gallery>

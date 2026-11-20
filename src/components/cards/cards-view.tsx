@@ -299,7 +299,7 @@ export function CardsView({ spaceId, spaceName, userId, initial, canWrite, owner
         </div>
 
         {filtersOpen ? (
-          <div className="grid gap-2 rounded-xl border border-border bg-surface-1 p-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-2 rounded-[14px] bg-surface-1 p-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="text-xs text-fg-muted">
               {t("cards.f.kind")}
               <Select value={filter.kind} onChange={(e) => setFilter({ ...filter, kind: e.target.value as CardFilter["kind"] })}>

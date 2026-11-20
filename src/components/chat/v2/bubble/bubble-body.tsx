@@ -6,6 +6,7 @@ import { OrderText } from "@/components/chat/message/order-state-card";
 import { splitMentions } from "@/lib/chat/conversation/mentions";
 import { FormattedText } from "@/lib/chat/format/render";
 import { ct } from "@/lib/chat/text";
+import { ZakiEmojiText, isStickerOnly } from "@/components/chat/v2/bubble/zaki-emoji-text";
 
 /**
  * C2.4 — the words of a message: the deleted line, or the body with the people it mentions highlighted and the order numbers in it as chips (a chip is
@@ -20,7 +21,10 @@ export function BubbleBody({ message, mentionNames, conversationId, orderChips, 
   if (message.deleted) return <p className="text-sm italic text-fg-muted">{ct("chatc.deleted")}</p>;
   const body = message.body;
   if (!body) return null;
-  const plain = (text: string) => (orderChips ? <OrderText text={text} conversationId={conversationId} /> : text);
+  const bare = (text: string) => (orderChips ? <OrderText text={text} conversationId={conversationId} /> : text);
+  // the owner's Zaki emojis (:zaki_smile:) become their pictures; a message of only those is a big sticker
+  const sticker = isStickerOnly(body);
+  const plain = (text: string): React.ReactNode => <ZakiEmojiText text={text} render={bare} sticker={sticker} />;
   const withMentions = (text: string): React.ReactNode =>
     mentionNames.length
       ? splitMentions(text, mentionNames).map((piece, i) =>

@@ -63,9 +63,10 @@ export function ReactionChips({ message, canAct, onReact }: { message: MessageDt
           aria-pressed={r.mine}
           aria-label={ct("chatc.reaction", { emoji: r.emoji, count: r.count })}
           onClick={() => onReact(message, r.emoji)}
-          className={`min-h-8 rounded-full border px-2 text-sm ${r.mine ? "border-accent bg-accent/10" : "border-border"}`}
+          className={`inline-flex min-h-7 items-center gap-1 rounded-full bg-accent/15 px-2.5 text-[13px] font-bold tabular-nums text-accent transition-colors enabled:hover:bg-accent/25 disabled:cursor-default ${r.mine ? "ring-[1.5px] ring-inset ring-accent" : ""}`}
         >
-          {r.emoji} {r.count}
+          <span aria-hidden="true" className="text-base leading-none">{r.emoji}</span>
+          <span aria-hidden="true">{r.count}</span>
         </button>
       ))}
     </div>

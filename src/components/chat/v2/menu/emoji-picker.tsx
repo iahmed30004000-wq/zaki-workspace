@@ -2,6 +2,7 @@
 
 import React from "react";
 import { EmojiPicker, type EmojiData } from "frimousse";
+import { Search } from "lucide-react";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ct } from "@/lib/chat/text";
 import { emojiDataOf, type EmojibaseRow } from "@/lib/chat/v2/menu/emoji-data";
@@ -47,25 +48,29 @@ export function EmojiPickerDialog({ open, onOpenChange, onPick, portal = true }:
               onPick(emoji);
               onOpenChange(false);
             }}
-            className="isolate flex h-80 w-full flex-col bg-surface-1"
+            className="isolate flex h-96 w-full flex-col gap-1.5 bg-surface-1 p-2"
           >
-            <EmojiPicker.Viewport className="relative flex-1 outline-none">
+            <div className="relative">
+              <Search aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
+              <EmojiPicker.Search placeholder={ct("chatui.composer.emoji_search")} aria-label={ct("chatui.composer.emoji_search")} className="h-10 w-full rounded-full bg-surface-2 ps-10 pe-3 text-base text-fg outline-none placeholder:text-fg-muted focus-visible:ring-2 focus-visible:ring-accent/40" />
+            </div>
+            <EmojiPicker.Viewport className="relative min-h-0 flex-1 outline-none">
               <EmojiPicker.Loading className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">{ct("chatui.menu.picker_loading")}</EmojiPicker.Loading>
               <EmojiPicker.Empty className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">{ct("chatui.menu.picker_empty")}</EmojiPicker.Empty>
               <EmojiPicker.List
                 components={{
                   CategoryHeader: ({ category, ...props }) => (
-                    <div {...props} className="bg-surface-1 px-3 pb-1.5 pt-3 text-xs font-semibold text-fg-muted">
+                    <div {...props} className="bg-surface-1 px-3 pb-1 pt-2 text-xs font-semibold text-fg-muted">
                       {category.label}
                     </div>
                   ),
                   Row: ({ children, ...props }) => (
-                    <div {...props} className="scroll-my-1.5 px-1.5">
+                    <div {...props} className="flex scroll-my-1.5 px-1">
                       {children}
                     </div>
                   ),
                   Emoji: ({ emoji, ...props }) => (
-                    <button {...props} aria-label={emoji.emoji} className="flex size-10 items-center justify-center rounded-md text-xl data-[active]:bg-surface-2">
+                    <button {...props} aria-label={emoji.emoji} className="flex h-11 flex-1 items-center justify-center rounded-lg text-[30px] leading-none data-[active]:bg-surface-2">
                       {emoji.emoji}
                     </button>
                   ),

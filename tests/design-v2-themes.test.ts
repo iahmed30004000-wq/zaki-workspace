@@ -39,8 +39,11 @@ describe("the chat tokens", () => {
       expect(contrastRatio(c["selected-row-fg"], c["selected-row"]), `${key} selected row`).toBeGreaterThanOrEqual(4.5);
     }
   });
-  it("an own bubble is the theme's accent in the flat themes (one accent: the primary button, links, selection, own bubbles)", () => {
-    expect(PALETTES.sky.colors["bubble-out"]).toBe(PALETTES.sky.colors.accent);
+  it("the flat themes carry the owner's mock-up bubbles: an own bubble is a soft blue by day and a deep blue by night, an incoming one is the card colour", () => {
+    expect(PALETTES.sky.colors["bubble-out"]).toBe("#D6E9FF");
+    expect(PALETTES.sky.colors["bubble-in"]).toBe(PALETTES.sky.colors["surface-1"]);
+    expect(PALETTES["blue-night"].colors["bubble-out"]).toBe("#2B5378");
+    expect(PALETTES["blue-night"].colors["bubble-in"]).toBe("#182533");
   });
   it("the wallpaper's ink is quiet on purpose: less contrast with the wallpaper than the text has", () => {
     for (const key of THEME_KEYS) {

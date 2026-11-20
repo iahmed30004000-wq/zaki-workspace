@@ -9,7 +9,8 @@ import { currentSpace } from "@/server/services/current-space";
 import { isFeatureOn } from "@/server/services/features";
 import { INSTANT_PROJECT_KEY } from "@/server/services/instant-work";
 import { goHref } from "@/lib/space-link";
-import { Card, CardBody, Badge, EmptyState } from "@/components/ui/card";
+import { Card, CardBody } from "@/components/ui/card";
+import { PROJECT_TONE, QuietEmpty, StateChip } from "@/components/work/look";
 import { ProjectsToolbar } from "@/components/projects-toolbar";
 import { WorkspaceMembersButton } from "@/components/workspace-members-button";
 import { WorkspaceTeamsButton } from "@/components/workspace-teams-button";
@@ -39,10 +40,10 @@ export default async function ProjectsPage({
     return (
       <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
         <header className="flex items-center justify-between">
-          <h1 className="text-xl font-semibold text-fg">{t("nav.projects")}</h1>
+          <h1 className="text-[19px] font-bold text-fg">{t("nav.projects")}</h1>
           <ProjectsToolbar />
         </header>
-        <EmptyState title={t("proj.noWorkspaces")} hint={t("proj.noWorkspacesHint")} />
+        <QuietEmpty title={t("proj.noWorkspaces")} hint={t("proj.noWorkspacesHint")} />
       </div>
     );
   }
@@ -79,9 +80,9 @@ export default async function ProjectsPage({
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
       <header className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-fg">
+        <h1 className="text-[19px] font-bold text-fg">
           {t("nav.projects")}
-          {wsName ? <span className="text-sm text-fg-muted"> · {wsName}</span> : null}
+          {wsName ? <span className="text-sm font-normal text-fg-muted"> · {wsName}</span> : null}
         </h1>
         <div className="flex items-center gap-2">
           {wsInfo ? (
@@ -97,42 +98,44 @@ export default async function ProjectsPage({
       </header>
       {inboxes.map((p) => (
         <Link key={p.id} href={`/projects/${p.id}`} data-work-inbox="pinned" className="block">
-          <Card className="border-accent/40 bg-accent/[0.05] transition-colors hover:border-accent">
+          <Card className="rounded-2xl border-0 bg-accent/10 transition-shadow hover:shadow-card-hover">
             <CardBody className="flex items-center gap-3">
-              <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
+              <span className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-1 text-accent">
                 <Inbox className="size-5" aria-hidden="true" />
               </span>
               <div className="min-w-0 flex-1">
-                <p className="font-medium text-fg">{p.name === t("instant.project") ? t("work.inbox.name") : p.name}</p>
-                <p className="mt-0.5 text-xs text-fg-muted">
+                <p className="text-[15.5px] font-bold text-fg">{p.name === t("instant.project") ? t("work.inbox.name") : p.name}</p>
+                <p className="mt-0.5 text-[13px] text-fg-muted">
                   {t("work.inbox.hint")}
                   {inboxes.length > 1 ? ` · ${p.workspace.name}` : ""}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
-                <Badge>{t("work.inbox.pinned")}</Badge>
-                <span className="text-xs text-muted">{t("work.inbox.line", { tasks: p._count.tasks })}</span>
+                <StateChip tone="accent">{t("work.inbox.pinned")}</StateChip>
+                <span className="text-[13px] text-fg-muted">{t("work.inbox.line", { tasks: p._count.tasks })}</span>
               </div>
             </CardBody>
           </Card>
         </Link>
       ))}
       {ordinary.length === 0 ? (
-        <EmptyState title={t("proj.emptyTitle")} hint={t("proj.emptyHint")} />
+        <QuietEmpty title={t("proj.emptyTitle")} hint={t("proj.emptyHint")} />
       ) : (
-        <div className="grid gap-3 md:grid-cols-2">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(220px,1fr))] items-start gap-3">
           {ordinary.map((p) => (
             <Link key={p.id} href={`/projects/${p.id}`} className="block">
-              <Card className="transition-colors hover:border-accent/40">
-                <CardBody>
+              <Card className="rounded-2xl border-0 transition-shadow hover:shadow-card-hover">
+                <CardBody className="px-3.5 py-3">
                   <div className="flex items-start justify-between gap-2">
-                    <p className="font-medium text-fg">{p.name}</p>
-                    <Badge>{enumLabel("ProjectStatus", p.status)}</Badge>
+                    <p className="text-[15.5px] font-bold text-fg">{p.name}</p>
+                    <StateChip tone={PROJECT_TONE[p.status] ?? "neutral"} className="shrink-0">
+                      {enumLabel("ProjectStatus", p.status)}
+                    </StateChip>
                   </div>
                   {p.description ? (
-                    <p className="mt-1 line-clamp-2 text-xs text-fg-muted">{p.description}</p>
+                    <p className="mt-1 line-clamp-2 text-[13px] text-fg-muted">{p.description}</p>
                   ) : null}
-                  <p className="mt-2 text-xs text-muted">
+                  <p className="mt-2 text-[13px] text-fg-muted">
                     {t("proj.cardLine", { tasks: p._count.tasks, boards: p._count.boards })}
                     {p.targetDate ? ` · ${t("proj.dueLine", { date: fmtDMY(p.targetDate) })}` : ""}
                   </p>

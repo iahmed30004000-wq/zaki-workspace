@@ -179,9 +179,9 @@ describe("the rail (computer)", () => {
       }),
     );
 
-  it("is 64 px wide, hidden below md, with the places in the map's order and each place's small label", () => {
+  it("is 72 px wide (the owner mock-up), hidden below md, with the places in the map's order and each place's small label", () => {
     const html = rail();
-    expect(html).toMatch(/<aside[^>]*class="[^"]*\bw-16\b[^"]*"/);
+    expect(html).toMatch(/<aside[^>]*class="[^"]*\bw-\[72px\][^"]*"/);
     expect(html).toMatch(/<aside[^>]*class="[^"]*\bhidden\b[^"]*\bmd:flex\b/);
     const places = /<nav[^>]*data-tour="places"[^>]*>[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
     expect(hrefs(places)).toEqual(nav.places.map((p) => (p.key === "today" ? "/?view=today" : p.href)));

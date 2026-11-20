@@ -96,12 +96,23 @@ describe("a row (D1's list row)", () => {
     expect(markup).toContain('role="listitem"');
     expect(markup).toContain('data-task-row="1"');
     expect(markup).toContain('href="/tasks/1"');
-    expect(markup).toContain("ZK-1 · ألفا · مشروع أ · للتنفيذ");
+    // where it lives is the second line; the stage is a state, so it is a CHIP at the end (the Telegram-like look), not a word of that line
+    expect(markup).toContain("ZK-1 · ألفا · مشروع أ<");
+    expect(markup).toMatch(/rounded-full[^>]*>للتنفيذ<\/span>/);
     expect(markup).toContain('value="2026-11-20"');
     expect(markup).toContain("إكمال");
     expect(markup).toContain("سارة");
     // the D1 row (min height, divider), not a card
     expect(markup).toMatch(/class="[^"]*\bmin-h-14\b[^"]*\bborder-b\b/);
+  });
+
+  it("the look: a round two-line tick, a person's circle instead of a name, an overdue open task wears its day in the danger colour", () => {
+    const markup = row(task({ id: "1", dueDay: "2026-11-10", dueDate: "2026-11-10T09:00:00.000Z" }), { todayIso: "2026-11-20" });
+    expect(markup).toMatch(/<button[^>]*class="[^"]*rounded-full border-2/);
+    expect(markup).toMatch(/type="date"[^>]*class="[^"]*text-danger/);
+    expect(row(task({ id: "1", dueDay: "2026-11-10", completedAt: "2026-11-19T09:00:00.000Z" }), { todayIso: "2026-11-20" })).not.toMatch(/type="date"[^>]*class="[^"]*text-danger/);
+    // the last row of a card has no divider under it
+    expect(markup).toContain("last:border-b-0");
   });
 
   it("a finished task is struck through and offers «إعادة فتح»; a private one shows its lock; a read-only row has no date box and a disabled tick", () => {
@@ -137,6 +148,13 @@ describe("the list, grouped", () => {
     expect(stage).not.toContain("· للتنفيذ");
   });
 
+  it("a group is ONE rounded white card under a quiet heading «اسم · عدد», not a ruled list", () => {
+    const stage = list("stage");
+    expect(stage).toMatch(/<h2[^>]*font-bold[^>]*>للتنفيذ<span aria-hidden="true">·<\/span><span[^>]*>\d+<\/span><\/h2>/);
+    expect(stage).toMatch(/role="list" class="overflow-hidden rounded-2xl bg-surface-1"/);
+    expect(stage).not.toContain("border-t border-border");
+  });
+
   it("groups by project, by person (nobody last) and by due day with the plan's words", () => {
     expect(list("project")).toContain("مشروع ب");
     expect(list("person")).toContain("سارة");
@@ -161,6 +179,14 @@ describe("the board groups by STAGE across projects", () => {
     expect(markup).toContain('draggable="true"');
   });
 
+  it("the look: a column is a soft rounded well with its count as an accent badge, a card is a white card with a shadow and no outline", () => {
+    const markup = board(result().tasks);
+    expect(markup).toMatch(/<section[^>]*data-stage="TODO"[^>]*class="[^"]*rounded-2xl bg-surface-2/);
+    expect(markup).toMatch(/data-badge="accent"/);
+    expect(markup).toMatch(/<article[^>]*class="[^"]*bg-surface-1[^"]*shadow-card/);
+    expect(markup).not.toMatch(/<article[^>]*class="[^"]*border border-border/);
+  });
+
   it("a read-only card cannot be dragged or moved", () => {
     const markup = board([task({ id: "9", editable: false })]);
     expect(markup).toContain('draggable="false"');
@@ -183,6 +209,13 @@ describe("the bar: views, scopes, chips", () => {
   it("the chosen chip is pressed; «الكل» is pressed with none", () => {
     expect(bar(DEFAULT_MY_TASKS_PARAMS, result())).toMatch(/aria-pressed="true"[^>]*>الكل</);
     expect(bar({ ...DEFAULT_MY_TASKS_PARAMS, chip: "overdue" }, result())).toMatch(/aria-pressed="true"[^>]*>متأخرة</);
+  });
+
+  it("the look: the chosen view is the raised white segment on the soft track (not a solid accent); a pressed chip is the soft accent", () => {
+    const markup = bar(DEFAULT_MY_TASKS_PARAMS, result());
+    expect(markup).toMatch(/role="radio" aria-checked="true"[^>]*class="[^"]*bg-surface-1[^"]*shadow-card/);
+    expect(markup).toMatch(/aria-pressed="true"[^>]*class="[^"]*bg-accent\/10 text-accent/);
+    expect(markup).toMatch(/aria-pressed="false"[^>]*class="[^"]*bg-surface-2/);
   });
 
   it("scope «أنا» with several spaces offers the space chips; with one it does not", () => {

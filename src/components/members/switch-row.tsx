@@ -2,6 +2,7 @@
 
 import { useId, type ReactNode } from "react";
 import { Loader2 } from "lucide-react";
+import { SwitchTrack } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 /**
@@ -68,22 +69,7 @@ export function SwitchRow({
         {tag ? <span className="block text-xs">{tag}</span> : null}
         {note ? <span className="block text-xs leading-5">{note}</span> : null}
       </span>
-      <span
-        aria-hidden="true"
-        className={cn(
-          "relative inline-flex h-7 w-12 shrink-0 items-center rounded-full border transition-colors",
-          checked ? "border-accent bg-accent" : "border-border bg-surface-2",
-        )}
-      >
-        <span
-          className={cn(
-            "absolute start-0.5 top-0.5 grid size-5 place-items-center rounded-full bg-surface-1 shadow transition-transform",
-            checked && "translate-x-5 rtl:-translate-x-5",
-          )}
-        >
-          {busy ? <Loader2 className="size-3 animate-spin text-muted" /> : null}
-        </span>
-      </span>
+      <SwitchTrack checked={checked}>{busy ? <Loader2 className="size-3 animate-spin text-muted" /> : null}</SwitchTrack>
     </button>
   );
 }

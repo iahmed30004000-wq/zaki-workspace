@@ -233,7 +233,7 @@ export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: b
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] end-3 z-50 flex flex-col items-end gap-2 md:bottom-5"
+      className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] end-[18px] z-50 flex flex-col items-end gap-2 md:bottom-[18px]"
     >
       {open ? (
         <section
@@ -453,9 +453,9 @@ export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: b
         aria-controls={open ? panelId : undefined}
         aria-label={t("quickChat.open")}
         onClick={() => (open ? close() : setOpen(true))}
-        className="grid size-12 place-items-center rounded-full bg-accent text-accent-fg shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:hover:scale-100"
+        className="grid size-14 place-items-center rounded-full bg-accent text-accent-fg shadow-lg transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-2 focus-visible:ring-offset-2 focus-visible:ring-offset-surface motion-reduce:hover:scale-100"
       >
-        <MessageCircle className="size-5" />
+        <MessageCircle className="size-6" />
       </button>
     </div>
   );

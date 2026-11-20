@@ -129,7 +129,7 @@ export function LocalPanel({ value, onChange, saved, hasGatewayKey: initialHasKe
     if (!result || result.provider !== provider) return null;
     const r = result.data;
     return (
-      <div className="space-y-1 rounded-lg border border-border bg-surface-1 p-3 text-sm" role="status" data-testid={`ai-test-result-${provider}`}>
+      <div className="space-y-1 rounded-[14px] bg-surface-1 p-3 text-sm" role="status" data-testid={`ai-test-result-${provider}`}>
         <p className="text-ok">{t("localai.test.listed", { ms: fmtNumber(r.listMs), count: fmtNumber(r.models.length) })}</p>
         {model ? <p className={r.installed === false ? "text-warn" : "text-ok"}>{r.installed === false ? t("localai.test.not_installed", { model }) : r.installed === true ? t("localai.test.installed", { model }) : null}</p> : null}
         {r.ping ? (

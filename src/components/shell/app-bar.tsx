@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { Menu } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import type { Audience } from "@/lib/guide/audience";
 import type { NavModel, NavRole, PlaceKey } from "@/lib/nav/places";
 import type { NewActionKey } from "@/lib/nav/new-actions";
@@ -14,8 +16,11 @@ import type { AvatarUser } from "./avatar-menu";
 import { NewWheel } from "./new-wheel";
 
 /**
- * THE APP BAR of a place on the new map (switch `navV2`): the place's name, the search and the actions that make sense in THAT place
- * (`appBarOf`, src/lib/nav/shell-v2.ts), under the notch (`env(safe-area-inset-top)`). The old top bar stays for `navV2` OFF.
+ * THE APP BAR of a place on the new map (switch `navV2`) — the owner's mock-up's page bar (`.pbar`): one row of at least 56px with the place's name (19px,
+ * bold), the tabs of the place (`tabs`: the frame hands its tab strip in, so name and tabs are one bar), the search and the actions that make sense in THAT
+ * place (`appBarOf`, src/lib/nav/shell-v2.ts), under the notch (`env(safe-area-inset-top)`). The old top bar stays for `navV2` OFF.
+ *
+ * `hideOnDesktop`: the chat on a computer has no global bar (its tools live in the rail: `chatChromeOf`); the bar is still drawn for the phone.
  *
  *   phone      «☰» (opens the drawer, which carries the places, the spaces and the avatar) · the place's name and the space the person is in · the
  *              bell · «جديد», and the search on a line of its own under them
@@ -33,6 +38,8 @@ export function AppBar({
   space = null,
   newActions = [],
   onOpenDrawer,
+  tabs = null,
+  hideOnDesktop = false,
 }: {
   nav: NavModel;
   /** The place on screen (null: a page of no place, like the profile). */
@@ -48,12 +55,16 @@ export function AppBar({
   space?: { name: string; emoji: string | null } | null;
   newActions?: readonly NewActionKey[];
   onOpenDrawer: () => void;
+  /** The place's tab strip (`PlaceTabs` with `embedded`), drawn in the bar's row. */
+  tabs?: ReactNode;
+  /** Hidden from `md` up by CSS (the chat's computer layout). */
+  hideOnDesktop?: boolean;
 }) {
   const { t } = useI18n();
   const slots = appBarOf(place);
   return (
-    <header data-shell="app-bar" className="zk-safe-x shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
-      <div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-1.5 py-1.5 md:h-16 md:flex-nowrap md:gap-x-2.5 md:px-5 md:py-0">
+    <header data-shell="app-bar" className={cn("zk-safe-x shrink-0 border-b border-border bg-surface-1 pt-[env(safe-area-inset-top)]", hideOnDesktop && "md:hidden")}>
+      <div className="flex flex-wrap items-center gap-x-1 gap-y-0 px-1.5 py-1.5 md:min-h-14 md:flex-nowrap md:gap-x-2.5 md:px-[18px] md:py-1.5">
         <button
           type="button"
           data-shell="drawer-open"
@@ -64,15 +75,16 @@ export function AppBar({
         >
           <Menu aria-hidden="true" className="size-6" />
         </button>
-        {title ? <p className="min-w-0 shrink-0 truncate font-display text-xl leading-tight text-fg md:text-2xl">{title}</p> : null}
+        {title ? <p className="min-w-0 shrink-0 truncate font-sans text-[19px] font-bold leading-tight text-fg">{title}</p> : null}
         {space ? (
           <p className="min-w-0 max-w-[30vw] shrink truncate text-sm text-fg-muted max-[379px]:hidden md:hidden">
             {space.emoji ? <span aria-hidden="true">{space.emoji} </span> : null}
             <bdi>{space.name}</bdi>
           </p>
         ) : null}
+        {tabs}
         {slots.search ? (
-          <div data-tour="search" className="order-last min-w-0 basis-full md:order-none md:max-w-[440px] md:flex-1 md:basis-auto">
+          <div data-tour="search" className="order-last min-w-0 basis-full py-1 md:order-none md:w-60 md:flex-none md:basis-auto md:py-0">
             <CommandPalette nav={nav} />
           </div>
         ) : null}

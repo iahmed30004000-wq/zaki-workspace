@@ -100,15 +100,15 @@ export function CalendarGrid({
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
-      <div className="grid grid-cols-7 border-b border-border bg-surface px-1 text-center text-xs text-muted">
+    <div className="flex h-full min-h-0 min-w-[40rem] flex-col">
+      <div className="grid grid-cols-7 gap-1.5 pb-1.5 text-center text-[12.5px] font-semibold text-fg-muted">
         {weekdayLabels.map((lbl) => (
-          <div key={lbl} className="py-1.5">
+          <div key={lbl} className="py-1">
             {lbl}
           </div>
         ))}
       </div>
-      <div className="grid flex-1 auto-rows-fr grid-cols-7 gap-px overflow-y-auto bg-border/50 p-px">
+      <div className="grid flex-1 auto-rows-fr grid-cols-7 gap-1.5 overflow-y-auto">
         {cells.map((cell) => {
           const dayTasks = byDay.get(cell.iso) ?? [];
           const isToday = cell.iso === todayIso;
@@ -124,16 +124,16 @@ export function CalendarGrid({
                 if (editable && dragId) handleDrop(dragId, cell.iso);
               }}
               className={cn(
-                "min-h-20 flex flex-col gap-0.5 rounded-sm bg-surface p-1.5",
+                "flex min-h-24 min-w-0 flex-col gap-1 rounded-xl bg-surface-1 p-2",
                 !cell.inMonth && "opacity-40",
-                isToday && "ring-1 ring-accent",
+                isToday && "ring-2 ring-inset ring-accent",
                 overKey === cell.iso && "bg-surface-2",
               )}
             >
-              <span className={cn("px-1 text-xs text-muted", isToday && "font-bold text-accent")}>
+              <span className={cn("px-0.5 text-[12.5px] font-semibold text-fg-muted", isToday && "font-bold text-accent")}>
                 {cell.day}
               </span>
-              <div className="flex-1 space-y-0.5">
+              <div className="flex-1 space-y-1">
                 {dayTasks.slice(0, 3).map((task) => (
                   <div
                     key={task.id}
@@ -143,17 +143,17 @@ export function CalendarGrid({
                     title={task.title}
                     onClick={onOpen ? () => onOpen(task.id) : undefined}
                     className={cn(
-                      "cursor-default truncate rounded bg-surface-2 px-1 py-0.5 text-xs text-fg",
-                      onOpen && "cursor-pointer hover:underline",
+                      "cursor-default truncate rounded-[7px] bg-accent/10 px-1.5 py-0.5 text-[12.5px] font-semibold text-accent",
+                      onOpen && "cursor-pointer hover:bg-accent/20",
                       editable && "cursor-grab active:cursor-grabbing",
                       dragId === task.id && "opacity-40",
                     )}
                   >
-                    <span className="font-mono text-muted">{task.key}</span> {task.title}
+                    <span className="font-mono opacity-70">{task.key}</span> {task.title}
                   </div>
                 ))}
                 {dayTasks.length > 3 ? (
-                  <p className="px-1 text-xs text-muted">+{dayTasks.length - 3}</p>
+                  <p className="px-1 text-[12.5px] text-muted">+{dayTasks.length - 3}</p>
                 ) : null}
               </div>
             </div>

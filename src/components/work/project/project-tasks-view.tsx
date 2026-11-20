@@ -12,9 +12,10 @@ import { TaskCalendar } from "@/components/work/my-tasks/task-calendar";
 import { TaskList } from "@/components/work/my-tasks/task-list";
 import { TaskPanel } from "@/components/work/my-tasks/task-panel";
 import { useWorkActions, useWorkTasks } from "@/components/work/my-tasks/use-work-tasks";
+import { Pill, WORK_SEARCH, WORK_SELECT } from "@/components/work/look";
 import { TAB_VIEW, projectTasksHref, projectTasksParams } from "./tabs";
 
-const SELECT = "min-h-9 rounded-lg border border-muted bg-surface-1 px-2 text-sm text-fg";
+const SELECT = WORK_SELECT;
 
 /**
  * «القائمة» and «التقويم» of a project (W1.5): W1.1's views with the scope fixed to this project. The rows, the calendar, the side panel, the optimistic
@@ -142,7 +143,7 @@ function Bar({ tab, params, data, onChange }: { tab: keyof typeof TAB_VIEW; para
   const { t } = useI18n();
   const calendar = tab === "calendar";
   return (
-    <div className="space-y-2 border-b border-border py-2">
+    <div className="space-y-2.5 py-1">
       <div className="flex flex-wrap items-center gap-2">
         {calendar ? null : (
           <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("mytasks.chips.label")}>
@@ -152,7 +153,7 @@ function Bar({ tab, params, data, onChange }: { tab: keyof typeof TAB_VIEW; para
             {MY_TASK_CHIPS.map((chip: MyTaskChip) => (
               <Pill key={chip} pressed={params.chip === chip} onClick={() => onChange({ chip: params.chip === chip ? null : chip })}>
                 {t(`mytasks.chip.${chip}`)}
-                <span className="ms-1 tabular-nums text-fg-muted">{fmtNumber(data.counts[chip])}</span>
+                <span className="tabular-nums opacity-70">{fmtNumber(data.counts[chip])}</span>
               </Pill>
             ))}
           </div>
@@ -172,7 +173,7 @@ function Bar({ tab, params, data, onChange }: { tab: keyof typeof TAB_VIEW; para
             defaultValue={params.q}
             aria-label={t("mytasks.search")}
             placeholder={t("mytasks.search")}
-            className="min-h-9 w-44 rounded-lg border border-muted bg-surface-1 px-2 text-sm text-fg placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset md:w-52"
+            className={WORK_SEARCH}
           />
         </form>
       </div>
@@ -203,21 +204,5 @@ function Bar({ tab, params, data, onChange }: { tab: keyof typeof TAB_VIEW; para
         </div>
       )}
     </div>
-  );
-}
-
-function Pill({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        "min-h-8 rounded-full border px-3 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        pressed ? "border-accent bg-accent/10 font-medium text-fg" : "border-border text-fg-muted hover:bg-surface-2 hover:text-fg",
-      )}
-    >
-      {children}
-    </button>
   );
 }

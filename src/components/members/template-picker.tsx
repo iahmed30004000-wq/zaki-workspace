@@ -130,7 +130,7 @@ export function MemberTemplateSection({
   const pickedTemplate = templates.find((x) => x.id === picked) ?? null;
   const canApply = pickedTemplate !== null && unavailable(actor, pickedTemplate, member.role) === null;
   return (
-    <div className="space-y-3 rounded-xl border border-border bg-surface p-3">
+    <div className="space-y-3 rounded-[14px] bg-surface p-3">
       {current ? (
         <p className="flex flex-wrap items-center gap-2 text-sm text-fg">
           <span>{t("ptemplates.current", { name: current.name })}</span>

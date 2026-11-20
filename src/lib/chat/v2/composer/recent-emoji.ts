@@ -8,7 +8,8 @@ export const RECENT_EMOJI_KEY = "zaki.chat-emoji-recent.v1";
 export const MAX_RECENT_EMOJI = 24;
 const MAX_LENGTH = 32; // a family or a flag is a few code points, never a sentence
 
-const sane = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_LENGTH && !/\s/.test(value);
+// a Zaki sticker (`:zaki_smile:`, the owner's pack) goes in like an emoji but is not one: it is never a recent emoji
+const sane = (value: unknown): value is string => typeof value === "string" && value.length > 0 && value.length <= MAX_LENGTH && !/\s/.test(value) && !value.startsWith(":zaki_");
 
 export function loadRecentEmoji(storage: DraftStorage | null = browserStorage()): string[] {
   if (!storage) return [];

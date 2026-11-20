@@ -73,7 +73,7 @@ export function FontSizeBlock() {
 
   return (
     <Group title={t("settingsMe.c.font")} hint={t("settingsMe.c.font.hint")} id="c-font">
-      <div role="radiogroup" aria-label={t("settingsMe.c.font")} className="grid grid-cols-5 gap-1 rounded-xl bg-surface-2 p-1">
+      <div role="radiogroup" aria-label={t("settingsMe.c.font")} className="grid grid-cols-5 gap-0.5 rounded-[10px] bg-surface-2 p-[3px]">
         {FONT_SCALES.map((scale, at) => (
           <button
             key={scale}
@@ -82,7 +82,7 @@ export function FontSizeBlock() {
             aria-checked={at === step}
             data-font-step={at}
             onClick={() => void pick(at)}
-            className={cn("min-h-11 rounded-lg px-1 text-xs transition-colors", at === step ? "bg-surface font-semibold text-fg shadow-card" : "text-fg-muted hover:text-fg")}
+            className={cn("min-h-11 rounded-lg px-1 text-[13.5px] font-semibold transition-colors", at === step ? "bg-surface-1 text-fg shadow-card" : "text-fg-muted hover:text-fg")}
           >
             {t(`settingsMe.c.font.${at}`)}
           </button>
@@ -91,7 +91,9 @@ export function FontSizeBlock() {
       <p data-font-sample className="mt-3 rounded-xl bg-bubble-in px-3 py-2 text-bubble-in-fg" style={{ fontSize: `calc(15px * ${FONT_SCALES[step] ?? 1})` }}>
         {t("settingsMe.c.font.sample")}
       </p>
-      <SwitchRow checked={perDevice} onChange={togglePerDevice} title={t("settingsMe.c.font.device")} hint={t("settingsMe.c.font.device.hint")} />
+      <div className="-mx-3.5 mt-2 border-t border-border">
+        <SwitchRow checked={perDevice} onChange={togglePerDevice} title={t("settingsMe.c.font.device")} hint={t("settingsMe.c.font.device.hint")} />
+      </div>
       <Scope device={perDevice} />
     </Group>
   );
@@ -121,8 +123,8 @@ export function WallpaperBlock() {
             data-wallpaper={key}
             onClick={() => void pick(key)}
             className={cn(
-              "relative flex min-h-20 flex-col items-center justify-end overflow-hidden rounded-xl border p-1.5 text-xs transition-colors",
-              key === current ? "border-accent text-fg" : "border-border text-fg-muted hover:border-accent/50",
+              "relative flex min-h-20 flex-col items-center justify-end overflow-hidden rounded-xl border-2 p-1.5 text-xs transition-colors",
+              key === current ? "border-accent text-fg" : "border-transparent text-fg-muted hover:border-accent/50",
             )}
             style={{ background: "rgb(var(--chat-wallpaper))" }}
           >
@@ -179,7 +181,9 @@ export function ThemeBlock() {
 
   return (
     <Group title={t("settingsMe.c.theme")} id="c-theme">
-      <SwitchRow checked={auto} onChange={(on) => void setAuto(on)} title={t("settingsMe.c.theme.auto")} hint={t("settingsMe.c.theme.auto.hint")} />
+      <div className="-mx-3.5 -mt-3 mb-3 border-b border-border">
+        <SwitchRow checked={auto} onChange={(on) => void setAuto(on)} title={t("settingsMe.c.theme.auto")} hint={t("settingsMe.c.theme.auto.hint")} />
+      </div>
       <p className="mb-3 text-xs text-fg-muted">{t("settingsMe.c.theme.device")}</p>
       <ThemePicker />
     </Group>
@@ -197,6 +201,7 @@ export function SendKeyBlock() {
       <Segmented<SendKey>
         value={current}
         label={t("settingsMe.c.sendkey")}
+        className="flex w-full"
         options={SEND_KEYS.map((key) => ({ value: key, label: t(`settingsMe.c.sendkey.${key}`) }))}
         onChange={(next) => {
           void save((p) => ({ chat: withChat(p, "sendKey", next === "enter" ? undefined : next) })).then((ok) => {

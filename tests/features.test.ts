@@ -294,6 +294,19 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(buildNav({ ...owner, off: ["workMyTasks"] }).places).toEqual(buildNav(owner).places);
   });
 
+  it("«إيموجيز ذكي» (`zakiEmojis`): ON by default (the owner asked for the pack); off, the picker tab is not drawn and old messages still show their pictures", () => {
+    expect(FEATURES).toContain("zakiEmojis");
+    expect(FEATURE_DEFAULTS.zakiEmojis).toBe(true);
+    expect(featureOn({}, "zakiEmojis")).toBe(true);
+    expect(featureOn({ features: { zakiEmojis: false } }, "zakiEmojis")).toBe(false);
+    expect(featuresOff({})).not.toContain("zakiEmojis");
+    expect(featuresOff({ features: { zakiEmojis: false } })).toContain("zakiEmojis");
+    expect(AR["features.zakiEmojis.name"]).toBe("إيموجيز ذكي");
+    expect(AR["features.zakiEmojis.hint"]).toContain("⚠️");
+    expect(AR["features.zakiEmojis.hint"]).toContain("🔧");
+    expect(AR["features.zakiEmojis.hint"]).toContain("كود نصي قصير");
+  });
+
   it("«مهام قديمة» (`workStaleSweep`, W1.9): OFF until the owner turns it on, with its ⚠️ and 🔧; the switch alone changes no map", () => {
     expect(FEATURES).toContain("workStaleSweep");
     expect(FEATURE_DEFAULTS.workStaleSweep).toBe(false);

@@ -10,12 +10,12 @@ import type { MentionChoice } from "@/lib/chat/v2/composer/types";
 export function MentionList({ choices, pickAt, onHover, onChoose }: { choices: MentionChoice[]; pickAt: number; onHover: (index: number) => void; onChoose: (id: string, name: string) => void }) {
   if (choices.length === 0) return null;
   return (
-    <ul id="chat-mention-list" role="listbox" aria-label={ct("chatc.mention")} className="max-h-56 overflow-y-auto rounded-xl border border-border bg-surface shadow-lg">
+    <ul id="chat-mention-list" role="listbox" aria-label={ct("chatc.mention")} className="max-h-56 overflow-y-auto rounded-xl bg-surface-1 p-1 shadow-lg">
       {choices.map((member, index) => (
         <li key={member.id} id={`chat-mention-${index}`} role="option" aria-selected={index === pickAt}>
           <button
             type="button"
-            className={`flex min-h-11 w-full items-center gap-2 px-3 text-start ${index === pickAt ? "bg-accent/10" : ""}`}
+            className={`flex min-h-11 w-full items-center gap-2 rounded-lg px-3 text-start md:min-h-10 ${index === pickAt ? "bg-surface-2" : ""}`}
             onMouseEnter={() => onHover(index)}
             onMouseDown={(event) => event.preventDefault()}
             onClick={() => onChoose(member.id, member.name)}

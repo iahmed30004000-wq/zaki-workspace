@@ -36,8 +36,8 @@ export function MemberCard({
         data-status={member.status}
         onClick={() => onOpen(member.id)}
         className={cn(
-          "flex w-full items-start gap-3 rounded-xl border border-border bg-surface p-3 text-start shadow-card transition-colors",
-          "hover:border-accent/40 hover:bg-surface-1",
+          "flex w-full items-start gap-3 rounded-[14px] bg-surface-1 p-3 text-start transition-colors",
+          "hover:bg-surface-2",
           dimmed && "opacity-70",
         )}
       >

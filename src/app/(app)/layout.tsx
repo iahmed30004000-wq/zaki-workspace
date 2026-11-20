@@ -72,6 +72,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       orderLocked={navV2 && menu.personalLocked}
       noWorkSpace={navV2 && !actor.isExternal && holdsNoWork(spaces.map((s) => ({ holdsProjects: s.kind !== "HQ" })))}
       newActions={actor.isExternal ? [] : newActionsFor(subject)}
+      // the new chat screen takes over the chat page on a computer: no global bar there, its tools live in the rail
+      chatBare={navV2 && on.chatLayoutV2}
       orgName={org?.name}
       space={space ? { id: space.id, name: space.name, emoji: space.emoji } : null}
       canOverview={actor.role === "OWNER" || actor.role === "ADMIN"}

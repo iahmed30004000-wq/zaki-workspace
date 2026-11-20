@@ -17,7 +17,8 @@ vi.mock("next/navigation", () => ({
 import { AttachMenu } from "@/components/chat/v2/composer/attach-menu";
 import { ComposerSurface, type SurfaceEngine } from "@/components/chat/v2/composer/composer-surface";
 import { DropOverlay, DropZones } from "@/components/chat/v2/composer/drop-overlay";
-import { EmojiPanel, EmojiPopover } from "@/components/chat/v2/composer/emoji-panel";
+import { EmojiPanel, EmojiPopover, ZakiStickerGrid } from "@/components/chat/v2/composer/emoji-panel";
+import { ZAKI_EMOJIS, ZAKI_EMOJI_CATEGORIES, zakiCode, zakiSrc } from "@/lib/chat/zaki-emoji";
 import { PasteSendDialog } from "@/components/chat/v2/composer/paste-dialog";
 import { RecordBar } from "@/components/chat/v2/composer/record-bar";
 import { PaneActionsProvider } from "@/components/chat/v2/pane/pane-actions";
@@ -87,7 +88,7 @@ describe("the composer's states", () => {
     expect(html).toContain('data-composer-face="send"');
     expect(html).toContain('type="submit"');
     expect(html).not.toContain('data-composer-face="mic"');
-    expect(html).not.toMatch(/data-composer-face="send"[^>]*disabled/);
+    expect(html).not.toMatch(/data-composer-face="send"[^>]*disabled=""|disabled=""[^>]*data-composer-face="send"/);
   });
 
   it("with an attachment and no words: send, and the tray shows the file", () => {
@@ -196,6 +197,36 @@ describe("the emoji picker", () => {
   });
 });
 
+describe("the Zaki sticker tab of the emoji picker (switch zakiEmojis)", () => {
+  it("the first tab «ذكي» (the dolphin) is drawn only when the switch is on", () => {
+    const on = inI18n(createElement(EmojiPanel, { recents: [], onPick: noop, zaki: true }));
+    expect(on).toContain('data-emoji-tab="zaki"');
+    expect(on).toContain(zakiSrc("smile"));
+    expect(on.indexOf('data-emoji-tab="zaki"')).toBeLessThan(on.indexOf('data-emoji-tab="smileys"'));
+    const off = inI18n(createElement(EmojiPanel, { recents: [], onPick: noop }));
+    expect(off).not.toContain("data-emoji-tab=\"zaki\"");
+    expect(off).not.toContain("zaki-emojis");
+  });
+
+  it("the sticker grid: the two headings and every sticker as a 56 px picture button", () => {
+    const html = inI18n(createElement(ZakiStickerGrid, { onPick: noop }));
+    for (const heading of ZAKI_EMOJI_CATEGORIES) expect(html).toContain(heading);
+    for (const e of ZAKI_EMOJIS) {
+      expect(html).toContain(`data-zaki-pick="${e.id}"`);
+      expect(html).toContain(zakiSrc(e.id));
+    }
+    expect(html).toContain("size-14");
+    expect(html).not.toContain(zakiCode("smile")); // the code is what a press inserts, it is never drawn as words
+  });
+
+  it("the composer asks the switch from the header (absent: on) and keeps a sticker out of the recents", () => {
+    const host = readFileSync(path.join(process.cwd(), "src/components/chat/v2/composer/chat-composer-v2.tsx"), "utf8");
+    expect(host).toContain("detail.zakiEmojis !== false");
+    const top = readFileSync(path.join(process.cwd(), "src/server/chat/topics.ts"), "utf8");
+    expect(top).toContain('feature("zakiEmojis")');
+  });
+});
+
 describe("paste and drop", () => {
   it("a pasted picture opens the send dialog: caption, «ابعتها كملف», send and cancel (nothing when there is no paste)", () => {
     const files = [new File(["x"], "paste.png", { type: "image/png" })];
@@ -232,7 +263,7 @@ describe("what Q1 put in the composer", () => {
   it("«/» and its «⚡» button: only where the server says I may recall (`me.canRecall`), never while editing", () => {
     const on = surface(engine(), { me: { canRecall: true } });
     expect(on).toContain("data-recall-button");
-    expect(on).toContain("⚡");
+    expect(on).toContain("lucide-zap");
     expect(on).toContain(AR["recall.menu"]!);
     expect(surface(engine())).not.toContain("data-recall-button");
     expect(surface(engine({ body: "x", face: "save" }), { me: { canRecall: true }, editing: makeMessage({ mine: true }) })).not.toContain("data-recall-button");

@@ -3,6 +3,7 @@
 import { useI18n } from "@/lib/i18n";
 import { fmtNumber } from "@/lib/format";
 import { groupWorkTasks, type GroupWords, type MyTaskGroup, type WorkGroup, type WorkTaskDto } from "@/lib/work/my-tasks";
+import { GROUP_HEADING, WORK_LIST } from "@/components/work/look";
 import { WorkRow } from "./work-row";
 
 /** The words a grouped list and a board need (stage names, due buckets, «ما حدا»), from the strings. */
@@ -23,8 +24,8 @@ export interface RowActions {
 }
 
 /**
- * The list view: the groups the person chose (none, stage, project, person, due day), each a heading with its count and thin-divided rows (D1: lists, not
- * cards). The row says where a task lives; the group already says one of those things, so the row leaves it out.
+ * The list view: the groups the person chose (none, stage, project, person, due day), each a heading with its count («متأخرة · 1») over ONE rounded white card of
+ * thin-divided rows (the Telegram-like look: a group is a card, a task is a line in it). The row says where a task lives; the group already says one of those things, so the row leaves it out.
  */
 export function TaskList({
   tasks,
@@ -47,16 +48,17 @@ export function TaskList({
   const words = useGroupWords();
   const groups: WorkGroup[] = groupWorkTasks(tasks, group, words, { todayIso, timeZone });
   return (
-    <div className="space-y-5" aria-label={t("mytasks.list.aria")}>
+    <div aria-label={t("mytasks.list.aria")}>
       {groups.map((g) => (
         <section key={g.key} aria-label={g.label}>
           {group === "none" ? null : (
-            <h2 className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold text-fg-muted">
+            <h2 className={GROUP_HEADING}>
               {g.label}
-              <span className="rounded-full bg-surface-2 px-1.5 text-xs font-normal tabular-nums">{fmtNumber(g.tasks.length)}</span>
+              <span aria-hidden="true">·</span>
+              <span className="font-bold tabular-nums">{fmtNumber(g.tasks.length)}</span>
             </h2>
           )}
-          <div role="list" className="border-t border-border">
+          <div role="list" className={WORK_LIST}>
             {g.tasks.map((task) => (
               <WorkRow
                 key={task.id}
@@ -65,6 +67,7 @@ export function TaskList({
                 showProject={group !== "project"}
                 showStage={group !== "stage"}
                 selected={task.id === openId}
+                todayIso={todayIso}
                 {...actions}
               />
             ))}

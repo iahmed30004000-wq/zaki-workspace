@@ -88,7 +88,7 @@ export function ApiDoorCard() {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-surface-1 p-5" aria-labelledby="door-title">
+    <section className="space-y-4 rounded-[14px] bg-surface-1 p-5" aria-labelledby="door-title">
       <div className="flex items-center gap-2">
         <span className="grid size-9 place-items-center rounded-lg bg-cat-3/10 text-cat-3">
           <DoorOpen className="size-5" />

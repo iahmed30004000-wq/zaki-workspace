@@ -36,13 +36,14 @@ export interface AvatarUser {
 export type AvatarVariant = "bar" | "sidebar" | "rail";
 
 /** The person's picture in a circle, or their first letter (decoration: the button carries the name). */
-export function Initial({ name, src, large = false }: { name: string; src?: string | null; large?: boolean }) {
+export function Initial({ name, src, large = false, onAccent = false }: { name: string; src?: string | null; large?: boolean; /** On the accent (the phone drawer's header): a translucent disc in the accent's own text colour. */ onAccent?: boolean }) {
   if (src) return <Avatar name={name} src={src} className={large ? "size-11" : "size-8"} />;
   return (
     <span
       aria-hidden="true"
       className={cn(
-        "grid shrink-0 place-items-center rounded-full bg-accent/15 font-semibold text-fg",
+        "grid shrink-0 place-items-center rounded-full font-semibold",
+        onAccent ? "bg-accent-fg/20 text-accent-fg" : "bg-accent/15 text-fg",
         large ? "size-11 text-base" : "size-8 text-sm",
       )}
     >

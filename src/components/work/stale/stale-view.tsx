@@ -11,6 +11,7 @@ import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { fmtNumber } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { STALE_ACTIONS, STALE_AUTO_FILTERS, staleApiQuery, type StaleAction, type StaleAutoFilter, type StalePerson, type StaleTask, type StaleView, type SweepResult } from "@/lib/work/stale";
+import { WORK_LIST, WORK_SELECT } from "@/components/work/look";
 import { AutoMark } from "./auto-mark";
 
 /** The days the picker offers (the person may also type `?days=` in the address: any whole number up to a year). */
@@ -59,8 +60,8 @@ export function StaleTasksView({ initial }: { initial: StaleView }) {
   return (
     <div dir="rtl" className="mx-auto max-w-4xl space-y-6 p-4 md:p-6" data-stale-list>
       <header className="space-y-1">
-        <h1 className="text-xl font-semibold tracking-tight">{t("stale.title")}</h1>
-        <p className="text-sm text-muted">{t("stale.subtitle")}</p>
+        <h1 className="text-[19px] font-bold leading-tight text-fg">{t("stale.title")}</h1>
+        <p className="text-[13px] text-fg-muted">{t("stale.subtitle")}</p>
       </header>
 
       <Filters view={view} onChange={go} />
@@ -109,7 +110,7 @@ export function StaleTasksView({ initial }: { initial: StaleView }) {
 function Filters({ view, onChange }: { view: StaleView; onChange: (patch: Partial<{ days: number; auto: StaleAutoFilter; space: string | null }>) => void }) {
   const { t } = useI18n();
   const dayChoices = [...new Set<number>([...DAY_CHOICES, view.days])].sort((a, b) => a - b);
-  const field = "min-h-11 rounded-lg border border-border bg-surface px-2 text-sm text-fg md:min-h-9";
+  const field = `min-h-11 md:min-h-9 ${WORK_SELECT}`;
   return (
     <section aria-label={t("stale.filters")} className="space-y-2">
       <div className="flex flex-wrap items-center gap-3">
@@ -143,7 +144,7 @@ function Filters({ view, onChange }: { view: StaleView; onChange: (patch: Partia
               type="button"
               aria-pressed={view.auto === key}
               onClick={() => onChange({ auto: key })}
-              className={`min-h-11 rounded-lg border px-3 text-sm md:min-h-9 ${view.auto === key ? "border-accent/60 bg-accent/10 font-medium text-fg" : "border-border text-fg-muted hover:bg-surface-2"}`}
+              className={`min-h-11 rounded-full px-3 text-[13px] font-semibold transition-colors md:min-h-9 ${view.auto === key ? "bg-accent/10 text-accent" : "bg-surface-2 text-fg-muted hover:text-fg"}`}
             >
               {t(`stale.auto.${key}`)}
             </button>
@@ -166,7 +167,7 @@ function PersonBlock({ person, picked, onToggle }: { person: StalePerson; picked
   const name = person.name ?? t("stale.person.none");
   return (
     <section aria-labelledby={heading} className="space-y-2" data-stale-person={person.key}>
-      <div className="flex flex-wrap items-center gap-3 border-b border-border pb-1">
+      <div className="flex flex-wrap items-center gap-3 pb-1">
         <input
           type="checkbox"
           className="size-5 shrink-0 accent-accent"
@@ -174,7 +175,7 @@ function PersonBlock({ person, picked, onToggle }: { person: StalePerson; picked
           aria-label={t("stale.select.person", { name })}
           onChange={(e) => onToggle(ids, e.target.checked)}
         />
-        <h2 id={heading} className="text-base font-semibold text-fg">
+        <h2 id={heading} className="text-[15px] font-bold text-fg">
           {name}
         </h2>
         <span className="text-xs text-fg-muted">
@@ -184,11 +185,11 @@ function PersonBlock({ person, picked, onToggle }: { person: StalePerson; picked
       </div>
       {person.projects.map((group) => (
         <div key={group.projectId} className="space-y-1">
-          <h3 className="px-1 text-sm font-medium text-fg-muted">
+          <h3 className="px-1 text-[13px] font-bold text-fg-muted">
             {group.name}
             <span className="ms-2 text-xs font-normal">{group.spaceName}</span>
           </h3>
-          <ul className="divide-y divide-border">
+          <ul className={WORK_LIST}>
             {group.tasks.map((task) => (
               <StaleRow key={task.id} task={task} picked={picked.has(task.id)} onToggle={(on) => onToggle([task.id], on)} />
             ))}
@@ -202,13 +203,13 @@ function PersonBlock({ person, picked, onToggle }: { person: StalePerson; picked
 function StaleRow({ task, picked, onToggle }: { task: StaleTask; picked: boolean; onToggle: (on: boolean) => void }) {
   const { t } = useI18n();
   return (
-    <li className="flex items-center gap-2 px-1 py-2 hover:bg-surface-2" data-stale-task={task.id}>
+    <li className="flex min-h-12 items-center gap-2 border-b border-border px-3 py-2 last:border-b-0 hover:bg-surface-2" data-stale-task={task.id}>
       <input type="checkbox" className="size-5 shrink-0 accent-accent" checked={picked} aria-label={t("stale.row.pick")} onChange={(e) => onToggle(e.target.checked)} />
       <Link href={`/tasks/${task.id}`} className="flex min-w-0 flex-1 items-center gap-2" title={t("stale.row.open")}>
         <span dir="ltr" className="shrink-0 font-mono text-xs text-muted">
           {task.key}
         </span>
-        <span className="truncate text-sm text-fg">{task.title}</span>
+        <span className="truncate text-[15px] font-medium text-fg">{task.title}</span>
         {task.private ? <Lock className="h-3 w-3 shrink-0 text-fg-muted" aria-label={t("taskpriv.lock")} /> : null}
         {task.automated ? <AutoMark /> : null}
       </Link>
@@ -249,7 +250,7 @@ function BulkBar({ view, picked, onDone }: { view: StaleView; picked: string[]; 
   }
 
   return (
-    <div role="region" aria-label={t("stale.bulk.aria")} className="sticky bottom-2 z-10 space-y-2 rounded-xl border border-border bg-surface p-3 shadow-card" data-stale-bar>
+    <div role="region" aria-label={t("stale.bulk.aria")} className="sticky bottom-2 z-10 space-y-2 rounded-2xl bg-surface-1 p-3 shadow-card-hover" data-stale-bar>
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-medium text-fg">{t("stale.select.count", { n: fmtNumber(picked.length) })}</span>
         {STALE_ACTIONS.map((key) => (
