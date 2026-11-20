@@ -16,10 +16,10 @@ import {
 } from "@dnd-kit/core";
 import { SortableContext, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus, MessageSquare, CalendarDays, GripVertical, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { ApiError, apiPost, apiDelete } from "@/lib/api-client";
+import { ApiError, apiGet, apiPatch, apiPost, apiDelete } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ import { FieldChipPicker, FieldChips, type PickerDef } from "@/components/custom
 import { FIELDS_ANCHOR, requiredFieldsOf } from "@/lib/custom-fields";
 import type { FieldCell } from "@/lib/custom-fields-display";
 import { rt } from "@/lib/reminders/client";
+import { WORK_STAGES, stageOrDefault, type WorkStage } from "@/lib/work/stage";
 
 export interface ColumnData {
   id: string;
@@ -44,6 +45,8 @@ export interface ColumnData {
   color: string;
   position: number;
   done: boolean;
+  /** W1.3: the normalized stage; the board screen reads it itself (`GET /api/boards/[id]/columns`) while the switch is on. */
+  stage?: string;
 }
 
 export interface TaskCardData {
@@ -82,6 +85,13 @@ interface BoardViewProps {
   fieldDefs?: PickerDef[];
 }
 
+/** W1.3: what `GET /api/boards/[id]/columns` answers - the stages, whether the company's switch `workStages` is on, whether the viewer is a space manager. */
+interface StageInfo {
+  columns: { id: string; stage: string }[];
+  stagesOn: boolean;
+  canSetStage: boolean;
+}
+
 interface QuickAddState {
   columnId: string | null;
   title: string;
@@ -96,6 +106,17 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
   const [activeId, setActiveId] = useState<string | null>(null);
   const [quick, setQuick] = useState<QuickAddState>({ columnId: null, title: "", error: null });
   const queryClient = useQueryClient();
+
+  // W1.3: the choice of a column's stage is offered to a space manager while the company's switch `workStages` is on; the board page
+  // does not carry it, so the screen asks (only a person who can edit asks)
+  const stageQuery = useQuery({
+    queryKey: ["board-stages", board.id],
+    queryFn: () => apiGet<StageInfo>(`/api/boards/${board.id}/columns`),
+    enabled: canEdit,
+    staleTime: 60_000,
+  });
+  const stagesOn = canEdit && stageQuery.data?.stagesOn === true && stageQuery.data.canSetStage === true;
+  const stageById = useMemo(() => new Map((stageQuery.data?.columns ?? []).map((c) => [c.id, stageOrDefault(c.stage)])), [stageQuery.data]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -228,6 +249,7 @@ export function BoardView({ board, columns, tasks, canEdit, fieldDefs = [] }: Bo
                 tasks={colTasks}
                 canEdit={canEdit}
                 boardId={board.id}
+                stage={stagesOn ? (stageById.get(column.id) ?? stageOrDefault(column.stage)) : null}
                 quick={quick}
                 onOpenQuick={() =>
                   setQuick(
@@ -272,6 +294,7 @@ function BoardColumn({
   tasks,
   canEdit,
   boardId,
+  stage,
   quick,
   onOpenQuick,
   onTitleChange,
@@ -282,6 +305,8 @@ function BoardColumn({
   tasks: TaskCardData[];
   canEdit: boolean;
   boardId: string;
+  /** W1.3: the column's stage while the picker is offered (switch on, space manager); null: no picker. */
+  stage: WorkStage | null;
   quick: QuickAddState;
   onOpenQuick: () => void;
   onTitleChange: (t: string) => void;
@@ -290,7 +315,23 @@ function BoardColumn({
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
+  const setStage = useMutation({
+    mutationFn: (next: WorkStage) => apiPatch<{ column: { stage: string } }>(`/api/boards/${boardId}/columns/${column.id}`, { stage: next }),
+    onSuccess: (answer) => {
+      // the select shows the saved stage at once; the refetch below makes the server the authority
+      queryClient.setQueryData<StageInfo>(["board-stages", boardId], (old) =>
+        old ? { ...old, columns: old.columns.map((c) => (c.id === column.id ? { ...c, stage: answer.column.stage } : c)) } : old,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["board-stages", boardId] });
+      toast(t("work.stage.saved"), "success");
+    },
+    onError: (err) => {
+      const key = err instanceof ApiError && err.messageKey ? err.messageKey : "common.error";
+      toast(t(key), "error");
+    },
+  });
   const deleteColumn = useMutation({
     mutationFn: () => apiDelete(`/api/boards/${boardId}/columns/${column.id}`),
     onSuccess: () => window.location.reload(),
@@ -340,6 +381,26 @@ function BoardColumn({
           </span>
         ) : null}
       </div>
+
+      {stage ? (
+        <label className="flex items-center gap-2 border-b border-border px-3 py-1.5 text-xs text-muted">
+          <span className="shrink-0">{t("work.stage.label")}</span>
+          <select
+            value={stage}
+            disabled={setStage.isPending}
+            aria-label={rt("work.stage.aria", { name: columnLabel(column.name) })}
+            title={t("work.stage.hint")}
+            onChange={(e) => setStage.mutate(e.currentTarget.value as WorkStage)}
+            className="h-7 min-w-0 flex-1 rounded-md border border-border bg-surface px-1 text-xs text-fg disabled:opacity-50"
+          >
+            {WORK_STAGES.map((value) => (
+              <option key={value} value={value}>
+                {enumLabel("WorkStage", value)}
+              </option>
+            ))}
+          </select>
+        </label>
+      ) : null}
 
       <div className="min-h-16 flex-1 space-y-2 overflow-y-auto p-2">
         {quick.columnId === column.id ? (

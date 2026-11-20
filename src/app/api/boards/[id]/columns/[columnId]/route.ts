@@ -6,11 +6,14 @@ import { apiError } from "@/server/api";
 import { withApi } from "@/server/api";
 import { db } from "@/server/db";
 import { parseJson } from "@/server/validation";
+import { workStageSchema } from "@/lib/work/stage";
 
 const patchSchema = z.object({
   name: z.string().trim().min(1).max(60).optional(),
   color: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional(),
   done: z.boolean().optional(),
+  /** W1.3: the normalized stage - a space manager's choice (a plain member who sends it gets 403 and nothing is saved). */
+  stage: workStageSchema.optional(),
 });
 
 export async function PATCH(
@@ -22,6 +25,8 @@ export async function PATCH(
     const { board } = await resolveBoard(params.id);
     const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found");
     await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
+    // W1.3: choosing the stage is the space manager's (the owner, a space admin, an admin of the company who is in the space)
+    if (input.stage !== undefined && access.spaceManager !== true) throw new ForbiddenError("column.stage_manager_only");
     const column = await db.boardColumn.findFirst({
       where: { id: params.columnId, boardId: board.id },
       select: { id: true },
@@ -30,7 +35,7 @@ export async function PATCH(
     const updated = await db.boardColumn.update({
       where: { id: column.id },
       data: input,
-      select: { id: true, name: true, color: true, position: true, done: true },
+      select: { id: true, name: true, color: true, position: true, done: true, stage: true },
     });
     await audit("board.column_updated", { target: column.id, meta: input });
     return NextResponse.json({ column: updated });

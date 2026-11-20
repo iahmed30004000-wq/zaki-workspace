@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 368 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 82 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 83 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -108,7 +108,7 @@ Doors in use: `requireActor` 166 · `activeOrgCtx` 100 · `(none)` 40 · `requir
 | GET | `/api/avatars/[id]` | requireActor | `avatars`: readAvatar |
 | POST | `/api/boards` | requireTeamWork ‡ | `tasks`: DEFAULT_BOARD_COLUMNS |
 | GET, PATCH, POST | `/api/boards/[id]` | requireTeamWork ‡ | `team-scope`: taskParticipantFilter |
-| POST | `/api/boards/[id]/columns` | requireTeamWork ‡ | — |
+| GET, POST | `/api/boards/[id]/columns` | requireTeamWork ‡ | `features`: actorFeatureOn |
 | PATCH, DELETE | `/api/boards/[id]/columns/[columnId]` | requireTeamWork ‡ | — |
 | GET | `/api/calendar/feed/[token]` | **none** (public by design) † | `calendar-feed`: authorizeFeedRequest, buildFeedFor, feedEtag |
 | POST | `/api/calls` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace |
@@ -483,14 +483,14 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 63 | 138 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 63 | 139 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 114 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 62 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `team-scope` | 273 | 41 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `org-day` | 26 | 31 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
 | `files` | 608 | 23 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
-| `tasks` | 718 | 21 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
+| `tasks` | 724 | 21 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `access` | 76 | 18 | Workspace-level isolation — the company's master switch. |
 | `cards` | 622 | 18 | «اللوحات» — the cards of a space. |
 | `knowledge` | 562 | 17 | «المنتجات» — the company's product sheets (Q1.1): ONE door for the PRODUCT cards of the knowledge space. |
@@ -861,6 +861,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `linkPreviews` | 1 — `server/chat/link-preview.ts` |
 | `chatSilentSend` | 1 — `server/chat/messages.ts` |
 | `chatScheduled` | 2 — `server/chat/scheduled.ts`, `server/jobs/scheduler.ts` |
+| `workStages` | 1 — `app/api/boards/[id]/columns/route.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |

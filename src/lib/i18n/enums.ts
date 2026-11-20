@@ -51,7 +51,7 @@ export type PrismaEnumName =
   | "ScheduledChatStatus";
 
 /** Values the schema stores as plain strings but a screen shows all the same. */
-export type VirtualEnumName = "IntegrationDirection" | "IntegrationEventStatus" | "TelegramChatType";
+export type VirtualEnumName = "IntegrationDirection" | "IntegrationEventStatus" | "TelegramChatType" | "WorkStage";
 
 export type EnumName = PrismaEnumName | VirtualEnumName;
 
@@ -163,6 +163,8 @@ export const ENUM_KEYS: Record<EnumName, Readonly<Record<string, string>>> = {
   ScheduledChatStatus: own("ScheduledChatStatus", ["PENDING", "SENT", "FAILED", "CANCELLED"]),
   IntegrationDirection: own("IntegrationDirection", ["OUT", "IN"]),
   IntegrationEventStatus: own("IntegrationEventStatus", ["OK", "FAILED"]),
+  // W1.3: the normalized stage of a board column (BoardColumn.stage, src/lib/work/stage.ts); the words live with the work screens' own (ar.work-v2.json)
+  WorkStage: own("WorkStage", ["TODO", "DOING", "REVIEW", "DONE"]),
   TelegramChatType: {
     private: "telegram.type.private",
     group: "telegram.type.group",

@@ -1263,6 +1263,8 @@ model BoardColumn {
   color    String  @default("#6b7280")
   position Int // 0..n display order
   done     Boolean @default(false) // marks terminal columns; drives "completed" semantics
+  // W1.3: the normalized stage the cross-project lists group and filter by - TODO | DOING | REVIEW | DONE (src/lib/work/stage.ts); a plain string, checked by the app
+  stage    String  @default("DOING")
 
   board Board  @relation(fields: [boardId], references: [id], onDelete: Cascade)
   tasks Task[]
