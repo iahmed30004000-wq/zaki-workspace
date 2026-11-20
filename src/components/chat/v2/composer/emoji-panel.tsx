@@ -166,7 +166,7 @@ export function EmojiPanel({ recents, onPick, zaki = false }: { recents: string[
   const labels = groupLabels();
   return (
     <div data-emoji-panel className="flex flex-col gap-1.5">
-      <EmojiPicker.Root ref={root} onEmojiSelect={({ emoji }) => onPick(emoji)} resolveEmojiData={resolveBundledEmojiData} columns={COLUMNS} className="flex h-[22rem] w-full flex-col gap-1.5">
+      <EmojiPicker.Root ref={root} onEmojiSelect={({ emoji }) => onPick(emoji)} resolveEmojiData={resolveBundledEmojiData} columns={COLUMNS} className="flex h-[min(22rem,60vh)] w-full flex-col gap-1.5">
         {stickers ? null : (
           <div className="relative">
             <Search aria-hidden="true" className="pointer-events-none absolute start-3 top-1/2 size-5 -translate-y-1/2 text-fg-muted" />
