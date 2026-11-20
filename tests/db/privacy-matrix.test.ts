@@ -13,6 +13,8 @@ import { describe, expect, it } from "vitest";
 import * as dmRoute from "@/app/api/chat/dm/route";
 import * as conversationRoute from "@/app/api/chat/conversations/[id]/route";
 import * as taskRoute from "@/app/api/chat/messages/[id]/task/route";
+import * as forwardManyRoute from "@/app/api/chat/messages/forward/route";
+import * as deleteManyRoute from "@/app/api/chat/messages/delete/route";
 import * as taskGet from "@/app/api/tasks/[id]/route";
 import * as tasksList from "@/app/api/tasks/route";
 import * as memberRoute from "@/app/api/organizations/[id]/members/[userId]/route";
@@ -1383,4 +1385,87 @@ describe("privacy matrix — the C3w.1 personal mute", () => {
       expect(wrong, kind).toEqual([]);
     });
   }
+});
+
+// ───────────────────────────── C3b.5: «حدّد» — forwarding many, deleting many, one task from a selection ─────────────────────────────
+// The three batch doors reuse the single rules, so the table above decides them: a persona forwards a message only where they READ it AND may write in the
+// destination (the silent eyes read everything and write nowhere they did not join); a persona deletes a message only if it is theirs or they moderate where they read
+// it — and the silent eye deletes NOTHING through the batch (no trace); one private source makes the whole task private, exactly like `fromPrivate`.
+//                                   owner pW  pWo oAO sA  mIn mOut tM  guest
+const DEST_POST = "0 0 1 0 1 1 1 1 1"; //  who may write in an open destination topic of the space (the eyes did not join it, the org admin is outside the space)
+const BATCH_DELETE: Record<string, string> = {
+  open: "0 0 1 0 1 1 0 0 0", //       the author, the space's managers; not the silent eyes (the batch leaves no trace)
+  restricted: "0 0 0 0 0 1 0 0 0", // only the author: no manager reads it
+  team: "0 0 1 0 1 1 0 0 0", //       the author (who may always take their own message back) and the space's managers
+  dm: "0 0 0 0 0 1 0 0 0", //         the author: nobody moderates a DM, the owner included
+};
+describe("privacy matrix — the C3b.5 batch doors", () => {
+  it("forwarding a selection: a copy is made only where the persona reads the source AND writes in the destination; a refusal carries no text", async () => {
+    const w = await getWorld();
+    const dest = await db.conversation.create({ data: { orgId: w.orgId, kind: "TOPIC", spaceId: w.space.id, title: "Batch destination" } });
+    const wrong: string[] = [];
+    for (const kind of Object.keys(CONVERSATIONS)) {
+      const source = await db.chatMessage.findFirstOrThrow({ where: { conversationId: w.ids[kind]!, body: `${WORD} ${kind}` } });
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        const want = expected(CONVERSATIONS, kind, who) && cells(DEST_POST)[PERSONAS.indexOf(who)]!;
+        await loginAs(person.id);
+        const res = await call(forwardManyRoute.POST, { url: "http://localhost/api/chat/messages/forward", body: { messageIds: [source.id], targetIds: [dest.id] } });
+        const copies = await db.chatMessage.count({ where: { conversationId: dest.id, authorId: person.id, forwardedFromId: source.id } });
+        if ((copies === 1) !== want) wrong.push(`${who} · ${kind}: expected ${want ? "a copy" : "no copy"}, got ${copies} (status ${res.status})`);
+        if (!expected(CONVERSATIONS, kind, who) && res.text.includes(WORD)) wrong.push(`${who} · ${kind}: the refusal carried the text`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+
+  it("deleting a selection: the author and the managers who read it delete; nobody else does and the silent eyes delete nothing", async () => {
+    const w = await getWorld();
+    const wrong: string[] = [];
+    for (const kind of Object.keys(CONVERSATIONS)) {
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        const want = cells(BATCH_DELETE[kind]!)[PERSONAS.indexOf(who)]!;
+        const msg = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: w.ids[kind]!, authorId: w.people.memberIn.id, body: `${WORD} delete ${kind} ${who}` } });
+        await loginAs(person.id);
+        const res = await call(deleteManyRoute.POST, { url: "http://localhost/api/chat/messages/delete", body: { ids: [msg.id] } });
+        const gone = (await db.chatMessage.findUniqueOrThrow({ where: { id: msg.id } })).deletedAt !== null;
+        if (gone !== want) wrong.push(`${who} · ${kind}: expected ${want ? "deleted" : "kept"}, got ${gone ? "deleted" : "kept"} (status ${res.status})`);
+        if (!want && res.text.includes(WORD)) wrong.push(`${who} · ${kind}: the refusal carried the text`);
+      }
+    }
+    expect(wrong).toEqual([]);
+    // no trace: the silent eyes wrote no audit line anywhere
+    const eyes = [w.people.owner.id, w.people.partnerWith.id];
+    expect(await db.auditLog.count({ where: { actorId: { in: eyes }, action: "chat.delete_by_admin" } })).toBe(0);
+  });
+
+  it("one task from a selection of a private conversation (alone, or mixed with an open message) is as private as one made from a single message: the door and the list agree with the table", async () => {
+    const w = await getWorld();
+    const { project, board } = await makeProject(w.space.id);
+    await loginAs(w.people.memberIn.id);
+    const base = { workspaceId: w.space.id, projectId: project.id, boardId: board.id };
+    const restricted = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: w.ids["restricted"]!, authorId: w.people.memberIn.id, body: `${WORD} batch restricted` } });
+    const restricted2 = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: w.ids["restricted"]!, authorId: w.people.memberIn.id, body: `${WORD} batch restricted 2` } });
+    const open = await db.chatMessage.create({ data: { orgId: w.orgId, conversationId: w.ids["open"]!, authorId: w.people.memberIn.id, body: `${WORD} batch open`, createdAt: new Date(Date.now() - 60_000) } });
+    const alone = await call(taskRoute.POST, { params: { id: restricted.id }, body: { ...base, alsoMessageIds: [restricted2.id] } });
+    // the open message is the earliest, so it LEADS the batch: the private one still decides
+    const mixed = await call(taskRoute.POST, { params: { id: open.id }, body: { ...base, alsoMessageIds: [restricted2.id] } });
+    expect([alone.status, mixed.status]).toEqual([201, 201]);
+    const wrong: string[] = [];
+    for (const [name, made] of [["private only", alone], ["mixed", mixed]] as const) {
+      const id = made.json?.["taskId"] as string;
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        const want = expected(TASKS, "fromPrivate", who);
+        await loginAs(person.id);
+        const door = (await call(taskGet.GET, { params: { id } })).status === 200;
+        const list = await call(tasksList.GET, { url: `http://localhost/api/tasks?workspaceId=${w.space.id}&limit=100` });
+        const listed = list.status === 200 && JSON.stringify(list.json).includes(id);
+        if (door !== want) wrong.push(`${name} · ${who} · door: expected ${want ? "sees" : "does not see"}`);
+        if (listed !== want) wrong.push(`${name} · ${who} · list: expected ${want ? "sees" : "does not see"}`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
 });

@@ -27,6 +27,8 @@ export interface RowEnv {
   openCalls: (firstLineId: string) => void;
   /** what a pending bubble's buttons do (the viewport owns the outbox) */
   pending: { retry: (item: OutboxItem) => void; discard: (item: OutboxItem) => void; copy: (item: OutboxItem) => void; edit: (item: OutboxItem) => void };
+  /** C3b.5 («حدّد»): present while the person is selecting — which rows are picked and how a press toggles one. Absent: the rows are as they were. */
+  select?: { on: boolean; selected: ReadonlySet<string>; toggle: (messageId: string) => void };
 }
 
 function BubbleRow({ message, start, end, env, highlighted }: { message: MessageDto; start: boolean; end: boolean; env: RowEnv; highlighted: boolean }) {
@@ -35,6 +37,9 @@ function BubbleRow({ message, start, end, env, highlighted }: { message: Message
   const onOpenWork = React.useCallback((kind: "task" | "ticket", id: string) => (kind === "ticket" ? dialogs.openTicket(id) : undefined), [dialogs]);
   const onHintTicket = React.useCallback((m: MessageDto) => dialogs.problem(m, { customer: findCustomerNumbers(m.body ?? "")[0] ?? null }), [dialogs]);
   const onSuggest = React.useCallback((m: MessageDto, kindKey: string) => dialogs.problem(m, { kindKey }), [dialogs]);
+  const picked = env.select?.selected.has(message.id) ?? false;
+  const toggle = env.select?.toggle;
+  const select = React.useMemo(() => (env.select?.on && toggle ? { on: true, selected: picked, toggle } : undefined), [env.select?.on, picked, toggle]);
   return (
     <MessageBubble
       message={message}
@@ -47,6 +52,7 @@ function BubbleRow({ message, start, end, env, highlighted }: { message: Message
       highlighted={highlighted}
       menu={env.menu}
       hover={env.hover}
+      select={select}
       onReact={commands.react}
       onJump={commands.jumpTo}
       onAck={commands.ack}

@@ -15,6 +15,7 @@ import { ReactionBar } from "@/components/chat/v2/menu/reaction-bar";
 import { useOptionalToast } from "@/components/ui/toast";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { keepInSaved, savedFlagsOf, type ListWithSaved } from "@/lib/chat/v2/menu/menu-context";
+import { selectionStore, useSelectionEnabled } from "@/lib/chat/selection";
 import { ct } from "@/lib/chat/text";
 
 export interface MessageMenuV2Props {
@@ -62,12 +63,18 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
   const queries = React.useContext(QueryClientContext);
   const toast = useOptionalToast();
   const pathname = usePathname();
+  // C3b.5: «حدّد» is the registry's item too; it is offered while the open conversation's viewport says the screen can select (the company's switch `chatMultiSelect`)
+  const canSelect = useSelectionEnabled();
   const asked = open || sheetOpen;
   const offered = React.useMemo(() => {
-    if (!asked || !queries) return context;
-    const flags = savedFlagsOf(queries.getQueryData<ListWithSaved>(chatKeys.list()), context.viewerId, pathname);
-    return flags.canSaved ? { ...context, canSaved: true, inSaved: flags.inSaved } : context;
-  }, [asked, queries, context, pathname]);
+    if (!asked) return context;
+    let next = context;
+    if (queries) {
+      const flags = savedFlagsOf(queries.getQueryData<ListWithSaved>(chatKeys.list()), context.viewerId, pathname);
+      if (flags.canSaved) next = { ...next, canSaved: true, inSaved: flags.inSaved };
+    }
+    return canSelect ? { ...next, canSelect: true } : next;
+  }, [asked, queries, context, pathname, canSelect]);
   if (!menuOpen(context)) return null;
   const actions = menuFor(asked ? offered : context);
   const canReply = actions.some((a) => a.id === "reply");
@@ -76,7 +83,10 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
     onMenuOpenChange(false);
     onSheetOpenChange(false);
     if (id === "delete") setConfirmDelete(true);
-    else if (id === "saved") {
+    else if (id === "select") {
+      // no door and no dialog: the selection starts with this message (the viewport draws the checks, the header the bar)
+      if (context.messageId) selectionStore.begin(context.messageId);
+    } else if (id === "saved") {
       const messageId = context.messageId;
       if (!messageId) return;
       void keepInSaved(messageId).then((ok) => {

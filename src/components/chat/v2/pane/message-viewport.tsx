@@ -11,6 +11,7 @@ import { ViewportRow, rowPadding, type RowEnv } from "@/components/chat/v2/pane/
 import { discardPending, retryPending } from "@/lib/chat/outbox/optimistic";
 import { removePending } from "@/lib/chat/cache/pending";
 import { useChatRow } from "@/lib/chat/cache/selectors";
+import { selectionStore, useMultiSelectSwitch, useSelection } from "@/lib/chat/selection";
 import { dayLabelOf } from "@/lib/chat/day-separator";
 import type { ConversationHistory } from "@/lib/chat/history/use-conversation-history";
 import { isAtBottom } from "@/lib/chat/conversation/client";
@@ -129,9 +130,26 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
   const [openedCalls, setOpenedCalls] = React.useState<string | null>(null);
   const openCalls = React.useCallback((firstLineId: string) => setOpenedCalls(firstLineId), []);
   const callsOpen = openedCalls ? rows.find((r) => r.type === "calls" && r.messages[0]!.id === openedCalls) : undefined;
+  // C3b.5 («حدّد»): the company's switch (from the header; never while the owner reads in silent oversight) is told to the store the menu and the header read, and while
+  // messages are picked every row draws its check and a press toggles it. The bar itself is the header's.
+  const selection = useSelection();
+  const canSelect = useMultiSelectSwitch(header) && !header.me.oversight;
+  React.useEffect(() => {
+    selectionStore.attach(conversationId, canSelect);
+    return () => selectionStore.detach(conversationId);
+  }, [conversationId, canSelect]);
+  const selecting = canSelect && selection.active && selection.conversationId === conversationId;
+  const picked = React.useMemo(() => new Set(selection.ids), [selection.ids]);
+  const toggleSelected = React.useCallback(
+    (messageId: string) => {
+      if (selectionStore.toggle(messageId) === "full") commands.say("chatsel.full", "error");
+    },
+    [commands],
+  );
+  const select = React.useMemo<RowEnv["select"]>(() => (selecting ? { on: true, selected: picked, toggle: toggleSelected } : undefined), [selecting, picked, toggleSelected]);
   const env = React.useMemo<RowEnv>(
-    () => ({ conversationId, facts, mentionNames, readersByMessage, menu, pending, openCalls }),
-    [conversationId, facts, mentionNames, readersByMessage, menu, pending, openCalls],
+    () => ({ conversationId, facts, mentionNames, readersByMessage, menu, pending, openCalls, ...(select ? { select } : {}) }),
+    [conversationId, facts, mentionNames, readersByMessage, menu, pending, openCalls, select],
   );
 
   const stickyLabel = topId && byId.get(topId) ? dayLabelOf(byId.get(topId)!.createdAt) : null;

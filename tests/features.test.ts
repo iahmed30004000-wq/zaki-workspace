@@ -228,6 +228,20 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.savedMessages.hint"]).toContain("المالك");
   });
 
+  it("«تحديد عدة رسائل» (`chatMultiSelect`, C3b.5): ON by default and only meaningful with the new chat screen; off is no «حدّد», no bar and three doors that answer «not found» (what was made stays); its two lines carry the ⚠️ and the 🔧", () => {
+    expect(FEATURES).toContain("chatMultiSelect");
+    expect(FEATURE_DEFAULTS.chatMultiSelect).toBe(true);
+    expect(featureOn({}, "chatMultiSelect")).toBe(true);
+    expect(featureOn({ features: { chatMultiSelect: false } }, "chatMultiSelect")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatMultiSelect");
+    expect(featuresOff({ features: { chatMultiSelect: false } })).toContain("chatMultiSelect");
+    expect(FEATURE_META.chatMultiSelect).toEqual({ group: "chat", dependsOn: ["chatLayoutV2"] });
+    expect(AR["features.chatMultiSelect.name"]).toBe("تحديد عدة رسائل");
+    expect(AR["features.chatMultiSelect.hint"]).toContain("⚠️");
+    expect(AR["features.chatMultiSelect.hint"]).toContain("🔧");
+    expect(AR["features.chatMultiSelect.hint"]).toContain("لحد 100");
+  });
+
   it("«معاينة الروابط بالدردشة» (`linkPreviews`, C3b.2): ON by default, off is no page visited and no card (the data stays); its two lines carry the warning and the way out", () => {
     expect(FEATURES).toContain("linkPreviews");
     expect(FEATURE_DEFAULTS.linkPreviews).toBe(true);

@@ -14,7 +14,7 @@ describe("conversation UI core", () => {
   it("keeps menu actions in one ordered list; reactions are the emoji bar above it, delete comes last", () => {
     // C2.6 added the five items of the new screen (C3a.3 the sixth, `saved`, and C3b.2 the opt-in `removePreview`) (opt-in: the old screen never offers them); the thirteen it had keep their relative order
     const ids = messageMenuItems.map(item => item.id);
-    expect(ids.filter(id => !["copyLink", "ask", "readText", "transcribe", "seen", "saved", "removePreview"].includes(id))).toEqual(["reply", "pin", "forward", "edit", "note", "copy", "task", "ticket", "problem", "mustread", "remind", "translate", "delete"]);
+    expect(ids.filter(id => !["copyLink", "ask", "readText", "transcribe", "seen", "saved", "removePreview", "select"].includes(id))).toEqual(["reply", "pin", "forward", "edit", "note", "copy", "task", "ticket", "problem", "mustread", "remind", "translate", "delete"]);
     expect(ids[ids.length - 1]).toBe("delete");
   });
 });
