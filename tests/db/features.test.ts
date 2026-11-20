@@ -21,6 +21,8 @@ import * as remoteRoute from "@/app/api/watch/[id]/remote/route";
 import WatchPage from "@/app/(app)/watch/page";
 import CheckinsPage from "@/app/(app)/checkins/page";
 import * as checkinsTodayRoute from "@/app/api/checkins/today/route";
+import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
+import * as checklistItemRoute from "@/app/api/chat/messages/[id]/checklist/items/[itemId]/route";
 import { SPACE_COOKIE } from "@/server/services/current-space";
 import { actorFeatureOn, isFeatureOn } from "@/server/services/features";
 import { FEATURES } from "@/lib/features";
@@ -161,5 +163,34 @@ describe("«الميزات»: «التسجيل اليومي» (on by default) sw
     expect((await call(checkinsTodayRoute.GET, { url })).status).toBe(200);
     // the page draws again (it does not throw «not found»)
     await expect(CheckinsPage()).resolves.toBeTruthy();
+  });
+});
+
+describe("«الميزات»: «قوائم المهام بالدردشة» (on by default) switched off closes its doors, and back when switched on (C3c.1)", () => {
+  it("off: a list is refused at the send and its item doors answer «not found»; on: they answer again; the owner's switch is the only one", async () => {
+    const w = await world();
+    const topic = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", spaceId: w.ws.id, title: "General" } });
+    await as(w.member.id, w.ws.id);
+    const sent = await call(messagesRoute.POST, { params: { id: topic.id }, body: { body: "قائمة", checklist: { items: ["أ", "ب"] } } });
+    expect(sent.status).toBe(201);
+    const messageId = sent.json?.["id"] as string;
+    expect(await isFeatureOn(w.org.id, "chatChecklists")).toBe(true);
+    const items = (sent.json?.["checklist"] as { items: { id: string }[] }).items;
+    const tick = () => call(checklistItemRoute.PUT, { method: "PUT", params: { id: messageId, itemId: items[0]!.id }, body: { done: true } });
+    expect((await tick()).status).toBe(200);
+
+    // a member cannot flip the company's switch
+    expect((await flip("chatChecklists", false)).status).toBeGreaterThanOrEqual(400);
+    await as(w.owner.id, w.ws.id);
+    expect((await flip("chatChecklists", false)).json).toEqual({ key: "chatChecklists", on: false });
+    await as(w.member.id, w.ws.id);
+    for (const res of [await tick(), await call(messagesRoute.POST, { params: { id: topic.id }, body: { body: "قائمة ثانية", checklist: { items: ["أ"] } } })]) {
+      expect(res.status).toBe(404);
+      expect(res.json?.["message"]).toBe("features.off");
+    }
+    await as(w.owner.id, w.ws.id);
+    await flip("chatChecklists", true);
+    await as(w.member.id, w.ws.id);
+    expect((await tick()).status).toBe(200);
   });
 });

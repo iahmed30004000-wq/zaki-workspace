@@ -432,3 +432,19 @@ describe("A1.4: every switch has a group, and its dependencies exist and are acy
     expect(off).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor", "economyMode", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "controlPanelV2"]);
   });
 });
+
+describe("«قوائم المهام بالدردشة» (`chatChecklists`, C3c.1)", () => {
+  it("ON by default, in the chat group and only meaningful with the new chat screen; off is no menu entry, no working box or button and doors that answer «not found» (the lists made stay); its hint carries the ⚠️ and the 🔧", () => {
+    expect(FEATURES).toContain("chatChecklists");
+    expect(FEATURE_DEFAULTS.chatChecklists).toBe(true);
+    expect(featureOn({}, "chatChecklists")).toBe(true);
+    expect(featureOn({ features: { chatChecklists: false } }, "chatChecklists")).toBe(false);
+    expect(featuresOff({})).not.toContain("chatChecklists");
+    expect(featuresOff({ features: { chatChecklists: false } })).toContain("chatChecklists");
+    expect(FEATURE_META.chatChecklists).toEqual({ group: "chat", dependsOn: ["chatLayoutV2"] });
+    expect(AR["features.chatChecklists.name"]).toBe("قوائم المهام بالدردشة");
+    expect(AR["features.chatChecklists.hint"]).toContain("قائمة مهام");
+    expect(AR["features.chatChecklists.hint"]).toContain("⚠️");
+    expect(AR["features.chatChecklists.hint"]).toContain("🔧");
+  });
+});

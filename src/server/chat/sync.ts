@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { ForbiddenError, type OrgAccessContext } from "@/server/auth";
-import { canModerate } from "@/server/policy/conversation";
+import { canModerate, canPost } from "@/server/policy/conversation";
 import type { MessageDto, SyncDto } from "@/server/chat/dto";
 import {
   chatScope,
@@ -48,7 +48,7 @@ export const SYNC_DEFAULT_LIMIT = 500;
 const SPACE_EVENT_SKEW_MS = 5 * 60_000;
 
 /** The events the feed understands. The others (calls, whiteboard, watch) are stream-only. */
-const MESSAGE_EVENTS = new Set<RealtimeKind>(["message.created", "message.edited", "message.deleted", "message.reacted", "message.pinned", "poll.voted", "ticket.changed", "message.enriched"]);
+const MESSAGE_EVENTS = new Set<RealtimeKind>(["message.created", "message.edited", "message.deleted", "message.reacted", "message.pinned", "poll.voted", "ticket.changed", "message.enriched", "checklist.changed"]);
 const ROW_EVENTS = new Set<RealtimeKind>(["message.created", "message.edited", "message.deleted", "conversation.changed", "membership.changed"]);
 const KNOWN = new Set<string>([...MESSAGE_EVENTS, ...ROW_EVENTS, "conversation.read", "conversation.delivered"]);
 
@@ -174,9 +174,11 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
   const linkPreviews = rows.some((r) => r.previewId !== null) ? await linkPreviewsOn(ctx.orgId) : false;
   // C3b.1: the company's switch `chatFormatting` (the quote of a reply shows the words, not the markers), asked once and only when a message of this answer is a reply
   const formatting = rows.some((r) => r.replyToId !== null) ? await v.scope.feature("chatFormatting") : false;
+  // C3c.1: the company's switch `chatChecklists`, asked once and only when a message of this answer is a checklist
+  const checklists = rows.some((r) => r.kind === "CHECKLIST") ? await v.scope.feature("chatChecklists") : undefined;
   for (const row of rows) {
     const rec = visible.get(row.conversationId)!;
-    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, linkPreviews, formatting };
+    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, canPost: canPost(factsOfRecord(rec), org, { ownerJoined: rec.isMember }), linkPreviews, formatting, ...(checklists !== undefined ? { checklists } : {}) };
     const dto = presentMessage(row as never, viewer, rec.kind === "DM" && row.authorId === mine ? dmStatusFor(peerMarks(rec), row.createdAt) : undefined);
     // a tombstone is a tombstone for everybody here: no text, no files, no reactions (the owner reads the original through the archive); no edit history
     delete dto.history;

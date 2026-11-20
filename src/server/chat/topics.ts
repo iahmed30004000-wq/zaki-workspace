@@ -376,7 +376,7 @@ export async function conversationDetail(
 
   const canModerateHere = canModerate(facts, org!);
   const silent = hasOversight(org); // reading with no row of his own: the capability archive.view, never the rank
-  const viewer: Viewer = { userId: ctx.userId, role: org!.role, oversight: silent, canModerateHere, isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId) };
+  const viewer: Viewer = { userId: ctx.userId, role: org!.role, oversight: silent, canModerateHere, isMember: facts.viewerIsMember, canPost: canPost(facts, org!, { ownerJoined: facts.viewerIsMember }), linkPreviews: await linkPreviewsOn(ctx.orgId), ...(page.some((m) => m.kind === "CHECKLIST") ? { checklists: await isFeatureOn(ctx.orgId, "chatChecklists") } : {}) };
   const hideOwnerOnline = await isFeatureOn(ctx.orgId, "ownerHiddenOnline");
 
   // the OWNER's reading is silent: his read mark never shows, in ticks or reader avatars
@@ -477,6 +477,8 @@ export async function conversationDetail(
       canTranslate: await translateOffered({ orgId: ctx.orgId, role: org!.role, facts, conversationId }),
       canMentionAll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
       canPoll: facts.kind === "TOPIC" && org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }),
+      // «قائمة مهام» (C3c.1): any conversation where a non-guest may post, while the company's switch is on
+      canChecklist: org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }) && (await isFeatureOn(ctx.orgId, "chatChecklists")),
       // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
       ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
       ...(await problemOffer(ctx.orgId, org!.role !== "GUEST", facts)),
@@ -656,7 +658,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
 
   // the switches: ONE read of the settings. A service that decides "is it offered" by itself (a ready model, a service address) is asked only
   // while its own switches are on, so a company that never turned them on pays no read for them.
-  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn, zakiEmojis] = await Promise.all([
+  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn, zakiEmojis, checklistsOn] = await Promise.all([
     feature("chatBubbles"),
     feature("chatOutbox"),
     feature("chatFormatting"),
@@ -675,6 +677,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     feature("orderTemplateHint"),
     feature("mustRead"),
     feature("zakiEmojis"),
+    feature("chatChecklists"),
   ]);
   const hidden = silent && !joined;
   // «جدول الإرسال» (C3c.3): the person's OWN waiting messages here, asked only where they may use it (the switch is on and they may write; the silent eye cannot schedule)
@@ -736,6 +739,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
       canTranslate,
       canMentionAll: facts.kind === "TOPIC" && staff && mayPost,
       canPoll: facts.kind === "TOPIC" && staff && mayPost,
+      canChecklist: staff && mayPost && checklistsOn,
       ...recall,
       ...problem,
       orderHints: staff && hintOn,
@@ -850,7 +854,7 @@ export async function conversationMessages(
   ]);
 
   const silent = hasOversight(org);
-  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember, linkPreviews: await linkPreviewsOn(ctx.orgId, scope.feature), formatting: await scope.feature("chatFormatting") };
+  const viewer: Viewer = { userId: ctx.userId, role: org.role, oversight: silent, canModerateHere: canModerate(facts, org), isMember: facts.viewerIsMember, canPost: canPost(facts, org, { ownerJoined: facts.viewerIsMember }), ...(rows.some((m) => m.kind === "CHECKLIST") ? { checklists: await scope.feature("chatChecklists") } : {}), linkPreviews: await linkPreviewsOn(ctx.orgId, scope.feature), formatting: await scope.feature("chatFormatting") };
   // DM ticks: the OTHER person's marks decide my own messages' status; the owner's silent reading never shows as «قرأ»
   let other: { lastDeliveredAt: Date | null; lastReadAt: Date | null } | null = null;
   if (facts.kind === "DM") {
