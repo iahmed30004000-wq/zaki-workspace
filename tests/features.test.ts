@@ -304,7 +304,7 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
     expect(AR["features.zakiEmojis.name"]).toBe("إيموجيز ذكي");
     expect(AR["features.zakiEmojis.hint"]).toContain("⚠️");
     expect(AR["features.zakiEmojis.hint"]).toContain("🔧");
-    expect(AR["features.zakiEmojis.hint"]).toContain(":zaki_smile:");
+    expect(AR["features.zakiEmojis.hint"]).toContain("كود نصي قصير");
   });
 
   it("«مهام قديمة» (`workStaleSweep`, W1.9): OFF until the owner turns it on, with its ⚠️ and 🔧; the switch alone changes no map", () => {

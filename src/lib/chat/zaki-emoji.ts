@@ -43,22 +43,22 @@ export const ZAKI_EMOJI_CATEGORIES = ["مشاعر", "حركات"] as const;
 
 /** The task-status stickers: the status key the owner's pack uses, its Arabic name, the colour of its button and the sticker (`task_<status>`). */
 export const ZAKI_TASK_STICKERS = [
-  { status: "new", name: "مهمة جديدة", color: "#22C3E6", emoji: "task_new" },
-  { status: "in_progress", name: "قيد التنفيذ", color: "#2F80ED", emoji: "task_in_progress" },
-  { status: "done", name: "تم", color: "#18B566", emoji: "task_done" },
-  { status: "urgent", name: "مستعجل", color: "#E5383B", emoji: "task_urgent" },
-  { status: "late", name: "متأخرة", color: "#E8590C", emoji: "task_late" },
-  { status: "review", name: "مراجعة", color: "#7B5CFA", emoji: "task_review" },
-  { status: "paused", name: "متوقفة", color: "#E0A100", emoji: "task_paused" },
-  { status: "cancelled", name: "ملغاة", color: "#64748B", emoji: "task_cancelled" },
-  { status: "help", name: "بحاجة مساعدة", color: "#EC4899", emoji: "task_help" },
-  { status: "meeting", name: "اجتماع", color: "#0E86AE", emoji: "task_meeting" },
-  { status: "waiting", name: "بانتظار رد", color: "#8A9BB0", emoji: "task_waiting" },
-  { status: "priority", name: "أولوية عالية", color: "#C9184A", emoji: "task_priority" },
-  { status: "mine", name: "إلي", color: "#3B5BDB", emoji: "task_mine" },
-  { status: "scheduled", name: "مجدولة", color: "#4361EE", emoji: "task_scheduled" },
-  { status: "achieved", name: "تحقق الهدف", color: "#D4A017", emoji: "task_achieved" },
-  { status: "report", name: "تقرير", color: "#0FA3A3", emoji: "task_report" },
+  { status: "new", name: "مهمة جديدة", emoji: "task_new" },
+  { status: "in_progress", name: "قيد التنفيذ", emoji: "task_in_progress" },
+  { status: "done", name: "تم", emoji: "task_done" },
+  { status: "urgent", name: "مستعجل", emoji: "task_urgent" },
+  { status: "late", name: "متأخرة", emoji: "task_late" },
+  { status: "review", name: "مراجعة", emoji: "task_review" },
+  { status: "paused", name: "متوقفة", emoji: "task_paused" },
+  { status: "cancelled", name: "ملغاة", emoji: "task_cancelled" },
+  { status: "help", name: "بحاجة مساعدة", emoji: "task_help" },
+  { status: "meeting", name: "اجتماع", emoji: "task_meeting" },
+  { status: "waiting", name: "بانتظار رد", emoji: "task_waiting" },
+  { status: "priority", name: "أولوية عالية", emoji: "task_priority" },
+  { status: "mine", name: "إلي", emoji: "task_mine" },
+  { status: "scheduled", name: "مجدولة", emoji: "task_scheduled" },
+  { status: "achieved", name: "تحقق الهدف", emoji: "task_achieved" },
+  { status: "report", name: "تقرير", emoji: "task_report" },
 ] as const;
 
 const IDS: ReadonlySet<string> = new Set([...ZAKI_EMOJIS.map((e) => e.id), ...ZAKI_TASK_STICKERS.map((t) => t.emoji)]);
