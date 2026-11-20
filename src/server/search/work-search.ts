@@ -105,17 +105,20 @@ export async function searchWork(args: {
   // an external partner (a guest) finds none of these: the staff's company data, whatever the space says
   if (actor.isExternal) return NO_WORK_HITS;
 
-  const boards =
-    projectSpaces.length === 0 || !actorCanWork(actor, "projects.view")
+  // a board is read in the space the person is in: the scope was narrowed to it, and this keeps it so even if a caller forgets
+  const boardSpaces = place?.spaceId ? projectSpaces.filter((id) => id === place.spaceId) : [];
+  // the four kinds are asked together: the palette waits for the slowest, not for the sum
+  const [boards, ideas, tickets, customers] = await Promise.all([
+    boardSpaces.length === 0 || !actorCanWork(actor, "projects.view")
       ? []
-      : await rankedSearch({
+      : rankedSearch({
           query: {
             table: "Board",
             search,
             rank: true,
             where: [
               Prisma.sql`"archived" = FALSE`,
-              Prisma.sql`"projectId" IN (SELECT "id" FROM "Project" WHERE ${sqlIn("workspaceId", projectSpaces)})`,
+              Prisma.sql`"projectId" IN (SELECT "id" FROM "Project" WHERE ${sqlIn("workspaceId", boardSpaces)})`,
             ],
             order: Prisma.sql`"updatedAt" DESC`,
           },
@@ -125,16 +128,15 @@ export async function searchWork(args: {
               where: {
                 id: { in: ids },
                 archived: false,
-                project: { AND: [projectVisibleWhere(scope)], workspaceId: { in: [...projectSpaces] }, workspace: { organizationId: actor.orgId } },
+                project: { AND: [projectVisibleWhere(scope)], workspaceId: { in: boardSpaces }, workspace: { organizationId: actor.orgId } },
               },
               select: { id: true, name: true, project: { select: { id: true, name: true } } },
             }),
-        });
+        }),
 
-  const ideas =
     !place || !actorCan(actor, "ideas.view")
       ? []
-      : await rankedSearch({
+      : rankedSearch({
           query: {
             table: "Idea",
             search,
@@ -144,13 +146,12 @@ export async function searchWork(args: {
           },
           take: TAKE,
           load: (ids) => db.idea.findMany({ where: { id: { in: ids }, orgId: actor.orgId, AND: [ideaPlaceWhere(place)] }, select: { id: true, title: true, status: true } }),
-        });
+        }),
 
-  // the tickets page needs the directory too (D-W3 pending): offer nothing the page would refuse
-  const tickets =
+    // the tickets page needs the directory too (D-W3 pending): offer nothing the page would refuse
     !actorCan(actor, "tickets.view") || !actorCan(actor, "directory.view")
       ? []
-      : await rankedSearch({
+      : rankedSearch({
           query: { table: "Ticket", search, rank: true, where: ticketPoolSql(actor), order: Prisma.sql`"updatedAt" DESC` },
           take: TAKE,
           load: (ids) =>
@@ -158,16 +159,16 @@ export async function searchWork(args: {
               where: { AND: [ticketReadableWhere(actor), { id: { in: ids } }] },
               select: { id: true, number: true, title: true, status: true, organization: { select: { keyPrefix: true } } },
             }),
-        });
+        }),
 
-  const customers =
     !place || !actorCan(actor, "crm.view")
       ? []
-      : await rankedSearch({
+      : rankedSearch({
           query: { table: "Customer", search, rank: true, where: [sqlIn("orgId", [actor.orgId]), customerPoolSql(place)], order: Prisma.sql`"updatedAt" DESC` },
           take: TAKE,
           load: (ids) => db.customer.findMany({ where: { id: { in: ids }, orgId: actor.orgId, AND: [placeWhere(place)] }, select: { id: true, name: true, company: true } }),
-        });
+        }),
+  ]);
 
   return {
     boards: boards.map((b) => ({ id: b.id, name: b.name, projectId: b.project.id, projectName: b.project.name })),
