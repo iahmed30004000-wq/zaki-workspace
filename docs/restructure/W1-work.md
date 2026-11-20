@@ -133,14 +133,18 @@
 Seen live on 2026-11-16: 262 open tasks; 196 of them on ONE account; 42 with nobody assigned; 183 not touched for 14
 days or more; the hidden «مهام فورية» project listed as an ordinary project card; Today and the control panel showing
 the same panel, with two different "overdue" numbers on one page (9 and 6).
-- [ ] A review list «مهام قديمة» for space managers and the owner: open tasks untouched for N days (default 14), grouped
+- [x] A review list «مهام قديمة» for space managers and the owner: open tasks untouched for N days (default 14), grouped
       by person and project, with bulk actions through the existing services (`updateTask`, `moveTask`): «سكّريها»,
       «عيّني مسؤول», «أجّليها لتاريخ», «أرشفيها» (the existing `Task.archived` flag — nothing is deleted). Every action is a
       `TaskActivity` line.
-- [ ] Tasks that came in through the door from another system or an agent (`Task.apiTokenId` is set — an existing
+      Built on `feat/work-stale-sweep` behind `workStaleSweep` (OFF): `/my-work/stale` and `GET|POST /api/work/stale`; «old» = open, untouched (no edit, comment or log line) for N days, default 14; only the spaces the person manages (the owner: all);
+      each task is judged on its own (`task.not_found` / `stale.not_manager` / `stale.not_open` / the service's own refusal), a higher-rank assignee is asked, never given; every change adds a `task.stale_swept` line. Notes: `docs/restructure/pr/W1.9.md`.
+- [x] Tasks that came in through the door from another system or an agent (`Task.apiTokenId` is set — an existing
       column, no new one) carry a small «آلي» mark and can be filtered out of people's lists and of the "open tasks per
       person" numbers (D-W4).
-- [ ] Tests: the list respects P0.2 visibility; a bulk action on a task the person cannot edit is refused per task.
+      D-W4 is PENDING: built as the recommended default (marked «آلي», counted apart, the filter «الكل · بدون الآلي · الآلي بس» defaults to «الكل»), labelled on screen «بانتظار المالك». `RowTask.automated` draws the mark in `task-row.tsx`.
+- [x] Tests: the list respects P0.2 visibility; a bulk action on a task the person cannot edit is refused per task.
+      `tests/db/work-stale-sweep.test.ts` (23) and `tests/db/privacy-matrix.test.ts` (+3: the list as one more surface of the owner's table).
 
 Switches (R7): `workMyTasks` (W1.1), `workInbox` (W1.2), `workStages` (W1.3), `workRequests` (W1.4); `workStaleSweep` (W1.9); W1.5–W1.8 ride
 on `navV2`. Strings: `src/lib/i18n/ar.work-v2.json`.

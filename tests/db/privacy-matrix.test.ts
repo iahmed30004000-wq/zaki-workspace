@@ -25,6 +25,7 @@ import * as personalStateRoute from "@/app/api/chat/conversations/[id]/me/route"
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import * as workRequestsRoute from "@/app/api/work/requests/route";
 import * as workTasksRoute from "@/app/api/work/tasks/route";
+import * as staleRoute from "@/app/api/work/stale/route";
 import * as workTaskDoor from "@/app/api/work/tasks/[id]/route";
 import * as chatPrefsRoute from "@/app/api/me/chat-prefs/route";
 import * as previewImageRoute from "@/app/api/chat/messages/[id]/preview/image/route";
@@ -1211,4 +1212,42 @@ describe("privacy matrix — the W1.5 board screen and project page", () => {
       await setFeature(w.orgId, "navV2", false);
     }
   });
+});
+
+// W1.9: «مهام قديمة». The same table, on one more surface: the review list shows a task to a person only when they MANAGE its space (the owner, its ADMIN) AND the table
+// lets them open it (a private task is not listed to somebody who is no part of it, and is not counted). Everybody else, a guest included, has no list at all (403).
+describe("privacy matrix — the W1.9 review list of old tasks", () => {
+  //                      owner pW pWo oAO sA mIn mOut tM guest
+  const MANAGES = cells("1 1 1 0 1 0 0 0 0"); // who runs the space: the owner and the partners (OWNER rank), the space's own ADMIN; an org ADMIN outside it does not
+  for (const kind of Object.keys(TASKS)) {
+    it(`${kind}: it is listed (and counted) for the people who manage the space and may open it, and for nobody else`, async () => {
+      const w = await getWorld();
+      const org = await db.organization.findUniqueOrThrow({ where: { id: w.orgId }, select: { settings: true } });
+      const settings = (org.settings ?? {}) as { features?: Record<string, boolean> };
+      await db.organization.update({ where: { id: w.orgId }, data: { settings: { ...settings, features: { ...(settings.features ?? {}), workStaleSweep: true } } } });
+      const taskId = w.tasks[kind]!;
+      // a month untouched (a write bumps updatedAt, so this is the last write)
+      const old = new Date(Date.now() - 30 * 86_400_000);
+      await db.task.update({ where: { id: taskId }, data: { updatedAt: old } });
+      // a task made through the door has its «created» log line from today: that is a touch too
+      await db.taskActivity.updateMany({ where: { taskId }, data: { createdAt: old } });
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        await loginAs(person.id);
+        const res = await call(staleRoute.GET, { url: "http://localhost/api/work/stale?days=14" });
+        const manages = MANAGES[PERSONAS.indexOf(who)]!;
+        if (!manages) {
+          if (res.status !== 403 || res.text.includes(taskId)) wrong.push(`${who}: manages no space, expected 403 (status ${res.status})`);
+          continue;
+        }
+        const listed = res.status === 200 && res.text.includes(taskId);
+        const want = expected(TASKS, kind, who);
+        if (listed !== want) wrong.push(`${who}: expected ${want ? "listed" : "not listed"}`);
+        const total = ((res.json?.["people"] as { projects: { tasks: { id: string }[] }[] }[] | undefined) ?? []).flatMap((x) => x.projects.flatMap((g) => g.tasks)).filter((t) => t.id === taskId).length;
+        if (total !== (want ? 1 : 0)) wrong.push(`${who}: the list holds ${total} of it`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
 });
