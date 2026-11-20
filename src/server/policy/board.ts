@@ -7,8 +7,10 @@ import { isSpaceManager } from "@/server/workspace-role";
 /**
  * «لوحة المالك» — WHO MAY READ WHAT, in one place. Every page and every route of the board asks `boardAccess` and nothing else.
  *
- *   owner   the OWNER rank (the primary owner and his partners: `actor.isOwner`): every person, every space, the company's
- *           totals and the «اليوم» strip. Reading leaves no trace, like all owner reading.
+ *   owner   the OWNER rank WHO HOLDS `board.team` (the primary owner holds everything; a partner unless the primary owner took
+ *           it away): every person, every space, the company's totals and the «اليوم» strip. Reading leaves no trace, like
+ *           all owner reading. A partner who lost `board.team` falls to the rows below: his own page while he holds
+ *           `board.self`, nothing when he holds neither (A1.3: one meaning per rule, a revoked permission works everywhere).
  *   team    holds `board.team` («لوحة الفريق», off until the owner switches it on for a person): the people of the spaces
  *           they manage (space ADMIN, or an org ADMIN who is in it) and of the teams they lead, and ONLY the work that
  *           happened in those spaces / teams. Never the owner's own page, never a partner's, never a guest's, no company
@@ -51,7 +53,11 @@ export async function boardAccess(actor: Actor): Promise<BoardAccess> {
   await assertFeatureOn(actor.orgId, "ownerBoard");
   if (actor.isExternal) throw nobody();
 
-  if (actor.isOwner) {
+  const wantsTeam = actor.caps.has("board.team");
+  const wantsSelf = actor.caps.has("board.self");
+
+  // the OWNER rank is the whole company only while it still holds the switch (a partner's can be taken away)
+  if (actor.isOwner && wantsTeam) {
     return {
       mode: "owner",
       orgId: actor.orgId,
@@ -63,8 +69,6 @@ export async function boardAccess(actor: Actor): Promise<BoardAccess> {
     };
   }
 
-  const wantsTeam = actor.caps.has("board.team");
-  const wantsSelf = actor.caps.has("board.self");
   if (!wantsTeam && !wantsSelf) throw nobody();
 
   if (!wantsTeam) {

@@ -41,6 +41,7 @@ import { RankBadge, StatusBadge } from "./badges";
 import { CapabilityPanel } from "./capability-panel";
 import { CredentialsCard } from "./credentials-card";
 import { Field } from "./field";
+import { ManagerPicker } from "./manager-picker";
 import { Sheet } from "./sheet";
 import { MemberTemplateSection, useRoleTemplates } from "./template-picker";
 
@@ -280,7 +281,6 @@ export function MemberSheet({
   // ------------------------------------------------------------------ pieces
 
   const managerOptions = managerCandidates(members, member.id);
-  const currentManagerMissing = member.managerId !== null && !managerOptions.some((m) => m.id === member.managerId);
   const roleOptions = acts.rankChoices.includes(member.role) ? acts.rankChoices : [member.role, ...acts.rankChoices];
   const transferOptions = transferCandidates(members, member.id);
 
@@ -432,22 +432,13 @@ export function MemberSheet({
               </Field>
               {form.role !== "GUEST" ? (
                 <Field id={`${uid}-manager`} label={t("members.f_manager")}>
-                  <Select
+                  <ManagerPicker
                     id={`${uid}-manager`}
                     value={form.managerId}
-                    onChange={(e) => setForm({ ...form, managerId: e.target.value })}
-                    className="h-11"
-                  >
-                    <option value="">{t("members.manager_owner")}</option>
-                    {currentManagerMissing && member.managerId ? (
-                      <option value={member.managerId}>{member.managerName ?? "—"}</option>
-                    ) : null}
-                    {managerOptions.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} — {t(ROLE_KEYS[m.role] ?? "role.member")}
-                      </option>
-                    ))}
-                  </Select>
+                    onChange={(managerId) => setForm({ ...form, managerId })}
+                    options={managerOptions}
+                    current={member.managerId ? { id: member.managerId, name: member.managerName ?? "—" } : null}
+                  />
                 </Field>
               ) : null}
               {infoError ? (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { ARTICLE_AUDIENCE, AUDIENCES, audienceOf, canRead } from "@/lib/guide/audience";
-import { CAPABILITIES, effectiveCapabilities } from "@/server/policy/capabilities";
+import { ARTICLE_AUDIENCE, AUDIENCES, MANAGER_CAPABILITIES, audienceOf, canRead } from "@/lib/guide/audience";
+import { CAPABILITIES, effectiveCapabilities, isCapability } from "@/server/policy/capabilities";
 
 describe("canRead: who may read what", () => {
   it("a guest reads only what is for everyone, staff add the staff material, managers read all three", () => {
@@ -49,6 +49,26 @@ describe("audienceOf: the viewer's level is decided by the actor, never by what 
     // the switch decides, not the rank
     expect(level("MEMBER", ["users.manage"])).toBe("managers");
     expect(level("ADMIN", [], ["users.manage"])).toBe("staff");
+  });
+});
+
+describe("A1.3: users.manage means accounts only; the guide's «managers» is an explicit list", () => {
+  const level = (extra: string[], revoked: string[] = [], role: "ADMIN" | "LEAD" | "MEMBER" = "MEMBER") =>
+    audienceOf({ isExternal: false, caps: effectiveCapabilities({ role, capabilities: extra, revokedCapabilities: revoked }) });
+
+  it("the list is real capabilities and names the four people-management switches", () => {
+    expect([...MANAGER_CAPABILITIES].sort()).toEqual(["board.team", "people.manage_lines", "people.review", "users.manage"]);
+    for (const capability of MANAGER_CAPABILITIES) expect(isCapability(capability), capability).toBe(true);
+  });
+
+  it("each switch of the list makes a plain employee a manager, and one that is not on the list does not", () => {
+    for (const capability of MANAGER_CAPABILITIES) expect(level([capability]), capability).toBe("managers");
+    expect(level(["crm.view", "spaces.create", "integrations.manage", "board.self"])).toBe("staff");
+  });
+
+  it("an admin whose accounts switch was taken away still manages people when another switch of the list is on", () => {
+    expect(level([], ["users.manage"], "ADMIN")).toBe("staff");
+    expect(level(["people.review"], ["users.manage"], "ADMIN")).toBe("managers");
   });
 });
 

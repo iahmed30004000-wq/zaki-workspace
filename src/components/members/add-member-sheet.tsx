@@ -25,6 +25,7 @@ import {
 import { createMember, type CreatedPerson } from "./api";
 import { CredentialsCard } from "./credentials-card";
 import { Field } from "./field";
+import { ManagerPicker } from "./manager-picker";
 import { Sheet } from "./sheet";
 import { SwitchRow } from "./switch-row";
 import { TemplatePicker, useRoleTemplates } from "./template-picker";
@@ -213,14 +214,7 @@ export function AddMemberSheet({
               </Field>
               {values.role !== "GUEST" ? (
                 <Field id={fieldId("manager")} label={t("members.f_manager")}>
-                  <Select id={fieldId("manager")} value={values.managerId} onChange={(e) => set("managerId", e.target.value)} className="h-11">
-                    <option value="">{t("members.manager_owner")}</option>
-                    {managers.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} — {t(ROLE_KEYS[m.role] ?? "role.member")}
-                      </option>
-                    ))}
-                  </Select>
+                  <ManagerPicker id={fieldId("manager")} value={values.managerId} onChange={(managerId) => set("managerId", managerId)} options={managers} />
                 </Field>
               ) : null}
             </div>

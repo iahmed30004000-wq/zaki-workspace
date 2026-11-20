@@ -4,14 +4,15 @@ import { db } from "@/server/db";
 import { NotFoundError, ValidationError, audit } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { assertCanManageLines, devAccess, type DevAccess } from "@/server/policy/team-development";
-import { assertManager, lockManagerChain } from "@/server/services/accounts";
+import { assertManager, assertRankMayAdminister, lockManagerChain, mayAdministerRank } from "@/server/services/accounts";
 import { childrenOf, subtreeOf } from "@/lib/team-development";
 
 /**
  * «الهيكل» — who answers to whom. The line is `OrganizationMember.managerId` (a user id), the same column the account
  * screens and the escalations already use: this file is the second door to it, for the owner and for whoever holds
  * `people.manage_lines`, and it applies the SAME checks as the first (`assertManager`: an ACTIVE non-guest manager, no
- * loop, no chain deeper than 6) under the same company-wide lock.
+ * loop, no chain deeper than 6) under the same company-wide lock — and, since A1.3 (D-A5, «بانتظار المالك»), the same RANK
+ * LIMIT: a line is changed only for somebody the caller outranks (`accounts.assertRankMayAdminister`), whichever screen asks.
  *
  * Who reads what: the owner and a `people.manage_lines` holder the whole tree of names; a supervisor their own subtree;
  * a plain employee only their own supervisor and the names of the people who answer to the same supervisor.
@@ -28,6 +29,8 @@ export interface StructureNode {
   jobTitle: string | null;
   role: OrgRole;
   managerId: string | null;
+  /** The viewer may change this person's line (mode all only; the rank limit of the people screen: somebody they outrank). */
+  canEdit: boolean;
   /** People who answer to this person directly. */
   direct: number;
   /** Direct and indirect. */
@@ -84,6 +87,7 @@ function nodesOf(access: DevAccess, ids: Iterable<string>): StructureNode[] {
       jobTitle: person.jobTitle,
       role: person.role,
       managerId: lines.get(id) ?? null,
+      canEdit: false,
       direct: (children.get(id) ?? []).length,
       total: subtreeOf(lines, id).length,
     });
@@ -107,7 +111,8 @@ export async function loadStructure(actor: Actor): Promise<Structure> {
 
   if (access.canManageLines) {
     const ids = [...access.staff.keys()];
-    const nodes = nodesOf(access, ids);
+    // the button is drawn only where the server would accept it: never an owner (no supervisor), never a peer or a superior
+    const nodes = nodesOf(access, ids).map((n) => ({ ...n, canEdit: n.role !== "OWNER" && mayAdministerRank(actor, { role: n.role }) }));
     const roots = nodes.filter((n) => n.role === "OWNER").map((n) => n.userId);
     const unassigned = nodes.filter((n) => n.role !== "OWNER" && n.managerId === null).map((n) => n.userId);
     return { mode: "all", canManage: true, nodes, roots, unassigned, me };
@@ -130,6 +135,8 @@ export async function setSupervisor(actor: Actor, userId: string, managerId: str
   const person = access.staff.get(userId);
   if (!person) throw new NotFoundError("teamdev.not_found");
   if (person.role === "OWNER") throw new ValidationError([{ path: "managerId", message: "teamdev.owner_no_manager" }]);
+  // the people screen's rank limit (D-A5): 403 `orgm.role_denied` for somebody the caller does not outrank
+  assertRankMayAdminister(actor, { role: person.role });
   const before = access.managerOf.get(userId) ?? null;
   if (before === managerId) return { userId, managerId };
 
