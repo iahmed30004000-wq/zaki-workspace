@@ -46,3 +46,10 @@ separate binary packages (`@img/sharp-libvips-*`), licensed **LGPL-3.0-or-later*
   names the licence; the package folders carry no licence file of their own).
 - ⚠️ On a machine where sharp's binary cannot be loaded, the icon checks are skipped instead of failing.
   🔧 On CI they are never skipped: `tests/pwa-icons.test.ts` fails there when sharp does not load.
+
+## Chat wallpapers — pictures (`brand/wallpapers/photo/`)
+
+Fifteen picture wallpapers supplied by the owner («خلفيات_الدردشة», 2026-11-20) and used with his permission as the
+chat backgrounds. Each is stored three times: a wide file, a tall file for phones, and a small thumbnail for the
+picker (converted to WebP, about 2 MB in all). ⚠️ Two of them («كلود», «كلود إيموجي») carry the word «Claude» and two
+(«ذكي داكن», «ذكي فاتح») the product's own mark: keep them only while the owner wants them.

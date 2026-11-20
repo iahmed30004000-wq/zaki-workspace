@@ -1,4 +1,4 @@
-import { DEFAULT_WALLPAPER, WALLPAPERS, fontScaleOf, type Wallpaper } from "@/lib/chat/prefs";
+import { DEFAULT_WALLPAPER, WALLPAPERS, fontScaleOf, isPhotoWallpaper, type Wallpaper } from "@/lib/chat/prefs";
 import { effectiveFontStep, type DevicePrefs } from "@/lib/device-prefs";
 
 /**
@@ -11,12 +11,16 @@ import { effectiveFontStep, type DevicePrefs } from "@/lib/device-prefs";
  */
 export const FONT_SCALE_VAR = "--chat-font-scale";
 export const WALLPAPER_VAR = "--chat-wallpaper-image";
+export const WALLPAPER_TALL_VAR = "--chat-wallpaper-image-tall";
 export const WALLPAPER_STYLE_ID = "zk-chat-wallpaper";
 const WALLPAPER_PATH = "/brand/wallpapers/";
 
 /** The rule that draws the pattern behind the messages of the new chat screen. Only the theme's tokens are read: no colour is written here. */
 export function wallpaperRule(): string {
-  return `[role="log"][data-conversation-id]{background-color:rgb(var(--chat-wallpaper));background-image:var(${WALLPAPER_VAR},none);background-size:96px 96px}`;
+  const log = `[role="log"][data-conversation-id]`;
+  const photo = `html[data-chat-wallpaper-kind="photo"] ${log}`;
+  // a pattern repeats small; a picture covers the conversation (the tall file on a phone)
+  return `${log}{background-color:rgb(var(--chat-wallpaper));background-image:var(${WALLPAPER_VAR},none);background-size:96px 96px}${photo}{background-size:cover;background-position:center}@media (max-width:767px){${photo}{background-image:var(${WALLPAPER_TALL_VAR},var(${WALLPAPER_VAR},none))}}`;
 }
 
 /** An SVG of the set with its strokes (drawn black in the files) painted in the given colour (the theme's `--chat-pattern`, «r g b»). */
@@ -53,25 +57,47 @@ export function applyFontScale(doc: Pick<DocLike, "documentElement">, scale: num
 export async function applyWallpaper(doc: DocLike, wallpaper: Wallpaper | undefined, channels: string, fetchSvg: (url: string) => Promise<string>): Promise<void> {
   const html = doc.documentElement;
   const rule = doc.getElementById(WALLPAPER_STYLE_ID);
-  if (!wallpaper || wallpaper === "plain") {
+  const clear = () => {
     html.removeAttribute("data-chat-wallpaper");
+    html.removeAttribute("data-chat-wallpaper-kind");
     html.style.removeProperty(WALLPAPER_VAR);
+    html.style.removeProperty(WALLPAPER_TALL_VAR);
+  };
+  if (!wallpaper || wallpaper === "plain") {
+    clear();
     rule?.remove();
+    return;
+  }
+  const ensureRule = () => {
+    const current = doc.getElementById(WALLPAPER_STYLE_ID);
+    if (current) {
+      current.textContent = wallpaperRule();
+      return;
+    }
+    const style = doc.createElement("style");
+    style.id = WALLPAPER_STYLE_ID;
+    style.textContent = wallpaperRule();
+    doc.head.appendChild(style);
+  };
+  if (isPhotoWallpaper(wallpaper)) {
+    // a picture: the file is the image (no fetch, no tint); a phone gets the tall one
+    clear();
+    html.style.setProperty(WALLPAPER_VAR, `url("${WALLPAPER_PATH}photo/${wallpaper}.webp")`);
+    html.style.setProperty(WALLPAPER_TALL_VAR, `url("${WALLPAPER_PATH}photo/${wallpaper}-tall.webp")`);
+    html.setAttribute("data-chat-wallpaper", wallpaper);
+    html.setAttribute("data-chat-wallpaper-kind", "photo");
+    ensureRule();
     return;
   }
   try {
     const svg = await fetchSvg(`${WALLPAPER_PATH}${wallpaper}.svg`);
+    html.removeAttribute("data-chat-wallpaper-kind");
+    html.style.removeProperty(WALLPAPER_TALL_VAR);
     html.style.setProperty(WALLPAPER_VAR, svgDataUrl(tintSvg(svg, channels)));
     html.setAttribute("data-chat-wallpaper", wallpaper);
-    if (!rule) {
-      const style = doc.createElement("style");
-      style.id = WALLPAPER_STYLE_ID;
-      style.textContent = wallpaperRule();
-      doc.head.appendChild(style);
-    }
+    ensureRule();
   } catch {
-    html.removeAttribute("data-chat-wallpaper");
-    html.style.removeProperty(WALLPAPER_VAR);
+    clear();
     rule?.remove();
   }
 }
