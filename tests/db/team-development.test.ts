@@ -519,7 +519,7 @@ describe("«الأداء والتطوير»: the switch", () => {
       expect(nav.places.flatMap((p) => p.tabs.map((t) => t.key))).not.toContain("development");
     }
     await as(w.owner.id);
-    const pages: (() => unknown)[] = [() => StructurePage(), () => DevelopmentPage({ searchParams: {} }), () => SkillsPage(), () => html(PersonPage({ params: { id: w.r1.id }, searchParams: {} }))];
+    const pages: (() => unknown)[] = [() => StructurePage({}), () => DevelopmentPage({ searchParams: {} }), () => SkillsPage(), () => html(PersonPage({ params: { id: w.r1.id }, searchParams: {} }))];
     for (const page of pages) {
       await expect(Promise.resolve().then(page)).rejects.toThrow("NEXT_NOT_FOUND");
     }
@@ -552,7 +552,7 @@ describe("the screens render for the right people", () => {
   it("«الهيكل»: the owner sees the tree, the count of reports, the «بدون مسؤول» flag and «غيّر المسؤول»; a plain employee sees only their line", async () => {
     const w = await world();
     await as(w.owner.id);
-    const markup = await html(StructurePage());
+    const markup = await html(StructurePage({}));
     expect(markup).toContain(`data-node="${w.sup.id}"`);
     expect(markup).toContain(`data-reports-count="${w.sup.id}"`);
     expect(markup).toContain(`data-no-supervisor="${w.loose.id}"`);
@@ -560,14 +560,14 @@ describe("the screens render for the right people", () => {
     expect(markup).toContain("⚠️");
     expect(markup).toContain("🔧");
     await as(w.r2.id);
-    const mine = await html(StructurePage());
+    const mine = await html(StructurePage({}));
     expect(mine).toContain("data-my-supervisor");
     expect(mine).toContain(w.sup.name);
     expect(mine).toContain(w.r1.name); // a team mate's name
     expect(mine).not.toContain(w.x.name);
     expect(mine).not.toContain("data-change-supervisor");
     await as(w.guest.id);
-    await expect(Promise.resolve().then(() => StructurePage())).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(Promise.resolve().then(() => StructurePage({}))).rejects.toThrow("NEXT_NOT_FOUND");
   });
 
   it("the person's file: an employee sees both columns for their own skills and an editor only for their own estimate; the supervisor with `people.review` gets the other editor; an outsider gets not-found", async () => {

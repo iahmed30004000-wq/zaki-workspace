@@ -5,7 +5,7 @@ import { TelegramBody } from "@/components/control-panel/sections/integrations-b
 import { panelRedirectFor } from "@/server/services/control-panel";
 import { carriedQuery } from "@/lib/legacy-routes";
 
-export default async function TelegramPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function TelegramPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { actor } = await pageActor();
 
   // The page hands the chat list to the client as initial data, and the chats are customer

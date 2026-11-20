@@ -8,7 +8,7 @@ import { actorCan } from "@/server/policy/actor";
 import { getServerT } from "@/lib/i18n/server";
 import { ArchiveClient } from "@/lib/chat/archive/archive-client";
 
-export default async function ArchivePage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function ArchivePage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { actor } = await pageActor();
   const { t } = getServerT();
   if (!actorCan(actor, "archive.view")) {

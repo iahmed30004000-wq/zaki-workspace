@@ -201,7 +201,7 @@ describe("Analytics page: this organization and the workspaces the user can open
       data: { capabilities: ["reports.view"] },
     });
     await loginAs(f.member.id);
-    const page = await html(AnalyticsPage());
+    const page = await html(AnalyticsPage({}));
     expect(page).toContain(t("analytics.statWorkspaces", { n: 1 }));
     expect(page).toContain(t("analytics.statProjects", { n: 1 }));
     expect(page).toContain(t("analytics.ideasTotal", { total: 2 }));
@@ -212,21 +212,21 @@ describe("Analytics page: this organization and the workspaces the user can open
     // («لوحة التحكم», 2026-11-02: while it is on, the owner's «التقارير» is a section of the panel and this page sends him there; with that switch
     // off the page is exactly what it was, and this is what is pinned below)
     await loginAs(f.owner.id);
-    await expect(AnalyticsPage()).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
+    await expect(AnalyticsPage({})).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
     const row = await db.organization.findUniqueOrThrow({ where: { id: f.org.id }, select: { settings: true } });
     await db.organization.update({ where: { id: f.org.id }, data: { settings: withFeature(row.settings, "controlPanel", false) as Prisma.InputJsonValue } });
     enter(f.wsOut.id);
-    const ownerPage = await html(AnalyticsPage());
+    const ownerPage = await html(AnalyticsPage({}));
     expect(ownerPage).toContain(t("analytics.statWorkspaces", { n: 1 }));
     expect(ownerPage).toContain(t("analytics.ideasTotal", { total: 1 }));
 
     // an ADMIN counts only the spaces they are in (none yet: no space, no ideas); then the one they were put in
     await loginAs(f.admin.id);
-    const adminPage = await html(AnalyticsPage());
+    const adminPage = await html(AnalyticsPage({}));
     expect(adminPage).toContain(t("analytics.statWorkspaces", { n: 0 }));
     expect(adminPage).toContain(t("analytics.ideasTotal", { total: 0 }));
     await joinWorkspace(f.admin.id, f.wsOut.id);
-    const joined = await html(AnalyticsPage());
+    const joined = await html(AnalyticsPage({}));
     expect(joined).toContain(t("analytics.statWorkspaces", { n: 1 }));
     expect(joined).toContain(t("analytics.ideasTotal", { total: 1 }));
   });

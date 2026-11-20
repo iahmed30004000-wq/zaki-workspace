@@ -5,7 +5,7 @@ import { AutomationBody } from "@/components/control-panel/sections/integrations
 import { panelRedirectFor } from "@/server/services/control-panel";
 import { carriedQuery } from "@/lib/legacy-routes";
 
-export default async function AutomationPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function AutomationPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { actor } = await pageActor();
   // staff only on the map (its routes already refuse a guest): the notice, not an empty automation view
   if (refusedToGuest(actor, "automation")) return <GuestNotice />;

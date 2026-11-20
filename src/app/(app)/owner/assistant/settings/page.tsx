@@ -11,7 +11,7 @@ import { carriedQuery } from "@/lib/legacy-routes";
  * four characters and nothing else about the key: it is write-only (the cipher is never selected for a page). With the switch `controlPanelV2` ON the AI connection is ONE place:
  * this address leads to «التكاملات» › «الذكاء الاصطناعي» (A2.1).
  */
-export default async function OwnerAssistantSettingsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function OwnerAssistantSettingsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { actor } = await pageActor();
   const access = await assistantAccess(actor).catch((err: unknown) => {
     if (err instanceof NotFoundError) notFound();

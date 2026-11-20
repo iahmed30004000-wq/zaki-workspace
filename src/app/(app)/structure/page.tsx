@@ -12,7 +12,7 @@ import { StructureBody } from "@/components/control-panel/sections/development-b
  * An external partner, or the company with «الأداء والتطوير» switched off, gets «not found». Reading writes nothing. The body is `StructureBody`, shared with the section
  * «الهيكل والتطوير» of the control panel (A2.1): with the switch `controlPanelV2` ON this address leads there for whoever may open that section.
  */
-export default async function StructurePage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function StructurePage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { actor } = await pageActor();
   const inPanel = await panelRedirectFor(actor, "/structure", carriedQuery(searchParams));
   if (inPanel) redirect(inPanel);

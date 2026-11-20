@@ -7,7 +7,7 @@ import { AnalyticsReport } from "@/components/control-panel/sections/analytics-r
 import { panelRedirectFor } from "@/server/services/control-panel";
 import { carriedQuery } from "@/lib/legacy-routes";
 
-export default async function AnalyticsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function AnalyticsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { user, actor } = await pageActor();
   // Company numbers: the idea funnel, the staff names with their workload. Not for an external partner,
   // whatever their tab shows; for the team, the reports box of the person's grid (a lead's and up by default).

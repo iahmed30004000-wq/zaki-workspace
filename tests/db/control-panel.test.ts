@@ -154,13 +154,13 @@ describe("who may open the control panel", () => {
     expect(old).toContain(AR["ownerboard.title.owner"]);
     expect(old).not.toContain('data-testid="cp-nav"');
     // «التقارير» is its own page again for the owner
-    await expect(AnalyticsPage()).resolves.toBeTruthy();
+    await expect(AnalyticsPage({})).resolves.toBeTruthy();
 
     await setFeature(w.org.id, "controlPanel", true);
     await setFeature(w.org.id, "ownerBoard", false);
     await expect(controlPanelAccess(await requireActor())).rejects.toMatchObject({ name: "NotFoundError" });
     expect(await html(await HomePage({}))).not.toContain('data-testid="control-panel"');
-    await expect(AnalyticsPage()).resolves.toBeTruthy();
+    await expect(AnalyticsPage({})).resolves.toBeTruthy();
   });
 
   it("«اليوم» draws the panel for the owner and for nobody else", async () => {
@@ -196,9 +196,9 @@ describe("who may open the control panel", () => {
   it("/analytics sends the owner into «التقارير» of the panel; an admin keeps the old page", async () => {
     const w = await world();
     await loginAs(w.owner.id);
-    await expect(AnalyticsPage()).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
+    await expect(AnalyticsPage({})).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
     await loginAs(w.admin.id);
-    await expect(AnalyticsPage()).resolves.toBeTruthy();
+    await expect(AnalyticsPage({})).resolves.toBeTruthy();
   });
 });
 

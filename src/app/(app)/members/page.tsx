@@ -31,7 +31,7 @@ async function loadDirectory(actor: Actor): Promise<DirectoryPerson[]> {
  * read-only list of the ACTIVE people; without it the same "not enabled for you" notice, and no name
  * is read at all. An external partner gets the honest notice they always had.
  */
-export default async function MembersPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function MembersPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = getServerT();
   const { actor } = await pageActor();
 

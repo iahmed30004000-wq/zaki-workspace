@@ -130,7 +130,7 @@ describe("A2.1 · the switch is OFF (as merged)", () => {
       expect(listed(page.markup)).toEqual([]);
     }
     // the old pages draw themselves (the walk below is the same list with the switch ON)
-    for (const run of [() => MembersPage(), () => SpacesPage(), () => StructurePage(), () => DevelopmentPage({ searchParams: {} }), () => AutomationPage(), () => TelegramPage(), () => ArchivePage()]) {
+    for (const run of [() => MembersPage({}), () => SpacesPage({}), () => StructurePage({}), () => DevelopmentPage({ searchParams: {} }), () => AutomationPage({}), () => TelegramPage({}), () => ArchivePage({})]) {
       const out = await open(run);
       expect(out.kind).toBe("rendered");
     }
@@ -269,16 +269,16 @@ describe("A2.1 · every old address still resolves", () => {
   });
 
   const old: Record<string, () => Promise<React.ReactNode> | React.ReactNode> = {
-    "/analytics": () => AnalyticsPage(),
-    "/members": () => MembersPage(),
-    "/spaces": () => SpacesPage(),
-    "/structure": () => StructurePage(),
+    "/analytics": () => AnalyticsPage({}),
+    "/members": () => MembersPage({}),
+    "/spaces": () => SpacesPage({}),
+    "/structure": () => StructurePage({}),
     "/development": () => DevelopmentPage({ searchParams: {} }),
-    "/automation": () => AutomationPage(),
-    "/telegram": () => TelegramPage(),
-    "/archive": () => ArchivePage(),
+    "/automation": () => AutomationPage({}),
+    "/telegram": () => TelegramPage({}),
+    "/archive": () => ArchivePage({}),
     "/owner/assistant": () => AssistantPage({ searchParams: {} }),
-    "/owner/assistant/settings": () => AssistantSettingsPage(),
+    "/owner/assistant/settings": () => AssistantSettingsPage({}),
   };
 
   it("the table of moved addresses and the pages of this test are the same list (nothing moved is forgotten)", () => {
@@ -318,20 +318,20 @@ describe("A2.1 · every old address still resolves", () => {
 
   it("a person the panel does not serve keeps the old page as it was (no dead end): a member's /members is the directory, /structure their own line", async () => {
     await as(w, "member");
-    const members = await open(() => MembersPage());
+    const members = await open(() => MembersPage({}));
     expect(members.kind).toBe("rendered");
-    const structure = await open(() => StructurePage());
+    const structure = await open(() => StructurePage({}));
     expect(structure.kind).toBe("rendered");
-    const archive = await open(() => ArchivePage());
+    const archive = await open(() => ArchivePage({}));
     expect(archive.kind).toBe("rendered");
     expect(archive.kind === "rendered" ? archive.text : "").toContain(AR["access.section_off"] as string);
   });
 
   it("an admin: the sections they hold redirect; the ones they do not stay the old page", async () => {
     await as(w, "admin");
-    expect(await open(() => MembersPage())).toEqual({ kind: "redirect", to: panelHref("accounts") });
-    expect(await open(() => AnalyticsPage())).toEqual({ kind: "redirect", to: panelHref("reports") });
-    expect(await open(() => ArchivePage())).toMatchObject({ kind: "rendered" });
+    expect(await open(() => MembersPage({}))).toEqual({ kind: "redirect", to: panelHref("accounts") });
+    expect(await open(() => AnalyticsPage({}))).toEqual({ kind: "redirect", to: panelHref("reports") });
+    expect(await open(() => ArchivePage({}))).toMatchObject({ kind: "rendered" });
   });
 
   it("/files is the library: still a page of its own, never redirected", async () => {

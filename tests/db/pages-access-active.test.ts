@@ -235,7 +235,7 @@ describe("pages serve the ACTIVE company, with the role held there", () => {
       data: { capabilities: ["reports.view"] },
     });
     await loginAs(w.person.id);
-    const page = await html(AnalyticsPage());
+    const page = await html(AnalyticsPage({}));
     expect(page).toContain(t("analytics.ideasTotal", { total: 2 }));
     expect(page).not.toContain(t("analytics.ideasTotal", { total: 5 }));
   });
