@@ -4,6 +4,8 @@ import { getServerT } from "@/lib/i18n/server";
 import { pageActor } from "@/app/(app)/_access";
 import { NotFoundError } from "@/server/auth";
 import { boardAccess } from "@/server/policy/board";
+import { actorFeatureOn } from "@/server/services/features";
+import { myBoardAccess } from "@/server/services/control-panel";
 import { loadPerson, OwnerBoardError } from "@/server/services/owner-board";
 import { parseBoardQuery } from "@/server/services/owner-board-io";
 import { FilterBar, PersonPage, boardHref, paramsOf } from "@/components/owner-board/board";
@@ -19,7 +21,18 @@ export default async function OwnerBoardPersonPage({ params, searchParams }: { p
     if (err instanceof NotFoundError) notFound();
     throw err;
   };
-  const access = await boardAccess(actor).catch(miss);
+  // A2.1 (D-A6): with the switch `controlPanelV2` ON a person's OWN page is «لوحتي», independent of the owner's board switch: when the board is off for them (the switch, or
+  // no `board.team`) their own box `board.self` still opens their own page, and nobody else's
+  const access = await boardAccess(actor).catch(async (err: unknown) => {
+    if (err instanceof NotFoundError && params.id === actor.userId && (await actorFeatureOn(actor, "controlPanelV2"))) {
+      try {
+        return myBoardAccess(actor);
+      } catch (own) {
+        return miss(own);
+      }
+    }
+    return miss(err);
+  });
   const { t } = getServerT();
   const query = parseBoardQuery(searchParams ?? {});
   let notice: string | undefined;

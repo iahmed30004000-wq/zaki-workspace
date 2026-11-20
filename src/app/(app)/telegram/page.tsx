@@ -1,9 +1,11 @@
-import { pageActor, presentedRole } from "@/app/(app)/_access";
-import { listChats } from "@/server/services/telegram";
+import { redirect } from "next/navigation";
+import { pageActor } from "@/app/(app)/_access";
 import { getServerT } from "@/lib/i18n/server";
-import { TelegramView } from "@/components/telegram-view";
+import { TelegramBody } from "@/components/control-panel/sections/integrations-bodies";
+import { panelRedirectFor } from "@/server/services/control-panel";
+import { carriedQuery } from "@/lib/legacy-routes";
 
-export default async function TelegramPage() {
+export default async function TelegramPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
   const { actor } = await pageActor();
 
   // The page hands the chat list to the client as initial data, and the chats are customer
@@ -13,20 +15,10 @@ export default async function TelegramPage() {
     return <div className="mx-auto max-w-2xl p-10 text-center text-sm text-muted">{t("guest.no_access")}</div>;
   }
 
-  const chats = await listChats(actor.orgId);
-  const initial = chats
-    ? {
-        chats: {
-          chats: chats.chats.map((c) => ({ ...c, createdAt: c.createdAt.toISOString() })),
-          lastSyncAt: chats.lastSyncAt?.toISOString() ?? null,
-        },
-        botUsername: (chats.config as { botUsername?: string })?.botUsername ?? null,
-      }
-    : { chats: null, botUsername: null };
-
-  // The view shows its management controls to an OWNER or an ADMIN: here that is whoever holds the
-  // `integrations.manage` switch (the server decides again on every request).
-  return <TelegramView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} initial={initial} />;
+  // A2.1: with the switch `controlPanelV2` ON the Telegram bot is a part of the section «التكاملات» for whoever holds `integrations.manage` (the same view, moved)
+  const inPanel = await panelRedirectFor(actor, "/telegram", carriedQuery(searchParams));
+  if (inPanel) redirect(inPanel);
+  return TelegramBody({ actor });
 }
 
 export const dynamic = "force-dynamic";

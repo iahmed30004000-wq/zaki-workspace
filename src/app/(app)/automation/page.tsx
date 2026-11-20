@@ -1,33 +1,18 @@
-import { Suspense } from "react";
-import { pageActor, presentedRole } from "@/app/(app)/_access";
+import { redirect } from "next/navigation";
+import { pageActor } from "@/app/(app)/_access";
 import { GuestNotice, refusedToGuest } from "@/app/(app)/_guest";
-import { AutomationView } from "@/components/automation-view";
-import { ApiDoorCard } from "@/components/api-door-card";
-import { DbBackupCard } from "@/components/db-backup-card";
-import { MailToTaskCard } from "@/components/mail-to-task-card";
-import { OmsLinkCard } from "@/components/oms-link-card";
-import { actorCan } from "@/server/policy/actor";
+import { AutomationBody } from "@/components/control-panel/sections/integrations-bodies";
+import { panelRedirectFor } from "@/server/services/control-panel";
+import { carriedQuery } from "@/lib/legacy-routes";
 
-export default async function AutomationPage() {
+export default async function AutomationPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
   const { actor } = await pageActor();
   // staff only on the map (its routes already refuse a guest): the notice, not an empty automation view
   if (refusedToGuest(actor, "automation")) return <GuestNotice />;
-
-  // The view shows its management controls to an OWNER or an ADMIN: here that is whoever holds the
-  // `integrations.manage` switch (the server decides again on every request).
-  // «باب الربط الخارجي»: the tokens card, for whoever holds the switch. While the owner's «الميزات» switch is off the card only lists
-  // and revokes (the list answer says `switchOn`): a leaked token must stay killable.
-  const showDoor = actorCan(actor, "integrations.manage");
-  // «نسخ احتياطي لقاعدة البيانات»: the OWNER alone (a space admin never sees the card; its routes answer 403 anyway)
-  const showBackup = actor.isOwner;
-  // «بريد يصير مهمة»: the OWNER's card too (the mailbox password is his alone to type)
-  // «ربط نظام الطلبات»: the OWNER's card too (the system token is his alone to paste)
-
-  return (
-    <Suspense fallback={null}>
-      <AutomationView ctx={{ orgRole: presentedRole(actor, "integrations.manage") }} doorCard={showDoor ? <ApiDoorCard /> : null} backupCard={showBackup ? <DbBackupCard /> : null} mailCard={showBackup ? <MailToTaskCard /> : null} omsCard={showBackup ? <OmsLinkCard /> : null} />
-    </Suspense>
-  );
+  // A2.1: with the switch `controlPanelV2` ON the integrations are one section of the control panel for whoever holds `integrations.manage` (the same cards, moved)
+  const inPanel = await panelRedirectFor(actor, "/automation", carriedQuery(searchParams));
+  if (inPanel) redirect(inPanel);
+  return AutomationBody({ actor });
 }
 
 export const dynamic = "force-dynamic";
