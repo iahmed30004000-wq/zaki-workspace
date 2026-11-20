@@ -8,6 +8,7 @@
  */
 import { AR } from "@/lib/i18n/dict";
 import { fmtDMY } from "@/lib/format";
+import { REWARD_CURRENCIES, REWARD_MAX_MINOR, amountTextToMinor, currencyName, minorToAmountText, type RewardCurrency } from "@/lib/rewards";
 import { APPROVAL_LIMITS } from "./shared";
 
 export const FIELD_TYPES = ["text", "textarea", "number", "date", "choice", "yesno"] as const;
@@ -38,10 +39,22 @@ export interface FormField {
   max?: number;
 }
 
+/**
+ * I1.3 - a form that carries OFFICE MONEY: «طلب مصروف» (`expense`) and «تحويل بين الصناديق» (`transfer`). Still a plain form (the same six
+ * field types, the same versions): the purpose only says that the fields `amount` and `currency` are the AMOUNT of the request - they are
+ * lifted out of the answers into the request's own columns (cut for people without `prices.view` / `cash.view`), never written into its
+ * words - and that a decision is posted as a card into the space's topic. Internal office spending only: order money, wallets and cash
+ * balances stay in the orders system.
+ */
+export const FORM_PURPOSES = ["expense", "transfer"] as const;
+export type FormPurpose = (typeof FORM_PURPOSES)[number];
+
 export interface FormSchema {
   fields: FormField[];
   /** The preset chain: one to three people, in order. */
   approvers: string[];
+  /** Set for a money form (see `FORM_PURPOSES`); absent on every ordinary form. */
+  purpose?: FormPurpose;
 }
 
 export type AnswerValue = string | number | boolean;
@@ -55,7 +68,7 @@ export interface Issue {
 export type Checked<T> = { ok: true; value: T } | { ok: false; issues: Issue[] };
 
 const FIELD_ID = /^[a-z][a-z0-9_]{0,23}$/;
-const SCHEMA_KEYS = new Set(["fields", "approvers"]);
+const SCHEMA_KEYS = new Set(["fields", "approvers", "purpose"]);
 const COMMON_KEYS = ["id", "type", "label", "required"];
 const KEYS_BY_TYPE: Record<FieldType, string[]> = {
   text: COMMON_KEYS,
@@ -71,6 +84,54 @@ const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 
 export function isFieldType(value: unknown): value is FieldType {
   return typeof value === "string" && (FIELD_TYPES as readonly string[]).includes(value);
+}
+
+export function isFormPurpose(value: unknown): value is FormPurpose {
+  return typeof value === "string" && (FORM_PURPOSES as readonly string[]).includes(value);
+}
+
+/** The purpose of a form's schema, or `null` for an ordinary form (and for anything that is not a schema). */
+export function purposeOf(schema: unknown): FormPurpose | null {
+  if (!isRecord(schema)) return null;
+  const purpose = schema["purpose"];
+  return isFormPurpose(purpose) ? purpose : null;
+}
+
+/** The fixed fields of each money form: id and the types it may have. All of them are required; the boxes are choices. */
+const PURPOSE_FIELDS: Record<FormPurpose, readonly { id: string; types: readonly FieldType[] }[]> = {
+  expense: [
+    { id: "amount", types: ["number"] },
+    { id: "currency", types: ["choice"] },
+    { id: "box", types: ["choice"] },
+    { id: "reason", types: ["text", "textarea"] },
+  ],
+  transfer: [
+    { id: "amount", types: ["number"] },
+    { id: "currency", types: ["choice"] },
+    { id: "from_box", types: ["choice"] },
+    { id: "to_box", types: ["choice"] },
+  ],
+};
+
+/** The ids a money form keeps OUT of its words and its stored answers: they become the request's amount. */
+const MONEY_IDS = new Set(["amount", "currency"]);
+
+/** The Arabic names of the currencies a money form may offer (the same five as everywhere: src/lib/rewards.ts). */
+export const CURRENCY_NAMES: readonly string[] = REWARD_CURRENCIES.map((code) => currencyName(code));
+
+function currencyCodeOf(name: string): RewardCurrency | null {
+  return REWARD_CURRENCIES.find((code) => currencyName(code) === name) ?? null;
+}
+
+/** The reason a money form's fields are refused (a key); `null` = fine. Checked on top of the ordinary field rules. */
+function purposeProblem(purpose: FormPurpose, fields: readonly FormField[]): string | null {
+  for (const want of PURPOSE_FIELDS[purpose]) {
+    const field = fields.find((f) => f.id === want.id);
+    if (!field || !want.types.includes(field.type) || !field.required) return "approvals.f.purpose_fields";
+  }
+  const currency = fields.find((f) => f.id === "currency");
+  if ((currency?.options ?? []).some((o) => !CURRENCY_NAMES.includes(o))) return "approvals.f.purpose_currency";
+  return null;
 }
 
 /**
@@ -139,7 +200,19 @@ export function validateSchema(raw: unknown): Checked<FormSchema> {
   else if (new Set(approvers).size !== approvers.length) fail("approvers", "approvals.e.chain_duplicate");
   else chain = approvers as string[];
 
-  return issues.length > 0 ? { ok: false, issues } : { ok: true, value: { fields, approvers: chain } };
+  let purpose: FormPurpose | undefined;
+  const rawPurpose = raw["purpose"];
+  if (rawPurpose !== undefined) {
+    if (!isFormPurpose(rawPurpose)) fail("purpose", "approvals.f.purpose_invalid");
+    else purpose = rawPurpose;
+  }
+  // a money form's fixed fields are checked only when the fields themselves were fine (one reason at a time)
+  if (purpose && issues.length === 0) {
+    const problem = purposeProblem(purpose, fields);
+    if (problem) fail("fields", problem);
+  }
+
+  return issues.length > 0 ? { ok: false, issues } : { ok: true, value: { fields, approvers: chain, ...(purpose ? { purpose } : {}) } };
 }
 
 /** A calendar date written YYYY-MM-DD that exists (no 31 February). */
@@ -229,6 +302,7 @@ export function answerText(field: FormField, value: AnswerValue | undefined): st
  */
 export function renderAnswers(schema: FormSchema, answers: Answers): string {
   return schema.fields
+    .filter((field) => !(schema.purpose && MONEY_IDS.has(field.id)))
     .map((field) => {
       const value = answers[field.id];
       const text = value === undefined ? (AR["approvals.f.not_answered"] ?? "—") : answerText(field, value);
@@ -241,6 +315,62 @@ export function renderAnswers(schema: FormSchema, answers: Answers): string {
 /** The details are bounded like any request's; a form whose answers are longer is refused with this key. */
 export function renderedProblem(details: string): string | null {
   return details.length > APPROVAL_LIMITS.details ? "approvals.f.details_long" : null;
+}
+
+export interface MoneyAnswers {
+  /** Integer minor units (src/lib/rewards.ts): never a float. */
+  amountMinor: number;
+  /** The ISO code the request stores. */
+  currency: RewardCurrency;
+  /** The answers without the amount and the currency: what the request keeps in `answers`. */
+  rest: Answers;
+}
+
+/**
+ * The amount of a money form's (already checked) answers, as the request stores it. `null` for an ordinary form. The amount is a number of
+ * the major unit with at most two decimals (the text goes through the one integer parser, so 0.3 is 30 and 1e-7 is refused); the currency is
+ * one of the five Arabic names; a transfer between a box and itself is refused at the second box.
+ */
+export function moneyOf(schema: FormSchema, answers: Answers): Checked<MoneyAnswers> | null {
+  if (!schema.purpose) return null;
+  const issues: Issue[] = [];
+  const raw = answers["amount"];
+  const minor = typeof raw === "number" ? amountTextToMinor(String(raw)) : null;
+  if (minor === null || minor <= 0 || minor > REWARD_MAX_MINOR) issues.push({ path: "amount", message: "approvals.e.amount_invalid" });
+  const code = typeof answers["currency"] === "string" ? currencyCodeOf(answers["currency"]) : null;
+  if (!code) issues.push({ path: "currency", message: "approvals.e.currency_invalid" });
+  if (schema.purpose === "transfer" && answers["from_box"] !== undefined && answers["from_box"] === answers["to_box"]) issues.push({ path: "to_box", message: "approvals.f.same_box" });
+  if (issues.length > 0 || minor === null || !code) return { ok: false, issues };
+  const rest: Answers = {};
+  for (const [id, value] of Object.entries(answers)) if (!MONEY_IDS.has(id)) rest[id] = value;
+  return { ok: true, value: { amountMinor: minor, currency: code, rest } };
+}
+
+/** A request's own amount back as the boxes of its form hold it (for the person who asked, when the request is sent back). */
+export function amountAnswersOf(minor: number | null | undefined, currency: string | null | undefined): Answers {
+  if (minor == null || !currency || !(REWARD_CURRENCIES as readonly string[]).includes(currency)) return {};
+  return { amount: Number(minorToAmountText(minor)), currency: currencyName(currency) };
+}
+
+function moneyFields(purpose: FormPurpose, boxes: readonly string[]): FormField[] {
+  const text = (key: string) => AR[key] ?? "";
+  const boxField = (id: string, labelKey: string): FormField => ({ id, type: "choice", label: text(labelKey), required: true, options: [...boxes] });
+  const head: FormField[] = [
+    { id: "amount", type: "number", label: text("expense.field.amount"), required: true, min: 0.01, max: REWARD_MAX_MINOR / 100 },
+    { id: "currency", type: "choice", label: text("expense.field.currency"), required: true, options: [...CURRENCY_NAMES] },
+  ];
+  if (purpose === "expense") return [...head, boxField("box", "expense.field.box"), { id: "reason", type: "textarea", label: text("expense.field.reason"), required: true }];
+  return [...head, boxField("from_box", "expense.field.from_box"), boxField("to_box", "expense.field.to_box"), { id: "reason", type: "textarea", label: text("expense.field.reason_optional"), required: false }];
+}
+
+/** «طلب مصروف» to start from: amount, currency, which box, reason. The manager names the boxes and the chain. */
+export function expenseSchema(opts: { boxes: readonly string[]; approvers: string[] }): FormSchema & { purpose: "expense" } {
+  return { fields: moneyFields("expense", opts.boxes), approvers: opts.approvers, purpose: "expense" };
+}
+
+/** «تحويل بين الصناديق» to start from: amount, currency, from which box, to which box, an optional reason. */
+export function transferSchema(opts: { boxes: readonly string[]; approvers: string[] }): FormSchema & { purpose: "transfer" } {
+  return { fields: moneyFields("transfer", opts.boxes), approvers: opts.approvers, purpose: "transfer" };
 }
 
 /** An empty template to start from: one short-text field. */

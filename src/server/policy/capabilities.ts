@@ -130,10 +130,12 @@ export const WIRED_CAPABILITIES: readonly Capability[] = [
   "directory.view",
   "integrations.manage",
   // A1.2: wired by Q1.6 (who may mark a message «لازم ينقرأ») and Q1.5 (the door of «المشاكل تصير تذاكر»), so the sheet offers them again;
-  // `cash.view` and `penalties.view` stay out until I1.3 wires them (R12 of docs/PHASE0-AUDIT.md)
+  // I1.3 wires `cash.view`: the amount of an office-expense request («طلب مصروف», «تحويل بين الصناديق») is cut on the server for anybody who
+  // holds neither it nor `prices.view` (src/server/services/approval-access.ts `seesMoney`); `penalties.view` stays out (R12 of docs/PHASE0-AUDIT.md)
   "announce.send",
   "escalation.configure",
   "prices.view",
+  "cash.view",
   "board.self",
   "board.team",
   "people.manage_lines",

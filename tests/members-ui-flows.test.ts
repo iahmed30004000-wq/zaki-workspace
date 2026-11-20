@@ -235,14 +235,14 @@ describe("capability switches", () => {
 
   it("back to the rank's defaults clears the displayed switches and keeps what the screen does not show", async () => {
     const calls = mockFetch();
-    const person = contractMember({ id: "u-x", role: "LEAD", capabilities: ["integrations.manage", "cash.view"], revokedCapabilities: ["crm.edit", "prices.view"] });
+    const person = contractMember({ id: "u-x", role: "LEAD", capabilities: ["integrations.manage", "penalties.view"], revokedCapabilities: ["crm.edit", "prices.view"] });
     const res = await resetCapabilities(ORG, person, OWNER_ACTOR, t);
-    // cash.view is not on the screen: it stays exactly as stored; prices.view and crm.edit are switches now, so they go back to the rank's default
-    expect(calls[0]?.body).toEqual({ capabilities: ["cash.view"], revokedCapabilities: [] });
-    expect(res.ok && res.value.capabilities).toEqual(["cash.view"]);
+    // penalties.view is not on the screen: it stays exactly as stored; prices.view and crm.edit are switches now, so they go back to the rank's default
+    expect(calls[0]?.body).toEqual({ capabilities: ["penalties.view"], revokedCapabilities: [] });
+    expect(res.ok && res.value.capabilities).toEqual(["penalties.view"]);
     expect(res.ok && res.value.effectiveCapabilities).toContain("crm.edit");
     expect(res.ok && res.value.effectiveCapabilities).not.toContain("integrations.manage");
-    expect(res.ok && res.value.effectiveCapabilities).toContain("cash.view");
+    expect(res.ok && res.value.effectiveCapabilities).toContain("penalties.view");
     expect(res.ok && res.value.effectiveCapabilities).toContain("prices.view");
   });
 

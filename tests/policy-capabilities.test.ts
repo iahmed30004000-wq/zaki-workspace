@@ -123,12 +123,13 @@ describe("wired capabilities (the switches the people screen offers)", () => {
 });
 
 describe("what is still wired to nothing (A1.2, R12 of docs/PHASE0-AUDIT.md)", () => {
-  it("announce.send and escalation.configure are wired now (Q1.6, Q1.5) and offered again; cash.view and penalties.view are not", () => {
+  it("announce.send and escalation.configure are wired now (Q1.6, Q1.5) and offered again; cash.view is wired by I1.3 (the amount of an office-expense request); penalties.view is not", () => {
     expect(WIRED_CAPABILITIES).toContain("announce.send");
     expect(WIRED_CAPABILITIES).toContain("escalation.configure");
+    expect(WIRED_CAPABILITIES).toContain("cash.view");
     const notWired = CAPABILITIES.filter((c) => !WIRED_CAPABILITIES.includes(c)).sort();
-    // the owner-only archive is a switch of its own on a partner's sheet; the other two come with I1.3
-    expect(notWired).toEqual(["archive.view", "cash.view", "penalties.view"]);
+    // the owner-only archive is a switch of its own on a partner's sheet; penalties.view waits for the orders system's phase
+    expect(notWired).toEqual(["archive.view", "penalties.view"]);
   });
 });
 

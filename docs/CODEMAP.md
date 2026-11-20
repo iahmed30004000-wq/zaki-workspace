@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 381 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 174 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 176 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -496,7 +496,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 87 | 154 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 87 | 156 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 117 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 67 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 273 | 47 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -510,12 +510,12 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-assistant-settings` | 365 | 17 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `rewards` | 355 | 17 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
 | `time-tracking` | 664 | 17 | «حساب وقت الشغل» — the time people log on tasks (the owner, 2026-10-30: «حساب وقت الشغل: نعم»). |
-| `approval-access` | 144 | 14 | «طلبات الموافقة» — WHO MAY DO WHAT, in one place. |
+| `approval-access` | 170 | 14 | «طلبات الموافقة» — WHO MAY DO WHAT, in one place. |
 | `checkins` | 625 | 14 | «التسجيل اليومي» — a short stand-up per space (the owner's approved backlog, 2026-10-31). |
 | `n8n` | 295 | 13 | Events we allow orgs to forward to n8n — the UI shows exactly this list. |
 | `owner-assistant-access` | 29 | 13 | «مساعد المالك» — WHO MAY OPEN IT, in one place. |
 | `team-skills` | 302 | 13 | «المهارات» — the company's skills checklist and each person's level in it. |
-| `approvals` | 795 | 12 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
+| `approvals` | 814 | 12 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
 | `manufacturing-production` | 791 | 12 | «مخزون التصنيع», slice 2 — recipes and production orders. |
 | `owner-board` | 801 | 12 | «لوحة المالك» — THE NUMBERS. |
 | `tickets` | 530 | 12 | IT tickets live inside a department. |
@@ -524,11 +524,11 @@ high count is a wide surface: changing its signature reaches all of them.
 | `manufacturing` | 450 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
 | `production` | 525 | 10 | Daily production. |
 | `space-place` | 30 | 10 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
+| `active-people` | 71 | 9 | "Nobody who was suspended or removed still counts." A suspended or offboarded member keeps their OrganizationMember row (history, authorship), so a query that reads that table w… |
 | `ideas` | 419 | 9 | Membership context resolved from the idea's own org (shared by API routes). |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
 | `accounts` | 942 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
-| `active-people` | 71 | 8 | "Nobody who was suspended or removed still counts." A suspended or offboarded member keeps their OrganizationMember row (history, authorship), so a query that reads that table w… |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `chat-assistant` | 499 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
@@ -537,7 +537,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-assistant-proposals` | 400 | 8 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
 | `workspaces` | 334 | 8 | Spaces (workspaces): who is in one, who may change it. |
-| `approval-forms` | 263 | 7 | «نموذج» — reusable forms that create approval requests. |
+| `approval-forms` | 297 | 7 | «نموذج» — reusable forms that create approval requests. |
 | `assistant-provider` | 78 | 7 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `campaigns` | 307 | 7 | Campaigns live inside a department (marketing calendars). |
 | `card-guards` | 45 | 7 | The questions the page inside a card asks about its viewer, answered in one place. |
@@ -649,7 +649,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
 | `ticket-escalation` | 73 | 1 | Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). |
 | `today-dashboard` | 181 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
-| `approval-notify` | 65 | 0 | The bell of «طلبات الموافقة». |
+| `approval-notify` | 128 | 0 | The bell of «طلبات الموافقة». |
 | `manufacturing-access` | 107 | 0 | «مخزون التصنيع» — WHO MAY DO WHAT, in one place. |
 | `manufacturing-costing` | 114 | 0 | «مخزون التصنيع» — reads the lots and movements of a material and turns them into its POSITION (balance, value of what has a price, the stock that has none, and the lots as first… |
 | `manufacturing-order-cost` | 158 | 0 | «مخزون التصنيع», slice 3 — what an order TOOK and what it cost, read from the ledger, and the freezing of that cost once the order is completed. |
@@ -880,6 +880,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
 | `zakiEmojis` | 1 — `server/chat/topics.ts` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
+| `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
@@ -972,6 +973,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `navV2` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/boards/[id]/trail/route.ts`, `app/(app)/page.tsx`, `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/timeline/page.tsx`, `app/api/workspaces/route.ts`, `server/policy/org-settings.ts`, `server/services/current-space.ts`, `server/services/landing.ts` |
 | `themeSwitchFx` | 1 — `app/(app)/theme-gallery/page.tsx` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
+| `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
 
 ## 9. What this map noticed
 

@@ -7,7 +7,7 @@ import { canWriteInWorkspace, isSpaceManager } from "@/server/workspace-role";
 import { PENDING_PATH } from "@/server/services/files";
 import { loadWorkScope, taskVisibleWhere } from "@/server/services/team-scope";
 import { isRewardCurrency, REWARD_MAX_MINOR } from "@/lib/rewards";
-import { validateSchema, type Answers } from "@/lib/approvals/forms";
+import { amountAnswersOf, validateSchema, type Answers } from "@/lib/approvals/forms";
 import {
   APPROVAL_LIMITS,
   chainProblem,
@@ -22,14 +22,16 @@ import {
   type RevisionSnapshot,
 } from "@/lib/approvals/shared";
 import type { ApprovalDetail, AttachmentView, LinkView, ListItem, PersonRef, StepView } from "@/lib/approvals/view";
-import { approvalsGate, ineligible, mayRead, notFound, spaceViewer, type SpaceViewer } from "./approval-access";
-import { namesOf, notifyApproval } from "./approval-notify";
+import { approvalsGate, ineligible, mayRead, moneyForms, notFound, seesMoney, spaceViewer, type SpaceViewer } from "./approval-access";
+import { namesOf, notifyApproval, postDecisionCard } from "./approval-notify";
 
 /**
  * «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read.
  *
  * AN APPROVAL ONLY RECORDS A DECISION. Nothing here moves money: an optional amount is a note in integer minor units, kept
- * on the request and shown only to people who work in the space. Nothing is ever deleted: a cancelled request is a status,
+ * on the request and shown only to people who work in the space (I1.3: on a request of a money form - «طلب مصروف», «تحويل بين
+ * الصناديق» - only to a holder of `prices.view` or `cash.view`, and to the person who asked; the invoice photo follows the amount).
+ * Nothing is ever deleted: a cancelled request is a status,
  * a request sent back and resubmitted is a new `version` whose earlier steps, files and content stay readable.
  *
  * EXACTLY ONCE. A decision locks the request's row, then changes the step with a conditional UPDATE from PENDING and the
@@ -359,6 +361,10 @@ export async function decideApproval(actor: Who, id: string, input: DecideInput)
     await notifyApproval("decided", { ...base, userIds: [request.requesterId, ...done.earlier.filter((u) => u !== request.requesterId)], titleKey: key });
     if (done.nextApprover) await notifyApproval("requested", { ...base, userIds: [done.nextApprover], titleKey: "approvals.note.requested" });
   }
+  // I1.3: the end of an office-money request is posted as a card into the space's topic (no amount in it); it never undoes the decision
+  if (out.request === "APPROVED" || out.request === "REJECTED") {
+    await postDecisionCard(actor, { id, orgId: actor.orgId, workspaceId: request.workspaceId, title: request.title, requesterId: request.requesterId, formId: request.formId }, out.request);
+  }
   return { id, status: out.request, currentStep: out.next ?? request.currentStep };
 }
 
@@ -438,6 +444,8 @@ export async function resubmitApproval(actor: Who, id: string, input: ResubmitIn
     }
     if (request.status !== "CHANGES_REQUESTED") throw new ApprovalConflictError("approvals.e.not_resubmittable");
     if (viewer.archived) throw new ForbiddenError("approvals.e.space_archived");
+    // an office-money request is edited through its form's answers only (the amount is validated there and kept out of the words)
+    if (!form && request.formId && (await moneyForms([request.formId])).has(request.formId)) throw bad("answers", "approvals.f.money_answers");
     if (request.version >= APPROVAL_LIMITS.versions) throw bad("version", "approvals.e.versions_limit");
 
     const content = contentOf({
@@ -549,9 +557,15 @@ async function toListItems(rows: ListRow[], actor: Who, spaceNames: Map<string, 
   const people = await namesOf(rows.flatMap((r) => [r.requesterId, ...r.steps.map((s) => s.approverId)]));
   const person = (id: string): PersonRef => ({ id, name: people.get(id) ?? "" });
   const showAmount = actor.role !== "GUEST";
+  // I1.3: the amount of an office-money request is for the holders of prices.view / cash.view (and the person who asked), cut HERE on the server
+  const money = await moneyForms(rows.map((r) => r.formId));
+  const sees = money.size > 0 && showAmount ? await seesMoney(actor) : true;
   return rows.map((r) => {
     const steps = r.steps.filter((s) => s.version === r.version).sort((a, b) => a.position - b.position);
     const current = r.status === "PENDING" ? steps.find((s) => s.position === r.currentStep) : undefined;
+    const isMoney = r.formId !== null && money.has(r.formId);
+    const cut = isMoney && !sees && r.requesterId !== actor.userId;
+    const hasAmount = r.amountMinor !== null && Boolean(r.currency);
     return {
       id: r.id,
       workspaceId: r.workspaceId,
@@ -561,7 +575,8 @@ async function toListItems(rows: ListRow[], actor: Who, spaceNames: Map<string, 
       version: r.version,
       currentStep: r.currentStep,
       requester: person(r.requesterId),
-      amount: showAmount && r.amountMinor !== null && r.currency ? { minor: r.amountMinor, currency: r.currency } : null,
+      amount: showAmount && !cut && r.amountMinor !== null && r.currency ? { minor: r.amountMinor, currency: r.currency } : null,
+      ...(isMoney ? { amountHidden: showAmount && cut && hasAmount } : {}),
       createdAt: r.createdAt.toISOString(),
       updatedAt: r.updatedAt.toISOString(),
       decidedAt: iso(r.decidedAt),
@@ -685,7 +700,9 @@ export async function getApproval(actor: Who, id: string): Promise<ApprovalDetai
     decidedAt: iso(s.decidedAt),
   });
   const sorted = [...request.steps].sort((a, b) => a.version - b.version || a.position - b.position);
-  const attachments = await attachmentsOf(id);
+  // an office-money request whose amount is cut for this reader: no figure in any version, and no invoice photo (it shows the amount)
+  const cut = item!.amountHidden === true;
+  const attachments = cut ? [] : await attachmentsOf(id);
   const history = readHistory(request.history);
   const mine = request.steps.find((s) => s.version === request.version && s.approverId === actor.userId);
   const isRequester = request.requesterId === actor.userId;
@@ -702,13 +719,15 @@ export async function getApproval(actor: Who, id: string): Promise<ApprovalDetai
     stepsDetail: sorted.filter((s) => s.version === request.version).map(stepView),
     previous: history.map((h) => ({
       ...h,
-      // an earlier version's amount is as private as the current one's (this reader may read the request, so they may read it)
+      // an earlier version's amount is as private as the current one's: cut with it on an office-money request
+      ...(cut ? { amountMinor: null, currency: null } : {}),
       steps: sorted.filter((s) => s.version === h.version).map(stepView),
       attachments: attachments.filter((a) => a.version === h.version),
     })),
     form: form ? { id: form.id, name: form.name, version: form.version } : null,
     // only the requester who must edit it is handed the questions and the answers
-    formFill: canResubmit && checkedSchema?.ok ? { schema: checkedSchema.value, answers: stored } : null,
+    // (an office-money form keeps its amount out of the answers: the requester, who always sees their own, gets it back into the boxes)
+    formFill: canResubmit && checkedSchema?.ok ? { schema: checkedSchema.value, answers: checkedSchema.value.purpose ? { ...stored, ...amountAnswersOf(request.amountMinor, request.currency) } : stored } : null,
     you: {
       requester: isRequester,
       approver: mine !== undefined,

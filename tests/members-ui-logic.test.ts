@@ -269,7 +269,8 @@ describe("capability switches: rank defaults + extras - revoked", () => {
     const groups = capabilityGroups(person({ role: "MEMBER" }), actorOf("OWNER"), true);
     const expected = CAPABILITY_GROUPS.filter((g) => g.capabilities.some((c) => WIRED_CAPABILITIES.includes(c))).map((g) => g.id);
     expect(groups.map((g) => g.id)).toEqual(expected);
-    expect(groups.length).toBeLessThan(CAPABILITY_GROUPS.length);
+    // I1.3 wired cash.view, so the «money» group has a switch now and every group is shown; the group-hiding rule is the filter above (it hides «money» again if nothing in it were wired)
+    expect(groups.length).toBeLessThanOrEqual(CAPABILITY_GROUPS.length);
     for (const g of groups) {
       expect(g.rows.length).toBeGreaterThan(0);
       for (const row of g.rows) expect(WIRED_CAPABILITIES).toContain(row.capability);
@@ -294,11 +295,11 @@ describe("capability switches: rank defaults + extras - revoked", () => {
     expect(r.get("users.manage")).toMatchObject({ on: false, rankDefault: false, customized: false });
   });
 
-  it("the OWNER may switch every wired switch of a non-guest; an ADMIN, who holds them all but «لوحة الفريق», «الهيكل», «تقييم الفريق» and «الكلفة والأسعار» (the owner's alone to hand out), too", () => {
+  it("the OWNER may switch every wired switch of a non-guest; an ADMIN, who holds them all but «لوحة الفريق», «الهيكل», «تقييم الفريق», «الكلفة والأسعار» and (I1.3) «بطاقة الصندوق» (the owner's alone to hand out), too", () => {
     const member = person({ role: "MEMBER" });
     for (const row of rows(member, actorOf("OWNER")).values()) expect(row.locked, row.capability).toBeNull();
     for (const row of rows(member, actorOf("ADMIN")).values()) {
-      expect(row.locked, row.capability).toBe(["board.team", "people.manage_lines", "people.review", "manufacturing.cost"].includes(row.capability) ? "actor_lacks" : null);
+      expect(row.locked, row.capability).toBe(["board.team", "people.manage_lines", "people.review", "manufacturing.cost", "cash.view"].includes(row.capability) ? "actor_lacks" : null);
     }
   });
 
@@ -355,14 +356,14 @@ describe("capability switches: rank defaults + extras - revoked", () => {
 
 describe("capabilities the screen does not show are never lost", () => {
   it("a stored capability that is not displayed still travels in the lists a switch flip sends", () => {
-    // a LEAD: cash.view is an owner's extra the screen does not show, and announce.send is stored as revoked (hidden too)
-    const lead = person({ role: "LEAD", capabilities: ["cash.view"], revokedCapabilities: ["announce.send"] });
+    // a LEAD: penalties.view is an owner's extra the screen does not show, and announce.send is stored as revoked (hidden too)
+    const lead = person({ role: "LEAD", capabilities: ["penalties.view"], revokedCapabilities: ["announce.send"] });
     expect(toggleCapability(lead, "crm.edit", false)).toEqual({
-      capabilities: ["cash.view"],
+      capabilities: ["penalties.view"],
       revokedCapabilities: ["crm.edit", "announce.send"],
     });
     expect(toggleCapability(lead, "integrations.manage", true)).toEqual({
-      capabilities: ["integrations.manage", "cash.view"],
+      capabilities: ["integrations.manage", "penalties.view"],
       revokedCapabilities: ["announce.send"],
     });
   });
@@ -371,10 +372,10 @@ describe("capabilities the screen does not show are never lost", () => {
     const owner = actorOf("OWNER");
     const member = person({
       role: "MEMBER",
-      capabilities: ["integrations.manage", "cash.view"],
+      capabilities: ["integrations.manage", "penalties.view"],
       revokedCapabilities: ["crm.edit"],
     });
-    expect(resetCapabilityLists(member, owner)).toEqual({ capabilities: ["cash.view"], revokedCapabilities: [] });
+    expect(resetCapabilityLists(member, owner)).toEqual({ capabilities: ["penalties.view"], revokedCapabilities: [] });
     expect(canResetCapabilities(member, owner)).toBe(true);
   });
 
@@ -385,24 +386,24 @@ describe("capabilities the screen does not show are never lost", () => {
     expect(resetCapabilityLists(member, lead)).toEqual({ capabilities: ["integrations.manage"], revokedCapabilities: [] });
     expect(canResetCapabilities(member, lead)).toBe(true);
     // when everything stored is out of reach there is nothing to reset
-    const onlyTheirs = person({ role: "MEMBER", capabilities: ["integrations.manage", "cash.view"] });
+    const onlyTheirs = person({ role: "MEMBER", capabilities: ["integrations.manage", "penalties.view"] });
     expect(canResetCapabilities(onlyTheirs, lead)).toBe(false);
   });
 
   it("there is nothing to reset when nothing displayed is stored (hidden entries alone do not show the button)", () => {
     const owner = actorOf("OWNER");
     expect(canResetCapabilities(person(), owner)).toBe(false);
-    expect(canResetCapabilities(person({ capabilities: ["cash.view"], revokedCapabilities: [] }), owner)).toBe(false);
+    expect(canResetCapabilities(person({ capabilities: ["penalties.view"], revokedCapabilities: [] }), owner)).toBe(false);
     // A1.2: announce.send is offered again (Q1.6 wired it), so an ADMIN's default switched off IS the screen's to clear; the two still wired to nothing are not
     expect(canResetCapabilities(person({ role: "ADMIN", revokedCapabilities: ["announce.send"] }), owner)).toBe(true);
-    expect(canResetCapabilities(person({ role: "ADMIN", revokedCapabilities: ["cash.view", "penalties.view"] }), owner)).toBe(false);
+    expect(canResetCapabilities(person({ role: "ADMIN", revokedCapabilities: ["penalties.view"] }), owner)).toBe(false);
     expect(canResetCapabilities(person({ revokedCapabilities: ["crm.edit"] }), owner)).toBe(true);
   });
 
   it("names the server would refuse are left out of what a reset sends", () => {
     const owner = actorOf("OWNER");
-    const member = person({ role: "MEMBER", capabilities: ["legacy.thing", "cash.view"], revokedCapabilities: ["old.thing"] });
-    expect(resetCapabilityLists(member, owner)).toEqual({ capabilities: ["cash.view"], revokedCapabilities: [] });
+    const member = person({ role: "MEMBER", capabilities: ["legacy.thing", "penalties.view"], revokedCapabilities: ["old.thing"] });
+    expect(resetCapabilityLists(member, owner)).toEqual({ capabilities: ["penalties.view"], revokedCapabilities: [] });
   });
 });
 
@@ -477,16 +478,16 @@ describe("toggling one switch", () => {
   it("keeps every other real entry once, in the catalogue's order, and leaves out a name the server would refuse", () => {
     const member = person({
       role: "MEMBER",
-      capabilities: ["cash.view", "prices.view", "prices.view"],
+      capabilities: ["penalties.view", "prices.view", "prices.view"],
       revokedCapabilities: ["crm.edit", "legacy.thing"],
     });
     // the server rejects a list with an unknown name (422), so it must not travel back
     expect(toggleCapability(member, "integrations.manage", true)).toEqual({
-      capabilities: ["prices.view", "integrations.manage", "cash.view"],
+      capabilities: ["prices.view", "integrations.manage", "penalties.view"],
       revokedCapabilities: ["crm.edit"],
     });
     expect(toggleCapability(member, "crm.edit", true)).toEqual({
-      capabilities: ["prices.view", "cash.view"],
+      capabilities: ["prices.view", "penalties.view"],
       revokedCapabilities: [],
     });
   });

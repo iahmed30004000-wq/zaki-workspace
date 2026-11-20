@@ -276,8 +276,8 @@ export function isOffered(capability: Capability): boolean {
 
 /**
  * The capabilities the catalogue has a group for, and nothing in this repository asks yet (the
- * security review's C3 counted four; A1.2: `announce.send` and `escalation.configure` are wired now, so what is left is
- * `cash.view` and `penalties.view`, until I1.3).
+ * security review's C3 counted four; A1.2: `announce.send` and `escalation.configure` are wired now; I1.3 wires `cash.view`, so what is
+ * left is `penalties.view`).
  * They are not switches — a switch that does nothing is a lie — but hiding them completely let the
  * owner believe he had closed a door that is not built yet, so the panel lists them as «قريبًا».
  * The list empties by itself as each phase wires its capability.
@@ -429,8 +429,8 @@ export type PermissionAreaId = "work" | "chat" | "files" | "customers" | "report
  * A person's sheet is read by AREA, in plain words, not by the catalogue's groups: each area holds the grid's sections that belong to
  * it («يشوف / يضيف ويعدّل / يحذف» per section) and the single switches that belong to it. Every capability of the catalogue is in exactly
  * one area (the owner-only archive is the one exception: it is a switch of its own on a partner's sheet), including the ones still wired to
- * nothing (`cash.view`, `penalties.view`): they are in the list so the phase that wires them finds its place, and `isOffered` keeps them
- * off the screen until then (R12 of docs/PHASE0-AUDIT.md).
+ * nothing (`penalties.view` today; `cash.view` was one until I1.3): they are in the list so the phase that wires them finds its place, and
+ * `isOffered` keeps them off the screen until then (R12 of docs/PHASE0-AUDIT.md).
  */
 export const PERMISSION_AREAS: readonly { id: PermissionAreaId; sections: readonly SectionId[]; switches: readonly Capability[] }[] = [
   { id: "work", sections: ["projects", "tasks", "goals", "production", "ideas", "tickets"], switches: ["escalation.configure"] },
