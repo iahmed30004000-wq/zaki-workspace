@@ -20,6 +20,7 @@ import { FieldChips } from "@/components/custom-fields/field-chips";
 import { FIELDS_ANCHOR, requiredFieldsOf } from "@/lib/custom-fields";
 import type { FieldCell } from "@/lib/custom-fields-display";
 import { rt } from "@/lib/reminders/client";
+import { AutoMark } from "@/components/work/stale/auto-mark";
 
 import Link from "next/link";
 export interface RowTask {
@@ -51,6 +52,8 @@ export interface RowTask {
   pinnedAt?: Date | string | null;
   /** «مين بيشوفها؟»: PARTICIPANTS draws a lock. */
   visibility?: string;
+  /** «آلي» (W1.9, D-W4): the task came in through the door from another system or an agent (`Task.apiTokenId` is set); absent or false draws nothing. */
+  automated?: boolean;
   /** «حقول مخصصة»: the task's answers as chips, by field id; absent for a partner or while the switch is off (the person's own choice picks which to draw). */
   fields?: Record<string, FieldCell>;
 }
@@ -172,6 +175,7 @@ export function TaskRow({
           {task.title}
         </span>
         {task.visibility === "PARTICIPANTS" ? <Lock className="h-3 w-3 shrink-0 text-fg-muted" aria-label={t("taskpriv.lock")} /> : null}
+        {task.automated ? <AutoMark /> : null}
         {showProject && task.projectName ? (
           <span className="hidden shrink-0 rounded bg-surface-2 px-1.5 py-0.5 text-xs text-fg-muted md:inline">
             {task.projectName}
