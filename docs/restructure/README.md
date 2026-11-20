@@ -191,7 +191,7 @@ branch is merged. `P0.0` and the ✋ boxes are the owner's: ticked only when his
 
 ### N1 — navigation
 - [x] N1.1 New map behind `navV2` + tests · [x] N1.2 Rail / drawer / app bars · [x] N1.3 Visible space + banner
-- [x] N1.4 Glossary renames · [ ] N1.5 Breadcrumbs · [ ] N1.6 Guide tours · [x] N1.7 Old addresses redirect · [x] N1.8 Landing page
+- [x] N1.4 Glossary renames · [ ] N1.5 Breadcrumbs · [x] N1.6 Guide tours (`pr/N1.6.md`; the «الشغل» tour + the phone's ☰ stop; the wiring of «فرجيني» on the work pages' own help is named there) · [x] N1.7 Old addresses redirect · [x] N1.8 Landing page
 - [ ] ✋ Owner check of the new menu
 
 ### C2 — the Telegram-layout chat

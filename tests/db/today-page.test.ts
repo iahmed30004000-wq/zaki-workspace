@@ -75,7 +75,7 @@ async function busyWorld(now: Date = new Date()) {
 // `/` is the page itself (a step that says «add your first task»); `/guide…` are the guide pages the
 // first-steps card points at; `/chat` is the card's «ابعت أول رسالة بـ«عام»» step (phase 3). None is a
 // wall of navigation: each is the one place a first step happens.
-const allowedLinks = /^(\/|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|\/my-work(\?tab=\w+)?|\/guide(\/[\w-]+)?|\/chat|\/time)$/;
+const allowedLinks = /^(\/|\/\?view=today|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|\/my-work(\?tab=\w+)?|\/guide(\/[\w-]+)?|\/chat|\/time)$/;
 
 /**
  * The owner's «لوحة التحكم» (2026-11-02) is a deliberate section of his home: numbers, sentences and who did what, not a wall of navigation. It is
@@ -447,7 +447,7 @@ async function mentionTopic(w: World, opts: { spaceId: string; title: string; me
 const say = (w: World, conversationId: string, authorId: string, body: string, mentions: string[] = []) =>
   db.chatMessage.create({ data: { orgId: w.org.id, conversationId, authorId, body, mentions } });
 
-const ALLOWED_ON = /^(\/|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|\/my-work(\?tab=\w+)?|\/guide(\/[\w-]+)?|\/chat(\/[\w-]+|\/s\/[\w-]+)?|\/time|\/requests|\/tickets|\/owner|\/approvals\/[\w-]+|\/cards\/[\w-]+|\/knowledge\/[\w-]+|\/checkins|\/reminders)$/;
+const ALLOWED_ON = /^(\/|\/\?view=today|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|\/my-work(\?tab=\w+)?|\/guide(\/[\w-]+)?|\/chat(\/[\w-]+|\/s\/[\w-]+)?|\/time|\/requests|\/tickets|\/owner|\/approvals\/[\w-]+|\/cards\/[\w-]+|\/knowledge\/[\w-]+|\/checkins|\/reminders)$/;
 
 describe("W1.7 «اليوم» simplified: with navV2 OFF the page is the old one", () => {
   it("draws no card slot and no «المزيد»; the owner still gets the pulse and the plain member the dashboard, as before", async () => {

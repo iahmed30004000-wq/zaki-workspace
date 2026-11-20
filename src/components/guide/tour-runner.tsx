@@ -6,7 +6,7 @@ import { useEffect } from "react";
 import type { Driver } from "driver.js";
 import { useI18n } from "@/lib/i18n";
 import { browserStore, isTourSeen, markTourSeen } from "@/lib/guide/storage";
-import { hookSelector, resolveTourSteps, type TourHook, type TourKey } from "@/lib/guide/tours";
+import { chooseTour, hookSelectors, resolveTourSteps, type NavMode, type TourHook, type TourKey } from "@/lib/guide/tours";
 
 /** The translator the tour speaks through (the client one from useI18n fits). */
 export type Translate = (key: string, vars?: Record<string, string | number>) => string;
@@ -22,12 +22,23 @@ function isShown(el: HTMLElement): boolean {
 /**
  * The element a hook points at, or null. Two elements may carry the same hook (a side menu for the
  * computer and a bottom bar for the phone): the one that is actually shown is the one to point at.
+ * A hook found by several marks (the phone's ☰ in the app bar or in the chat's list bar) tries them in order.
  */
 export function findHookElement(hook: TourHook, root: ParentNode = document): HTMLElement | null {
-  for (const el of root.querySelectorAll<HTMLElement>(hookSelector(hook))) {
-    if (isShown(el)) return el;
+  for (const selector of hookSelectors(hook)) {
+    for (const el of root.querySelectorAll<HTMLElement>(selector)) {
+      if (isShown(el)) return el;
+    }
   }
   return null;
+}
+
+/**
+ * Which map the page draws. The new map (switch navV2) always draws the app bar, even where a chat screen hides it; the old one never does, so its
+ * tour keeps the words it always had.
+ */
+export function navModeOf(root: ParentNode = document): NavMode {
+  return root.querySelectorAll('[data-shell="app-bar"]').length > 0 ? "v2" : "v1";
 }
 
 /** Has this device finished (or closed) this tour before? */
@@ -45,16 +56,20 @@ export function stopTour(): void {
 /**
  * Starts a tour on the page that is open. A step whose element is not there is skipped; when no
  * element is there at all, nothing starts and the answer is false (the caller says so, instead of
- * showing an empty tour).
+ * showing an empty tour). The app tour asked for on a front page of «الشغل» becomes the «الشغل» tour
+ * (chooseTour), and falls back to the app tour for a person who has none of that place's tabs.
  *
  * The library is loaded only now, so the tour costs nothing until somebody asks for it. It is
  * drawn right to left with Arabic buttons, reduced motion is respected, and the arrow keys follow
  * the reading direction (the library's own go the other way): left is "next", right is "back".
  * Finishing or closing it is remembered on this device.
  */
-export async function startTour(tour: TourKey, t: Translate): Promise<boolean> {
+export async function startTour(asked: TourKey, t: Translate, options: { pathname?: string } = {}): Promise<boolean> {
   if (typeof document === "undefined") return false;
-  const steps = resolveTourSteps(tour, t, (hook) => findHookElement(hook));
+  const pathname = options.pathname ?? (typeof window === "undefined" ? "" : window.location.pathname);
+  const tour = chooseTour(asked, pathname, (hook) => findHookElement(hook) !== null);
+  if (tour === null) return false;
+  const steps = resolveTourSteps(tour, t, (hook) => findHookElement(hook), navModeOf());
   if (steps.length === 0) return false;
 
   const { driver } = await import("driver.js");

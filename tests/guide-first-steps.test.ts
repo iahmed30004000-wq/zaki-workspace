@@ -29,10 +29,16 @@ describe("the first-steps registry", () => {
         expect(AR[key], `${step.id}: ${key}`).toBeTruthy();
         expect(AR[key], key).toMatch(/[؀-ۿ]/);
       }
-      expect(step.href, step.id).toMatch(/^\/[a-z0-9/-]*$/);
+      expect(step.href, step.id).toMatch(/^\/[a-z0-9/-]*(\?[a-z]+=[a-z]+)?$/);
       expect(Number.isInteger(step.availableFrom) && step.availableFrom >= 1, step.id).toBe(true);
       expect(AUDIENCES).toContain(step.audience);
     }
+  });
+
+  it("no step sends a person to «/» alone: with the new map «/» is the landing page and may be the chat, so «اليوم» is asked for by name (N1.6)", () => {
+    for (const step of FIRST_STEPS) expect(step.href, step.id).not.toBe("/");
+    const byId = Object.fromEntries(FIRST_STEPS.map((s) => [s.id, s]));
+    expect(byId["first-task"]?.href).toBe("/?view=today");
   });
 
   it("the steps are the owner's: install, theme, first message, first task, finish a task, open the guide; and for managers add a person and review the spaces", () => {
