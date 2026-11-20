@@ -69,6 +69,17 @@ describe("the five templates", () => {
     }
   });
 
+  it("two templates that share a topic key share its whole definition, so applying both to one space can never drop a private topic for an open one", () => {
+    const seen = new Map<string, string>();
+    for (const t of SPACE_TEMPLATES) {
+      for (const x of t.topics) {
+        const definition = JSON.stringify(x);
+        expect(seen.get(x.key) ?? definition, `${t.key}/${x.key}`).toBe(definition);
+        seen.set(x.key, definition);
+      }
+    }
+  });
+
   it("the id of a topic is fixed by its space and key, so applying twice makes it once", () => {
     expect(templateTopicIdOf("sp1", "returns")).toBe("cv_tpl_returns_sp1");
     expect(templateTopicIdOf("sp1", "returns")).toBe(templateTopicIdOf("sp1", "returns"));
@@ -134,7 +145,6 @@ describe("the strings and the wiring", () => {
       "spaceTemplates.title",
       "spaceTemplates.pick",
       "spaceTemplates.name",
-      "spaceTemplates.org",
       "spaceTemplates.create",
       "spaceTemplates.topics",
       "spaceTemplates.project",

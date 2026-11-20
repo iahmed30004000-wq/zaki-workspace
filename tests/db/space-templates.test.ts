@@ -195,6 +195,20 @@ describe("«إنتاج المحتوى» has the project «خط الإنتاج» 
   });
 });
 
+describe("a template applied to a space that already has topics", () => {
+  it("puts its topics after the last one, in the template's order, and leaves the existing ones where they are", async () => {
+    const w = await makeSpaceWorld();
+    const { workspace } = await createWorkspace(w.admin.id, { organizationId: w.org.id, name: `Busy ${uid()}`, template: "blank" });
+    const mine = await db.conversation.create({ data: { orgId: w.org.id, spaceId: workspace.id, kind: "TOPIC", title: "Mine", position: 9 } });
+    await applySpaceTemplate({ orgId: w.org.id, spaceId: workspace.id, userId: w.admin.id, template: "management" });
+    const rows = await topicsOf(workspace.id);
+    expect(rows.find((r) => r.id === mine.id)?.position).toBe(9);
+    const added = rows.filter((r) => ["تقارير وأداء", "أفكار", "قرارات", "إعلانات"].includes(r.title ?? ""));
+    expect(added.map((r) => r.title)).toEqual(["تقارير وأداء", "أفكار", "قرارات", "إعلانات"]);
+    expect(added.map((r) => r.position)).toEqual([10, 11, 12, 13]);
+  });
+});
+
 describe("it writes only inside the space it is given", () => {
   it("another space of the same company keeps exactly its rows", async () => {
     const w = await makeSpaceWorld();
@@ -313,6 +327,8 @@ describe("POST /api/workspaces with a template", () => {
       const name = nameOf(layout);
       const res = await create({ name, template: "orders", layout });
       expect([400, 422], layout).toContain(res.status);
+      // the schema says why, in the key the screen translates
+      expect(JSON.stringify(res.json), layout).toContain("spaces.template_layout");
       expect(await spaceNamed(name), layout).toBeNull();
     }
     const ok = nameOf("Standard");

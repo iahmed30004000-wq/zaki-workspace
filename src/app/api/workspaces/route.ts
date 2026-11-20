@@ -136,7 +136,7 @@ const createSchema = z.object({
   layout: z.enum(SPACE_LAYOUTS).optional(),
   /** I1.2 «قالب»: one of the five templates (`src/lib/spaces/templates.ts`), behind the switch `spaceTemplates`. Nobody is added by it. */
   template: z.enum(SPACE_TEMPLATE_KEYS).optional(),
-});
+}).refine((v) => !v.template || !v.layout || v.layout === "STANDARD", { message: "spaces.template_layout", path: ["template"] });
 
 /**
  * Opens a space. It needs the capability `spaces.create` (the owner and the admins by default; the owner

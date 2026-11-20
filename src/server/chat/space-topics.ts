@@ -17,25 +17,28 @@ export const SPACE_STARTER_TOPICS = [
 
 export const spaceTopicIdOf = (spaceId: string, key: string): string => `cv_ws_${key}_${spaceId}`;
 
+/** The row of one starter topic in one space: the ONE definition both `ensureStarterTopics` and a template's «عام» (I1.2) are made from. */
+function starterRow(orgId: string, spaceId: string, t: (typeof SPACE_STARTER_TOPICS)[number]) {
+  return {
+    id: spaceTopicIdOf(spaceId, t.key),
+    orgId,
+    spaceId,
+    kind: "TOPIC" as const,
+    title: t.title,
+    emoji: t.emoji,
+    topicType: t.topicType,
+    postingPolicy: t.postingPolicy,
+    systemKey: t.key as string | null,
+    position: t.position,
+    restricted: false,
+  };
+}
+
 /** Gives a space with no topic at all its starter topics (a space that has any topic is left as it is). */
 export async function ensureStarterTopics(orgId: string, spaceId: string): Promise<void> {
   const any = await db.conversation.findFirst({ where: { spaceId, kind: "TOPIC" }, select: { id: true } });
   if (any) return;
-  await db.conversation.createMany({
-    data: SPACE_STARTER_TOPICS.map((t) => ({
-      id: spaceTopicIdOf(spaceId, t.key),
-      orgId,
-      spaceId,
-      kind: "TOPIC" as const,
-      title: t.title,
-      emoji: t.emoji,
-      topicType: t.topicType,
-      postingPolicy: t.postingPolicy,
-      systemKey: t.key,
-      position: t.position,
-    })),
-    skipDuplicates: true,
-  });
+  await db.conversation.createMany({ data: SPACE_STARTER_TOPICS.map((t) => starterRow(orgId, spaceId, t)), skipDuplicates: true });
 }
 
 /**
@@ -53,13 +56,24 @@ export async function applyTemplateTopics(orgId: string, spaceId: string, creato
   });
   if (!inSpace) throw new ForbiddenError("teams.member_not_in_space");
   const starter = SPACE_STARTER_TOPICS[0];
-  let next = SPACE_STARTER_TOPICS.length;
+  // a new topic goes after the ones the space already has (the starters at least), so a template applied to a space with topics never interleaves with them
+  const top = await db.conversation.aggregate({ where: { spaceId, kind: "TOPIC" }, _max: { position: true } });
+  let next = Math.max(SPACE_STARTER_TOPICS.length, (top._max.position ?? -1) + 1);
   const rows = topics.map((t) => {
-    const common = { orgId, spaceId, kind: "TOPIC" as const };
-    if (t.key === starter.key) {
-      return { ...common, id: spaceTopicIdOf(spaceId, starter.key), title: starter.title, emoji: starter.emoji, topicType: starter.topicType, postingPolicy: starter.postingPolicy, systemKey: starter.key as string | null, position: starter.position, restricted: false };
-    }
-    return { ...common, id: templateTopicIdOf(spaceId, t.key), title: t.title, emoji: t.emoji, topicType: t.topicType, postingPolicy: t.postingPolicy, systemKey: null as string | null, position: next++, restricted: t.privateByDefault === true };
+    if (t.key === starter.key) return starterRow(orgId, spaceId, starter);
+    return {
+      id: templateTopicIdOf(spaceId, t.key),
+      orgId,
+      spaceId,
+      kind: "TOPIC" as const,
+      title: t.title,
+      emoji: t.emoji,
+      topicType: t.topicType,
+      postingPolicy: t.postingPolicy,
+      systemKey: null as string | null,
+      position: next++,
+      restricted: t.privateByDefault === true,
+    };
   });
   await db.$transaction(async (tx) => {
     for (const row of rows) {

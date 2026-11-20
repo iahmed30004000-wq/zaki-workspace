@@ -6,33 +6,26 @@ import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
-import { Select } from "@/components/ui/select";
 import { Modal } from "@/components/ui/modal";
 import { goHref } from "@/lib/space-link";
 import { spaceTemplateOf, type SpaceTemplateKey } from "@/lib/spaces/templates";
 import { TemplatePicker } from "@/components/space-templates/template-picker";
 
-interface OrgChoice {
-  id: string;
-  name: string;
-}
-
 /** The name a space starts with once a template is picked: the template's own, and none for «فاضية» (a name nobody chose would stay). */
 const startName = (key: SpaceTemplateKey): string => (key === "blank" ? "" : (spaceTemplateOf(key)?.name ?? ""));
 
 /**
- * «مساحة من قالب» (I1.2, switch `spaceTemplates`): the button on «كل المساحات» and its dialog. It is drawn only for a person who may open a space in at least one
- * company (`canCreateSpaces` of `GET /api/workspaces`) and only while the company's switch is on (`GET /api/settings/features`); nothing is drawn until both answers are in,
- * so the page never flashes a button that then disappears. The dialog sends the company, the name and the template KEY: never a person (nobody is added by a template,
+ * «مساحة من قالب» (I1.2, switch `spaceTemplates`): the button on «كل المساحات» and its dialog. It is for the company the person works in (the first of
+ * `GET /api/workspaces`, the same one `GET /api/settings/features` and `POST /api/workspaces` answer for: the switch is read for THAT company, so the button never
+ * promises what the server would refuse). Drawn only for a person who may open a space there (`canCreateSpaces`) and only while the switch is on; nothing is drawn until both
+ * answers are in, so the page never flashes a button that then disappears. The dialog sends the name and the template KEY: never a person (nobody is added by a template,
  * the people are added from «أعضاء المساحة») and never a topic: the server applies the data. The server decides again (capability, switch, company).
  */
 export function NewSpaceFromTemplate() {
   const { t } = useI18n();
   const { toast } = useToast();
   const [on, setOn] = useState(false);
-  const [orgs, setOrgs] = useState<OrgChoice[]>([]);
   const [open, setOpen] = useState(false);
-  const [orgId, setOrgId] = useState("");
   const [template, setTemplate] = useState<SpaceTemplateKey>("orders");
   const [name, setName] = useState(startName("orders"));
   const [named, setNamed] = useState(false);
@@ -42,21 +35,19 @@ export function NewSpaceFromTemplate() {
     let alive = true;
     void (async () => {
       const [spaces, features] = await Promise.all([
-        fetch("/api/workspaces", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ organizations?: { id: string; name: string; canCreateSpaces?: boolean }[] } | null>,
+        fetch("/api/workspaces", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ organizations?: { canCreateSpaces?: boolean }[] } | null>,
         fetch("/api/settings/features", { cache: "no-store" }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as Promise<{ features?: { key: string; on: boolean }[] } | null>,
       ]);
       if (!alive) return;
-      const allowed = (spaces?.organizations ?? []).filter((o) => o.canCreateSpaces).map((o) => ({ id: o.id, name: o.name }));
-      setOrgs(allowed);
-      setOrgId((was) => was || allowed[0]?.id || "");
-      setOn(Boolean(features?.features?.some((f) => f.key === "spaceTemplates" && f.on)));
+      const mayOpen = Boolean(spaces?.organizations?.[0]?.canCreateSpaces);
+      setOn(mayOpen && Boolean(features?.features?.some((f) => f.key === "spaceTemplates" && f.on)));
     })();
     return () => {
       alive = false;
     };
   }, []);
 
-  if (!on || orgs.length === 0) return null;
+  if (!on) return null;
 
   function pick(key: SpaceTemplateKey) {
     setTemplate(key);
@@ -65,12 +56,12 @@ export function NewSpaceFromTemplate() {
   }
 
   async function submit() {
-    if (busy || !name.trim() || !orgId) return;
+    if (busy || !name.trim()) return;
     setBusy(true);
     const res = await fetch("/api/workspaces", {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ organizationId: orgId, name: name.trim(), template }),
+      body: JSON.stringify({ name: name.trim(), template }),
     }).catch(() => null);
     const body = (await res?.json().catch(() => null)) as { workspace?: { id: string } } | null;
     setBusy(false);
@@ -94,18 +85,6 @@ export function NewSpaceFromTemplate() {
             void submit();
           }}
         >
-          {orgs.length > 1 ? (
-            <div>
-              <Label>{t("spaceTemplates.org")}</Label>
-              <Select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          ) : null}
           <TemplatePicker value={template} onChange={pick} />
           <div>
             <Label>{t("spaceTemplates.name")}</Label>
