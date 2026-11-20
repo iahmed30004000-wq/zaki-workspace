@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Activity, MessageSquare, Send, Ticket as TicketIcon } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from "@/lib/api-client";
@@ -28,6 +29,8 @@ interface ActivityRow {
   createdAt: string;
   actor: { id: string; name: string } | null;
 }
+/** W1.6: the task made from the ticket, as this reader may read it: named, or only «hidden» (the fact that a link exists). */
+type LinkedTask = { state: "visible"; id: string; key: string; title: string } | { state: "hidden" };
 interface TicketDetail {
   id: string;
   /** null: an «تذكرة فورية» (its status is changed here: there is no department desk for it) */
@@ -40,6 +43,8 @@ interface TicketDetail {
   createdAt: string;
   creator: { id: string; name: string } | null;
   assignee: { id: string; name: string } | null;
+  /** null: the ticket was never turned into a task */
+  task?: LinkedTask | null;
   comments: CommentRow[];
   activities: ActivityRow[];
 }
@@ -104,6 +109,16 @@ export function TicketDetailModal({
     onError: (err) => toast(errText(err, t), "error"),
   });
 
+  // W1.6 «حوّل لمهمة»: one task per ticket (a second click returns the same one)
+  const toTask = useMutation({
+    mutationFn: () => apiPost<{ created: boolean; task: LinkedTask }>(`/api/tickets/${ticketId}/task`, {}),
+    onSuccess: (res) => {
+      toast(t(res.created ? "work.convert.done" : "work.convert.already"), "success");
+      invalidate();
+    },
+    onError: (err) => toast(errText(err, t), "error"),
+  });
+
   const delComment = useMutation({
     mutationFn: (id: string) => apiDelete(`/api/tickets/${ticketId}/comments/${id}`),
     onSuccess: () => invalidate(),
@@ -118,6 +133,27 @@ export function TicketDetailModal({
     <Modal open onClose={onClose} title={`T${tk?.number ?? "…"} — ${tk?.title ?? ""}`}>
       <div className="space-y-4">
         {tk?.description ? <p className="whitespace-pre-wrap text-xs text-fg-muted">{tk.description}</p> : null}
+
+        {tk ? (
+          <div data-ticket-task className="flex flex-wrap items-center gap-2 text-xs">
+            {tk.task ? (
+              <>
+                <span className="font-medium text-fg">{t("work.convert.linked")}</span>
+                {tk.task.state === "visible" ? (
+                  <Link href={`/tasks/${tk.task.id}`} className="text-accent hover:underline">
+                    {tk.task.key} · {tk.task.title}
+                  </Link>
+                ) : (
+                  <span className="text-muted">{t("work.convert.hidden_task")}</span>
+                )}
+              </>
+            ) : (
+              <Button type="button" size="sm" variant="secondary" disabled={toTask.isPending} onClick={() => toTask.mutate()}>
+                {t("work.convert.task_ticket")}
+              </Button>
+            )}
+          </div>
+        ) : null}
 
         {tk && tk.departmentId === null ? (
           <label className="flex items-center gap-2 text-xs">

@@ -185,6 +185,16 @@ interface ScopedTask {
   creatorId: string;
   /** the chat message it was made from (P0.3): publishing a task made from a private conversation is confirmed */
   sourceMessageId: string | null;
+  /** the ticket it was made from (W1.6): a ticket that came from a private conversation holds that conversation's words too */
+  sourceTicketId: string | null;
+}
+
+/** A task made from a private conversation, or from a ticket that was, holds that conversation's words (P0.3, W1.6). */
+async function holdsPrivateTalk(orgId: string, t: { sourceMessageId: string | null; sourceTicketId: string | null }): Promise<boolean> {
+  if (t.sourceMessageId && (await sourceIsPrivate(orgId, t.sourceMessageId))) return true;
+  if (!t.sourceTicketId) return false;
+  const ticket = await db.ticket.findFirst({ where: { id: t.sourceTicketId, orgId }, select: { sourceMessageId: true } });
+  return ticket?.sourceMessageId ? sourceIsPrivate(orgId, ticket.sourceMessageId) : false;
 }
 
 /** Takes the task's row for the rest of the transaction (`FOR UPDATE`): what is read after this is what the last writer left. */
@@ -215,6 +225,7 @@ async function assertTaskScope(taskId: string, orgId: string, tx: Tx): Promise<S
       visibility: true,
       creatorId: true,
       sourceMessageId: true,
+      sourceTicketId: true,
     },
   });
   if (!task) throw new NotFoundError("task.not_found");
@@ -517,7 +528,7 @@ export async function updateTask(
     if (data.visibility !== undefined && data.visibility !== before.visibility) {
       if (!(await mayChangeVisibility(actor.userId, before))) throw new ForbiddenError("task.visibility_denied");
       // a task made from a private conversation holds that conversation's words: publishing it is confirmed, like making it (P0.3)
-      if (data.visibility === "SPACE" && before.sourceMessageId && data.confirmPublic !== true && (await sourceIsPrivate(actor.orgId, before.sourceMessageId))) {
+      if (data.visibility === "SPACE" && data.confirmPublic !== true && (await holdsPrivateTalk(actor.orgId, before))) {
         throw new ValidationError([{ path: "confirmPublic", message: "work.confirm_public_required" }]);
       }
       updateData.visibility = data.visibility;

@@ -236,6 +236,8 @@ describe("every writer of a task is accounted for", () => {
     "src/server/services/recurrence-spawn.ts": "links a task to its series (recurrenceId); an occurrence is a NEW plain task: a reward is never copied into it",
     "src/server/services/task-recurrence.ts": "links a task to its series (recurrenceId): no locked field is touched",
     "src/server/services/task-privacy-bulk.ts": "the space managers' one-click «المعنيين بس»: writes `visibility` only (who sees a task), never a locked field",
+    "src/server/services/departments.ts": "W1.6 «حوّل لمهمة»: links a new task to its ticket (sourceTicketId) right after createTask: no locked field is touched",
+    "src/server/services/card-links.ts": "W1.6: fills `sourceCardId` of a task the card's audit log names (only where it is empty): no locked field is touched",
   };
   it("a `task.update/updateMany/delete/deleteMany` outside the list is a new door: guard it with assertRewardEditable and add it above", () => {
     const found = new Set<string>();

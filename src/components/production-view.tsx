@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarCheck, CheckSquare, ChevronLeft, ChevronRight, Cog, Factory, Plus, Square, Trash2, Pencil } from "lucide-react";
 import { apiDelete, apiGet, apiPatch, apiPost, ApiError } from "@/lib/api-client";
@@ -30,7 +31,12 @@ interface ChecklistItem {
 	assigneeId: string | null;
 	assigneeName: string | null;
 	doneAt: string | null;
+	/** W1.6: the routine became a recurring task; this line is its old log, read-only. */
+	archived?: boolean;
 }
+
+/** W1.6: the task a routine became, as this person may read it (named, or only «hidden»). */
+type LinkedTask = { state: "visible"; id: string; key: string; title: string } | { state: "hidden" };
 
 interface RoutineRow {
 	id: string;
@@ -42,6 +48,7 @@ interface RoutineRow {
 	assigneeName: string | null;
 	weekdays: string;
 	active: boolean;
+	convertedTask?: LinkedTask | null;
 }
 
 const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
@@ -71,6 +78,59 @@ function shiftDay(s: string, delta: number): string {
 function dayLabel(day: string): string {
 	const p = day.split("-");
 	return fmtLongDate(new Date(Number(p[0]), Number(p[1]) - 1, Number(p[2]), 12));
+}
+
+/**
+ * W1.6 ⚠️ + 🔧: the daily routine does what a recurring task does. We do not remove it, we mark it and give the way out: every routine can become ONE
+ * recurring task (the old routine is archived, its logs stay readable). Shown to everybody who may open the page.
+ */
+export function RoutineDuplicateNotice() {
+	const { t } = useI18n();
+	return (
+		<div role="note" data-duplicate-notice="routine" className="space-y-0.5 rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-xs text-fg">
+			<p className="font-medium">
+				<span aria-hidden="true">⚠️ </span>
+				{t("prod.dup.warn")}
+			</p>
+			<p className="text-fg-muted">
+				<span aria-hidden="true">🔧 </span>
+				{t("prod.dup.fix")}
+			</p>
+		</div>
+	);
+}
+
+/** «حوّل الروتين لمهام متكررة»: ONE routine, ONE recurring task; a second click only says it was done. */
+function ConvertRoutineButton({ routineId }: { routineId: string }) {
+	const { t } = useI18n();
+	const { toast } = useToast();
+	const qc = useQueryClient();
+	const convert = useMutation({
+		mutationFn: () => apiPost<{ created: boolean; task: LinkedTask }>(`/api/production/routines/${routineId}/convert`, {}),
+		onSuccess: (res) => {
+			toast(t(res.created ? "prod.dup.done" : "prod.dup.already"), "success");
+			qc.invalidateQueries({ queryKey: ["production"] });
+		},
+		onError: (err) => toast(errText(err, t), "error"),
+	});
+	return (
+		<Button size="sm" variant="secondary" disabled={convert.isPending} onClick={() => convert.mutate()}>
+			<span aria-hidden="true">🔧</span>
+			{t(convert.isPending ? "prod.dup.converting" : "prod.dup.convert")}
+		</Button>
+	);
+}
+
+/** The task a routine became: a link when the person may open it, else only the fact. */
+function ConvertedTaskLine({ task }: { task: LinkedTask }) {
+	const { t } = useI18n();
+	return task.state === "visible" ? (
+		<Link href={`/tasks/${task.id}`} className="text-xs text-accent hover:underline">
+			{t("prod.dup.task_open")} · {task.key}
+		</Link>
+	) : (
+		<span className="text-xs text-muted">{t("prod.dup.task_hidden")}</span>
+	);
 }
 
 /** الروتين اليومي — recurring daily checklist with per-day completion. */
@@ -140,6 +200,8 @@ export function ProductionView({
 				) : null}
 			</header>
 
+			<RoutineDuplicateNotice />
+
 			<div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2 shadow-card">
 				<Button size="sm" variant="ghost" aria-label={t("prod.prevDay")} onClick={() => setDay(shiftDay(day, -1))}>
 					<ChevronRight className="size-4 rtl:rotate-0 ltr:rotate-180" />
@@ -165,6 +227,7 @@ export function ProductionView({
 			<ul className="space-y-2">
 				{items.map((item) => {
 					const done = item.doneAt != null;
+					const archived = item.archived === true;
 					return (
 						<li
 							key={item.id}
@@ -175,7 +238,7 @@ export function ProductionView({
 						>
 							<button
 								aria-label={done ? t("prod.uncheck") : t("prod.check")}
-								disabled={toggle.isPending || readOnly}
+								disabled={toggle.isPending || readOnly || archived}
 								onClick={() => toggle.mutate({ routineId: item.id, done: !done })}
 								className="shrink-0"
 							>
@@ -193,7 +256,10 @@ export function ProductionView({
 									{item.assigneeName ? `${t("prod.assignedTo")} ${item.assigneeName}` : t("prod.unassigned")}
 									{item.departmentName ? ` · ${item.departmentName}` : ""}
 								</p>
+								{archived ? <p className="text-xs text-muted">{t("prod.dup.archived_hint")}</p> : null}
 							</div>
+							{archived ? <span className="shrink-0 rounded-full bg-surface-2 px-2 py-0.5 text-xs text-muted">{t("prod.dup.archived")}</span> : null}
+							{canManage && !readOnly && !archived ? <ConvertRoutineButton routineId={item.id} /> : null}
 							{item.doneAt ? (
 								<span className="flex shrink-0 items-center gap-1 text-xs text-ok">
 									<CalendarCheck className="size-3.5" />
@@ -279,7 +345,9 @@ function ManageRoutinesModal({
 									{r.assigneeName ? ` · ${r.assigneeName}` : ""}
 									{!r.active ? ` · ${t("prod.paused")}` : ""}
 								</p>
+								{r.convertedTask ? <ConvertedTaskLine task={r.convertedTask} /> : null}
 							</div>
+							{!r.convertedTask ? <ConvertRoutineButton routineId={r.id} /> : null}
 							<Button size="sm" variant="ghost" aria-label={t("prod.editRoutine")} onClick={() => setEditing(r)}>
 								<Pencil className="size-3.5" />
 							</Button>

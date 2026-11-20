@@ -166,6 +166,8 @@ model Ticket {
   // Made from a chat message («اعمل منها تذكرة»): the message it came from.
   sourceMessageId String?
   sourceMessage   ChatMessage? @relation("MessageTickets", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  // W1.6 «حوّل لمهمة»: the tasks made from this ticket (the task holds the link: `Task.sourceTicketId`).
+  tasks           Task[] @relation("TicketTasks")
   // Q1.5 «المشاكل تصير تذاكر»: the order number the problem is about, the kind (src/lib/tickets/problem-kinds.ts), the day to call back,
   // and the customer's number kept ENCRYPTED (customerRefCipher) with a keyed hash (customerRefHash) only for matching; wiped 30 days after resolvedAt
   externalRef       String?
@@ -254,10 +256,14 @@ model CampaignItem {
   dueDate    DateTime
   doneAt     DateTime?
   createdAt  DateTime  @default(now())
+  // W1.6 «اعمل منه مهمة»: the task this item was turned into (the item keeps the link; the task has `campaignItems` back).
+  taskId     String?
 
   campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  task     Task?    @relation("CampaignItemTask", fields: [taskId], references: [id], onDelete: SetNull)
 
   @@index([campaignId, dueDate])
+  @@index([taskId])
 }
 
 // ---------- daily production & goals ----------
@@ -1359,6 +1365,13 @@ model Task {
   // Made from a chat message («اعمل منها مهمة»): the message it came from.
   sourceMessageId String?
   sourceMessage   ChatMessage? @relation("MessageTasks", fields: [sourceMessageId], references: [id], onDelete: SetNull)
+  // W1.6 «حوّل لمهمة»: the ticket and the card this task was made from (a ticket reader who may not open the task only learns that a link exists).
+  sourceTicketId  String?
+  sourceTicket    Ticket? @relation("TicketTasks", fields: [sourceTicketId], references: [id], onDelete: SetNull)
+  sourceCardId    String?
+  sourceCard      Card?   @relation("CardTasks", fields: [sourceCardId], references: [id], onDelete: SetNull)
+  // W1.6 «اعمل منه مهمة»: the campaign items that were turned into this task (the item holds the link).
+  campaignItems   CampaignItem[] @relation("CampaignItemTask")
 
   // «مهمة بمكافأة» (the owner, 2026-10-30): only the OWNER rank sets, edits, cancels or deletes. The amount is an integer in
   // MINOR units (cents, never a float); `rewardStatus` is NONE | OPEN | AWARDED | CANCELLED (null = no reward). No foreign keys on
@@ -1393,6 +1406,8 @@ model Task {
   @@index([workspaceId, createdAt])
   @@index([projectId, archived])
   @@index([sourceMessageId])
+  @@index([sourceTicketId])
+  @@index([sourceCardId])
   @@index([boardId, columnId, position])
   @@index([assigneeId])
   @@index([creatorId])
@@ -2031,6 +2046,8 @@ model Card {
   notes        CardNote[]
   ratings      CardRating[]
   attachments  CardAttachment[]
+  // W1.6 «حوّلها لمهمة»: the tasks made from this card (the task holds the link: `Task.sourceCardId`).
+  tasks        Task[]       @relation("CardTasks")
 
   @@index([workspaceId, archivedAt, pinned, position])
   @@index([orgId, workspaceId])
