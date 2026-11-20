@@ -83,6 +83,7 @@ import GuidePage from "@/app/(app)/guide/page";
 import GuideArticlePage from "@/app/(app)/guide/[slug]/page";
 import SpacesPage from "@/app/(app)/spaces/page";
 import CurrentSpacePage from "@/app/(app)/spaces/current/page";
+import SpaceSettingsPage from "@/app/(app)/spaces/[id]/settings/page";
 import TicketsPage from "@/app/(app)/tickets/page";
 import CampaignsPage from "@/app/(app)/campaigns/page";
 import * as goRoute from "@/app/go/route";
@@ -131,7 +132,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/spaces/[id]/settings", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -246,6 +247,7 @@ const PAGES: Record<string, PageCall> = {
   "/guide/[slug]": ({ params }) => GuideArticlePage({ params: { slug: params["slug"] ?? "" } }),
   "/spaces": () => SpacesPage({}),
   "/spaces/current": () => CurrentSpacePage(),
+  "/spaces/[id]/settings": (args) => SpaceSettingsPage({ params: idOf(args) }),
   "/tickets": () => TicketsPage(),
   "/campaigns": () => CampaignsPage(),
   "/login": () => LoginPage(),
@@ -416,6 +418,9 @@ function addressesOf(route: string, w: World): string[] {
       return [...spaces.map((s) => s.project.id), GONE].map((id) => `/projects/${id}`);
     case "/projects/[id]/timeline":
       return [...spaces.map((s) => s.project.id), GONE].map((id) => `/projects/${id}/timeline`);
+    case "/spaces/[id]/settings":
+      // A2.2: a space of the team, the one shared with the partner, the one nobody is in, and one that is gone
+      return [...spaces.map((s) => s.space.id), GONE].map((id) => `/spaces/${id}/settings`);
     case "/boards/[id]":
       return [...spaces.map((s) => s.board.id), GONE].map((id) => `/boards/${id}`);
     case "/tasks/[id]":
@@ -551,7 +556,8 @@ describe("every page × the five ranks: an element, a redirect to a page that ex
           expect(end.kind === "broken" ? end.error : end.kind, where).toMatch(/^(?:rendered|not-found)$/);
           // not vacuous: the owner opens every page of the shell, with every id that exists
           // (W1.9 /my-work/stale is OFF by default: not-found is its honest answer, tested in work-stale-sweep.test.ts)
-          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && !address.includes(GONE)) {
+          // (A2.2 /spaces/[id]/settings answers not-found while controlPanelV2 is OFF, the default; the owner opens it with the switch ON in space-settings.test.ts)
+          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && route !== "/spaces/[id]/settings" && !address.includes(GONE)) {
             expect(end.kind, `${where}: the owner opens it`).toBe("rendered");
           }
         }
