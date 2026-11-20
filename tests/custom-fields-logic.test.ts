@@ -335,7 +335,9 @@ describe("«حقول مخصصة»: the only writers of a task's completion are t
       const text = readFileSync(file, "utf8");
       for (const [i, line] of text.split(/\r?\n/).entries()) {
         // an assignment of a VALUE (not null, not a filter object): `completedAt: column.done ? ...`, `completedAt: new Date()`
-        if (/\bcompletedAt:\s*(?!null\b|\{|true\b|t\.|Date \|)\S/.test(line) && !/^\s*(\/\/|\*)/.test(line)) writers.push(`${path.relative(ROOT, file).replace(/\\/g, "/")}:${i + 1}`);
+        // W1.1 «مهامي» only READS the column: `src/lib/work/my-tasks.ts` is the pure client model (type + optimistic reducers, no database), `my-work.ts` maps rows to a DTO
+        const dtoRead = file.replace(/\\/g, "/").endsWith("src/lib/work/my-tasks.ts") || /\bcompletedAt:\s*\w+\.completedAt\?\.toISOString\(\) \?\? null/.test(line);
+        if (!dtoRead && /\bcompletedAt:\s*(?!null\b|\{|true\b|t\.|Date \|)\S/.test(line) &&!/^\s*(\/\/|\*)/.test(line)) writers.push(`${path.relative(ROOT, file).replace(/\\/g, "/")}:${i + 1}`);
       }
     }
     expect(writers.map((w) => w.split(":")[0])).toEqual(["src/server/services/tasks.ts", "src/server/services/tasks.ts", "src/server/services/tasks.ts"]);
