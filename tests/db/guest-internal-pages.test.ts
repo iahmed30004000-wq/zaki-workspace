@@ -43,7 +43,6 @@ import DocumentsPage from "@/app/(app)/documents/page";
 import KnowledgePage from "@/app/(app)/knowledge/page";
 import ApprovalsPage from "@/app/(app)/approvals/page";
 import RequestsPage from "@/app/(app)/requests/page";
-import StalePage from "@/app/(app)/my-work/stale/page";
 import StructurePage from "@/app/(app)/structure/page";
 import DevelopmentPage from "@/app/(app)/development/page";
 import CurrentSpacePage from "@/app/(app)/spaces/current/page";
@@ -105,8 +104,7 @@ async function companyWorld() {
   const orgId = team.org.id;
   const orgName = `Company ${uid()}`;
   // «مساعد المالك» and «المنتجات» are OFF by default; their tabs are on the owner's map only while their switch is on, and the loop below opens every offered tab
-  // (W1w: «مهام قديمة» too: `workStaleSweep`; off, its page is not found and its tab is not offered)
-  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true, workStaleSweep: true } } } });
+  await db.organization.update({ where: { id: orgId }, data: { name: orgName, settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true } } } });
   const lead = await makeUser({ orgId, role: "LEAD", name: "Lead" });
   const staffer = await makeUser({ orgId, role: "MEMBER", name: `Staffer ${secret}` });
   await db.user.update({ where: { id: staffer.id }, data: { jobTitle: `Title ${secret}` } });
@@ -422,8 +420,6 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   development: () => DevelopmentPage({ searchParams: {} }),
   // «الطلبات» of the new map (navV2): W1.4's inbox (the company's switch `workRequests` is on in this world; off, the same address serves the approvals page)
   requests: () => RequestsPage({ searchParams: {} }),
-  // «مهام قديمة» of the new map (W1w, under «المزيد»): offered to the owner rank and to a manager of the space, behind `workStaleSweep` (on in this world); a guest and a person who manages nothing get its notice
-  stale: () => StalePage({ searchParams: {} }),
 };
 
 /** The places that are one page and have no tabs (Today, the chat). */

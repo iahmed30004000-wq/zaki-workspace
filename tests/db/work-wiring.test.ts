@@ -70,7 +70,7 @@ async function withBoth(w: World) {
 describe("W1.9: «آلي» is drawn where the rows of the old screens are built", () => {
   it("the old «مهامي» page marks the task that came through the door, and only that one", async () => {
     const w = await world();
-    await setFeatures(w.orgId, { workMyTasks: false });
+    await setFeatures(w.orgId, { workMyTasks: false, workStaleSweep: true });
     await withBoth(w);
     await loginAs(w.member.id);
     const markup = await html(MyWorkPage({ searchParams: { tab: "overdue" } }));
@@ -81,7 +81,7 @@ describe("W1.9: «آلي» is drawn where the rows of the old screens are built"
 
   it("the list page marks it too", async () => {
     const w = await world();
-    await setFeatures(w.orgId, { workMyTasks: false });
+    await setFeatures(w.orgId, { workMyTasks: false, workStaleSweep: true });
     await withBoth(w);
     await loginAs(w.member.id);
     const markup = await html(ListPage({ searchParams: {} }));
@@ -92,15 +92,33 @@ describe("W1.9: «آلي» is drawn where the rows of the old screens are built"
 
   it("with no automated task a page is byte for byte without the mark", async () => {
     const w = await world();
-    await setFeatures(w.orgId, { workMyTasks: false });
+    await setFeatures(w.orgId, { workMyTasks: false, workStaleSweep: true });
     await w.task({ title: "بشرية فقط", assigneeId: w.member.id, dueDate: new Date(Date.now() - 3 * DAY) });
     await loginAs(w.member.id);
     expect(marks(await html(MyWorkPage({ searchParams: { tab: "overdue" } })))).toBe(0);
     expect(marks(await html(ListPage({ searchParams: {} })))).toBe(0);
   });
 
+  it("with `workStaleSweep` OFF (the default) neither page draws the mark and the helper names nothing (D-W4: «آلي» belongs to that switch)", async () => {
+    const w = await world();
+    await setFeatures(w.orgId, { workMyTasks: false });
+    const { auto } = await withBoth(w);
+    await loginAs(w.member.id);
+    const old = await html(MyWorkPage({ searchParams: { tab: "overdue" } }));
+    expect(old).toContain("مهمة آلية");
+    expect(marks(old)).toBe(0);
+    const list = await html(ListPage({ searchParams: {} }));
+    expect(list).toContain("مهمة آلية");
+    expect(marks(list)).toBe(0);
+    expect((await automatedTaskIds(await requireActor(), [auto.id])).size).toBe(0);
+    // switched on, the same task is named
+    await setFeatures(w.orgId, { workStaleSweep: true });
+    expect([...(await automatedTaskIds(await requireActor(), [auto.id]))]).toEqual([auto.id]);
+  });
+
   it("the helper answers only for tasks the person may open (P0.2): a private task of somebody else is not named", async () => {
     const w = await world();
+    await setFeatures(w.orgId, { workStaleSweep: true });
     const { auto } = await withBoth(w);
     const secret = await w.task({ title: "سرية آلية", assigneeId: w.member2.id });
     await db.task.update({ where: { id: secret.id }, data: { apiTokenId: w.token.id, visibility: "PARTICIPANTS" } });
@@ -118,6 +136,8 @@ describe("W1.9: «آلي» is drawn where the rows of the old screens are built"
 
   it("another company's task is never named, whatever id is asked", async () => {
     const w = await world();
+    await setFeatures(w.orgId, { workStaleSweep: true });
+    await setFeatures(w.foreign.org.id, { workStaleSweep: true });
     const foreignProject = await makeProject(w.foreignWs.id, "غريب");
     const foreign = await makeTask({
       orgId: w.foreign.org.id,

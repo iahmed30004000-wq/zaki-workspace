@@ -362,7 +362,7 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 102 · `(none)` 40 · `requir
 | PATCH, DELETE | `/api/production/routines/[id]` | requireActor | `production`: deleteRoutine, routineSchema, updateRoutine |
 | POST | `/api/production/routines/[id]/convert` | requireActor | `production`: convertRoutineToTask |
 | GET | `/api/production/task-source/[taskId]` | requireTaskAccess | `card-links`: cardSourceOf<br>`campaigns`: campaignSourceOf<br>`departments`: ticketSourceOf |
-| GET, POST | `/api/projects` | requireWorkspace ‡ | `team-scope`: taskParticipantFilter, teamFilterInSpace<br>`teams`: assertMayCreateInTeam |
+| GET, POST | `/api/projects` | requireWorkspace ‡ | `features`: isFeatureOn<br>`instant-work`: INSTANT_PROJECT_KEY<br>`team-scope`: taskParticipantFilter, teamFilterInSpace<br>`teams`: assertMayCreateInTeam |
 | PATCH | `/api/projects/[id]` | requireTeamWork ‡ | `teams`: moveProjectToTeam |
 | GET | `/api/projects/[id]/boards` | requireTeamWork | — |
 | GET, POST | `/api/projects/[id]/fields` | **none** (public by design) | `custom-fields`: createField, listProjectFields |
@@ -496,16 +496,16 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 87 | 152 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 87 | 154 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 117 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 67 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
-| `team-scope` | 273 | 46 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
+| `team-scope` | 273 | 47 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 33 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
 | `tasks` | 735 | 25 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 608 | 23 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `access` | 76 | 18 | Workspace-level isolation — the company's master switch. |
-| `cards` | 622 | 18 | «اللوحات» — the cards of a space. |
+| `cards` | 631 | 18 | «اللوحات» — the cards of a space. |
 | `knowledge` | 562 | 17 | «المنتجات» — the company's product sheets (Q1.1): ONE door for the PRODUCT cards of the knowledge space. |
 | `owner-assistant-settings` | 365 | 17 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `rewards` | 355 | 17 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
@@ -532,6 +532,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `chat-assistant` | 497 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
+| `instant-work` | 204 | 8 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
 | `owner-assistant-proposals` | 400 | 8 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
@@ -541,7 +542,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `campaigns` | 307 | 7 | Campaigns live inside a department (marketing calendars). |
 | `card-guards` | 45 | 7 | The questions the page inside a card asks about its viewer, answered in one place. |
 | `departments` | 329 | 7 | The departments area is the company's staff directory (who works where, with which job title), so org GUESTs get 403 on every function here, read or write. |
-| `instant-work` | 201 | 7 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
 | `last-seen` | 124 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
 | `team-criteria` | 109 | 7 | «معايير التقييم» — the criteria a reviewer rates 1-5: the five the owner named (جودة الشغل، الالتزام بالمواعيد، التعاون، المبادرة، التواصل), which the owner may rename, add to (… |
 | `watch` | 372 | 7 | «نتفرّج سوا» — people of a space watch one link together (the owner's ask, 2026-10-26). |
@@ -592,6 +592,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
 | `spaces-overview` | 73 | 3 | «كل المساحات» — the owner's and the admins' one look over every space they can open (the owner's decision, 2026-10-25): each space stays a separate site, and this page only coun… |
+| `stale-tasks` | 361 | 3 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
 | `system-tokens` | 59 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
 | `team-score-io` | 28 | 3 | `?kind=` as a period kind (anything else: the month). |
 | `analytics` | 66 | 2 | Numbers behind the analytics page. |
@@ -615,7 +616,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `orgs` | 154 | 2 | no header comment — exports `JOIN_CODE_ALPHABET`, `generateJoinCode`, `registrationOpen`, `registerOrganization`, `canManageOrg` |
 | `owner-assistant-data` | 124 | 2 | «مساعد المالك» — WHAT THE MODEL MAY LEARN FROM, as raw material for `buildContext` (src/server/ai/redact.ts). |
 | `permission-templates` | 81 | 2 | «قوالب» (A1.1, switch `permissionTemplates`): the company's templates and how one is applied. |
-| `stale-tasks` | 361 | 2 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
 | `storage` | 300 | 2 | THE STORAGE OF THE COMPANY'S FILES — what the owner sees and does about the server's disk filling up (his decision, 2026-11-01). |
 | `task-links` | 173 | 2 | «التبعيات» — the links between two tasks (the owner, 2026-10-30: the table existed and nothing wrote it). |
 | `team-people` | 115 | 2 | «الأداء والتطوير» — the front door: the people the viewer reads, and the header of one person's file. |
@@ -865,7 +865,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `doorMessages` | 1 — `server/door/messages.ts` |
 | `chatLayoutV2` | 5 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/link-preview.ts` |
 | `chatFormatting` | 0 —  |
-| `workInbox` | 7 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts` |
+| `workInbox` | 8 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts` |
 | `chatAlbums` | 0 —  |
 | `permissionTemplates` | 3 — `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
@@ -876,8 +876,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatSilentSend` | 1 — `server/chat/messages.ts` |
 | `chatScheduled` | 2 — `server/chat/scheduled.ts`, `server/jobs/scheduler.ts` |
 | `workStages` | 1 — `app/api/boards/[id]/columns/route.ts` |
-| `workMyTasks` | 8 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts` |
-| `workStaleSweep` | 2 — `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts` |
+| `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
+| `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `semanticSearch` | 5 — `app/(app)/settings/page.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `imageOcr` | 5 — `app/api/chat/attachments/[id]/text/route.ts`, `server/chat/search.ts`, `server/chat/topics.ts`, `server/services/files.ts`, `server/services/image-ocr.ts` |
@@ -900,11 +900,11 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `approvals` | 8 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
 | `taskPrivacy` | 1 — `server/services/tasks.ts` |
 | `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
-| `workInbox` | 7 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts` |
+| `workInbox` | 8 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
 | `workStages` | 1 — `app/api/boards/[id]/columns/route.ts` |
-| `workMyTasks` | 8 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts` |
-| `workStaleSweep` | 2 — `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts` |
+| `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
+| `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
 | `spaceDocs` | 3 — `app/(app)/documents/page.tsx`, `lib/nav/places.ts`, `server/services/documents.ts` |
