@@ -13,7 +13,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { FeatureSwitches } from "@/components/feature-switches";
-import { PresetsBar } from "@/components/feature-switches/presets-bar";
+import { PresetsBar, closeAfterApply } from "@/components/feature-switches/presets-bar";
 import { COMPANY_CHAT_GROUP, ECONOMY_FORCED_OFF, FEATURES, FEATURE_DEFAULTS, FEATURE_GROUPS, FEATURE_META, type FeatureKey } from "@/lib/features";
 import {
   FEATURE_GROUP_ORDER,
@@ -251,7 +251,7 @@ describe("A1.4: «الميزات» draws groups", () => {
 
 describe("A1.4: the two presets", () => {
   const bar = (over: Partial<Record<FeatureKey, boolean>> = {}, pending?: "simple" | "all") =>
-    render(createElement(PresetsBar, { items: items(over), onApply: async () => {}, initialPending: pending }));
+    render(createElement(PresetsBar, { items: items(over), onApply: async () => true, initialPending: pending }));
 
   it("are two buttons at the top, «الوضع البسيط» and «كل شي», with what each does; nothing is asked until one is pressed", () => {
     const markup = bar();
@@ -311,6 +311,23 @@ describe("A1.4: the two presets", () => {
     const text = textOf(markup);
     expect(text).toContain(AR["featureGroups.confirm.none"] as string);
     expect(text).not.toContain(AR["featureGroups.confirm.go"] as string);
+  });
+
+  it("the confirmation closes only when the server accepted the preset: a refusal or a network error leaves it open to retry (review)", async () => {
+    const closed: string[] = [];
+    await closeAfterApply(async () => true, () => closed.push("closed"));
+    expect(closed).toEqual(["closed"]);
+    await closeAfterApply(async () => false, () => closed.push("closed again"));
+    expect(closed).toEqual(["closed"]);
+  });
+
+  it("while a switch or a preset is being saved the two preset buttons cannot be pressed (review)", () => {
+    const markup = render(createElement(PresetsBar, { items: items(), onApply: async () => true, busy: true }));
+    const tags = [...markup.matchAll(/<button[^>]*data-preset="(?:simple|all)"[^>]*>/g)].map((m) => m[0]);
+    expect(tags.length).toBe(2);
+    for (const tag of tags) expect(isDisabled(tag)).toBe(true);
+    const free = render(createElement(PresetsBar, { items: items(), onApply: async () => true }));
+    for (const m of free.matchAll(/<button[^>]*data-preset="(?:simple|all)"[^>]*>/g)) expect(isDisabled(m[0])).toBe(false);
   });
 
   it("marks the preset that is in force", () => {

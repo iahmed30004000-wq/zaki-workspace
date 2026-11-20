@@ -50,7 +50,7 @@ export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: {
   }
 
   /** A preset: the server decides the keys (the body names the preset only) and answers what it changed. */
-  async function applyPreset(preset: FeaturePreset) {
+  async function applyPreset(preset: FeaturePreset): Promise<boolean> {
     setPresetBusy(true);
     try {
       const res = await apiPost<{ preset: FeaturePreset; changed: { key: FeatureKey; on: boolean }[] }>("/api/settings/features", { preset });
@@ -58,8 +58,10 @@ export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: {
       setItems((all) => all.map((f) => (changed.has(f.key) ? { ...f, on: changed.get(f.key) as boolean } : f)));
       toast?.toast(t("featureGroups.applied", { name: t(`featureGroups.presets.${preset}.name`) }), "success");
       router.refresh();
+      return true;
     } catch {
       toast?.toast(t("common.error"), "error");
+      return false;
     } finally {
       setPresetBusy(false);
     }
@@ -72,7 +74,7 @@ export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: {
   const choices = Object.fromEntries(items.map((f) => [f.key, f.on])) as Record<FeatureKey, boolean>;
 
   function toggle(item: { key: FeatureKey; on: boolean }, disabled = false) {
-    return <Switch checked={item.on} onChange={(on) => flip(item.key, on)} label={t(`features.${item.key}.name`)} disabled={busy === item.key || disabled} />;
+    return <Switch checked={item.on} onChange={(on) => flip(item.key, on)} label={t(`features.${item.key}.name`)} disabled={busy === item.key || presetBusy || disabled} />;
   }
 
   /** One switch: its name, its hint, «بيحتاج», the group's note and ⚠️/🔧 where it has them, and the toggle. */
@@ -124,7 +126,7 @@ export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: {
 
   return (
     <div className="space-y-4">
-      <PresetsBar items={items} onApply={applyPreset} busy={presetBusy} />
+      <PresetsBar items={items} onApply={applyPreset} busy={presetBusy || busy !== null} />
       <Input type="search" value={query} onChange={(e) => setQuery(e.currentTarget.value)} placeholder={t("featureGroups.search.placeholder")} aria-label={t("featureGroups.search.label")} />
       {/* «وضع التوفير»: the one switch for a server that is not strong enough; what it holds off is printed, with the way back */}
       <section

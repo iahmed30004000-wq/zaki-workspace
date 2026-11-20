@@ -7,9 +7,15 @@ import type { FeatureKey } from "@/lib/features";
 import { cn } from "@/lib/utils";
 import { PresetConfirm } from "./preset-confirm";
 
+/** The confirmation closes only when the server accepted the preset: a refusal or a network error leaves it open to retry. */
+export async function closeAfterApply(apply: () => Promise<boolean>, close: () => void): Promise<void> {
+  if (await apply()) close();
+}
+
 /**
  * A1.4 — the two presets at the top of «الميزات»: «الوضع البسيط» and «كل شي». A press only OPENS the confirmation (what would change); `onApply` runs
- * on «أكّد» and the server decides the keys (the client names the preset, never a list). `initialPending` is for the markup tests.
+ * on «أكّد» and the server decides the keys (the client names the preset, never a list); it answers whether the server accepted it.
+ * `initialPending` is for the markup tests.
  */
 export function PresetsBar({
   items,
@@ -18,17 +24,14 @@ export function PresetsBar({
   initialPending = null,
 }: {
   items: { key: FeatureKey; on: boolean }[];
-  onApply: (preset: FeaturePreset) => Promise<void>;
+  onApply: (preset: FeaturePreset) => Promise<boolean>;
   busy?: boolean;
   initialPending?: FeaturePreset | null;
 }) {
   const { t } = useI18n();
   const [pending, setPending] = useState<FeaturePreset | null>(initialPending);
 
-  async function confirm(preset: FeaturePreset) {
-    await onApply(preset);
-    setPending(null);
-  }
+  const confirm = (preset: FeaturePreset) => closeAfterApply(() => onApply(preset), () => setPending(null));
 
   return (
     <section className="space-y-3 rounded-lg border border-border bg-surface-1 p-4" aria-labelledby="presets-title" data-presets>
