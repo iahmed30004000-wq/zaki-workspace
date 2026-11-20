@@ -20,7 +20,20 @@ import { useWorkActions, useWorkTasks } from "./use-work-tasks";
  * TanStack Query: a click on a chip or a view changes the address WITHOUT a page load (`history`) and fetches the next answer while the last one stays on screen;
  * ticking a task, moving it to a stage and changing its day change the cache at once and are put back when the door refuses (use-work-tasks.ts).
  */
-export function MyTasksView({ requested, initial, initialQuery, initialAt }: { requested: MyTasksParams; initial: WorkTasksResult; initialQuery: string; initialAt: number }) {
+export function MyTasksView({
+  requested,
+  initial,
+  initialQuery,
+  initialAt,
+  staleHref = null,
+}: {
+  requested: MyTasksParams;
+  initial: WorkTasksResult;
+  initialQuery: string;
+  initialAt: number;
+  /** W1.9: the review list of old tasks, for somebody who manages a space (the page decides; null draws nothing). */
+  staleHref?: string | null;
+}) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
   const [params, setParams] = useState<MyTasksParams>(requested);
@@ -76,7 +89,7 @@ export function MyTasksView({ requested, initial, initialQuery, initialAt }: { r
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
       <Header count={data.tasks.length} />
-      <Toolbar params={params} data={data} onChange={go} />
+      <Toolbar params={params} data={data} onChange={go} staleHref={staleHref} />
       {data.canAdd ? <QuickAdd onAdd={(title) => actions.add.mutateAsync(title)} pending={actions.add.isPending} /> : null}
 
       <div className={cn("flex-1 px-3 py-3 transition-opacity", stale && "opacity-60")} aria-busy={stale}>

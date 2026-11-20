@@ -19,6 +19,7 @@ import { BottomNav } from "@/components/shell/bottom-nav";
 import { Drawer } from "@/components/shell/drawer";
 import { NavOrderControls } from "@/components/shell/nav-sort";
 import { PeopleDock } from "@/components/shell/people-dock";
+import { useWorkWaiting } from "@/components/shell/place-badge";
 import { PlaceTabs } from "@/components/shell/place-tabs";
 import { Rail } from "@/components/shell/rail";
 import { Sidebar } from "@/components/shell/sidebar";
@@ -187,7 +188,10 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   const noWorkInstead = showNoWork && here.tab === "projects";
   // the unread messages behind «الدردشة», on every page (only when the chat is one of this person's places)
   const chatUnread = useChatUnread(nav.places.some((p) => p.key === "chat"));
-  const badges = { chat: chatUnread };
+  // W1.4: the number on «الشغل» is what waits for the person in «الطلبات» (the spaces query already says it: no second request). «الطلبات» is a page of the new map only,
+  // so the old menu draws no number there (and with the company's switch `workRequests` off the answer is 0 anyway)
+  const workWaiting = useWorkWaiting();
+  const badges = { chat: chatUnread, work: navV2 ? workWaiting : 0 };
 
   // The folded state starts from the `zk-sidebar` COOKIE the server layout read: no 256px flash and
   // no animated shrink after the first paint. localStorage stays as a second memory for a device

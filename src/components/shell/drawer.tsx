@@ -172,7 +172,7 @@ export function Drawer({
                       >
                         <NavIcon icon={place.icon} className={cn("size-5 shrink-0", active && "text-accent")} />
                         <span className="truncate">{t(place.labelKey)}</span>
-                        <PlaceBadge count={badges[place.key]} className="ms-auto" />
+                        <PlaceBadge count={badges[place.key]} place={place.key} className="ms-auto" />
                       </Link>
                     </li>
                   );

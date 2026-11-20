@@ -44,6 +44,8 @@ const tabs = (nav: NavModel, key: PlaceKey) => place(nav, key).tabs.map((t) => t
 const more = (nav: NavModel, key: PlaceKey) => (place(nav, key).more ?? []).map((t) => t.key);
 
 const WORK_OPTIONAL: TabKey[] = ["goals", "ideas", "production", "departments", "tickets", "campaigns", "crm", "checkins"];
+// W1w: «مهام قديمة» is the ninth tool, offered to the owner rank and to whoever manages the space (and only while `workStaleSweep` is on)
+const WORK_OPTIONAL_WITH_STALE: TabKey[] = [...WORK_OPTIONAL, "stale"];
 const ORDER_V2 = ["chat", "today", "work", "library", "watch", "admin"];
 
 describe("navV2 OFF: the old map is untouched (PLACES_V1)", () => {
@@ -70,7 +72,7 @@ describe("navV2 ON: the new map, rank by rank", () => {
     const nav = buildNav(v2("OWNER"));
     expect(keys(nav)).toEqual(ORDER_V2);
     expect(tabs(nav, "work")).toEqual(["my-work", "projects", "requests"]);
-    expect(more(nav, "work")).toEqual(WORK_OPTIONAL);
+    expect(more(nav, "work")).toEqual(WORK_OPTIONAL_WITH_STALE);
     expect(tabs(nav, "library")).toEqual(["files", "documents", "knowledge"]);
     expect(tabs(nav, "admin")).toEqual(["team", "board", "settings", "structure"]);
     expect(more(nav, "admin")).toEqual(["development", "assistant", "automation", "telegram", "archive"]);
@@ -227,11 +229,11 @@ describe("at most four tabs plus «المزيد», and the owner's two pinned to
     // with «الطلبات» on there is one free slot: the first pin takes it, the second waits in «المزيد» (never lost)
     const nav = buildNav(v2("OWNER", {}, { workTabs: ["crm", "goals"] }));
     expect(tabs(nav, "work")).toEqual(["my-work", "projects", "requests", "crm"]);
-    expect(more(nav, "work")).toEqual(WORK_OPTIONAL.filter((k) => k !== "crm"));
+    expect(more(nav, "work")).toEqual(WORK_OPTIONAL_WITH_STALE.filter((k) => k !== "crm"));
     // without «الطلبات» (its switch off) both pins have room
     const two = buildNav(v2("OWNER", {}, { workTabs: ["crm", "goals"], off: ["approvals", "workRequests"] }));
     expect(tabs(two, "work")).toEqual(["my-work", "projects", "crm", "goals"]);
-    expect(more(two, "work")).toEqual(WORK_OPTIONAL.filter((k) => k !== "crm" && k !== "goals"));
+    expect(more(two, "work")).toEqual(WORK_OPTIONAL_WITH_STALE.filter((k) => k !== "crm" && k !== "goals"));
   });
 
   it("a pin the person may not open, a duplicate, an unknown key or a core tab is ignored; only the first two count", () => {
@@ -258,8 +260,8 @@ describe("at most four tabs plus «المزيد», and the owner's two pinned to
     expect([...work.tabs, ...(work.more ?? [])].map((t) => t.key)).toEqual(WORK_OPTIONAL);
   });
 
-  it("WORK_OPTIONAL_TABS is the eight optional tools", () => {
-    expect([...WORK_OPTIONAL_TABS]).toEqual(WORK_OPTIONAL);
+  it("WORK_OPTIONAL_TABS is the nine optional tools (the eight of the old map, then «مهام قديمة»)", () => {
+    expect([...WORK_OPTIONAL_TABS]).toEqual(WORK_OPTIONAL_WITH_STALE);
   });
 });
 
@@ -297,6 +299,19 @@ describe("every tab offered is a page that serves that person, and a tab not off
   it("offeredToGuests keeps saying no to «الطلبات» and every staff tab of the new map", () => {
     expect(offeredToGuests("requests")).toBe(false);
     for (const key of ALL_V2.filter((k) => !["my-work", "projects", "documents", "list", "calendar"].includes(k))) expect(offeredToGuests(key), key).toBe(false);
+  });
+
+  // W1w: the same line carries W1.1's switch, so the layout's map stops drawing «القائمة» and «التقويم» (they are views of «مهامي») on the old map
+  it("navSubjectOf hands workMyTasks to the map: the old map drops «القائمة» and «التقويم» only while the switch is on", () => {
+    const actor = { role: "OWNER" as const, caps: effectiveCapabilities({ role: "OWNER" }), isExternal: false };
+    const workTabs = (settings: unknown) => tabs(buildNav(navSubjectOf(actor, settings, null)), "work");
+    expect(navSubjectOf(actor, { features: { workMyTasks: true } }, null).workMyTasks).toBe(true);
+    expect(navSubjectOf(actor, {}, null).workMyTasks).toBe(false);
+    expect(workTabs({})).toEqual(expect.arrayContaining(["list", "calendar"]));
+    expect(workTabs({ features: { workMyTasks: true } })).not.toEqual(expect.arrayContaining(["list"]));
+    expect(workTabs({ features: { workMyTasks: true } })).not.toEqual(expect.arrayContaining(["calendar"]));
+    // the new map is the same either way (it never had them)
+    expect(tabs(buildNav(navSubjectOf(actor, { features: { navV2: true, workMyTasks: true } }, null)), "work")).toEqual(tabs(buildNav(navSubjectOf(actor, { features: { navV2: true } }, null)), "work"));
   });
 
   // N1.2 wired the switch: navSubjectOf (src/server/services/nav-order.ts) spreads navExtrasOf(settings) into the subject (it was a todo until then)
@@ -394,9 +409,11 @@ describe("where an address lives on the new map (the old addresses stay pages)",
 describe("the company settings this package defines: landing, workTabs, menuOrder, and the switch", () => {
   it("«navV2» is a switch, OFF by default; navExtrasOf carries it and the pinned tabs to the map", () => {
     expect(featureOn({}, "navV2")).toBe(false);
-    expect(navExtrasOf({})).toEqual({ navV2: false, workTabs: [] });
-    expect(navExtrasOf({ features: { navV2: true }, workTabs: ["crm", "goals"] })).toEqual({ navV2: true, workTabs: ["crm", "goals"] });
-    expect(navExtrasOf(null)).toEqual({ navV2: false, workTabs: [] });
+    // W1w: it also hands `workMyTasks` over, so the old map stops drawing «القائمة» / «التقويم» when «مهامي» is the one screen
+    expect(navExtrasOf({})).toEqual({ navV2: false, workMyTasks: false, workTabs: [] });
+    expect(navExtrasOf({ features: { navV2: true }, workTabs: ["crm", "goals"] })).toEqual({ navV2: true, workMyTasks: false, workTabs: ["crm", "goals"] });
+    expect(navExtrasOf({ features: { navV2: true, workMyTasks: true } })).toEqual({ navV2: true, workMyTasks: true, workTabs: [] });
+    expect(navExtrasOf(null)).toEqual({ navV2: false, workMyTasks: false, workTabs: [] });
   });
 
   it("the landing page: «الدردشة» by default (D-N1, awaiting the owner), «اليوم» when the company says so; a broken value is the default", () => {

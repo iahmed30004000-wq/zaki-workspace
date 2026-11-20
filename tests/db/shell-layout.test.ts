@@ -154,6 +154,31 @@ describe("the layout draws each person's own places", () => {
     expect(shell.props.audience).toBe("managers");
   });
 
+  it("W1w: the company's switches reach the map through the layout - `workMyTasks` takes «القائمة» and «التقويم» off the old map, `workStaleSweep` offers «مهام قديمة» to the owner on the new one", async () => {
+    const { org, owner } = await makeTeam();
+    await loginAs(owner.id);
+    const moreOf = (shell: Shell, key: PlaceKey) => placeOf(shell, key)?.more?.map((t) => t.key);
+
+    // as merged: the old tabs, the old map, no entry for the review list
+    let shell = await frame();
+    expect(tabs(shell, "work")).toEqual(expect.arrayContaining(["list", "calendar"]));
+    expect(moreOf(shell, "work")).toBeUndefined();
+
+    await db.organization.update({ where: { id: org.id }, data: { settings: { features: { workMyTasks: true } } } });
+    shell = await frame();
+    expect(tabs(shell, "work")).not.toContain("list");
+    expect(tabs(shell, "work")).not.toContain("calendar");
+    expect(tabs(shell, "work")).toContain("my-work");
+
+    // the new map: «مهام قديمة» only while its own switch is on
+    await db.organization.update({ where: { id: org.id }, data: { settings: { features: { navV2: true } } } });
+    expect(moreOf(await frame(), "work")).not.toContain("stale");
+    await db.organization.update({ where: { id: org.id }, data: { settings: { features: { navV2: true, workStaleSweep: true } } } });
+    shell = await frame();
+    expect(moreOf(shell, "work")).toContain("stale");
+    expect(placeOf(shell, "work")?.more?.find((t) => t.key === "stale")).toMatchObject({ href: "/my-work/stale", labelKey: "nav.tab.stale" });
+  });
+
   it("decides from the ACTIVE membership: an old guest seat that was closed does not shrink a member's map", async () => {
     const a = await makeTeam();
     const b = await makeTeam();

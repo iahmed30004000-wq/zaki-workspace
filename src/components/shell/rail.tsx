@@ -121,7 +121,7 @@ export function Rail({
                     >
                       <span className="relative shrink-0">
                         <NavIcon icon={place.icon} className={cn("size-5 shrink-0", active && "text-accent")} />
-                        <PlaceBadge count={badges[place.key]} className="absolute -end-2.5 -top-2" />
+                        <PlaceBadge count={badges[place.key]} place={place.key} className="absolute -end-2.5 -top-2" />
                       </span>
                       <span className="max-w-full break-words">{label}</span>
                     </Link>

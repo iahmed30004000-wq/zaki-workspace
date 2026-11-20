@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Segmented } from "@/components/ui/segmented";
 import { fmtNumber } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -22,16 +23,19 @@ const SELECT = "min-h-9 rounded-lg border border-muted bg-surface-1 px-2 text-sm
 /**
  * The bar of «مهامي»: the view (قائمة · لوحة · تقويم), the scope (أنا · المساحة · مشروع) with its second line (my spaces, or the project picker), the quick
  * chips with their numbers, and the sort, the grouping, the stage and the search. Every control changes the address; the screen reads the answer for it.
- * «المساحة» is not offered in «الشركة»: it holds no projects.
+ * «المساحة» is not offered in «الشركة»: it holds no projects. `staleHref` (W1.9): a link to the review list of old tasks, handed over by the page only to somebody who
+ * manages a space while the company's switch `workStaleSweep` is on.
  */
 export function Toolbar({
   params,
   data,
   onChange,
+  staleHref = null,
 }: {
   params: MyTasksParams;
   data: WorkTasksResult;
   onChange: (next: Partial<MyTasksParams>, mode?: "push" | "replace") => void;
+  staleHref?: string | null;
 }) {
   const { t } = useI18n();
   const scope: MyTaskScope = data.scopeFellBack ? "me" : params.scope;
@@ -53,8 +57,16 @@ export function Toolbar({
           onChange={(next) => onChange({ scope: next })}
           options={scopes.map((s) => ({ value: s, label: t(`mytasks.scope.${s}`) }))}
         />
+        {staleHref ? (
+          <Link
+            href={staleHref}
+            className="ms-auto inline-flex min-h-9 items-center rounded-lg px-2 text-sm text-fg-muted hover:text-fg hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            {t("nav.tab.stale")}
+          </Link>
+        ) : null}
         <form
-          className="ms-auto flex items-center"
+          className={cn("flex items-center", staleHref ? "" : "ms-auto")}
           onSubmit={(e) => {
             e.preventDefault();
             const input = e.currentTarget.elements.namedItem("q") as HTMLInputElement | null;

@@ -1,4 +1,5 @@
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
+import { automatedTaskIds } from "@/app/(app)/my-work/automated";
 import { actorCanWork } from "@/server/policy/actor";
 import { currentSpace } from "@/server/services/current-space";
 import { MY_WORK_TABS, getMyWork, myWorkTimeZone, type MyWorkTab } from "@/server/services/my-work";
@@ -36,6 +37,8 @@ export async function LegacyMyWorkPage({ searchParams }: { searchParams: { tab?:
   const timeZone = await myWorkTimeZone(user.id);
   // «الوقت شغّال» on the row of the task the person's own timer runs on
   const runningTaskId = await myRunningTaskId(actor);
+  // «آلي» (W1.9): the tasks of this tab that came in through the door, by the person's own read
+  const automated = await automatedTaskIds(actor, rows.map(({ task }) => task.id));
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
@@ -75,7 +78,7 @@ export async function LegacyMyWorkPage({ searchParams }: { searchParams: { tab?:
         ) : (
           <ul className="max-w-4xl divide-y divide-border/60">
             {rows.map(({ task, editable }) => (
-              <TaskRow key={task.id} task={{ ...task, running: task.id === runningTaskId }} editable={editable} showProject timeZone={timeZone} />
+              <TaskRow key={task.id} task={{ ...task, running: task.id === runningTaskId, ...(automated.has(task.id) ? { automated: true } : {}) }} editable={editable} showProject timeZone={timeZone} />
             ))}
           </ul>
         )}

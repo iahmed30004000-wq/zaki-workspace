@@ -281,5 +281,6 @@
   "work.source.ticket": "من تذكرة",
   "work.source.campaign": "من حملة",
   "work.source.card": "من لوحة",
-  "work.source.hidden": "هاي المهمة انعملت من مصدر ما بتقدر تفتحه"
+  "work.source.hidden": "هاي المهمة انعملت من مصدر ما بتقدر تفتحه",
+  "nav.tab.stale": "مهام قديمة"
 }
