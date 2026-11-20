@@ -2,7 +2,7 @@
 
 import React from "react";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { SHORTCUT_ROWS, type KeyName } from "@/lib/chat/shortcuts";
+import { SHEET_ROWS, type KeyName } from "@/lib/chat/shortcuts";
 import { ct } from "@/lib/chat/text";
 
 /**
@@ -29,13 +29,15 @@ function KeyCap({ name }: { name: KeyName }) {
       return <kbd className={cap}>F</kbd>;
     case "question":
       return <kbd className={cap}>?</kbd>;
+    case "0":
+      return <kbd className={cap}>0</kbd>;
   }
 }
 const cap = "inline-flex min-w-7 items-center justify-center rounded-md border border-border bg-surface-2 px-1.5 py-0.5 text-xs font-semibold text-fg";
 
 /**
- * C2.6 — «اختصارات لوحة المفاتيح»: the sheet Ctrl+Shift+? opens. It draws the table the keyboard module registers (`SHORTCUT_ROWS`), so a key that is
- * registered is listed and a key that is not (saved messages, formatting: C3) is not. The keys read left to right inside a row (`dir="ltr"`: a key
+ * C2.6 — «اختصارات لوحة المفاتيح»: the sheet Ctrl+Shift+? opens. It draws the table the keyboard module registers (`SHEET_ROWS`: C2.6's eight and Ctrl+0), so a key that is
+ * registered is listed and a key that is not (formatting: its own toolbar) is not. The keys read left to right inside a row (`dir="ltr"`: a key
  * combination is a sequence, not a sentence), the words are the dictionary's.
  */
 export function ShortcutsSheet({ open, onOpenChange, portal = true }: { open: boolean; onOpenChange: (open: boolean) => void; portal?: boolean }) {
@@ -47,7 +49,7 @@ export function ShortcutsSheet({ open, onOpenChange, portal = true }: { open: bo
         </DialogHeader>
         <DialogBody>
           <ul data-shortcuts className="divide-y divide-border">
-            {SHORTCUT_ROWS.map((row) => (
+            {SHEET_ROWS.map((row) => (
               <li key={row.id} className="flex min-h-11 items-center justify-between gap-3 py-2">
                 <span className="min-w-0 flex-1 text-sm">{ct(row.labelKey)}</span>
                 <span dir="ltr" className="flex shrink-0 items-center gap-1">

@@ -5,6 +5,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiDelete, apiGet } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
+import { ConversationPickerDialog } from "@/components/chat/v2/feedback/conversation-picker";
+import { sendInOrder, sendableFeedbackIds } from "@/lib/chat/v2/feedback/feedback-model";
 import { layoutCollage, MAX_PICTURES, MIN_PICTURES } from "@/lib/cards/collage-layout";
 import { copyImage, coverPicture, downloadBlob, loadImage, pngBlobOf, renderCollagePage, safeFileName, shareFiles, type CoverRect } from "@/lib/cards/media-client";
 import type { MediaListDTO, MediaItemDTO } from "@/server/services/knowledge-media";
@@ -29,6 +31,9 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
   const [busy, setBusy] = useState(false);
   const [merged, setMerged] = useState<{ blobs: Blob[]; urls: string[] } | null>(null);
   const [cover, setCover] = useState<File | null>(null);
+  // «ابعتيها بالمحادثة» (Q1.2): the pictures waiting for the person to choose the conversation (stored ones only: the sheet's own door copies them into the chat)
+  const [sending, setSending] = useState<string[] | null>(null);
+  const [sendBusy, setSendBusy] = useState(false);
 
   if (q.isPending || q.isError || !q.data) return null;
   const data = q.data;
@@ -66,6 +71,8 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
   }
 
   const chosen = data.feedback.filter((f) => selected.includes(f.id));
+  // what may go into a chat: only the approved ones with the customer's consent, at most ten (an editor's list also holds the others)
+  const sendable = sendableFeedbackIds(chosen);
   const toggle = (id: string) => setSelected((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
   async function makeCollage() {
@@ -111,6 +118,25 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
     void refresh();
   }
 
+  async function sendToChat(conversationId: string) {
+    if (!sending || sendBusy) return;
+    setSendBusy(true);
+    const { sent, failed } = await sendInOrder(sending, async (attId) => {
+      const r = await fetch(`/api/knowledge/${encodeURIComponent(cardId)}/media/${encodeURIComponent(attId)}/chat`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId }) });
+      if (!r.ok) throw new Error(String(r.status));
+      return attId;
+    });
+    setSendBusy(false);
+    if (failed) {
+      toast(t("chatui.pick.failed"), "error");
+      // what went is not sent twice: the picker stays open on what is left
+      if (sent.length > 0) setSending(sending.slice(sent.length));
+      return;
+    }
+    toast(t("chatui.pick.sent"), "success");
+    setSending(null);
+  }
+
   const hasAny = data.gallery.length > 0 || data.feedback.length > 0 || data.canEdit;
   if (!hasAny) return null;
 
@@ -127,6 +153,7 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
                 <button type="button" className={btn} onClick={() => void onCopy(p)}>{t("media.copy")}</button>
                 <button type="button" className={btn} onClick={() => void onDownload(p, i)}>{t("media.download")}</button>
                 <button type="button" className={btn} onClick={() => void onShare([p], [safeFileName(`${productName} ${i + 1}`, "png")])}>{t("media.share")}</button>
+                <button type="button" className={btn} data-send-chat={p.id} onClick={() => setSending([p.id])}>{t("chatui.pick.send_chat")}</button>
                 {data.canEdit ? <button type="button" className={btn} onClick={() => void remove(p)}>{t("media.remove")}</button> : null}
               </div>
             </li>
@@ -167,6 +194,9 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
             <div className="flex flex-wrap items-center gap-2" data-feedback-actions>
               <span className="text-xs text-muted">{t("media.selected").replace("{n}", String(chosen.length))}</span>
               <button type="button" className={btn} onClick={() => void onShare(chosen, chosen.map((_, i) => safeFileName(`${productName} ${i + 1}`, "png")))}>{t("media.one_by_one")}</button>
+              {sendable.length > 0 ? (
+                <button type="button" className={btn} data-send-chat-chosen onClick={() => setSending(sendable)}>{t("chatui.pick.send_chosen")}</button>
+              ) : null}
               <button type="button" className={btn} disabled={busy || chosen.length < MIN_PICTURES || chosen.length > MAX_PICTURES} onClick={() => void makeCollage()}>{t("media.merge")}</button>
               {chosen.length < MIN_PICTURES ? <span className="text-xs text-muted">{t("media.merge_min")}</span> : null}
             </div>
@@ -194,6 +224,9 @@ export function SheetMedia({ cardId, productName }: { cardId: string; productNam
           <button type="button" className={btn} onClick={() => { merged.urls.forEach((u) => URL.revokeObjectURL(u)); setMerged(null); }}>{t("media.close")}</button>
         </div>
       ) : null}
+
+      {/* drawn only while a choice is wanted: the chat list is asked for when the picker opens, never for every sheet that is read */}
+      {sending !== null ? <ConversationPickerDialog open onClose={() => setSending(null)} onPick={(id) => void sendToChat(id)} busy={sendBusy} /> : null}
 
       {cover ? <CoverTool key={`${cover.name}:${cover.size}:${cover.lastModified}`} file={cover} onCancel={() => setCover(null)} onDone={async (blob, consent) => {
         const form = new FormData();

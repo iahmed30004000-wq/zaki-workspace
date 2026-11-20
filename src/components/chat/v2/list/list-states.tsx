@@ -39,7 +39,8 @@ export function ListEmpty({
   query,
   onCreateSpace,
 }: {
-  folder: ListFolderKey;
+  /** a built-in folder, or `custom` for one of the person's own (C3a.2) */
+  folder: ListFolderKey | "custom";
   /** the words typed in the search field (empty: none) */
   query: string;
   /** shown only where the person may open a space and has none at all */

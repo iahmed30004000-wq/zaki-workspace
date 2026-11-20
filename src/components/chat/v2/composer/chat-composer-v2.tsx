@@ -3,6 +3,7 @@
 import React from "react";
 import { PollDialog } from "@/components/chat/composer/poll-dialog";
 import { RecallDialog } from "@/components/chat/composer/recall-dialog";
+import { FeedbackDialog } from "@/components/chat/v2/feedback/feedback-dialog";
 import { ComposerSurface } from "@/components/chat/v2/composer/composer-surface";
 import { DropOverlay } from "@/components/chat/v2/composer/drop-overlay";
 import { PasteSendDialog } from "@/components/chat/v2/composer/paste-dialog";
@@ -30,6 +31,7 @@ export function ChatComposerV2(props: ComposerParams) {
         onCancelReply={onCancelReply}
         onCancelEdit={onCancelEdit}
         recents={recents}
+        formatting={detail.chatFormatting !== false}
         linkPreviews={detail.linkPreviews !== false}
         zakiEmojis={detail.zakiEmojis !== false}
         onNoPreviewChange={c.setNoPreview}
@@ -52,6 +54,15 @@ export function ChatComposerV2(props: ComposerParams) {
             onMessage(message);
           }}
           onInsert={c.insertWords}
+        />
+      ) : null}
+      {detail.me.canRecall ? (
+        <FeedbackDialog
+          open={c.feedback !== null}
+          conversationId={conversationId}
+          initialQuery={c.feedback?.q ?? ""}
+          onClose={() => c.setFeedback(null)}
+          onSent={(messages) => messages.forEach((message) => onMessage(message))}
         />
       ) : null}
       {detail.me.canPoll ? (

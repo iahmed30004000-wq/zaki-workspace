@@ -77,9 +77,11 @@ describe("the bubble's gestures", () => {
     expect(host).toContain("commands.startReply(message)");
   });
 
-  it("the phone's double tap (a quick reaction) is NOT wired: it is a setting of C4, which does not exist yet", () => {
-    expect(bubble).not.toMatch(/onTouchEnd|doubleTap|double_tap/i);
+  it("the phone's double tap (a quick reaction) IS wired since C3w.2 (the setting exists: C4.1): a double CLICK still only replies, and only a finger's taps count", () => {
+    expect(bubble).toContain("gestures.quickReact?.(message, facts)");
+    expect(bubble).not.toMatch(/onTouchEnd/);
     expect(read("src/lib/chat/v2/menu/gestures.ts")).toContain('event.pointerType !== "mouse"');
+    expect(read("src/lib/chat/v2/menu/quick-reactions.ts")).toContain('up.pointerType !== "touch"');
   });
 
   it("nothing is wired for a message that cannot be acted on (deleted, a system line, the owner reading silently)", () => {

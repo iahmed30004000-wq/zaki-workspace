@@ -17,8 +17,8 @@ import { shortcutBridge, type ChatListEntry, type ListSource, type PaneSource } 
  *   Esc                          close the panel, then the search, then back to the list
  *   Ctrl+Shift+?                 the sheet that lists them
  *
- *   Ctrl+0                       «الرسائل المحفوظة» (C3a.3): opens the person's own saved chat (made on first use). It is `savedShortcutOf`, NOT a row of
- *                                `shortcutOf` / `SHORTCUT_ROWS` (those tables are pinned by C2.6's tests: Ctrl+0 is no folder and the sheet lists 8); the hook below asks it first
+ *   Ctrl+0                       «الرسائل المحفوظة» (C3a.3): opens the person's own saved chat (made on first use). C3w.2 folded it into the map: `shortcutOf` answers
+ *                                `{ type: "saved" }` and the sheet lists it (`SHEET_ROWS`: the eight below and this one)
  *
  * NOT here: Ctrl+B / I / U / K, Ctrl+Shift+X / M (formatting) are C3's; «↑ edits my last message» and Esc of a reply or an edit
  * are the composer's (C2.5); Ctrl+K stays the app's palette. The command key (Mac) is never used: a person on a Mac has the browser's own.
@@ -31,7 +31,8 @@ export type ShortcutAction =
   | { type: "folder"; index: number }
   | { type: "search" }
   | { type: "escape" }
-  | { type: "sheet" };
+  | { type: "sheet" }
+  | { type: "saved" };
 
 export interface KeyEventLike {
   key: string;
@@ -58,6 +59,7 @@ export function shortcutOf(e: KeyEventLike): ShortcutAction | null {
     if (e.shiftKey) {
       return e.code === "Slash" || e.key === "?" || e.key === "؟" ? { type: "sheet" } : null;
     }
+    if (savedShortcutOf(e)) return { type: "saved" };
     const digit = DIGIT.exec(e.code);
     if (digit) return { type: "folder", index: Number(digit[1]) - 1 };
     if (e.code === "KeyF") return { type: "search" };
@@ -69,18 +71,17 @@ export function shortcutOf(e: KeyEventLike): ShortcutAction | null {
 
 /**
  * C3a.3 — Ctrl+0 is «المحفوظة». By the PHYSICAL key (`Digit0` / `Numpad0`), so an Arabic layout works the same; never with Alt, Shift or the command key.
- * The registry's one row for the sheet: `SAVED_SHORTCUT` (the sheet draws `SHORTCUT_ROWS`; wiring this row into it is the sheet's own change).
+ * Its row for the sheet is `SAVED_SHORTCUT` (the last of `SHEET_ROWS`).
  */
 export function savedShortcutOf(e: KeyEventLike): boolean {
   if (e.metaKey || e.isComposing || e.defaultPrevented) return false;
   return e.ctrlKey && !e.altKey && !e.shiftKey && (e.code === "Digit0" || e.code === "Numpad0");
 }
-export const SAVED_SHORTCUT = { id: "saved", keys: ["ctrl", "0"], labelKey: "chatsaved.keys.open" } as const;
+export const SAVED_SHORTCUT: ShortcutRow = { id: "saved", keys: ["ctrl", "0"], labelKey: "chatsaved.keys.open" };
 
 /**
  * C4.1 — Ctrl+, (comma) opens «إعداداتي» from anywhere in the app. By the PHYSICAL key (`Comma`), so an Arabic layout works the same; never with Alt, Shift or the
- * command key, and never while an input method is composing. Like `SAVED_SHORTCUT` it is NOT a row of `SHORTCUT_ROWS` (the chat sheet's table is pinned at 8):
- * «إعداداتي» lists it in its own «الاختصارات».
+ * command key, and never while an input method is composing. It is NOT a row of the chat sheet (it opens a page, not a chat action): «إعداداتي» lists it in its own «الاختصارات».
  */
 export function settingsShortcutOf(e: KeyEventLike): boolean {
   if (e.metaKey || e.isComposing || e.defaultPrevented) return false;
@@ -129,6 +130,8 @@ export interface ShortcutDeps {
   toList: () => void;
   focusListSearch: () => void;
   openSheet: () => void;
+  /** Ctrl+0: opens (or makes) the saved chat; false when the key is not ours to take (the company's switch is off, a guest): the browser keeps it */
+  openSaved: () => boolean;
 }
 
 /** Does what the action says. True when the key was ours (the caller then stops the browser's own meaning of it). */
@@ -139,6 +142,8 @@ export function runShortcut(action: ShortcutAction, d: ShortcutDeps): boolean {
   }
   if (d.overlayOpen) return false;
   switch (action.type) {
+    case "saved":
+      return d.openSaved();
     case "chat": {
       if (!d.list) return false;
       const next = neighbourChat(d.list.entries(), d.currentId, action.step, action.unread);
@@ -167,7 +172,7 @@ export function runShortcut(action: ShortcutAction, d: ShortcutDeps): boolean {
 }
 
 /** The sheet's rows, in the order they are listed: the keys (named for the sheet) and the dictionary key of what they do. C4 lists the same table in the settings. */
-export type KeyName = "ctrl" | "alt" | "shift" | "esc" | "up" | "down" | "digits" | "f" | "question";
+export type KeyName = "ctrl" | "alt" | "shift" | "esc" | "up" | "down" | "digits" | "f" | "question" | "0";
 export interface ShortcutRow {
   id: string;
   keys: KeyName[];
@@ -183,6 +188,12 @@ export const SHORTCUT_ROWS: readonly ShortcutRow[] = [
   { id: "escape", keys: ["esc"], labelKey: "chatui.keys.escape" },
   { id: "sheet", keys: ["ctrl", "shift", "question"], labelKey: "chatui.keys.sheet" },
 ];
+
+/**
+ * What the chat sheet lists: the eight rows of C2.6 and Ctrl+0. `SHORTCUT_ROWS` stays the eight (the table «إعداداتي» lists beside `SAVED_SHORTCUT` and `SETTINGS_SHORTCUT`, which it
+ * adds itself); once that screen stops adding the saved row, the row moves into `SHORTCUT_ROWS` and this is the same list.
+ */
+export const SHEET_ROWS: readonly ShortcutRow[] = [...SHORTCUT_ROWS, SAVED_SHORTCUT];
 
 const isEditable = (target: EventTarget | null): boolean => {
   const el = target as HTMLElement | null;
@@ -205,16 +216,6 @@ export function useChatShortcuts(opts: { enabled: boolean; currentId: string | n
   useEffect(() => {
     if (!enabled) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (savedShortcutOf(event)) {
-        // a dialog or a menu that is open keeps the key (the same rule as every other shortcut); a company that switched «المحفوظة» off, or a guest, leaves the browser's own
-        // meaning of the key alone (the list answer says `saved: false`); a held key asks once
-        if (overlayIsOpen()) return;
-        const list = queries?.getQueryData<ListWithSaved>(chatKeys.list());
-        if (list && list.saved === false) return;
-        event.preventDefault();
-        if (!event.repeat) void openSavedChat(live.current.open);
-        return;
-      }
       const action = shortcutOf(event);
       if (!action) return;
       const o = live.current;
@@ -233,6 +234,13 @@ export function useChatShortcuts(opts: { enabled: boolean; currentId: string | n
           field?.select();
         },
         openSheet: o.openSheet,
+        // Ctrl+0: a company that switched «المحفوظة» off, or a guest, leaves the browser's own meaning of the key alone (the cached list says `saved: false`); a held key asks once
+        openSaved: () => {
+          const list = queries?.getQueryData<ListWithSaved>(chatKeys.list());
+          if (list && list.saved === false) return false;
+          if (!event.repeat) void openSavedChat(o.open);
+          return true;
+        },
       });
       if (handled) event.preventDefault();
     };

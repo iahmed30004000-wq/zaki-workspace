@@ -22,10 +22,10 @@ export interface SubtitleModel {
   typing: boolean;
 }
 
-export function subtitleOf(header: ConversationHeaderDto, opts: { typingNames: readonly string[]; now?: Date }): SubtitleModel {
+export function subtitleOf(header: ConversationHeaderDto, opts: { typingNames: readonly string[]; now?: Date; /** C3a.3: the saved chat: nobody types there, so no typing line */ saved?: boolean }): SubtitleModel {
   const state = privacyState(header);
   const privacy = privacyLabel(state, header.memberCount);
-  if (opts.typingNames.length > 0) return { privacy, line: typingText(opts.typingNames, { kind: header.kind === "DM" ? "DM" : "TOPIC" }), typing: true };
+  if (opts.typingNames.length > 0 && opts.saved !== true) return { privacy, line: typingText(opts.typingNames, { kind: header.kind === "DM" ? "DM" : "TOPIC" }), typing: true };
   if (header.kind === "DM") return { privacy, line: dmSubtitle(header, opts.now), typing: false };
   const space = header.space?.name ?? null;
   // an open topic: the space and its people (the count is the header's own, never a guess); a private one has the count in its lock chip already

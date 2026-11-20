@@ -18,7 +18,8 @@ import { listQueryOptions } from "@/lib/chat/cache/queries";
 import { isSavedRow, type ListWithSaved } from "@/lib/chat/v2/menu/menu-context";
 import { openSavedChat } from "@/lib/chat/shortcuts";
 import { shortcutBridge } from "@/lib/chat/v2/menu/shortcut-bridge";
-import { foldersOf, folderBadge, folderKeyOf, isCompanyFolder, listRows, normalizeQuery, rowItems, type ListFolderKey } from "@/lib/chat/list-folders";
+import { folderBadge, isCompanyFolder, listRows, normalizeQuery, rowItems, type ListFolderKey } from "@/lib/chat/list-folders";
+import { customTabKey, folderBadge as customFolderBadge, folderRows, tabKeyOf, tabsOf, type TabKey } from "@/lib/chat/folders";
 import { ct } from "@/lib/chat/text";
 import { chatHref, chatRouteOf, forumShown, nextForumSpace, selectedConversationId } from "@/lib/chat/v2/routes";
 import { useDayKey } from "@/lib/chat/v2/use-day";
@@ -26,7 +27,7 @@ import { useForumHolds } from "@/lib/chat/v2/use-forum";
 import { useChatOrders } from "@/lib/chat/v2/use-orders";
 import { cn } from "@/lib/utils";
 import { CompanyRows } from "./company-rows";
-import { FolderRail, FolderTabs } from "./folder-tabs";
+import { FolderRail, FolderTabs, useChatPrefs } from "./folder-tabs";
 import { ListHeader } from "./list-header";
 import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
 import { ListEmpty, ListError, ListSkeleton } from "./list-states";
@@ -156,22 +157,28 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const hasSaved = list.rows.some((row) => isSavedRow(row, userId));
   const summary = useChatUnreadSummary();
   const orders = useChatOrders(!guest);
-  const [folderKey, setFolderKey] = useState<ListFolderKey>("all");
+  const [folderKey, setFolderKey] = useState<TabKey>("all");
+  // C3a.2: the person's own folders and the built-in tabs they hid (nothing of either until the prefs have come, or while the company's switch is off)
+  const prefs = useChatPrefs();
   const [query, setQuery] = useState("");
   const [newDm, setNewDm] = useState(false);
   const [creatingSpace, setCreatingSpace] = useState(false);
 
   // C3a.1: «الأرشيف» is offered only while the switch is on AND the person has a chat they archived (the server sends none as archived while it is off)
   const archived = list.personal && list.archivedRows.length > 0;
-  const folders = useMemo(() => foldersOf({ canOversee: list.canOversee, guest, archived }), [list.canOversee, guest, archived]);
-  const folder = folderKeyOf(folderKey, folders);
-  const company = isCompanyFolder(folder);
+  const folders = useMemo(() => tabsOf({ canOversee: list.canOversee, guest, archived, folders: prefs.folders, hidden: prefs.hidden }), [list.canOversee, guest, archived, prefs.folders, prefs.hidden]);
+  const folder = tabKeyOf(folderKey, folders);
+  // one of the person's own folders (its definition), or none: the tabs are the built-in ones plus theirs, and `folder` is the key of one of them
+  const custom = useMemo(() => prefs.folders.find((f) => customTabKey(f.id) === folder) ?? null, [prefs.folders, folder]);
+  const builtin = custom ? null : (folder as ListFolderKey);
+  const company = builtin !== null && isCompanyFolder(builtin);
   const words = normalizeQuery(query);
 
-  const rows = useMemo(
-    () => (isCompanyFolder(folder) ? [] : listRows(folder === "archived" ? list.archivedRows : list.rows, { scope: list.scope, spaceId: list.spaceId, folder, query: words, orders })),
-    [list.rows, list.archivedRows, list.scope, list.spaceId, folder, words, orders],
-  );
+  const rows = useMemo(() => {
+    if (custom) return folderRows(list.rows, custom, { scope: list.scope, spaceId: list.spaceId }, { query: words, orders });
+    if (builtin === null || isCompanyFolder(builtin)) return [];
+    return listRows(builtin === "archived" ? list.archivedRows : list.rows, { scope: list.scope, spaceId: list.spaceId, folder: builtin, query: words, orders });
+  }, [list.rows, list.archivedRows, list.scope, list.spaceId, custom, builtin, words, orders]);
   const items = useMemo(() => rowItems(rows), [rows]);
 
   // C2.6: the keyboard (Alt+↑/↓, Alt+Shift+↑/↓, Ctrl+1…9) reads the rows in the order they are drawn and the folders of THIS list. A space row is not a
@@ -190,7 +197,16 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       }),
     [],
   );
-  const badges = useMemo(() => Object.fromEntries(folders.map((f) => [f.key, folderBadge(summary, f.key)])) as Partial<Record<ListFolderKey, number>>, [folders, summary]);
+  const badges = useMemo(
+    () =>
+      Object.fromEntries(
+        folders.map((f) => {
+          const def = prefs.folders.find((x) => customTabKey(x.id) === f.key);
+          return [f.key, def ? customFolderBadge(list.rows, def) : folderBadge(summary, f.key as ListFolderKey)];
+        }),
+      ) as Partial<Record<TabKey, number>>,
+    [folders, summary, prefs.folders, list.rows],
+  );
 
   // the list of ONE space (D-N2 «كل مساحة حساب»): its topics have no manager flag of their own, so the space's own view says whether the viewer manages it
   const oneSpace = useChatSpace(list.scope === "space" ? list.spaceId : null);
@@ -212,7 +228,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {tall ? (
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
-        <PhoneListBar title={ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
+        <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
       ) : (
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
       )}
@@ -234,7 +250,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       ) : list.isError && list.rows.length === 0 ? (
         <ListError onRetry={() => void list.refetch()} />
       ) : rows.length === 0 ? (
-        <ListEmpty folder={folder} query={words} {...(canCreateSpace && folder === "all" && !words ? { onCreateSpace: () => setCreatingSpace(true) } : {})} />
+        <ListEmpty folder={custom ? "custom" : (folder as ListFolderKey)} query={words} {...(canCreateSpace && folder === "all" && !words ? { onCreateSpace: () => setCreatingSpace(true) } : {})} />
       ) : (
         <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
       )}

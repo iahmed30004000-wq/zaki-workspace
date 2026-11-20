@@ -46,9 +46,9 @@ export function setSoundsEnabled(on: boolean, storage: SoundStorage | null = def
   }
 }
 
-/** Which sound a newly arrived message makes (null: none). Opening a conversation, my own message and a system line are silent. */
-export function soundOfArrival(opts: { mine: boolean; opening: boolean; mentionsMe: boolean; kind: string }): ChatSound | null {
-  if (opts.mine || opts.opening || opts.kind === "SYSTEM") return null;
+/** Which sound a newly arrived message makes (null: none). Opening a conversation, my own message, a system line and a message sent «بدون صوت» are silent. */
+export function soundOfArrival(opts: { mine: boolean; opening: boolean; mentionsMe: boolean; kind: string; /** C3c.2: «ابعت بدون صوت»: the sender chose silence, so this device makes none either (a mention included) */ silent?: boolean }): ChatSound | null {
+  if (opts.mine || opts.opening || opts.kind === "SYSTEM" || opts.silent === true) return null;
   return opts.mentionsMe ? "mention" : "received";
 }
 

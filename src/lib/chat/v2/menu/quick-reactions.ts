@@ -34,6 +34,16 @@ export function shouldQuickReact(emoji: string | null, reactions: ReadonlyArray<
 }
 
 /**
+ * What a double tap puts on a message: the person's emoji (`doubleTapEmojiOf`), or null when there is none, when their own reaction with it is already there, or when
+ * they may not post here (the bubble asks only where it may act; the server decides again).
+ */
+export function doubleTapReactionOf(i: { preference?: string | null; reactions: ReadonlyArray<{ emoji: string; mine: boolean }>; canPost: boolean }): string | null {
+  if (!i.canPost) return null;
+  const emoji = doubleTapEmojiOf(i.preference);
+  return shouldQuickReact(emoji, i.reactions) ? emoji : null;
+}
+
+/**
  * The phone's DOUBLE TAP, as a pure tracker over the touch presses of ONE bubble: `last` is the previous tap (or null), `up` the pointer that just went up. A tap is
  * a quick press of a FINGER (a long press is the sheet's; a pen and a mouse are not taps — a double CLICK only replies) on something that does not do its own
  * thing (a link, a button, a player, a field). The second tap within `DOUBLE_TAP_MS` and `DOUBLE_TAP_SLOP` pixels of the first is a double tap and resets the

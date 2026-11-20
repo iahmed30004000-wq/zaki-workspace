@@ -19,7 +19,8 @@ import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { ASK_KIND_KEY, askKindOf, menuContextV2 } from "@/lib/chat/v2/menu/menu-context";
 import { copyText } from "@/lib/chat/v2/menu/clipboard";
 import { messageLinkOf } from "@/lib/chat/v2/menu/message-link";
-import { quickReactionsOf } from "@/lib/chat/v2/menu/quick-reactions";
+import { doubleTapReactionOf, quickReactionsOf } from "@/lib/chat/v2/menu/quick-reactions";
+import { readDevicePrefs } from "@/lib/device-prefs";
 import { ct } from "@/lib/chat/text";
 
 /**
@@ -86,11 +87,16 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
     }),
     [commands, askKind, conversationId],
   );
-  // a double click on a bubble replies where the registry offers «رد» (one object for the life of the pane: it holds the commands only)
+  // a double click on a bubble replies where the registry offers «رد», a double tap of a finger reacts (one object for the life of the pane: it holds the commands only)
   const gestures = React.useMemo<BubbleGestures>(
     () => ({
       reply: (message, facts) => {
         if (menuFor(menuContextV2(message, facts, { readerCount: 0, askKind: false })).some((item) => item.id === "reply")) commands.startReply(message);
+      },
+      // C4.1: the phone's double tap = the person's quick reaction (none chosen: nothing happens). The choice is read from this device's copy at the moment of the tap.
+      quickReact: (message, facts) => {
+        const emoji = doubleTapReactionOf({ preference: readDevicePrefs().mirror?.doubleTap, reactions: message.reactions, canPost: facts.canPost });
+        if (emoji) void commands.react(message, emoji);
       },
     }),
     [commands],
@@ -169,9 +175,6 @@ function ForwardHost() {
   );
 }
 
-/** The six quick reactions (today's six; C4's setting will give the person's own). */
-const QUICK = quickReactionsOf();
-
 /** «مين شاف»: today's reader list of THIS message (the people whose newest read message it is), in a small window. */
 function SeenDialog({ readers, onClose }: { readers: ReaderDto[]; onClose: () => void }) {
   return (
@@ -191,6 +194,10 @@ function MessageMenuSlot({ message, facts, sheetOpen, setSheetOpen, menuOpen, se
   const { act, askKind } = useMenuDialogs();
   const commands = usePaneCommands();
   const [seen, setSeen] = React.useState(false);
+  // C4.1: the person's own six (this device's copy of their choice), read each time a menu opens so a change in «إعداداتي» applies at once
+  const asked = menuOpen || sheetOpen;
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- read again each time a menu opens or closes: the device's copy is not React state
+  const quick = React.useMemo(() => quickReactionsOf(), [asked]);
   const readerCount = readers.length;
   const context = React.useMemo(() => menuContextV2(message, facts, { readerCount, askKind }), [message, facts, readerCount, askKind]);
   const onAction = (id: MessageMenuId) => {
@@ -204,7 +211,7 @@ function MessageMenuSlot({ message, facts, sheetOpen, setSheetOpen, menuOpen, se
     <>
       <MessageMenuV2
         context={context}
-        quick={QUICK}
+        quick={quick}
         onAction={onAction}
         onReact={(emoji) => void commands.react(message, emoji)}
         sheetOpen={sheetOpen}

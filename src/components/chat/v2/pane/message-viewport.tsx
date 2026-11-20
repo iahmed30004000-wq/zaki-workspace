@@ -3,7 +3,7 @@
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationHeaderDto, ReaderDto } from "@/server/chat/dto";
-import { JumpButtons, StickyDateChip } from "@/components/chat/v2/pane/floating";
+import { JumpButtons, StickyDateChip, useMentionsWalk } from "@/components/chat/v2/pane/floating";
 import { usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { useMessageMenu } from "@/components/chat/v2/pane/seams/menu-host";
 import { CallsDialog } from "@/components/chat/v2/pane/service-rows";
@@ -22,7 +22,7 @@ import { ct } from "@/lib/chat/text";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { arrivalSoundOf } from "@/lib/chat/v2/pane/arrival-sound";
-import { jumpButtonsOf, mentionTargetsOf, mentionsButtonOf } from "@/lib/chat/v2/pane/jump-model";
+import { jumpButtonsOf, mentionTargetsOf } from "@/lib/chat/v2/pane/jump-model";
 import { stableReaders } from "@/lib/chat/v2/pane/readers";
 import { useReadMarking } from "@/lib/chat/v2/pane/use-read-marking";
 import { useMessageViewport } from "@/lib/chat/viewport/use-message-viewport";
@@ -95,11 +95,11 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
   }, [history.messages, history.ready, history.epoch, history.hasNewer, facts.meId]);
 
   // ---- the jump buttons
-  const [visited, setVisited] = React.useState<string[]>([]);
   const unreadMentions = row?.mentionsUnread ?? 0;
   const targets = React.useMemo(() => mentionTargetsOf(history.messages, facts.meId, unreadMentions), [history.messages, facts.meId, unreadMentions]);
   const { down } = jumpButtonsOf({ atBottom: v.atBottom, atNewest: history.atNewest, unread: row?.unread ?? 0, newBelow: v.newBelow });
-  const mentions = mentionsButtonOf({ mentionsUnread: unreadMentions, targets, visited });
+  // C3b.6: the «@» walks the SERVER's list of unread mentions (oldest to newest, even the ones far above the loaded window); the loaded ones are the fallback
+  const walk = useMentionsWalk({ conversationId, unread: unreadMentions, loaded: targets, jumpTo: commands.jumpTo, toNewest: history.backToNewest });
 
   // ---- what the rows share
   const outboxOn = header.chatOutbox !== false && header.me.canPost && !header.me.oversight;
@@ -156,14 +156,9 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
       <StickyDateChip label={stickyLabel} visible={scrolling} />
       <JumpButtons
         down={down}
-        mentions={mentions}
+        mentions={walk.mentions}
         onDown={() => (history.atNewest ? v.scrollToBottom(true) : history.backToNewest())}
-        onMention={() => {
-          if (mentions.target) {
-            setVisited((list) => [...list, mentions.target!]);
-            commands.jumpTo(mentions.target);
-          } else void history.backToNewest();
-        }}
+        onMention={walk.onMention}
       />
       {!history.ready && !history.error ? (
         <p role="status" className="pointer-events-none absolute inset-x-0 top-1/2 text-center text-sm text-fg-muted">

@@ -174,9 +174,12 @@ describe("the strings of the new chat screen", () => {
   });
 
   it("no key is dead: each one is used by the code (literally or through the keys built above)", () => {
+    // C3w.2: «chatui.pane.on» / «chatui.pane.off» were the words of the header's sound toggle; the toggle is «أصوات الدردشة جوا التطبيق» in «إعداداتي» now (its own words),
+    // and the two lines stay in the registry (it is append-only): retired, not dead by mistake
+    const retired = new Set(["chatui.pane.on", "chatui.pane.off"]);
     const dynamic = [/^chatui\.folder\./, /^chatui\.row\.ticks_/, /^chatui\.empty\./, /^chatui\.row\.(private|team|announcements|closed|muted)$/, /^chatui\.row\.unread\./, /^chatui\.forum\.topics\./];
     const code = sources.filter((s) => !s.file.endsWith(".json") && !s.file.startsWith("src/lib/i18n/")).map((s) => s.src).join("\n");
-    const dead = keys.filter((key) => !code.includes(key) && !dynamic.some((re) => re.test(key)));
+    const dead = keys.filter((key) => !code.includes(key) && !retired.has(key) && !dynamic.some((re) => re.test(key)));
     expect(dead).toEqual([]);
   });
 });

@@ -11,6 +11,8 @@ import { clearComposerDraft, loadComposerDraft, saveComposerDraft } from "@/lib/
 import { compressImage, maxSideFor } from "@/lib/chat/compress-image";
 import { readDevicePrefs } from "@/lib/device-prefs";
 import { sendKeyAllows } from "@/lib/chat/prefs";
+import { isSavedHeader } from "@/lib/chat/v2/menu/menu-context";
+import { scheduledPlanOf } from "@/lib/chat/v2/composer/scheduled-plan";
 import { createChatUploadFormData, createVoiceUploadFormData, enterSends, messageClientId } from "@/lib/chat/conversation/client";
 import { ASSISTANT_MENTION_ID, filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
 import { classifyFile, exceedsKindLimit, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/chat/file-kinds";
@@ -20,6 +22,7 @@ import { startOptimisticSend } from "@/lib/chat/outbox/optimistic";
 import type { Outbox } from "@/lib/chat/outbox/queue";
 import { postChatMessage, SEND_TIMEOUT_MS, type ChatSendPayload } from "@/lib/chat/outbox/send";
 import { slashCommand, type RecallKind } from "@/lib/chat/recall-client";
+import { feedbackCommand } from "@/lib/chat/v2/feedback/feedback-model";
 import { playChatSound } from "@/lib/chat/sounds";
 import { ct } from "@/lib/chat/text";
 import { uploadWithProgress } from "@/lib/chat/upload-with-progress";
@@ -77,6 +80,8 @@ export function useComposer(p: ComposerParams) {
   /** C3b.2: ✕ was pressed on the preview of the link in the box (the surface reports it): the send carries `noPreview` and the server never visits the link */
   const [noPreview, setNoPreview] = React.useState(false);
   const [recall, setRecall] = React.useState<{ kind: RecallKind | null; q: string } | null>(null);
+  /** C3w.2 (Q1.3): «/آراء حراك» (or the button beside «⚡») opens the customers' feedback picker; `q` is what was typed after the word */
+  const [feedback, setFeedback] = React.useState<{ q: string } | null>(null);
   // C3c.3 «جدول الإرسال»: the person's own scheduled messages of this conversation (null: not loaded, the company's switch is off, or they may not schedule here), the two dialogs, and what an action says
   const [scheduledList, setScheduledList] = React.useState<ScheduledAnswer | null>(null);
   const [scheduleDialog, setScheduleDialog] = React.useState<{ edit: ScheduledItem | null } | null>(null);
@@ -384,20 +389,36 @@ export function useComposer(p: ComposerParams) {
   // ---------- C3c.3 «جدول الإرسال» ----------
   const scheduledUrl = `/api/chat/conversations/${encodeURIComponent(conversationId)}/scheduled`;
   // the list is read when the conversation opens (a 404 is the company's switch off, or no right to write: no icon, no menu entry); a person who only reads in silence never asks
-  const scheduledAsk = !detail.me.oversight && meId !== "";
-  async function refreshScheduled(): Promise<void> {
+  // C3w.2: the HEADER says whether the entry is on offer and how many rows wait (`header.scheduled`, absent: off or may not write); the list is read only when some wait,
+  // or when the person opens the dialog or the list (the company's zone comes with it) — no request for every conversation that opens
+  const plan = scheduledPlanOf({ scheduled: detail.scheduled, oversight: detail.me.oversight, meId });
+  // the conversation the person is in NOW (an answer for the one they left is nobody's) and whether a list is here (read while rendering, like `live` elsewhere)
+  const activeConversation = React.useRef(conversationId);
+  activeConversation.current = conversationId;
+  const listHere = React.useRef(false);
+  listHere.current = scheduledList !== null;
+  async function refreshScheduled(): Promise<ScheduledAnswer | null> {
+    const asked = conversationId;
     try {
       const response = await fetch(scheduledUrl, { cache: "no-store" });
-      setScheduledList(response.ok ? ((await response.json()) as ScheduledAnswer) : null);
+      const list = response.ok ? ((await response.json()) as ScheduledAnswer) : null;
+      if (activeConversation.current !== asked) return null;
+      setScheduledList(list);
+      return list;
     } catch {
       // the network is gone: the icon keeps what it had and the next action asks again
+      return null;
     }
   }
   React.useEffect(() => {
+    listHere.current = false;
     setScheduledList(null);
     setScheduledOpen(false);
     setScheduleDialog(null);
-    if (!scheduledAsk) return;
+  }, [conversationId, meId]);
+  React.useEffect(() => {
+    // read at the opening when the header says some wait, and read again when its number moves while a list is here (a row went out elsewhere): never otherwise
+    if (!plan.loadOnOpen && !listHere.current) return;
     let live = true;
     void fetch(scheduledUrl, { cache: "no-store" })
       .then(async (response) => (response.ok ? ((await response.json()) as ScheduledAnswer) : null))
@@ -408,8 +429,8 @@ export function useComposer(p: ComposerParams) {
     return () => {
       live = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked again when the conversation or the person changes
-  }, [conversationId, scheduledAsk]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- asked again when the conversation, the person or the header's number changes
+  }, [conversationId, plan.loadOnOpen, plan.count]);
   React.useEffect(() => {
     if (!scheduleNotice) return;
     const timer = setTimeout(() => setScheduleNotice(""), 6000);
@@ -421,10 +442,19 @@ export function useComposer(p: ComposerParams) {
   };
 
   /** «جدول الإرسال» from the send button's menu: asks WHEN (the dialog), then `scheduleNow`. Never while an edit is saved or with nothing to send. */
-  function openScheduleDialog() {
-    if (editing || scheduledList?.canSchedule !== true || (!body.trim() && !files.length)) return;
+  async function openScheduleDialog() {
+    if (editing || !plan.entry || (!body.trim() && !files.length)) return;
     setError("");
+    // the company's zone is in the list: read it now when the header's number did not make us read it at the opening
+    const list = scheduledList ?? (await refreshScheduled());
+    if (activeConversation.current !== conversationId) return;
+    if (!list || list.canSchedule !== true) return void setError(ct("chat.sched.e.action_failed"));
     setScheduleDialog({ edit: null });
+  }
+  /** The calendar icon opens the list; it is read first when nothing was read yet. */
+  function showScheduled(open: boolean) {
+    setScheduledOpen(open);
+    if (open && !scheduledList) void refreshScheduled();
   }
   /** The dialog's «جدول»: the files go up, then ONE row is made with the words, the mentions and the moment. The box is emptied like after a send; a failure comes back as a sentence for the dialog. */
   async function scheduleNow(input: ScheduleSubmit): Promise<string | null> {
@@ -668,10 +698,14 @@ export function useComposer(p: ComposerParams) {
     // a finished «/» command opens the menu and leaves the box empty (what was typed is the command, not a message)
     const command = !editing && detail.me.canRecall ? slashCommand(text, detail.me.recallKinds) : null;
     if (command) { setRecall(command); setBody(""); keepDraft("", mentions); return; }
+    // «/آراء حراك»: the same for the feedback picker, where the person may use the product sheets at all
+    const feedbackAsk = !editing && detail.me.canRecall && detail.me.recallKinds?.includes("product") ? feedbackCommand(text) : null;
+    if (feedbackAsk) { setFeedback(feedbackAsk); setBody(""); keepDraft("", mentions); return; }
     setClientId(messageClientId());
     setBody(text);
     keepDraft(text, mentions);
-    if (!editing && text.trim()) notifyTyping();
+    // C3a.3: nobody types to anybody in the saved chat
+    if (!editing && text.trim() && !isSavedHeader(detail)) notifyTyping();
   }
   function onKeyDown(event: React.KeyboardEvent<HTMLTextAreaElement>) {
     const composing = event.nativeEvent.isComposing;
@@ -723,14 +757,14 @@ export function useComposer(p: ComposerParams) {
     canSubmit: canSubmitNow({ text: body, fileCount: files.length, editing: editing !== null, voiceOn, busy }),
     choices, pickAt, setPick,
     hint: composerHintOf(body, detail, editing !== null),
-    pollOpen, setPollOpen, recall, setRecall, pasted, setPasted, noPreview, setNoPreview,
+    pollOpen, setPollOpen, recall, setRecall, feedback, setFeedback, pasted, setPasted, noPreview, setNoPreview,
     textRef, mediaInput, fileInput,
     addFiles, addDropped: (list: ArrayLike<File>, asFile: boolean) => addFiles(forDropMode(list, asFile ? "files" : "media")), removeFile, selectMention, insertAtCaret,
     onTextChange, onKeyDown, onPaste, submit, submitSilent, silentSendOn: detail.silentSend !== false, sendPasted,
     // C3c.3: the send menu's «جدول الإرسال» (only where the person may write and the company's switch is on), the dialogs and the list
-    scheduling: !editing && scheduledList?.canSchedule === true, scheduledItems: scheduledList?.items ?? [], scheduledZone: scheduledList?.timeZone ?? "UTC",
+    scheduling: !editing && plan.entry && scheduledList?.canSchedule !== false, scheduledCount: scheduledList ? scheduledList.items.length : plan.count, scheduledItems: scheduledList?.items ?? [], scheduledZone: scheduledList?.timeZone ?? "UTC",
     scheduleDialog, closeScheduleDialog: () => setScheduleDialog(null), openScheduleDialog, scheduleNow, saveScheduledEdit,
-    scheduledOpen, setScheduledOpen, scheduledBusy, scheduledError, scheduleNotice, beginEditScheduled, sendScheduledNow, deleteScheduled,
+    scheduledOpen, setScheduledOpen: showScheduled, scheduledBusy, scheduledError, scheduleNotice, beginEditScheduled, sendScheduledNow, deleteScheduled,
     startRecording, cancelRecording, sendVoice, onMicPointerDown, onMicClick,
     insertWords: (text: string) => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); },
     setDismissed,
