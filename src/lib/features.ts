@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "zakiEmojis"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -341,6 +341,7 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // refused and reported, the rest still happen), every change is a line in the task's log and NOTHING is deleted (an archive is the flag Task.archived). A task that came in through the door from another system or an agent carries a small «آلي»
   // mark, is counted apart from people's own work and can be hidden from the list (the owner's answer D-W4 is pending: this is the recommended default). OFF by default: off, the page and its route answer «not found».
   workStaleSweep: false,
+  zakiEmojis: true,
   // «المظهر الجديد افتراضي» (src/lib/themes/boot.ts, D1's `systemTheme()`, C4.1): for a person who NEVER chose a theme, and for «تلقائي حسب الجهاز» (a choice in «إعداداتي»), the device
   // decides between the two flat themes — «ليل أزرق» for a dark device, «سماء» for a light one — instead of «ليل» for everybody. OFF until the owner turns it on: a person who never chose
   // stays on «ليل» exactly as today (`DEFAULT_THEME` and the installed app's colours never change), and «تلقائي حسب الجهاز» then picks between «ليل» and «نهار». Nobody who CHOSE a theme is moved.
@@ -520,6 +521,7 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   workStages: { group: "work" },
   workMyTasks: { group: "work" },
   workStaleSweep: { group: "work" },
+  zakiEmojis: { group: "chat" },
   backgroundNudges: { group: "work" },
   // المكتبة
   libraryDrive: { group: "library" },
