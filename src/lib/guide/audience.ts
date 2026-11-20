@@ -6,7 +6,7 @@
  * Three levels, each including the one before:
  *   everyone  - every signed-in person, an external partner (guest) included
  *   staff     - the team: everybody except a guest
- *   managers  - whoever manages people (the `users.manage` switch; the owner holds every switch)
+ *   managers  - whoever manages people: holds ONE of the switches in `MANAGER_CAPABILITIES` (the owner holds every switch)
  *
  * The same word describes the article and the viewer: a guest's level is "everyone" (they may read
  * what is for everyone and nothing above), a member's is "staff", a people manager's is "managers".
@@ -23,6 +23,13 @@ export function canRead(viewer: Audience, required: Audience): boolean {
   return LEVEL[required] <= LEVEL[viewer];
 }
 
+/**
+ * The switches that make somebody a «manager» for the guide: accounts, the reporting lines, the performance reviews and the
+ * team's board. An EXPLICIT list (A1.3): `users.manage` means accounts and nothing more, so the guide no longer borrows it
+ * as a stand-in for «manages people». Adding a people-management switch means adding it here, in one line.
+ */
+export const MANAGER_CAPABILITIES = ["users.manage", "people.manage_lines", "people.review", "board.team"] as const;
+
 /** What the guide needs to know about the signed-in person (an `Actor` fits as it is). */
 export interface ViewerFacts {
   isExternal: boolean;
@@ -36,11 +43,11 @@ function holds(caps: ViewerFacts["caps"], capability: string): boolean {
 
 /**
  * The guide level of a person. An external partner is "everyone" whatever else their row says;
- * whoever holds `users.manage` is a manager (the switch decides, not the rank); the rest are staff.
+ * whoever holds one of `MANAGER_CAPABILITIES` is a manager (the switches decide, not the rank); the rest are staff.
  */
 export function audienceOf(actor: ViewerFacts): Audience {
   if (actor.isExternal) return "everyone";
-  return holds(actor.caps, "users.manage") ? "managers" : "staff";
+  return MANAGER_CAPABILITIES.some((capability) => holds(actor.caps, capability)) ? "managers" : "staff";
 }
 
 /**

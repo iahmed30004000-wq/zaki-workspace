@@ -53,7 +53,7 @@
   "members.f_title": "المسمّى الوظيفي (اختياري)",
   "members.f_email": "البريد الإلكتروني (اختياري)",
   "members.f_manager": "المسؤول المباشر",
-  "members.manager_owner": "المالك (الافتراضي)",
+  "members.manager_owner": "بدون مسؤول مباشر",
   "members.more_options": "خيارات إضافية (اختيارية)",
   "members.f_spaces": "المساحات التي سيراها",
   "members.f_spaces_hint": "لا يرى الشخص إلا المساحات التي تضعه فيها.",

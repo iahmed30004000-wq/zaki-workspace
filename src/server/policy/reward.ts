@@ -1,4 +1,20 @@
 import { isRewardTaskStatus } from "@/lib/rewards";
+import type { Capability } from "@/server/policy/capabilities";
+
+/**
+ * What the callers hand in: the rank (read from the database, never from a cookie) and, since A1.3, the person's effective
+ * capabilities. With `caps` the OWNER rank also needs the section's box (`tasks.edit`), so a partner who lost it is refused;
+ * without `caps` (a caller that has not been moved yet) the rank alone decides, as before.
+ */
+export interface RewardActor {
+  isOwner: boolean;
+  caps?: ReadonlySet<Capability>;
+}
+
+/** The section the reward lives in is the tasks'; its «يضيف ويعدّل» box is the one a partner can lose. */
+const REWARD_CAPABILITY: Capability = "tasks.edit";
+
+const holdsRewardSection = (actor: RewardActor): boolean => actor.caps === undefined || actor.caps.has(REWARD_CAPABILITY);
 
 /**
  * «مهمة بمكافأة» — who may touch a task that carries a reward. ONE function, called from the service layer, so every door
@@ -11,13 +27,14 @@ import { isRewardTaskStatus } from "@/lib/rewards";
  *
  * Pure: the callers hand in whether the actor is an owner (read from the database, never from a cookie).
  */
-export function canEditRewardTask(actor: { isOwner: boolean }, task: { rewardStatus: string | null | undefined }): boolean {
-  return actor.isOwner || !isRewardTaskStatus(task.rewardStatus);
+export function canEditRewardTask(actor: RewardActor, task: { rewardStatus: string | null | undefined }): boolean {
+  if (!isRewardTaskStatus(task.rewardStatus)) return true;
+  return actor.isOwner && holdsRewardSection(actor);
 }
 
 /** Who may create a reward, or change what a reward is: the OWNER rank, whatever the task is. */
-export function canSetReward(actor: { isOwner: boolean }): boolean {
-  return actor.isOwner;
+export function canSetReward(actor: RewardActor): boolean {
+  return actor.isOwner && holdsRewardSection(actor);
 }
 
 /**

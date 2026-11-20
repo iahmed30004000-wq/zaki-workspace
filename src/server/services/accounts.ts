@@ -185,7 +185,21 @@ interface Target {
 }
 
 /** The caller as far as rank goes (the primary owner also administers the partners). */
-const rankedActor = (actor: Actor) => ({ role: actor.role, primaryOwner: actor.isPrimaryOwner === true });
+const rankedActor = (actor: Pick<Actor, "role" | "isPrimaryOwner">) => ({ role: actor.role, primaryOwner: actor.isPrimaryOwner === true });
+
+/**
+ * THE rank limit of every door that edits a person: the caller may only touch somebody they outrank (the primary owner also
+ * the partners, nobody him): 403 `orgm.role_denied`. The account screens use it, and so does «الهيكل» (`team-lines.ts`,
+ * A1.3 / D-A5): one rule, one place, whichever screen edits `managerId`.
+ */
+export function assertRankMayAdminister(actor: Actor, target: { role: OrgRole; primaryOwner?: boolean | null }): void {
+  if (!canAdministratePerson(rankedActor(actor), { role: target.role, primaryOwner: target.primaryOwner === true })) throw new ForbiddenError("orgm.role_denied");
+}
+
+/** The same question without the refusal: the screens hide a control the server would refuse. */
+export function mayAdministerRank(actor: Pick<Actor, "role" | "isPrimaryOwner">, target: { role: OrgRole; primaryOwner?: boolean | null }): boolean {
+  return canAdministratePerson(rankedActor(actor), { role: target.role, primaryOwner: target.primaryOwner === true });
+}
 
 /**
  * The person an action is about: never the caller (403 `accounts.self_denied`; their own password
@@ -208,7 +222,7 @@ async function administrableTarget(actor: Actor, userId: string): Promise<Target
     },
   });
   if (!row) throw new NotFoundError("orgm.not_member");
-  if (!canAdministratePerson(rankedActor(actor), row)) throw new ForbiddenError("orgm.role_denied");
+  assertRankMayAdminister(actor, row);
   return {
     id: row.id,
     userId,

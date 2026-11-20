@@ -10,7 +10,8 @@ import { subtreeOf, type ManagerMap } from "@/lib/team-development";
  * `devAccess` and nothing else; a service never decides access on its own.
  *
  *   owner        the OWNER rank (the primary owner and his partners: `actor.isOwner`): every person, every record, silently
- *                (reading leaves no audit row, no notification, no «seen»).
+ *                (reading leaves no audit row, no notification, no «seen»). ENTERING and the lines are the two capabilities
+ *                below, which the primary owner holds and a partner holds unless they were taken away (A1.3).
  *   supervisor   anybody with at least one ACTIVE report: READS their subtree (direct and indirect) whatever their rank is.
  *                ENTERING anything about somebody else (skills, reviews, plans, notes) also needs `people.review`.
  *   lines        `people.manage_lines` («الهيكل»): sets who answers to whom and keeps the skills checklist. It reads the
@@ -32,9 +33,9 @@ export interface DevAccess {
   isOwner: boolean;
   /** At least one ACTIVE report. */
   isSupervisor: boolean;
-  /** Sets the lines and keeps the skills catalogue (the owner, or `people.manage_lines`). */
+  /** Sets the lines and keeps the skills catalogue (`people.manage_lines`: the owner rank holds it unless it was taken from a partner). */
   canManageLines: boolean;
-  /** Enters skills, reviews, plans and notes about people in reach (the owner, or `people.review`). */
+  /** Enters skills, reviews, plans and notes about people in reach (`people.review`: the owner rank holds it unless it was taken from a partner). */
   canReview: boolean;
   /** The people below the viewer, ACTIVE staff only; null for the owner (everybody). Never contains the viewer. */
   reach: ReadonlySet<string> | null;
@@ -71,8 +72,9 @@ export async function devAccess(actor: Actor): Promise<DevAccess> {
     viewerRole: actor.role,
     isOwner: actor.isOwner,
     isSupervisor: below.length > 0,
-    canManageLines: actor.isOwner || actor.caps.has("people.manage_lines"),
-    canReview: actor.isOwner || actor.caps.has("people.review"),
+    // the capability alone: the owner rank holds both (the primary owner always, a partner unless they were taken away)
+    canManageLines: actor.caps.has("people.manage_lines"),
+    canReview: actor.caps.has("people.review"),
     reach,
     managerOf,
     members,
@@ -107,8 +109,8 @@ export function readsAsReviewer(access: DevAccess, userId: string): boolean {
  */
 export function mayEnterFor(access: DevAccess, userId: string): boolean {
   if (userId === access.viewerId) return false;
-  if (access.isOwner) return access.staff.has(userId);
-  return access.canReview && (access.reach?.has(userId) ?? false);
+  if (!access.canReview) return false;
+  return access.isOwner ? access.staff.has(userId) : (access.reach?.has(userId) ?? false);
 }
 
 export function assertMayEnterFor(access: DevAccess, userId: string): void {

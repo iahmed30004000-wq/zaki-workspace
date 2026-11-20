@@ -4,11 +4,11 @@ import { getServerT } from "@/lib/i18n/server";
 import { pageActor } from "@/app/(app)/_access";
 import { NotFoundError } from "@/server/auth";
 import { loadStructure } from "@/server/services/team-lines";
-import { StructureTree } from "@/components/team-development/structure-tree";
+import { StructureTree } from "@/components/structure/structure-tree";
 
 /**
  * «الهيكل» — who answers to whom. One page, three readers (src/server/policy/team-development.ts decides which):
- *   the owner and whoever holds `people.manage_lines`  the whole company's tree, with «غيّر المسؤول» and the people nobody answers for;
+ *   the owner and whoever holds `people.manage_lines`  the whole company's tree, with «غيّر المسؤول» (the shared `ManagerPicker`, for the people the viewer outranks) and the people nobody answers for;
  *   a supervisor                                       themselves and the people below them;
  *   everybody else                                     only their own supervisor and the names of their team mates.
  * An external partner, or the company with «الأداء والتطوير» switched off, gets «not found». Reading writes nothing.
@@ -32,7 +32,7 @@ export default async function StructurePage() {
         <h2 className="mb-2 font-medium">{t("teamdev.structure.mine")}</h2>
         <p>
           <span className="text-fg-muted">{t("teamdev.structure.my_supervisor")}: </span>
-          {me.supervisor ? <span data-my-supervisor>{me.supervisor.name}</span> : <span className="text-fg-muted">{t("teamdev.structure.no_supervisor")}</span>}
+          {me.supervisor ? <span data-my-supervisor>{me.supervisor.name}</span> : <span className="text-fg-muted">{t("members.manager_owner")}</span>}
         </p>
         {me.teamMates.length > 0 ? (
           <p className="mt-1 leading-7">

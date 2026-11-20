@@ -8,7 +8,11 @@ import { featureOn, type FeatureKey } from "@/lib/features";
  */
 export const CAPABILITIES = [
   "spaces.create", // open a new space and choose its people
-  "users.manage", // create accounts, suspend, offboard, reset passwords
+  // create accounts, suspend, offboard, reset passwords: ACCOUNTS ONLY (A1.3). It is no longer the guide's «managers» list
+  // (src/lib/guide/audience.ts `MANAGER_CAPABILITIES`). Still read as «manages people» by the Today team widgets
+  // (services/today.ts `showPulse`, services/today-dashboard.ts `showTeam`): they move to the team rule of A2.3
+  // (`policy/people-scope.ts`, fix/team-scope); the settings tab and the nav entries keep it for the accounts screen.
+  "users.manage",
   "directory.view", // see the staff directory (names, titles, e-mail)
   "crm.view", // read customers and opportunities
   "crm.edit", // create and edit customers and opportunities

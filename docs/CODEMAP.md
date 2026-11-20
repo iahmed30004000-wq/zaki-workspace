@@ -528,7 +528,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `ideas` | 419 | 9 | Membership context resolved from the idea's own org (shared by API routes). |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
-| `accounts` | 942 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
+| `accounts` | 956 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `chat-assistant` | 499 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
@@ -560,6 +560,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `reminders` | 169 | 5 | «ذكّرني» — a person's reminder for THEMSELVES (never for somebody else), on a task, on a chat message, or on its own. |
 | `task-assign` | 267 | 5 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
 | `task-rules` | 306 | 5 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
+| `team-lines` | 156 | 5 | «الهيكل» — who answers to whom. |
 | `team-reviews` | 209 | 5 | «التقييمات» — what the owner and the supervisors write about a person for a period. |
 | `teams` | 234 | 5 | TEAMS INSIDE A SPACE — who is in which team, and which project belongs to which (the reading rule is in team-scope.ts). |
 | `telegram` | 299 | 5 | Validates a bot token by calling getMe. |
@@ -580,7 +581,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `reward-input` | 30 | 4 | What a request body says about a reward: the amount as the person typed it (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency (optiona… |
 | `search-embed-index` | 314 | 4 | «بحث بالمعنى» — WHAT GETS A VECTOR, and when. |
 | `search-embeddings` | 278 | 4 | «بحث بالمعنى» — the connector and the pure rules. |
-| `team-lines` | 149 | 4 | «الهيكل» — who answers to whom. |
 | `work-requests` | 365 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |

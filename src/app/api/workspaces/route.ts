@@ -46,6 +46,8 @@ export async function GET(req: Request) {
         role: true,
         capabilities: true,
         revokedCapabilities: true,
+        // a partner (an OWNER who is not the primary owner) loses `spaces.create` only when this is read: `can` needs it
+        primaryOwner: true,
         organization: {
           select: {
             id: true,
