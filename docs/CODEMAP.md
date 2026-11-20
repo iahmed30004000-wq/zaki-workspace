@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 381 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 174 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 176 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
