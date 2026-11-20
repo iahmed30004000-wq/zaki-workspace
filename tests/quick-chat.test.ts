@@ -59,7 +59,7 @@ describe("the floating quick chat", () => {
     // it sits above the phone's bar, in the PHYSICAL left corner the owner asked for («اليسار تحت»): in an
     // RTL screen that is `end`, and `start` would put it on the right. The call's mini window uses the same.
     expect(out).toContain("bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))]");
-    expect(out).toContain("end-3");
+    expect(out).toContain("end-[18px]");
     expect(out).not.toMatch(/\bstart-3\b/);
     expect(out).toContain("items-end");
   });

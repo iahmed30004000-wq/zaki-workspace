@@ -8,7 +8,9 @@ import { Clapperboard, FilePen, FileUp, FolderKanban, Layers, MessageCircle, Plu
 import { useI18n } from "@/lib/i18n";
 import { browserStore } from "@/lib/guide/storage";
 import { NEW_LAST_KEY, newHrefFor, orderByLastUsed, type NewActionKey } from "@/lib/nav/new-actions";
+import { cn } from "@/lib/utils";
 import { DialogOverlay } from "@/components/ui/dialog";
+import { railCellClass } from "./rail-style";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
 import { SPACES_QUERY } from "./space-switcher";
@@ -68,7 +70,7 @@ function writeLast(key: NewActionKey): void {
  * `actions` comes from the server (`newActionsFor`); with none, nothing is drawn. `defaultOpen` and
  * `portal={false}` are for server-render tests.
  */
-export function NewWheel({ actions, v2 = false, defaultOpen = false, portal = true }: { actions: readonly NewActionKey[]; /** The new map (`navV2`): «/» alone may be the landing page, so «مهمة» goes to «اليوم» by its own address. */ v2?: boolean; defaultOpen?: boolean; portal?: boolean }) {
+export function NewWheel({ actions, v2 = false, defaultOpen = false, portal = true, variant = "bar" }: { actions: readonly NewActionKey[]; /** The new map (`navV2`): «/» alone may be the landing page, so «مهمة» goes to «اليوم» by its own address. */ v2?: boolean; defaultOpen?: boolean; portal?: boolean; /** `rail`: the button is a cell of the chat's rail (a gold plus over «جديد») and the wheel opens beside the rail, not under a bar that is not there. */ variant?: "bar" | "rail" }) {
   const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
@@ -142,7 +144,11 @@ export function NewWheel({ actions, v2 = false, defaultOpen = false, portal = tr
           if (next) setInPlace(next);
         }}
         style={{ "--n": ordered.length } as CSSProperties}
-        className="zk-pop fixed start-0 end-0 bottom-0 z-50 rounded-t-2xl border-t border-border bg-surface-1 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-fg shadow-lg focus:outline-none sm:start-auto sm:bottom-auto sm:end-4 sm:top-[4.25rem] sm:size-[330px] sm:rounded-full sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none"
+        className={cn(
+          "zk-pop fixed start-0 end-0 bottom-0 z-50 rounded-t-2xl border-t border-border bg-surface-1 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 text-fg shadow-lg focus:outline-none sm:size-[330px] sm:rounded-full sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none",
+          // from the bar's button the wheel hangs at the top, at the end side; from the rail's it rises at the bottom, beside the rail
+          variant === "rail" ? "sm:bottom-4 sm:end-auto sm:start-20 sm:top-auto" : "sm:bottom-auto sm:end-4 sm:start-auto sm:top-[4.25rem]",
+        )}
       >
         <div aria-hidden="true" className="zk-wheel-ring absolute inset-0 hidden sm:block" />
         <div className="mb-3 pe-12 sm:pointer-events-none sm:absolute sm:inset-0 sm:m-auto sm:grid sm:h-fit sm:w-[118px] sm:place-items-center sm:pe-0 sm:text-center">
@@ -185,18 +191,29 @@ export function NewWheel({ actions, v2 = false, defaultOpen = false, portal = tr
     <>
       <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
         <DialogPrimitive.Trigger asChild>
-          <button
-            type="button"
-            data-tour="new"
-            aria-keyshortcuts="N"
-            aria-label={t("shell.new.open")}
-            className="inline-flex size-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent-2 text-sm font-bold text-scrim transition-[filter] hover:brightness-110 sm:w-auto sm:px-4"
-          >
-            <Plus aria-hidden="true" className="size-5" strokeWidth={2.4} />
-            <span aria-hidden="true" className="hidden sm:inline">
-              {t("shell.new")}
-            </span>
-          </button>
+          {variant === "rail" ? (
+            <button type="button" data-tour="new" aria-keyshortcuts="N" aria-label={t("shell.new.open")} className={railCellClass()}>
+              <span aria-hidden="true" className="grid size-6 shrink-0 place-items-center rounded-lg bg-accent-2 text-scrim">
+                <Plus className="size-4" strokeWidth={2.6} />
+              </span>
+              <span aria-hidden="true" className="max-w-full break-words">
+                {t("shell.new")}
+              </span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              data-tour="new"
+              aria-keyshortcuts="N"
+              aria-label={t("shell.new.open")}
+              className="inline-flex size-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-accent-2 text-sm font-bold text-scrim transition-[filter] hover:brightness-110 sm:w-auto sm:px-4"
+            >
+              <Plus aria-hidden="true" className="size-5" strokeWidth={2.4} />
+              <span aria-hidden="true" className="hidden sm:inline">
+                {t("shell.new")}
+              </span>
+            </button>
+          )}
         </DialogPrimitive.Trigger>
         {portal ? <DialogPrimitive.Portal>{content}</DialogPrimitive.Portal> : open ? content : null}
       </DialogPrimitive.Root>

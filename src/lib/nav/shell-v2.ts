@@ -37,6 +37,26 @@ export function appBarOf(place: PlaceKey | null): Readonly<AppBarSlots> {
   }
 }
 
+/** Is this address one of the chat's (`/chat`, `/chat/<id>`, `/chat/s/<space>`)? */
+export function isChatPath(pathname: string | null | undefined): boolean {
+  return pathname === "/chat" || (pathname ?? "").startsWith("/chat/");
+}
+
+/**
+ * The chat on a computer has no global bar and no bottom strip: the list column is the page's own bar (the owner's mock-up: the logo at the top of the
+ * rail, the page's title and tools inside the page). What those two carried — the search, «جديد», the bell, the roster of who is online — moves into
+ * the rail, so nothing is lost. This says which of the three states the frame is in:
+ *
+ *  - `full`     nothing changes (not the chat, the new chat screen is off, or the old menu is on: it has no rail to move things to);
+ *  - `moved`    the screen is known to be a computer: the bar and the strip are not drawn, the rail holds their tools;
+ *  - `pending`  the screen is not known yet (server render, first paint) or is a phone: the bar is drawn but hidden from `md` up by CSS, so a computer never
+ *               flashes it, and a phone keeps it. Exactly one copy of each tool is ever mounted (two palettes would both answer Ctrl+K).
+ */
+export function chatChromeOf(input: { navV2: boolean; chatBare: boolean; pathname: string | null | undefined; desktop: boolean | null }): "full" | "moved" | "pending" {
+  if (!input.navV2 || !input.chatBare || !isChatPath(input.pathname)) return "full";
+  return input.desktop === true ? "moved" : "pending";
+}
+
 /** Is this tab one the place draws — as a tab or under «المزيد»? A page of the place that is neither marks no tab. */
 export function tabIsDrawn(place: Pick<NavPlace, "tabs" | "more"> | null | undefined, tab: TabKey | null): boolean {
   if (!place || !tab) return false;

@@ -303,7 +303,7 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
           type="button"
           onClick={() => setOpen(true)}
           aria-label={t("siteGuide.open")}
-          className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] start-3 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface text-fg shadow-card hover:bg-surface-2 md:bottom-5"
+          className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] start-3 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface text-fg shadow-card hover:bg-surface-2 md:bottom-[18px] md:start-[calc(72px+18px)]"
         >
           <Compass className="h-6 w-6 text-info" aria-hidden="true" />
         </button>
@@ -312,7 +312,7 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
         <section
           role="dialog"
           aria-label={t("siteGuide.title")}
-          className="fixed bottom-[calc(3.5rem+0.5rem+env(safe-area-inset-bottom))] start-2 z-50 flex max-h-[70vh] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card md:bottom-4"
+          className="fixed bottom-[calc(3.5rem+0.5rem+env(safe-area-inset-bottom))] start-2 z-50 flex max-h-[70vh] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card md:bottom-4 md:start-[calc(72px+18px)]"
         >
           <header className="flex items-center gap-2 border-b border-border px-3 py-2">
             <Compass className="h-5 w-5 text-info" aria-hidden="true" />

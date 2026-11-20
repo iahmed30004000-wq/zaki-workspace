@@ -98,29 +98,30 @@ export function Drawer({
         data-shell="drawer"
         className={cn(
           // from the start edge, as wide as a phone's menu is (20rem), never more than 85% of the screen; the sheet's own side keyframes carry it in and out
-          "zk-sheet-start fixed inset-y-0 start-0 z-50 flex w-[min(20rem,85vw)] flex-col border-e border-border bg-surface-1 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] text-fg shadow-lg focus:outline-none md:hidden",
+          "zk-sheet-start fixed inset-y-0 start-0 z-50 flex w-[min(20rem,85vw)] flex-col border-e border-border bg-surface-1 pb-[env(safe-area-inset-bottom)] text-fg shadow-lg focus:outline-none md:hidden",
           "data-[state=open]:animate-[zk-sheet-side-in_220ms_cubic-bezier(0.32,0.72,0,1)_both] data-[state=closed]:animate-[zk-sheet-side-out_160ms_ease-in_both] motion-reduce:animate-none",
         )}
       >
         <DialogTitle className="sr-only">{t("navv2.drawer.title")}</DialogTitle>
         {/* the header: me */}
-        <div data-shell="drawer-head" className="flex shrink-0 items-center gap-3 border-b border-border px-4 py-3 pe-14">
-          <Initial name={user.name} src={user.avatarUrl} large />
+        {/* the owner's mock-up (`.dh`): the person on the accent, in the accent's own text colour; it runs up under the notch */}
+        <div data-shell="drawer-head" className="flex shrink-0 items-center gap-3 bg-accent px-4 pb-3 pe-14 pt-[calc(1.125rem+env(safe-area-inset-top))] text-accent-fg">
+          <Initial name={user.name} src={user.avatarUrl} large onAccent />
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-fg">
+            <p className="truncate text-base font-bold">
               <bdi>{user.name}</bdi>
             </p>
             {handle ? (
-              <p dir="ltr" className="truncate text-end text-xs text-fg-muted">
+              <p dir="ltr" className="truncate text-end text-xs opacity-85">
                 {handle}
               </p>
             ) : null}
-            <p className="mt-1 inline-flex rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-fg">{enumLabel("OrgRole", rank)}</p>
+            <p className="mt-1 inline-flex rounded-full bg-accent-fg/15 px-2 py-0.5 text-xs font-medium text-accent-fg">{enumLabel("OrgRole", rank)}</p>
           </div>
         </div>
         <DialogPrimitive.Close
           aria-label={t("ui.close")}
-          className="absolute end-2 top-[calc(0.5rem+env(safe-area-inset-top))] grid size-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+          className="absolute end-2 top-[calc(0.5rem+env(safe-area-inset-top))] grid size-11 place-items-center rounded-lg text-accent-fg transition-colors hover:bg-accent-fg/15"
         >
           <X aria-hidden="true" className="size-4" />
         </DialogPrimitive.Close>
@@ -167,10 +168,10 @@ export function Drawer({
                         aria-current={ariaCurrent(active, place.href, pathname)}
                         className={cn(
                           "flex h-12 items-center gap-3 rounded-xl px-3 text-sm transition-colors",
-                          active ? "bg-accent-2/10 font-semibold text-fg" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+                          active ? "bg-accent/[0.12] font-semibold text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
                         )}
                       >
-                        <NavIcon icon={place.icon} className={cn("size-5 shrink-0", active && "text-accent")} />
+                        <NavIcon icon={place.icon} className="size-5 shrink-0" />
                         <span className="truncate">{t(place.labelKey)}</span>
                         <PlaceBadge count={badges[place.key]} place={place.key} className="ms-auto" />
                       </Link>
