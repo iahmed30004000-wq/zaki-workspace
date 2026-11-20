@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { actorCan, actorCanWork, type Actor } from "@/server/policy/actor";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere, taskVisibleWhere } from "@/server/services/team-scope";
 import { assignedTo } from "@/server/services/tasks";
+import { hasTeam, loadPeopleScope, teamScopeInfoOf, teamTaskWhere, type TeamScopeInfo } from "@/server/policy/people-scope";
 import { canWriteInWorkspace } from "@/server/workspace-role";
 import { fmtLongDate, fmtRelative } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -42,11 +43,12 @@ import {
  *    everything after and everything with no date. Every due day is said in that zone too («أمس» «بكرا» ...).
  *  - AN EXTERNAL PARTNER gets their own tasks (to read: they may not finish anything) and the projects they have
  *    work in, with their own open tasks counted. No company numbers, no pulse, no quick add.
- *  - THE PULSE («نبض الفريق») is for the OWNER and whoever holds users.manage, once they can open a space: the
- *    company-wide open and overdue counts over the spaces they can open, and the most overdue tasks with who
- *    holds them. Like the reports, the
- *    counts keep the work of people who are no longer active (the work is still there); the LIST never shows
- *    them, nor any task nobody holds: a suspended or offboarded person is not named on the page.
+ *  - THE PULSE («نبض الفريق») is «فريقي» (A2.3, D-A3, `policy/people-scope.ts`): for the OWNER rank that holds `board.team` it is
+ *    the whole company; for anybody else it is exactly the people under them in the reporting line, and a person with nobody
+ *    under them has NO pulse (never a 0). `users.manage` no longer decides it. Open and overdue counts, and the most overdue
+ *    tasks with who holds them, ALWAYS through `taskVisibleWhere`: a task the person may not open is in no number. Like the
+ *    reports, the counts keep the work of people who are no longer active (a company total: the work is still there); the LIST never shows
+ *    them, nor any task nobody holds: a suspended or offboarded person is not named on the page. It says what it counted (`scope`).
  *  - ONE SPACE. The page passes the space the person is in (src/server/services/current-space.ts): everything
  *    above is then counted inside that space only, like a separate site (the owner's decision, 2026-10-25).
  *  - The result is plain data (strings, numbers, booleans, lists): see src/lib/today.ts.
@@ -78,13 +80,29 @@ type TaskRow = {
   project: { id: string; name: string };
 };
 
-export async function getToday(actor: Actor, opts: { now?: Date; spaceId?: string | null } = {}): Promise<TodayData> {
+/** «نبض الفريق» with what it counted over (A2.3): `TodayPulse` plus the scope, so the card can say it. */
+export type ScopedPulse = TodayPulse & { scope: TeamScopeInfo };
+export type ScopedTodayData = Omit<TodayData, "pulse"> & { pulse: ScopedPulse | null };
+
+export interface TodayOptions {
+  now?: Date;
+  spaceId?: string | null;
+  /**
+   * Count «فريقي» over every space the person can open instead of the one space they are in (D-A3: the owner's team card is the company's, the
+   * manager's is their people wherever they work). Off by default: the page's scope chip names the space it narrowed to, and a chip must never
+   * say a different thing from what was counted. Whoever draws the card with this on says the scope from `pulse.scope`.
+   */
+  teamWide?: boolean;
+}
+
+export async function getToday(actor: Actor, opts: TodayOptions = {}): Promise<ScopedTodayData> {
   const now = opts.now ?? new Date();
 
-  const [org, me, accessible] = await Promise.all([
+  const [org, me, accessible, people] = await Promise.all([
     db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true } }),
     db.user.findUnique({ where: { id: actor.userId }, select: { name: true } }),
     loadWorkScope(actor.userId),
+    loadPeopleScope(actor),
   ]);
   // the space the person is in (the page passes it): its «اليوم» only, like a separate site
   const scope = opts.spaceId === undefined ? accessible : narrowScope(accessible, opts.spaceId);
@@ -116,6 +134,15 @@ export async function getToday(actor: Actor, opts: { now?: Date; spaceId?: strin
   const rowRole = new Map(rows.map((r) => [r.workspaceId, r.role] as const));
   const writable = spaces.filter((s) => canWriteInWorkspace(actor.role, rowRole.get(s.id)));
   const writableIds = new Set(writable.map((s) => s.id));
+
+  // «فريقي» (A2.3): the spaces and the visibility the team numbers are read over. By default the one space the person is in (what the page's chip
+  // says); with `teamWide`, every space of THIS company they can open. Either way `taskVisibleWhere` of that scope: nothing hidden is counted.
+  const teamBase: { scope: typeof scope; spaceIds: string[]; spaceName: string | null } = await (async () => {
+    if (!opts.teamWide || !hasTeam(people)) return { scope, spaceIds, spaceName: opts.spaceId && spaces.length === 1 ? (spaces[0]?.name ?? null) : null };
+    const ids = scopeSpaceIds(accessible);
+    const rows = ids.length ? await db.workspace.findMany({ where: { id: { in: ids }, organizationId: actor.orgId }, select: { id: true } }) : [];
+    return { scope: accessible, spaceIds: rows.map((r) => r.id), spaceName: null };
+  })();
 
   const toTask = (row: TaskRow): TodayTask => ({
     id: row.id,
@@ -202,13 +229,22 @@ export async function getToday(actor: Actor, opts: { now?: Date; spaceId?: strin
 
   // ---------- «نبض الفريق» ----------
 
-  async function loadPulse(): Promise<TodayPulse> {
+  async function loadPulse(): Promise<ScopedPulse> {
+    // «فريقي»: the people of the scope (the company, or the people under the person) over what THIS person may open, never wider (a hidden task is in no number)
+    const base = teamBase;
+    const teamOpen = {
+      orgId: actor.orgId,
+      workspaceId: { in: actorCanWork(actor, "tasks.view") ? base.spaceIds : [] },
+      archived: false,
+      completedAt: null,
+      AND: [taskVisibleWhere(base.scope), teamTaskWhere(people)],
+    } satisfies Prisma.TaskWhereInput;
     const [openCount, overdueCount, worst] = await Promise.all([
-      db.task.count({ where: open }),
-      db.task.count({ where: { ...open, dueDate: { lt: todayStart } } }),
+      db.task.count({ where: teamOpen }),
+      db.task.count({ where: { ...teamOpen, dueDate: { lt: todayStart } } }),
       db.task.findMany({
         where: {
-          ...open,
+          ...teamOpen,
           dueDate: { lt: todayStart },
           // somebody who still works here: a suspended or offboarded person is not named, and neither is a task nobody holds
           assignee: { memberships: { some: { organizationId: actor.orgId, status: "ACTIVE" } } },
@@ -219,6 +255,7 @@ export async function getToday(actor: Actor, opts: { now?: Date; spaceId?: strin
       }),
     ]);
     return {
+      scope: teamScopeInfoOf(people, base.spaceName) as TeamScopeInfo,
       open: openCount,
       overdue: overdueCount,
       worst: worst.map(
@@ -271,7 +308,7 @@ export async function getToday(actor: Actor, opts: { now?: Date; spaceId?: strin
   // ---------- put together ----------
 
   const hasSpaces = spaceIds.length > 0;
-  const showPulse = !actor.isExternal && (actor.isOwner || actorCan(actor, "users.manage"));
+  const showPulse = !actor.isExternal && hasTeam(people);
   const showQuickAdd = !actor.isExternal && writable.length > 0;
   const noTasks: TodayTasks = { overdue: [], today: [], later: [], counts: { open: 0, overdue: 0, today: 0, later: 0, doneToday: 0 } };
 
@@ -279,7 +316,7 @@ export async function getToday(actor: Actor, opts: { now?: Date; spaceId?: strin
   const [tasks, projects, pulse, quickAdd] = await Promise.all([
     hasSpaces ? loadTasks() : Promise.resolve(noTasks),
     hasSpaces ? loadProjects() : Promise.resolve<TodayProject[]>([]),
-    showPulse && hasSpaces ? loadPulse() : Promise.resolve(null),
+    showPulse && teamBase.spaceIds.length > 0 ? loadPulse() : Promise.resolve(null),
     showQuickAdd ? loadQuickAdd() : Promise.resolve(null),
   ]);
 

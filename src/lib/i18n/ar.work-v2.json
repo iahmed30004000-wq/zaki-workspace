@@ -282,5 +282,7 @@
   "work.source.campaign": "من حملة",
   "work.source.card": "من لوحة",
   "work.source.hidden": "هاي المهمة انعملت من مصدر ما بتقدر تفتحه",
-  "nav.tab.stale": "مهام قديمة"
+  "nav.tab.stale": "مهام قديمة",
+  "today.team.scope_mine": "فريقي",
+  "today.team.scope_mine_space": "فريقي في المساحة: {name}"
 }
