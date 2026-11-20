@@ -15,7 +15,7 @@ export function DigitsBlock() {
   const { digits, setDigits } = useDigits();
   return (
     <Group title={t("digits.picker")} hint={t("settingsMe.l.digits.hint")} id="l-digits">
-      <Segmented<DigitMode> value={digits} label={t("digits.picker")} options={DIGIT_MODES.map((mode) => ({ value: mode, label: t(`digits.${mode}`) }))} onChange={setDigits} />
+      <Segmented<DigitMode> className="flex w-full" value={digits} label={t("digits.picker")} options={DIGIT_MODES.map((mode) => ({ value: mode, label: t(`digits.${mode}`) }))} onChange={setDigits} />
     </Group>
   );
 }

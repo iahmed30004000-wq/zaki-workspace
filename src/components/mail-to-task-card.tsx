@@ -153,7 +153,7 @@ export function MailToTaskCard() {
   const busy = save.isPending || test.isPending || remove.isPending;
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-surface-1 p-5" aria-labelledby="mail-title">
+    <section className="space-y-4 rounded-[14px] bg-surface-1 p-5" aria-labelledby="mail-title">
       <div className="flex items-center gap-2">
         <span className="grid size-9 place-items-center rounded-lg bg-cat-3/10 text-cat-3">
           <MailPlus className="size-5" />

@@ -99,7 +99,7 @@ export function HistoryPanel({ doc, canWrite, onRestore, initial }: { doc: Pick<
   });
   const revisions = query.data?.revisions ?? [];
   return (
-    <section aria-label={t("docs.history")} className="rounded-xl border border-border bg-surface-1 p-3">
+    <section aria-label={t("docs.history")} className="rounded-[14px] bg-surface-1 p-3">
       <h2 className="flex items-center gap-2 text-sm font-semibold text-fg">
         <History className="size-4 text-fg-muted" />
         {t("docs.history")}
@@ -506,14 +506,14 @@ export function DocumentPage({ initial }: { initial: DocItem }) {
             )}
           </div>
         )}
-        <div className={cn("min-w-0 rounded-lg border border-border bg-surface-1 p-3", canWrite && mode === "write" && "hidden md:block")}>
+        <div className={cn("min-w-0 rounded-[14px] bg-surface-1 p-3", canWrite && mode === "write" && "hidden md:block")}>
           {canWrite && <p className="mb-1 text-xs font-medium text-fg-muted">{t("docs.preview")}</p>}
           <DocBody content={content} names={names} emptyText={t("docs.preview_empty")} />
         </div>
       </div>
 
       {initial.canManage && !initial.archived && (
-        <section className="space-y-2 rounded-xl border border-border bg-surface-1 p-3">
+        <section className="space-y-2 rounded-[14px] bg-surface-1 p-3">
           <label className="flex items-start gap-2 text-sm text-fg">
             <input type="checkbox" className="mt-1 size-4" checked={shared} onChange={(e) => void toggleShare(e.target.checked)} />
             <span>

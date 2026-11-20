@@ -353,7 +353,7 @@ export function CardTile({ card, density, canWrite, owner, archivedView = false,
 
   if (density === "row") {
     return (
-      <article data-card-id={card.id} data-kind={card.kind} className={cn("flex min-h-11 items-center gap-2 rounded-xl border px-2 py-1 shadow-card", style.card)}>
+      <article data-card-id={card.id} data-kind={card.kind} className={cn("flex min-h-11 items-center gap-2 rounded-[14px] border px-2 py-1 shadow-card", style.card)}>
         {handle}
         <Icon className="size-4 shrink-0 text-fg-muted" aria-hidden="true" />
         <span className="sr-only">{kindLabel}</span>
@@ -371,7 +371,7 @@ export function CardTile({ card, density, canWrite, owner, archivedView = false,
   }
 
   return (
-    <article data-card-id={card.id} data-kind={card.kind} className={cn("flex flex-col gap-2 rounded-xl border p-3 shadow-card", style.card)}>
+    <article data-card-id={card.id} data-kind={card.kind} className={cn("flex flex-col gap-2 rounded-[14px] border p-3 shadow-card", style.card)}>
       <header className="flex items-start gap-1">
         {handle}
         <div className="flex min-w-0 flex-1 flex-col gap-0.5 pt-1.5">

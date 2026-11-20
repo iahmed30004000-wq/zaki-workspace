@@ -531,6 +531,10 @@ describe("C4.1 · «تلقائي حسب الجهاز» (the boot script of the r
 
 // ───────────────────────────── the screens ─────────────────────────────
 
+function privacyHtml(): string {
+  return render(createElement(PrivacySection, { lastSeen: null }));
+}
+
 describe("C4.1 · the sections", () => {
   it("eleven sections in the order of the spec; «المجلدات» only while the company's switch is on; an address belongs to one section", () => {
     expect([...SECTION_KEYS]).toEqual(["account", "notifications", "privacy", "chat", "folders", "data", "devices", "language", "menu", "shortcuts", "help"]);
@@ -579,6 +583,22 @@ describe("C4.1 · the sections", () => {
     expect(classesOf(inside, "section")).not.toContain("hidden");
     expect(inside).toContain('aria-current="page"');
     where.pathname = "/settings/me";
+  });
+
+  it("the look of the mockup: the sections list is a 14 px card with a coloured tile per icon and a soft accent for the open one; each block is a 14 px card under an accent heading", () => {
+    where.pathname = "/settings/me/chat";
+    const frame = render(createElement(SettingsFrame, { header: { name: "أحمد", username: null, jobTitle: null, avatarUrl: null }, sections: visibleSections({ foldersOn: true }) }, createElement("p", null, "x")));
+    expect(frame).toMatch(/bg-surface-1 md:rounded-\[14px\]/);
+    expect(frame.match(/data-section-tile/g)).toHaveLength(11);
+    expect(frame).toMatch(/bg-accent\/15 text-accent/);
+    expect(frame).not.toMatch(/bg-selected-row/);
+    where.pathname = "/settings/me";
+    const html = render(createElement(NotificationsSection));
+    expect(html).toMatch(/data-settings-group="" class="[^"]*pt-4/);
+    expect(html).toMatch(/rounded-\[14px\] bg-surface-1 overflow-hidden/);
+    // a row's switch is the 42x24 pill of the mockup
+    expect(html).toMatch(/h-6 w-\[42px\]/);
+    expect(privacyHtml()).toMatch(/text-\[13px\] font-bold text-accent/);
   });
 
   it("«الإشعارات والأصوات»: the five kinds with their switches, the preview of each (not calls), the sounds, «استثناءات» and the reset", () => {

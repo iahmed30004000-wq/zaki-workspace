@@ -59,7 +59,7 @@ export function SystemTokensCard() {
   const switchOn = list.data?.switchOn ?? true;
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-surface-1 p-5" aria-labelledby="systok-title">
+    <section className="space-y-4 rounded-[14px] bg-surface-1 p-5" aria-labelledby="systok-title">
       <div className="flex items-center gap-2">
         <span className="grid size-9 place-items-center rounded-lg bg-cat-3/10 text-cat-3">
           <KeyRound className="size-5" />

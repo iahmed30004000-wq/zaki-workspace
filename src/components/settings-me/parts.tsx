@@ -21,13 +21,17 @@ export function SectionHead({ section }: { section: SectionKey }) {
   );
 }
 
-/** A block of one setting: a title, its one line, then the control. Flat (a divider, no card). */
-export function Group({ title, hint, children, className, id }: { title?: string; hint?: string; children: React.ReactNode; className?: string; id?: string }) {
+/**
+ * A block of one setting, drawn as the owner's mockup draws a settings list: the title is a small accent heading above, its one line under it, then the
+ * controls sit in a soft 14 px card. `rows` is for a block made of whole-row controls (switches, links): they touch the card's edges and a thin line
+ * separates them; without it the content gets the card's own padding.
+ */
+export function Group({ title, hint, children, className, id, rows = false }: { title?: string; hint?: string; children: React.ReactNode; className?: string; id?: string; rows?: boolean }) {
   return (
-    <section id={id} className={cn("border-t border-border px-3 py-4 md:px-0", className)}>
-      {title ? <h2 className="text-[15px] font-semibold text-fg">{title}</h2> : null}
-      {hint ? <p className="mt-0.5 text-[13px] leading-[1.45] text-fg-muted">{hint}</p> : null}
-      <div className={cn(title || hint ? "mt-3" : "")}>{children}</div>
+    <section id={id} data-settings-group="" className={cn("px-3 pt-4 md:px-0", className)}>
+      {title ? <h2 className="px-1 pb-1.5 text-[13px] font-bold text-accent">{title}</h2> : null}
+      {hint ? <p className="px-1 pb-2 text-[13px] leading-[1.45] text-fg-muted">{hint}</p> : null}
+      <div className={cn("min-w-0 rounded-[14px] bg-surface-1", rows ? "overflow-hidden [&>*+*]:border-t [&>*+*]:border-border" : "px-3.5 py-3")}>{children}</div>
     </section>
   );
 }

@@ -77,13 +77,13 @@ export function MenuSection({ places, tabs, locked }: { places: readonly MenuPla
   return (
     <div data-section-body="menu">
       <p className="px-3 pb-3 text-[13px] text-fg-muted md:px-0">{t("settingsMe.m.intro")}</p>
-      <ul className="divide-y divide-border border-y border-border">
+      <ul className="mx-3 divide-y divide-border overflow-hidden rounded-[14px] bg-surface-1 md:mx-0">
         {keys.map((key, at) => {
           const place = byKey.get(key);
           if (!place) return null;
           const label = t(place.labelKey);
           return (
-            <li key={key} data-menu-place={key} className="flex min-h-14 items-center gap-2 px-3 md:px-1">
+            <li key={key} data-menu-place={key} className="flex min-h-14 items-center gap-2 px-3.5">
               <span className="min-w-0 flex-1 truncate text-[15px] text-fg">{label}</span>
               <Button type="button" size="icon" variant="ghost" aria-label={t("settingsMe.m.up", { label })} disabled={busy || at === 0} onClick={() => void move(at, -1)}>
                 <ArrowUp aria-hidden="true" className="size-4" />

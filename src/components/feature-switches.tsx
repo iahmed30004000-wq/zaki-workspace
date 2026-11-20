@@ -81,7 +81,7 @@ export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: {
   function row(f: { key: FeatureKey; on: boolean }, extra?: { risk?: boolean; note?: boolean }) {
     const needs = missingParents(f.key, choices);
     return (
-      <li key={f.key} className="flex items-center justify-between gap-4 py-3">
+      <li key={f.key} className="flex min-h-14 items-center justify-between gap-4 py-2.5">
         <div className="min-w-0">
           <p className="text-sm font-medium text-fg">
             {t(`features.${f.key}.name`)}
@@ -125,12 +125,12 @@ export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <PresetsBar items={items} onApply={applyPreset} busy={presetBusy || busy !== null} />
       <Input type="search" value={query} onChange={(e) => setQuery(e.currentTarget.value)} placeholder={t("featureGroups.search.placeholder")} aria-label={t("featureGroups.search.label")} />
       {/* «وضع التوفير»: the one switch for a server that is not strong enough; what it holds off is printed, with the way back */}
       <section
-        className={cn("space-y-3 rounded-lg border p-4", economy ? "border-warn/40 bg-warn/10" : "border-border bg-surface-2")}
+        className={cn("space-y-3 rounded-[14px] p-4", economy ? "bg-warn/10" : "bg-surface-1")}
         aria-labelledby="economy-title"
         data-economy-panel
       >
@@ -161,12 +161,12 @@ export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: {
         </div>
       </section>
       {sections.map(({ group, groupTitle, rows }) => (
-        <section key={group} className="space-y-1 rounded-lg border border-border bg-surface-1 p-4" aria-labelledby={`feature-group-${group}`} data-feature-group={group} {...(group === "chat" ? { "data-company-chat-group": true } : {})}>
-          <h3 id={`feature-group-${group}`} className="text-sm font-semibold text-fg">
+        <section key={group} className="space-y-1.5" aria-labelledby={`feature-group-${group}`} data-feature-group={group} {...(group === "chat" ? { "data-company-chat-group": true } : {})}>
+          <h3 id={`feature-group-${group}`} className="px-1 pt-2 text-[13px] font-bold text-accent">
             {groupTitle}
           </h3>
-          {group === "chat" ? <p className="text-xs text-muted">{t("companyChat.subtitle")}</p> : null}
-          <ul className="divide-y divide-border">{rows.map(({ item, extra }) => row(item, extra))}</ul>
+          {group === "chat" ? <p className="px-1 text-xs text-muted">{t("companyChat.subtitle")}</p> : null}
+          <ul className="divide-y divide-border rounded-[14px] bg-surface-1 px-3.5">{rows.map(({ item, extra }) => row(item, extra))}</ul>
         </section>
       ))}
       {sections.length === 0 ? <p className="text-sm text-muted">{t("featureGroups.search.none")}</p> : null}

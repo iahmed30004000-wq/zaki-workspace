@@ -59,7 +59,7 @@ export function ServerHealthCard() {
   }
 
   return (
-    <section className="space-y-3 rounded-xl border border-border bg-surface-1 p-5" aria-labelledby="health-title" data-server-health>
+    <section className="space-y-3 rounded-[14px] bg-surface-1 p-5" aria-labelledby="health-title" data-server-health>
       <div className="flex items-start justify-between gap-3">
         <div>
           <h2 id="health-title" className="text-sm font-semibold">

@@ -72,23 +72,26 @@ export function DataSection() {
         <Segmented<ImageQuality>
           value={quality}
           label={t("settingsMe.d.quality")}
+          className="flex w-full"
           options={IMAGE_QUALITIES.map((key) => ({ value: key, label: t(`settingsMe.d.quality.${key}`) }))}
           onChange={(next) => setDevice(patchDevicePrefs({ imageQuality: next === "normal" ? undefined : next }))}
         />
         <Scope device />
       </Group>
 
-      <Group title={t("settingsMe.d.auto")} hint={t("settingsMe.d.auto.hint")} id="d-auto">
+      <Group title={t("settingsMe.d.auto")} hint={t("settingsMe.d.auto.hint")} id="d-auto" rows>
         {(["wifi", "mobile"] as const).map((connection) => (
-          <div key={connection} data-auto-download={connection} className="mb-2">
-            <h3 className="mb-1 text-sm font-medium text-fg">{t(`settingsMe.d.auto.${connection}`)}</h3>
+          <div key={connection} data-auto-download={connection} className="pb-1">
+            <h3 className="px-3.5 pb-0.5 pt-3 text-[13px] font-bold text-fg-muted">{t(`settingsMe.d.auto.${connection}`)}</h3>
             {MEDIA_KINDS.map((kind) => (
               <SwitchRow key={kind} checked={autoDownloadOn(device, connection, kind)} onChange={(on) => setAuto(connection, kind, on)} title={t(`settingsMe.d.auto.${kind}`)} />
             ))}
           </div>
         ))}
-        <WarnFix warn={t("settingsMe.d.auto.warn")} fix={t("settingsMe.d.auto.fix")} />
-        <Scope device />
+        <div className="space-y-1.5 px-3.5 py-3">
+          <WarnFix warn={t("settingsMe.d.auto.warn")} fix={t("settingsMe.d.auto.fix")} />
+          <Scope device />
+        </div>
       </Group>
 
       <Group title={t("settingsMe.d.storage")} id="d-storage">

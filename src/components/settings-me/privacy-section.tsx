@@ -63,17 +63,17 @@ export function PrivacySection({ lastSeen }: { lastSeen: { hide: boolean } | nul
   const { t } = useI18n();
   return (
     <div data-section-body="privacy">
-      <Group title={t("settingsMe.p.lastseen.title")}>
-        {lastSeen ? <LastSeenToggle initialHide={lastSeen.hide} /> : <p className="text-sm text-fg-muted">{t("settingsMe.p.lastseen.off")}</p>}
+      <Group title={t("settingsMe.p.lastseen.title")} rows>
+        {lastSeen ? <LastSeenToggle initialHide={lastSeen.hide} bare /> : <p className="px-3.5 py-3 text-sm text-fg-muted">{t("settingsMe.p.lastseen.off")}</p>}
       </Group>
-      <Group>
-        <Link href={sectionHref("devices")} className="flex min-h-14 items-center justify-between gap-3 rounded-xl px-1 text-start hover:bg-surface-2">
+      <Group rows>
+        <Link href={sectionHref("devices")} className="flex min-h-14 items-center justify-between gap-3 px-3.5 py-2 text-start transition-colors hover:bg-surface-2">
           <span>
             <span className="block text-[15px] font-medium text-fg">{t("settingsMe.p.devices")}</span>
             <span className="block text-[13px] text-fg-muted">{t("settingsMe.p.devices.hint")}</span>
           </span>
         </Link>
-        <Link href={sectionHref("account")} className="flex min-h-14 items-center justify-between gap-3 rounded-xl px-1 text-start hover:bg-surface-2">
+        <Link href={sectionHref("account")} className="flex min-h-14 items-center justify-between gap-3 px-3.5 py-2 text-start transition-colors hover:bg-surface-2">
           <span>
             <span className="block text-[15px] font-medium text-fg">{t("settingsMe.p.password")}</span>
             <span className="block text-[13px] text-fg-muted">{t("settingsMe.p.password.hint")}</span>

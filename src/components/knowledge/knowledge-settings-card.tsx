@@ -49,7 +49,7 @@ export function KnowledgeSettingsCard() {
   if (!data) return null;
   return (
     <form
-      className="space-y-4 rounded-xl border border-border bg-surface-1 p-4"
+      className="space-y-4 rounded-[14px] bg-surface-1 p-4"
       onSubmit={(e) => {
         e.preventDefault();
         if (!save.isPending) save.mutate();

@@ -53,7 +53,7 @@ export default async function SettingsPage() {
       </header>
 
       {/* organization */}
-      <section className="space-y-4 rounded-xl border border-border bg-surface-1 p-5">
+      <section className="space-y-4 rounded-[14px] bg-surface-1 p-4">
         <div className="flex items-center gap-2">
           <span className="grid size-9 place-items-center rounded-lg bg-accent/10 text-accent">
             <Globe className="size-5" />
@@ -89,7 +89,7 @@ export default async function SettingsPage() {
 
       {/* «الميزات»: the owner's on/off switch for each feature (src/lib/features.ts) */}
       {actor.isOwner ? (
-        <section className="space-y-2 rounded-xl border border-border bg-surface-1 p-5" aria-labelledby="features-title">
+        <section className="space-y-2" aria-labelledby="features-title">
           <div className="flex items-center gap-2">
             <span className="grid size-9 place-items-center rounded-lg bg-accent/10 text-accent">
               <ToggleRight className="size-5" />
@@ -106,7 +106,7 @@ export default async function SettingsPage() {
       ) : null}
 
       {/* integrations */}
-      <section className="space-y-3 rounded-xl border border-border bg-surface-1 p-5">
+      <section className="space-y-3 rounded-[14px] bg-surface-1 p-4">
         <h2 className="text-sm font-semibold">{t("settings.integrations")}</h2>
         <IntegrationBadge ok={Boolean(telegram?.connected)} label={t("nav.telegram")} href="/telegram" />
         <IntegrationBadge ok={Boolean(n8n?.connected)} label={t("nav.n8n")} href="/automation" />
@@ -115,14 +115,14 @@ export default async function SettingsPage() {
 
       {/* security & personal */}
       <section className="grid gap-3 md:grid-cols-2">
-        <Link href="/profile" className="group rounded-xl border border-border bg-surface-1 p-4 transition-colors hover:border-accent/50">
+        <Link href="/profile" className="group rounded-[14px] bg-surface-1 p-4 transition-colors hover:bg-surface-2">
           <span className="mb-2 grid size-9 place-items-center rounded-lg bg-info/10 text-info">
             <Lock className="size-5" />
           </span>
           <h3 className="text-sm font-semibold group-hover:text-accent">{t("settings.profileLink")}</h3>
           <p className="mt-1 text-xs text-muted">{t("settings.profileLinkHint")}</p>
         </Link>
-        <Link href="/profile" className="group rounded-xl border border-border bg-surface-1 p-4 transition-colors hover:border-accent/50">
+        <Link href="/profile" className="group rounded-[14px] bg-surface-1 p-4 transition-colors hover:bg-surface-2">
           <span className="mb-2 grid size-9 place-items-center rounded-lg bg-warn/10 text-warn">
             <KeyRound className="size-5" />
           </span>

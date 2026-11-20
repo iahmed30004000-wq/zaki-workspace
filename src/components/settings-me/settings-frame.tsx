@@ -28,6 +28,9 @@ const ICONS: Record<SectionKey, LucideIcon> = {
   help: LifeBuoy,
 };
 
+/** The round-cornered tile behind each section's icon (the mockup's coloured squares): the categorical theme tokens, never a raw colour. */
+const TILES = ["bg-cat-4", "bg-cat-1", "bg-cat-6", "bg-cat-3", "bg-cat-5", "bg-cat-2"] as const;
+
 export interface SettingsHeader {
   name: string;
   username: string | null;
@@ -42,7 +45,7 @@ export function HeaderCard({ header, className }: { header: SettingsHeader; clas
       href={sectionHref("account")}
       data-settings-header
       aria-label={t("settingsMe.header.open")}
-      className={cn("flex items-center gap-3 border-b border-border px-3 py-4 transition-colors hover:bg-surface-2", className)}
+      className={cn("flex items-center gap-3 border-b border-border px-3.5 py-4 transition-colors hover:bg-surface-2", className)}
     >
       <Avatar name={header.name} src={header.avatarUrl} className="size-16 text-lg" />
       <span className="min-w-0 flex-1">
@@ -65,24 +68,26 @@ export function SectionList({ sections, current }: { sections: readonly SectionK
   return (
     <nav aria-label={t("settingsMe.sections")} data-settings-sections>
       <ul>
-        {sections.map((key) => {
+        {sections.map((key, at) => {
           const Icon = ICONS[key];
           const active = key === current;
           return (
-            <li key={key}>
+            <li key={key} className="relative [&+&]:before:absolute [&+&]:before:inset-x-3.5 [&+&]:before:top-0 [&+&]:before:border-t [&+&]:before:border-border [&+&]:before:content-['']">
               <Link
                 href={sectionHref(key)}
                 aria-current={active ? "page" : undefined}
                 data-section={key}
                 className={cn(
-                  "flex min-h-14 items-center gap-3 border-b border-border px-3 py-2 transition-colors",
-                  active ? "bg-selected-row text-selected-row-fg" : "text-fg hover:bg-surface-2",
+                  "flex min-h-14 items-center gap-3 px-3.5 py-2 transition-colors",
+                  active ? "bg-accent/15 text-accent" : "text-fg hover:bg-surface-2",
                 )}
               >
-                <Icon aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />
+                <span data-section-tile="" className={cn("grid size-[34px] shrink-0 place-items-center rounded-[10px] text-on-photo", TILES[at % TILES.length])}>
+                  <Icon aria-hidden="true" className="size-[18px]" />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-[15px] font-medium leading-[1.45]">{t(sectionLabelKey(key))}</span>
-                  <span className="block truncate text-[13px] leading-[1.45] text-fg-muted">{t(sectionHintKey(key))}</span>
+                  <span className={cn("block truncate text-[13px] leading-[1.45]", active ? "text-accent/80" : "text-fg-muted")}>{t(sectionHintKey(key))}</span>
                 </span>
                 <ChevronLeft aria-hidden="true" className="size-4 shrink-0 text-fg-muted md:hidden" />
               </Link>
@@ -103,7 +108,7 @@ export function SettingsFrame({ header, sections, children }: { header: Settings
       {/* keeps this device's copy of the person's choices fresh and applies the text size and the wallpaper (the person may land here first) */}
       <MeEffects always />
       <aside className={cn("w-full md:block md:w-80 md:shrink-0", atIndex ? "block" : "hidden")}>
-        <div className="overflow-hidden border-border md:rounded-xl md:border md:bg-surface-1">
+        <div className="overflow-hidden bg-surface-1 md:rounded-[14px]">
           <HeaderCard header={header} />
           <SectionList sections={sections} current={current} />
         </div>

@@ -5,7 +5,7 @@ import type { CardColor } from "@/lib/cards/shared";
  * a string) so Tailwind sees every class, and only tokens: a theme restyles every card, and no hex value appears.
  */
 export const COLOR_STYLE: Record<CardColor, { card: string; dot: string }> = {
-  none: { card: "border-border bg-surface-1", dot: "bg-surface-2" },
+  none: { card: "border-transparent bg-surface-1", dot: "bg-surface-2" },
   accent: { card: "border-accent/40 bg-accent/10", dot: "bg-accent" },
   ok: { card: "border-ok/40 bg-ok/10", dot: "bg-ok" },
   warn: { card: "border-warn/40 bg-warn/10", dot: "bg-warn" },

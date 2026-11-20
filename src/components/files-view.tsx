@@ -136,7 +136,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
     <div className="mx-auto max-w-5xl space-y-4 p-4">
       <header className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-semibold">{t("files.title")}</h1>
+          <h1 className="text-xl font-bold">{t("files.title")}</h1>
           <p className="text-xs font-medium">{list.data?.space ? t("spacelib.of_space", { name: list.data.space.name }) : t("spacelib.of_company")}</p>
           <p className="text-xs text-muted">{t("spacelib.hint")}</p>
           {list.data?.onDrive && (
@@ -166,7 +166,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
       {all.length > 0 && (
         <label className="relative block">
           <Search className="pointer-events-none absolute start-3 top-1/2 size-4 -translate-y-1/2 text-muted" />
-          <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("spacelib.search")} aria-label={t("spacelib.search")} className="ps-9" />
+          <Input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("spacelib.search")} aria-label={t("spacelib.search")} className="rounded-full border-transparent bg-surface-2 ps-9" />
         </label>
       )}
 
@@ -184,7 +184,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
           onDragEnter={() => setDragging(true)}
           onDragLeave={() => setDragging(false)}
           className={cn(
-            "grid place-items-center gap-1 rounded-xl border-2 border-dashed border-border px-4 py-6 text-center text-xs text-muted transition-colors",
+            "grid place-items-center gap-1 rounded-[14px] border-2 border-dashed border-border px-4 py-6 text-center text-xs text-muted transition-colors",
             dragging && "border-accent text-accent",
           )}
         >
@@ -195,16 +195,16 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
       )}
 
       {files.length === 0 ? (
-        <p className="rounded-lg bg-surface-2 px-4 py-3 text-sm text-muted">{all.length > 0 ? t("spacelib.no_match") : t("files.empty")}</p>
+        <p className="rounded-[14px] bg-surface-1 px-4 py-7 text-center text-sm text-fg-muted">{all.length > 0 ? t("spacelib.no_match") : t("files.empty")}</p>
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <ul className="divide-y divide-border overflow-hidden rounded-[14px] bg-surface-1">
           {files.map((f) => (
-            <li key={f.id} id={`file-${f.id}`} className="scroll-mt-24 rounded-xl border border-border bg-surface-1 p-3 target:ring-2 target:ring-accent">
-              <div className="flex items-start gap-2">
+            <li key={f.id} id={`file-${f.id}`} className="scroll-mt-24 px-3.5 py-2.5 target:bg-accent/10">
+              <div className="flex items-center gap-3">
                 <TypeGlyph mime={f.mimeType} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{f.name}</p>
-                  <p className="text-xs text-muted">
+                  <p className="truncate text-[15px] font-semibold">{f.name}</p>
+                  <p className="text-[13px] text-fg-muted">
                     {t("files.v_line", { n: f.version })} · {fmtSize(f.size)} · {t("files.by", { who: f.uploader })}
                   </p>
                   {f.versions > 1 && (
@@ -263,7 +263,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
 }
 
 function TypeGlyph({ mime }: { mime: string }) {
-  const cls = "size-8 shrink-0 p-1.5 rounded-lg bg-surface-2";
+  const cls = "size-10 shrink-0 rounded-full bg-surface-2 p-2.5";
   if (mime.startsWith("image/")) return <FileImage className={cn(cls, "text-ok")} />;
   if (mime.startsWith("video/")) return <FileVideo className={cn(cls, "text-info")} />;
   if (mime.startsWith("audio/")) return <FileAudio className={cn(cls, "text-cat-2")} />;
