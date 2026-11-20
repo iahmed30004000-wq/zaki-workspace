@@ -19,6 +19,7 @@ import { log } from "@/server/log";
 import { claimUploads, MAX_ATTACHMENTS_PER_MESSAGE } from "@/server/chat/attachments";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "@/server/chat/poll-shared";
+import { checklistCreateData, checklistInclude, checklistInputSchema, cleanChecklistItems, CHECKLIST_KIND, isBlankText, MAX_CHECKLIST_TITLE } from "@/lib/chat/checklist";
 import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, DELETED_PREVIEW } from "@/server/chat/notify";
 import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
 import { afterMessageSent } from "@/server/services/chat-assistant";
@@ -67,6 +68,8 @@ export const sendSchema = z
     videoAtSec: z.number().finite().min(0).max(86_400).optional(),
     // «استطلاع»: the question is the body; a topic only, never with files or a voice note
     poll: pollInputSchema.optional(),
+    // «قائمة مهام» (C3c.1): the title is the body; 1-30 items; never with files, a voice note or a poll
+    checklist: checklistInputSchema.optional(),
     // «لا معاينة» (C3b.2): the sender took the card off in the composer: the server does not visit the link
     noPreview: z.boolean().optional(),
     // «ابعت بدون صوت» (C3c.2): no bell, no push, no arrival sound for this message (it still counts as unread); ignored while the company's `chatSilentSend` switch is off
@@ -97,6 +100,7 @@ export function viewerOf(facts: ConversationFacts, org: OrgFacts): Viewer {
     oversight: hasOversight(org),
     canModerateHere: canModerate(facts, org),
     isMember: facts.viewerIsMember,
+    canPost: canPost(facts, org, { ownerJoined: facts.viewerIsMember }),
   };
 }
 
@@ -164,16 +168,28 @@ export async function sendMessage(
     if (!pollOptions) throw new ValidationError([{ path: "poll.options", message: "chat.e.poll_options" }]);
   }
 
+  // a checklist: where the company's switch is on, not for a guest (he reads the list, never writes one), with a title and 1-30 items, alone in its message
+  let checklistItems: string[] | null = null;
+  if (input.checklist) {
+    await assertFeatureOn(ctx.orgId, "chatChecklists");
+    if (org.role === "GUEST") throw new ForbiddenError("chat.e.checklist_guest");
+    // (the silent eye never gets here: `canPost` above refuses him until he has joined, like for a poll)
+    if (attachments.length > 0 || input.voice === true || input.poll || internal.card) throw new ValidationError([{ path: "checklist", message: "chat.e.checklist_alone" }]);
+    if (isBlankText(body) || [...body].length > MAX_CHECKLIST_TITLE) throw new ValidationError([{ path: "body", message: "chat.e.checklist_title" }]);
+    checklistItems = cleanChecklistItems(input.checklist.items);
+    if (!checklistItems) throw new ValidationError([{ path: "checklist.items", message: "chat.e.checklist_items" }]);
+  }
+
   // «لازم ينقرأ»: only where the switch is on, in a topic, for somebody who may mark a message; a plain member's flag is refused, never dropped silently
   let mustRead = false;
   if (input.mustRead === true) {
-    if (!(await isFeatureOn(ctx.orgId, "mustRead")) || internal.card || input.poll || input.voice === true || !(await canMark(ctx, facts, org))) throw new ForbiddenError("chat.e.must_read_denied");
+    if (!(await isFeatureOn(ctx.orgId, "mustRead")) || internal.card || input.poll || input.checklist || input.voice === true || !(await canMark(ctx, facts, org))) throw new ForbiddenError("chat.e.must_read_denied");
     mustRead = true;
   }
 
   // a card stands alone: no files, no voice, no poll
   if (internal.card && (attachments.length > 0 || input.voice === true || input.poll)) throw new ValidationError([{ path: "card", message: "chat.e.card_alone" }]);
-  const kind = internal.card ? "CARD" : input.poll ? "POLL" : input.voice === true && isVoice ? "VOICE" : "TEXT";
+  const kind = internal.card ? "CARD" : input.poll ? "POLL" : input.checklist ? "CHECKLIST" : input.voice === true && isVoice ? "VOICE" : "TEXT";
 
   // a moment of the video means something only in a «نتفرّج سوا» session's talk; anywhere else it is dropped
   const videoAtSec =
@@ -227,6 +243,7 @@ export async function sendMessage(
         ...(videoAtSec !== null ? { videoAtSec } : {}),
         ...(internal.card ? { card: internal.card as unknown as Prisma.InputJsonValue } : {}),
         ...(input.poll && pollOptions ? { poll: { create: pollCreateData(input.poll, pollOptions) } } : {}),
+        ...(input.checklist && checklistItems ? { checklist: { create: checklistCreateData(input.checklist, checklistItems, ctx.userId) } } : {}),
       },
       include: messageInclude(),
     });
@@ -388,6 +405,8 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
   if (msg.kind === "SYSTEM") throw new ForbiddenError("chat.e.system_immutable");
   if (msg.kind === "POLL") throw new ForbiddenError("chat.e.poll_immutable"); // people voted on these words
   if (msg.kind === "CARD") throw new ForbiddenError("chat.e.card_immutable"); // its words are the card's name
+  // a checklist's words are its TITLE: the rule of the send holds for an edit too (a title, at most 200 characters)
+  if (msg.kind === CHECKLIST_KIND && (isBlankText(input.body) || [...input.body].length > MAX_CHECKLIST_TITLE)) throw new ValidationError([{ path: "body", message: "chat.e.checklist_title" }]);
   if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
 
   const updated = await db.$transaction(async (tx) => {
@@ -605,6 +624,7 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
   if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
   if (msg.kind === "SYSTEM") throw new ForbiddenError("chat.e.system_immutable");
   if (msg.kind === "POLL") throw new ForbiddenError("chat.e.poll_immutable"); // a copy would carry no votes
+  if (msg.kind === "CHECKLIST") throw new ForbiddenError("chat.e.checklist_immutable"); // a copy would carry no items
   const from = await guard(ctx, msg.conversationId);
   const to = await guard(ctx, input.conversationId);
   // the target must be readable AND postable by the viewer; the source must be readable
@@ -700,6 +720,7 @@ export async function forwardMessages(ctx: OrgAccessContext, input: z.infer<type
     if (!canRead(from.facts, from.org)) throw new NotFoundError(NOT_FOUND);
     if (msg.kind === "SYSTEM") throw new ForbiddenError("chat.e.system_immutable");
     if (msg.kind === "POLL") throw new ForbiddenError("chat.e.poll_immutable"); // a copy would carry no votes
+    if (msg.kind === "CHECKLIST") throw new ForbiddenError("chat.e.checklist_immutable"); // a copy would carry no items
     if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
   }
   forwardLimiter.hit(`chat.bulk.${ctx.userId}`);
@@ -877,6 +898,8 @@ export function messageInclude() {
     tasks: { select: { id: true, visibility: true, creatorId: true, assigneeId: true } },
     tickets: { select: { id: true, number: true, status: true, assignee: { select: { name: true } } } },
     poll: { include: pollInclude },
+    // «قائمة مهام» (C3c.1): the list of a CHECKLIST message (presented per viewer in redact.ts)
+    checklist: { include: checklistInclude },
     // «معاينة الرابط» (C3b.2): the card of the message's first link (presented per viewer in redact.ts)
     preview: { select: { url: true, title: true, description: true, siteName: true, imageFileId: true, status: true } },
   } satisfies Prisma.ChatMessageInclude;

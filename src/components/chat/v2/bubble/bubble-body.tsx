@@ -7,6 +7,7 @@ import { splitMentions } from "@/lib/chat/conversation/mentions";
 import { FormattedText } from "@/lib/chat/format/render";
 import { ct } from "@/lib/chat/text";
 import { ZakiEmojiText, isStickerOnly } from "@/components/chat/v2/bubble/zaki-emoji-text";
+import { ChecklistBubble } from "@/components/chat/v2/bubble/bubble-checklist";
 
 /**
  * C2.4 — the words of a message: the deleted line, or the body with the people it mentions highlighted and the order numbers in it as chips (a chip is
@@ -37,6 +38,17 @@ export function BubbleBody({ message, mentionNames, conversationId, orderChips, 
           ),
         )
       : plain(text);
-  if (formatting) return <FormattedText body={body} renderText={withMentions} />;
-  return <p className="whitespace-pre-wrap text-sm leading-relaxed">{withMentions(body)}</p>;
+  const words = formatting ? <FormattedText body={body} renderText={withMentions} /> : <p className="whitespace-pre-wrap text-sm leading-relaxed">{withMentions(body)}</p>;
+  // C3c.1 «قائمة مهام»: the words are the TITLE; the list (a box per item, the progress, «+ أضف بند») is drawn under it from `message.checklist` (never from the body)
+  if (message.checklist) {
+    return (
+      <>
+        <div data-checklist-title className="font-semibold">
+          {words}
+        </div>
+        <ChecklistBubble message={message} conversationId={conversationId} />
+      </>
+    );
+  }
+  return words;
 }
