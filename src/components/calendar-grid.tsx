@@ -16,13 +16,19 @@ export interface CalTask {
   dueDate: string;
 }
 
-/** Month grid with drag-to-reschedule. Drops persist via PATCH /api/tasks/[id]. */
+/**
+ * Month grid with drag-to-reschedule. Drops persist via PATCH /api/tasks/[id] and re-draw the server page, unless the screen that owns the grid
+ * hands in `onReschedule` (W1.1 «مهامي»: an optimistic change of its own cache) — then the drop is THAT function's job. `onOpen` makes a task chip
+ * open the screen's side panel instead of doing nothing.
+ */
 export function CalendarGrid({
   month,
   tasks,
   todayIso,
   editable,
   timeZone,
+  onReschedule,
+  onOpen,
 }: {
   month: string; // YYYY-MM
   tasks: CalTask[];
@@ -30,6 +36,8 @@ export function CalendarGrid({
   editable: boolean;
   /** The company's zone: tasks land in the day it says, not the browser's. */
   timeZone: string;
+  onReschedule?: (taskId: string, dayIso: string) => void;
+  onOpen?: (taskId: string) => void;
 }) {
   const { t } = useI18n();
   const router = useRouter();
@@ -63,6 +71,10 @@ export function CalendarGrid({
   async function handleDrop(taskId: string, dayIso: string) {
     setDragId(null);
     setOverKey(null);
+    if (onReschedule) {
+      onReschedule(taskId, dayIso);
+      return;
+    }
     try {
       // the day the card was dropped on, as a day: the server makes it noon in the COMPANY's zone (review B5)
       await apiPatch(`/api/tasks/${taskId}`, { dueDate: dayIso });
@@ -129,8 +141,10 @@ export function CalendarGrid({
                     onDragStart={() => setDragId(task.id)}
                     onDragEnd={() => setDragId(null)}
                     title={task.title}
+                    onClick={onOpen ? () => onOpen(task.id) : undefined}
                     className={cn(
                       "cursor-default truncate rounded bg-surface-2 px-1 py-0.5 text-xs text-fg",
+                      onOpen && "cursor-pointer hover:underline",
                       editable && "cursor-grab active:cursor-grabbing",
                       dragId === task.id && "opacity-40",
                     )}

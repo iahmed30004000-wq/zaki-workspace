@@ -210,7 +210,7 @@ describe("«الوقت شغّال» on a row or a card", () => {
   it("the board card and the list row both draw it, and the pages hand it over from the person's own timer", () => {
     expect(read("src/components/board-view.tsx")).toContain("<RunningChip running={task.running} />");
     expect(read("src/components/task-row.tsx")).toContain("<RunningChip running={task.running} />");
-    for (const page of ["src/app/(app)/boards/[id]/page.tsx", "src/app/(app)/list/page.tsx", "src/app/(app)/my-work/page.tsx"]) {
+    for (const page of ["src/app/(app)/boards/[id]/page.tsx", "src/app/(app)/list/page.tsx", "src/app/(app)/my-work/legacy-page.tsx", "src/server/services/my-work.ts"]) {
       expect(read(page), page).toContain("myRunningTaskId(actor)");
     }
   });

@@ -12,6 +12,7 @@ import { getServerT } from "@/lib/i18n/server";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
 import { currentSpace } from "@/server/services/current-space";
 import { actorFeatureOn } from "@/server/services/features";
+import { legacyViewHref } from "@/lib/work/my-tasks";
 import { CalendarFeedCard } from "@/components/calendar-feed/calendar-feed-card";
 
 import Link from "next/link";
@@ -25,6 +26,8 @@ export default async function CalendarPage({
   const { actor } = await pageActor();
   // the tasks row of the person's grid (a guest works in their shared spaces by the space's rules)
   if (!actorCanWork(actor, "tasks.view")) return <SectionOffNotice />;
+  // W1.1 (switch `workMyTasks`): «التقويم» is a view of «مهامي» in the scope «المساحة»; the old address keeps working and lands there
+  if (await actorFeatureOn(actor, "workMyTasks")) redirect(legacyViewHref("calendar", searchParams));
   const space = await currentSpace(actor);
   const view = await resolveWorkspaceView(space?.id ?? "");
   if ("pageRedirect" in view) redirect("/login");

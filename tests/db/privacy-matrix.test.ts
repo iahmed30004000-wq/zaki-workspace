@@ -24,6 +24,8 @@ import * as mentionsRoute from "@/app/api/chat/conversations/[id]/mentions/route
 import * as personalStateRoute from "@/app/api/chat/conversations/[id]/me/route";
 import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import * as workRequestsRoute from "@/app/api/work/requests/route";
+import * as workTasksRoute from "@/app/api/work/tasks/route";
+import * as workTaskDoor from "@/app/api/work/tasks/[id]/route";
 import * as chatPrefsRoute from "@/app/api/me/chat-prefs/route";
 import * as previewImageRoute from "@/app/api/chat/messages/[id]/preview/image/route";
 import * as previewRemoveRoute from "@/app/api/chat/messages/[id]/preview/route";
@@ -941,5 +943,61 @@ describe("privacy matrix — C3d: the «الشغل» tab", () => {
 
   it("the table has one cell per persona", () => {
     expect(cells(WORK_TICKET)).toHaveLength(PERSONAS.length);
+  });
+});
+
+// ───────────────────────────── W1.1: the unified «مهامي» ─────────────────────────────
+// The same TASKS table on three more surfaces: the panel's door (GET /api/work/tasks/[id]), the screen's list in the scope «المساحة» (the person's current space) and in
+// the scope «أنا» (assigned to the person), and the chips' NUMBERS. A task the table hides from a person is not their panel, not in their list, not in their count.
+
+describe("privacy matrix — the W1.1 «مهامي» (panel, list, counts)", () => {
+  async function switchOn() {
+    const w = await getWorld();
+    const org = await db.organization.findUniqueOrThrow({ where: { id: w.orgId }, select: { settings: true } });
+    const settings = (org.settings ?? {}) as { features?: Record<string, boolean> };
+    await db.organization.update({ where: { id: w.orgId }, data: { settings: { ...settings, features: { ...(settings.features ?? {}), workMyTasks: true } } } });
+    return w;
+  }
+  const enter = (spaceId: string) => (globalThis as { __zkCookieJar?: Map<string, string> }).__zkCookieJar?.set(SPACE_COOKIE, spaceId);
+
+  for (const kind of Object.keys(TASKS)) {
+    it(`${kind}: the panel's door and the space's list agree with the table`, async () => {
+      const w = await switchOn();
+      const id = w.tasks[kind]!;
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        const want = expected(TASKS, kind, who);
+        await loginAs(person.id);
+        enter(w.space.id);
+        const door = await call(workTaskDoor.GET, { params: { id } });
+        const space = await call(workTasksRoute.GET, { url: "http://localhost/api/work/tasks?scope=space" });
+        const everything = await call(workTasksRoute.GET, { url: "http://localhost/api/work/tasks?scope=me&chip=nodate" });
+        const listed = space.status === 200 && JSON.stringify(space.json).includes(id);
+        for (const [surface, got] of Object.entries({ door: door.status === 200, list: listed })) {
+          if (got !== want) wrong.push(`${who} · ${surface}: expected ${want ? "sees" : "does not see"}`);
+        }
+        // «أنا» is only ever a subset of what the person may open: a task the table hides is in neither
+        if (!want && JSON.stringify(everything.json).includes(id)) wrong.push(`${who} · me: a hidden task was named`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("a hidden task is not COUNTED: each person's chip number is the number of the table's tasks they may see", async () => {
+    const w = await switchOn();
+    const wrong: string[] = [];
+    for (const who of PERSONAS) {
+      await loginAs(w.people[who].id);
+      enter(w.space.id);
+      const res = await call(workTasksRoute.GET, { url: "http://localhost/api/work/tasks?scope=space" });
+      const seen = Object.keys(TASKS).filter((kind) => expected(TASKS, kind, who)).length;
+      const counted = (res.json?.["counts"] as Record<string, number> | undefined)?.["nodate"] ?? 0;
+      // a person who is not in the space has no «المساحة» of it: the screen falls back to «أنا» and their own numbers
+      const inSpace = who !== "orgAdminOut";
+      if (inSpace && counted !== seen) wrong.push(`${who}: counted ${counted}, may see ${seen}`);
+      if (!inSpace && counted > seen) wrong.push(`${who}: counted ${counted} tasks of a space they are not in`);
+    }
+    expect(wrong).toEqual([]);
   });
 });

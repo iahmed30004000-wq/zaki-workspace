@@ -38,16 +38,19 @@
 ## 3. Steps (each a branch; tick as you go)
 
 ### W1.1 One «مهامي» screen — `feat/work-my-tasks`
-- [ ] `src/app/(app)/my-work/page.tsx` becomes the unified screen; `/list` and `/calendar` redirect to it with
+- [x] `src/app/(app)/my-work/page.tsx` becomes the unified screen; `/list` and `/calendar` redirect to it with
       `?view=list|calendar&scope=space` (old addresses keep working — `LEGACY_ROUTES` test).
-- [ ] Scope «أنا» = assigned to me or co-assigned, across ALL my ACTIVE spaces (`accessibleWorkspaceIds`), with a
+- [x] Scope «أنا» = assigned to me or co-assigned, across ALL my ACTIVE spaces (`accessibleWorkspaceIds`), with a
       space filter chip row; «المساحة» = the current space's visible tasks (P0.2 rule); «مشروع» = a picker.
-- [ ] Quick filters (chips): اليوم · متأخرة · هالأسبوع · بدون موعد · مكتملة · أنشأتها; sort; group by stage / project /
+- [x] Quick filters (chips): اليوم · متأخرة · هالأسبوع · بدون موعد · مكتملة · أنشأتها; sort; group by stage / project /
       person / due date. The six old inner tabs map onto these chips (keep their URLs: `?tab=today` → chip «اليوم»).
-- [ ] View «لوحة» groups by **stage** (W1.3), across projects.
-- [ ] Data: `queryTasksForView` (`src/server/services/views.ts`) extended with `scope` and `stage`; all reads use
+- [x] View «لوحة» groups by **stage** (W1.3), across projects.
+- [x] Data: `queryTasksForView` (`src/server/services/views.ts`) extended with `scope` and `stage`; all reads use
       `taskVisibleWhere` (P0.2). Client: TanStack Query, optimistic updates for complete / move / due date.
-- [ ] Rows use D1's `list-row`; the task opens in a side panel (URL `?task=<id>`), `/tasks/[id]` stays a full page.
+- [x] Rows use D1's `list-row`; the task opens in a side panel (URL `?task=<id>`), `/tasks/[id]` stays a full page.
+      Built 2026-11-20 on `feat/work-my-tasks` behind the switch `workMyTasks` (OFF): the screen, the three scopes, the chips, the stage board, the optimistic changes, the side panel,
+      the redirects of `/list` and `/calendar` and the loading file are done; notes and what is NOT done (the shell's one line for the old map, the full task card inside the
+      panel, the custom-fields bar of the old list): `docs/restructure/pr/W1.1.md`.
 
 ### W1.2 Tasks without the project hunt — `feat/work-inbox-project`
 - [x] The per-space hidden «مهام فورية» project becomes a visible, named **«صندوق المهام»** (same `systemKey`, same

@@ -32,7 +32,7 @@
  * drawn for a person whose `NavSubject.navV2` is true (the company's switch `navV2`, OFF when merged): الدردشة · اليوم · الشغل ·
  * المكتبة · نتفرّج سوا · الإدارة (or «الناس» for staff with no admin power), at most four tabs per place (`MAX_TABS`) and the rest under
  * «المزيد» (`NavPlace.more`). Both maps are pinned by tests (tests/nav-places.test.ts, tests/nav-places-v2.test.ts). A place whose new page
- * is built later points at TODAY's page until then («مهامي» → /my-work, W1.1; «الإدارة» keeps today's tabs, A2.1). «الطلبات» has its own page since W1.4 (/requests; the approvals pages stay pages of the same tab).
+ * is built later points at TODAY's page until then («مهامي» → /my-work, W1.1 — behind the switch `workMyTasks` the same address is the unified screen; «الإدارة» keeps today's tabs, A2.1). «الطلبات» has its own page since W1.4 (/requests; the approvals pages stay pages of the same tab).
  * Nothing is removed by either map: /list and /calendar stay pages (they are views of «مهامي» on the new map, W1.1 will fold them in).
  */
 
@@ -78,6 +78,12 @@ export interface NavSubject {
    * to whoever builds the subject.)
    */
   navV2?: boolean;
+  /**
+   * The company's switch `workMyTasks` is ON (W1.1): «مهامي» is the ONE screen of the person's tasks, and «القائمة» and «التقويم» are views of it (`/list` and
+   * `/calendar` send there), so the OLD map stops drawing them as tabs of their own. Left out or false (the default, and what the switch OFF gives): the old tabs
+   * are drawn as they always were. (`navExtrasOf` in src/server/policy/org-settings.ts hands it to whoever builds the subject, like `navV2`.)
+   */
+  workMyTasks?: boolean;
   /**
    * The optional work tools the OWNER pinned as tabs for the whole company (`Organization.settings.workTabs`, written by A2.1): at most two keys
    * of `WORK_OPTIONAL_TABS`, in his order. They follow the core tabs while there is room under `MAX_TABS`; what does not fit stays in «المزيد».
@@ -187,6 +193,9 @@ export interface PlaceDef {
   readonly feature?: FeatureKey;
 }
 
+/** W1.1: with the switch `workMyTasks` ON the list and the calendar are views of «مهامي» (the old addresses redirect there), not tabs of their own. */
+const foldedIntoMyTasks = (subject: NavSubject): boolean => subject.workMyTasks === true;
+
 export const PLACES_V1: readonly PlaceDef[] = [
   { key: "today", href: "/", labelKey: "nav.place.today", icon: "today", requires: "everyone", tabs: [] },
   // Chat is available to guests; server-side topic policy limits what they can read.
@@ -202,8 +211,8 @@ export const PLACES_V1: readonly PlaceDef[] = [
     tabs: [
       { key: "my-work", href: "/my-work", labelKey: "nav.tab.myWork", requires: { workCapability: "tasks.view" } },
       { key: "projects", href: "/projects", labelKey: "nav.projects", requires: { workCapability: "projects.view" }, also: ["/boards"] },
-      { key: "list", href: "/list", labelKey: "nav.listView", requires: { workCapability: "tasks.view" } },
-      { key: "calendar", href: "/calendar", labelKey: "nav.calendar", requires: { workCapability: "tasks.view" } },
+      { key: "list", href: "/list", labelKey: "nav.listView", requires: { workCapability: "tasks.view" }, hideFor: foldedIntoMyTasks },
+      { key: "calendar", href: "/calendar", labelKey: "nav.calendar", requires: { workCapability: "tasks.view" }, hideFor: foldedIntoMyTasks },
       // The company's own goals and ideas (titles, descriptions, who wrote them): not shared with an external
       // partner. The pages and /api/goals, /api/ideas refuse a guest too (docs/PHASE0-AUDIT.md R10).
       { key: "goals", href: "/goals", labelKey: "nav.goals", requires: { capability: "goals.view" } },
