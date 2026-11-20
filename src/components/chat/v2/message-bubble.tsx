@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import { Check } from "lucide-react";
 import type { MessageDto, ReaderDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { CardBubble } from "@/components/chat/message/card-bubble";
@@ -40,6 +41,13 @@ export interface MessageMenuSlotApi {
   pressInline: (kind: InlineKind) => void;
 }
 
+/** C3b.5 («حدّد»): the selection as ONE bubble sees it — selecting now, this message is picked, and how a press toggles it. */
+export interface BubbleSelect {
+  on: boolean;
+  selected: boolean;
+  toggle: (messageId: string) => void;
+}
+
 export interface MessageBubbleProps {
   message: MessageDto;
   conversationId: string;
@@ -60,6 +68,11 @@ export interface MessageBubbleProps {
   menu?: (api: MessageMenuSlotApi) => React.ReactNode;
   /** SEAM (C2.6's): the small actions that appear on hover (a quick reaction, «↩»). Nothing is drawn when absent. */
   hover?: React.ReactNode;
+  /**
+   * C3b.5: while the person is selecting messages, a check sits at the start of each one that can be picked, a press anywhere on the row toggles it, and the menu, the
+   * hover buttons, the long press and the double-click gestures are off. Absent (or `on: false`): the bubble is as it was.
+   */
+  select?: BubbleSelect;
   onReact: (message: MessageDto, emoji: string) => void;
   /** a reply block was pressed: jump to the message it answers */
   onJump: (messageId: string) => void;
@@ -83,7 +96,7 @@ export interface MessageBubbleProps {
  * A pending message (the id starts with `pending:`) and a system line are NEVER drawn here: the viewport draws them through `PendingBubble` and
  * `ServiceLine` — a menu on a message the server does not have would act on an id it does not know.
  */
-function MessageBubbleView({ message, conversationId, facts, start, end, mentionNames, readers = [], highlighted = false, menu, hover, onReact, onJump, onAck, onOpenWork, onHintTicket, onSuggestProblem }: MessageBubbleProps) {
+function MessageBubbleView({ message, conversationId, facts, start, end, mentionNames, readers = [], highlighted = false, menu, hover, select, onReact, onJump, onAck, onOpenWork, onHintTicket, onSuggestProblem }: MessageBubbleProps) {
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
   const articleRef = React.useRef<HTMLElement>(null);
@@ -98,6 +111,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const gestures = useBubbleGestures();
   const translation = useTranslation(message.id);
   const canAct = !facts.oversight && !message.deleted && message.kind !== "SYSTEM";
+  // C3b.5: while selecting, a press anywhere on the row picks it: the bubble takes no pointer (so its long press and double-click gestures never start) and draws no menu or hover buttons
+  const selecting = select?.on === true && canAct;
   const longPress = useLongPress(canAct, () => setSheetOpen(true));
   const mine = message.mine;
   const mentionsMe = mentionsMeOf(message, facts.meId);
@@ -105,12 +120,29 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const chips = facts.canOrderState && message.kind === "TEXT";
   const suggestKind = suggestedProblemKind(message, { canProblem: facts.canProblem, problemRules: facts.problemRules, conversationId });
   const hint = customerHintOf(message, { orderHints: facts.orderHints, canModerate: facts.canModerate, canProblem: facts.canProblem });
-  const menuNode = canAct && menu ? menu({ message, sheetOpen, setSheetOpen, translate: () => void translation.ask(), menuOpen, setMenuOpen, readers, pressInline: (kind) => pressInlineButton(articleRef.current, kind) }) : null;
-  const hoverNode = canAct && hover ? hover : null;
+  const menuNode = canAct && !selecting && menu ? menu({ message, sheetOpen, setSheetOpen, translate: () => void translation.ask(), menuOpen, setMenuOpen, readers, pressInline: (kind) => pressInlineButton(articleRef.current, kind) }) : null;
+  const hoverNode = canAct && !selecting && hover ? hover : null;
 
   return (
-    <div className={cn("group flex", mine ? "justify-end" : "justify-start")} data-message-row={mine ? "mine" : "other"} data-run={bubbleRun(start, end)}>
-      <div className={cn("flex min-w-0 max-w-full items-end gap-1.5", mine ? "flex-row-reverse" : "flex-row")}>
+    <div
+      className={cn("group relative flex", mine ? "justify-end" : "justify-start", selecting && "cursor-pointer rounded-lg ps-9", selecting && select?.selected && "bg-accent/[0.08]")}
+      data-message-row={mine ? "mine" : "other"}
+      data-run={bubbleRun(start, end)}
+      {...(selecting ? { onClick: () => select?.toggle(message.id), ...(select?.selected ? { "data-selected": "" } : {}) } : {})}
+    >
+      {selecting ? (
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={select?.selected === true}
+          aria-label={ct("chatsel.check")}
+          data-select-check
+          className={cn("absolute inset-y-0 start-1.5 my-auto grid size-6 place-items-center rounded-full border-2", select?.selected ? "border-accent bg-accent text-accent-fg" : "border-muted bg-surface")}
+        >
+          {select?.selected ? <Check aria-hidden="true" className="size-4" /> : null}
+        </button>
+      ) : null}
+      <div className={cn("flex min-w-0 max-w-full items-end gap-1.5", mine ? "flex-row-reverse" : "flex-row", selecting && "pointer-events-none")}>
         {sender ? end ? <Avatar name={message.authorName} src={message.authorAvatar} className="mb-1 size-8 text-xs" /> : <span aria-hidden="true" className="size-8 shrink-0" /> : null}
         <div className={cn("flex min-w-0 flex-col", mine ? "items-end" : "items-start")}>
           <div className={cn("flex min-w-0 max-w-full items-end gap-1", mine ? "flex-row-reverse" : "flex-row")}>

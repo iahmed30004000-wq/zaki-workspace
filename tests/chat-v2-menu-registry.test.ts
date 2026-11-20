@@ -32,7 +32,7 @@ import { makeHeader, makeMessage } from "./chat-v2-pane-fixtures.test";
 
 /**
  * C2.6 — the registry is still the ONE source of the menu, and it learned five ids for the new screen: «نسخ الرابط» (copyLink), «اقرأ النص» (readText),
- * «حوّل الصوت لنص» (transcribe), «مين شاف» (seen) and «اسألي مشرفتك» (ask). «حدّد» is C3b.5: it has no action yet, so its id is NOT added.
+ * «حوّل الصوت لنص» (transcribe), «مين شاف» (seen) and «اسألي مشرفتك» (ask). «حدّد» (select) came with C3b.5 and is pinned in the test below it.
  *
  * The new ids are opt-in (`surface: "v2"`): the OLD screen (and the quick chat) has no handler for them, so an id it cannot run must never reach it.
  * Per permission, as in `chat-message-menu.test.ts`: a member, a moderator, a guest, the owner reading silently, a deleted message, a system line.
@@ -263,8 +263,12 @@ describe("the new screen's order is Telegram's, and ours after it", () => {
     expect(new Set(V2_MENU_ORDER).size).toBe(V2_MENU_ORDER.length);
   });
 
-  it("«حدّد» is not in the registry: it has no action before C3b.5", () => {
-    expect(messageMenuItems.map((i) => i.id as string)).not.toContain("select");
+  it("«حدّد» (C3b.5) is in the registry, offered only where the screen can select, and never to the old screen (`tests/chat-multi-select.test.ts` holds the rest)", () => {
+    expect(messageMenuItems.map((i) => i.id as string)).toContain("select");
+    const base = { mine: false, deleted: false, kind: "TEXT", hasText: true, pinned: false, conversationKind: "TOPIC", canPost: true, canModerate: false, oversight: false } as const;
+    expect(menuFor({ ...base, surface: "v2" }).map((a) => a.id)).not.toContain("select");
+    expect(menuFor({ ...base, surface: "v2", canSelect: true }).map((a) => a.id)).toContain("select");
+    expect(menuFor({ ...base, canSelect: true }).map((a) => a.id)).not.toContain("select");
   });
 
   it("the dangerous item is the only one marked, and every label is Arabic and a dictionary key", async () => {

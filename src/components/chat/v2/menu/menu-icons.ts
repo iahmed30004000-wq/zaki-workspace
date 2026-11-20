@@ -1,4 +1,4 @@
-import { AudioLines, Bell, Bookmark, CheckCheck, CircleHelp, Clock, Copy, Forward, Languages, Link, ListChecks, Pencil, Pin, PinOff, ScanText, StickyNote, Ticket, Trash2, TriangleAlert, Unlink, Reply, type LucideIcon } from "lucide-react";
+import { AudioLines, Bell, Bookmark, CheckCheck, CircleHelp, Clock, Copy, Forward, Languages, Link, ListChecks, Pencil, Pin, PinOff, ScanText, SquareCheckBig, StickyNote, Ticket, Trash2, TriangleAlert, Unlink, Reply, type LucideIcon } from "lucide-react";
 import type { MessageMenuId } from "@/components/chat/message/message-menu-registry";
 
 /**
@@ -12,6 +12,7 @@ export const MENU_ICONS: Record<MessageMenuId, LucideIcon> = {
   pin: Pin,
   forward: Forward,
   saved: Bookmark,
+  select: SquareCheckBig,
   edit: Pencil,
   delete: Trash2,
   task: ListChecks,

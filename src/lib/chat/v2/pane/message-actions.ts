@@ -19,6 +19,10 @@ export const doors = {
   /** «قرأت ✓» on a must-read message, and taking it back */
   ack: (messageId: string, on: boolean): Door => ({ path: `${at(messageId)}/ack`, method: on ? "POST" : "DELETE" }),
   mustRead: (messageId: string, on: boolean): Door => ({ path: `${at(messageId)}/must-read`, method: "POST", body: { on } }),
+  /** «حدّد» then «حوّل» (C3b.5): the picked messages into up to ten conversations; the answer reports each target */
+  forwardMany: (messageIds: string[], targetIds: string[], withoutAuthor: boolean): Door => ({ path: "/api/chat/messages/forward", method: "POST", body: { messageIds, targetIds, withoutAuthor } }),
+  /** «حدّد» then «احذف» (C3b.5): the picked messages, each by the single rule; the answer reports each id */
+  removeMany: (ids: string[]): Door => ({ path: "/api/chat/messages/delete", method: "POST", body: { ids } }),
   /** «شيل المعاينة» (C3b.2): the author takes the link card off their message */
   removePreview: (messageId: string): Door => ({ path: `${at(messageId)}/preview`, method: "DELETE" }),
   /** «شارك بالمحادثة»: the owner leaves silent oversight of an open topic */

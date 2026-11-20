@@ -13,6 +13,8 @@ import { TopicSummaryButton } from "@/components/digest/topic-summary-button";
 import { PrivacySheet } from "@/components/chat/conversation/privacy-sheet";
 import { TopicSettingsDialog } from "@/components/chat/conversation/topic-settings-dialog";
 import { usePaneActions } from "@/components/chat/v2/pane/pane-actions";
+import { SelectionBarHost } from "@/components/chat/v2/menu/selection-bar";
+import { useSelection } from "@/lib/chat/selection";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { scheduleSync } from "@/lib/chat/cache/runtime";
 import { privacyState } from "@/lib/chat/privacy";
@@ -49,6 +51,8 @@ function HeaderAvatar({ header }: { header: ConversationHeaderDto }) {
 export function PaneHeader({ header, people, watch, system }: { header: ConversationHeaderDto; people: PaneMembers | null; watch: boolean; system: boolean }) {
   const qc = useQueryClient();
   const a = usePaneActions();
+  const selection = useSelection();
+  const selecting = selection.active && selection.conversationId === header.id;
   const { onLinkClick } = usePhoneBack();
   const { typingNames } = useTyping(header.id);
   // C3a.3: the saved chat has nobody to call and nobody who types: no call button and no typing line there
@@ -148,6 +152,15 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
   const topicIds: HeaderMenuId[] = ["settings", "close", "reopen", "archive", "unarchive"];
   const common = items.filter((id) => !topicIds.includes(id));
   const topic = items.filter((id) => topicIds.includes(id));
+
+  // C3b.5 («حدّد»): while messages of THIS conversation are picked, the bar (the count and «حوّل · انسخ · احذف · اعمل مهمة») takes the header's place; Esc or ✕ gives it back
+  if (selecting) {
+    return (
+      <header data-pane-header className="flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 pt-[env(safe-area-inset-top)] md:px-3 md:pt-0">
+        <SelectionBarHost header={header} />
+      </header>
+    );
+  }
 
   return (
     // C2.8: on a phone the header owns the notch (the frame's top bar is hidden on a chat screen), so it pads its top by the inset; from `md` there is none

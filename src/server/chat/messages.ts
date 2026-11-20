@@ -414,7 +414,16 @@ export async function deleteMessage(ctx: OrgAccessContext, messageId: string): P
     include: { conversation: { select: { id: true, orgId: true, spaceId: true } } },
   });
   if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
-  const { facts, org } = await guard(ctx, msg.conversationId);
+  await deleteLoaded(ctx, msg, await guard(ctx, msg.conversationId));
+}
+
+/** The rest of `deleteMessage` once the message and the conversation's facts are loaded (the batch loads them once for many ids). The rule is written here and nowhere else. */
+async function deleteLoaded(
+  ctx: OrgAccessContext,
+  msg: { id: string; orgId: string; conversationId: string; authorId: string; createdAt: Date; deletedAt: Date | null },
+  { facts, org }: Awaited<ReturnType<typeof guard>>,
+): Promise<void> {
+  const messageId = msg.id;
   const mine = msg.authorId === ctx.userId;
   if (!mine && !canModerate(facts, org)) throw new ForbiddenError("chat.e.delete_denied");
   if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
@@ -545,6 +554,52 @@ export async function addNote(ctx: OrgAccessContext, messageId: string, input: z
 
 export const forwardSchema = z.object({ conversationId: z.string().min(1) });
 
+type MessageLinks = { fileId: string; kind: string; width: number | null; height: number | null; durationMs: number | null; peaks: Prisma.JsonValue | null; position: number }[];
+
+/**
+ * ONE copy of a message in a conversation, written by the person who forwards (the ONE implementation: `forwardMessage` and the batch `forwardMessages` both call it).
+ * The copy keeps the words, the kind and the card (a card is resolved again for its new readers) and links the same files again; `forwardedFromId` points at the original
+ * unless `withoutAuthor` (C3b.5: «بدون اسم المرسل») leaves it out.
+ */
+async function copyForward(
+  tx: Prisma.TransactionClient,
+  ctx: OrgAccessContext,
+  msg: { id: string; body: string; kind: string; card: Prisma.JsonValue | null },
+  links: MessageLinks,
+  conversationId: string,
+  opts: { createdAt?: Date; withoutAuthor?: boolean } = {},
+): Promise<{ id: string; createdAt: Date }> {
+  const copy = await tx.chatMessage.create({
+    data: {
+      orgId: ctx.orgId,
+      conversationId,
+      authorId: ctx.userId,
+      body: msg.body,
+      kind: msg.kind,
+      ...(msg.card ? { card: msg.card as Prisma.InputJsonValue } : {}),
+      ...(opts.withoutAuthor ? {} : { forwardedFromId: msg.id }),
+      ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
+    },
+    select: { id: true, createdAt: true },
+  });
+  // attachments: the same files linked again from the new message
+  if (links.length) {
+    await tx.messageAttachment.createMany({
+      data: links.map((l) => ({
+        messageId: copy.id,
+        fileId: l.fileId,
+        kind: l.kind,
+        width: l.width,
+        height: l.height,
+        durationMs: l.durationMs,
+        peaks: l.peaks as never,
+        position: l.position,
+      })),
+    });
+  }
+  return copy;
+}
+
 export async function forwardMessage(ctx: OrgAccessContext, messageId: string, input: z.infer<typeof forwardSchema>): Promise<{ id: string }> {
   const msg = await db.chatMessage.findUnique({ where: { id: messageId }, include: { conversation: { select: { id: true, orgId: true } } } });
   if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
@@ -558,35 +613,8 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
   if (!canPost(to.facts, to.org, { ownerJoined: to.facts.viewerIsMember })) throw new ForbiddenError("chat.e.post_denied");
 
   const created = await db.$transaction(async (tx) => {
-    const copy = await tx.chatMessage.create({
-      data: {
-        orgId: ctx.orgId,
-        conversationId: input.conversationId,
-        authorId: ctx.userId,
-        body: msg.body,
-        kind: msg.kind,
-        // a forwarded card is resolved again for its new readers
-        ...(msg.card ? { card: msg.card as Prisma.InputJsonValue } : {}),
-        forwardedFromId: msg.id,
-      },
-      include: messageInclude(),
-    });
-    // attachments: the same files linked again from the new message
     const links = await tx.messageAttachment.findMany({ where: { messageId: msg.id }, orderBy: { position: "asc" } });
-    if (links.length) {
-      await tx.messageAttachment.createMany({
-        data: links.map((l) => ({
-          messageId: copy.id,
-          fileId: l.fileId,
-          kind: l.kind,
-          width: l.width,
-          height: l.height,
-          durationMs: l.durationMs,
-          peaks: l.peaks as never,
-          position: l.position,
-        })),
-      });
-    }
+    const copy = await copyForward(tx, ctx, msg, links, input.conversationId);
     await tx.conversation.update({ where: { id: input.conversationId }, data: { updatedAt: new Date() } });
     // C1.8: the target's list time moves with the copy, in this transaction (it never goes backwards)
     await moveLastMessageAt(tx, input.conversationId, copy.createdAt);
@@ -598,6 +626,152 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
     return copy;
   });
   return { id: created.id };
+}
+
+// ---------- many at once (C3b.5: «حدّد») ----------
+// Forwarding and deleting a selection reuse the single rules message by message (`copyForward` and `deleteLoaded`, the very code `forwardMessage` and `deleteMessage` run): the
+// batch adds only the caps, a quota, the report per target / per id and the one oversight rule. The company's switch `chatMultiSelect` is the DOOR's to check
+// (`assertFeatureOn`), before anything is read.
+
+/** At most this many messages in one request, and this many conversations to forward them to. */
+export const MULTI_MAX_MESSAGES = 100;
+export const MULTI_MAX_TARGETS = 10;
+/** A batch can write 1000 messages: a person gets 20 of each kind a minute (the single send has its own 30). A request refused before it writes costs nothing. */
+const forwardLimiter = new FixedWindowLimiter({ limit: 20, windowMs: 60_000 });
+const deleteLimiter = new FixedWindowLimiter({ limit: 20, windowMs: 60_000 });
+function checkQuota(limiter: FixedWindowLimiter, userId: string): void {
+  const state = limiter.check(`chat.bulk.${userId}`);
+  if (!state.ok) throw new RateLimitedError(state.retryAfterSec, "chat.e.rate_limited");
+}
+
+const idShape = z.string().min(1).max(100);
+export const forwardManySchema = z.object({
+  messageIds: z.array(idShape).min(1).max(MULTI_MAX_MESSAGES),
+  targetIds: z.array(idShape).min(1).max(MULTI_MAX_TARGETS),
+  /** «بدون اسم المرسل»: the copies carry no link to the original */
+  withoutAuthor: z.boolean().optional(),
+});
+export const deleteManySchema = z.object({ ids: z.array(idShape).min(1).max(MULTI_MAX_MESSAGES) });
+
+export type ForwardManyResult = { targetId: string; ok: true; ids: string[] } | { targetId: string; ok: false; error: string };
+export type DeleteManyResult = { id: string; ok: true } | { id: string; ok: false; error: string };
+
+/** Every target that refuses says the same words, whether it does not exist, may not be read or may not be written in: the report must not tell which. */
+const TARGET_REFUSED = "chat.e.post_denied";
+const FORWARD_FAILED = "chatsel.fwd.failed";
+const DELETE_FAILED = "chatsel.del.failed";
+const NOT_FOUND = "chat.e.not_found";
+
+type Held = Awaited<ReturnType<typeof guard>>;
+
+/** The facts of a SOURCE conversation, once per conversation. A conversation that is not the person's to know about (unknown, or a guest's no-go) is simply «not found». */
+async function sourceFacts(ctx: OrgAccessContext, cache: Map<string, Held>, conversationId: string): Promise<Held> {
+  const held = cache.get(conversationId);
+  if (held) return held;
+  try {
+    const loaded = await guard(ctx, conversationId);
+    cache.set(conversationId, loaded);
+    return loaded;
+  } catch (err) {
+    if (err instanceof NotFoundError || err instanceof ForbiddenError) throw new NotFoundError(NOT_FOUND);
+    throw err;
+  }
+}
+
+/**
+ * «حوّل» for a selection. The WHOLE request is refused (nothing is written anywhere) when a message cannot be forwarded the way forwarding one cannot: not found or not
+ * readable (404, the same words for both), a deleted message, a poll, a system line (403). Then, for each target in turn: the target's own rule (I may write there —
+ * `canPost`, the same as forwarding one) and ONE transaction that writes every copy in the conversation's order, a millisecond apart in the clock so the order is kept;
+ * a target that refuses or fails is reported alone and the others still get their copies. Up to 1000 copies in one request: it is bounded by the caps and the quota.
+ */
+export async function forwardMessages(ctx: OrgAccessContext, input: z.infer<typeof forwardManySchema>): Promise<{ results: ForwardManyResult[] }> {
+  const ids = [...new Set(input.messageIds)];
+  const targetIds = [...new Set(input.targetIds)];
+  checkQuota(forwardLimiter, ctx.userId);
+
+  const rows = await db.chatMessage.findMany({ where: { id: { in: ids }, orgId: ctx.orgId }, include: { attachments: { orderBy: { position: "asc" } } } });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const sources = new Map<string, Held>();
+  for (const id of ids) {
+    const msg = byId.get(id);
+    if (!msg) throw new NotFoundError(NOT_FOUND);
+    const from = await sourceFacts(ctx, sources, msg.conversationId);
+    // readable first: what kind of message a person may not read is not theirs to learn
+    if (!canRead(from.facts, from.org)) throw new NotFoundError(NOT_FOUND);
+    if (msg.kind === "SYSTEM") throw new ForbiddenError("chat.e.system_immutable");
+    if (msg.kind === "POLL") throw new ForbiddenError("chat.e.poll_immutable"); // a copy would carry no votes
+    if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
+  }
+  forwardLimiter.hit(`chat.bulk.${ctx.userId}`);
+  const ordered = rows.slice().sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1));
+
+  const results: ForwardManyResult[] = [];
+  for (const targetId of targetIds) {
+    try {
+      const to = await guard(ctx, targetId);
+      if (!canPost(to.facts, to.org, { ownerJoined: to.facts.viewerIsMember })) throw new ForbiddenError(TARGET_REFUSED);
+      const copies = await db.$transaction(
+        async (tx) => {
+          const base = Date.now();
+          const made: { id: string; createdAt: Date }[] = [];
+          for (const [i, msg] of ordered.entries()) {
+            made.push(await copyForward(tx, ctx, msg, msg.attachments, targetId, { createdAt: new Date(base + i), withoutAuthor: input.withoutAuthor === true }));
+          }
+          await tx.conversation.update({ where: { id: targetId }, data: { updatedAt: new Date() } });
+          // C1.8: the target's list time moves with the newest copy, in this transaction (it never goes backwards)
+          await moveLastMessageAt(tx, targetId, made[made.length - 1]!.createdAt);
+          for (const copy of made) {
+            await emitRealtime(tx, ctx.orgId, "message.created", { conversationId: targetId, messageId: copy.id, spaceId: to.facts.spaceId ?? undefined });
+          }
+          return made;
+        },
+        { timeout: 30_000, maxWait: 5_000 },
+      );
+      results.push({ targetId, ok: true, ids: copies.map((c) => c.id) });
+    } catch (err) {
+      if (err instanceof NotFoundError || err instanceof ForbiddenError) results.push({ targetId, ok: false, error: TARGET_REFUSED });
+      else {
+        log.error("chat.forward_many_failed", { err: err instanceof Error ? err.message : String(err), targetId, userId: ctx.userId });
+        results.push({ targetId, ok: false, error: FORWARD_FAILED });
+      }
+    }
+  }
+  return { results };
+}
+
+/**
+ * «احذف» for a selection: the single rule per id, in turn (`deleteLoaded`: own, or a moderator's; each audited as before), with the messages and each conversation's facts
+ * loaded once. A message the person may not read (and did not write) is «not found», the same words as an id that does not exist. A person who only READS through silent
+ * oversight (the owner not joined to the conversation) deletes nothing here: every such id is refused and NOTHING is written, not even an audit line — no trace. An id
+ * that is of another company, already deleted or not mine to delete is reported on its own and the rest still go.
+ */
+export async function deleteMessages(ctx: OrgAccessContext, input: z.infer<typeof deleteManySchema>): Promise<{ results: DeleteManyResult[] }> {
+  const ids = [...new Set(input.ids)];
+  checkQuota(deleteLimiter, ctx.userId);
+  deleteLimiter.hit(`chat.bulk.${ctx.userId}`);
+  const rows = await db.chatMessage.findMany({ where: { id: { in: ids }, orgId: ctx.orgId }, select: { id: true, orgId: true, conversationId: true, authorId: true, createdAt: true, deletedAt: true } });
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const facts = new Map<string, Held>();
+  const results: DeleteManyResult[] = [];
+  for (const id of ids) {
+    try {
+      const msg = byId.get(id);
+      if (!msg) throw new NotFoundError(NOT_FOUND);
+      const held = await sourceFacts(ctx, facts, msg.conversationId);
+      // somebody else's message in a conversation I cannot read does not exist for me
+      if (msg.authorId !== ctx.userId && !canRead(held.facts, held.org)) throw new NotFoundError(NOT_FOUND);
+      if (hasOversight(held.org) && !held.facts.viewerIsMember) throw new ForbiddenError("chat.e.delete_denied");
+      await deleteLoaded(ctx, msg, held);
+      results.push({ id, ok: true });
+    } catch (err) {
+      if (err instanceof NotFoundError || err instanceof ForbiddenError) results.push({ id, ok: false, error: err.message });
+      else {
+        log.error("chat.delete_many_failed", { err: err instanceof Error ? err.message : String(err), messageId: id, userId: ctx.userId });
+        results.push({ id, ok: false, error: DELETE_FAILED });
+      }
+    }
+  }
+  return { results };
 }
 
 // ---------- link preview (C3b.2) ----------
