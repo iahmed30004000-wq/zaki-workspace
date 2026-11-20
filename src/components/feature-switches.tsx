@@ -2,24 +2,36 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiPatch } from "@/lib/api-client";
+import { apiPatch, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { useOptionalToast } from "@/components/ui/toast";
 import { COMPANY_CHAT_GROUP, ECONOMY_FORCED_OFF, ECONOMY_POLL_FACTOR, type FeatureKey } from "@/lib/features";
+import { FEATURE_GROUP_ORDER, groupKeys, matchesSearch, missingParents, type FeaturePreset } from "@/lib/feature-groups";
 import { showModelWarning } from "@/lib/chat/customer-data-hint";
 import { cn } from "@/lib/utils";
+import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { PresetsBar } from "@/components/feature-switches/presets-bar";
+
+/** C4.3's chat switches: the ⚠️/🔧 flag and the note of each, by key (the group is data in src/lib/features.ts). */
+const CHAT_EXTRAS = new Map<FeatureKey, { risk?: boolean; note?: boolean }>(COMPANY_CHAT_GROUP.map((g) => [g.key, { risk: g.risk, note: g.note }]));
 
 /**
  * «الميزات»: the owner switches each feature on or off. Off, the feature is gone from every screen and its doors
  * answer «not found»; what it stored is kept, and switching it on brings it all back.
+ *
+ * A1.4: two presets at the top (each asks first, listing what changes), a search box, and the switches in six groups. A switch that needs another
+ * (`FEATURE_META[key].dependsOn`) says «بيحتاج: …» while that one is off and cannot be switched ON; one that is already ON stays free to be switched off.
+ * `initialQuery` is for the markup tests.
  */
-export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: FeatureKey; on: boolean }[]; notReady?: FeatureKey[] }) {
+export function FeatureSwitches({ initial, notReady = [], initialQuery = "" }: { initial: { key: FeatureKey; on: boolean }[]; notReady?: FeatureKey[]; initialQuery?: string }) {
   const { t } = useI18n();
   const toast = useOptionalToast();
   const router = useRouter();
   const [items, setItems] = useState(initial);
   const [busy, setBusy] = useState<FeatureKey | null>(null);
+  const [presetBusy, setPresetBusy] = useState(false);
+  const [query, setQuery] = useState(initialQuery);
 
   async function flip(key: FeatureKey, on: boolean) {
     setBusy(key);
@@ -37,16 +49,37 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
     }
   }
 
+  /** A preset: the server decides the keys (the body names the preset only) and answers what it changed. */
+  async function applyPreset(preset: FeaturePreset): Promise<boolean> {
+    setPresetBusy(true);
+    try {
+      const res = await apiPost<{ preset: FeaturePreset; changed: { key: FeatureKey; on: boolean }[] }>("/api/settings/features", { preset });
+      const changed = new Map(res.changed.map((c) => [c.key, c.on]));
+      setItems((all) => all.map((f) => (changed.has(f.key) ? { ...f, on: changed.get(f.key) as boolean } : f)));
+      toast?.toast(t("featureGroups.applied", { name: t(`featureGroups.presets.${preset}.name`) }), "success");
+      router.refresh();
+      return true;
+    } catch {
+      toast?.toast(t("common.error"), "error");
+      return false;
+    } finally {
+      setPresetBusy(false);
+    }
+  }
+
   // «وضع التوفير» is an overlay: what the owner left on stays on in the list, and is only MARKED while the master switch holds it off
   const economy = items.find((f) => f.key === "economyMode")?.on ?? false;
   const held = new Set<FeatureKey>(economy ? ECONOMY_FORCED_OFF.filter((key) => items.find((f) => f.key === key)?.on) : []);
+  // the owner's own choices, for «بيحتاج»: a key the list was not given is at its default
+  const choices = Object.fromEntries(items.map((f) => [f.key, f.on])) as Record<FeatureKey, boolean>;
 
-  function toggle(item: { key: FeatureKey; on: boolean }) {
-    return <Switch checked={item.on} onChange={(on) => flip(item.key, on)} label={t(`features.${item.key}.name`)} disabled={busy === item.key} />;
+  function toggle(item: { key: FeatureKey; on: boolean }, disabled = false) {
+    return <Switch checked={item.on} onChange={(on) => flip(item.key, on)} label={t(`features.${item.key}.name`)} disabled={busy === item.key || presetBusy || disabled} />;
   }
 
-  /** One switch: its name, its hint, the group's note and ⚠️/🔧 where it has them, and the toggle. */
+  /** One switch: its name, its hint, «بيحتاج», the group's note and ⚠️/🔧 where it has them, and the toggle. */
   function row(f: { key: FeatureKey; on: boolean }, extra?: { risk?: boolean; note?: boolean }) {
+    const needs = missingParents(f.key, choices);
     return (
       <li key={f.key} className="flex items-center justify-between gap-4 py-3">
         <div className="min-w-0">
@@ -56,6 +89,11 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
             {held.has(f.key) ? <span className="ms-2 rounded-full bg-warn/15 px-2 py-0.5 text-xs font-medium text-warn">{t("economy.held")}</span> : null}
           </p>
           <p className="text-xs text-muted">{t(`features.${f.key}.hint`)}</p>
+          {needs.length > 0 ? (
+            <p data-needs={f.key} className="text-xs text-warn">
+              {t("featureGroups.needs", { names: needs.map((k) => t(`features.${k}.name`)).join("، ") })}
+            </p>
+          ) : null}
           {extra?.note ? <p className="text-xs text-muted">{t(`companyChat.note.${f.key}`)}</p> : null}
           {!extra?.risk && showModelWarning(items, f.key) ?<p data-model-warning className="text-xs leading-6 text-warn">{t("features.model_warn")}</p> : null}
           {notReady.includes(f.key) ? <p className="text-xs text-warn">{t("semantic.not_ready_hint")}</p> : null}
@@ -67,21 +105,29 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
           ) : null}
         </div>
         <div className={cn(held.has(f.key) && "opacity-50")}>
-          {toggle(f)}
+          {/* a switch that is OFF cannot be switched on while a parent is off; one that is already ON can always be switched off */}
+          {toggle(f, needs.length > 0 && !f.on)}
         </div>
       </li>
     );
   }
 
-  // «الدردشة» (C4.3): the chat switches, grouped, first. A key the list was not given is skipped; the rest of the list is every other switch.
-  const chatRows = COMPANY_CHAT_GROUP.flatMap((g) => {
-    const item = items.find((f) => f.key === g.key);
-    return item ? [{ item, g }] : [];
+  // the groups: the chat group first (C4.3), then the other five in the spec's order. A key the list was not given is skipped; a search keeps what matches.
+  const sections = FEATURE_GROUP_ORDER.flatMap((group) => {
+    const groupTitle = t(`featureGroups.group.${group}`);
+    const rows = groupKeys(group).flatMap((key) => {
+      const item = items.find((f) => f.key === key);
+      if (!item) return [];
+      if (!matchesSearch([t(`features.${key}.name`), t(`features.${key}.hint`), groupTitle], query)) return [];
+      return [{ item, extra: group === "chat" ? CHAT_EXTRAS.get(key) : undefined }];
+    });
+    return rows.length > 0 ? [{ group, groupTitle, rows }] : [];
   });
-  const inChatGroup = new Set<FeatureKey>(COMPANY_CHAT_GROUP.map((g) => g.key));
 
   return (
     <div className="space-y-4">
+      <PresetsBar items={items} onApply={applyPreset} busy={presetBusy || busy !== null} />
+      <Input type="search" value={query} onChange={(e) => setQuery(e.currentTarget.value)} placeholder={t("featureGroups.search.placeholder")} aria-label={t("featureGroups.search.label")} />
       {/* «وضع التوفير»: the one switch for a server that is not strong enough; what it holds off is printed, with the way back */}
       <section
         className={cn("space-y-3 rounded-lg border p-4", economy ? "border-warn/40 bg-warn/10" : "border-border bg-surface-2")}
@@ -114,20 +160,16 @@ export function FeatureSwitches({ initial, notReady = [] }: { initial: { key: Fe
           <p className="text-fg">{t("economy.fix")}</p>
         </div>
       </section>
-      {chatRows.length > 0 ? (
-        <section className="space-y-1 rounded-lg border border-border bg-surface-1 p-4" aria-labelledby="company-chat-title" data-company-chat-group>
-          <h3 id="company-chat-title" className="text-sm font-semibold text-fg">
-            {t("companyChat.title")}
+      {sections.map(({ group, groupTitle, rows }) => (
+        <section key={group} className="space-y-1 rounded-lg border border-border bg-surface-1 p-4" aria-labelledby={`feature-group-${group}`} data-feature-group={group} {...(group === "chat" ? { "data-company-chat-group": true } : {})}>
+          <h3 id={`feature-group-${group}`} className="text-sm font-semibold text-fg">
+            {groupTitle}
           </h3>
-          <p className="text-xs text-muted">{t("companyChat.subtitle")}</p>
-          <ul className="divide-y divide-border">{chatRows.map(({ item, g }) => row(item, g))}</ul>
+          {group === "chat" ? <p className="text-xs text-muted">{t("companyChat.subtitle")}</p> : null}
+          <ul className="divide-y divide-border">{rows.map(({ item, extra }) => row(item, extra))}</ul>
         </section>
-      ) : null}
-      <ul className="divide-y divide-border">
-        {items
-          .filter((f) => f.key !== "economyMode" && !inChatGroup.has(f.key))
-          .map((f) => row(f))}
-      </ul>
+      ))}
+      {sections.length === 0 ? <p className="text-sm text-muted">{t("featureGroups.search.none")}</p> : null}
     </div>
   );
 }

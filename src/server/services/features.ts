@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { perRequest } from "@/server/env";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { FEATURES, economyOn, featureOn, ownChoicesOf, withFeature, type FeatureKey } from "@/lib/features";
+import { presetChanges, type FeaturePreset } from "@/lib/feature-groups";
 
 /**
  * «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request.
@@ -59,4 +60,27 @@ export async function setFeature(ctx: OrgAccessContext, key: FeatureKey, on: boo
     await tx.organization.update({ where: { id: ctx.orgId }, data: { settings: withFeature(org?.settings ?? {}, key, on) as Prisma.InputJsonValue } });
   });
   return { key, on };
+}
+
+/**
+ * A1.4 — a preset («الوضع البسيط» / «كل شي», src/lib/feature-groups.ts): the OWNER's alone, like a single switch (D-A4: the owner rank, unchanged). The client names the
+ * preset; the KEYS are the server's, judged against the company's own choices under the same row lock, written in ONE update with every other key of the settings kept.
+ * Only the switches whose value differs are written and answered; nothing stored by a feature is touched, so «كل شي» gives back exactly what the simple mode switched off.
+ * The audit line (`org.features_preset`: the preset and the keys it changed) is written in the same transaction. A press that changes nothing writes nothing and leaves no audit line.
+ */
+export async function applyFeaturePreset(ctx: OrgAccessContext, preset: FeaturePreset): Promise<{ preset: FeaturePreset; changed: { key: FeatureKey; on: boolean }[] }> {
+  if (ctx.orgRole !== "OWNER") throw new ForbiddenError("features.owner_only");
+  const changed = await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT 1 FROM "Organization" WHERE id = ${ctx.orgId} FOR UPDATE`;
+    const org = await tx.organization.findUnique({ where: { id: ctx.orgId }, select: { settings: true } });
+    const settings = org?.settings ?? {};
+    const changes = presetChanges(preset, ownChoicesOf(settings));
+    if (changes.length === 0) return changes;
+    const next = changes.reduce<Record<string, unknown>>((acc, c) => withFeature(acc, c.key, c.on), settings && typeof settings === "object" ? (settings as Record<string, unknown>) : {});
+    await tx.organization.update({ where: { id: ctx.orgId }, data: { settings: next as Prisma.InputJsonValue } });
+    // the audit line is part of the same transaction: the change and its record land together or not at all
+    await tx.auditLog.create({ data: { action: "org.features_preset", actorId: ctx.userId, orgId: ctx.orgId, meta: { preset, changed: changes.map((c) => c.key) } } });
+    return changes;
+  });
+  return { preset, changed };
 }

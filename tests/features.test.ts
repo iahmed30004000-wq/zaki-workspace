@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FEATURES, FEATURE_DEFAULTS, featureOn, featuresOf, featuresOff, isFeatureKey, withFeature } from "@/lib/features";
+import { COMPANY_CHAT_GROUP, FEATURES, FEATURE_DEFAULTS, FEATURE_GROUPS, FEATURE_META, featureOn, featuresOf, featuresOff, isFeatureKey, withFeature } from "@/lib/features";
 import { buildNav } from "@/lib/nav/places";
 import { newActionsFor } from "@/lib/nav/new-actions";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
@@ -323,5 +323,70 @@ describe("«الميزات»: a switched-off feature is gone from the map and fr
   it("switching a feature off changes nothing else on the map", () => {
     const on = buildNav(owner).places.filter((p) => p.key !== "watch");
     expect(buildNav({ ...owner, off: ["watch"] }).places).toEqual(on);
+  });
+});
+
+describe("A1.4: every switch has a group, and its dependencies exist and are acyclic", () => {
+  it("every key has a group of the six, every group is used, and the table has no key that is not a switch", () => {
+    expect(FEATURE_GROUPS).toEqual(["work", "library", "chat", "people", "owner", "platform"]);
+    expect(Object.keys(FEATURE_META).sort()).toEqual([...FEATURES].sort());
+    for (const key of FEATURES) expect(FEATURE_GROUPS as readonly string[], key).toContain(FEATURE_META[key].group);
+    for (const group of FEATURE_GROUPS) expect(FEATURES.filter((k) => FEATURE_META[k].group === group).length, group).toBeGreaterThan(0);
+  });
+
+  it("the six groups are named in Arabic (the owner's names)", () => {
+    expect(FEATURE_GROUPS.map((g) => AR[`featureGroups.group.${g}`])).toEqual(["المهام والشغل", "المكتبة", "الدردشة والمكالمات", "الناس", "لوحات المالك والذكاء", "المنصة"]);
+  });
+
+  it("a dependency is a real switch, never the key itself, never listed twice", () => {
+    for (const key of FEATURES) {
+      const deps = FEATURE_META[key].dependsOn ?? [];
+      expect(new Set(deps).size, key).toBe(deps.length);
+      for (const dep of deps) {
+        expect(isFeatureKey(dep), `${key} -> ${dep}`).toBe(true);
+        expect(dep, key).not.toBe(key);
+      }
+    }
+  });
+
+  it("dependencies are acyclic (walking up from any key never comes back to it)", () => {
+    for (const start of FEATURES) {
+      const seen = new Set<string>();
+      const stack = [...(FEATURE_META[start].dependsOn ?? [])];
+      while (stack.length > 0) {
+        const next = stack.pop() as (typeof FEATURES)[number];
+        expect(next, `cycle through ${start}`).not.toBe(start);
+        if (seen.has(next)) continue;
+        seen.add(next);
+        stack.push(...(FEATURE_META[next].dependsOn ?? []));
+      }
+    }
+  });
+
+  it("the C4.3 chat group is the chat group: each of its 14 keys is in «الدردشة والمكالمات»", () => {
+    expect(COMPANY_CHAT_GROUP.length).toBe(14);
+    for (const g of COMPANY_CHAT_GROUP) expect(FEATURE_META[g.key].group, g.key).toBe("chat");
+  });
+
+  it("the dependencies the code and the hints already state are recorded", () => {
+    const deps = (key: (typeof FEATURES)[number]) => [...(FEATURE_META[key].dependsOn ?? [])].sort();
+    expect(deps("ownerAssistant")).toEqual(["ownerBoard"]);
+    expect(deps("chatAssistant")).toEqual(["ownerAssistant"]);
+    expect(deps("controlPanel")).toEqual(["ownerBoard"]);
+    expect(deps("doorMessages")).toEqual(["apiDoor"]);
+    expect(deps("quickRecall")).toEqual(["knowledgeCards"]);
+    expect(deps("orderStatus")).toEqual(["omsLink"]);
+    expect(deps("voiceTranscript")).toEqual(["voiceNotes"]);
+    expect(deps("linkPreviews")).toEqual(["chatLayoutV2"]);
+    expect(deps("messageTranslate")).toEqual(["chatAssistant", "ownerAssistant"]);
+    expect(deps("morningDigest")).toEqual(["chatAssistant", "ownerAssistant"]);
+    expect(deps("semanticSearch")).toEqual(["search"]);
+    expect(deps("watchConvert")).toEqual(["watch"]);
+    expect(deps("watch")).toEqual([]);
+  });
+
+  it("no default was touched: the keys that start OFF are the ones the tests above already pin", () => {
+    const off = FEATURES.filter((k) => !FEATURE_DEFAULTS[k]);
+    expect(off).toEqual(["ownerHiddenOnline", "ownerAssistant", "chatAssistant", "apiDoor", "economyMode", "dbBackup", "voiceTranscript", "externalGateway", "morningDigest", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "assistantInMeetings", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "omsEvents", "doorMessages", "chatLayoutV2", "workInbox", "permissionTemplates", "workRequests", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep"]);
   });
 });

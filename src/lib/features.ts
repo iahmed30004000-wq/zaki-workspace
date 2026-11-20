@@ -475,3 +475,119 @@ export const COMPANY_CHAT_GROUP: ReadonlyArray<{ key: FeatureKey; risk?: true; n
   { key: "ownerHiddenOnline", risk: true },
   { key: "chatRowMenu" },
 ];
+
+/**
+ * A1.4 — the groups of «الميزات» and what each switch needs, as PURE METADATA (nothing here changes what a switch does, its default, its name or its place
+ * in `FEATURES`). `src/components/feature-switches.tsx` draws the groups; `src/lib/feature-groups.ts` holds the presets and the helpers.
+ *
+ *   group      one of the six: work (المهام والشغل) · library (المكتبة) · chat (الدردشة والمكالمات) · people (الناس) · owner (لوحات المالك والذكاء) · platform (المنصة).
+ *              The names are in the dictionary (`featureGroups.group.<id>`, src/lib/i18n/ar.permissions-v2.json). The C4.3 chat group (`COMPANY_CHAT_GROUP`) is the head of `chat`.
+ *   dependsOn  the switches this one needs ON to do anything. Only what the code or the switch's own hint states: the screen disables a child (it cannot be
+ *              switched ON) and says «بيحتاج: …» while a parent is off. Nothing is switched by a parent: the stored value of a child never changes by itself,
+ *              so switching the parent back on gives the child back exactly as it was. The server does not refuse a child either (the owner's single switch is as before).
+ *
+ * 🔧 A NEW switch is one key in `FEATURES`, its default, its two dictionary lines AND one line here: `Record<FeatureKey, …>` makes the type check fail
+ *    on a key without a group, and tests/features.test.ts fails on a group that is not one of the six, a dependency that is not a key, or a cycle.
+ */
+export const FEATURE_GROUPS = ["work", "library", "chat", "people", "owner", "platform"] as const;
+export type FeatureGroup = (typeof FEATURE_GROUPS)[number];
+
+export interface FeatureMeta {
+  readonly group: FeatureGroup;
+  readonly dependsOn?: readonly FeatureKey[];
+}
+
+export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
+  // المهام والشغل
+  instantWork: { group: "work" },
+  taskLinks: { group: "work" },
+  milestones: { group: "work" },
+  taskSteps: { group: "work" },
+  reminders: { group: "work" },
+  calendarFeed: { group: "work" },
+  recurringTasks: { group: "work" },
+  timeTracking: { group: "work" },
+  taskRewards: { group: "work" },
+  customFields: { group: "work" },
+  checkins: { group: "work" },
+  okr: { group: "work" },
+  taskRules: { group: "work" },
+  approvals: { group: "work" },
+  taskPrivacy: { group: "work" },
+  mfgLedger: { group: "work" },
+  workInbox: { group: "work" },
+  workRequests: { group: "work" },
+  workStages: { group: "work" },
+  workMyTasks: { group: "work" },
+  workStaleSweep: { group: "work" },
+  backgroundNudges: { group: "work" },
+  // المكتبة
+  libraryDrive: { group: "library" },
+  spaceDocs: { group: "library" },
+  pdfPageCount: { group: "library" },
+  imageOcr: { group: "library" },
+  knowledgeCards: { group: "library" },
+  quickRecall: { group: "library", dependsOn: ["knowledgeCards"] },
+  // الدردشة والمكالمات (the first fourteen are C4.3's `COMPANY_CHAT_GROUP`)
+  chatBubbles: { group: "chat" },
+  chatOutbox: { group: "chat" },
+  voiceNotes: { group: "chat" },
+  voiceTranscript: { group: "chat", dependsOn: ["voiceNotes"] },
+  messageTranslate: { group: "chat", dependsOn: ["ownerAssistant", "chatAssistant"] },
+  whiteboard: { group: "chat" },
+  calls: { group: "chat" },
+  callNoiseFilter: { group: "chat", dependsOn: ["calls"] },
+  quickChat: { group: "chat" },
+  linkPreviews: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatLayoutV2: { group: "chat" },
+  lastSeen: { group: "chat" },
+  ownerHiddenOnline: { group: "chat" },
+  chatRowMenu: { group: "chat" },
+  chatOneList: { group: "chat" },
+  chatFormatting: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatAlbums: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatPersonalState: { group: "chat" },
+  chatFolders: { group: "chat" },
+  savedMessages: { group: "chat" },
+  chatSilentSend: { group: "chat" },
+  chatScheduled: { group: "chat" },
+  mustRead: { group: "chat" },
+  autoTickets: { group: "chat" },
+  orderTemplateHint: { group: "chat" },
+  orderStatus: { group: "chat", dependsOn: ["omsLink"] },
+  watch: { group: "chat" },
+  watchConvert: { group: "chat", dependsOn: ["watch"] },
+  // الناس
+  sectionPermissions: { group: "people" },
+  permissionTemplates: { group: "people" },
+  avatars: { group: "people" },
+  peopleDock: { group: "people" },
+  teamDevelopment: { group: "people" },
+  // لوحات المالك والذكاء
+  ownerBoard: { group: "owner" },
+  controlPanel: { group: "owner", dependsOn: ["ownerBoard"] },
+  ownerAssistant: { group: "owner", dependsOn: ["ownerBoard"] },
+  chatAssistant: { group: "owner", dependsOn: ["ownerAssistant"] },
+  assistantContact: { group: "owner", dependsOn: ["ownerAssistant", "chatAssistant"] },
+  assistantWorkData: { group: "owner", dependsOn: ["assistantContact"] },
+  assistantProposals: { group: "owner", dependsOn: ["assistantContact"] },
+  assistantInMeetings: { group: "owner", dependsOn: ["ownerAssistant"] },
+  siteGuide: { group: "owner" },
+  morningDigest: { group: "owner", dependsOn: ["ownerAssistant", "chatAssistant"] },
+  // المنصة
+  pushEverything: { group: "platform" },
+  appConnection: { group: "platform" },
+  search: { group: "platform" },
+  semanticSearch: { group: "platform", dependsOn: ["search"] },
+  economyMode: { group: "platform" },
+  dbBackup: { group: "platform" },
+  externalGateway: { group: "platform" },
+  emailToTask: { group: "platform" },
+  apiDoor: { group: "platform" },
+  doorMessages: { group: "platform", dependsOn: ["apiDoor"] },
+  omsLink: { group: "platform" },
+  omsEvents: { group: "platform" },
+  navV2: { group: "platform" },
+  themeSwitchFx: { group: "platform" },
+  themeV2Default: { group: "platform" },
+};
