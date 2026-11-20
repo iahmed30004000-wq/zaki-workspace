@@ -296,17 +296,17 @@ describe("«لوحة الفريق» (board.team) and «لوحتي» (board.self)
     expect((await get(overviewRoute)).status).toBe(200);
   });
 
-  it("«لوحتي» revoked for a member: 404 on their own page; the owner is not affected by anything stored on his row", async () => {
+  it("«لوحتي» revoked for a member: 404 on their own page; the primary owner is not affected by anything stored on his row", async () => {
     const w = await world();
     await grant(w, w.member.id, { revokedCapabilities: ["board.self"] });
     await loginAs(w.member.id);
     expect((await get(personRoute, { params: { id: w.member.id } })).status).toBe(404);
     await grant(w, w.owner.id, { revokedCapabilities: ["board.self", "board.team"] });
     await grant(w, w.partner.id, { revokedCapabilities: ["board.self", "board.team"] });
-    for (const who of [w.owner, w.partner]) {
-      await loginAs(who.id);
-      expect((await get(overviewRoute)).status, who.email).toBe(200);
-    }
+    await loginAs(w.owner.id);
+    expect((await get(overviewRoute)).status).toBe(200);
+    await loginAs(w.partner.id);
+    expect((await get(overviewRoute)).status).toBe(404); // A1.3: a partner's revocation counts
   });
 
   it("a guest never: even with both switches stored on their row", async () => {
