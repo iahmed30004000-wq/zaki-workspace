@@ -10,7 +10,7 @@ import { chooseTheme } from "@/components/theme/theme-provider";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { DEFAULT_WALLPAPER, FONT_SCALES, SEND_KEYS, WALLPAPERS, fontStepOf, quickReactionsPref, type ChatPrefs, type SendKey, type Wallpaper } from "@/lib/chat/prefs";
+import { DEFAULT_WALLPAPER, FONT_SCALES, isPhotoWallpaper, SEND_KEYS, WALLPAPERS, fontStepOf, quickReactionsPref, type ChatPrefs, type SendKey, type Wallpaper } from "@/lib/chat/prefs";
 import { effectiveFontStep, patchDevicePrefs, readDevicePrefs } from "@/lib/device-prefs";
 import { QUICK_COUNT, QUICK_PALETTE, doubleTapEmojiOf, quickReactionsOf } from "@/lib/chat/v2/menu/quick-reactions";
 import { THEME_COOKIE, prefCookieString } from "@/lib/themes/registry";
@@ -111,7 +111,7 @@ export function WallpaperBlock() {
 
   return (
     <Group title={t("settingsMe.c.wallpaper")} hint={t("settingsMe.c.wallpaper.hint")} id="c-wallpaper">
-      <div role="radiogroup" aria-label={t("settingsMe.c.wallpaper")} className="grid grid-cols-4 gap-2">
+      <div role="radiogroup" aria-label={t("settingsMe.c.wallpaper")} className="grid grid-cols-3 gap-2 sm:grid-cols-4">
         {WALLPAPERS.map((key) => (
           <button
             key={key}
@@ -126,14 +126,20 @@ export function WallpaperBlock() {
             )}
             style={{ background: "rgb(var(--chat-wallpaper))" }}
           >
-            {key === "plain" ? null : (
+            {key === "plain" ? null : isPhotoWallpaper(key) ? (
+              <span
+                aria-hidden="true"
+                className="absolute inset-0"
+                style={{ backgroundImage: `url(/brand/wallpapers/photo/${key}-thumb.webp)`, backgroundSize: "cover", backgroundPosition: "center" }}
+              />
+            ) : (
               <span
                 aria-hidden="true"
                 className="absolute inset-0 opacity-60"
                 style={{ backgroundColor: "rgb(var(--chat-pattern))", WebkitMask: `url(/brand/wallpapers/${key}.svg) center / 48px 48px`, mask: `url(/brand/wallpapers/${key}.svg) center / 48px 48px` }}
               />
             )}
-            <span className="relative rounded-full bg-surface-1 px-2 py-0.5 text-fg">{t(`settingsMe.c.wallpaper.${key}`)}</span>
+            <span className="relative rounded-full bg-surface-1/90 px-2 py-0.5 text-fg">{t(`settingsMe.c.wallpaper.${key}`)}</span>
             {key === current ? <Check aria-hidden="true" className="absolute end-1 top-1 size-4 text-accent" /> : null}
           </button>
         ))}

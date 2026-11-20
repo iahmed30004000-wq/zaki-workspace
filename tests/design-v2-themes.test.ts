@@ -1,4 +1,5 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
+import { PHOTO_WALLPAPERS } from "@/lib/chat/prefs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { DEFAULT_THEME, isDarkTheme, systemTheme, THEME_KEYS } from "../src/lib/themes/registry";
@@ -51,7 +52,7 @@ describe("the chat tokens", () => {
 
 describe("the wallpapers", () => {
   const dir = path.join(process.cwd(), "public", "brand", "wallpapers");
-  const files = readdirSync(dir).filter((f) => !f.startsWith("."));
+  const files = readdirSync(dir).filter((f) => !f.startsWith(".") && f.endsWith(".svg"));
   it("are the six agreed, drawn as vectors, each under 2 KB", () => {
     expect(files.sort()).toEqual(["boxes.svg", "bubbles.svg", "coins.svg", "leaves.svg", "phones.svg", "stars.svg"]);
     for (const f of files) expect(statSync(path.join(dir, f)).size, f).toBeLessThan(2048);
@@ -62,6 +63,16 @@ describe("the wallpapers", () => {
       expect(svg, f).toMatch(/^<svg /);
       expect(svg, f).not.toMatch(/<script|<image|href=|https?:\/\/(?!www\.w3\.org)/i);
     }
+  });
+  it("the owner's fifteen picture wallpapers are in photo/: each has a wide, a tall and a thumbnail file, small enough to load on a phone", () => {
+    const photo = path.join(dir, "photo");
+    for (const key of PHOTO_WALLPAPERS) {
+      for (const [suffix, max] of [["", 150], ["-tall", 150], ["-thumb", 12]] as const) {
+        const f = path.join(photo, key + suffix + ".webp");
+        expect(statSync(f).size, key + suffix).toBeLessThan(max * 1024);
+      }
+    }
+    expect(readdirSync(photo).length).toBe(PHOTO_WALLPAPERS.length * 3);
   });
   it("are listed in the credits", () => {
     const credits = readFileSync(path.join(process.cwd(), "public", "brand", "CREDITS.md"), "utf8");

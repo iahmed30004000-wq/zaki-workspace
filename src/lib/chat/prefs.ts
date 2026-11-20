@@ -121,8 +121,14 @@ export const PREVIEW_OFF_TEXT = "رسالة جديدة";
 export const FONT_SCALES = [0.875, 0.9375, 1, 1.125, 1.25] as const;
 export const DEFAULT_FONT_STEP = 2;
 /** The wallpapers of the chat: «plain» (nothing drawn) and the six in-house patterns (D1.4). */
-export const WALLPAPERS = ["plain", "boxes", "phones", "bubbles", "stars", "leaves", "coins"] as const;
+export const PATTERN_WALLPAPERS = ["boxes", "phones", "bubbles", "stars", "leaves", "coins"] as const;
+/** The owner's fifteen picture wallpapers (public/brand/wallpapers/photo/<key>.webp, <key>-tall.webp for a phone, <key>-thumb.webp for the picker). */
+export const PHOTO_WALLPAPERS = ["tg-green", "beige", "dark", "night-sky", "sea", "heritage", "botanical", "sunset", "gold", "islamic", "food", "claude", "claude-emoji", "zaki-dark", "zaki-light"] as const;
+export const WALLPAPERS = ["plain", ...PATTERN_WALLPAPERS, ...PHOTO_WALLPAPERS] as const;
 export type Wallpaper = (typeof WALLPAPERS)[number];
+export function isPhotoWallpaper(value: unknown): value is (typeof PHOTO_WALLPAPERS)[number] {
+  return typeof value === "string" && (PHOTO_WALLPAPERS as readonly string[]).includes(value);
+}
 /** What a person who never chose gets: the first pattern, so the chat looks like a messenger out of the box (they can pick «plain»). */
 export const DEFAULT_WALLPAPER: Wallpaper = "boxes";
 /** What sends a message from the keyboard: «enter» (Shift+Enter is a new line) or «ctrl» (Ctrl+Enter sends, Enter is a new line). */

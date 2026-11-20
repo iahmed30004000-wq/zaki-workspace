@@ -33,6 +33,8 @@ import {
   NOTIFY_TYPES,
   PREVIEW_OFF_TEXT,
   WALLPAPERS,
+  PATTERN_WALLPAPERS,
+  PHOTO_WALLPAPERS,
   DEFAULT_WALLPAPER,
   chatPrefsPatchSchema,
   chatPrefsSchema,
@@ -389,6 +391,18 @@ describe("C4.1 · text size and wallpaper apply live, without a reload", () => {
     await applyWallpaper(doc, "leaves", "1 2 3", async () => svg);
     expect(attrs.get("data-chat-wallpaper")).toBe("leaves");
     expect(nodes.size).toBe(1);
+    // a picture wallpaper: no fetch, the file is the image, the page knows it is a picture (wide and tall)
+    await applyWallpaper(doc, "sunset", "1 2 3", async () => {
+      throw new Error("a picture is not fetched");
+    });
+    expect(attrs.get("data-chat-wallpaper")).toBe("sunset");
+    expect(attrs.get("data-chat-wallpaper-kind")).toBe("photo");
+    expect(style.get(WALLPAPER_VAR)).toBe('url("/brand/wallpapers/photo/sunset.webp")');
+    expect(style.get("--chat-wallpaper-image-tall")).toBe('url("/brand/wallpapers/photo/sunset-tall.webp")');
+    expect(wallpaperRule()).toContain("cover");
+    expect(wallpaperRule()).toContain("max-width:767px");
+    expect(PHOTO_WALLPAPERS.length).toBe(15);
+    expect(WALLPAPERS.length).toBe(1 + PATTERN_WALLPAPERS.length + PHOTO_WALLPAPERS.length);
     // plain: nothing is left
     await applyWallpaper(doc, "plain", "1 2 3", async () => svg);
     expect(attrs.has("data-chat-wallpaper")).toBe(false);
@@ -403,7 +417,7 @@ describe("C4.1 · text size and wallpaper apply live, without a reload", () => {
     });
     expect(attrs.has("data-chat-wallpaper")).toBe(false);
     expect(nodes.size).toBe(0);
-    for (const key of WALLPAPERS.filter((w) => w !== "plain")) expect(read(`public/brand/wallpapers/${key}.svg`), key).toContain('stroke="#000"');
+    for (const key of PATTERN_WALLPAPERS) expect(read(`public/brand/wallpapers/${key}.svg`), key).toContain('stroke="#000"');
     expect(tintSvg('<g stroke="#000"/>', "bad")).toBe('<g stroke="#000"/>');
     // a person who never chose gets a drawn pattern out of the box (the chat looks like a messenger), never the bare wall
     expect(DEFAULT_WALLPAPER).not.toBe("plain");
@@ -603,10 +617,11 @@ describe("C4.1 · the sections", () => {
     expect(read("src/components/settings-me/privacy-section.tsx")).toContain('import { wipeChatCache } from "@/lib/chat/cache/wipe"');
   });
 
-  it("«الدردشة»: the size in five steps, seven wallpapers, the theme with «تلقائي حسب الجهاز», the send key, six quick reactions and the double tap (⚠️ + 🔧 while it is not connected)", () => {
+  it("«الدردشة»: the size in five steps, the wallpapers (plain, six patterns, fifteen pictures), the theme with «تلقائي حسب الجهاز», the send key, six quick reactions and the double tap (⚠️ + 🔧 while it is not connected)", () => {
     const html = render(createElement(ChatSection));
     expect(html.match(/data-font-step="/g)).toHaveLength(5);
-    expect(html.match(/data-wallpaper="/g)).toHaveLength(7);
+    expect(html.match(/data-wallpaper="/g)).toHaveLength(22);
+    expect(html).toContain("/brand/wallpapers/photo/sunset-thumb.webp");
     expect(html).toContain(AR["settingsMe.c.theme.auto"] as string);
     expect(html).toContain('data-tour="theme"');
     expect(html).toContain(AR["settingsMe.c.sendkey.ctrl"] as string);

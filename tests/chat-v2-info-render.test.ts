@@ -278,7 +278,7 @@ describe("C3d — the tabs draw only what has data", () => {
     for (const word of ["الوسائط", "الصوتيات", "الشغل", "المثبّتة"]) expect(html).toContain(word);
     for (const word of ["الملفات", "الروابط"]) expect(html).not.toContain(word);
     // the number beside «الوسائط» is 2 + 1
-    expect(html).toMatch(/data-info-tab="media"[^>]*>\s*<span>الوسائط<\/span><span aria-hidden="true" class="[^"]*">3<\/span>/);
+    expect(html).toMatch(/data-info-tab="media"[^>]*>.*?<span class="flex-1">الوسائط<\/span><span aria-hidden="true" class="[^"]*">3<\/span>/);
   });
 
   it("is a real tab list: the first tab is selected, the others are out of the tab order, the panel is labelled by its tab", () => {

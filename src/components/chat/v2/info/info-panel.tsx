@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Bookmark, X } from "lucide-react";
+import { Bookmark, Phone, Search, X } from "lucide-react";
 import type { ConversationHeaderDto, MemberDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { InfoTabs } from "@/components/chat/v2/info/info-tabs";
@@ -15,8 +15,9 @@ import { isSavedHeader, isSavedRow } from "@/lib/chat/v2/menu/menu-context";
 import { usePeerProfile, useTeamName } from "@/lib/chat/v2/info/use-info-data";
 import { composerDetailOf, type PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 
+const card = "mt-2 bg-surface-1 px-4 py-3";
 const row = "inline-flex min-h-11 w-full items-center rounded-lg px-3 text-start text-sm hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
-const pill = "inline-flex min-h-11 items-center justify-center gap-1.5 rounded-lg border border-border px-4 text-sm hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
+const pill = "inline-flex min-h-16 w-full flex-col items-center justify-center gap-1 rounded-xl bg-surface-1 px-2 text-xs font-semibold text-accent shadow-sm hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
 
 function Names({ names }: { names: MemberDto[] }) {
   return (
@@ -72,9 +73,9 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
   const settingsTopic = React.useMemo(() => composerDetailOf(header, people), [header, people]);
 
   return (
-    <div data-info-panel className="flex h-full min-h-0 flex-1 flex-col bg-surface text-fg">
+    <div data-info-panel className="flex h-full min-h-0 flex-1 flex-col bg-surface-2 text-fg">
       {onClose ? (
-        <div className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-border px-3">
+        <div className="flex min-h-14 shrink-0 items-center justify-between gap-2 border-b border-border bg-surface-1 px-3">
           <h2 className="font-semibold">{ct("chatui.pane.menu.info")}</h2>
           <button type="button" data-info-close aria-label={ct("chatui.info.close")} onClick={onClose} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-surface-2">
             <X aria-hidden="true" className="size-5" />
@@ -82,7 +83,7 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <section data-info-hero className="flex flex-col items-center gap-1 px-4 pb-3 pt-5 text-center">
+        <section data-info-hero className="flex flex-col items-center gap-1 px-4 pb-3 pt-6 text-center">
           {saved ? (
             <span aria-hidden="true" data-info-saved-avatar className="grid size-24 place-items-center rounded-full bg-accent text-accent-fg">
               <Bookmark className="size-12" />
@@ -98,14 +99,15 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
           {model.subtitle && !saved ? <p className="max-w-full break-words text-sm text-fg-muted">{model.subtitle}</p> : null}
         </section>
 
-        <div className="flex flex-wrap items-center justify-center gap-2 px-4 pb-3">
+        <div className="grid grid-cols-2 gap-2 px-4 pb-3 sm:grid-cols-3">
           <button type="button" data-info-button="search" onClick={onSearch} className={pill}>
+            <Search aria-hidden="true" className="size-6" />
             {ct("chatui.info.search")}
           </button>
           {model.buttons.includes("call") && !saved ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
         </div>
 
-        <div className="space-y-3 border-t border-border px-4 py-3">
+        <div className={`space-y-3 ${card}`}>
           {model.kind === "dm" && profile ? (
             <div data-info-profile className="space-y-2 text-sm">
               {profile.jobTitle ? (
@@ -152,7 +154,7 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
         </div>
 
         {model.moderator.length > 0 ? (
-          <div className="space-y-1 border-t border-border px-2 py-2">
+          <div className="mt-2 space-y-1 bg-surface-1 px-2 py-2">
             {model.moderator.map((id) =>
               id === "settings" ? (
                 <button key={id} type="button" data-info-moderator={id} onClick={() => setSettingsOpen(true)} className={row}>

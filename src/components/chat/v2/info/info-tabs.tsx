@@ -4,7 +4,7 @@ import React from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, FileText, Film, Pin, Play, Ticket } from "lucide-react";
+import { CheckCircle2, FileText, Film, Pin, Play, Ticket, Headphones, Image as ImageIcon, Link2, ListChecks } from "lucide-react";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import type { LinkItemDto, MediaItemDto, MediaPageDto, WorkTaskDto, WorkTicketDto } from "@/server/chat/media";
 import { MediaViewerContext, MediaViewerProvider, safeMediaUrl, viewerItemsOfMedia } from "@/components/chat/v2/media-viewer";
@@ -61,8 +61,8 @@ export function InfoTabs({ header }: { header: ConversationHeaderDto }) {
   };
 
   return (
-    <section data-info-tabs className="border-t border-border">
-      <div role="tablist" aria-label={ct("chatinfo.tabs.label")} onKeyDown={onKeyDown} className="flex gap-1 overflow-x-auto px-2 py-1">
+    <section data-info-tabs className="mt-2 border-t border-border bg-surface-1">
+      <div role="tablist" aria-label={ct("chatinfo.tabs.label")} onKeyDown={onKeyDown} className="flex flex-col px-1 py-1">
         {tabs.map((tab) => (
           <TabButton key={tab.id} tab={tab} selected={tab.id === active} onSelect={() => setChosen(tab.id)} />
         ))}
@@ -80,6 +80,8 @@ export function InfoTabs({ header }: { header: ConversationHeaderDto }) {
   );
 }
 
+const TAB_ICONS = { media: ImageIcon, files: FileText, links: Link2, voice: Headphones, work: ListChecks, pinned: Pin } as const;
+
 function TabButton({ tab, selected, onSelect }: { tab: InfoTab; selected: boolean; onSelect: () => void }) {
   return (
     <button
@@ -91,10 +93,11 @@ function TabButton({ tab, selected, onSelect }: { tab: InfoTab; selected: boolea
       tabIndex={selected ? 0 : -1}
       data-info-tab={tab.id}
       onClick={onSelect}
-      className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${selected ? "bg-accent/10 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg"}`}
+      className={`flex min-h-12 w-full items-center gap-5 rounded-lg px-4 text-start text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${selected ? "bg-accent/10 font-semibold text-accent" : "text-fg hover:bg-surface-2"}`}
     >
-      <span>{ct(tab.labelKey)}</span>
-      <span aria-hidden="true" className="text-xs">
+      {React.createElement(TAB_ICONS[tab.id], { "aria-hidden": true, className: "size-6 shrink-0 text-fg-muted" })}
+      <span className="flex-1">{ct(tab.labelKey)}</span>
+      <span aria-hidden="true" className="text-sm tabular-nums text-fg-muted">
         {tab.count}
       </span>
     </button>

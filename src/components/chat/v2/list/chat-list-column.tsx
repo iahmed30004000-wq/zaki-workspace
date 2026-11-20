@@ -26,7 +26,7 @@ import { useForumHolds } from "@/lib/chat/v2/use-forum";
 import { useChatOrders } from "@/lib/chat/v2/use-orders";
 import { cn } from "@/lib/utils";
 import { CompanyRows } from "./company-rows";
-import { FolderTabs } from "./folder-tabs";
+import { FolderRail, FolderTabs } from "./folder-tabs";
 import { ListHeader } from "./list-header";
 import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
 import { ListEmpty, ListError, ListSkeleton } from "./list-states";
@@ -206,14 +206,17 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const canCreateSpace = !guest && orgs.some((org) => org.canCreateSpaces);
 
   return (
-    <>
+    <div className="flex min-h-0 flex-1">
+      {/* the desktop keeps the folders in a column beside the list (like a messenger); the phone has them as a strip on top */}
+      {tall ? null : <FolderRail folders={folders} active={folder} badges={badges} onChange={setFolderKey} />}
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {tall ? (
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
         <PhoneListBar title={ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
       ) : (
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
       )}
-      <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} />
+      {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} /> : null}
       {canMeet && tall ? (
         <div className="shrink-0 border-b border-border/60 px-3 py-2">
           <MeetingButton />
@@ -239,6 +242,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} /> : null}
       {!guest ? <NewDmDialog open={newDm} onOpenChange={setNewDm} /> : null}
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
-    </>
+      </div>
+    </div>
   );
 });

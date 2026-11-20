@@ -7,6 +7,7 @@ import { foldersOfOrg, resolveChatPrefs, type BuiltinTab, type ChatFolderDef, ty
 import { customIdOf } from "@/lib/chat/folders";
 import { ct } from "@/lib/chat/text";
 import { cn } from "@/lib/utils";
+import { Archive, AtSign, Building2, Folder, MailOpen, MessagesSquare, User, Users, type LucideIcon } from "lucide-react";
 
 /**
  * A tab of the strip: a built-in folder (its words are a key of the dictionary) or one of the person's own (`label` is the name they typed, `emoji` their
@@ -60,6 +61,61 @@ export function FolderTabs<K extends string>({
             <span className={cn(custom && "max-w-32 truncate")}>{folder.label ?? (folder.labelKey ? ct(folder.labelKey) : folder.key)}</span>
             {badge > 0 ? (
               <span data-folder-badge="" className={cn("min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5 tabular-nums", on ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg-muted")}>
+                {badge > 99 ? "99+" : badge}
+              </span>
+            ) : null}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The picture of a built-in folder in the rail (a folder of the person's own shows its emoji, or a plain folder). */
+const RAIL_ICONS: Record<string, LucideIcon> = { all: MessagesSquare, unread: MailOpen, dm: User, spaces: Users, mentions: AtSign, archived: Archive, company: Building2 };
+
+/**
+ * The folders as a column beside the list (the desktop; the phone keeps the strip on top): the picture of the folder over its name, the number of chats
+ * waiting in a round badge, the folder you are in tinted with the accent. The same folders, badges and `onChange` as the strip.
+ */
+export function FolderRail<K extends string>({
+  folders,
+  active,
+  badges,
+  onChange,
+}: {
+  folders: readonly TabItem<K>[];
+  active: K;
+  badges: Partial<Record<K, number>>;
+  onChange: (key: K) => void;
+}) {
+  return (
+    <div role="tablist" aria-orientation="vertical" aria-label={ct("chatui.folders.label")} data-chat-folder-rail="" className="flex w-[72px] shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-e border-border bg-surface-1 py-2">
+      {folders.map((folder) => {
+        const on = folder.key === active;
+        const badge = badges[folder.key] ?? 0;
+        const custom = customIdOf(folder.key) !== null;
+        const Icon = RAIL_ICONS[folder.key] ?? Folder;
+        const name = folder.label ?? (folder.labelKey ? ct(folder.labelKey) : folder.key);
+        return (
+          <button
+            key={folder.key}
+            type="button"
+            role="tab"
+            aria-selected={on}
+            aria-label={name}
+            data-folder={folder.key}
+            {...(custom ? { "data-folder-custom": "" } : {})}
+            onClick={() => onChange(folder.key)}
+            className={cn(
+              "relative flex w-16 shrink-0 flex-col items-center gap-0.5 rounded-xl px-1 py-2 text-xs font-semibold leading-tight focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
+              on ? "bg-accent/15 text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
+            )}
+          >
+            {folder.emoji ? <span aria-hidden="true" className="flex size-7 items-center justify-center text-2xl leading-none">{folder.emoji}</span> : <Icon aria-hidden="true" className="size-7" strokeWidth={1.75} />}
+            <span className="max-w-full truncate">{name}</span>
+            {badge > 0 ? (
+              <span data-folder-badge="" className={cn("absolute end-1.5 top-1 min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5 tabular-nums", on ? "bg-accent text-accent-fg" : "bg-accent text-accent-fg")}>
                 {badge > 99 ? "99+" : badge}
               </span>
             ) : null}
