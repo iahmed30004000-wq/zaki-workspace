@@ -37,8 +37,12 @@ export function mentionsMeOf(message: Pick<MessageDto, "mine" | "deleted" | "men
  * others. Mine takes the accent tint, a mention of me the warn tint; a jump's target gets a ring for two seconds.
  */
 export function bubbleClass(o: { mine: boolean; mentionsMe: boolean; tail: boolean; highlighted: boolean }): string {
-  const base = "relative min-w-0 max-w-[85%] break-words rounded-2xl border px-3 py-2 sm:max-w-[75%] [@media(hover:none)]:select-none";
-  const tone = o.mine ? "border-accent/30 bg-accent/10" : o.mentionsMe ? "border-warn/50 bg-warn/10" : "border-border bg-surface";
+  const base = "relative min-w-0 max-w-[85%] break-words rounded-[17px] border px-3 py-1.5 shadow-sm sm:max-w-[75%] [@media(hover:none)]:select-none";
+  const tone = o.mine
+    ? "border-transparent bg-bubble-out text-bubble-out-fg"
+    : o.mentionsMe
+      ? "border-warn/50 bg-warn/10"
+      : "border-transparent bg-bubble-in text-bubble-in-fg";
   const tail = o.tail ? (o.mine ? "rounded-ee-sm" : "rounded-es-sm") : "";
   const ring = o.highlighted ? "ring-2 ring-accent" : "";
   return [base, tone, tail, ring].filter(Boolean).join(" ");

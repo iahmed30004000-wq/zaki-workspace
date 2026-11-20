@@ -10,7 +10,7 @@ import { chooseTheme } from "@/components/theme/theme-provider";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { FONT_SCALES, SEND_KEYS, WALLPAPERS, fontStepOf, quickReactionsPref, type ChatPrefs, type SendKey, type Wallpaper } from "@/lib/chat/prefs";
+import { DEFAULT_WALLPAPER, FONT_SCALES, SEND_KEYS, WALLPAPERS, fontStepOf, quickReactionsPref, type ChatPrefs, type SendKey, type Wallpaper } from "@/lib/chat/prefs";
 import { effectiveFontStep, patchDevicePrefs, readDevicePrefs } from "@/lib/device-prefs";
 import { QUICK_COUNT, QUICK_PALETTE, doubleTapEmojiOf, quickReactionsOf } from "@/lib/chat/v2/menu/quick-reactions";
 import { THEME_COOKIE, prefCookieString } from "@/lib/themes/registry";
@@ -102,10 +102,10 @@ export function WallpaperBlock() {
   const { toast } = useToast();
   const person = usePersonPrefs();
   const save = useSavePatch();
-  const current: Wallpaper = person.prefs.chat?.wallpaper ?? "plain";
+  const current: Wallpaper = person.prefs.chat?.wallpaper ?? DEFAULT_WALLPAPER;
 
   async function pick(next: Wallpaper) {
-    const ok = await save((p) => ({ chat: withChat(p, "wallpaper", next === "plain" ? undefined : next) }));
+    const ok = await save((p) => ({ chat: withChat(p, "wallpaper", next) }));
     if (!ok) toast(t("settingsMe.failed"), "error");
   }
 

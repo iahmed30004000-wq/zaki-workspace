@@ -38,7 +38,7 @@ describe("where a bubble stands", () => {
     expect(html).toContain('data-message-row="mine"');
     expect(html).toContain("justify-end");
     expect(html).toContain("rounded-ee-sm");
-    expect(html).toContain("bg-accent/10");
+    expect(html).toContain("bg-bubble-out");
     expect(html).not.toContain("data-sender");
     expect(html).not.toContain("size-8");
   });
