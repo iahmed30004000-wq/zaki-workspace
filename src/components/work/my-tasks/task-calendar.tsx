@@ -37,21 +37,21 @@ export function TaskCalendar({
   const { t } = useI18n();
   const cells: CalTask[] = tasks.filter((task) => task.dueDate !== null).map((task) => ({ id: task.id, key: task.key, title: task.title, dueDate: task.dueDate! }));
   const title = `${monthName(Number(month.slice(5, 7)) - 1)} ${month.slice(0, 4)}`;
-  const arrow = "rounded-lg border border-border px-2 py-1 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg";
+  const arrow = "inline-grid size-9 place-items-center rounded-full text-base text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg";
   return (
     <div aria-label={t("mytasks.cal.aria")}>
-      <nav className="mb-2 flex items-center justify-center gap-1" aria-label={t("cal.title")}>
+      <nav className="mb-3 mt-2 flex items-center justify-center gap-1" aria-label={t("cal.title")}>
         <button type="button" className={arrow} aria-label={t("cal.prev")} onClick={() => onMonth(shiftYearMonth(month, -1))}>
           ›
         </button>
-        <span className="min-w-32 px-2 text-center text-sm text-fg">{title}</span>
+        <span className="min-w-32 px-2 text-center text-[15px] font-bold text-fg">{title}</span>
         <button type="button" className={arrow} aria-label={t("cal.next")} onClick={() => onMonth(shiftYearMonth(month, 1))}>
           ‹
         </button>
       </nav>
-      <div className="flex min-h-[32rem] flex-col overflow-hidden rounded-xl border border-border bg-surface">
+      <div className="flex min-h-[32rem] flex-col overflow-x-auto">
         <CalendarGrid month={month} tasks={cells} todayIso={todayIso} editable={editable} timeZone={timeZone} onReschedule={onReschedule} onOpen={onOpen} />
-        {cells.length === 0 ? <p className="px-2 pb-2 text-center text-xs text-muted">{t("cal.empty")}</p> : null}
+        {cells.length === 0 ? <p className="px-2 pt-3 text-center text-[13px] text-muted">{t("cal.empty")}</p> : null}
       </div>
     </div>
   );

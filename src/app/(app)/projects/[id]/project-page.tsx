@@ -8,7 +8,8 @@ import { SectionOffNotice } from "@/app/(app)/_access";
 import BoardPage from "@/app/(app)/boards/[id]/page";
 import { keepInSpace } from "@/server/services/current-space";
 import { loadWorkScope, projectVisibleWhere, taskVisibleWhere } from "@/server/services/team-scope";
-import { Card, CardBody, CardHeader, Badge } from "@/components/ui/card";
+import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import { PROJECT_TONE, StateChip } from "@/components/work/look";
 import { BoardCreateButton } from "@/components/board-create-button";
 import { MilestonesCard } from "@/components/milestones-card";
 import { ProjectTeamPicker } from "@/components/project-team-picker";
@@ -85,9 +86,9 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
     <div className="mx-auto max-w-6xl space-y-4 p-4 md:p-6" data-project-page={tab}>
       <Breadcrumbs items={projectTrail(places, leaf)} />
       <header className="space-y-1">
-        <h1 className="text-xl font-semibold text-fg">{project.name}</h1>
-        <div className="flex flex-wrap items-center gap-2 text-xs text-fg-muted">
-          <Badge>{enumLabel("ProjectStatus", project.status)}</Badge>
+        <h1 className="text-[19px] font-bold text-fg">{project.name}</h1>
+        <div className="flex flex-wrap items-center gap-2 text-[13px] text-fg-muted">
+          <StateChip tone={PROJECT_TONE[project.status] ?? "neutral"}>{enumLabel("ProjectStatus", project.status)}</StateChip>
           <span>
             {[project.targetDate ? t("proj.dueLine", { date: fmtDMY(project.targetDate) }) : null, t("proj.progressLine", { open, done: doneCount, pct })].filter(Boolean).join(" · ")}
           </span>
@@ -119,7 +120,7 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
 
       {tab === "settings" ? (
         <section className="space-y-4">
-          <Card>
+          <Card className="rounded-2xl border-0">
             <CardHeader>
               <h2 className="text-sm font-semibold text-fg">{t("projpage.settings.team")}</h2>
             </CardHeader>
@@ -128,7 +129,7 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
               <ProjectTeamPicker projectId={project.id} workspaceId={project.workspace.id} teamId={project.teamId} />
             </CardBody>
           </Card>
-          <Card>
+          <Card className="rounded-2xl border-0">
             <CardHeader>
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-fg">{t("projpage.settings.boards")}</h2>
@@ -170,7 +171,7 @@ async function embeddedBoard({ actor, boardId, projectId, workspaceId, panel }: 
   return (
     <>
       <PinnedStrip tasks={pinned} />
-      <div className="min-h-[32rem] overflow-hidden rounded-xl border border-border">{cloneElement(screen, { key: boardId, view: { crumbs: null, panel, embedded: true } })}</div>
+      <div className="min-h-[32rem] overflow-hidden rounded-2xl">{cloneElement(screen, { key: boardId, view: { crumbs: null, panel, embedded: true } })}</div>
     </>
   );
 }

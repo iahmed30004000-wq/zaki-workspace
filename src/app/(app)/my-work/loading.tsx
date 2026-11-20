@@ -19,14 +19,14 @@ export default function MyWorkLoading() {
   const { t } = getServerT();
   return (
     <div role="status" aria-live="polite" aria-busy="true" data-skeleton-shape="list" className="flex h-full min-w-0 flex-col overflow-y-auto">
-      <div aria-hidden="true" className="flex items-center gap-3 border-b border-border bg-surface px-5 py-4">
+      <div aria-hidden="true" className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 pb-1 pt-4 md:px-5">
         <div className="min-w-0 flex-1 space-y-2">
           <Block className="h-5 w-24 max-w-full" />
           <Block className="h-3 w-56 max-w-full" />
         </div>
       </div>
 
-      <div aria-hidden="true" className="space-y-2 border-b border-border bg-surface px-4 py-2">
+      <div aria-hidden="true" className="mx-auto w-full max-w-6xl space-y-2.5 px-4 pb-1 md:px-5">
         <div className="flex flex-wrap items-center gap-2">
           <Block className="h-9 w-44 rounded-[10px]" />
           <Block className="h-9 w-40 rounded-[10px]" />
@@ -41,22 +41,24 @@ export default function MyWorkLoading() {
         </div>
       </div>
 
-      <div aria-hidden="true" className="flex items-center gap-2 border-b border-border px-3 py-2">
+      <div aria-hidden="true" className="mx-auto flex w-full max-w-6xl items-center gap-2 px-4 pb-1 pt-2 md:px-5">
         <Block className="size-4 rounded-md" />
         <Block className="h-9 w-64 max-w-full" />
       </div>
 
-      <div aria-hidden="true" className="flex-1 px-3 py-3">
-        {WIDTHS.concat(WIDTHS).map((width, index) => (
-          <div key={index} className="flex min-h-14 w-full items-center gap-3 border-b border-border px-3 py-2">
-            <Block className="size-6 shrink-0 rounded-full" />
-            <div className="min-w-0 flex-1 space-y-2">
-              <Block className={cn("h-4 max-w-full", width)} />
-              <Block className="h-3 w-2/5 max-w-full" />
+      <div aria-hidden="true" className="mx-auto w-full max-w-6xl flex-1 overflow-hidden px-4 pb-7 pt-3 md:px-5">
+        <div className="overflow-hidden rounded-2xl bg-surface-1">
+          {WIDTHS.concat(WIDTHS).map((width, index) => (
+            <div key={index} className="flex min-h-14 w-full items-center gap-3 border-b border-border px-3 py-2">
+              <Block className="size-[22px] shrink-0 rounded-full" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Block className={cn("h-4 max-w-full", width)} />
+                <Block className="h-3 w-2/5 max-w-full" />
+              </div>
+              <Block className="h-5 w-24 shrink-0 rounded-md" />
             </div>
-            <Block className="h-5 w-24 shrink-0 rounded-md" />
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
       {/* LAST: the status line is out of the flow, so it does not push the first block down */}
       <span className="sr-only">{t("common.loading")}</span>

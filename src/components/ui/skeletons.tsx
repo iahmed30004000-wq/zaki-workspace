@@ -164,7 +164,7 @@ export function SectionsSkeleton({ place, sections = 2, rows = 3 }: { place: Pla
         <Block className="h-9 w-28 shrink-0 rounded-lg" />
       </div>
       {times(sections).map((s) => (
-        <div key={s} aria-hidden="true" data-skeleton-part="section" className="space-y-2 rounded-xl border border-border bg-surface-1 p-4">
+        <div key={s} aria-hidden="true" data-skeleton-part="section" className="space-y-2 rounded-2xl bg-surface-1 p-4">
           <Block className="h-4 w-32 max-w-full" />
           <div className="divide-y divide-border">
             {times(rows).map((i) => (

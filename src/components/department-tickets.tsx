@@ -239,7 +239,7 @@ export function DepartmentTickets({
       ) : null}
 
       {rows.length > 0 ? (
-        <div className="mt-3 space-y-2 rounded-xl border border-border bg-surface p-3">
+        <div className="mt-3 space-y-2 rounded-2xl bg-surface-1 p-3">
           <p className="flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
             <TicketIcon className="size-3.5 text-cat-3" />
             {t("ticket.openCount", { n: open })}
@@ -261,7 +261,7 @@ export function DepartmentTickets({
                     {r.assignee ? ` · ${t("ticket.to")} ${r.assignee.name}` : ""}
                   </p>
                 </div>
-                <span className={`shrink-0 rounded-full px-2 py-0.5 text-xs font-semibold ${STATUS_CHIP[r.status]}`}>
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[13px] font-semibold ${STATUS_CHIP[r.status]}`}>
                   {enumLabel("TicketStatus", r.status)}
                 </span>
                 {canAssign && may.edit ? (

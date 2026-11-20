@@ -6,6 +6,7 @@ import { fmtNumber } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { Pill, WORK_SEARCH, WORK_SELECT } from "@/components/work/look";
 import { WORK_STAGES } from "@/lib/work/stage";
 import {
   MY_TASK_CHIPS,
@@ -18,7 +19,7 @@ import {
   type WorkTasksResult,
 } from "@/lib/work/my-tasks";
 
-const SELECT = "min-h-9 rounded-lg border border-muted bg-surface-1 px-2 text-sm text-fg";
+const SELECT = WORK_SELECT;
 
 /**
  * The bar of «مهامي»: the view (قائمة · لوحة · تقويم), the scope (أنا · المساحة · مشروع) with its second line (my spaces, or the project picker), the quick
@@ -43,7 +44,7 @@ export function Toolbar({
   const scopes: MyTaskScope[] = data.current.hq ? ["me", "project"] : ["me", "space", "project"];
 
   return (
-    <div className="space-y-2 border-b border-border bg-surface px-4 py-2">
+    <div className="space-y-2.5 pb-1">
       <div className="flex flex-wrap items-center gap-2">
         <Segmented<MyTaskView>
           label={t("mytasks.view.label")}
@@ -60,7 +61,7 @@ export function Toolbar({
         {staleHref ? (
           <Link
             href={staleHref}
-            className="ms-auto inline-flex min-h-9 items-center rounded-lg px-2 text-sm text-fg-muted hover:text-fg hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+            className="ms-auto inline-flex min-h-9 items-center rounded-lg px-2 text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
           >
             {t("nav.tab.stale")}
           </Link>
@@ -79,7 +80,7 @@ export function Toolbar({
             defaultValue={params.q}
             aria-label={t("mytasks.search")}
             placeholder={t("mytasks.search")}
-            className="min-h-9 w-44 rounded-lg border border-muted bg-surface-1 px-2 text-sm text-fg placeholder:text-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset md:w-52"
+            className={WORK_SEARCH}
           />
         </form>
       </div>
@@ -122,7 +123,7 @@ export function Toolbar({
             {MY_TASK_CHIPS.map((chip: MyTaskChip) => (
               <Pill key={chip} pressed={params.chip === chip} onClick={() => onChange({ chip: params.chip === chip ? null : chip }, "replace")}>
                 {t(`mytasks.chip.${chip}`)}
-                <span className="ms-1 tabular-nums text-fg-muted">{fmtNumber(data.counts[chip])}</span>
+                <span className="tabular-nums opacity-70">{fmtNumber(data.counts[chip])}</span>
               </Pill>
             ))}
           </div>
@@ -160,21 +161,5 @@ export function Toolbar({
         </div>
       </div>
     </div>
-  );
-}
-
-function Pill({ pressed, onClick, children }: { pressed: boolean; onClick: () => void; children: React.ReactNode }) {
-  return (
-    <button
-      type="button"
-      aria-pressed={pressed}
-      onClick={onClick}
-      className={cn(
-        "min-h-8 rounded-full border px-3 text-xs transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        pressed ? "border-accent bg-accent/10 font-medium text-fg" : "border-border text-fg-muted hover:bg-surface-2 hover:text-fg",
-      )}
-    >
-      {children}
-    </button>
   );
 }
