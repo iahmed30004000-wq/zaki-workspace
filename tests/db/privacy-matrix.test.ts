@@ -1001,3 +1001,50 @@ describe("privacy matrix — the W1.1 «مهامي» (panel, list, counts)", () 
     expect(wrong).toEqual([]);
   });
 });
+
+// W1.8: the palette finds boards, ideas, tickets and customers. A row is a thing that exists, a column a kind of person, `1` = «finds it»; the code follows the table.
+describe("privacy matrix — the W1.8 palette: boards, ideas, tickets, customers", () => {
+  const enter = (spaceId: string) => (globalThis as { __zkCookieJar?: Map<string, string> }).__zkCookieJar?.set(SPACE_COOKIE, spaceId);
+  //                                    owner admin lead involved bystander guest
+  const FINDS: Record<string, string> = {
+    board: "1 1 1 1 1 0",
+    idea: "1 1 1 1 1 0",
+    customer: "1 1 1 1 1 0",
+    // a ticket raised by «involved»: the OWNER and the ADMINs read every ticket; nobody else but its people and its department
+    ticket: "1 1 0 1 0 0",
+  };
+  const WHO = ["owner", "admin", "lead", "involved", "bystander", "guest"] as const;
+
+  it("every kind is found by exactly the people the table says, and by nobody else, in any field of the answer", async () => {
+    const team = await makeTeam();
+    const orgId = team.org.id;
+    const lead = await makeUser({ orgId, role: "LEAD" });
+    const involved = await makeUser({ orgId, role: "MEMBER" });
+    const bystander = await makeUser({ orgId, role: "MEMBER" });
+    const space = await makeWorkspace(orgId, [team.admin, lead, involved, bystander].map((p) => ({ userId: p.id })).concat([{ userId: team.guest.id }]));
+    await db.workspaceMember.update({ where: { workspaceId_userId: { workspaceId: space.id, userId: team.guest.id } }, data: { role: "GUEST" } });
+    const word = `Pm${Math.random().toString(36).slice(2, 10)}`;
+    const project = await makeProject(space.id);
+    const board = await db.board.create({ data: { projectId: project.project.id, name: `${word} board` } });
+    const idea = await db.idea.create({ data: { orgId, creatorId: involved.id, workspaceId: space.id, title: `${word} idea` } });
+    const customer = await db.customer.create({ data: { orgId, creatorId: involved.id, workspaceId: space.id, name: `${word} customer` } });
+    const ticket = await db.ticket.create({ data: { orgId, number: 1, creatorId: involved.id, title: `${word} ticket` } });
+    const ids: Record<string, string> = { board: board.id, idea: idea.id, customer: customer.id, ticket: ticket.id };
+    const answerKey: Record<string, string> = { board: "boards", idea: "ideas", customer: "customers", ticket: "tickets" };
+    const people = { owner: team.owner, admin: team.admin, lead, involved, bystander, guest: team.guest };
+
+    const wrong: string[] = [];
+    for (const who of WHO) {
+      await loginAs(people[who].id);
+      enter(space.id);
+      const res = await call(searchRoute.GET, { url: `http://localhost/api/search?q=${encodeURIComponent(word)}` });
+      for (const kind of Object.keys(FINDS)) {
+        const want = FINDS[kind]!.split(" ")[WHO.indexOf(who)] === "1";
+        const hits = (res.json?.[answerKey[kind]!] as { id: string }[] | undefined) ?? [];
+        if (hits.some((h) => h.id === ids[kind]) !== want) wrong.push(`${who} · ${kind}: expected ${want ? "finds" : "does not find"}`);
+        if (!want && res.text.includes(`${word} ${kind}`)) wrong.push(`${who} · ${kind}: its title is in the answer`);
+      }
+    }
+    expect(wrong).toEqual([]);
+  });
+});

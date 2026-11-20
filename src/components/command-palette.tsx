@@ -3,7 +3,7 @@
 import { useEffect, useId, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { BookOpen, FilePen, FileText, FolderKanban, MessageSquareText, MessagesSquare, Search, SquareCheck, UserRound } from "lucide-react";
+import { BookOpen, Contact, FilePen, FileText, FolderKanban, Kanban, Lightbulb, MessageSquareText, MessagesSquare, Search, SquareCheck, Ticket, UserRound } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { rankEntries } from "@/lib/guide/match";
@@ -22,6 +22,11 @@ interface SearchResponse {
   files?: { id: string; name: string; snippet?: string }[];
   /** the space's text documents, by title */
   documents?: { id: string; title: string }[];
+  /** W1.8: boards, ideas, tickets and customers — each key is present only when there is a hit, and each is the person's own access (src/server/search/work-search.ts) */
+  boards?: { id: string; name: string; projectId: string; projectName: string }[];
+  ideas?: { id: string; title: string; status: string }[];
+  tickets?: { id: string; key: string; title: string; status: string }[];
+  customers?: { id: string; name: string; company: string | null }[];
 }
 
 /** One way to jump somewhere: a place, a tab, the guide or the person's account. */
@@ -108,7 +113,8 @@ interface Row {
 /**
  * Global quick navigation: Ctrl/⌘+K anywhere, or the search button in the top bar. Jumps to the places
  * and tabs of the person's map and searches the tasks and projects they may open — and, in the space they are
- * in, its topics, messages, people, files and documents (the server decides which). A Radix dialog: focus moves into the search box and stays inside, Escape or a tap outside
+ * in, its topics, messages, people, files, documents, boards, ideas, tickets and customers (the server decides which, each by its own rule).
+ * The panel is the wide one (`xl`, 42rem): a row says what it is and where it lives, and a long title needs the room. A Radix dialog: focus moves into the search box and stays inside, Escape or a tap outside
  * closes it, and focus goes back to whoever opened it.
  *
  * `defaultOpen` and `portal={false}` are for server-render tests (a portal draws nothing on the server).
@@ -210,6 +216,35 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
       href: `/documents/${d.id}`,
       icon: <FilePen aria-hidden="true" className="size-4" />,
     })),
+    // W1.8: the pages that open them (a board has its own page; an idea, a ticket and a customer live in their list)
+    ...(search.data?.boards ?? []).map((b) => ({
+      key: `b:${b.id}`,
+      main: b.name,
+      sub: `${t("pal.board")} · ${b.projectName}`,
+      href: `/boards/${b.id}`,
+      icon: <Kanban aria-hidden="true" className="size-4" />,
+    })),
+    ...(search.data?.ideas ?? []).map((idea) => ({
+      key: `i:${idea.id}`,
+      main: idea.title,
+      sub: t("pal.idea"),
+      href: "/ideas",
+      icon: <Lightbulb aria-hidden="true" className="size-4" />,
+    })),
+    ...(search.data?.tickets ?? []).map((ticket) => ({
+      key: `k:${ticket.id}`,
+      main: `${ticket.key} ${ticket.title}`,
+      sub: t("pal.ticket"),
+      href: "/tickets",
+      icon: <Ticket aria-hidden="true" className="size-4" />,
+    })),
+    ...(search.data?.customers ?? []).map((customer) => ({
+      key: `cu:${customer.id}`,
+      main: customer.name,
+      sub: customer.company ? `${t("pal.customer")} · ${customer.company}` : t("pal.customer"),
+      href: "/crm",
+      icon: <Contact aria-hidden="true" className="size-4" />,
+    })),
   ];
   const total = rows.length;
   const active = Math.min(cursor, Math.max(total - 1, 0));
@@ -252,7 +287,7 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true }: { na
       </button>
 
       <Dialog open={open} onOpenChange={changeOpen}>
-        <DialogContent portal={portal} size="lg" aria-describedby={undefined} className="mb-auto mt-[10dvh]">
+        <DialogContent portal={portal} size="xl" aria-describedby={undefined} className="mb-auto mt-[10dvh]">
           <DialogTitle className="sr-only">{t("pal.open")}</DialogTitle>
           <div className="flex h-14 shrink-0 items-center gap-2 border-b border-border pe-14 ps-4">
             <Search aria-hidden="true" className="size-4 shrink-0 text-muted" />
@@ -353,7 +388,7 @@ function PaletteRow({
       <span className="shrink-0 text-muted">{icon}</span>
       <span className="min-w-0 flex-1 truncate">{main}</span>
       {close ? <span className="shrink-0 rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent">{t("semantic.close")}</span> : null}
-      {sub ? <span className="max-w-32 shrink-0 truncate text-xs text-muted">{sub}</span> : null}
+      {sub ? <span className="max-w-48 shrink-0 truncate text-xs text-muted">{sub}</span> : null}
     </button>
   );
 }

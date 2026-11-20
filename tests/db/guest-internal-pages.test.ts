@@ -785,3 +785,44 @@ describe("W1.1: with the switch `workMyTasks` ON, «مهامي» serves every ra
     }
   });
 });
+
+// ───────────────────────────── W1.8: the three department tabs ─────────────────────────────
+
+describe("W1.8: «الأقسام» «التذاكر» «الحملات» — a guest is refused on every page the tab is not offered on, and the tab is honest for staff", () => {
+  const PAGES: { tab: TabKey; page: PageCall }[] = [
+    { tab: "departments", page: () => DepartmentsPage() },
+    { tab: "tickets", page: () => TicketsPage() },
+    { tab: "campaigns", page: () => CampaignsPage() },
+  ];
+
+  it("a guest: not offered on either map, the notice on the page, no company text in the markup or the props", async () => {
+    const w = await companyWorld();
+    await loginAs(w.guest.id);
+    for (const { tab, page } of PAGES) {
+      expect(canOpenTab({ role: "GUEST", caps: [] }, tab), tab).toBe(false);
+      expect(canOpenTab({ role: "GUEST", caps: [], navV2: true }, tab), `${tab} (new map)`).toBe(false);
+      const outcome = await open(page);
+      if (outcome.kind !== "rendered") continue;
+      expect(outcome.markup, `${tab} shows the guest notice`).toContain(NOTICE);
+      expectNoCompanyText(w, outcome.markup, `${tab} markup`);
+      expectNoCompanyText(w, outcome.props, `${tab} props`);
+    }
+  });
+
+  it("staff whose directory switch is off: the tab is not offered and the page says so (D-W3 is pending, the pages are not relaxed); with it on, both agree the other way", async () => {
+    const w = await companyWorld();
+    const off = await makeUser({ orgId: w.org.id, role: "MEMBER", name: "No directory" });
+    await db.organizationMember.update({ where: { organizationId_userId: { organizationId: w.org.id, userId: off.id } }, data: { revokedCapabilities: ["directory.view"] } });
+    for (const [who, expected] of [[off, false], [w.member, true]] as const) {
+      await loginAs(who.id);
+      const actor = await requireActor();
+      const subject: NavSubject = { role: actor.role, caps: [...actor.caps] };
+      for (const { tab, page } of PAGES) {
+        for (const map of ["V1", "V2"] as const) expect(canOpenTab(onMap(subject, map), tab), `${who.name} · ${tab} · ${map}`).toBe(expected);
+        const outcome = await open(page);
+        expect(outcome.kind, `${who.name} · ${tab}`).toBe("rendered");
+        if (outcome.kind === "rendered") expect(refused(outcome.markup), `${who.name} · ${tab}: the page ${expected ? "opens" : "refuses"}`).toBe(!expected);
+      }
+    }
+  });
+});
