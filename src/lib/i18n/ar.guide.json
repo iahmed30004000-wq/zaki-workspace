@@ -224,13 +224,13 @@
   "guide.tour.shell.menu.title": "القائمة",
   "guide.tour.shell.menu.body": "من هون بتفتح قائمة الأماكن، ومعها مساحاتك وحسابك والإعدادات.",
   "guide.tour.shell.places.v2.body": "هون أماكن النظام: الدردشة، اليوم، الشغل، المكتبة. وتحتهم المساحة اللي إنت فيها وحسابك.",
-  "guide.tour.shell.tabs.v2.body": "جوّا كل مكان لحد أربع تبويبات، والباقي تحت «المزيد». مثلًا بـ«الشغل»: مهامي، المشاريع، الطلبات.",
+  "guide.tour.shell.tabs.v2.body": "جوّا كل مكان لحد أربع تبويبات، والباقي تحت «المزيد». مثلًا بـ«الشغل»: مهامي، المشاريع، الطلبات، حسب صلاحياتك.",
   "guide.tour.shell.more-tabs.title": "المزيد",
   "guide.tour.shell.more-tabs.body": "هون باقي أدوات المكان. اللي ما بيظهر هون ما فعّلته الشركة، أو ما إلك صلاحية عليه.",
   "guide.tour.work.work-mine.title": "مهامي",
   "guide.tour.work.work-mine.body": "هون كل مهامك المفتوحة، المتأخرة منها أول. افتح أي مهمة لتعدّلها أو تخلّصها.",
   "guide.tour.work.work-requests.title": "الطلبات",
-  "guide.tour.work.work-requests.body": "كل شي بينتظر قرارك: موافقات وطلبات تكليف، وتذاكر قسمك لما تنفتح.",
+  "guide.tour.work.work-requests.body": "كل شي بينتظر قرارك: موافقات وطلبات تكليف، وغيرها حسب إعدادات شركتك.",
   "guide.tour.work.work-inbox.title": "صندوق المهام",
   "guide.tour.work.work-inbox.body": "أي مهمة سريعة بدون مشروع بتنزل هون. هو مثبّت فوق المشاريع بأيقونته."
 }
