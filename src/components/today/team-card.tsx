@@ -3,13 +3,18 @@ import { ChevronLeft } from "lucide-react";
 import { fmtNumber } from "@/lib/format";
 import { getServerT } from "@/lib/i18n/server";
 import type { TeamScopeChip, TodayTeamData } from "@/lib/today";
+import type { TeamScopeInfo } from "@/server/policy/people-scope";
 import { cn } from "@/lib/utils";
+import { ScopeChip } from "@/components/today/scope-chip";
 
-/** What the numbers were counted over, in words (every number on the card is over this and nothing else). */
+/**
+ * What the numbers were counted over, in words (every number on the card is over this and nothing else). A2.3: outside a space a person who is
+ * not the owner has «فريقي» (the people under them), not «the spaces available to you»: the old wording described the three-meanings «فريقي».
+ */
 export function scopeLabel(scope: TeamScopeChip): string {
   const { t } = getServerT();
   if (scope.kind === "space") return t("today.team.scope_space", { name: scope.name ?? "" });
-  return scope.kind === "company" ? t("today.team.scope_company") : t("today.team.scope_spaces");
+  return scope.kind === "company" ? t("today.team.scope_company") : t("today.team.scope_mine");
 }
 
 /**
@@ -22,7 +27,7 @@ export function scopeLabel(scope: TeamScopeChip): string {
  * ⚠️ The list of the most overdue tasks names people who still work here: 🔧 a suspended or offboarded person is never named (the service leaves
  * them out); the counts keep their work, as the reports do.
  */
-export function TodayTeamCard({ team, panelHref }: { team: TodayTeamData; panelHref: string | null }) {
+export function TodayTeamCard({ team, panelHref, scopeInfo }: { team: TodayTeamData; panelHref: string | null; scopeInfo?: TeamScopeInfo | null }) {
   const { t } = getServerT();
   // a number the person was not given is left out, never drawn as 0
   const stats = [
@@ -38,9 +43,14 @@ export function TodayTeamCard({ team, panelHref }: { team: TodayTeamData; panelH
         <h2 id="today-team-title" className="text-base font-semibold text-fg">
           {t("today.team.title")}
         </h2>
-        <span data-today-scope={team.scope.kind} className="rounded-full border border-border px-3 py-1 text-xs font-medium text-fg-muted">
-          <bdi>{scopeLabel(team.scope)}</bdi>
-        </span>
+        {scopeInfo ? (
+          // the service said what it counted (A2.3): it wins over the page's guess from the person's rank and space
+          <ScopeChip info={scopeInfo} />
+        ) : (
+          <span data-today-scope={team.scope.kind} className="rounded-full border border-border px-3 py-1 text-xs font-medium text-fg-muted">
+            <bdi>{scopeLabel(team.scope)}</bdi>
+          </span>
+        )}
         {panelHref ? (
           <Link href={panelHref} prefetch={false} className="ms-auto inline-flex min-h-11 items-center gap-1 text-sm font-medium text-accent hover:underline">
             {t("today.team.panel")}

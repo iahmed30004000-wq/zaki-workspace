@@ -3,6 +3,7 @@ import { NotFoundError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { assertFeatureOn } from "@/server/services/features";
 import { isSpaceManager } from "@/server/workspace-role";
+import { loadPeopleScope } from "@/server/policy/people-scope";
 
 /**
  * «لوحة المالك» — WHO MAY READ WHAT, in one place. Every page and every route of the board asks `boardAccess` and nothing else.
@@ -11,9 +12,11 @@ import { isSpaceManager } from "@/server/workspace-role";
  *           it away): every person, every space, the company's totals and the «اليوم» strip. Reading leaves no trace, like
  *           all owner reading. A partner who lost `board.team` falls to the rows below: his own page while he holds
  *           `board.self`, nothing when he holds neither (A1.3: one meaning per rule, a revoked permission works everywhere).
- *   team    holds `board.team` («لوحة الفريق», off until the owner switches it on for a person): the people of the spaces
- *           they manage (space ADMIN, or an org ADMIN who is in it) and of the teams they lead, and ONLY the work that
- *           happened in those spaces / teams. Never the owner's own page, never a partner's, never a guest's, no company
+ *   team    holds `board.team` («لوحة الفريق», off until the owner switches it on for a person): MY TEAM (A2.3, D-A3:
+ *           everybody under me in the reporting line, `policy/people-scope.ts`) plus the people of the spaces they manage (space
+ *           ADMIN, or an org ADMIN who is in it) and of the teams they lead, and ONLY the work that happened in those spaces /
+ *           teams: a number is never counted over a task outside them, so a report who works elsewhere shows what they did INSIDE
+ *           the viewer's spaces. Never the owner's own page, never a partner's, never a guest's, no company
  *           totals. They also read their own page when they hold `board.self`.
  *   self    holds `board.self` («لوحتي», on for every staff rank): their own page, nobody else's, no totals.
  *   nobody  an external partner (a guest), a person holding neither switch, or the company with the feature switched off.
@@ -39,6 +42,8 @@ export interface BoardAccess {
   viewerId: string;
   /** The people the viewer may open besides themselves; null: everybody of the company (owner). */
   reach: ReadonlySet<string> | null;
+  /** «فريقي» (A2.3): the ACTIVE people under the viewer in the reporting line, a part of `reach`. Only set in «team» mode. */
+  team?: ReadonlySet<string>;
   /** The viewer may open their own page (`board.self`, or the owner). */
   ownPage: boolean;
   /** The company-wide totals and the people table of everybody (owner only). */
@@ -84,11 +89,14 @@ export async function boardAccess(actor: Actor): Promise<BoardAccess> {
   }
 
   const { workspaceIds, teamIds, people } = await teamReach(actor);
+  // my team (the reporting line) is in reach whatever space they work in
+  const team = new Set((await loadPeopleScope(actor)).reportIds);
   return {
     mode: "team",
     orgId: actor.orgId,
     viewerId: actor.userId,
-    reach: people,
+    reach: new Set([...people, ...team]),
+    team,
     ownPage: wantsSelf,
     companyWide: false,
     scope: { restricted: true, workspaceIds, teamIds },

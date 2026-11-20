@@ -14,8 +14,8 @@ import { allTaskIds, at, idsOf, isPlain, put, setMember, setZone, todayFor, toda
  *    tasks, never another company's;
  *  - the company's day, from Organization.timezone: a task due 23:30 local is today or tomorrow by the zone;
  *  - an external partner gets their own tasks and projects, no company numbers, no way to add or to finish;
- *  - the team pulse is for the owner and whoever holds users.manage, and a person who is no longer active is
- *    never in it.
+ *  - the team pulse is «فريقي» (A2.3: the owner rank the company, anybody else the people under them in the reporting line; users.manage
+ *    decides nothing: more in today-team-scope.test.ts), and a person who is no longer active is never in it.
  */
 
 // the company's clock is UTC in `world()`, so these are plain calendar days
@@ -290,26 +290,33 @@ describe("the team pulse: for the owner and whoever manages people, and never a 
     return { w, suspended, gone, a: [a1, a2, a3, a4, a5, a6], wOut: [w1, w2, w3] };
   }
 
-  it("is there for the owner, for an admin and for anybody the owner gave users.manage, and for nobody else", async () => {
+  // A2.3: «فريقي» (D-A3). The owner rank has the company; anybody else has the people under them; users.manage decides nothing here.
+  it("is there for the owner and for whoever has people under them, and for nobody else (users.manage decides nothing)", async () => {
     const w = await world();
     await joinWorkspace(w.admin.id, w.wsIn.id); // an admin gets no space by rank: put them in one
     expect((await todayFor(w.owner.id, NOW)).pulse).not.toBeNull();
-    expect((await todayFor(w.admin.id, NOW)).pulse).not.toBeNull();
+    expect((await todayFor(w.admin.id, NOW)).pulse).toBeNull(); // an ADMIN holds users.manage by rank, but nobody answers to them
     expect((await todayFor(w.member.id, NOW)).pulse).toBeNull();
     expect((await todayFor(w.lead.id, NOW)).pulse).toBeNull();
 
     await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"] });
-    expect((await todayFor(w.member.id, NOW)).pulse).not.toBeNull();
+    expect((await todayFor(w.member.id, NOW)).pulse).toBeNull(); // the box alone makes no team
 
+    await setMember(w.org.id, w.member.id, { managerId: w.admin.id });
+    expect((await todayFor(w.admin.id, NOW)).pulse).not.toBeNull();
+    // taking users.manage away does not take the team away: they are the same people either way
     await setMember(w.org.id, w.admin.id, { revokedCapabilities: ["users.manage"] });
-    expect((await todayFor(w.admin.id, NOW)).pulse).toBeNull();
+    expect((await todayFor(w.admin.id, NOW)).pulse).not.toBeNull();
+    // the person under them has nobody: no pulse
+    expect((await todayFor(w.member.id, NOW)).pulse).toBeNull();
   });
 
   it("is not there for a manager who can open no space: there is nothing to take the pulse of (a new company's owner is told to open a space instead)", async () => {
     const w = await world();
+    await setMember(w.org.id, w.member.id, { managerId: w.admin.id });
     expect((await todayFor(w.admin.id, NOW)).pulse).toBeNull(); // no row in any space, so nothing to count
     await joinWorkspace(w.admin.id, w.wsIn.id);
-    expect((await todayFor(w.admin.id, NOW)).pulse).toEqual({ open: 0, overdue: 0, worst: [] });
+    expect((await todayFor(w.admin.id, NOW)).pulse).toEqual({ open: 0, overdue: 0, worst: [], scope: { who: "reports", spaceName: null } });
     // a company with no space at all: its owner has the same empty hands
     const fresh = await makeTeam();
     expect((await todayFor(fresh.owner.id, NOW)).pulse).toBeNull();
@@ -323,14 +330,17 @@ describe("the team pulse: for the owner and whoever manages people, and never a 
     expect(data.isExternal).toBe(true);
   });
 
-  it("counts the open and the overdue tasks over the spaces the person can open: the owner all of them, an admin only the spaces they are in", async () => {
+  it("counts the open and the overdue tasks over «فريقي»: the owner the whole company, a manager only the people under them in the spaces they can open", async () => {
     const { w } = await pulseWorld();
     const owner = (await todayFor(w.owner.id, NOW)).pulse;
-    expect(owner).toMatchObject({ open: 13, overdue: 12 });
+    expect(owner).toMatchObject({ open: 13, overdue: 12, scope: { who: "company", spaceName: null } });
 
     await joinWorkspace(w.admin.id, w.wsIn.id);
+    await setMember(w.org.id, w.member.id, { managerId: w.admin.id });
+    await setMember(w.org.id, w.lead.id, { managerId: w.admin.id });
     const admin = (await todayFor(w.admin.id, NOW)).pulse;
-    expect(admin).toMatchObject({ open: 10, overdue: 9 });
+    // the member's and the lead's open tasks of the space they share with the admin: A1..A6 (overdue) and OPEN1; the lead's three tasks in the closed space are not theirs to see
+    expect(admin).toMatchObject({ open: 7, overdue: 6, scope: { who: "reports", spaceName: null } });
   });
 
   it("lists the five most overdue tasks with the assignee's name, and no task of somebody who is suspended or offboarded, nor an unassigned one", async () => {
@@ -345,6 +355,8 @@ describe("the team pulse: for the owner and whoever manages people, and never a 
     expect(owner.worst[3]).toMatchObject({ projectName: "مشروع الفريق", dueLabel: "قبل 12 يومًا" });
 
     await joinWorkspace(w.admin.id, w.wsIn.id);
+    await setMember(w.org.id, w.member.id, { managerId: w.admin.id });
+    await setMember(w.org.id, w.lead.id, { managerId: w.admin.id });
     const admin = (await todayFor(w.admin.id, NOW)).pulse!;
     expect(admin.worst.map((r) => r.title)).toEqual(["A1", "A2", "A3", "A4", "A5"]);
 

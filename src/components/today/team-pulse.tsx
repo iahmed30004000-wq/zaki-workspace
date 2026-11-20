@@ -2,6 +2,8 @@ import Link from "next/link";
 import { fmtNumber } from "@/lib/format";
 import { getServerT } from "@/lib/i18n/server";
 import type { TodayPulse } from "@/lib/today";
+import type { TeamScopeInfo } from "@/server/policy/people-scope";
+import { ScopeChip } from "@/components/today/scope-chip";
 import { cn } from "@/lib/utils";
 
 /**
@@ -12,14 +14,15 @@ import { cn } from "@/lib/utils";
  * them. Only what is late is drawn in the danger colour; when nothing is late the card says so calmly instead of
  * showing an empty list. A person who is no longer active is never in the list (the service leaves them out).
  */
-export function TeamPulse({ pulse }: { pulse: TodayPulse }) {
+export function TeamPulse({ pulse }: { pulse: TodayPulse & { scope?: TeamScopeInfo } }) {
   const { t } = getServerT();
   return (
     <section aria-labelledby="today-pulse-title" className="rounded-card border border-border bg-surface-1 p-4 shadow-card">
       <h2 id="today-pulse-title" className="text-base font-semibold text-fg">
         {t("today.pulse.title")}
       </h2>
-      <p className="text-xs leading-5 text-fg-muted">{t("today.pulse.scope")}</p>
+      {/* A2.3: every KPI says what it counted. The service names its scope; without one (an old caller) the card keeps its general sentence */}
+      {pulse.scope ? <ScopeChip info={pulse.scope} /> : <p className="text-xs leading-5 text-fg-muted">{t("today.pulse.scope")}</p>}
 
       <div className="mt-3 flex flex-wrap gap-x-8 gap-y-2">
         <p className="flex items-baseline gap-2">
