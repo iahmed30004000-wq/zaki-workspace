@@ -3,7 +3,7 @@
  * the chips, the stage filter and the board, the visibility rule on every read (a hidden task is not listed, counted, opened or found), the old addresses that
  * redirect behind the switch `workMyTasks`, and the doors (list, quick task, panel, stage move).
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
@@ -358,6 +358,15 @@ describe("the old addresses, behind the switch", () => {
 });
 
 describe("the doors", () => {
+  // the routes read the real clock for «today»; NOW is fixed in the past, so without this the file goes red the day after (only Date is faked: the driver keeps running)
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("GET /api/work/tasks: 404 while the switch is off; on, it answers the same screen the page draws, with no hidden task in it", async () => {
     const w = await world();
     await loginAs(w.me.id);
