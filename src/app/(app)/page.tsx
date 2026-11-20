@@ -15,6 +15,7 @@ import { getTodayDashboard } from "@/server/services/today-dashboard";
 import { currentSpace } from "@/server/services/current-space";
 import { missionOf } from "@/lib/today";
 import { opensOnCards } from "@/lib/cards/shared";
+import { cardsHomeHref } from "@/lib/nav/new-actions";
 import { actorFeatureOn } from "@/server/services/features";
 import { landsOnChat } from "@/server/services/landing";
 import { MyRemindersCard } from "@/components/reminders/my-reminders-card";
@@ -71,8 +72,8 @@ export default async function TodayPage({ searchParams }: { searchParams?: Recor
   const { actor } = await pageActor();
   // the space the person is in: its «اليوم» only (entering a space opens here)
   const space = await currentSpace(actor);
-  // a space of «لوحات» opens on its cards (decided here, on the server; the sidebar is not touched)
-  if (opensOnCards(space?.layout)) redirect("/cards");
+  // a space of «لوحات» opens on its cards (decided here, on the server; the sidebar is not touched); «جديد → مهمة» (`?new=task`) keeps its intent on the way (W1.8)
+  if (opensOnCards(space?.layout)) redirect(cardsHomeHref(searchParams));
   // the company's landing page: «/» alone follows it, «/?view=today» is always «اليوم»
   const view = searchParams?.["view"];
   if ((Array.isArray(view) ? view[0] : view) !== "today") {

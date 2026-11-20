@@ -17,6 +17,7 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/",
 }));
 
+import HomePage from "@/app/(app)/page";
 import GoalsPage from "@/app/(app)/goals/page";
 import IdeasPage from "@/app/(app)/ideas/page";
 import ProductionPage from "@/app/(app)/production/page";
@@ -362,7 +363,7 @@ describe("W1.8 C: «جديد → مهمة» in a space of cards opens the task s
     const w = await cardsWorld();
     await loginAs(w.member.id);
     enter(w.cardsSpace.id);
-    const plain = (await CardsPage()) as Tree;
+    const plain = (await CardsPage({})) as Tree;
     expect(plain.type).toBe(CardsView);
     const withIntent = (await CardsPage({ searchParams: { new: "task" } })) as ReactNode;
     const types = typesInOrder(withIntent);
@@ -372,6 +373,20 @@ describe("W1.8 C: «جديد → مهمة» in a space of cards opens the task s
     // another intent, or none we serve: the plain page
     expect(((await CardsPage({ searchParams: { new: "project" } })) as Tree).type).toBe(CardsView);
     expect(((await CardsPage({ searchParams: {} })) as Tree).type).toBe(CardsView);
+  });
+
+  it("«/» in a space of cards ends at /cards?new=task: the redirect keeps the one intent the cards page serves and drops everything else", async () => {
+    const w = await cardsWorld();
+    await loginAs(w.member.id);
+    enter(w.cardsSpace.id);
+    await expect(HomePage({ searchParams: { new: "task" } })).rejects.toThrow(new Error("NEXT_REDIRECT:/cards?new=task"));
+    // the new map's own address for «مهمة» (N1.8) ends there too
+    await expect(HomePage({ searchParams: { view: "today", new: "task" } })).rejects.toThrow(new Error("NEXT_REDIRECT:/cards?new=task"));
+    // a repeated parameter counts by its first value; another intent, or none, is the plain /cards
+    await expect(HomePage({ searchParams: { new: ["task", "project"] } })).rejects.toThrow(new Error("NEXT_REDIRECT:/cards?new=task"));
+    await expect(HomePage({ searchParams: { new: "project" } })).rejects.toThrow(new Error("NEXT_REDIRECT:/cards"));
+    await expect(HomePage({ searchParams: { new: "/cards?next=//evil.example" } })).rejects.toThrow(new Error("NEXT_REDIRECT:/cards"));
+    await expect(HomePage({})).rejects.toThrow(new Error("NEXT_REDIRECT:/cards"));
   });
 
   it("an external partner gets the plain cards page whatever the address says (nothing to add, nothing of the company's tasks)", async () => {

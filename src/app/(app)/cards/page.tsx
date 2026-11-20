@@ -22,7 +22,7 @@ export const metadata = { title: getServerT().t("cards.title") };
  * way), so `/cards?new=task` opens the SAME task sheet Today uses (`TodayQuickAdd` reads `?new=task`), beside the cards. It is built from the person's own
  * quick-add facts in THIS space (`getToday`), and only for staff who may add a task somewhere (an external partner gets the plain page).
  */
-export default async function CardsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function CardsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = getServerT();
   const { user, actor } = await pageActor();
   const space = await currentSpace(actor);

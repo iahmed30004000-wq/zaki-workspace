@@ -118,8 +118,9 @@
       and NO page is relaxed; `tests/db/work-tabs-honest.test.ts` pins page = tab for every optional work tool and the refusal itself. The owner's yes is ONE commit
       (the three tabs, the three pages, that test; then record it in DECISIONS.md). Notes: `docs/restructure/pr/W1.8.md`.
 - [x] «جديد → مهمة» in a card space keeps the intent (open the task sheet on `/cards`).
-      `/cards?new=task` mounts the quick add (the same sheet as Today) beside the cards; `newHrefFor(task, v2, layout)` and `cardsHomeHref` (new-actions.ts) carry the intent. ⚠️ Two
-      one-line callers are outside this package: the wheel passing the space layout and `src/app/(app)/page.tsx` redirecting with `cardsHomeHref(searchParams)` (see the PR notes).
+      `/cards?new=task` mounts the quick add (the same sheet as Today) beside the cards; `newHrefFor(task, v2, layout)` and `cardsHomeHref` (new-actions.ts) carry the intent, and `src/app/(app)/page.tsx` redirects a card space with
+      `cardsHomeHref(searchParams)`, so «جديد → مهمة» (the wheel's `/?view=today&new=task`) ends at `/cards?new=task` (tested: `tests/db/work-tabs-honest.test.ts` C). Not wired: the wheel does not pass the
+      space layout to `newHrefFor` (the shell has no layout on the client; it would save one redirect hop) — see the PR notes.
 - [x] Search palette also finds boards, ideas, tickets, customers (with their own access rules — `crm.view` for customers).
       `src/server/search/work-search.ts`; the answer gains `boards` / `ideas` / `tickets` / `customers` ONLY when there is a hit (the old shape is byte for byte as before); the palette is the wide one (`xl`).
 
