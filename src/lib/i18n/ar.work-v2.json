@@ -176,5 +176,20 @@
   "pal.board": "لوحة",
   "pal.idea": "فكرة",
   "pal.ticket": "تذكرة",
-  "pal.customer": "عميل"
+  "pal.customer": "عميل",
+  "crumbs.label": "مسار الصفحة",
+  "projpage.tabs": "تبويبات المشروع",
+  "projpage.tab.board": "اللوحة",
+  "projpage.tab.list": "القائمة",
+  "projpage.tab.calendar": "التقويم",
+  "projpage.tab.timeline": "الجدول الزمني",
+  "projpage.tab.fields": "الحقول والقواعد",
+  "projpage.tab.settings": "الإعدادات",
+  "projpage.boards.label": "لوحات المشروع",
+  "projpage.settings.team": "الفريق",
+  "projpage.settings.team_hint": "المشروع إما لكل المساحة أو لفريق واحد منها، ومين بيشوفه بيتغير بنقله.",
+  "projpage.settings.boards": "اللوحات",
+  "projpage.tasks.load_error": "ما قدرنا نحمّل مهام المشروع",
+  "projpage.tasks.retry": "جرّب مرة ثانية",
+  "projpage.tasks.empty": "ما في مهام بالمشروع حسب هالفلاتر."
 }

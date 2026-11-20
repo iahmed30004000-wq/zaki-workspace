@@ -24,11 +24,19 @@ import { fieldDefsOf, isPartnerIn } from "@/server/services/custom-fields";
 import { ManageFields } from "@/components/custom-fields/manage-fields";
 import { listRulesOf, ruleOptionsOf } from "@/server/services/task-rules";
 import { RulesCard } from "@/components/task-rules/rules-card";
+import { ProjectPageV2 } from "./project-page";
 
-export default async function ProjectPage({ params }: { params: { id: string } }) {
+/**
+ * A project's page. W1.5: with the switch `navV2` ON it is the page with tabs and the trail (`project-page.tsx`: «اللوحة» · «القائمة» · «التقويم» ·
+ * «الجدول الزمني» · «الحقول والقواعد» · «الإعدادات»); with it OFF (the default) it is the page below, untouched.
+ */
+export default async function ProjectPage({ params, searchParams }: { params: { id: string }; searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = getServerT();
   const user = await pageUser();
   if (!user) return null;
+  // W1.5: the new map's page takes over here (a person with no company yet is the old page's business: it fails the way it always did)
+  const early = await requireActor().catch(() => null);
+  if (early && (await actorFeatureOn(early, "navV2"))) return ProjectPageV2({ params, searchParams: searchParams ?? {}, user, actor: early });
   // its space and its team: another team's project is «not found», like one that does not exist
   const scope = await loadWorkScope(user.id);
   const project = await db.project.findFirst({
