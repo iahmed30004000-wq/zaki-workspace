@@ -63,7 +63,7 @@ export function MembersList({
           aria-label={t("members.search_label")}
           placeholder={t("members.search_ph")}
           autoComplete="off"
-          className="h-11 ps-9"
+          className="h-11 rounded-full border-transparent bg-surface-2 ps-9"
         />
       </div>
 
@@ -77,8 +77,8 @@ export function MembersList({
               aria-pressed={active}
               onClick={() => onFilterChange({ ...filter, status })}
               className={cn(
-                "inline-flex h-11 items-center gap-2 rounded-full border px-3 text-sm font-medium transition-colors sm:px-4",
-                active ? "border-accent bg-accent text-accent-fg" : "border-border bg-surface text-fg-muted hover:bg-surface-2",
+                "inline-flex h-11 items-center gap-2 rounded-full px-3 text-[13.5px] font-semibold transition-colors sm:px-4",
+                active ? "bg-accent text-accent-fg" : "bg-surface-2 text-fg-muted hover:text-fg",
               )}
             >
               {status === "ALL" ? t("members.filter_all") : t(STATUS_KEYS[status])}
@@ -98,11 +98,11 @@ export function MembersList({
         <div role="status" className="grid grid-cols-1 gap-3 md:grid-cols-2">
           <span className="sr-only">{t("common.loading")}</span>
           {[0, 1, 2].map((i) => (
-            <div key={i} aria-hidden="true" className="h-28 animate-pulse rounded-xl bg-surface-2" />
+            <div key={i} aria-hidden="true" className="h-28 animate-pulse rounded-[14px] bg-surface-2" />
           ))}
         </div>
       ) : errorMessage ? (
-        <div role="alert" className="space-y-3 rounded-xl border border-border bg-surface-1 p-5 text-center">
+        <div role="alert" className="space-y-3 rounded-[14px] bg-surface-1 p-5 text-center">
           <p className="text-sm font-medium text-fg">{t("members.load_failed")}</p>
           <p className="text-xs text-fg-muted">{errorMessage}</p>
           {onRetry ? (
@@ -112,7 +112,7 @@ export function MembersList({
           ) : null}
         </div>
       ) : visible.length === 0 ? (
-        <p className="rounded-xl border border-dashed border-border bg-surface-1 p-6 text-center text-sm text-fg-muted">
+        <p className="rounded-[14px] bg-surface-1 px-4 py-7 text-center text-sm text-fg-muted">
           {members.length === 0 ? t("members.empty") : t("members.no_match")}
         </p>
       ) : (

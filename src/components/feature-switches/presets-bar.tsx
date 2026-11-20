@@ -34,7 +34,7 @@ export function PresetsBar({
   const confirm = (preset: FeaturePreset) => closeAfterApply(() => onApply(preset), () => setPending(null));
 
   return (
-    <section className="space-y-3 rounded-lg border border-border bg-surface-1 p-4" aria-labelledby="presets-title" data-presets>
+    <section className="space-y-3 rounded-[14px] bg-surface-1 p-4" aria-labelledby="presets-title" data-presets>
       <div>
         <h3 id="presets-title" className="text-sm font-semibold text-fg">
           {t("featureGroups.presets.title")}
@@ -51,8 +51,8 @@ export function PresetsBar({
             disabled={busy}
             onClick={() => setPending(pending === preset ? null : preset)}
             className={cn(
-              "rounded-lg border p-3 text-start transition-colors disabled:opacity-60",
-              pending === preset ? "border-accent bg-accent/[0.08]" : "border-border bg-surface-2 hover:bg-surface",
+              "rounded-xl p-3 text-start transition-colors disabled:opacity-60",
+              pending === preset ? "bg-accent/15 ring-1 ring-accent" : "bg-surface-2 hover:bg-accent/10",
             )}
           >
             <span className="block text-sm font-medium text-fg">

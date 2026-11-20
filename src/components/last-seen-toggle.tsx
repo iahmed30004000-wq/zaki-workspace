@@ -11,7 +11,7 @@ import { SwitchRow } from "@/components/members/switch-row";
  * together: hiding one's own «آخر ظهور» also hides everybody else's from the person (like a messenger), and it can be
  * undone here at any time. Online status (the green dot) is not affected.
  */
-export function LastSeenToggle({ initialHide }: { initialHide: boolean }) {
+export function LastSeenToggle({ initialHide, bare = false }: { initialHide: boolean; /** inside a settings card already: no card of its own */ bare?: boolean }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const [hide, setHide] = useState(initialHide);
@@ -32,7 +32,7 @@ export function LastSeenToggle({ initialHide }: { initialHide: boolean }) {
   }
 
   return (
-    <section data-last-seen-toggle className="rounded-xl border border-border bg-surface p-1">
+    <section data-last-seen-toggle className={bare ? undefined : "rounded-[14px] bg-surface-1 p-1"}>
       <SwitchRow
         checked={hide}
         busy={busy}

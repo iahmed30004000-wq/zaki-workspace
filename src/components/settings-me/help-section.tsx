@@ -33,8 +33,8 @@ export function HelpSection({ ownerId }: { ownerId: string | null }) {
 
   return (
     <div data-section-body="help">
-      <Group>
-        <Link href="/guide" className="flex min-h-14 items-center rounded-xl px-1 text-start hover:bg-surface-2">
+      <Group rows>
+        <Link href="/guide" className="flex min-h-14 items-center px-3.5 py-2 text-start transition-colors hover:bg-surface-2">
           <span>
             <span className="block text-[15px] font-medium text-fg">{t("settingsMe.h.guide")}</span>
             <span className="block text-[13px] text-fg-muted">{t("settingsMe.h.guide.hint")}</span>

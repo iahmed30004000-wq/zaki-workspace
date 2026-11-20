@@ -60,7 +60,7 @@ export function NotificationsSection() {
         const rule = notifyRuleOf(person.prefs, type);
         const on = rule.on !== false;
         return (
-          <Group key={type} id={`n-${type}`}>
+          <Group key={type} id={`n-${type}`} rows>
             <SwitchRow
               checked={on}
               disabled={!person.loaded}
@@ -77,12 +77,12 @@ export function NotificationsSection() {
                 hint={t("settingsMe.n.preview.hint")}
               />
             ) : null}
-            {!on && WARNED[type] ? <WarnFix warn={t(`settingsMe.n.warn.${type}`)} fix={t(`settingsMe.n.fix.${type}`)} className="mt-2" /> : null}
+            {!on && WARNED[type] ? <WarnFix warn={t(`settingsMe.n.warn.${type}`)} fix={t(`settingsMe.n.fix.${type}`)} className="m-3" /> : null}
           </Group>
         );
       })}
 
-      <Group>
+      <Group rows>
         <SwitchRow
           checked={sounds}
           onChange={(next) => {
@@ -114,7 +114,7 @@ export function MutedChats() {
   const muted = [...list.rows, ...list.archivedRows].filter((row, at, all) => row.muted && all.findIndex((r) => r.id === row.id) === at);
   if (muted.length === 0) return <p className="text-sm text-fg-muted">{t("settingsMe.n.exceptions.none")}</p>;
   return (
-    <ul data-muted-chats className="divide-y divide-border rounded-xl border border-border">
+    <ul data-muted-chats className="-mx-3.5 -my-3 divide-y divide-border">
       {muted.map((row) => (
         <MutedRow key={row.id} row={row} />
       ))}

@@ -153,11 +153,11 @@ export function SheetView({ initial, userId, isOwner }: { initial: SheetDTO; use
       <section aria-label={t("knowledge.price")} className="space-y-2">
         {snap ? (
           <div className="flex flex-wrap gap-2 text-sm">
-            <span className="rounded-lg border border-border bg-surface-1 px-3 py-1.5">{`${t(unit === "عبوة" ? "knowledge.unit.pack" : "knowledge.unit.piece")} ${fmtMoney(snap.price)} ${snap.currency}`}</span>
+            <span className="rounded-full bg-surface-2 px-3 py-1.5">{`${t(unit === "عبوة" ? "knowledge.unit.pack" : "knowledge.unit.piece")} ${fmtMoney(snap.price)} ${snap.currency}`}</span>
             {snap.offers.map((o, i) => (
-              <span key={i} className="rounded-lg border border-border bg-surface-1 px-3 py-1.5">{offerLine(o, snap.currency, unit)}</span>
+              <span key={i} className="rounded-full bg-surface-2 px-3 py-1.5">{offerLine(o, snap.currency, unit)}</span>
             ))}
-            {sheet.external?.deliveryIncluded && sheet.deliveryLine ? <span className="rounded-lg border border-border bg-surface-1 px-3 py-1.5">{sheet.deliveryLine}</span> : null}
+            {sheet.external?.deliveryIncluded && sheet.deliveryLine ? <span className="rounded-full bg-surface-2 px-3 py-1.5">{sheet.deliveryLine}</span> : null}
             <span className={`rounded-lg px-3 py-1.5 text-xs ${stale ? "bg-warn/15 text-warn" : "text-muted"}`}>{staleNote(snap, now)}</span>
           </div>
         ) : (
@@ -195,7 +195,7 @@ export function SheetView({ initial, userId, isOwner }: { initial: SheetDTO; use
               <ChevronDown className="ms-1 size-4" />
             </Button>
             {allOpen && data ? (
-              <div className="absolute start-0 z-10 mt-1 w-56 space-y-2 rounded-lg border border-border bg-surface-1 p-3 text-xs shadow-lg">
+              <div className="absolute start-0 z-10 mt-1 w-56 space-y-2 rounded-xl border border-border bg-surface-1 p-3 text-xs shadow-lg">
                 {COPY_PARTS.map((p) => (
                   <label key={p} className="flex items-center gap-2">
                     <input type="checkbox" checked={parts.includes(p)} onChange={() => toggleAll(p)} />
@@ -243,7 +243,7 @@ export function SheetView({ initial, userId, isOwner }: { initial: SheetDTO; use
       {sheet.canEdit && sheet.gaps && sheet.gaps.length > 0 ? <p className="text-xs text-warn">{`${t("knowledge.lacks")}: ${sheet.gaps.map((g) => t(`knowledge.gap.${g}`)).join(" · ")}`}</p> : null}
       {sheet.canEdit && typeof sheet.copies === "number" ? <p className="text-xs text-muted">{t("knowledge.copies", { n: fmtNumber(sheet.copies) })}</p> : null}
 
-      <section className="rounded-xl border border-border bg-surface-1">
+      <section className="rounded-[14px] bg-surface-1">
         <button type="button" className="flex w-full items-center justify-between p-3 text-sm font-semibold" onClick={() => setOpen((o) => ({ ...o, faq: !o["faq"] }))} aria-expanded={!!open["faq"]}>
           {t("knowledge.faq")}
           <ChevronDown className={`size-4 transition-transform ${open["faq"] ? "rotate-180" : ""}`} />
@@ -284,7 +284,7 @@ export function SheetView({ initial, userId, isOwner }: { initial: SheetDTO; use
         if (!text && !sheet.canEdit) return null;
         const isOpen = !!open[s.key];
         return (
-          <section key={s.key} className="rounded-xl border border-border bg-surface-1">
+          <section key={s.key} className="rounded-[14px] bg-surface-1">
             <div className="flex items-center justify-between p-3">
               <button type="button" className="flex flex-1 items-center gap-2 text-sm font-semibold" onClick={() => setOpen((o) => ({ ...o, [s.key]: !o[s.key] }))} aria-expanded={isOpen}>
                 <ChevronDown className={`size-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />

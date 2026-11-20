@@ -128,7 +128,7 @@ export function CredentialsCard({
         </h3>
       </div>
 
-      <div className="space-y-3 rounded-xl border border-border bg-surface-1 p-3">
+      <div className="space-y-3 rounded-[14px] bg-surface-1 p-3">
         <SecretRow label={t("members.secret_username")} value={username} copyLabel={t("members.copy_username_label")} />
         {password !== null ? (
           <>

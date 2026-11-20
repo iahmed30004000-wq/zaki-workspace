@@ -105,7 +105,7 @@ export function OmsLinkCard() {
   const gone = data?.daysLeft !== null && data?.daysLeft !== undefined && data.daysLeft < 0;
 
   return (
-    <section className="space-y-4 rounded-xl border border-border bg-surface-1 p-5" aria-labelledby="oms-title">
+    <section className="space-y-4 rounded-[14px] bg-surface-1 p-5" aria-labelledby="oms-title">
       <div className="flex items-center gap-2">
         <span className="grid size-9 place-items-center rounded-lg bg-cat-2/10 text-cat-2">
           <PackageSearch className="size-5" />

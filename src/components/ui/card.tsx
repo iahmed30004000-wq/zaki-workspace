@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 
 export function Card({ className, children }: { className?: string; children: React.ReactNode }) {
   return (
-    <div className={cn("rounded-xl border border-border bg-surface-1", className)}>{children}</div>
+    <div className={cn("rounded-[14px] bg-surface-1", className)}>{children}</div>
   );
 }
 
@@ -64,13 +64,13 @@ export function EmptyState({
   action?: { label: string; href: string };
 }) {
   return (
-    <div className="relative isolate flex flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-border p-8 text-center">
+    <div className="relative isolate flex flex-col items-center justify-center overflow-hidden rounded-[14px] bg-surface-1 px-4 py-7 text-center">
       <ThemeDecor kind="empty" />
       {/* The words are positioned too: a positioned layer paints over a static one, whatever the order of the markup. */}
       <div className="relative z-10 flex flex-col items-center gap-2">
         {art ? <ArtSlot slot={art} className="mb-1 max-h-36 w-auto rounded-2xl" /> : null}
-        <p className="text-sm font-medium text-fg">{title}</p>
-        {hint ? <p className="text-xs text-fg-muted">{hint}</p> : null}
+        <p className="text-sm font-semibold text-fg">{title}</p>
+        {hint ? <p className="text-[13px] text-fg-muted">{hint}</p> : null}
         {children}
         {action ? (
           <Link

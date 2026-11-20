@@ -76,7 +76,7 @@ function DeletedDocuments({ spaceId }: { spaceId: string }) {
         {open ? t("docs.deleted.hide") : t("docs.deleted.show")}
       </Button>
       {open && (
-        <div className="space-y-2 rounded-xl border border-border bg-surface-1 p-3">
+        <div className="space-y-2 rounded-[14px] bg-surface-1 p-3">
           <p className="text-xs text-fg-muted">{t("docs.deleted.hint")}</p>
           {rows === null ? null : rows.length === 0 ? (
             <p className="text-sm text-fg-muted">{t("docs.deleted.empty")}</p>
@@ -147,12 +147,12 @@ export function DocumentsView({
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4">
       <header>
-        <h1 className="text-lg font-semibold">{t("docs.title")}</h1>
+        <h1 className="text-xl font-bold">{t("docs.title")}</h1>
         <p className="text-xs text-fg-muted">{t("docs.subtitle", { space: spaceName })}</p>
       </header>
 
       {canCreate && (
-        <form onSubmit={create} className="flex flex-wrap items-end gap-2 rounded-xl border border-border bg-surface-1 p-3">
+        <form onSubmit={create} className="flex flex-wrap items-end gap-2 rounded-[14px] bg-surface-1 p-3">
           <label className="min-w-0 flex-1 text-xs text-fg-muted">
             {t("docs.new_title_label")}
             <Input ref={titleBox} value={title} maxLength={LIMITS.title} onChange={(e) => setTitle(e.target.value)} placeholder={t("docs.new_title_ph")} className="mt-1" />
@@ -167,14 +167,16 @@ export function DocumentsView({
       {initial.length === 0 ? (
         <EmptyState title={canCreate ? t("docs.empty") : t("docs.empty_partner")} {...(canCreate ? { hint: t("docs.empty_hint") } : {})} />
       ) : (
-        <ul className="grid gap-2">
+        <ul className="divide-y divide-border overflow-hidden rounded-[14px] bg-surface-1">
           {initial.map((d) => (
             <li key={d.id}>
-              <Link href={`/documents/${d.id}`} className="flex items-start gap-3 rounded-xl border border-border bg-surface-1 p-3 transition-colors hover:bg-surface-2">
-                <FileText className="mt-0.5 size-5 shrink-0 text-info" />
+              <Link href={`/documents/${d.id}`} className="flex min-h-14 items-center gap-3 px-3.5 py-2.5 transition-colors hover:bg-surface-2">
+                <span className="grid size-10 shrink-0 place-items-center rounded-full bg-info/15 text-info">
+                  <FileText className="size-[18px]" />
+                </span>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-medium text-fg">{d.title}</span>
+                    <span className="truncate text-[15px] font-semibold text-fg">{d.title}</span>
                     {d.sharedWithPartners && (
                       <span className="inline-flex items-center gap-1 rounded-full bg-info/10 px-2 py-0.5 text-xs text-info">
                         <Users className="size-3" />

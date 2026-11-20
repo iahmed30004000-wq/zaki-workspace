@@ -116,7 +116,7 @@ export function StoragePanel() {
   const driveReady = m.target === "drive";
 
   return (
-    <section className="space-y-3 rounded-xl border border-border bg-surface-1 p-4" aria-label={t("spacelib.panel.title")}>
+    <section className="space-y-3 rounded-[14px] bg-surface-1 p-4" aria-label={t("spacelib.panel.title")}>
       <h2 className="text-sm font-semibold">{t("spacelib.panel.title")}</h2>
 
       {driveReady ? <p className="text-xs text-ok">{t("spacelib.panel.drive_ok")}</p> : <StorageWarning state={m} />}

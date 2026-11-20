@@ -10,7 +10,7 @@ function stamp(value?: string | null) {
 export function ArchiveList({ items }: { items: ArchiveItemDto[] }) {
   if (!items.length) return <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-fg-muted">{AR["archive.empty"]}</p>;
   return <ol className="space-y-3" aria-label={AR["archive.records"]}>
-    {items.map((item) => <li key={`${item.type}:${item.id}`} className="rounded-xl border border-border bg-surface-1 p-4">
+    {items.map((item) => <li key={`${item.type}:${item.id}`} className="rounded-[14px] bg-surface-1 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="rounded-md bg-accent/10 px-2 py-1 text-xs font-medium text-accent">{AR[`archive.type.${item.type}`]}</span>
         <time className="text-xs text-fg-muted" dateTime={item.at ?? undefined}>{stamp(item.at)}</time>

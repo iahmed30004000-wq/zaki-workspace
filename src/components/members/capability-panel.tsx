@@ -77,7 +77,7 @@ export function CapabilityPanel({
       <ExplainView member={member} settings={company.settings} ready={company.ready} known={company.known} />
 
       {oversight ? (
-        <section aria-labelledby={`${uid}-oversight`} className="rounded-xl border border-border bg-surface">
+        <section aria-labelledby={`${uid}-oversight`} className="rounded-[14px] bg-surface">
           <h4 id={`${uid}-oversight`} className="border-b border-border px-3 py-2 text-xs font-semibold text-fg-muted">
             {t("members.group_oversight")}
           </h4>
@@ -108,7 +108,7 @@ export function CapabilityPanel({
       ) : null}
 
       {SOON_CAPABILITIES.length > 0 ? (
-        <section aria-labelledby={`${uid}-soon`} className="rounded-xl border border-dashed border-border p-3">
+        <section aria-labelledby={`${uid}-soon`} className="rounded-[14px] bg-surface-2 p-3">
           <h4 id={`${uid}-soon`} className="text-xs font-semibold text-fg-muted">
             {t("members.caps_soon_title")}
           </h4>
@@ -157,7 +157,7 @@ function Area({
 }) {
   const title = t(`perm.area.${area.id}`);
   return (
-    <details data-area={area.id} className="group rounded-xl border border-border bg-surface">
+    <details data-area={area.id} className="group rounded-[14px] bg-surface">
       <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
         <h4 className="min-w-0 flex-1 text-sm font-semibold text-fg">{title}</h4>
         <span className="shrink-0 text-xs text-muted">{t("perm.area_count", { on: area.on, total: area.total })}</span>
@@ -237,7 +237,7 @@ function ExplainView({ member, settings, ready, known }: { member: ContractMembe
   const rows = areas.flatMap((area) => area.rows);
   const usable = rows.filter((row) => explainState(row, known) === "can").length;
   return (
-    <details data-explain className="group rounded-xl border border-border bg-surface">
+    <details data-explain className="group rounded-[14px] bg-surface">
       <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 px-3 py-2 [&::-webkit-details-marker]:hidden">
         <CircleHelp className="size-4 shrink-0 text-accent" aria-hidden="true" />
         <h4 className="min-w-0 flex-1 text-sm font-semibold text-fg">{t("perm.explain.title")}</h4>

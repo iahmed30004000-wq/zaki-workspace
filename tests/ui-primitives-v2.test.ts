@@ -90,6 +90,26 @@ describe("the primitives", () => {
   });
 });
 
+describe("the owner's mockup look of the switch and the segmented control", () => {
+  it("a switch is a 42x24 pill with an 18 px knob: muted when off, the accent when on (tokens only)", () => {
+    const off = html(React.createElement(Switch, { checked: false, onChange: () => undefined, label: "ميزة" }));
+    const on = html(React.createElement(Switch, { checked: true, onChange: () => undefined, label: "ميزة" }));
+    for (const m of [off, on]) expect(m).toMatch(/h-6 w-\[42px\]/);
+    for (const m of [off, on]) expect(m).toMatch(/size-\[18px\]/);
+    expect(off).toMatch(/bg-badge-muted/);
+    expect(off).not.toMatch(/translate-x/);
+    expect(on).toMatch(/bg-accent/);
+    // the knob moves toward the start edge: left in a right-to-left page
+    expect(on).toMatch(/rtl:-translate-x-\[18px\]/);
+  });
+  it("the selected segment is a raised tile on a soft track, not an accent fill; the track is 10 px round with 3 px padding", () => {
+    const m = html(React.createElement(Segmented, { value: "b", label: "العرض", onChange: () => undefined, options: [{ value: "a", label: "أ" }, { value: "b", label: "ب" }] }));
+    expect(m).toMatch(/rounded-\[10px\] bg-surface-2 p-\[3px\]/);
+    expect(m).toMatch(/bg-surface-1 text-fg shadow-card/);
+    expect(m).not.toMatch(/bg-accent/);
+  });
+});
+
 describe("the avatar", () => {
   beforeEach(() => resetFailedAvatars());
   it("draws its picture, and the initials once that address has failed (and does not ask for it again)", () => {
