@@ -32,7 +32,22 @@ export async function listLinks(actor: Actor, cardId: string): Promise<LinksView
     }
   }
 
+  // W1.6: the link is stored on the task (`Task.sourceCardId`). A task made before the column existed (or by the card's own «حوّلها لمهمة», which still writes
+  // the log line) is found by the log and has its column filled here, so the next reader needs no log. A task of another company is never touched.
+  if (taskIds.length) {
+    await db.task.updateMany({ where: { id: { in: taskIds }, orgId: actor.orgId, sourceCardId: null }, data: { sourceCardId: row.id } });
+  }
   let tasks: LinkedTask[] = [];
+  {
+    const scope = await loadWorkScope(actor.userId);
+    const stored = await db.task.findMany({
+      where: { orgId: actor.orgId, sourceCardId: row.id, id: { notIn: taskIds }, AND: [taskVisibleWhere(scope)] },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: LINK_LIMIT,
+      select: { id: true },
+    });
+    taskIds.push(...stored.map((t) => t.id));
+  }
   if (taskIds.length) {
     const scope = await loadWorkScope(actor.userId);
     const found = await db.task.findMany({
@@ -60,4 +75,31 @@ export async function listLinks(actor: Actor, cardId: string): Promise<LinksView
     topics.push({ conversationId: s.conversationId, messageId: message?.id ?? null, title: topic.title ?? "", emoji: topic.emoji });
   }
   return { tasks, topics };
+}
+
+/**
+ * The card a task was made from, as `actor` may read it: named when they may open the card (its internal page), else only «hidden». Null when the task came
+ * from no card. The stored column first; a task made before it existed is found by the card's own log line.
+ */
+export async function cardSourceOf(
+  actor: Actor,
+  taskId: string,
+  sourceCardId: string | null,
+): Promise<{ kind: "card"; state: "visible"; id: string; title: string; href: string } | { kind: "card"; state: "hidden" } | null> {
+  let cardId = sourceCardId;
+  if (!cardId) {
+    const line = await db.auditLog.findFirst({
+      where: { orgId: actor.orgId, action: `${CARD_AUDIT_PREFIX}task`, meta: { path: ["taskId"], equals: taskId } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { target: true },
+    });
+    cardId = line?.target ?? null;
+  }
+  if (!cardId) return null;
+  try {
+    const { row } = await loadInternal(actor, cardId);
+    return { kind: "card", state: "visible", id: row.id, title: row.title, href: `/cards/${row.id}` };
+  } catch {
+    return { kind: "card", state: "hidden" };
+  }
 }

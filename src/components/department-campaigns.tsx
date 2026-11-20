@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CalendarClock, Megaphone, Plus, Trash2 } from "lucide-react";
 import { MAY_ALL, type SectionMay } from "@/lib/section-may";
@@ -47,6 +48,83 @@ const STATUS_CHIP: Record<string, string> = {
 };
 
 const STATUSES = ["DRAFT", "SCHEDULED", "RUNNING", "DONE", "CANCELLED"] as const;
+
+/** W1.6: the task a campaign item became, as this reader may read it: named, or only «hidden» (the fact that a link exists). */
+type LinkedTask = { state: "visible"; id: string; key: string; title: string } | { state: "hidden" };
+interface ItemRow {
+  id: string;
+  title: string;
+  kind: string;
+  dueDate: string;
+  doneAt: string | null;
+  task: LinkedTask | null;
+}
+
+/**
+ * W1.6 ⚠️ + 🔧: an item of kind «مهمة» does what a task does, and any item can become one. We do not remove the item, we mark it and give the way out:
+ * «اعمل منه مهمة» makes a task through the task service and links both ways (a second click only finds the same task).
+ */
+export function CampaignItems({ campaignId, canConvert }: { campaignId: string; canConvert: boolean }) {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const detail = useQuery({
+    queryKey: ["campaign-detail", campaignId],
+    queryFn: () => apiGet<{ campaign: { items: ItemRow[] } }>(`/api/campaigns/${campaignId}`),
+    enabled: open,
+  });
+  const toTask = useMutation({
+    mutationFn: (itemId: string) => apiPost<{ created: boolean; task: LinkedTask }>(`/api/production/campaign-items/${itemId}/task`, {}),
+    onSuccess: (res) => {
+      toast(t(res.created ? "work.convert.done" : "work.convert.already"), "success");
+      qc.invalidateQueries({ queryKey: ["campaign-detail", campaignId] });
+    },
+    onError: (err) => toast(errText(err, t), "error"),
+  });
+  const items = detail.data?.campaign.items ?? [];
+  return (
+    <div className="basis-full space-y-1.5">
+      <button type="button" className="text-xs text-accent hover:underline" onClick={() => setOpen((o) => !o)}>
+        {t(open ? "work.convert.items_hide" : "work.convert.items_show")}
+      </button>
+      {open ? (
+        <ul data-campaign-items className="divide-y divide-border rounded-lg border border-border bg-surface-1">
+          {items.map((it) => (
+            <li key={it.id} className="flex flex-wrap items-center gap-2 px-2.5 py-1.5 text-xs">
+              <span className="min-w-0 flex-1 truncate font-medium text-fg">{it.title}</span>
+              <span className="shrink-0 text-muted">{fmtShort(it.dueDate)}</span>
+              {it.kind === "task" && !it.task ? (
+                <span className="basis-full text-fg-muted">
+                  <span aria-hidden="true">⚠️ </span>
+                  {t("work.convert.item_warn")}
+                  <span className="mx-1" aria-hidden="true">🔧</span>
+                  {t("work.convert.item_fix")}
+                </span>
+              ) : null}
+              {it.task ? (
+                it.task.state === "visible" ? (
+                  <Link href={`/tasks/${it.task.id}`} className="text-accent hover:underline">
+                    {t("work.convert.linked")} · {it.task.key}
+                  </Link>
+                ) : (
+                  <span className="text-muted">{t("work.convert.hidden_task")}</span>
+                )
+              ) : canConvert ? (
+                <Button type="button" size="sm" variant="secondary" disabled={toTask.isPending} onClick={() => toTask.mutate(it.id)}>
+                  <span aria-hidden="true">🔧</span>
+                  {t("work.convert.task_item")}
+                </Button>
+              ) : null}
+            </li>
+          ))}
+          {detail.isLoading ? <li className="px-2.5 py-2 text-xs text-muted">…</li> : null}
+          {!detail.isLoading && items.length === 0 ? <li className="px-2.5 py-2 text-center text-xs text-muted">{t("work.convert.items_empty")}</li> : null}
+        </ul>
+      ) : null}
+    </div>
+  );
+}
 
 /** الحملات — marketing calendar for one department. */
 export function DepartmentCampaigns({
@@ -230,6 +308,7 @@ export function DepartmentCampaigns({
                       <Trash2 className="size-3.5" />
                     </Button>
                   ) : null}
+                  <CampaignItems campaignId={r.id} canConvert={canManage && may.edit} />
                 </li>
               );
             })}

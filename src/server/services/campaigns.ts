@@ -5,6 +5,10 @@ import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/a
 import { nextTaskNumber, type Tx } from "@/server/services/tasks";
 import { assertMemberCan } from "@/server/policy/actor";
 import { assertCanWrite } from "@/server/services/guest-guard";
+import { createTask } from "@/server/services/tasks";
+import { sourceTaskPlace, taskLinkViews, withSourceLock, type LinkedTaskView, type SourceTaskInput } from "@/server/services/production";
+import { AR } from "@/lib/i18n/dict";
+import { interpolate } from "@/lib/i18n/interpolate";
 
 /**
  * Campaigns live inside a department (marketing calendars).
@@ -167,7 +171,75 @@ export async function campaignDetail(ctx: OrgAccessContext, campaignId: string) 
   if (c.owner.id !== ctx.userId && !canManage(ctx, (await deptContext(ctx, c.department.id)).isMember)) {
     throw new NotFoundError("campaign.not_found");
   }
-  return c;
+  // W1.6: an item that became a task shows its task, as THIS reader may read it (the title only when they may open the task; else just that a link exists)
+  const views = await taskLinkViews(ctx, c.items.flatMap((i) => (i.taskId ? [i.taskId] : [])));
+  return { ...c, items: c.items.map(({ taskId, ...item }) => ({ ...item, task: taskId ? (views.get(taskId) ?? null) : null })) };
+}
+
+/**
+ * W1.6 «اعمل منه مهمة»: a campaign item becomes a task through `createTask` (every rule of a task applies), in «صندوق المهام» of the person's space (the
+ * campaign's department space when the person is in it), due on the item's day, held by the person unless they name somebody. The item keeps the link
+ * (`CampaignItem.taskId`) and the task shows its source. Who may manage the campaign (its department, the admins) may; a second click returns the same task.
+ */
+export async function campaignItemToTask(
+  ctx: OrgAccessContext,
+  itemId: string,
+  input: SourceTaskInput,
+): Promise<{ created: boolean; task: LinkedTaskView }> {
+  assertCanWrite(ctx);
+  await assertMemberCan(ctx, "campaigns.edit", "section.edit_denied");
+  const item = await db.campaignItem.findUnique({
+    where: { id: itemId },
+    select: { id: true, title: true, dueDate: true, campaign: { select: { orgId: true, departmentId: true, title: true, department: { select: { name: true } } } } },
+  });
+  if (!item || item.campaign.orgId !== ctx.orgId) throw new NotFoundError("campaign.not_found");
+  const { isMember } = await deptContext(ctx, item.campaign.departmentId);
+  if (!canManage(ctx, isMember)) throw new ForbiddenError("campaign.admin_only");
+
+  let created = false;
+  const taskId = await withSourceLock(`campaignItem:${item.id}`, async () => {
+    const fresh = await db.campaignItem.findUnique({ where: { id: item.id }, select: { taskId: true } });
+    if (fresh?.taskId) return fresh.taskId;
+    const deptSpace = await db.workspace.findFirst({ where: { organizationId: ctx.orgId, departmentId: item.campaign.departmentId, archivedAt: null }, select: { id: true } });
+    const place = await sourceTaskPlace(ctx, { spaceId: input.workspaceId ?? null, prefer: deptSpace?.id ?? null });
+    const task = await createTask(
+      { userId: ctx.userId, orgId: ctx.orgId },
+      {
+        ...place,
+        title: item.title.slice(0, 280),
+        description: interpolate(AR["work.convert.from_campaign"] ?? "{title}", { title: item.campaign.title }),
+        dueDate: item.dueDate,
+        assigneeId: input.assigneeId === undefined ? ctx.userId : input.assigneeId,
+        ...(input.visibility ? { visibility: input.visibility } : {}),
+      },
+    );
+    await db.campaignItem.update({ where: { id: item.id }, data: { taskId: task.id } });
+    created = true;
+    return task.id;
+  });
+  return { created, task: (await taskLinkViews(ctx, [taskId])).get(taskId) ?? { state: "hidden" } };
+}
+
+/**
+ * The campaign a task was made from, as `ctx` may read it: named when they own the campaign or manage its department (and hold the box), else only «hidden».
+ * Null when the task is no campaign item's.
+ */
+export async function campaignSourceOf(
+  ctx: OrgAccessContext,
+  taskId: string,
+): Promise<{ kind: "campaignItem"; state: "visible"; id: string; key: string; title: string; href: string } | { kind: "campaignItem"; state: "hidden" } | null> {
+  const item = await db.campaignItem.findFirst({
+    where: { taskId, campaign: { orgId: ctx.orgId } },
+    select: { campaign: { select: { id: true, number: true, title: true, ownerId: true, departmentId: true, organization: { select: { keyPrefix: true } } } } },
+  });
+  if (!item) return null;
+  const c = item.campaign;
+  const mayRead =
+    (await assertMemberCan(ctx, "campaigns.view", "section.view_denied").then(() => true, () => false)) &&
+    (c.ownerId === ctx.userId || canManage(ctx, (await deptContext(ctx, c.departmentId)).isMember));
+  return mayRead
+    ? { kind: "campaignItem", state: "visible", id: c.id, key: `${c.organization.keyPrefix}-C${c.number}`, title: c.title, href: "/campaigns" }
+    : { kind: "campaignItem", state: "hidden" };
 }
 
 export async function addCampaignItem(

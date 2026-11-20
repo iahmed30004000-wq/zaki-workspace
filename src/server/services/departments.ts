@@ -1,7 +1,14 @@
 import { z } from "zod";
 import { db } from "@/server/db";
-import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
-import { assertNotGuest } from "@/server/services/guest-guard";
+import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
+import { assertNotGuest, assertCanWrite } from "@/server/services/guest-guard";
+import { assertMemberCan } from "@/server/policy/actor";
+import { createTask } from "@/server/services/tasks";
+import { canReadTicket } from "@/server/services/tickets";
+import { sourceIsPrivate } from "@/server/chat/private-source";
+import { sourceTaskPlace, taskLinkViews, withSourceLock, type LinkedTaskView, type SourceTaskInput } from "@/server/services/production";
+import { AR } from "@/lib/i18n/dict";
+import { interpolate } from "@/lib/i18n/interpolate";
 import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere } from "@/server/services/team-scope";
 import { assertCapability } from "@/server/services/active-people";
 import { alignDepartmentSpace, syncDepartmentSpace } from "@/server/services/department-space";
@@ -236,4 +243,84 @@ export async function setMembers(ctx: OrgAccessContext, id: string, input: z.inf
   });
   // who is in the department is who is in its space
   await syncDepartmentSpace(ctx.orgId, id, { add, remove });
+}
+
+// ───────────────────────────── W1.6: a ticket and its task ─────────────────────────────
+
+/** The ticket as its readers see it (the rule of `ticketDetail`): whoever raised or holds it, the department's people, the owner and the admins. */
+async function readableTicket(ctx: OrgAccessContext, ticketId: string) {
+  const ticket = await db.ticket.findFirst({
+    where: { id: ticketId, orgId: ctx.orgId },
+    select: { id: true, number: true, title: true, description: true, departmentId: true, creatorId: true, assigneeId: true, sourceMessageId: true, organization: { select: { keyPrefix: true } } },
+  });
+  if (!ticket || !(await canReadTicket(ctx, ticket))) throw new NotFoundError("ticket.not_found");
+  return ticket;
+}
+
+/**
+ * W1.6 «حوّل لمهمة»: a ticket becomes a task through `createTask`, in «صندوق المهام» of the person's space (the department's space when they are in it),
+ * held by the person unless they name somebody. The task keeps the link (`Task.sourceTicketId`) and the ticket shows it. The ticket keeps ITS own access
+ * rules: only a reader of it may convert it. PRIVACY (P0.2, P0.3): a ticket that came from a private conversation makes a «المعنيين بس» task, and
+ * «المساحة كلها» needs `confirmPublic` on the server. A second click (or two at once) returns the same task.
+ */
+export async function ticketToTask(ctx: OrgAccessContext, ticketId: string, input: SourceTaskInput): Promise<{ created: boolean; task: LinkedTaskView }> {
+  assertCanWrite(ctx);
+  await assertMemberCan(ctx, "tickets.view", "section.view_denied");
+  const ticket = await readableTicket(ctx, ticketId);
+  const privateSource = ticket.sourceMessageId ? await sourceIsPrivate(ctx.orgId, ticket.sourceMessageId) : false;
+  if (privateSource && input.visibility === "SPACE" && input.confirmPublic !== true) {
+    throw new ValidationError([{ path: "confirmPublic", message: "work.confirm_public_required" }]);
+  }
+  const visibility = privateSource ? (input.visibility ?? "PARTICIPANTS") : input.visibility;
+
+  let created = false;
+  const taskId = await withSourceLock(`ticket:${ticket.id}`, async () => {
+    // task-visibility: the id of a task already made from this ticket is read to return it; what the caller may read of it is `taskLinkViews`
+    const already = await db.task.findFirst({ where: { orgId: ctx.orgId, sourceTicketId: ticket.id }, orderBy: { createdAt: "asc" }, select: { id: true } });
+    if (already) return already.id;
+    const deptSpace = ticket.departmentId
+      ? await db.workspace.findFirst({ where: { organizationId: ctx.orgId, departmentId: ticket.departmentId, archivedAt: null }, select: { id: true } })
+      : null;
+    const place = await sourceTaskPlace(ctx, { spaceId: input.workspaceId ?? null, prefer: deptSpace?.id ?? null });
+    const key = `${ticket.organization.keyPrefix}-T${ticket.number}`;
+    const task = await createTask(
+      { userId: ctx.userId, orgId: ctx.orgId },
+      {
+        ...place,
+        title: ticket.title.slice(0, 280),
+        description: `${ticket.description ?? ""}\n\n${interpolate(AR["work.convert.from_ticket"] ?? "{key}", { key })}`.trim().slice(0, 4000),
+        assigneeId: input.assigneeId === undefined ? ctx.userId : input.assigneeId,
+        ...(visibility ? { visibility } : {}),
+      },
+    );
+    await db.task.update({ where: { id: task.id }, data: { sourceTicketId: ticket.id } });
+    created = true;
+    return task.id;
+  });
+  return { created, task: (await taskLinkViews(ctx, [taskId])).get(taskId) ?? { state: "hidden" } };
+}
+
+/** What the ticket's page shows of its task: the task as `ctx` may read it (named, or only «hidden»), null when the ticket was never converted. The caller already passed the ticket's own reader check. */
+export async function ticketTaskView(ctx: OrgAccessContext, ticketId: string): Promise<LinkedTaskView | null> {
+  // task-visibility: the id of the task made from this ticket is read to show it; what the caller may read of it is `taskLinkViews`
+  const made = await db.task.findFirst({ where: { orgId: ctx.orgId, sourceTicketId: ticketId }, orderBy: { createdAt: "asc" }, select: { id: true } });
+  if (!made) return null;
+  return (await taskLinkViews(ctx, [made.id])).get(made.id) ?? null;
+}
+
+/** The ticket a task was made from, as `ctx` may read it: named to a reader of the ticket, else only «hidden». Null when the task is no ticket's. */
+export async function ticketSourceOf(
+  ctx: OrgAccessContext,
+  sourceTicketId: string | null,
+): Promise<{ kind: "ticket"; state: "visible"; id: string; key: string; title: string; href: string } | { kind: "ticket"; state: "hidden" } | null> {
+  if (!sourceTicketId) return null;
+  const ticket = await db.ticket.findFirst({
+    where: { id: sourceTicketId, orgId: ctx.orgId },
+    select: { id: true, number: true, title: true, departmentId: true, creatorId: true, assigneeId: true, organization: { select: { keyPrefix: true } } },
+  });
+  if (!ticket) return null;
+  const mayRead = (await assertMemberCan(ctx, "tickets.view", "section.view_denied").then(() => true, () => false)) && (await canReadTicket(ctx, ticket));
+  return mayRead
+    ? { kind: "ticket", state: "visible", id: ticket.id, key: `${ticket.organization.keyPrefix}-T${ticket.number}`, title: ticket.title, href: "/tickets" }
+    : { kind: "ticket", state: "hidden" };
 }

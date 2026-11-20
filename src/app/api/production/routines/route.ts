@@ -12,7 +12,7 @@ export async function GET() {
 		const actor = await requireActor();
 		assertNotGuest({ orgRole: actor.role });
 		assertCan(actor, "production.view", "section.view_denied");
-		const routines = await listRoutines(actor.orgId, await placeOf(actor));
+		const routines = await listRoutines(actor.orgId, await placeOf(actor), { userId: actor.userId });
 		return NextResponse.json({ routines });
 	});
 }

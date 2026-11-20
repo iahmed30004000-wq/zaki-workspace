@@ -26,6 +26,7 @@ import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import * as workRequestsRoute from "@/app/api/work/requests/route";
 import * as workTasksRoute from "@/app/api/work/tasks/route";
 import * as staleRoute from "@/app/api/work/stale/route";
+import * as taskSourceDoor from "@/app/api/production/task-source/[taskId]/route";
 import * as workTaskDoor from "@/app/api/work/tasks/[id]/route";
 import * as chatPrefsRoute from "@/app/api/me/chat-prefs/route";
 import * as previewImageRoute from "@/app/api/chat/messages/[id]/preview/image/route";
@@ -1246,6 +1247,27 @@ describe("privacy matrix — the W1.9 review list of old tasks", () => {
         if (listed !== want) wrong.push(`${who}: expected ${want ? "listed" : "not listed"}`);
         const total = ((res.json?.["people"] as { projects: { tasks: { id: string }[] }[] }[] | undefined) ?? []).flatMap((x) => x.projects.flatMap((g) => g.tasks)).filter((t) => t.id === taskId).length;
         if (total !== (want ? 1 : 0)) wrong.push(`${who}: the list holds ${total} of it`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+});
+
+// W1.6: «مصدر المهمة». The same table, on one more surface: the door that says where a task came from (a ticket, a campaign item, a card) is a door to the task, so it answers
+// only to the people the table lets open the task (404 for everybody else, and nothing of the task in the answer); an external partner is told there is nothing.
+describe("privacy matrix — the W1.6 task-source door", () => {
+  for (const kind of Object.keys(TASKS)) {
+    it(`${kind}: the door answers to the people who may open the task, and to nobody else`, async () => {
+      const w = await getWorld();
+      const taskId = w.tasks[kind]!;
+      const wrong: string[] = [];
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        const res = await call(taskSourceDoor.GET, { params: { taskId } });
+        const want = expected(TASKS, kind, who);
+        if ((res.status === 200) !== want) wrong.push(`${who}: expected ${want ? "200" : "not 200"}, got ${res.status}`);
+        if (res.status === 200 && (res.json?.["sources"] as unknown[]).length !== 0) wrong.push(`${who}: a task with no source listed one`);
+        if (res.status !== 200 && res.text.includes(taskId)) wrong.push(`${who}: the refusal names the task`);
       }
       expect(wrong, kind).toEqual([]);
     });

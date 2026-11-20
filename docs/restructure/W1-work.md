@@ -95,15 +95,19 @@
       side panel while `workMyTasks` is on. Notes, deviations and what is NOT done: `docs/restructure/pr/W1.5.md`.
 
 ### W1.6 Duplicates marked, with a way out — `feat/work-duplicates-marked`
-- [ ] «الروتين اليومي» (Routine): a ⚠️ banner «هاد مكرّر مع المهام المتكررة» + 🔧 «حوّل الروتين لمهام متكررة»: ONE
+- [x] «الروتين اليومي» (Routine): a ⚠️ banner «هاد مكرّر مع المهام المتكررة» + 🔧 «حوّل الروتين لمهام متكررة»: ONE
       routine becomes ONE recurring task (`Routine` has no items): a template task titled like the routine, assigned to the
       routine's assignee, in the «صندوق المهام» (W1.2) of the routine's space (a routine with no space: the assignee's
       first STANDARD space), with a `TaskRecurrence` on the routine's weekdays through the existing recurrence service;
       the routine is archived, never deleted, and its logs stay readable.
-- [ ] Campaign items: additive `CampaignItem.taskId String?` + «اعمل منه مهمة» (createTask, link both ways).
-- [ ] Tickets: additive `Task.sourceTicketId String?` + «حوّل لمهمة» on a ticket; the ticket shows the linked task.
-- [ ] Card → task already exists; store the link (`Task.sourceCardId String?`, additive) instead of only in the audit log
+- [x] Campaign items: additive `CampaignItem.taskId String?` + «اعمل منه مهمة» (createTask, link both ways).
+- [x] Tickets: additive `Task.sourceTicketId String?` + «حوّل لمهمة» on a ticket; the ticket shows the linked task.
+- [x] Card → task already exists; store the link (`Task.sourceCardId String?`, additive) instead of only in the audit log
       (`src/server/services/card-links.ts`).
+      Built 2026-11-20 on `feat/work-duplicates-marked` (no switch of its own; the routine conversion needs `recurringTasks`): the routine page wears ⚠️ + 🔧 and every routine converts to ONE recurring task in the space's «صندوق المهام»
+      (`convertRoutineToTask`, idempotent under an advisory lock; the routine is archived, `active = false`, its logs still read on the days they were ticked); a campaign item → «اعمل منه مهمة» (`CampaignItem.taskId`); a ticket → «حوّل لمهمة»
+      (`Task.sourceTicketId`; a ticket from a private chat makes a «المعنيين بس» task and publishing it needs `confirmPublic`, also later through `updateTask`); the card link is stored in `Task.sourceCardId` (filled when the card's links are read:
+      `cards.ts` is not in this package). A reader who may not open the task sees only that a link exists. D-W2 (the fold) is NOT built. Notes and what is NOT done: `docs/restructure/pr/W1.6.md`.
 - [ ] D-W2 (owner, later): whether Ticket / CampaignItem / Routine are folded into Task types for good (a data-move plan
       with copies, never a drop). Not in this plan's scope.
 

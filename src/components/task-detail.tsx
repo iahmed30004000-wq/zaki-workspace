@@ -1,11 +1,12 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { CalendarDays, Lock, Pencil, Trash2, User, Flag, Type as TypeIcon, Send } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiDelete, apiPost, apiPatch, ApiError } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPost, apiPatch, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -55,6 +56,40 @@ export interface TaskDetailData {
   milestoneName?: string | null;
   labelIds: string[];
   comments: { id: string; author: string; authorId: string; body: string; createdAt: string }[];
+}
+
+/**
+ * W1.6: where the task came from (a ticket, a campaign item, a card), each as THIS person may read it: a source they may open is named with a link, one they
+ * may not is only «hidden» (the fact, never a title).
+ */
+export type TaskSource =
+  | { kind: "ticket" | "campaignItem" | "card"; state: "visible"; id: string; title: string; href: string; key?: string }
+  | { kind: "ticket" | "campaignItem" | "card"; state: "hidden" };
+
+const SOURCE_LABEL: Record<TaskSource["kind"], string> = { ticket: "work.source.ticket", campaignItem: "work.source.campaign", card: "work.source.card" };
+
+export function TaskSourcesView({ sources }: { sources: TaskSource[] }) {
+  const { t } = useI18n();
+  if (sources.length === 0) return null;
+  return (
+    <ul data-task-sources className="space-y-1 rounded-xl border border-border bg-surface-1 px-3 py-2 text-xs">
+      {sources.map((s, i) => (
+        <li key={i} className="flex flex-wrap items-center gap-1.5">
+          {s.state === "visible" ? (
+            <>
+              <span className="text-fg-muted">{t(SOURCE_LABEL[s.kind])}</span>
+              <Link href={s.href} className="font-medium text-accent hover:underline">
+                {s.key ? `${s.key} · ` : ""}
+                {s.title}
+              </Link>
+            </>
+          ) : (
+            <span className="text-muted">{t("work.source.hidden")}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 export function TaskDetail({
@@ -120,6 +155,13 @@ export function TaskDetail({
   const { toast } = useToast();
   const { t } = useI18n();
   const askedTrail = useTaskTrail(task.boardId, task.key, crumbs === undefined);
+  // W1.6: where the task came from (read once; an error just shows nothing)
+  const sourcesQuery = useQuery({
+    queryKey: ["task-source", task.id],
+    queryFn: () => apiGet<{ sources: TaskSource[] }>(`/api/production/task-source/${task.id}`),
+    retry: false,
+    staleTime: 60_000,
+  });
   const trail = crumbs === undefined ? askedTrail : crumbs;
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? "");
@@ -257,6 +299,8 @@ export function TaskDetail({
         ) : null}
         {canEdit ? null : <span className={cn("text-xs text-muted", remind || recurrence || pinSlot ? undefined : "ms-auto")}>{t("task.readOnly")}</span>}
       </header>
+
+      <TaskSourcesView sources={sourcesQuery.data?.sources ?? []} />
 
       {assignRequests.map((r) => (
         <TaskAssignRequestBanner
