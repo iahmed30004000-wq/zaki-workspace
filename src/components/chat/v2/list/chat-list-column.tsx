@@ -7,6 +7,7 @@ import { Bookmark } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
 import { MeetingButton } from "@/components/calls/meeting-button";
 import { WorkspaceCreateModal } from "@/components/create-forms";
+import { ChatPwaHost } from "@/components/pwa/chat-pwa-host";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
 import { ForumView } from "@/components/chat/v2/forum/forum-view";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
@@ -233,6 +234,8 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
       )}
       {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} /> : null}
+      {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
+      <ChatPwaHost guest={guest} />
       {canMeet && tall ? (
         <div className="shrink-0 border-b border-border/60 px-3 py-2">
           <MeetingButton />
