@@ -23,7 +23,7 @@ export async function POST(req: Request) {
 
     const { token } = await parseJson(confirmSchema, req);
     const { userId } = await confirmRegistration(token);
-    await startSession(userId);
+    await startSession(userId, { fresh: true, userAgent: req.headers.get("user-agent") });
     return NextResponse.json({ ok: true, next: "/" }, { status: 201 });
   });
 }
