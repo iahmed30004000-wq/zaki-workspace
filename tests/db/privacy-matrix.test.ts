@@ -59,6 +59,8 @@ import * as rtRoute from "@/app/api/rt/route";
 import { addClient, deliverEvent, resetHubForTests, type RtEvent } from "@/server/realtime/hub";
 import { setPolicyStubs } from "@/server/realtime/policy-gate";
 import { stopRealtimeListenerForTests } from "@/server/realtime/listener";
+import { notifyMessageToAudience } from "@/server/chat/notify";
+import { resetPresenceForTests } from "@/server/realtime/presence";
 
 // ───────────────────────────── the expected matrix (the owner's decisions) ─────────────────────────────
 const PERSONAS = [
@@ -1303,4 +1305,82 @@ describe("C4.1: the settings of a person (their notification choices, their brow
     expect(await db.pushSubscription.count({ where: { id: { in: Object.values(subscription) } } })).toBe(4);
     expect(wrong).toEqual([]);
   });
+});
+
+// ───────────────────────────── C3w.1: the saved chat on the live line, and the personal mute ─────────────────────────────
+// (1) A person's saved chat (a DM with oneself) now reaches the person's OTHER tabs on the live line: the readers' batch builds the same facts as the policy for a self key.
+//     The frame goes to exactly the people the saved row of the table lets read it, in every one of their streams: nobody gains a reader by it.
+// (2) A personal mute («كتم الإشعارات») silences the bell and the push of the person who muted, a mention included. It decides nothing about who may READ: the muted person still
+//     reads, and nobody else's notifications or reading move with it.
+describe("privacy matrix — the C3w.1 saved chat on the live line", () => {
+  it("a message frame of a saved chat reaches the person's own tabs and the silent eye, nobody else", async () => {
+    const w = await getWorld();
+    setPolicyStubs({}); // the real policy
+    resetHubForTests();
+    await loginAs(w.people.memberIn.id);
+    const made = await call(dmRoute.POST, { body: { saved: true } });
+    const id = made.json?.["id"] as string;
+    const got = new Map<string, string[]>();
+    for (const who of PERSONAS) {
+      for (let tab = 0; tab < 2; tab++) {
+        const frames: string[] = [];
+        got.set(`${who}#${tab}`, frames);
+        addClient({ userId: w.people[who].id, orgId: w.orgId, send: (f) => frames.push(f), close: () => undefined });
+      }
+    }
+    await deliverEvent({ id: "901", orgId: w.orgId, kind: "message.created", ids: { conversationId: id, messageId: "m-saved" } } as unknown as RtEvent);
+    const wrong: string[] = [];
+    for (const who of PERSONAS) {
+      for (let tab = 0; tab < 2; tab++) {
+        const reached = got.get(`${who}#${tab}`)!.some((f) => f.includes('"kind":"message.created"'));
+        const want = cells(CONVERSATIONS["dm"]!)[PERSONAS.indexOf(who)]!;
+        if (reached !== want) wrong.push(`${who} (tab ${tab}): expected ${want ? "receives" : "does not receive"}`);
+      }
+    }
+    resetHubForTests();
+    expect(wrong).toEqual([]);
+  });
+});
+
+describe("privacy matrix — the C3w.1 personal mute", () => {
+  for (const kind of Object.keys(CONVERSATIONS)) {
+    it(`${kind}: the one who muted gets no bell (a mention included), everybody else who reads is told as before, and the mute changes nobody's reading`, async () => {
+      const w = await getWorld();
+      resetPresenceForTests();
+      const id = w.ids[kind]!;
+      const muter = w.people.memberIn;
+      // a row this test makes (an open topic's reader has none) is removed again: it must not become a member of anything for the tests after it
+      const hadRow = (await db.conversationMember.count({ where: { conversationId: id, userId: muter.id } })) > 0;
+      await db.conversationMember.upsert({
+        where: { conversationId_userId: { conversationId: id, userId: muter.id } },
+        create: { conversationId: id, userId: muter.id, mutedUntil: new Date(Date.now() + 3_600_000) },
+        update: { mutedUntil: new Date(Date.now() + 3_600_000) },
+      });
+      const readers = PERSONAS.filter((who) => expected(CONVERSATIONS, kind, who) && who !== "owner" && who !== "partnerWith");
+      const audience = readers.map((who) => w.people[who].id);
+      await db.notification.deleteMany({ where: { userId: { in: audience } } });
+      await notifyMessageToAudience({
+        conversationId: id,
+        authorId: w.people.spaceAdmin.id,
+        audienceIds: audience.filter((userId) => userId !== w.people.spaceAdmin.id),
+        kind: kind === "dm" ? "DM" : "TOPIC",
+        title: "x",
+        preview: "مرحبا",
+        messageId: `m-mute-${kind}`,
+        mentionedIds: [muter.id],
+      });
+      const wrong: string[] = [];
+      for (const who of readers) {
+        if (who === "spaceAdmin") continue; // the author
+        const bells = await db.notification.count({ where: { userId: w.people[who].id, type: "chat_message" } });
+        const want = who === "memberIn" ? 0 : 1;
+        if (bells !== want) wrong.push(`${who}: ${bells} bells, expected ${want}`);
+      }
+      // reading is untouched: the muted person still reads, and the table is the same for everybody
+      for (const who of PERSONAS) if ((await canReadConversation(w.people[who].id, id)) !== expected(CONVERSATIONS, kind, who)) wrong.push(`${who} · reading moved with a mute`);
+      if (hadRow) await db.conversationMember.updateMany({ where: { conversationId: id, userId: muter.id }, data: { mutedUntil: null } });
+      else await db.conversationMember.deleteMany({ where: { conversationId: id, userId: muter.id } });
+      expect(wrong, kind).toEqual([]);
+    });
+  }
 });

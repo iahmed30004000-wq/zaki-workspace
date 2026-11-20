@@ -62,6 +62,8 @@ export async function readersAmong(conversationId: string, userIds: readonly str
   const inTeam = new Set(teamRows.map((r) => r.userId));
   const activePair = new Set(pairRows.map((r) => r.userId));
 
+  // «الرسائل المحفوظة» (C3a.3): a DM whose two people are one person. `loadConversationFacts` says «the other person is active» is the VIEWER being active and not a guest; so does this
+  const selfPair = pair.length === 2 && !!pair[0] && pair[0] === pair[1];
   const memberList = [...memberIds];
   const readers = new Set<string>();
   for (const userId of ids) {
@@ -84,7 +86,7 @@ export async function readersAmong(conversationId: string, userIds: readonly str
       viewerGroupRole: null,
       viewerSpaceRole: spaceRole.get(userId) ?? null,
       mutedUntil: null,
-      dmOtherActive: otherId ? activePair.has(otherId) : false,
+      dmOtherActive: selfPair && pair[0] === userId ? activePair.has(userId) && m.role !== "GUEST" : otherId ? activePair.has(otherId) : false,
       memberIds: memberList,
     };
     if (canRead(facts, org)) readers.add(userId);

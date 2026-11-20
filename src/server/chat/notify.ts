@@ -16,7 +16,19 @@ import { notifyOn, notifyTypeOf, pushBodyFor, readChatPrefs, type ChatPrefs } fr
  * C4.1: each person's own choices (`User.chatPrefs.notifications`) are read here. A message is one of five kinds FOR a person (private · topic · mention · reply
  * to me · call: `notifyTypeOf`); a kind they switched off notifies them of nothing (no bell row, no push), and a kind whose preview they switched off sends the
  * push as «رسالة جديدة» only (the bell keeps the words). A person who never chose anything is told exactly as before.
+ *
+ * C3w.1: a person who muted THIS conversation for themselves (`ConversationMember.mutedUntil` in the future, C3a.1 «كتم الإشعارات») is told of nothing in it: no bell row, no push.
+ * That includes a mention and «@الكل» (the spec of C3a.1 names no exception, and a mute that rings is not a mute); the mention still counts in the list and among the person's unread
+ * mentions, which come from the message rows. `preview` is the WHOLE body: the markers are stripped first and the words cut after (see `previewText`).
  */
+
+/** How many characters of a message the bell and the push carry. */
+export const PREVIEW_CHARS = 140;
+
+/** The words of a body for a bell or a push: the markers stripped from the WHOLE body (a spoiler is masked, a link keeps its label), then cut. */
+export function previewText(body: string): string {
+  return stripFormatting(body, { math: true, partial: true }).slice(0, PREVIEW_CHARS);
+}
 
 export async function notifyMessageToAudience(opts: {
   conversationId: string;
@@ -35,11 +47,15 @@ export async function notifyMessageToAudience(opts: {
 }): Promise<void> {
   if (opts.silent === true) return;
   const targets = new Set(opts.audienceIds);
+  // «كتم الإشعارات» (C3a.1): the people who muted this conversation for themselves are not told, a mention included
+  for (const userId of await mutedAmong(opts.conversationId, targets)) targets.delete(userId);
+  if (targets.size === 0) return;
   // the space the message is in (a DM from before spaces had them is «الشركة»'s): the bell of that space shows it
   const conv = await db.conversation.findUnique({ where: { id: opts.conversationId }, select: { spaceId: true, orgId: true } });
   const workspaceId = conv?.spaceId ?? (conv ? await hqSpaceId(conv.orgId) : null);
   const named = new Set(opts.mentionedIds ?? []);
   const everyone = new Set(opts.allIds ?? []);
+  const plain = previewText(opts.preview);
   const prefs = await prefsOf(targets);
   // who the message answers (a reply to MY message is its own kind): read only when somebody here has chosen something and the chat is not a private one
   const repliedTo = prefs.size > 0 && opts.kind !== "DM" ? await replyAuthorOf(opts.messageId) : null;
@@ -62,13 +78,27 @@ export async function notifyMessageToAudience(opts: {
       userId,
       type: "chat_message",
       title: named.has(userId) ? `${opts.title} ${MENTION_TITLE}` : everyone.has(userId) ? `${opts.title} ${MENTION_ALL_TITLE}` : opts.title,
-      // C3b.1: the words, not the markers (`**bold**`, a link's `[label](address)`); a spoiler's words are not read out on a lock screen, even when the preview was cut inside the spoiler (`partial`)
-      body: stripFormatting(opts.preview, { math: true, partial: true }),
+      // C3b.1: the words, not the markers (`**bold**`, a link's `[label](address)`); a spoiler's words are not read out on a lock screen
+      body: plain,
       // C4.1: preview off = the push carries «رسالة جديدة», never the words (the bell above keeps its body)
-      ...(chosen ? { pushBody: pushBodyFor(chosen, type, stripFormatting(opts.preview, { math: true, partial: true })) } : {}),
+      ...(chosen ? { pushBody: pushBodyFor(chosen, type, plain) } : {}),
       linkUrl: messageLink(opts.conversationId, opts.messageId),
       workspaceId,
     });
+  }
+}
+
+/** The people among `userIds` whose own mute of this conversation has not ended yet. One read. */
+async function mutedAmong(conversationId: string, userIds: Iterable<string>): Promise<string[]> {
+  const ids = [...userIds];
+  if (ids.length === 0) return [];
+  try {
+    const rows = await db.conversationMember.findMany({ where: { conversationId, userId: { in: ids }, mutedUntil: { gt: new Date() } }, select: { userId: true } });
+    return rows.map((r) => r.userId);
+  } catch (err) {
+    // a failed read of the mutes never stops a notification (as for the choices below): everybody is told, as before this step
+    log.warn("notify.mutes_failed", { message: err instanceof Error ? err.message : String(err) });
+    return [];
   }
 }
 
@@ -136,7 +166,7 @@ export async function rewriteMessagePreviews(
 ): Promise<void> {
   await tx.notification.updateMany({
     where: { type: { in: ["chat_message", "must_read", "must_read_late"] }, linkUrl: messageLink(conversationId, messageId) },
-    data: { body: stripFormatting(preview, { math: true, partial: true }) },
+    data: { body: previewText(preview) },
   });
 }
 

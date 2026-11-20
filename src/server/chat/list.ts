@@ -433,6 +433,7 @@ function conversationRow(r: ConvRecord, v: ListViewer): ChatRowDto {
   }
   if (topic) {
     row.topicType = r.topicType as ChatRowDto["topicType"];
+    row.postingPolicy = r.postingPolicy === "ADMINS" ? "ADMINS" : "ALL";
     row.closed = !!r.closedAt;
     row.pinned = !!r.pinnedAt;
     row.archived = !!r.archivedAt;

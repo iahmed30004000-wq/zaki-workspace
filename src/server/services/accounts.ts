@@ -21,6 +21,7 @@ import { appliedMeta, roleTemplatesOf, templateLists, templateProblem, type Role
 import { assignedTo } from "@/server/services/tasks";
 import { pushNotification } from "@/server/notify";
 import { emitRealtime } from "@/server/realtime/emit";
+import { emitPersonGone } from "@/server/chat/moderation";
 import { getServerT } from "@/lib/i18n/server";
 import { addPersonToHq, removePersonAudit, removePersonFromHq } from "@/server/chat/hq";
 import { ROLE_KEYS } from "@/lib/i18n/roles";
@@ -342,6 +343,7 @@ async function flipStatus(tx: Prisma.TransactionClient, actor: Actor, target: Ta
     data: { status: to, statusChangedAt: new Date(), statusChangedById: actor.userId },
   });
   if (count !== 1) throw new AccountsError(409, "accounts.bad_transition");
+  if (to !== "ACTIVE") await emitPersonGone(tx, actor.orgId, target.userId); // C3w.1: before an offboarding takes their rows away, the conversations they had are named
 }
 
 // ---------- create ----------

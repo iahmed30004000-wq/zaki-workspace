@@ -3,6 +3,7 @@ import { assertMemberCan, memberCan } from "@/server/policy/actor";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import { db } from "@/server/db";
 import { isOfSpace } from "@/server/chat/space-people";
+import { isSelfDmKey } from "@/server/chat/dm";
 import { writeSystemMessage } from "@/server/chat/system";
 import { emitRealtime } from "@/server/realtime/emit";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
@@ -218,7 +219,9 @@ export async function startConversationCall(
   if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
   const going = await activeCallOf(ctx, conversationId);
   if (going) return { id: going.id, created: false };
-  if (!canStartCall(facts, org)) throw new ForbiddenError("calls.e.cannot_start");
+  // «الرسائل المحفوظة» (C3a.3): a private chat whose key names one person twice has nobody to call
+  const selfDm = facts.kind === "DM" && isSelfDmKey((await db.conversation.findUnique({ where: { id: conversationId }, select: { dmKey: true } }))?.dmKey);
+  if (!canStartCall(facts, org, { selfDm })) throw new ForbiddenError("calls.e.cannot_start");
   requireCallsServer();
   const ring = facts.kind === "DM" ? true : opts.ring;
   const audience = ring ? await ringAudience(conversationId, ctx.userId) : [];

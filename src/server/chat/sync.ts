@@ -41,7 +41,7 @@ import type { RealtimeKind } from "@/server/realtime/emit";
  * `removed` holds the conversations the person can no longer read: a topic made private for the people dropped, a chat they left, a
  * conversation that no longer exists. It is built from `conversation.changed` and from `membership.changed` about THEM, and it names only a
  * conversation they could have known: they have a row in it, it is a private chat with their id in its key, or it is a topic of a space they
- * are in. An id is opaque (no title, nothing in it).
+ * are in, or the server's own event about THEM named it (a removal, a leave: `membership.changed` with their id). An id is opaque (no title, nothing in it).
  */
 
 export const SYNC_DEFAULT_LIMIT = 500;
@@ -100,6 +100,8 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
   const rowCandidates = new Set<string>(); // conversations whose own row may have changed
   const tickCandidates = new Set<string>(); // somebody else read: the row changes only for a private chat (the ticks)
   const removalCandidates = new Set<string>();
+  const eventSpace = new Map<string, string>(); // the space an event named with its conversation (a conversation that is gone has no row to say it)
+  const ownMembership = new Set<string>(); // conversations a `membership.changed` event about ME named: the server wrote it because I had a place there (a removal, a leave), so I knew it
   const readPairs: { conversationId: string; userId: string }[] = [];
   const deliveredPairs: { conversationId: string; userId: string }[] = [];
   const spaceTouches = new Map<string, Date>(); // spaces told «something changed» without a conversation (a topic opened)
@@ -124,9 +126,11 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
     }
     const cv = ids.conversationId;
     convIds.add(cv);
+    if (ids.spaceId) eventSpace.set(cv, ids.spaceId);
     if (MESSAGE_EVENTS.has(kind as RealtimeKind) && ids.messageId) messageIds.add(ids.messageId);
     if (ROW_EVENTS.has(kind as RealtimeKind)) rowCandidates.add(cv);
     if (kind === "conversation.changed" || (kind === "membership.changed" && ids.userId === mine)) removalCandidates.add(cv);
+    if (kind === "membership.changed" && ids.userId === mine) ownMembership.add(cv);
     if (kind === "conversation.read" && ids.userId) {
       readPairs.push({ conversationId: cv, userId: ids.userId });
       if (ids.userId === mine) rowCandidates.add(cv); // my own unread moved (on another device)
@@ -168,9 +172,11 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
   const byConversation = new Map<string, { rows: typeof rows; dtos: MessageDto[] }>();
   // C3b.2: the company's switch `linkPreviews`, asked once and only when a message of this answer carries a card
   const linkPreviews = rows.some((r) => r.previewId !== null) ? await linkPreviewsOn(ctx.orgId) : false;
+  // C3b.1: the company's switch `chatFormatting` (the quote of a reply shows the words, not the markers), asked once and only when a message of this answer is a reply
+  const formatting = rows.some((r) => r.replyToId !== null) ? await v.scope.feature("chatFormatting") : false;
   for (const row of rows) {
     const rec = visible.get(row.conversationId)!;
-    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, linkPreviews };
+    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, linkPreviews, formatting };
     const dto = presentMessage(row as never, viewer, rec.kind === "DM" && row.authorId === mine ? dmStatusFor(peerMarks(rec), row.createdAt) : undefined);
     // a tombstone is a tombstone for everybody here: no text, no files, no reactions (the owner reads the original through the archive); no edit history
     delete dto.history;
@@ -233,10 +239,24 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
 
   // ---- removed ----
   const removed: string[] = [];
+  // a conversation that no longer exists is told only to the people of the space the event named (the OWNER rank holds every space): its row is gone, so the space is all that proves they knew it
+  const goneSpaces = [...new Set([...removalCandidates].filter((id) => !all.has(id)).map((id) => eventSpace.get(id)).filter((s): s is string => !!s))];
+  const heldSpaces = new Set(
+    goneSpaces.length && !v.ownerRank ? (await db.workspaceMember.findMany({ where: { userId: mine, workspaceId: { in: goneSpaces } }, select: { workspaceId: true } })).map((r) => r.workspaceId) : [],
+  );
+  const mayLearnGone = (id: string): boolean => {
+    const space = eventSpace.get(id);
+    return !space || v.ownerRank || heldSpaces.has(space);
+  };
   for (const id of removalCandidates) {
     if (visible.has(id)) continue;
     const rec = all.get(id);
-    if (!rec || couldHaveKnown(rec, v, ctx.userId)) removed.push(id); // gone altogether, or one they could have seen
+    if (!rec) {
+      if (mayLearnGone(id)) removed.push(id);
+      continue;
+    }
+    // gone altogether, or one they could have seen; or one that an event about THEM named (C3w.1: a person taken out of a space, suspended or offboarded no longer holds the space row that proves they knew its topics)
+    if (ownMembership.has(id) || couldHaveKnown(rec, v, ctx.userId)) removed.push(id);
   }
 
   return { cursor, ...more, messages, reads, delivered, rows: listRows, removed };

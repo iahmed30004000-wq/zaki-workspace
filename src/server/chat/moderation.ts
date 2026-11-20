@@ -23,6 +23,35 @@ const MUTE_MS: Record<"1h" | "1d" | "forever", number> = {
   forever: 100 * 365 * 24 * 60 * 60_000, // "forever" is a date far away, not a flag: the column stays simple
 };
 
+/** The most conversations one `emitPersonGone` names (a person of many spaces still ends with one event for them alone). */
+const GONE_NAMED_MAX = 300;
+
+/**
+ * C3w.1 (the C1.2 sync gap): a person is suspended or offboarded. Writes, in the caller's transaction and BEFORE their rows and space are taken away, one
+ * `membership.changed` (ids only) for every conversation they had a place in: a row of their own (a group, a restricted topic) and every open topic of the spaces
+ * they are in. The sync feed then says `removed` to them and refreshes the member counts of the people who stay; plus ONE event for the person alone
+ * (`targetUserId`), which makes their client start over and the live line forget what they may read. Nothing is written for a private chat (it stays: the other side keeps the history).
+ */
+export async function emitPersonGone(tx: Prisma.TransactionClient, orgId: string, userId: string): Promise<void> {
+  const [spaces, rows] = await Promise.all([
+    tx.workspaceMember.findMany({ where: { userId, workspace: { organizationId: orgId } }, select: { workspaceId: true } }),
+    tx.conversationMember.findMany({ where: { userId, conversation: { orgId, kind: { not: "DM" } } }, select: { conversationId: true, conversation: { select: { spaceId: true } } }, take: GONE_NAMED_MAX }),
+  ]);
+  const named = new Map<string, string | null>(rows.map((r) => [r.conversationId, r.conversation.spaceId]));
+  if (spaces.length > 0) {
+    const open = await tx.conversation.findMany({
+      where: { orgId, kind: "TOPIC", restricted: false, spaceId: { in: spaces.map((s) => s.workspaceId) } },
+      select: { id: true, spaceId: true },
+      take: GONE_NAMED_MAX,
+    });
+    for (const c of open) named.set(c.id, c.spaceId);
+  }
+  // one statement, not one round trip each: the status flip holds a lock on the membership row while this runs
+  const data = [...named].slice(0, GONE_NAMED_MAX).map(([conversationId, spaceId]) => ({ orgId, kind: "membership.changed", ids: { conversationId, userId, ...(spaceId ? { spaceId } : {}) } as Prisma.InputJsonValue }));
+  data.push({ orgId, kind: "membership.changed", ids: { userId, targetUserId: userId } as Prisma.InputJsonValue });
+  await tx.realtimeEvent.createMany({ data });
+}
+
 /** Mutes (or unmutes with minutes: null) one person in one space. Space admins only. */
 export async function muteInSpace(
   ctx: OrgAccessContext,
