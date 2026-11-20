@@ -1,9 +1,16 @@
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
-import { NotFoundError } from "@/server/auth";
+import { ForbiddenError, NotFoundError, ValidationError, audit } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { boardAccess, type BoardAccess } from "@/server/policy/board";
-import { assertFeatureOn } from "@/server/services/features";
+import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
+import { landingOf, workTabsOf, type Landing } from "@/server/policy/org-settings";
+import { devAccess } from "@/server/policy/team-development";
+import { assistantAccess } from "@/server/services/owner-assistant-access";
+import { hasOrder, readCompanyMenuOrder, type NavOrder } from "@/lib/nav/order";
+import { perRequest } from "@/server/env";
+import { PANEL_REDIRECTS, panelRedirectHref } from "@/lib/legacy-routes";
+import { resolveTimeZone } from "@/lib/zoned-time";
 import { orgTimeZone } from "@/server/services/org-day";
 import { loadCompanyToday, loadPeopleActivity, type TodayRow } from "@/server/services/owner-board";
 import { loadAnalytics } from "@/server/services/analytics";
@@ -13,11 +20,19 @@ import {
   FORECAST_DAYS,
   IDEA_WAIT_DAYS,
   STALE_DAYS,
+  FIRST_SECTION,
   buildInsights,
   changePercent,
+  checkCompanySettings,
   fillSeries,
+  isPanelSection,
+  panelSectionsFor,
   rateOf,
   type Insight,
+  type IntegrationPart,
+  type PanelFacts,
+  type PanelScope,
+  type PanelSectionKey,
   type PersonWeek,
   type WeekPoint,
   type WeekTotals,
@@ -282,4 +297,187 @@ export async function loadPanelReports(access: BoardAccess, query: { space?: str
     ideas: { total: data.ideas, byStatus: data.byStatus30.map((r) => ({ status: r.status, n: r._count._all })) },
     bySpace,
   };
+}
+
+// ───────────────────────────────────────── A2.1: ONE control panel ─────────────────────────────────────────
+
+/**
+ * WHO MAY OPEN WHICH SECTION of the one panel (switch `controlPanelV2`). The page and the old addresses ask THIS and nothing else:
+ *   - the switch off: «not found» (`features.off`), the old pages answer exactly as they did;
+ *   - a guest, or a person who may open no section: «not found»;
+ *   - a section that is not in `sections`: «not found» (`assertPanelSection`), never «forbidden».
+ * Each section's own content is decided again by the service that fills it (board, accounts, archive, assistant…): this list is what is OFFERED, never what is
+ * enough. Reading writes nothing.
+ */
+export interface PanelAccess {
+  orgId: string;
+  viewerId: string;
+  sections: PanelSectionKey[];
+  /** The board's reach for the overview and «الناس» (null for a person who has none: their own page is «لوحتي»). */
+  board: BoardAccess | null;
+}
+
+const orNull = async <T>(read: () => Promise<T>): Promise<T | null> => {
+  try {
+    return await read();
+  } catch (err) {
+    if (err instanceof NotFoundError) return null;
+    throw err;
+  }
+};
+
+/**
+ * What the server knows about this person, before the list is made. The board / assistant / development reads each answer «not found» for «no». Read ONCE per request (the
+ * old page that redirects and the panel it redirects to are two requests, but one page asks for the facts several times).
+ */
+export const panelFactsOf: (actor: Actor) => Promise<{ facts: PanelFacts; board: BoardAccess | null }> = perRequest(readPanelFacts);
+
+async function readPanelFacts(actor: Actor): Promise<{ facts: PanelFacts; board: BoardAccess | null }> {
+  if (actor.isExternal) return { facts: { external: true, ownerRank: false, role: actor.role, caps: actor.caps, board: null, assistant: false, development: false }, board: null };
+  const [board, assistant, dev] = await Promise.all([orNull(() => boardAccess(actor)), orNull(() => assistantAccess(actor)), orNull(() => devAccess(actor))]);
+  const reach = board && board.mode !== "self" ? board : null;
+  const reachMode: "owner" | "team" | null = board?.mode === "owner" ? "owner" : board?.mode === "team" ? "team" : null;
+  return {
+    board: reach,
+    facts: {
+      external: false,
+      ownerRank: actor.isOwner,
+      role: actor.role,
+      caps: actor.caps,
+      board: reachMode,
+      assistant: assistant !== null,
+      development: dev !== null && (dev.isOwner || dev.isSupervisor || dev.canManageLines),
+    },
+  };
+}
+
+export async function panelAccess(actor: Actor): Promise<PanelAccess> {
+  await assertFeatureOn(actor.orgId, "controlPanelV2");
+  const { facts, board } = await panelFactsOf(actor);
+  const sections = panelSectionsFor(facts);
+  if (sections.length === 0) throw new NotFoundError("cpv2.not_found");
+  return { orgId: actor.orgId, viewerId: actor.userId, sections, board };
+}
+
+/** The section a person asked for: «not found» when it does not exist or they may not open it. Nothing tells the two apart. */
+export function assertPanelSection(access: PanelAccess, key: string | null | undefined): PanelSectionKey {
+  if (!key) return access.sections.includes(FIRST_SECTION) ? FIRST_SECTION : (access.sections[0] as PanelSectionKey);
+  if (!isPanelSection(key) || !access.sections.includes(key)) throw new NotFoundError("cpv2.not_found");
+  return key;
+}
+
+/**
+ * Where an OLD address leads for this person: its section's address while the switch is on and they may open that section, otherwise null (the old page
+ * is drawn as it always was, so no address becomes a dead end for somebody the panel does not serve).
+ */
+export async function panelRedirectFor(actor: Actor, address: string, extra?: Readonly<Record<string, string | undefined>>): Promise<string | null> {
+  const target = PANEL_REDIRECTS[address];
+  if (!target) return null;
+  if (!(await isFeatureOn(actor.orgId, "controlPanelV2"))) return null;
+  if (actor.isExternal) return null;
+  const { facts } = await panelFactsOf(actor);
+  if (!panelSectionsFor(facts).includes(target.section)) return null;
+  // a part of «التكاملات» that is not offered to this person (the AI connection is the owner's) keeps the old page, which answers as it always did
+  if (target.section === "integrations" && target.part && !(await integrationPartsOf(actor)).includes(target.part as IntegrationPart)) return null;
+  return panelRedirectHref(address, extra);
+}
+
+/**
+ * The parts of «التكاملات» this person may open: the cards of n8n / Drive / the door / backup / mail / the orders system and the Telegram bot for whoever holds
+ * `integrations.manage`; the AI connection (ONE place: `AiSettings`) only for the OWNER rank while the owner's assistant or the first control panel is on
+ * (the same people the two old screens served). Each card behind a part decides again on its own routes.
+ */
+export async function integrationPartsOf(actor: Actor): Promise<IntegrationPart[]> {
+  if (actor.isExternal || !actor.caps.has("integrations.manage")) return [];
+  const parts: IntegrationPart[] = ["automation", "telegram"];
+  if (actor.isOwner) {
+    const [zaki, assistant] = await Promise.all([companyPanelAccess(actor), orNull(() => assistantAccess(actor))]);
+    if (zaki || assistant) parts.push("ai");
+  }
+  return parts;
+}
+
+/** The first control panel's access (the status of «زاكي أي أي» and the connect action), or null: the switch is off or the person is not the company-wide owner. */
+export async function companyPanelAccess(actor: Actor): Promise<BoardAccess | null> {
+  return orNull(() => controlPanelAccess(actor));
+}
+
+/**
+ * «لوحتي» — a person's OWN page (D-A6): it does not depend on the owner's board switch, so it never goes through `boardAccess` (which asks for the switch). It needs
+ * only the person's own box `board.self` (on for every staff rank; a partner can have it taken away) and that they are not an external partner. Everybody else: «not found».
+ */
+export function myBoardAccess(actor: Actor): BoardAccess {
+  if (actor.isExternal || !actor.caps.has("board.self")) throw new NotFoundError("ownerboard.not_found");
+  return { mode: "self", orgId: actor.orgId, viewerId: actor.userId, reach: new Set(), ownPage: true, companyWide: false, scope: { restricted: false, workspaceIds: [], teamIds: [] } };
+}
+
+/** What the numbers of this person are counted over (the seam A2.3 fills with «my team»): the company for the owner, the spaces and teams of a manager's reach. */
+export async function panelScopeOf(access: BoardAccess): Promise<PanelScope> {
+  if (!access.scope.restricted) return { kind: "company" };
+  const [spaces, teams] = await Promise.all([
+    access.scope.workspaceIds.length ? db.workspace.findMany({ where: { id: { in: access.scope.workspaceIds }, organizationId: access.orgId }, orderBy: { name: "asc" }, select: { name: true } }) : [],
+    access.scope.teamIds.length ? db.team.findMany({ where: { id: { in: access.scope.teamIds }, workspace: { organizationId: access.orgId } }, orderBy: { name: "asc" }, select: { name: true } }) : [],
+  ]);
+  return { kind: "spaces", names: [...spaces.map((s) => s.name), ...teams.map((t) => t.name)] };
+}
+
+// ───────────────────────────────────────── «إعدادات الشركة» ─────────────────────────────────────────
+
+export interface CompanySettingsView {
+  name: string;
+  timezone: string;
+  landing: Landing;
+  workTabs: string[];
+  /** The company's own order of the menu (D-N5), null when the code's order is used. */
+  menuOrder: NavOrder | null;
+  /** How many people still hold an order of their own (it stays stored while the company's is set). */
+  personalOrders: number;
+}
+
+/** The company's own settings. OWNER rank only: anybody else is «not found». */
+export async function loadCompanySettings(actor: Actor): Promise<CompanySettingsView> {
+  if (!actor.isOwner) throw new NotFoundError("cpv2.not_found");
+  const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { name: true, timezone: true, settings: true } });
+  if (!org) throw new NotFoundError("organization.not_found");
+  const personalOrders = await db.user.count({ where: { navOrder: { not: Prisma.DbNull }, memberships: { some: { organizationId: actor.orgId, status: "ACTIVE" } } } });
+  return {
+    name: org.name,
+    timezone: resolveTimeZone(org.timezone),
+    landing: landingOf(org.settings),
+    workTabs: workTabsOf(org.settings),
+    menuOrder: readCompanyMenuOrder(org.settings),
+    personalOrders,
+  };
+}
+
+const settingsObject = (value: unknown): Record<string, unknown> => (value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {});
+
+/**
+ * Writes the company's landing page, pinned work tabs, menu order and time zone — only the keys sent, every other key of the settings kept — under the
+ * row lock of the company, audited (the key names, never a value). OWNER rank only. The person's own `navOrder` is never touched (D-N5): it stays stored
+ * and is used again when the company's order is cleared (`menuOrder: null`).
+ */
+export async function saveCompanySettings(actor: Actor, raw: unknown): Promise<CompanySettingsView> {
+  if (!actor.isOwner) throw new ForbiddenError("cpv2.company.owner_only");
+  await assertFeatureOn(actor.orgId, "controlPanelV2");
+  const checked = checkCompanySettings(raw);
+  if (!checked.ok) throw new ValidationError([{ path: "settings", message: checked.key }]);
+  const input = checked.value;
+  await db.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT 1 FROM "Organization" WHERE id = ${actor.orgId} FOR UPDATE`;
+    const org = await tx.organization.findUniqueOrThrow({ where: { id: actor.orgId }, select: { settings: true } });
+    const next = settingsObject(org.settings);
+    if (input.landing !== undefined) next["landing"] = input.landing;
+    if (input.workTabs !== undefined) next["workTabs"] = input.workTabs;
+    if (input.menuOrder !== undefined) {
+      if (input.menuOrder === null || !hasOrder(input.menuOrder)) delete next["menuOrder"];
+      else next["menuOrder"] = input.menuOrder;
+    }
+    await tx.organization.update({
+      where: { id: actor.orgId },
+      data: { settings: next as Prisma.InputJsonValue, ...(input.timezone !== undefined ? { timezone: input.timezone } : {}) },
+    });
+  });
+  await audit("org.company_settings_saved", { actorId: actor.userId, orgId: actor.orgId, meta: { keys: Object.keys(input) } });
+  return loadCompanySettings(actor);
 }

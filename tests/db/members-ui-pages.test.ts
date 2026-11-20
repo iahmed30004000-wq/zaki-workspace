@@ -75,7 +75,7 @@ describe("/members: who gets the manager (the capability users.manage, not the r
     const w = await world();
     for (const person of [w.owner, w.admin]) {
       await loginAs(person.id);
-      const element = findType(await MembersPage(), OrgMembersView);
+      const element = findType(await MembersPage({}), OrgMembersView);
       expect(element, person.name).not.toBeNull();
       const props = element?.props as { orgId: string; actorId: string; actorCaps: string[] };
       expect(props.orgId).toBe(w.org.id);
@@ -88,7 +88,7 @@ describe("/members: who gets the manager (the capability users.manage, not the r
     const w = await world();
     await setMember(w.org.id, w.admin.id, { revokedCapabilities: ["users.manage"] });
     await loginAs(w.admin.id);
-    const page = await MembersPage();
+    const page = await MembersPage({});
     expect(findType(page, OrgMembersView)).toBeNull();
   });
 
@@ -97,7 +97,7 @@ describe("/members: who gets the manager (the capability users.manage, not the r
     for (const person of [w.member, w.lead]) {
       await setMember(w.org.id, person.id, { capabilities: ["users.manage"] });
       await loginAs(person.id);
-      const element = findType(await MembersPage(), OrgMembersView);
+      const element = findType(await MembersPage({}), OrgMembersView);
       expect(element, person.name).not.toBeNull();
       expect((element?.props as { actorCaps: string[] }).actorCaps).toContain("users.manage");
     }
@@ -106,7 +106,7 @@ describe("/members: who gets the manager (the capability users.manage, not the r
   it("a guest still gets the honest notice and nobody's name", async () => {
     const w = await world();
     await loginAs(w.guest.id);
-    const page = await MembersPage();
+    const page = await MembersPage({});
     expect(findType(page, OrgMembersView)).toBeNull();
     const markup = await html(page);
     expect(markup).toContain(t("orgm.members_only"));
@@ -118,19 +118,19 @@ describe("/members: who gets the manager (the capability users.manage, not the r
     await loginAs(w.member.id);
     await setMember(w.org.id, w.member.id, { status: "SUSPENDED" });
     await db.user.update({ where: { id: w.member.id }, data: { tokenVersion: { increment: 1 } } });
-    await expect(MembersPage()).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(MembersPage({})).rejects.toThrow("NEXT_REDIRECT:/login");
   });
 
   it("a person who still owes the temporary-password change is sent to onboarding, not shown the team", async () => {
     const w = await world();
     await db.user.update({ where: { id: w.member.id }, data: { mustChangePassword: true } });
     await loginAs(w.member.id, { mcp: true });
-    await expect(MembersPage()).rejects.toThrow("NEXT_REDIRECT:/onboarding");
+    await expect(MembersPage({})).rejects.toThrow("NEXT_REDIRECT:/onboarding");
   });
 
   it("an anonymous visitor goes to login", async () => {
     logout();
-    await expect(MembersPage()).rejects.toThrow("NEXT_REDIRECT:/login");
+    await expect(MembersPage({})).rejects.toThrow("NEXT_REDIRECT:/login");
   });
 });
 
@@ -138,7 +138,7 @@ describe("/members for people who may not manage: a read-only directory of ACTIV
   it("lists active people only (no suspended, no offboarded) and carries no status controls", async () => {
     const w = await world();
     await loginAs(w.member.id);
-    const markup = await html(MembersPage());
+    const markup = await html(MembersPage({}));
     for (const name of ["Owner", "Admin", "Lead Lena", "Member"]) expect(markup, name).toContain(name);
     expect(markup).not.toContain("Suspended Sam");
     expect(markup).not.toContain("Offboarded Olga");
@@ -148,7 +148,7 @@ describe("/members for people who may not manage: a read-only directory of ACTIV
   it("shows e-mail and job title to whoever holds directory.view", async () => {
     const w = await world();
     await loginAs(w.lead.id);
-    const markup = await html(MembersPage());
+    const markup = await html(MembersPage({}));
     expect(markup).toContain(w.member.email);
     expect(markup).toContain("Moderator");
     expect(markup).not.toContain(t("access.section_off"));
@@ -159,7 +159,7 @@ describe("/members for people who may not manage: a read-only directory of ACTIV
     for (const person of [w.member, w.lead]) {
       await setMember(w.org.id, person.id, { revokedCapabilities: ["directory.view"] });
       await loginAs(person.id);
-      const page = await MembersPage();
+      const page = await MembersPage({});
       expect(findType(page, OrgMembersView), person.name).toBeNull();
       const markup = await html(page);
       expect(markup, person.name).toContain(t("access.section_off"));
@@ -174,7 +174,7 @@ describe("/members for people who may not manage: a read-only directory of ACTIV
     const w = await world();
     await setMember(w.org.id, w.member.id, { revokedCapabilities: ["directory.view"] });
     await loginAs(w.member.id);
-    const members = await html(MembersPage());
+    const members = await html(MembersPage({}));
     const { default: TeamsPage } = await import("@/app/(app)/teams/page");
     const teams = await html(TeamsPage());
     expect(teams).toContain(t("access.section_off"));
@@ -185,7 +185,7 @@ describe("/members for people who may not manage: a read-only directory of ACTIV
     const w = await world();
     await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"], revokedCapabilities: ["directory.view"] });
     await loginAs(w.member.id);
-    const element = findType(await MembersPage(), OrgMembersView);
+    const element = findType(await MembersPage({}), OrgMembersView);
     expect(element).not.toBeNull();
     expect((element?.props as { actorCaps: string[] }).actorCaps).toContain("users.manage");
     expect((element?.props as { actorCaps: string[] }).actorCaps).not.toContain("directory.view");
@@ -194,7 +194,7 @@ describe("/members for people who may not manage: a read-only directory of ACTIV
   it("a guest keeps the notice they always had, not the new one", async () => {
     const w = await world();
     await loginAs(w.guest.id);
-    const markup = await html(MembersPage());
+    const markup = await html(MembersPage({}));
     expect(markup).toContain(t("orgm.members_only"));
     expect(markup).not.toContain(t("access.section_off"));
   });

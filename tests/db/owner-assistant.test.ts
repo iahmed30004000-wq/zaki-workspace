@@ -191,7 +191,7 @@ describe("who may open the assistant", () => {
       expect((await api(settingsRoute.GET)).status, owner.name).toBe(200);
       expect((await api(conversationsRoute.GET)).status, owner.name).toBe(200);
       expect(render(await OwnerAssistantPage({ searchParams: {} }))).toContain("مساعد المالك");
-      expect(render(await OwnerAssistantSettingsPage())).toContain("إعدادات مساعد المالك");
+      expect(render(await OwnerAssistantSettingsPage({}))).toContain("إعدادات مساعد المالك");
     }
   });
 
@@ -201,7 +201,7 @@ describe("who may open the assistant", () => {
       await loginAs(person.id);
       for (const r of await everyRoute(w)) expect(r.status, person.name).toBe(404);
       await expect(OwnerAssistantPage({ searchParams: {} }), person.name).rejects.toThrow("NEXT_NOT_FOUND");
-      await expect(OwnerAssistantSettingsPage(), person.name).rejects.toThrow("NEXT_NOT_FOUND");
+      await expect(OwnerAssistantSettingsPage({}), person.name).rejects.toThrow("NEXT_NOT_FOUND");
     }
     expect(await db.aiSettings.count({ where: { orgId: w.org.id } })).toBe(0);
     expect(await db.aiConversation.count({ where: { orgId: w.org.id } })).toBe(0);
@@ -230,7 +230,7 @@ describe("who may open the assistant", () => {
     await loginAs(w.owner.id);
     for (const r of await everyRoute(w)) expect(r.status).toBe(404);
     await expect(OwnerAssistantPage({ searchParams: {} })).rejects.toThrow("NEXT_NOT_FOUND");
-    await expect(OwnerAssistantSettingsPage()).rejects.toThrow("NEXT_NOT_FOUND");
+    await expect(OwnerAssistantSettingsPage({})).rejects.toThrow("NEXT_NOT_FOUND");
     expect(await db.aiSettings.count({ where: { orgId: w.org.id } })).toBe(0);
 
     await setFeature(w, "ownerAssistant", true);
@@ -295,7 +295,7 @@ describe("the key is write-only and encrypted at rest", () => {
     expect(settings.json?.["settings"]).toMatchObject({ hasKey: true, keyLast4: KEY_LAST4, model: "claude-sonnet-5-5", dailyLimit: 50, monthlyTokenBudget: 2_000_000, allowNames: false, allowTitles: false, ownerProvider: "claude", chatProvider: "claude", localRelaxRedaction: false });
     expect(settings.text).not.toContain("keyCipher");
     // the pages' markup
-    const page = render(await OwnerAssistantSettingsPage());
+    const page = render(await OwnerAssistantSettingsPage({}));
     expect(page).toContain("مفتاح محفوظ ••••WXYZ");
     expect(page).not.toContain(KEY);
     expect(page).not.toContain(cipher);
@@ -446,7 +446,7 @@ describe("the settings", () => {
   it("a note: the settings page writes nothing, and the database refuses a value the code would", async () => {
     const w = await world();
     await loginAs(w.owner.id);
-    render(await OwnerAssistantSettingsPage());
+    render(await OwnerAssistantSettingsPage({}));
     expect(await db.aiSettings.count({ where: { orgId: w.org.id } })).toBe(0);
     await db.aiSettings.create({ data: { orgId: w.org.id } });
     await expect(db.aiSettings.update({ where: { orgId: w.org.id }, data: { dailyLimit: 0 } })).rejects.toThrow();

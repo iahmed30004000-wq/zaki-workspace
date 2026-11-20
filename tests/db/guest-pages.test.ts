@@ -22,7 +22,7 @@ describe("pages that the API closes to a guest show a notice (and fetch nothing)
     await seedTelegram(org.id);
 
     await loginAs(guest.id);
-    const element = (await TelegramPage()) as React.ReactElement;
+    const element = (await TelegramPage({})) as React.ReactElement;
     expect(element.type).not.toBe(TelegramView);
     const html = renderToStaticMarkup(element);
     expect(html).toContain(NOTICE);
@@ -31,7 +31,7 @@ describe("pages that the API closes to a guest show a notice (and fetch nothing)
 
     // everybody else keeps the page (chat titles included, as before)
     await loginAs(member.id);
-    const memberElement = (await TelegramPage()) as React.ReactElement;
+    const memberElement = (await TelegramPage({})) as React.ReactElement;
     expect(memberElement.type).toBe(TelegramView);
     expect(JSON.stringify(memberElement.props)).toContain(CUSTOMER_CHAT_TITLE);
   });

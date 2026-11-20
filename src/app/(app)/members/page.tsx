@@ -1,4 +1,7 @@
+import { redirect } from "next/navigation";
 import { pageActor, SectionOffNotice } from "@/app/(app)/_access";
+import { panelRedirectFor } from "@/server/services/control-panel";
+import { carriedQuery } from "@/lib/legacy-routes";
 import { db } from "@/server/db";
 import { actorCan, type Actor } from "@/server/policy/actor";
 import { RANK } from "@/server/policy/rank";
@@ -28,11 +31,14 @@ async function loadDirectory(actor: Actor): Promise<DirectoryPerson[]> {
  * read-only list of the ACTIVE people; without it the same "not enabled for you" notice, and no name
  * is read at all. An external partner gets the honest notice they always had.
  */
-export default async function MembersPage() {
+export default async function MembersPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = getServerT();
   const { actor } = await pageActor();
 
   if (actorCan(actor, "users.manage")) {
+    // A2.1: with the switch `controlPanelV2` ON the people screen is the section «الحسابات والصلاحيات» of the one panel (the same view, moved)
+    const inPanel = await panelRedirectFor(actor, "/members", carriedQuery(searchParams));
+    if (inPanel) redirect(inPanel);
     return (
       <div className="mx-auto max-w-4xl space-y-4 p-4 md:p-6">
         <OrgMembersView orgId={actor.orgId} actorId={actor.userId} actorRole={actor.role} actorCaps={[...actor.caps]} />

@@ -90,6 +90,7 @@ import workV2 from "./ar.work-v2.json";
 import permissionsV2 from "./ar.permissions-v2.json";
 import settingsCompanyChat from "./ar.settings-company-chat.json";
 import settingsMe from "./ar.settings-me.json";
+import controlPanelV2 from "./ar.control-panel-v2.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -191,4 +192,5 @@ export const AR: Record<string, string> = {
   ...permissionsV2,
   ...settingsCompanyChat,
   ...settingsMe,
+  ...controlPanelV2,
 };

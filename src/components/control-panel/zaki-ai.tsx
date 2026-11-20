@@ -97,7 +97,12 @@ const errorText = (t: (key: string) => string, err: unknown): string => {
 const ENV_LINES = ["- API_SERVER_ENABLED=true", "- API_SERVER_HOST=0.0.0.0", "- API_SERVER_PORT=8642", "- 'API_SERVER_KEY=${SERVICE_PASSWORD_APIKEY}'"] as const;
 const KEY_VARIABLE = "SERVICE_PASSWORD_APIKEY";
 
-export function ZakiAiPanel() {
+/**
+ * `single` (A2.1): the AI connection is ONE place. Inside the one control panel the gateway's address, model and key are edited by the single form of `AiSettings`
+ * (`SettingsForm`, drawn right under this panel), so this panel only says whether the agent is connected, tests it and, when the server's variables fix it, connects it:
+ * the second form and the links to the old settings page are not drawn.
+ */
+export function ZakiAiPanel({ single = false }: { single?: boolean } = {}) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -178,7 +183,7 @@ export function ZakiAiPanel() {
           <Button type="button" size="sm" variant="secondary" disabled={busy !== null || !status?.baseUrl} onClick={() => void test()}>
             {busy === "test" ? t("cp.ai.connecting") : t("cp.ai.test")}
           </Button>
-          {status?.state === "connected" && status.inUse && status.assistantOn ? (
+          {!single && status?.state === "connected" && status.inUse && status.assistantOn ? (
             <Link href="/owner/assistant" className="inline-flex h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm hover:bg-surface-2 md:h-8">
               {t("cp.ai.open_assistant")}
             </Link>
@@ -195,9 +200,11 @@ export function ZakiAiPanel() {
             <Button type="button" disabled={busy !== null} onClick={() => void connect(true)} data-testid="zaki-ai-fixed-connect">
               {busy === "connect" ? t("cp.ai.connecting") : t("cp.ai.fixed_button")}
             </Button>
-            <Link href="/owner/assistant" className="text-sm text-info underline">
-              {t("cp.ai.open_settings")}
-            </Link>
+            {single ? null : (
+              <Link href="/owner/assistant" className="text-sm text-info underline">
+                {t("cp.ai.open_settings")}
+              </Link>
+            )}
           </div>
         </section>
       ) : null}
@@ -225,8 +232,9 @@ export function ZakiAiPanel() {
         </section>
       ) : null}
 
-      {fixedByServer ? null : (
+      {fixedByServer || single ? null : (
       <form
+        data-testid="zaki-ai-form"
         className="space-y-3 rounded-card border border-border bg-surface-1 p-4 shadow-card"
         onSubmit={(e) => {
           e.preventDefault();

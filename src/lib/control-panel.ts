@@ -254,3 +254,183 @@ export function fillSeries(rows: readonly WeekPoint[], weeks: number): WeekPoint
 export function seriesMax(points: readonly WeekPoint[]): number {
   return Math.max(1, ...points.map((p) => Math.max(p.created, p.completed)));
 }
+
+// ───────────────────────────────────────── A2.1: ONE control panel ─────────────────────────────────────────
+//
+// «لوحة التحكم» is ONE page, `/owner`, with a side list of sections (switch `controlPanelV2`). This part is PURE: which sections exist, who may open each
+// (from facts the server read: the rank, the capabilities, the board's reach), the scope chip of every number, the old addresses that lead into a section,
+// and the strict check of what the «إعدادات الشركة» section writes. The page, the services and the tests all read it.
+//
+// ⚠️ The list is discoverability only: every section is decided again on the server, and a section a person may not open answers «not found», never «forbidden».
+// 🔧 No section changes its name by rank: the name belongs to the section (`cpv2.section.<key>`), the person only sees fewer of them.
+
+import { LANDINGS, type Landing } from "@/server/policy/org-settings";
+import { MAX_PINNED_TABS, WORK_OPTIONAL_TABS } from "@/lib/nav/places";
+import { navOrderSchema, type NavOrder } from "@/lib/nav/order";
+import { isValidTimeZone } from "@/lib/zoned-time";
+
+/** The sections, in the order of the side list. */
+export const PANEL_V2_SECTIONS = ["overview", "people", "reports", "accounts", "spaces", "features", "integrations", "structure", "archive", "assistant", "company"] as const;
+export type PanelSectionKey = (typeof PANEL_V2_SECTIONS)[number];
+
+/** The section a person lands on when none is asked for (when they may not open it, the first one they may). */
+export const FIRST_SECTION: PanelSectionKey = "overview";
+
+export const isPanelSection = (value: unknown): value is PanelSectionKey => typeof value === "string" && (PANEL_V2_SECTIONS as readonly string[]).includes(value);
+
+/** The parts of «التكاملات»: ONE place for all of them (the AI connection is one of the three, never a second form elsewhere). */
+export const INTEGRATION_PARTS = ["automation", "telegram", "ai"] as const;
+export type IntegrationPart = (typeof INTEGRATION_PARTS)[number];
+export const integrationPartOf = (value: unknown): IntegrationPart => (typeof value === "string" && (INTEGRATION_PARTS as readonly string[]).includes(value) ? (value as IntegrationPart) : "automation");
+
+/** The parts of «الهيكل والتطوير»: the people's files and scores, and the tree of who answers to whom. */
+export const STRUCTURE_PARTS = ["development", "structure"] as const;
+export type StructurePart = (typeof STRUCTURE_PARTS)[number];
+export const structurePartOf = (value: unknown): StructurePart => (typeof value === "string" && (STRUCTURE_PARTS as readonly string[]).includes(value) ? (value as StructurePart) : "development");
+
+/** The address of a section (the overview is the bare `/owner`). `part` selects a part of «التكاملات» or «الهيكل والتطوير». */
+export function panelHref(section: PanelSectionKey, part?: string, extra?: Readonly<Record<string, string | undefined>>): string {
+  const query = new URLSearchParams();
+  const carried = Object.entries(extra ?? {}).filter((entry): entry is [string, string] => entry[1] !== undefined && entry[1] !== "");
+  if (section !== FIRST_SECTION || part || carried.length > 0) query.set("s", section);
+  if (part) query.set("part", part);
+  for (const [key, value] of carried) query.set(key, value);
+  const text = query.toString();
+  return text ? `/owner?${text}` : "/owner";
+}
+
+/**
+ * The address of the person's own board, «لوحتي» (D-A6): their own page of the board (`/owner/people/<their id>`). It does not depend on the owner's board switch while `controlPanelV2`
+ * is on (the page falls back to the person's own box `board.self`) and it is not a section of the panel. The avatar menu and «اليوم» link here.
+ */
+export const myBoardHref = (userId: string): string => `/owner/people/${encodeURIComponent(userId)}`;
+
+/** The old `?v=` of the first control panel (`/owner?v=people|reports|ai`) and where each one lives now. */
+export function legacyPanelTarget(v: unknown): { section: PanelSectionKey; part?: string } | null {
+  switch (v) {
+    case "people":
+      return { section: "people" };
+    case "reports":
+      return { section: "reports" };
+    case "ai":
+      return { section: "integrations", part: "ai" };
+    default:
+      return null;
+  }
+}
+
+/** What the server read about the person before the list is drawn. */
+export interface PanelFacts {
+  /** An external partner: never sees the panel. */
+  external: boolean;
+  /** The OWNER rank (the primary owner or a partner). */
+  ownerRank: boolean;
+  role: string;
+  caps: ReadonlySet<string>;
+  /** The board's reach for this person: the whole company, the spaces and teams they manage, or nothing (their own page is «لوحتي», not a section). */
+  board: "owner" | "team" | null;
+  /** The owner's assistant is switched on and the person may open it. */
+  assistant: boolean;
+  /** The structure and development pages serve this person as an owner, a line manager or a supervisor (not only their own file). */
+  development: boolean;
+}
+
+/**
+ * The sections this person may open, in order. A guest has none. Partners follow what they HOLD, never the rank alone: «التقارير» needs `reports.view`,
+ * «الحسابات والصلاحيات» `users.manage`, «التكاملات» `integrations.manage`, «الأرشيف والرقابة» `archive.view`; «الميزات» and «إعدادات الشركة» stay with the
+ * OWNER rank (D-A4: who flips the company's switches does not change here); «المساحات» is the rank rule the page always had (OWNER and ADMIN).
+ */
+export function panelSectionsFor(f: PanelFacts): PanelSectionKey[] {
+  if (f.external) return [];
+  const has = (capability: string) => f.caps.has(capability);
+  const may: Record<PanelSectionKey, boolean> = {
+    overview: f.board !== null,
+    people: f.board !== null,
+    reports: has("reports.view"),
+    accounts: has("users.manage"),
+    spaces: f.role === "OWNER" || f.role === "ADMIN",
+    features: f.ownerRank,
+    integrations: has("integrations.manage"),
+    structure: f.development,
+    archive: has("archive.view"),
+    assistant: f.assistant,
+    company: f.ownerRank,
+  };
+  return PANEL_V2_SECTIONS.filter((key) => may[key]);
+}
+
+/** What a number is counted over: the whole company, or the spaces of the person's reach (a manager sees the numbers of the spaces they manage). */
+export type PanelScope = { kind: "company" } | { kind: "accessible" } | { kind: "spaces"; names: readonly string[] };
+
+/** The chip drawn next to every figure: a dictionary key and its values («كل الشركة» / «مساحة: X» / «مساحاتي: A، B»). */
+export function scopeChipOf(scope: PanelScope): { key: string; params: Record<string, string | number> } {
+  if (scope.kind === "company") return { key: "cpv2.scope.company", params: {} };
+  if (scope.kind === "accessible") return { key: "cpv2.scope.accessible", params: {} };
+  if (scope.names.length === 1) return { key: "cpv2.scope.space", params: { name: scope.names[0] ?? "" } };
+  if (scope.names.length === 0) return { key: "cpv2.scope.none", params: {} };
+  return { key: "cpv2.scope.spaces", params: { names: scope.names.slice(0, 3).join("، "), n: scope.names.length } };
+}
+
+/** The company's own settings the section «إعدادات الشركة» writes (all optional: only what is sent is changed). `null` clears a value. */
+export interface CompanySettingsInput {
+  landing?: Landing;
+  workTabs?: string[];
+  menuOrder?: NavOrder | null;
+  /** The company's time zone (`Organization.timezone`): a valid IANA name. */
+  timezone?: string;
+}
+
+export type CompanySettingsCheck = { ok: true; value: CompanySettingsInput } | { ok: false; key: string };
+
+const isObj = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * What the owner sends, judged strictly (every refusal is a dictionary key and nothing is written): `landing` one of the two pages, `workTabs` at most two
+ * distinct optional tools of «الشغل», `menuOrder` an order of the strict shape of `navOrderSchema` (or `null`: the code's order again). An unknown key is refused.
+ */
+export function checkCompanySettings(raw: unknown): CompanySettingsCheck {
+  if (!isObj(raw)) return { ok: false, key: "cpv2.company.e.invalid" };
+  for (const key of Object.keys(raw)) if (key !== "landing" && key !== "workTabs" && key !== "menuOrder" && key !== "timezone") return { ok: false, key: "cpv2.company.e.unknown_key" };
+  const value: CompanySettingsInput = {};
+  if ("landing" in raw) {
+    if (typeof raw["landing"] !== "string" || !(LANDINGS as readonly string[]).includes(raw["landing"])) return { ok: false, key: "cpv2.company.e.landing" };
+    value.landing = raw["landing"] as Landing;
+  }
+  if ("workTabs" in raw) {
+    const tabs = raw["workTabs"];
+    if (!Array.isArray(tabs) || tabs.some((tab) => typeof tab !== "string")) return { ok: false, key: "cpv2.company.e.work_tabs" };
+    const keys = tabs as string[];
+    if (new Set(keys).size !== keys.length || keys.length > MAX_PINNED_TABS || keys.some((key) => !(WORK_OPTIONAL_TABS as readonly string[]).includes(key))) return { ok: false, key: "cpv2.company.e.work_tabs" };
+    value.workTabs = keys;
+  }
+  if ("timezone" in raw) {
+    if (typeof raw["timezone"] !== "string" || !isValidTimeZone(raw["timezone"])) return { ok: false, key: "cpv2.company.e.timezone" };
+    value.timezone = raw["timezone"];
+  }
+  if ("menuOrder" in raw) {
+    if (raw["menuOrder"] === null) value.menuOrder = null;
+    else {
+      const parsed = navOrderSchema.safeParse(raw["menuOrder"]);
+      if (!parsed.success) return { ok: false, key: "cpv2.company.e.menu_order" };
+      value.menuOrder = parsed.data;
+    }
+  }
+  if (Object.keys(value).length === 0) return { ok: false, key: "cpv2.company.e.empty" };
+  return { ok: true, value };
+}
+
+/** The time zones the screen offers (any valid name is accepted by the server): the company's day is measured in it. Names are in the dictionary (`cpv2.tz.<key>`). */
+export const COMPANY_TIME_ZONES = [
+  { id: "Asia/Damascus", key: "damascus" },
+  { id: "Asia/Amman", key: "amman" },
+  { id: "Asia/Beirut", key: "beirut" },
+  { id: "Asia/Baghdad", key: "baghdad" },
+  { id: "Asia/Riyadh", key: "riyadh" },
+  { id: "Asia/Dubai", key: "dubai" },
+  { id: "Africa/Cairo", key: "cairo" },
+  { id: "Europe/Istanbul", key: "istanbul" },
+  { id: "UTC", key: "utc" },
+] as const;
+
+/** The pages the site may open on (D-N1), for the screen. */
+export const LANDING_CHOICES: readonly Landing[] = LANDINGS;
