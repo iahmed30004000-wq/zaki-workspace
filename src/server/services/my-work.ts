@@ -1,6 +1,7 @@
 import { db } from "@/server/db";
-import { loadWorkScope, narrowScope, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
+import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
 import {
+  countTasksForView,
   dayWindow,
   queryTasksForView,
   sortByCompleted,
@@ -9,9 +10,30 @@ import {
   type ViewQuery,
   type ViewTask,
 } from "@/server/services/views";
+import { calendarView } from "@/server/services/calendar";
 import { resolveTimeZone } from "@/lib/zoned-time";
 import { canWriteInWorkspace } from "@/server/workspace-role";
 import { featureOn } from "@/lib/features";
+import { dayOfInstant } from "@/lib/due-day";
+import { actorCanWork, type Actor } from "@/server/policy/actor";
+import { currentSpace } from "@/server/services/current-space";
+import { actorFeatureOn } from "@/server/services/features";
+import { stepProgressFor } from "@/server/services/task-steps";
+import { recurringTaskIds } from "@/server/services/task-recurrence";
+import { myRunningTaskId } from "@/server/services/time-tracking";
+import { stageOrDefault } from "@/lib/work/stage";
+import {
+  MY_TASK_CHIPS,
+  MY_TASKS_LIMIT,
+  sortWorkTasks,
+  type MyTaskChip,
+  type MyTasksParams,
+  type WorkProjectOption,
+  type WorkSpaceOption,
+  type WorkTaskDetail,
+  type WorkTaskDto,
+  type WorkTasksResult,
+} from "@/lib/work/my-tasks";
 
 /**
  * The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member
@@ -164,4 +186,325 @@ export async function getMyWork(userId: string, now: Date = new Date(), opts: { 
     results[tab] = sortRows(results[tab], tab === "completed" ? "completed" : "due");
   }
   return results;
+}
+
+// ───────────────────────────────────────── W1.1: the unified «مهامي» ─────────────────────────────────────────
+
+const DAY_MS = 24 * 3600 * 1000;
+/** The board's done column shows what was finished in this many days, not every task ever finished. */
+const BOARD_DONE_DAYS = 14;
+
+/** What a chip (or no chip) asks of the query, cut on the company's day. `view` decides the open/done shape of «no chip». */
+function chipQuery(chip: MyTaskChip | null, view: MyTasksParams["view"], userId: string, day: { from: Date; to: Date }, now: Date): Partial<ViewQuery> {
+  switch (chip) {
+    case "today":
+      return { dueFrom: day.from, dueTo: day.to, openOnly: true };
+    case "overdue":
+      return { overdueOnly: true, overdueBefore: day.from };
+    case "week":
+      return { dueFrom: day.from, dueTo: new Date(day.to.getTime() + 6 * DAY_MS), openOnly: true };
+    case "nodate":
+      return { undated: true, openOnly: true };
+    case "done":
+      return { completedOnly: true };
+    case "created":
+      return { creatorId: userId, openOnly: true };
+    default:
+      // a board keeps its «منجزة» column alive with what was finished lately; a list is open work
+      return view === "board" ? { openOrCompletedSince: new Date(now.getTime() - BOARD_DONE_DAYS * DAY_MS) } : { openOnly: true };
+  }
+}
+
+const withoutReward = (task: ViewTask): ViewTask => {
+  const { reward: _reward, ...rest } = task;
+  void _reward;
+  return rest;
+};
+
+export interface WorkTasksOptions {
+  /** The moment the person asks at (tests pin it). */
+  now?: Date;
+  /** The space the person is in (the cookie, already checked): scope «المساحة» is this one. Null: none. */
+  current?: { id: string; kind: string } | null;
+}
+
+const emptyCounts = (): Record<MyTaskChip, number> => Object.fromEntries(MY_TASK_CHIPS.map((c) => [c, 0])) as Record<MyTaskChip, number>;
+
+/**
+ * W1.1 — everything the unified «مهامي» screen draws: the person's tasks across ALL their ACTIVE spaces (scope «أنا»: assigned to them or shared
+ * with them), or the current space (scope «المساحة»), or one project (scope «مشروع»), narrowed by a chip, a stage and a text, ordered, plus the
+ * chip counts and the pickers. EVERY read goes through `taskVisibleWhere`: a private task the person is no part of is not listed, not counted,
+ * not found by the search.
+ *
+ * Scope «المساحة» inside «الشركة» (it holds no projects, D-N3) is not a thing: the screen shows «أنا» there (`scopeFellBack`).
+ */
+export async function getWorkTasks(userId: string, params: MyTasksParams, opts: WorkTasksOptions = {}): Promise<WorkTasksResult> {
+  const now = opts.now ?? new Date();
+  const hq = opts.current?.kind === "HQ";
+  const result = (over: Partial<WorkTasksResult>): WorkTasksResult => ({
+    params,
+    tasks: [],
+    truncated: false,
+    counts: emptyCounts(),
+    spaces: [],
+    projects: [],
+    current: { id: opts.current?.id ?? null, hq },
+    scopeFellBack: false,
+    timeZone: resolveTimeZone(null),
+    todayIso: dayOfInstant(now, resolveTimeZone(null)),
+    month: null,
+    canAdd: false,
+    ...over,
+  });
+
+  const [memberships, scope] = await Promise.all([
+    db.organizationMember.findMany({ where: { userId, status: "ACTIVE" }, select: { organizationId: true, role: true } }),
+    loadWorkScope(userId),
+  ]);
+  const accessible = scopeSpaceIds(scope);
+  if (memberships.length === 0 || accessible.length === 0) return result({});
+  const visible = taskVisibleWhere(scope);
+
+  const [workspaces, wsRows, orgs] = await Promise.all([
+    // the person's ACTIVE spaces: an archived space is off every list
+    db.workspace.findMany({
+      where: { id: { in: accessible }, archivedAt: null },
+      select: { id: true, name: true, kind: true, organizationId: true },
+      orderBy: [{ position: "asc" }, { name: "asc" }, { id: "asc" }],
+    }),
+    db.workspaceMember.findMany({ where: { userId, workspaceId: { in: accessible } }, select: { workspaceId: true, role: true } }),
+    db.organization.findMany({ where: { id: { in: memberships.map((m) => m.organizationId) } }, select: { id: true, timezone: true, settings: true } }),
+  ]);
+  const wsById = new Map(workspaces.map((w) => [w.id, w] as const));
+  const wsRoleById = new Map(wsRows.map((r) => [r.workspaceId, r.role] as const));
+  const orgById = new Map(orgs.map((o) => [o.id, o] as const));
+  const roleOfOrg = new Map(memberships.map((m) => [m.organizationId, m.role] as const));
+  const workSpaces = workspaces.filter((w) => w.kind !== "HQ");
+  const spaces: WorkSpaceOption[] = workSpaces.map((w) => ({ id: w.id, name: w.name, kind: w.kind }));
+
+  // the project picker: the projects the person may see (the team rule), in their active spaces
+  const projectRows = await db.project.findMany({
+    where: { AND: [projectVisibleWhere(scope), { workspaceId: { in: workSpaces.map((w) => w.id) } }] },
+    select: { id: true, name: true, workspaceId: true },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    take: 500,
+  });
+  const projects: WorkProjectOption[] = projectRows.map((p) => ({ id: p.id, name: p.name, workspaceId: p.workspaceId, spaceName: wsById.get(p.workspaceId)?.name ?? "" }));
+
+  // the scope after the fallbacks
+  const cur = opts.current && wsById.has(opts.current.id) ? opts.current : null;
+  let scopeKind = params.scope;
+  let scopeFellBack = false;
+  if (scopeKind === "space" && (!cur || cur.kind === "HQ")) {
+    scopeKind = "me";
+    scopeFellBack = true;
+  }
+  const effective: MyTasksParams = { ...params, scope: scopeKind };
+  const pickedSpace = params.spaceId && wsById.has(params.spaceId) && wsById.get(params.spaceId)!.kind !== "HQ" ? params.spaceId : null;
+  const project = scopeKind === "project" && params.projectId ? (projectRows.find((p) => p.id === params.projectId) ?? null) : null;
+
+  // which (company, spaces, scope) batches to read
+  type Batch = { orgId: string; workspaceIds: string[]; scope: NonNullable<ViewQuery["scope"]> };
+  const batches: Batch[] = [];
+  const idsByOrg = new Map<string, string[]>();
+  for (const w of workspaces) idsByOrg.set(w.organizationId, [...(idsByOrg.get(w.organizationId) ?? []), w.id]);
+  if (scopeKind === "space" && cur) {
+    batches.push({ orgId: wsById.get(cur.id)!.organizationId, workspaceIds: [cur.id], scope: { kind: "space", spaceId: cur.id } });
+  } else if (scopeKind === "project") {
+    if (project) batches.push({ orgId: wsById.get(project.workspaceId)!.organizationId, workspaceIds: [project.workspaceId], scope: { kind: "project", projectId: project.id } });
+  } else {
+    for (const [orgId, ids] of idsByOrg) {
+      const inThis = pickedSpace ? ids.filter((id) => id === pickedSpace) : ids;
+      if (inThis.length) batches.push({ orgId, workspaceIds: inThis, scope: { kind: "me", userId, ...(pickedSpace ? { spaceId: pickedSpace } : {}) } });
+    }
+  }
+
+  const calendar = params.view === "calendar";
+  // the calendar has no chips: whatever chip the address carries is not applied there (a person could not turn it off)
+  const chip = calendar ? null : params.chip;
+  const zoneOf = (orgId: string) => resolveTimeZone(orgById.get(orgId)?.timezone);
+  const firstOrg = batches[0]?.orgId ?? memberships[0]!.organizationId;
+  const timeZone = zoneOf(firstOrg);
+  const cal = calendarView({ now, timeZone, month: params.month ?? undefined });
+  // «أنشأتها» is about who MADE the task: the «أنا» assignee filter gives way to it
+  const scopedBy = (b: Batch, chip: MyTaskChip | null): Partial<ViewQuery> => (chip === "created" && b.scope.kind === "me" ? { creatorId: userId } : { scope: b.scope });
+
+  const found = await Promise.all(
+    batches.map(async (b) => {
+      const zone = zoneOf(b.orgId);
+      const day = dayWindow(now, zone);
+      const lensOn = featureOn(orgById.get(b.orgId)?.settings, "taskRewards") && roleOfOrg.get(b.orgId) !== "GUEST";
+      const shape: Partial<ViewQuery> = calendar
+        ? { dueFrom: cal.win.from, dueTo: cal.win.to, openOnly: true }
+        : chipQuery(chip, params.view, userId, day, now);
+      const rows = await queryTasksForView({
+        orgId: b.orgId,
+        workspaceIds: b.workspaceIds,
+        visible,
+        ...scopedBy(b, chip),
+        ...shape,
+        ...(params.stage ? { stage: params.stage } : {}),
+        ...(params.q ? { search: params.q } : {}),
+        limit: MY_TASKS_LIMIT,
+        pinnedFirst: lensOn,
+        rewards: lensOn,
+      });
+      return { b, zone, rows };
+    }),
+  );
+
+  const tasks: WorkTaskDto[] = [];
+  let truncated = false;
+  for (const { b, zone, rows } of found) {
+    if (rows.length >= MY_TASKS_LIMIT) truncated = true;
+    for (const raw of rows) {
+      const task = wsRoleById.get(raw.workspaceId) === "GUEST" ? withoutReward(raw) : raw;
+      tasks.push({
+        id: task.id,
+        key: task.key,
+        title: task.title,
+        priority: task.priority,
+        dueDate: task.dueDate?.toISOString() ?? null,
+        dueDay: task.dueDate ? dayOfInstant(task.dueDate, zone) : null,
+        completedAt: task.completedAt?.toISOString() ?? null,
+        columnId: task.columnId,
+        columnName: task.columnName,
+        columnStage: task.columnStage,
+        columnDone: task.columnDone,
+        workspaceId: task.workspaceId,
+        spaceName: wsById.get(task.workspaceId)?.name ?? "",
+        projectId: task.projectId,
+        projectName: task.projectName,
+        assigneeId: task.assigneeId,
+        assigneeName: task.assigneeName,
+        assigneeIds: task.assigneeIds,
+        assigneeNames: task.assigneeNames,
+        creatorId: task.creatorId,
+        visibility: task.visibility,
+        updatedAt: task.updatedAt.toISOString(),
+        editable: canWriteInWorkspace(roleOfOrg.get(b.orgId), wsRoleById.get(task.workspaceId)),
+        ...(task.pinnedAt !== undefined ? { pinnedAt: task.pinnedAt?.toISOString() ?? null } : {}),
+        ...(task.reward !== undefined ? { reward: task.reward } : {}),
+      });
+    }
+  }
+
+  // «تثبيت»: a pinned task leads its list (the newest pin first), then the chosen order
+  const ordered = sortWorkTasks(tasks, params.sort, chip);
+  const pinned = ordered.filter((t) => t.pinnedAt).sort((a, b) => Date.parse(b.pinnedAt!) - Date.parse(a.pinnedAt!));
+  const listed = pinned.length ? [...pinned, ...ordered.filter((t) => !t.pinnedAt)] : ordered;
+
+  // the chips' numbers: the same query as each chip's list, counted (never a number a person cannot reach by pressing the chip)
+  const counts = emptyCounts();
+  if (!calendar) {
+    await Promise.all(
+      batches.flatMap((b) =>
+        MY_TASK_CHIPS.map(async (chip) => {
+          const day = dayWindow(now, zoneOf(b.orgId));
+          counts[chip] += await countTasksForView({
+            orgId: b.orgId,
+            workspaceIds: b.workspaceIds,
+            visible,
+            ...scopedBy(b, chip),
+            ...chipQuery(chip, "list", userId, day, now),
+            ...(params.stage ? { stage: params.stage } : {}),
+          });
+        }),
+      ),
+    );
+  }
+
+  return result({
+    params: effective,
+    tasks: listed,
+    truncated,
+    counts,
+    spaces,
+    projects,
+    scopeFellBack,
+    timeZone,
+    todayIso: cal.todayIso,
+    month: calendar ? cal.month : null,
+    canAdd: memberships.some((m) => m.role !== "GUEST"),
+  });
+}
+
+/**
+ * What the screen (the page and `GET /api/work/tasks`) is given: `getWorkTasks` for the space the person is in, plus what a row shows beside the
+ * task — «٣ من ٥» (only while the company's «الخطوات» switch is on), «متكررة», «الوقت شغّال» — and whether the person may add a task here at all.
+ */
+export async function workScreenFor(actor: Actor, params: MyTasksParams, now: Date = new Date()): Promise<WorkTasksResult> {
+  const space = await currentSpace(actor);
+  const base = await getWorkTasks(actor.userId, params, { now, current: space ? { id: space.id, kind: space.kind } : null });
+  const ids = base.tasks.map((t) => t.id);
+  const [stepsOn, recurringOn, runningId] = await Promise.all([actorFeatureOn(actor, "taskSteps"), actorFeatureOn(actor, "recurringTasks"), myRunningTaskId(actor)]);
+  const [steps, recurring] = await Promise.all([stepsOn ? stepProgressFor(ids) : Promise.resolve(new Map<string, { done: number; total: number }>()), recurringOn ? recurringTaskIds(ids) : Promise.resolve(new Set<string>())]);
+  return {
+    ...base,
+    tasks: base.tasks.map((t) => ({
+      ...t,
+      ...(steps.get(t.id) ? { steps: steps.get(t.id)! } : {}),
+      ...(recurring.has(t.id) ? { recurring: true } : {}),
+      ...(runningId === t.id ? { running: true } : {}),
+    })),
+    canAdd: base.canAdd && !actor.isExternal && actorCanWork(actor, "tasks.edit"),
+  };
+}
+
+/** One task for the side panel. A task the person may not see is `null` (the route answers 404: its existence is private too). */
+export async function getWorkTaskDetail(userId: string, taskId: string): Promise<WorkTaskDetail | null> {
+  const scope = await loadWorkScope(userId);
+  // the rule of every door: the space, the team and the participants rule
+  const row = await db.task.findFirst({
+    where: { id: taskId, archived: false, AND: [taskVisibleWhere(scope)] },
+    include: {
+      organization: { select: { keyPrefix: true, timezone: true } },
+      project: { select: { id: true, name: true } },
+      column: { select: { id: true, name: true, done: true, stage: true, board: { select: { name: true } } } },
+      assignee: { select: { id: true, name: true } },
+      coAssignees: { select: { user: { select: { id: true, name: true } } }, orderBy: { createdAt: "asc" } },
+      creator: { select: { name: true } },
+      _count: { select: { comments: true } },
+    },
+  });
+  if (!row) return null;
+  const [member, spaceRow, space] = await Promise.all([
+    db.organizationMember.findFirst({ where: { userId, organizationId: row.orgId, status: "ACTIVE" }, select: { role: true } }),
+    db.workspaceMember.findUnique({ where: { workspaceId_userId: { workspaceId: row.workspaceId, userId } }, select: { role: true } }),
+    db.workspace.findUnique({ where: { id: row.workspaceId }, select: { name: true } }),
+  ]);
+  const zone = resolveTimeZone(row.organization.timezone);
+  const co = row.coAssignees.map((r) => r.user);
+  return {
+    task: {
+      id: row.id,
+      key: `${row.organization.keyPrefix}-${row.number}`,
+      title: row.title,
+      priority: row.priority,
+      dueDate: row.dueDate?.toISOString() ?? null,
+      dueDay: row.dueDate ? dayOfInstant(row.dueDate, zone) : null,
+      completedAt: row.completedAt?.toISOString() ?? null,
+      columnId: row.column.id,
+      columnName: row.column.name,
+      columnStage: stageOrDefault(row.column.stage),
+      columnDone: row.column.done,
+      workspaceId: row.workspaceId,
+      spaceName: space?.name ?? "",
+      projectId: row.project.id,
+      projectName: row.project.name,
+      assigneeId: row.assigneeId,
+      assigneeName: row.assignee?.name ?? null,
+      assigneeIds: [...(row.assignee ? [row.assignee.id] : []), ...co.map((u) => u.id)],
+      assigneeNames: [...(row.assignee ? [row.assignee.name] : []), ...co.map((u) => u.name)],
+      creatorId: row.creatorId,
+      visibility: row.visibility,
+      updatedAt: row.updatedAt.toISOString(),
+      editable: member ? canWriteInWorkspace(member.role, spaceRow?.role) : false,
+    },
+    description: row.description,
+    creatorName: row.creator.name,
+    boardName: row.column.board.name,
+    createdAt: row.createdAt.toISOString(),
+    commentCount: row._count.comments,
+  };
 }

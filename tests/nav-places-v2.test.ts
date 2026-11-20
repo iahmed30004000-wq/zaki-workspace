@@ -329,7 +329,7 @@ describe("every tab offered is a page that serves that person, and a tab not off
 });
 
 describe("where an address lives on the new map (the old addresses stay pages)", () => {
-  it("the views of «مهامي» (/list, /calendar) and the approvals page have a home; /list and /calendar are NOT sent to /my-work yet", () => {
+  it("the views of «مهامي» (/list, /calendar) and the approvals page have a home; /list and /calendar are sent to /my-work only behind workMyTasks (W1.1)", () => {
     expect(locate("/list", "v2")).toEqual({ place: "work", tab: "my-work" });
     expect(locate("/calendar", "v2")).toEqual({ place: "work", tab: "my-work" });
     expect(locate("/approvals", "v2")).toEqual({ place: "work", tab: "requests" });
@@ -356,12 +356,38 @@ describe("where an address lives on the new map (the old addresses stay pages)",
     }
   });
 
-  it("the pages of the old tabs «القائمة» and «التقويم» still exist on disk", () => {
+  it("the pages of the old tabs «القائمة» and «التقويم» still exist on disk; they send to «مهامي» ONLY behind the switch workMyTasks (W1.1)", () => {
     for (const route of ["list", "calendar"]) expect(existsSync(path.join(ROOT, "src", "app", "(app)", route, "page.tsx")), route).toBe(true);
     for (const route of ["list", "calendar"]) {
       const source = readFileSync(path.join(ROOT, "src", "app", "(app)", route, "page.tsx"), "utf8");
-      expect(source, `${route} is not redirected to /my-work before W1.1`).not.toMatch(/redirect\(\s*["'`]\/my-work/);
+      // never an unconditional redirect: the company's switch is asked first, so the default (OFF) keeps today's page
+      expect(source, `${route} is not redirected to /my-work without the switch`).not.toMatch(/redirect\(\s*["'`]\/my-work/);
+      expect(source, route).toContain(`if (await actorFeatureOn(actor, "workMyTasks")) redirect(legacyViewHref("${route}", searchParams));`);
     }
+  });
+
+  it("W1.1: «مهامي» is /my-work on both maps; /list and /calendar stay its home (`also`), and the old map stops drawing them as tabs only when the switch says so", () => {
+    expect(locate("/my-work?view=board&scope=space", "v2")).toEqual({ place: "work", tab: "my-work" });
+    expect(locate("/my-work?task=abc", "v2")).toEqual({ place: "work", tab: "my-work" });
+    const v1Tabs = (subject: NavSubject) => buildNav(subject).places.find((p) => p.key === "work")!.tabs.map((t) => t.key);
+    const member = { role: "MEMBER" as const, caps: [...effectiveCapabilities({ role: "MEMBER" })] };
+    // OFF (nothing handed over: the default): the old map is exactly what it was
+    expect(v1Tabs(member)).toEqual(expect.arrayContaining(["my-work", "list", "calendar"]));
+    expect(v1Tabs({ ...member, workMyTasks: false })).toEqual(expect.arrayContaining(["my-work", "list", "calendar"]));
+    // ON: the two views are inside «مهامي», so two tabs fewer; every other tab is where it was
+    const on = v1Tabs({ ...member, workMyTasks: true });
+    expect(on).toContain("my-work");
+    expect(on).not.toContain("list");
+    expect(on).not.toContain("calendar");
+    expect(on).toEqual(v1Tabs(member).filter((k) => k !== "list" && k !== "calendar"));
+    // a tab that is not drawn is not offered either (the same answer everywhere)
+    expect(canOpenTab({ ...member, workMyTasks: true }, "list")).toBe(false);
+    expect(canOpenTab({ ...member, workMyTasks: true }, "my-work")).toBe(true);
+    // a guest keeps «مهامي» on both maps with the switch on, and the new map is unchanged by it
+    const guest = { role: "GUEST" as const, caps: [], workMyTasks: true };
+    expect(canOpenTab(guest, "my-work")).toBe(true);
+    expect(canOpenTab({ ...guest, navV2: true }, "my-work")).toBe(true);
+    expect(tabs(buildNav(v2("MEMBER", {}, { workMyTasks: true })), "work")).toEqual(tabs(buildNav(v2("MEMBER")), "work"));
   });
 });
 

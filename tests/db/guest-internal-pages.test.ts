@@ -745,3 +745,43 @@ describe("N1.3: overdue numbers, the banner's data, and no silent switch while n
     await expect(TaskPage({ params: { id: w.tc.id } })).rejects.toThrow("NEXT_NOT_FOUND");
   });
 });
+
+// ───────────────────────────── W1.1: «مهامي» as ONE page behind the switch workMyTasks ─────────────────────────────
+
+describe("W1.1: with the switch `workMyTasks` ON, «مهامي» serves every rank (a guest only what is shared with them), and /list and /calendar send each rank there", () => {
+  it("each rank's /my-work draws, with no refusal; a guest's screen and its data carry nothing of the company that is not shared with them; /list and /calendar redirect for every rank", async () => {
+    const w = await companyWorld();
+    await db.organization.update({ where: { id: w.org.id }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true, workMyTasks: true } } } });
+    const people = { OWNER: w.owner, ADMIN: w.admin, LEAD: w.lead, MEMBER: w.member, GUEST: w.guest };
+    for (const rank of RANKS) {
+      await loginAs(people[rank].id);
+      for (const search of [{}, { view: "board", scope: "space" }, { view: "calendar" }, { scope: "project" }]) {
+        const outcome = await open(() => MyWorkPage({ searchParams: search }));
+        expect(outcome.kind, `${rank} /my-work ${JSON.stringify(search)}`).toBe("rendered");
+        if (outcome.kind !== "rendered") continue;
+        expect(refused(outcome.markup), `${rank}: no refusal`).toBe(false);
+        if (rank === "GUEST") {
+          expectNoCompanyText(w, outcome.markup, "my-work markup");
+          expectNoCompanyText(w, outcome.props, "my-work props");
+          for (const needle of [w.secret, CUSTOMER_CHAT_TITLE, CUSTOMER_PHONE, N8N_HOOK]) {
+            expect(outcome.markup).not.toContain(needle);
+            expect(outcome.props).not.toContain(needle);
+          }
+        }
+      }
+      expect(await open(() => ListPage({ searchParams: {} })), `${rank} /list`).toEqual({ kind: "redirect", to: "/my-work?view=list&scope=space" });
+      expect(await open(() => CalendarPage({ searchParams: {} })), `${rank} /calendar`).toEqual({ kind: "redirect", to: "/my-work?view=calendar&scope=space" });
+    }
+  });
+
+  it("the tab «مهامي» is still offered to a guest on both maps, and with the switch off the old pages serve them as before", async () => {
+    const w = await companyWorld();
+    await loginAs(w.guest.id);
+    expect(canOpenTab({ role: "GUEST", caps: [] }, "my-work")).toBe(true);
+    expect(canOpenTab({ role: "GUEST", caps: [], navV2: true }, "my-work")).toBe(true);
+    // off (this world's default): the old page, the old list and calendar
+    for (const page of [() => MyWorkPage({ searchParams: {} }), () => ListPage({ searchParams: {} }), () => CalendarPage({ searchParams: {} })]) {
+      expect((await open(page)).kind).toBe("rendered");
+    }
+  });
+});

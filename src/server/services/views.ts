@@ -7,6 +7,7 @@ import { orgDayStart } from "@/server/services/org-day";
 import { arabicSearch } from "@/lib/search/arabic";
 import { rankedSearch, sqlIn } from "@/server/search/ranked";
 import { listBadgeStatus } from "@/lib/rewards";
+import { stageOrDefault, type WorkStage } from "@/lib/work/stage";
 
 // ---------- workspace access resolution for RSC pages ----------
 
@@ -289,6 +290,46 @@ export interface ViewQuery {
   fieldFilter?: FieldFilter;
   /** «حقول مخصصة»: order by a NUMBER or DATE field (tasks with no value last). The same trust as `fieldFilter`. */
   fieldSort?: FieldSort;
+  /**
+   * W1.1 «مهامي»: ONE word for who and where — see `ViewScope`. It is only a shorthand for the plain filters above (`normalizeViewScope`) and it can
+   * only NARROW: `visible` and `workspaceIds` still apply on top of it. Absent: the query is exactly what it was.
+   */
+  scope?: ViewScope;
+  /** W1.1: keep only the tasks whose board COLUMN has one of these normalized stages (`BoardColumn.stage`, W1.3). An empty list matches nothing. */
+  stage?: WorkStage | readonly WorkStage[];
+  /** W1.1 «بدون موعد»: only tasks with no due date (wins over `dueFrom` / `dueTo`). */
+  undated?: boolean;
+  /** W1.1 «لوحة»: the open tasks AND the ones finished on or after this moment (a board shows a done column, not every task ever finished). */
+  openOrCompletedSince?: Date;
+}
+
+/**
+ * W1.1: the three scopes of «مهامي».
+ *   me      the tasks assigned to `userId` or shared with them (co-assigned), in every space of the allow-list or just `spaceId`
+ *   space   everything the caller may see in ONE space
+ *   project everything the caller may see in ONE project
+ */
+export type ViewScope =
+  | { kind: "me"; userId: string; spaceId?: string }
+  | { kind: "space"; spaceId: string }
+  | { kind: "project"; projectId: string };
+
+/** `scope` spelled out as the plain filters (pure). A scope that contradicts a plain filter already given (another space, another project) matches nothing. */
+export function normalizeViewScope(q: ViewQuery): ViewQuery {
+  const { scope, ...rest } = q;
+  if (!scope) return q;
+  const nothing = { ...rest, workspaceIds: [] as string[] };
+  switch (scope.kind) {
+    case "me":
+      if (scope.spaceId && rest.workspaceId && rest.workspaceId !== scope.spaceId) return nothing;
+      return { ...rest, assigneeId: scope.userId, ...(scope.spaceId ? { workspaceId: scope.spaceId } : {}) };
+    case "space":
+      if (rest.workspaceId && rest.workspaceId !== scope.spaceId) return nothing;
+      return { ...rest, workspaceId: scope.spaceId };
+    case "project":
+      if (rest.projectId && rest.projectId !== scope.projectId) return nothing;
+      return { ...rest, projectId: scope.projectId };
+  }
 }
 
 export type FieldFilter = { fieldId: string } & ({ kind: "text"; value: string } | { kind: "boolean"; value: boolean });
@@ -316,6 +357,8 @@ export interface ViewTask {
   columnId: string;
   columnName: string;
   columnDone: boolean;
+  /** W1.1: the column's normalized stage (`BoardColumn.stage`, W1.3): what the cross-project lists group by. */
+  columnStage: WorkStage;
   workspaceId: string;
   projectId: string;
   projectName: string;
@@ -382,13 +425,17 @@ async function loadByFieldSort<I extends Prisma.TaskInclude>(
   return (q.pinnedFirst ? sortPinnedFirst(sorted) : sorted).slice(0, Math.min(q.limit ?? 200, 500));
 }
 
-/** Single query core for every task view; always org-scoped. */
-export async function queryTasksForView(q: ViewQuery): Promise<ViewTask[]> {
+/**
+ * The `where` of a query, from its plain filters (the scope already spelled out): org-scoped, never archived, and always with the caller's own
+ * `visible` rule when one is given. One builder for the rows and for the counts, so a chip's number is the length of its list.
+ */
+async function viewWhere(q: ViewQuery): Promise<Prisma.TaskWhereInput> {
   const where: Prisma.TaskWhereInput = {
     orgId: q.orgId,
     archived: false,
   };
-  if (q.assigneeId) where.OR = [ { assigneeId: q.assigneeId }, { coAssignees: { some: { userId: q.assigneeId } } } ];
+  const and: Prisma.TaskWhereInput[] = q.visible ? [q.visible] : [];
+  if (q.assigneeId) and.push({ OR: [ { assigneeId: q.assigneeId }, { coAssignees: { some: { userId: q.assigneeId } } } ] });
   if (q.creatorId) where.creatorId = q.creatorId;
   if (q.projectId) where.projectId = q.projectId;
   if (q.workspaceIds !== undefined) {
@@ -399,9 +446,11 @@ export async function queryTasksForView(q: ViewQuery): Promise<ViewTask[]> {
   } else if (q.workspaceId) {
     where.workspaceId = q.workspaceId;
   }
-  const and: Prisma.TaskWhereInput[] = q.visible ? [q.visible] : [];
   if (q.fieldFilter) and.push(fieldFilterWhere(q.orgId, q.fieldFilter));
-  if (and.length) where.AND = and;
+  if (q.stage !== undefined) {
+    const stages = typeof q.stage === "string" ? [q.stage] : [...q.stage];
+    where.column = { stage: { in: stages } };
+  }
   if (q.priority) where.priority = q.priority;
   if (q.dueFrom || q.dueTo) {
     where.dueDate = {
@@ -409,12 +458,32 @@ export async function queryTasksForView(q: ViewQuery): Promise<ViewTask[]> {
       ...(q.dueTo ? { lte: q.dueTo } : {}),
     };
   }
+  if (q.undated) where.dueDate = null;
   if (q.overdueOnly) {
     where.dueDate = { lt: q.overdueBefore ?? (await orgDayStart(q.orgId, q.now)) };
     where.completedAt = null;
   }
+  if (q.openOrCompletedSince) and.push({ OR: [{ completedAt: null }, { completedAt: { gte: q.openOrCompletedSince } }] });
   if (q.openOnly) where.completedAt = null;
   if (q.completedOnly) where.completedAt = { not: null };
+  if (and.length) where.AND = and;
+  return where;
+}
+
+/**
+ * How many tasks a query matches (the chips of «مهامي»): the same `where` as `queryTasksForView`, with no limit and no text search.
+ * A caller passes `visible` (`taskVisibleWhere`) exactly as for the rows: a hidden task is not counted.
+ */
+export async function countTasksForView(query: ViewQuery): Promise<number> {
+  const q = normalizeViewScope(query);
+  // task-visibility: read through the caller's own `where` (q.visible = taskVisibleWhere)
+  return db.task.count({ where: await viewWhere(q) });
+}
+
+/** Single query core for every task view; always org-scoped. */
+export async function queryTasksForView(query: ViewQuery): Promise<ViewTask[]> {
+  const q = normalizeViewScope(query);
+  const where = await viewWhere(q);
   const take = Math.min(q.limit ?? 200, 500);
   const orderBy: Prisma.TaskOrderByWithRelationInput[] = [
     ...(q.pinnedFirst ? [{ pinnedAt: { sort: "desc" as const, nulls: "last" as const } }] : []),
@@ -424,7 +493,7 @@ export async function queryTasksForView(q: ViewQuery): Promise<ViewTask[]> {
   const include = {
     ...TASK_INCLUDE,
     project: { select: { id: true, name: true } },
-    column: { select: { id: true, name: true, done: true } },
+    column: { select: { id: true, name: true, done: true, stage: true } },
     organization: { select: { keyPrefix: true } },
   } satisfies Prisma.TaskInclude;
 
@@ -471,6 +540,7 @@ export async function queryTasksForView(q: ViewQuery): Promise<ViewTask[]> {
       columnId: t.column.id,
       columnName: t.column.name,
       columnDone: t.column.done,
+      columnStage: stageOrDefault(t.column.stage),
       workspaceId: t.workspaceId,
       projectId: t.project.id,
       projectName: t.project.name,

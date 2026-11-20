@@ -549,7 +549,7 @@ describe("every page × the five ranks: an element, a redirect to a page that ex
 
 // ───────────────────────────── 4. N1.7 and N1.8: the old addresses, and the landing page ─────────────────────────────
 
-describe("N1.7: every old address is still a page, and «القائمة» and «التقويم» are NOT sent to «مهامي» before its page exists (W1.1)", () => {
+describe("N1.7: every old address is still a page, and «القائمة» and «التقويم» are their own pages while the switch workMyTasks is OFF (W1.1 sends them to «مهامي» only when it is on: see below)", () => {
   it("/list and /calendar draw their own page for every rank, with no step through /my-work", async () => {
     const w = await linkWorld();
     for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
@@ -640,6 +640,51 @@ describe("W1.4: /requests is a page of its own and the approvals addresses are s
       await loginAs(person.id);
       const { end } = await land("/requests");
       expect(end.kind, person.name).toMatch(/^(?:rendered|not-found)$/);
+    }
+  });
+});
+
+// ───────────────────────────── 6. W1.1: «القائمة» and «التقويم» are views of «مهامي», behind the switch workMyTasks ─────────────────────────────
+
+describe("W1.1: with the switch `workMyTasks` ON, /list and /calendar land on «مهامي» (?view=list|calendar&scope=space) for every rank; the old addresses keep working", () => {
+  async function worldWithSwitch(on: boolean) {
+    const w = await linkWorld();
+    await db.organization.update({ where: { id: w.org.id }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true, workMyTasks: on } } } });
+    return w;
+  }
+
+  it("ON: every rank's /list, /calendar and the old inner tabs end on /my-work, drawn, in one step and never in a loop", async () => {
+    const w = await worldWithSwitch(true);
+    for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
+      await loginAs(person.id);
+      for (const [address, target] of [
+        ["/list", "/my-work?view=list&scope=space"],
+        ["/calendar", "/my-work?view=calendar&scope=space"],
+        ["/calendar?mine=1&month=2026-12", "/my-work?view=calendar&scope=me&month=2026-12"],
+        ["/list?group=assignee&q=x", "/my-work?view=list&scope=space&q=x&group=person"],
+      ] as const) {
+        const { end, chain } = await land(address);
+        expect(chain.map((step) => step.split("?")[0]).slice(-1)[0], `${person.name} ${address}`).toBe("/my-work");
+        expect(chain, `${person.name} ${address}`).toContain(target);
+        expect(end.kind, `${person.name} ${address}`).toMatch(/^(?:rendered|not-found)$/);
+      }
+      for (const address of ["/my-work", "/my-work?tab=today", "/my-work?tab=completed", "/my-work?view=board", "/my-work?task=whatever"]) {
+        const { end, chain } = await land(address);
+        expect(chain, `${person.name} ${address}`).toEqual([address]);
+        expect(end.kind, `${person.name} ${address}`).toBe("rendered");
+      }
+    }
+  });
+
+  it("OFF (the default): the same addresses are their own pages and none of them steps through /my-work", async () => {
+    const w = await worldWithSwitch(false);
+    for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
+      await loginAs(person.id);
+      for (const address of ["/list", "/calendar", "/list?group=assignee", "/calendar?mine=1"]) {
+        const { end, chain } = await land(address);
+        expect(chain.map(pathOf), `${person.name} ${address}`).not.toContain("/my-work");
+        expect(end.kind, `${person.name} ${address}`).toMatch(/^(?:rendered|not-found)$/);
+      }
     }
   });
 });

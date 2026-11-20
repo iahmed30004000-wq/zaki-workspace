@@ -15,6 +15,7 @@ import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
 import { currentSpace } from "@/server/services/current-space";
 import { columnLabel, enumLabel } from "@/lib/i18n/enums";
 import { actorFeatureOn } from "@/server/services/features";
+import { legacyViewHref } from "@/lib/work/my-tasks";
 import { stepProgressFor } from "@/server/services/task-steps";
 import { NO_LENS, openRewardTotals, rewardLensFor } from "@/server/services/rewards";
 import { fmtReward } from "@/lib/rewards";
@@ -41,6 +42,8 @@ export default async function ListPage({
   const { actor } = await pageActor();
   // the tasks row of the person's grid (a guest works in their shared spaces by the space's rules)
   if (!actorCanWork(actor, "tasks.view")) return <SectionOffNotice />;
+  // W1.1 (switch `workMyTasks`): «القائمة» is a view of «مهامي» in the scope «المساحة»; the old address keeps working and lands there
+  if (await actorFeatureOn(actor, "workMyTasks")) redirect(legacyViewHref("list", searchParams));
   const space = await currentSpace(actor);
   const result = await resolveWorkspaceView(space?.id ?? "");
   if ("pageRedirect" in result) redirect("/login");
