@@ -343,9 +343,9 @@ describe("W1.3: column settings - only a manager sets the stage", () => {
     expect((await call(columnRoute.PATCH, { method: "PATCH", params: { id: b.id, columnId: todo.id }, body: { stage: "REVIEW" } })).status).toBe(200);
   });
 
-  it("source: the board screen keeps its three page reloads (W1.5 replaces them) and gates the stage picker by the switch", () => {
+  it("source: the board screen no longer reloads the page (W1.5 replaced the reloads) and gates the stage picker by the switch", () => {
     const src = readFileSync(path.join(process.cwd(), "src", "components", "board-view.tsx"), "utf8");
-    expect((src.match(/window\.location\.reload\(\)/g) ?? []).length).toBe(3);
+    expect((src.match(/window\.location\.reload\(\)/g) ?? []).length).toBe(0);
     expect(src).toContain("stagesOn");
     expect(existsSync(path.join(process.cwd(), "src", "lib", "work", "stage.ts"))).toBe(true);
   });
