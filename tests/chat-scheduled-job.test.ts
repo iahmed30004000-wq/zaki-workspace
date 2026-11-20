@@ -336,9 +336,9 @@ describe("the composer surface", () => {
 
 describe("the plan's trap: nothing that reads messages ever reads this table", () => {
   const files = walk(path.join(ROOT, "src"));
-  it("only scheduled.ts and the job touch ScheduledChatMessage", () => {
+  it("only scheduled.ts, the job and the header (the author's own waiting count, never a message) touch ScheduledChatMessage", () => {
     const users = files.filter((f) => /scheduledChatMessage|ScheduledChatMessage/.test(read(f)));
-    expect(users.sort()).toEqual(["src/server/chat/scheduled.ts", "src/server/jobs/chat-scheduled.ts"]);
+    expect(users.sort()).toEqual(["src/server/chat/scheduled.ts", "src/server/chat/topics.ts", "src/server/jobs/chat-scheduled.ts"]);
   });
   it("only the three routes and the job reach scheduled.ts: the composer's folders import nothing of the server for it", () => {
     const users = files.filter((f) => /from "@\/server\/chat\/scheduled"/.test(read(f)) && f !== "src/server/chat/scheduled.ts");
