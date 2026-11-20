@@ -67,5 +67,22 @@
   "expense.receipt": "صورة الفاتورة (اختياري)",
   "expense.card.via": "الطلبات",
   "expense.card.approved": "قرار: تمت الموافقة على «{what}» ({who})",
-  "expense.card.rejected": "قرار: تم رفض «{what}» ({who})"
+  "expense.card.rejected": "قرار: تم رفض «{what}» ({who})",
+  "spaceTemplates.open": "مساحة من قالب",
+  "spaceTemplates.title": "مساحة جديدة من قالب",
+  "spaceTemplates.pick": "اختار القالب",
+  "spaceTemplates.name": "اسم المساحة",
+  "spaceTemplates.create": "افتح المساحة",
+  "spaceTemplates.topics": "الموضوعات",
+  "spaceTemplates.project": "ومعها مشروع «{name}» بمراحله",
+  "spaceTemplates.private": "خاص",
+  "spaceTemplates.privacy_note": "الموضوع اللي عليه «خاص» بينفتح لإلك بس، وإنت بتضيف الناس اللي بدك إياهم. وما حدا بينضاف للمساحة غيرك: بتضيف الناس من «أعضاء المساحة».",
+  "spaceTemplates.guide": "كيف بتصير مجموعات تيليجرام مساحات؟",
+  "spaceTemplates.failed": "ما انفتحت المساحة. جرّب مرة ثانية.",
+  "spaceTemplates.hint.orders": "للطلبات اللي لسا ما تأكدت، والمؤكدة، والمرتجعات، والشكاوى.",
+  "spaceTemplates.hint.content": "لفريق المحتوى: الروابط والتحميل والسكربتات، ومعها خط إنتاج من الفكرة للنشر.",
+  "spaceTemplates.hint.management": "للإدارة: التقارير والأداء والأفكار والقرارات والإعلانات.",
+  "spaceTemplates.hint.brand": "لمنتج أو براند: التنسيق والإعلانات والمحتوى والمشاكل.",
+  "spaceTemplates.hint.blank": "مساحة فاضية: «عام» و«التنبيهات» بس، وإنت بتبني الباقي.",
+  "spaces.template_layout": "القالب بيركب على المساحة العادية بس، مش على مساحة اللوحات أو التصنيع."
 }

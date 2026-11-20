@@ -26,8 +26,17 @@ export type Block =
   | { type: "warn"; text: string; fix: string; for?: Audience }
   | { type: "keys"; keys: readonly string[]; text: string; for?: Audience };
 
+/**
+ * Articles added after the one table in audience.ts, each with its level (I1.2). Append-only: the integrator folds a line into `ARTICLE_AUDIENCE` and deletes it here
+ * (audience.ts belongs to another package). `tests/guide-articles.test.ts` reads both tables as one.
+ */
+export const EXTRA_ARTICLE_AUDIENCE = {
+  "telegram-to-zaki": "staff",
+} as const satisfies Record<string, Audience>;
+export type ExtraArticleSlug = keyof typeof EXTRA_ARTICLE_AUDIENCE;
+
 export interface Article {
-  slug: ArticleSlug;
+  slug: ArticleSlug | ExtraArticleSlug;
   title: string;
   summary: string;
   audience: Audience;
@@ -69,8 +78,9 @@ const keys = (pressed: readonly string[], text: string, who?: Audience): Block =
 /** An item only this audience (and above) reads. */
 const only = (who: Audience, text: string): Item => ({ text, for: who });
 
-function article(slug: ArticleSlug, def: Omit<Article, "slug" | "audience">): Article {
-  return { slug, audience: ARTICLE_AUDIENCE[slug], ...def };
+function article(slug: ArticleSlug | ExtraArticleSlug, def: Omit<Article, "slug" | "audience">): Article {
+  const audience = slug in ARTICLE_AUDIENCE ? ARTICLE_AUDIENCE[slug as ArticleSlug] : EXTRA_ARTICLE_AUDIENCE[slug as ExtraArticleSlug];
+  return { slug, audience, ...def };
 }
 
 // ---- the articles, in the order of the guide ----
@@ -731,6 +741,54 @@ export const ARTICLES: readonly Article[] = [
     ],
   }),
 
+  article("telegram-to-zaki", {
+    title: "من تيليجرام لزاكي",
+    summary: "كل مجموعة تيليجرام بتصير مساحة بقالب جاهز، ومين بيدخلها، وكل بوت بيصير كرت.",
+    keywords: ["تيليجرام", "تلجرام", "قروب", "مجموعة", "توبكس", "بوت", "انتقال", "قالب", "قوالب", "مساحة جديدة", "عمليات الطلبات", "انتاج المحتوى", "الادارة", "براند"],
+    blocks: [
+      p("بدل ما تفتح مجموعة تيليجرام لكل شغلة، بتفتح مساحة. وموضوعات المساحة هي نفسها موضوعات المجموعة، وبتنفتح جاهزة من قالب."),
+      h("أي مجموعة بتصير أي مساحة"),
+      list([
+        "مجموعة العمليات والطلبات ← قالب «عمليات الطلبات»: موضوعات «غير مؤكد» و«مؤكد» و«مرتجع» و«شكاوى» و«عام».",
+        "مجموعة إنتاج الفيديو ← قالب «إنتاج المحتوى»: موضوعات «روابط» و«تحميل» و«سكربتات» و«عام»، ومعها مشروع «خط الإنتاج» بمراحله فكرة ثم سكربت ثم تصوير ثم مونتاج ثم جاهز ثم منشور.",
+        "مجموعة الإدارة ← قالب «الإدارة»: موضوعات «تقارير وأداء» و«أفكار» و«قرارات» و«إعلانات».",
+        "مجموعة كل منتج أو براند ← قالب «منتج / براند»: موضوعات «تنسيق» و«إعلانات» و«محتوى» و«مشاكل».",
+        "أي مجموعة تانية ← قالب «فاضية»: «عام» و«التنبيهات» بس، وإنت بتبني الباقي.",
+      ]),
+      steps(
+        [
+          "من «كل المساحات» اضغط «مساحة من قالب».",
+          "اختار القالب واكتب اسم المساحة.",
+          "اضغط «افتح المساحة»: بتدخل عليها وموضوعاتها جاهزة.",
+          "اضغط «الإدارة» ثم «المساحة»، وبعدين «أعضاء المساحة» وضيف الناس اللي لازم يشتغلوا فيها.",
+        ],
+        { title: "كيف بتفتحها" },
+      ),
+      p("الزر بيظهر لمين بيقدر يفتح مساحات، وبعد ما المالك يشغّل الميزة «قوالب المساحات» من «الميزات». وبدونها بتضل «مساحة عمل جديدة» متل ما كانت."),
+      h("مين بيدخل المساحة"),
+      list([
+        "القالب ما بيضيف حدا: بتدخل إنت لحالك كمدير للمساحة، وبتضيف الناس اللي بدك إياهم.",
+        "اللي بتضيفه على المساحة بيشوف موضوعاتها المفتوحة. أما الموضوع «خاص» فبيحتاج إضافة تانية على الموضوع نفسه.",
+        "كل موضوع بالقالب بيشوفه كل اللي بالمساحة، ما عدا موضوع «شكاوى» بقالب «عمليات الطلبات» وموضوع «قرارات» بقالب «الإدارة»: هدول بينفتحوا «خاص» لإلك بس، وإنت بتضيف عليهم اللي بدك.",
+        "الموضوعات بتنكتب جوا المساحة الجديدة بس، وما بيتغيّر شي بأي مساحة تانية.",
+      ]),
+      warn(
+        "الشكاوى بتجيب معها اسم زبون أو رقمه. اللي بتضيفه على موضوع «شكاوى» بيقرا كل شي فيه.",
+        "ضيف على موضوع الشكاوى بس اللي بيتعاملوا مع الطلب، وما تكتب رقم الزبون بالدردشة: افتح الطلب بنظام الطلبات.",
+      ),
+      h("أي بوت بيصير أي كرت"),
+      list([
+        "بوت الطلبات اللي بينزّل رقم كل طلب ← كرت بموضوع الطلبات، فيه رقم الطلب وزر «افتح الطلب». بيجي من نظام الطلبات نفسه بعد ما المالك يشغّل «أحداث نظام الطلبات»، وما فيه اسم زبون ولا رقمه.",
+        "بوت التقارير والأداء ← كرت أرقام يومية بموضوع «تقارير وأداء»: كم طلب تأكد وانلغى وانشحن واتسلّم ورجع. بدون مبالغ وبدون بيانات زبائن.",
+        "الميديا باير وأي نظام تاني كان يبعت رسالة ← كرت بموضوع إله اسم باب، من «باب الرسائل» بمفتاح فيه صلاحية إرسال الرسائل. كل كرت بيتفحص ضد أرقام الهواتف قبل ما ينحفظ.",
+        "الكرت بيقول «عبر» واسم المفتاح اللي بعته، والبوت بيضل بشغلة وحدة: ما بيقرا الموضوعات وما بيرد على حدا.",
+      ]),
+      h("مجموعتا الصناديق والمصاريف"),
+      p("هدول ما إلهم قالب، لأن الفلوس ما بتنوافق برسالة دردشة. طلب المصروف بيصير نموذج بالموافقات، والقرار بينزل كرت بموضوع «عام» بدون مبلغ، ومين بيشوف المبلغ بيحدده المالك."),
+      tip("ما في نقل لرسائل تيليجرام القديمة: المساحة بتبدأ فاضية من الرسائل. اللي بدك تحتفظ فيه من روابط وأفكار انسخه بنفسك، ورقم أي زبون ما تنقله."),
+    ],
+  }),
+
   article("credits", {
     title: "الاعتمادات والرخص",
     summary: "مين صوّر الصورة ومين صمّم الخطوط اللي بالنظام، وتحت أي رخصة.",
@@ -862,7 +920,7 @@ export function findArticle(slug: string): Article | undefined {
 
 /** An article ready to draw for one viewer, or null: it does not exist, or it is above their level. */
 export interface ViewArticle {
-  slug: ArticleSlug;
+  slug: ArticleSlug | ExtraArticleSlug;
   title: string;
   summary: string;
   audience: Audience;

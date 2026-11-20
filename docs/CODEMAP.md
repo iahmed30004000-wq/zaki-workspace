@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 385 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 180 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 182 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -464,7 +464,7 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requir
 | GET, POST | `/api/work/tasks` | requireActor | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn, isFeatureOn<br>`instant-work`: createInboxTask, createInstantTask, inboxSpaceFor<br>`my-work`: workScreenFor<br>`org-day`: orgTimeZone |
 | GET | `/api/work/tasks/[id]` | requireActor | `features`: assertFeatureOn<br>`my-work`: getWorkTaskDetail |
 | POST | `/api/work/tasks/[id]/stage` | requireTeamWork | `features`: assertFeatureOn<br>`tasks`: moveTask<br>`n8n`: dispatchEvent |
-| GET, POST | `/api/workspaces` | requireUser | `workspaces`: createWorkspace<br>`access`: accessibleWorkspaceIds<br>`current-space`: currentSpace<br>`nav-order`: foreignSpaceOf, overdueBySpace<br>`features`: orgSummaryOf<br>`work-requests`: waitingRequestCount |
+| GET, POST | `/api/workspaces` | requireUser | `workspaces`: createWorkspace<br>`features`: assertFeatureOn<br>`access`: accessibleWorkspaceIds<br>`current-space`: currentSpace<br>`nav-order`: foreignSpaceOf, overdueBySpace<br>`features`: orgSummaryOf<br>`work-requests`: waitingRequestCount |
 | GET, PATCH, DELETE | `/api/workspaces/[id]` | requireWorkspace ‡ | `workspaces`: SpaceConflictError, deleteEmptyWorkspace, readWorkspace |
 | POST | `/api/workspaces/[id]/archive` | requireActor | `workspaces`: SpaceConflictError<br>`space-manage`: archiveSchema, setSpaceArchived |
 | GET, POST | `/api/workspaces/[id]/delete-all` | requireActor | `workspaces`: SpaceConflictError<br>`space-delete`: deleteAllSchema, deleteSpaceWithWork, spaceContents |
@@ -542,7 +542,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-assistant-proposals` | 400 | 8 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `owner-board-io` | 78 | 8 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
-| `workspaces` | 334 | 8 | Spaces (workspaces): who is in one, who may change it. |
+| `workspaces` | 394 | 8 | Spaces (workspaces): who is in one, who may change it. |
 | `approval-forms` | 297 | 7 | «نموذج» — reusable forms that create approval requests. |
 | `assistant-provider` | 78 | 7 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `campaigns` | 307 | 7 | Campaigns live inside a department (marketing calendars). |
@@ -684,8 +684,8 @@ to be added to, and the places a bug can leave the row half-written.
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 16 | `server/services/files.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>+4 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
-| `Conversation` | 28 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+11 more |
-| `ConversationMember` | 21 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 5<br>`server/chat/read-state.ts`: 3<br>`server/chat/messages.ts`: 2<br>+4 more |
+| `Conversation` | 29 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+11 more |
+| `ConversationMember` | 22 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 5<br>`server/chat/read-state.ts`: 3<br>`server/chat/messages.ts`: 2<br>+5 more |
 | `ChatMessage` | 13 | `server/chat/messages.ts`: 5<br>`server/chat/link-preview.ts`: 2<br>`server/services/must-read.ts`: 2<br>`server/chat/door-message.ts`: 1<br>+3 more |
 | `LinkPreview` | 3 | `server/chat/link-preview.ts`: 3 |
 | `ScheduledChatMessage` | 6 | `server/chat/scheduled.ts`: 5<br>`server/jobs/chat-scheduled.ts`: 1 |
@@ -709,7 +709,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `WorkspaceMember` | 17 | `server/services/accounts.ts`: 6<br>`server/services/workspaces.ts`: 5<br>`server/services/department-space.ts`: 3<br>`server/chat/hq.ts`: 2<br>+1 more |
 | `Team` | 8 | `server/services/teams.ts`: 4<br>`server/services/accounts.ts`: 3<br>`server/services/workspaces.ts`: 1 |
 | `TeamMember` | 6 | `server/services/teams.ts`: 3<br>`server/services/accounts.ts`: 1<br>`server/services/department-space.ts`: 1<br>`server/services/workspaces.ts`: 1 |
-| `Project` | 9 | `server/services/accounts.ts`: 2<br>`server/services/instant-work.ts`: 2<br>`app/api/projects/[id]/route.ts`: 1<br>`app/api/projects/route.ts`: 1<br>+3 more |
+| `Project` | 10 | `server/services/accounts.ts`: 2<br>`server/services/instant-work.ts`: 2<br>`app/api/projects/[id]/route.ts`: 1<br>`app/api/projects/route.ts`: 1<br>+4 more |
 | `Milestone` | 5 | `server/services/milestones.ts`: 3<br>`server/services/accounts.ts`: 2 |
 | `Board` | 4 | `app/api/boards/[id]/route.ts`: 1<br>`app/api/boards/route.ts`: 1<br>`server/services/instant-work.ts`: 1<br>`server/services/production.ts`: 1 |
 | `BoardColumn` | 4 | `app/api/boards/[id]/columns/[columnId]/route.ts`: 2<br>`app/api/boards/[id]/columns/route.ts`: 1<br>`app/api/boards/[id]/route.ts`: 1 |
@@ -888,6 +888,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
 | `zakiEmojis` | 1 — `server/chat/topics.ts` |
 | `controlPanelV2` | 7 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `server/services/control-panel.ts` |
+| `spaceTemplates` | 2 — `app/api/workspaces/route.ts`, `components/space-templates/new-space-from-template.tsx` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
 | `semanticSearch` | 6 — `app/(app)/settings/page.tsx`, `components/control-panel/sections/features-section.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
@@ -985,6 +986,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
 | `controlPanelV2` | 7 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `server/services/control-panel.ts` |
+| `spaceTemplates` | 2 — `app/api/workspaces/route.ts`, `components/space-templates/new-space-from-template.tsx` |
 
 ## 9. What this map noticed
 

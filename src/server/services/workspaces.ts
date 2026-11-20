@@ -1,13 +1,14 @@
 import * as crypto from "node:crypto";
-import type { WorkspaceRole } from "@prisma/client";
+import { Prisma, type WorkspaceRole } from "@prisma/client";
 import { db } from "@/server/db";
-import { ForbiddenError, NotFoundError, requireUser, type OrgAccessContext } from "@/server/auth";
+import { ForbiddenError, NotFoundError, requireUser, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { canManageWorkspaceMembers } from "@/server/services/access";
 import { workspaceRoleOf, type WorkspaceRoleName } from "@/server/workspace-role";
 import { emitRealtime } from "@/server/realtime/emit";
 import { forgetTypingFacts } from "@/server/chat/typing-gate";
 import type { SpaceLayout } from "@/lib/cards/shared";
-import { ensureStarterTopics, SPACE_STARTER_TOPICS, spaceTopicIdOf } from "@/server/chat/space-topics";
+import { applyTemplateTopics, ensureStarterTopics, SPACE_STARTER_TOPICS, spaceTopicIdOf } from "@/server/chat/space-topics";
+import { spaceTemplateOf, templateBoardIdOf, templateColumnIdOf, templateProjectIdOf, type SpaceTemplateKey, type TemplateProject } from "@/lib/spaces/templates";
 
 /**
  * Spaces (workspaces): who is in one, who may change it.
@@ -41,6 +42,11 @@ export interface CreateWorkspaceInput {
   memberIds?: readonly string[];
   /** «نوع المساحة»: STANDARD (the default) or CARDS (a space of «لوحات» only). */
   layout?: SpaceLayout;
+  /**
+   * I1.2 «قوالب المساحات»: one of `SPACE_TEMPLATE_KEYS`. The topics (and the pipeline project) of the template are made inside the new space, after its starter topics;
+   * nobody is added by it. Only for an ordinary space (STANDARD). The caller has already checked the switch `spaceTemplates`. Absent: the space is made exactly as before.
+   */
+  template?: SpaceTemplateKey;
 }
 
 /**
@@ -52,6 +58,9 @@ export interface CreateWorkspaceInput {
  * The caller must already have checked the right to do it (capability `spaces.create`).
  */
 export async function createWorkspace(userId: string, input: CreateWorkspaceInput) {
+  // a template is for an ordinary space: a space of «لوحات» or «تصنيع» is made of cards and keeps its own shape
+  if (input.template && (input.layout ?? "STANDARD") !== "STANDARD") throw new ValidationError([{ path: "template", message: "spaces.template_layout" }]);
+  const template = input.template ? spaceTemplateOf(input.template) : undefined;
   const wanted = unique(input.memberIds).filter((id) => id !== userId);
   const people = wanted.length
     ? await db.organizationMember.findMany({
@@ -75,6 +84,7 @@ export async function createWorkspace(userId: string, input: CreateWorkspaceInpu
       slug,
       description: input.description ?? null,
       layout: input.layout ?? "STANDARD",
+      ...(template?.emoji ? { emoji: template.emoji } : {}),
       members: {
         create: [
           { userId, role: "ADMIN" as WorkspaceRole },
@@ -86,7 +96,57 @@ export async function createWorkspace(userId: string, input: CreateWorkspaceInpu
   });
   // its own talk from the first day: entering a new space opens on «عام» and «التنبيهات», never a blank chat
   await ensureStarterTopics(input.organizationId, workspace.id);
+  if (template) await applySpaceTemplate({ orgId: input.organizationId, spaceId: workspace.id, userId, template: template.key });
   return { workspace, added: people.map((p) => p.userId) };
+}
+
+/**
+ * I1.2: applies a template to ONE space of the company: its topics (`applyTemplateTopics`) and its projects, nothing anywhere else. Safe to repeat: every row
+ * has a fixed id, so the second time finds what the first made. «الشركة» gets topics but never a project (D-N3). The creator must be a person of the space
+ * (a private topic is created with them alone). The starter topics come first, so the order of a space reads «عام»، «التنبيهات»، then the template's own.
+ */
+export async function applySpaceTemplate(input: { orgId: string; spaceId: string; userId: string; template: SpaceTemplateKey }): Promise<void> {
+  const template = spaceTemplateOf(input.template);
+  if (!template) throw new NotFoundError("workspace.not_found");
+  const space = await db.workspace.findFirst({ where: { id: input.spaceId, organizationId: input.orgId }, select: { id: true, kind: true } });
+  if (!space) throw new NotFoundError("workspace.not_found");
+  // checked before anything is written: a creator who is not in the space gets neither the starters nor the template's topics
+  const inSpace = await db.workspaceMember.count({
+    where: { workspaceId: space.id, userId: input.userId, user: { memberships: { some: { organizationId: input.orgId, status: "ACTIVE" } } } },
+  });
+  if (!inSpace) throw new ForbiddenError("teams.member_not_in_space");
+  await ensureStarterTopics(input.orgId, space.id);
+  await applyTemplateTopics(input.orgId, space.id, input.userId, template.topics);
+  if (space.kind === "HQ") return;
+  for (const project of template.projects) await applyTemplateProject(space.id, project);
+}
+
+/** One template project with its board and its columns (each with its W1.3 stage), made once: a second call, or a second request at the same time, finds it. */
+async function applyTemplateProject(spaceId: string, project: TemplateProject): Promise<void> {
+  const id = templateProjectIdOf(spaceId, project.key);
+  if (await db.project.findUnique({ where: { id }, select: { id: true } })) return;
+  try {
+    await db.project.create({
+      data: {
+        id,
+        workspaceId: spaceId,
+        name: project.name,
+        status: "ACTIVE",
+        boards: {
+          create: {
+            id: templateBoardIdOf(spaceId, project.key),
+            name: project.boardName,
+            columns: {
+              create: project.stages.map((s, i) => ({ id: templateColumnIdOf(spaceId, project.key, i), name: s.name, position: i, done: s.done === true, stage: s.stage })),
+            },
+          },
+        },
+      },
+    });
+  } catch (err) {
+    // somebody else made it a moment ago
+    if (!(err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002")) throw err;
+  }
 }
 
 // ---------- reading ----------

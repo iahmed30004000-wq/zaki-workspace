@@ -18,6 +18,7 @@ import { SpaceDeleteButton } from "@/components/space-delete-button";
 import { fmtNumber } from "@/lib/format";
 import { goHref } from "@/lib/space-link";
 import { settingsHref } from "@/components/space-settings/tabs";
+import { NewSpaceFromTemplate } from "@/components/space-templates/new-space-from-template";
 
 export interface BoardCard {
   id: string;
@@ -67,28 +68,36 @@ export function SpacesBoard({ cards, hereId, manage, owner, settingsLinks = fals
   }
 
   return (
-    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {hq.map((s) => (
-        <li key={s.id} className="relative">
-          <SpaceCardView card={s} here={s.id === hereId} />
-        </li>
-      ))}
+    <>
+      {/* «مساحة من قالب» (I1.2): drawn only to a person who may open a space and only while the switch `spaceTemplates` is on; nothing here otherwise */}
       {manage ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
-          <SortableContext items={rest.map((c) => c.id)} strategy={rectSortingStrategy}>
-            {rest.map((s) => (
-              <SortableCard key={s.id} card={s} here={s.id === hereId} owner={owner} settingsLinks={settingsLinks} />
-            ))}
-          </SortableContext>
-        </DndContext>
-      ) : (
-        rest.map((s) => (
+        <div className="flex justify-end">
+          <NewSpaceFromTemplate />
+        </div>
+      ) : null}
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {hq.map((s) => (
           <li key={s.id} className="relative">
             <SpaceCardView card={s} here={s.id === hereId} />
           </li>
-        ))
-      )}
-    </ul>
+        ))}
+        {manage ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
+            <SortableContext items={rest.map((c) => c.id)} strategy={rectSortingStrategy}>
+              {rest.map((s) => (
+                <SortableCard key={s.id} card={s} here={s.id === hereId} owner={owner} settingsLinks={settingsLinks} />
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          rest.map((s) => (
+            <li key={s.id} className="relative">
+              <SpaceCardView card={s} here={s.id === hereId} />
+            </li>
+          ))
+        )}
+      </ul>
+    </>
   );
 }
 
