@@ -347,9 +347,9 @@ export function TaskFromSelectionDialog({
                 {error}
               </p>
             ) : null}
-            <button type="submit" disabled={busy || !boardId} className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-accent px-3 text-sm font-semibold text-accent-fg disabled:opacity-60">
+            <Button type="submit" disabled={busy || !boardId} className="w-full">
               {ct("chatc.work.make_task")}
-            </button>
+            </Button>
           </form>
         </DialogBody>
       </DialogContent>
