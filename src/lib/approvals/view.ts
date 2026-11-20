@@ -57,6 +57,12 @@ export interface ListItem {
   currentStep: number;
   requester: PersonRef;
   amount: AmountView | null;
+  /**
+   * Present ONLY on a request of a money form («طلب مصروف», «تحويل بين الصناديق», I1.3): `true` when the request has an amount that the viewer
+   * may not see (they hold neither `prices.view` nor `cash.view` and did not ask it themselves). The figure, the currency and the invoice photo
+   * are cut on the server; this is only the flag that lets the screen say so.
+   */
+  amountHidden?: boolean;
   createdAt: string;
   updatedAt: string;
   decidedAt: string | null;

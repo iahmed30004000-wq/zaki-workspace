@@ -142,7 +142,7 @@
   "members.cap.prices.view.title": "رؤية الأسعار",
   "members.cap.prices.view.hint": "تظهر له الأسعار والقيم المالية في الشاشات.",
   "members.cap.cash.view.title": "بطاقة الصندوق",
-  "members.cap.cash.view.hint": "يرى عهدة النقد (البيانات تأتي من نظام الطلبات).",
+  "members.cap.cash.view.hint": "تظهر له مبالغ طلبات المصروف والتحويل بين الصناديق (مصاريف المكتب الداخلية بس) وصورة الفاتورة. أرصدة الصناديق وفلوس الطلبات بتضل بنظام الطلبات.",
   "members.cap.penalties.view.title": "الجزاءات والمكافآت",
   "members.cap.penalties.view.hint": "يرى جزاءات ومكافآت كل الموظفين (للرواتب).",
   "members.cap.integrations.manage.title": "الربط والأتمتة",

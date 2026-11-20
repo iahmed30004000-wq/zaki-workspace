@@ -163,7 +163,7 @@ describe("the areas of the person's sheet", () => {
     expect(areaOf("archive.view")).toBeNull();
   });
 
-  it("offer every wired capability once and the unwired ones never: announce.send and escalation.configure are back, cash.view and penalties.view are not", () => {
+  it("offer every wired capability once and the unwired ones never: announce.send and escalation.configure are back, cash.view is wired by I1.3, penalties.view is not", () => {
     for (const member of [person(), person({ role: "ADMIN" }), person({ role: "LEAD", revokedCapabilities: ["tasks.view"] })]) {
       const areas = permissionAreas(member, owner, true);
       const offered = areas.flatMap((a) => [
@@ -174,7 +174,7 @@ describe("the areas of the person's sheet", () => {
       expect([...offered].sort()).toEqual([...WIRED_CAPABILITIES].sort());
       expect(offered).toContain("announce.send");
       expect(offered).toContain("escalation.configure");
-      expect(offered).not.toContain("cash.view");
+      expect(offered).toContain("cash.view");
       expect(offered).not.toContain("penalties.view");
     }
     const byId = (id: string) => permissionAreas(person(), owner, true).find((a) => a.id === id);
@@ -222,7 +222,7 @@ describe("the areas of the person's sheet", () => {
     const areas = permissionAreas(person(), off, true);
     expect(areas.every((a) => a.grid.length === 0)).toBe(true);
     const customers = areas.find((a) => a.id === "customers")!;
-    expect(customers.rows.map((r) => r.capability)).toEqual(["crm.view", "crm.edit", "prices.view"]);
+    expect(customers.rows.map((r) => r.capability)).toEqual(["crm.view", "crm.edit", "prices.view", "cash.view"]);
     // an area with only grid boxes («الملفات») has nothing left to show
     expect(areas.find((a) => a.id === "files")).toBeUndefined();
   });
@@ -260,9 +260,9 @@ describe("«شو بيقدر يعمل؟» by area", () => {
     expect(explainState(off.find((r) => r.capability === "calls.view")!, true)).toBe("cannot");
   });
 
-  it("never lists cash.view or penalties.view, and lists the archive only on a partner's sheet", () => {
+  it("lists cash.view (wired by I1.3) but never penalties.view, and lists the archive only on a partner's sheet", () => {
     const plain = explainAreas(person({ role: "ADMIN" }), allOn).flatMap((a) => a.rows.map((r) => r.capability));
-    expect(plain).not.toContain("cash.view");
+    expect(plain).toContain("cash.view");
     expect(plain).not.toContain("penalties.view");
     expect(plain).not.toContain("archive.view");
     const partner = explainAreas(person({ role: "OWNER", primaryOwner: false, revokedCapabilities: ["archive.view"] }), allOn).flatMap((a) => a.rows);
@@ -323,11 +323,11 @@ describe("the person's permissions panel", () => {
     expect(count(markup, /role="checkbox"/g)).toBe(SECTION_CAPABILITIES.length);
   });
 
-  it("offers announce.send and escalation.configure as switches again, and names cash and penalties only as «قريبًا»", () => {
+  it("offers announce.send, escalation.configure and cash.view (I1.3) as switches, and names penalties only as «قريبًا»", () => {
     const markup = panel(person({ role: "ADMIN" }));
     expect(count(markup, /role="switch"/g)).toBe(SWITCHES.length);
-    for (const c of ["announce.send", "escalation.configure"]) expect(markup, c).toContain(t(`members.cap.${c}.hint`));
-    for (const c of ["cash.view", "penalties.view"]) {
+    for (const c of ["announce.send", "escalation.configure", "cash.view"]) expect(markup, c).toContain(t(`members.cap.${c}.hint`));
+    for (const c of ["penalties.view"]) {
       expect(markup, c).toContain(t(`members.cap.${c}.title`));
       expect(markup, c).not.toContain(t(`members.cap.${c}.hint`));
     }

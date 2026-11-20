@@ -5,13 +5,15 @@ import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, Plus, X } from "lucide-react";
 import { apiPost, apiPut } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
-import { FIELD_TYPES, FORM_LIMITS, nextFieldId, type FieldType, type FormField, type FormSchema } from "@/lib/approvals/forms";
+import { AR } from "@/lib/i18n/dict";
+import { FIELD_TYPES, FORM_LIMITS, expenseSchema, nextFieldId, transferSchema, type FieldType, type FormField, type FormPurpose, type FormSchema } from "@/lib/approvals/forms";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ApproverPicker, type Candidate } from "./approver-picker";
 import { errorPath, errorText } from "./errors";
+import { ExpenseNote } from "./expense-note";
 
 /** A field as the editor holds it: every box is text (options one per line, bounds as typed). */
 export interface EditorField {
@@ -37,8 +39,9 @@ export function editorOf(field: FormField): EditorField {
 }
 
 /** The `schema` the routes take: only the properties the field's type has (the server refuses any other). */
-export function schemaOf(fields: EditorField[], approvers: string[]): unknown {
+export function schemaOf(fields: EditorField[], approvers: string[], purpose?: FormPurpose | null): unknown {
   return {
+    ...(purpose ? { purpose } : {}),
     fields: fields.map((f) => {
       const out: Record<string, unknown> = { id: f.id, type: f.type, label: f.label, required: f.required };
       if (f.type === "choice") out["options"] = f.optionsText.split("\n").map((o) => o.trim()).filter(Boolean);
@@ -50,6 +53,18 @@ export function schemaOf(fields: EditorField[], approvers: string[]): unknown {
       return out;
     }),
     approvers,
+  };
+}
+
+/** I1.3: «طلب مصروف» / «تحويل بين الصناديق» as the editor holds them: a name, a description, the fixed fields (the boxes one per line) and the purpose. */
+export function presetEditor(kind: FormPurpose): { name: string; description: string; fields: EditorField[]; purpose: FormPurpose } {
+  const boxes = [AR["expense.preset.box1"] ?? "", AR["expense.preset.box2"] ?? ""];
+  const schema = kind === "expense" ? expenseSchema({ boxes, approvers: [] }) : transferSchema({ boxes, approvers: [] });
+  return {
+    name: AR[`expense.preset.${kind}.name`] ?? "",
+    description: AR[`expense.preset.${kind}.description`] ?? "",
+    fields: schema.fields.map(editorOf),
+    purpose: kind,
   };
 }
 
@@ -75,6 +90,8 @@ export function FormBuilder({
   const [description, setDescription] = useState(initial?.description ?? "");
   const [fields, setFields] = useState<EditorField[]>(initial ? initial.schema.fields.map(editorOf) : [blankField([])]);
   const [approvers, setApprovers] = useState<string[]>(initial?.schema.approvers ?? []);
+  // a money form keeps its purpose across edits (the server refuses an edit that drops it)
+  const [purpose, setPurpose] = useState<FormPurpose | null>(initial?.schema.purpose ?? null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ text: string; index: number | null } | null>(null);
 
@@ -93,7 +110,7 @@ export function FormBuilder({
     setBusy(true);
     setError(null);
     try {
-      const body = { name, description: description.trim() || null, schema: schemaOf(fields, approvers) };
+      const body = { name, description: description.trim() || null, schema: schemaOf(fields, approvers, purpose) };
       if (initial) await apiPut(`/api/approval-forms/${initial.familyId}`, { ...body, baseVersion: initial.version });
       else await apiPost("/api/approval-forms", { ...body, workspaceId });
       router.push("/approvals/forms");
@@ -108,6 +125,35 @@ export function FormBuilder({
 
   return (
     <form onSubmit={save} className="space-y-4" data-form-builder>
+      {!initial ? (
+        <section className="space-y-1 text-xs" data-expense-presets>
+          <h2 className="text-sm font-semibold text-fg">{t("expense.preset.title")}</h2>
+          <p className="text-fg-muted">{t("expense.preset.hint")}</p>
+          <ExpenseNote />
+          <div className="flex flex-wrap gap-2">
+            {(["expense", "transfer"] as const).map((kind) => (
+              <Button
+                key={kind}
+                type="button"
+                variant="secondary"
+                size="sm"
+                data-expense-preset={kind}
+                onClick={() => {
+                  const preset = presetEditor(kind);
+                  setName(preset.name);
+                  setDescription(preset.description);
+                  setFields(preset.fields);
+                  setPurpose(preset.purpose);
+                  setError(null);
+                }}
+              >
+                {t(`expense.preset.${kind}.name`)}
+              </Button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+      {purpose && initial ? <ExpenseNote /> : null}
       <label className="block space-y-1 text-xs" htmlFor="fb-name">
         <span className="font-medium text-fg">{t("approvals.builder.name")}</span>
         <Input id="fb-name" value={name} maxLength={FORM_LIMITS.name} onChange={(e) => setName(e.target.value)} required />

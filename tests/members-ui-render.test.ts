@@ -344,11 +344,9 @@ describe("the panel of one person: only what the actor may do is offered", () =>
       expect(grouped, cap).toContain(cap);
       expect(WIRED_CAPABILITIES, cap).not.toContain(cap);
     }
-    // the two the security review counted as guarding nothing (C3) that are still wired to nothing (A1.2: announce.send and escalation.configure are wired now and offered again), and the owner-only archive never appears
-    for (const cap of ["cash.view", "penalties.view"] as const) {
-      expect(SOON_CAPABILITIES, cap).toContain(cap);
-    }
-    for (const cap of ["announce.send", "escalation.configure"] as const) {
+    // the one the security review counted as guarding nothing (C3) that is still wired to nothing (A1.2: announce.send and escalation.configure are wired now and offered again; I1.3: cash.view too), and the owner-only archive never appears
+    expect(SOON_CAPABILITIES).toContain("penalties.view");
+    for (const cap of ["announce.send", "escalation.configure", "cash.view"] as const) {
       expect(SOON_CAPABILITIES, cap).not.toContain(cap);
       expect(WIRED_CAPABILITIES, cap).toContain(cap);
     }
@@ -392,10 +390,10 @@ describe("the panel of one person: only what the actor may do is offered", () =>
       id: "u-y",
       name: "سلمى",
       role: "MEMBER",
-      capabilities: ["cash.view", "penalties.view"],
+      capabilities: ["penalties.view"],
     });
-    // an ADMIN with the two switches still wired to nothing stored as removed (A1.2: announce.send is offered again, so it is no longer an example)
-    const lead = contractMember({ id: "u-z", name: "رنا", role: "ADMIN", revokedCapabilities: ["cash.view", "penalties.view"] });
+    // an ADMIN with the switch still wired to nothing stored as removed (A1.2: announce.send is offered again and I1.3 wired cash.view, so neither is an example any more)
+    const lead = contractMember({ id: "u-z", name: "رنا", role: "ADMIN", revokedCapabilities: ["penalties.view"] });
     for (const person of [hiddenOnly, lead]) {
       const markup = render(sheet(person));
       expect(markup).not.toContain("أُضيف فوق الرتبة");
@@ -408,11 +406,11 @@ describe("the panel of one person: only what the actor may do is offered", () =>
   it("a person who cannot hand out a switch sees it locked, with why (a team lead who was given users.manage lacks integrations.manage and, since 2026-10-25, spaces.create)", () => {
     const markup = render(sheet(MEMBER, leadManagerActor));
     expect(markup).toContain(t("members.caps_locked_actor"));
-    // integrations.manage, spaces.create, «لوحة الفريق» (board.team), «الهيكل» (people.manage_lines), «تقييم الفريق» (people.review), the three of «مخزون التصنيع» (view and edit are an ADMIN's, the cost the owner's alone) and, offered again by A1.2, announce.send and escalation.configure (an ADMIN's): a lead holds none by default
-    expect(count(markup, /role="switch"[^>]*disabled=""/g)).toBe(10);
-    // an ADMIN holds every wired switch but the four the owner alone hands out (board.team, people.manage_lines, people.review, manufacturing.cost): those are locked
+    // integrations.manage, spaces.create, «لوحة الفريق» (board.team), «الهيكل» (people.manage_lines), «تقييم الفريق» (people.review), the three of «مخزون التصنيع» (view and edit are an ADMIN's, the cost the owner's alone) , announce.send and escalation.configure (an ADMIN's) and, wired by I1.3, cash.view (the owner's extra): a lead holds none by default
+    expect(count(markup, /role="switch"[^>]*disabled=""/g)).toBe(11);
+    // an ADMIN holds every wired switch but the four the owner alone hands out (board.team, people.manage_lines, people.review, manufacturing.cost) and cash.view (an extra only the owner gives): those are locked
     const admin = render(sheet(MEMBER, adminActor));
-    expect(count(admin, /role="switch"[^>]*disabled=""/g)).toBe(4);
+    expect(count(admin, /role="switch"[^>]*disabled=""/g)).toBe(5);
   });
 
   it("a suspended person can be reactivated or offboarded, not suspended again", () => {

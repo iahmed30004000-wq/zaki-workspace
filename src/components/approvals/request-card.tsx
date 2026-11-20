@@ -36,6 +36,11 @@ export function RequestCard({ item, showSpace = false }: { item: ListItem; showS
             {money}
           </p>
         ) : null}
+        {item.amountHidden ? (
+          <p className="mt-1 text-xs text-fg-muted" data-approval-amount-hidden>
+            {t("approvals.amount_hidden")}
+          </p>
+        ) : null}
         {item.waitingOn ? <p className="mt-1 text-xs text-warn">{interpolate(t("approvals.card.waiting_on"), { name: item.waitingOn.name })}</p> : null}
         {item.steps.length > 0 ? (
           <p className="mt-1 text-xs text-fg-muted">

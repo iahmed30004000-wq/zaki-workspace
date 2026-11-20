@@ -59,6 +59,16 @@ export function DetailBody({ detail, showSpace = true }: { detail: ApprovalDetai
         </section>
       ) : null}
 
+      {detail.amountHidden ? (
+        <section className="space-y-1" data-approval-amount-hidden>
+          <p className="text-sm text-fg">
+            <span className="text-xs text-fg-muted">{t("approvals.detail.amount")}: </span>
+            <span className="font-semibold">{t("approvals.amount_hidden")}</span>
+          </p>
+          <p className="text-xs text-fg-muted">{t("approvals.amount_hidden_fix")}</p>
+        </section>
+      ) : null}
+
       {detail.details ? <p className="whitespace-pre-wrap rounded-xl border border-border bg-surface-1 p-3 text-sm text-fg" data-approval-details>{detail.details}</p> : null}
 
       {detail.linkedTo ? (

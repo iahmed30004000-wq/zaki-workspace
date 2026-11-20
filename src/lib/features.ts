@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "zakiEmojis"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -347,6 +347,12 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // stays on «ليل» exactly as today (`DEFAULT_THEME` and the installed app's colours never change), and «تلقائي حسب الجهاز» then picks between «ليل» and «نهار». Nobody who CHOSE a theme is moved.
   // ⚠️ People who never chose see a different look the next time they open the app. 🔧 Turn it off here and they are back on «ليل» at once; their own picks are untouched.
   themeV2Default: false,
+  // «نماذج المصروف» (src/server/services/approval-forms.ts, src/lib/approvals/forms.ts `purpose`, I1.3): two ready forms on the EXISTING approvals - «طلب مصروف» (amount, currency, which box, reason, a photo of the
+  // invoice) and «تحويل بين الصناديق» - filled in the space, approved in «الطلبات» through the same door as any approval, and the decision posted as a card into the space's «عام» topic with NO amount in the message. The amount
+  // is shown only to people holding «رؤية الأسعار» or «بطاقة الصندوق» (cut on the server, the invoice photo with it); the person who asked keeps their own. ⚠️ Internal office spending only: order money, wallets and cash balances stay in
+  // the orders system, and nothing here moves money or is approved from a chat message. 🔧 OFF by default: off, no money form can be made or filled, the ones already made are not offered, the requests already made stay readable
+  // and their amounts stay cut, and no card is posted.
+  expenseForms: false,
   semanticSearch: false,
   // «قراءة نص الصور» (src/server/services/image-ocr.ts): a button on a picture (a chat image, a library image) sends it to a vision model service the
   // owner set up (env OCR_URL, OCR_MODEL, optional OCR_API_KEY; an https public name or an inside address, judged by src/server/ai/local-host.ts),
@@ -592,4 +598,5 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   navV2: { group: "platform" },
   themeSwitchFx: { group: "platform" },
   themeV2Default: { group: "platform" },
+  expenseForms: { group: "work", dependsOn: ["approvals"] },
 };

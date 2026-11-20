@@ -3,9 +3,10 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError, ValidationError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
-import { FORM_LIMITS, renderAnswers, renderedProblem, validateAnswers, validateSchema, type Answers, type FormSchema, type Issue } from "@/lib/approvals/forms";
+import { FORM_LIMITS, moneyOf, purposeOf, renderAnswers, renderedProblem, validateAnswers, validateSchema, type Answers, type FormSchema, type Issue } from "@/lib/approvals/forms";
 import { chainProblem } from "@/lib/approvals/shared";
 import type { FormListItem, PersonRef } from "@/lib/approvals/view";
+import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { approvalsGate, ineligible, notFound, spaceViewer } from "./approval-access";
 import { namesOf } from "./approval-notify";
 import { ApprovalConflictError, createApproval, resubmitApproval, type ResubmitInput } from "./approvals";
@@ -21,6 +22,10 @@ import { ApprovalConflictError, createApproval, resubmitApproval, type ResubmitI
  * from (`formId`), so it keeps its own questions; its answers were validated against exactly that version.
  *
  * A FORM IS DATA: six field types and a fixed list of properties (src/lib/approvals/forms.ts); no script, no formula, no file.
+ *
+ * MONEY FORMS (I1.3): a schema with a `purpose` («طلب مصروف», «تحويل بين الصناديق») behind the switch `expenseForms`. Its `amount` and `currency`
+ * answers are lifted into the request's own amount columns (cut on the server for anybody without `prices.view` / `cash.view`, src/server/services/approvals.ts)
+ * and are never written into the request's words or its stored answers. Internal office spending only; nothing moves money.
  */
 
 type Who = Pick<Actor, "userId" | "orgId" | "role" | "isOwner" | "isExternal">;
@@ -91,10 +96,13 @@ export async function listForms(who: Who, workspaceId: string): Promise<FormList
   await approvalsGate(who);
   const viewer = await spaceViewer(who, workspaceId);
   if (!viewer.sees) throw notFound();
-  const rows = await db.formTemplate.findMany({
-    where: { orgId: who.orgId, workspaceId, isLatest: true, ...(viewer.manager ? {} : { archivedAt: null }) },
-    orderBy: [{ name: "asc" }, { id: "asc" }],
-  });
+  const moneyOn = await isFeatureOn(who.orgId, "expenseForms");
+  const rows = (
+    await db.formTemplate.findMany({
+      where: { orgId: who.orgId, workspaceId, isLatest: true, ...(viewer.manager ? {} : { archivedAt: null }) },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
+    })
+  ).filter((r) => moneyOn || purposeOf(r.schema) === null);
   const names = await namesOf(rows.flatMap((r) => schemaOf(r.schema).approvers));
   const gone = new Set(await ineligible(who.orgId, workspaceId, [...new Set(rows.flatMap((r) => schemaOf(r.schema).approvers))]));
   return rows.map((r) => {
@@ -119,6 +127,8 @@ export async function listForms(who: Who, workspaceId: string): Promise<FormList
 export async function getForm(who: Who, familyId: string): Promise<FormDetail> {
   const { row, viewer } = await latestRow(who, familyId);
   if (row.archivedAt && !viewer.manager) throw notFound();
+  // a money form does not exist while the switch is off (the requests already made stay readable)
+  if (purposeOf(row.schema) !== null && !(await isFeatureOn(who.orgId, "expenseForms"))) throw notFound();
   const schema = schemaOf(row.schema);
   const names = await namesOf(schema.approvers);
   return {
@@ -146,6 +156,7 @@ async function checkedSchema(who: Who, workspaceId: string, raw: unknown): Promi
 /** «نموذج جديد»: a manager of the space. Version 1. Audited. */
 export async function createForm(who: Who, workspaceId: string, body: FormBody): Promise<{ id: string; familyId: string; version: number }> {
   await managerOf(who, workspaceId);
+  if (purposeOf(body.schema) !== null) await assertFeatureOn(who.orgId, "expenseForms");
   const name = tidyName(body.name);
   const description = tidyDescription(body.description);
   const schema = await checkedSchema(who, workspaceId, body.schema);
@@ -170,11 +181,16 @@ export async function createForm(who: Who, workspaceId: string, body: FormBody):
 export async function updateForm(who: Who, familyId: string, body: FormBody & { baseVersion?: number }): Promise<{ id: string; familyId: string; version: number }> {
   const { row } = await latestRow(who, familyId);
   await managerOf(who, row.workspaceId);
+  // a money form stays a money form: an edit that drops (or changes) its purpose would let its next version carry the amount in the open
+  const was = purposeOf(row.schema);
+  const next = purposeOf(body.schema);
+  if (was !== null || next !== null) await assertFeatureOn(who.orgId, "expenseForms");
+  if (was !== null && next !== was) throw bad("purpose", "approvals.f.purpose_locked");
   const name = tidyName(body.name);
   const description = tidyDescription(body.description);
   const schema = await checkedSchema(who, row.workspaceId, body.schema);
   if (body.baseVersion !== undefined && body.baseVersion !== row.version) throw new ApprovalConflictError("approvals.f.stale");
-  const next = await db.$transaction(async (tx) => {
+  const written = await db.$transaction(async (tx) => {
     const closed = await tx.formTemplate.updateMany({ where: { id: row.id, isLatest: true }, data: { isLatest: false } });
     if (closed.count !== 1) throw new ApprovalConflictError("approvals.f.stale");
     const created = await tx.formTemplate.create({
@@ -196,7 +212,7 @@ export async function updateForm(who: Who, familyId: string, body: FormBody & { 
     });
     return created;
   });
-  return { id: next.id, familyId, version: next.version };
+  return { id: written.id, familyId, version: written.version };
 }
 
 /** «أرشِف» / «أعِد»: nothing is deleted; an archived form is not offered for filling and keeps every request made from it. */
@@ -224,9 +240,14 @@ export async function submitForm(who: Who, familyId: string, input: FillInput): 
   const { row } = await latestRow(who, familyId);
   if (row.archivedAt) throw new ApprovalConflictError("approvals.f.archived");
   const schema = schemaOf(row.schema);
+  // a money form is filled only while the switch is on (404 `features.off`, like any switched-off feature)
+  if (schema.purpose) await assertFeatureOn(who.orgId, "expenseForms");
   const checked = validateAnswers(schema, input.answers);
   if (!checked.ok) throw issuesError(checked.issues);
-  const details = renderAnswers(schema, checked.value);
+  const money = moneyOf(schema, checked.value);
+  if (money && !money.ok) throw issuesError(money.issues);
+  const kept = money?.ok ? money.value.rest : checked.value;
+  const details = renderAnswers(schema, kept);
   const long = renderedProblem(details);
   if (long) throw bad("answers", long);
   const own = chainProblem(schema.approvers, who.userId);
@@ -234,8 +255,16 @@ export async function submitForm(who: Who, familyId: string, input: FillInput): 
   if ((await ineligible(who.orgId, row.workspaceId, schema.approvers)).length > 0) throw bad("approvers", "approvals.f.preset_invalid");
   return createApproval(
     who,
-    { workspaceId: row.workspaceId, title: row.name, details, approverIds: schema.approvers, link: input.link ?? null, fileIds: input.fileIds },
-    { formId: row.id, answers: checked.value },
+    {
+      workspaceId: row.workspaceId,
+      title: row.name,
+      details,
+      approverIds: schema.approvers,
+      link: input.link ?? null,
+      fileIds: input.fileIds,
+      ...(money?.ok ? { amountMinor: money.value.amountMinor, currency: money.value.currency } : {}),
+    },
+    { formId: row.id, answers: kept },
   );
 }
 
@@ -255,8 +284,13 @@ export async function resubmitForm(who: Who, requestId: string, answers: unknown
   const schema = schemaOf(row.schema);
   const checked = validateAnswers(schema, answers);
   if (!checked.ok) throw issuesError(checked.issues);
-  const details = renderAnswers(schema, checked.value as Answers);
+  const money = moneyOf(schema, checked.value);
+  if (money && !money.ok) throw issuesError(money.issues);
+  const kept = money?.ok ? money.value.rest : (checked.value as Answers);
+  const details = renderAnswers(schema, kept);
   const long = renderedProblem(details);
   if (long) throw bad("answers", long);
-  return resubmitApproval(who, requestId, rest, { answers: checked.value, details });
+  // the amount of a money form comes from its answers, never from the body's own amount boxes
+  const amount = money?.ok ? { amountMinor: money.value.amountMinor, currency: money.value.currency } : {};
+  return resubmitApproval(who, requestId, { ...rest, ...amount }, { answers: kept, details });
 }

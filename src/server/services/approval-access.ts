@@ -1,7 +1,9 @@
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import { featureOn } from "@/lib/features";
+import { purposeOf, type FormPurpose } from "@/lib/approvals/forms";
 import { assertFeatureOn } from "@/server/services/features";
+import { holdsCapability } from "@/server/services/active-people";
 import { canWriteInWorkspace, isSpaceManager } from "@/server/workspace-role";
 
 /**
@@ -73,6 +75,27 @@ export async function spaceViewer(who: PersonCtx, workspaceId: string): Promise<
   };
 }
 
+/**
+ * I1.3 - does this person see the AMOUNT of an office-money request? Only a holder of `prices.view` or `cash.view` (read from the database, a guest
+ * and a suspended person hold neither). The person who asked is told by the caller: they always see their own.
+ */
+export async function seesMoney(who: { orgId: string; userId: string }): Promise<boolean> {
+  return (await holdsCapability(who, "cash.view")) || (await holdsCapability(who, "prices.view"));
+}
+
+/** Of these form rows (a request's `formId`), the ones that are money forms, with their purpose. A null or an ordinary form is not in the map. */
+export async function moneyForms(formIds: readonly (string | null)[]): Promise<Map<string, FormPurpose>> {
+  const ids = [...new Set(formIds.filter((id): id is string => id !== null))];
+  if (ids.length === 0) return new Map();
+  const rows = await db.formTemplate.findMany({ where: { id: { in: ids } }, select: { id: true, schema: true } });
+  const out = new Map<string, FormPurpose>();
+  for (const row of rows) {
+    const purpose = purposeOf(row.schema);
+    if (purpose) out.set(row.id, purpose);
+  }
+  return out;
+}
+
 /** May this person read this request? (`approverIds`: everybody named in ANY version of its chain.) */
 export function mayRead(viewer: SpaceViewer, userId: string, request: { requesterId: string }, approverIds: readonly string[]): boolean {
   if (!viewer.sees) return false;
@@ -130,11 +153,14 @@ export async function mayReadApprovalFile(who: PersonCtx, fileId: string): Promi
   for (const link of links) {
     const request = await db.approvalRequest.findFirst({
       where: { id: link.requestId, orgId: who.orgId },
-      select: { workspaceId: true, requesterId: true, steps: { select: { approverId: true } } },
+      select: { workspaceId: true, requesterId: true, formId: true, steps: { select: { approverId: true } } },
     });
     if (!request) continue;
     const viewer = await spaceViewer(who, request.workspaceId);
-    if (mayRead(viewer, who.userId, request, request.steps.map((s) => s.approverId))) return true;
+    if (!mayRead(viewer, who.userId, request, request.steps.map((s) => s.approverId))) continue;
+    // the invoice photo of an office-money request shows its amount: it follows the amount's rule (the person who asked keeps their own)
+    if (request.formId && request.requesterId !== who.userId && (await moneyForms([request.formId])).has(request.formId) && !(await seesMoney(who))) continue;
+    return true;
   }
   return false;
 }
