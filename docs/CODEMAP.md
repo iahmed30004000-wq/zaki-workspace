@@ -460,7 +460,7 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requir
 | POST | `/api/watch/[id]/end` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: endWatch |
 | GET, POST, PATCH | `/api/watch/[id]/remote` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: handOverRemote, handOverSchema, pressRemote, pressSchema, … |
 | GET | `/api/work/requests` | requireActor | `features`: assertFeatureOn<br>`work-requests`: requestsScopeHere, workRequestsOf |
-| GET, POST | `/api/work/stale` | requireActor | `features`: assertFeatureOn<br>`stale-tasks`: staleListFor, sweepStale |
+| GET, POST | `/api/work/stale` | requireActor | `current-space`: currentSpace<br>`features`: assertFeatureOn<br>`stale-tasks`: staleListFor, sweepStale |
 | GET, POST | `/api/work/tasks` | requireActor | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn, isFeatureOn<br>`instant-work`: createInboxTask, createInstantTask, inboxSpaceFor<br>`my-work`: workScreenFor<br>`org-day`: orgTimeZone |
 | GET | `/api/work/tasks/[id]` | requireActor | `features`: assertFeatureOn<br>`current-space`: currentSpace<br>`my-work`: workTaskPanelFor |
 | POST | `/api/work/tasks/[id]/stage` | requireTeamWork | `features`: assertFeatureOn<br>`tasks`: moveTask<br>`n8n`: dispatchEvent |
@@ -502,7 +502,7 @@ high count is a wide surface: changing its signature reaches all of them.
 |---|---|---|---|
 | `features` | 87 | 165 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 120 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `current-space` | 155 | 71 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
+| `current-space` | 155 | 73 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 273 | 47 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 34 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
@@ -597,7 +597,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
 | `sessions` | 159 | 3 | C4.2 — the person's signed-in devices (`UserSession`), the one place that reads and writes them. |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
-| `stale-tasks` | 361 | 3 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
+| `stale-tasks` | 366 | 3 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
 | `system-tokens` | 59 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
 | `team-score-io` | 28 | 3 | `?kind=` as a period kind (anything else: the month). |
 | `analytics` | 66 | 2 | Numbers behind the analytics page. |

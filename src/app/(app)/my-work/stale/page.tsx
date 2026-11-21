@@ -3,6 +3,7 @@ import { pageActor } from "@/app/(app)/_access";
 import { GuestNotice } from "@/app/(app)/_guest";
 import { StaleTasksView } from "@/components/work/stale/stale-view";
 import { getServerT } from "@/lib/i18n/server";
+import { currentSpace } from "@/server/services/current-space";
 import { isFeatureOn } from "@/server/services/features";
 import { managedSpacesOf, staleListFor } from "@/server/services/stale-tasks";
 import { parseStaleParams, staleApiQuery } from "@/lib/work/stale";
@@ -24,7 +25,9 @@ export default async function StalePage({ searchParams }: { searchParams?: Recor
     return <div className="mx-auto max-w-2xl p-10 text-center text-sm text-muted">{t("stale.managers_only")}</div>;
   }
   const params = parseStaleParams(searchParams ?? {});
-  const initial = await staleListFor(actor, params);
+  // B4: each space is its own account: the list opens on the space the person is in
+  const space = await currentSpace(actor);
+  const initial = await staleListFor(actor, params, new Date(), { current: space ? { id: space.id, kind: space.kind } : null });
   // `key`: an address the screen did not make itself (a pasted link) is a NEW screen, not a stale one
   return <StaleTasksView key={staleApiQuery(params)} initial={initial} />;
 }

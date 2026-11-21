@@ -10,7 +10,7 @@ import { EmptyState } from "@/components/ui/card";
 import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { fmtNumber } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { STALE_ACTIONS, STALE_AUTO_FILTERS, staleApiQuery, type StaleAction, type StaleAutoFilter, type StalePerson, type StaleTask, type StaleView, type SweepResult } from "@/lib/work/stale";
+import { STALE_ACTIONS, STALE_ALL_SPACES, STALE_AUTO_FILTERS, staleApiQuery, staleParamsOf, type StaleAction, type StaleAutoFilter, type StalePerson, type StaleTask, type StaleView, type SweepResult } from "@/lib/work/stale";
 import { WORK_LIST, WORK_SELECT } from "@/components/work/look";
 import { AutoMark } from "./auto-mark";
 
@@ -27,7 +27,7 @@ export function StaleTasksView({ initial }: { initial: StaleView }) {
   const { t } = useI18n();
   const router = useRouter();
   const queryClient = useQueryClient();
-  const query = staleApiQuery(initial);
+  const query = staleApiQuery(staleParamsOf(initial));
   const list = useQuery({
     queryKey: [...STALE_KEY, query, initial.builtAt],
     queryFn: () => apiGet<StaleView>(`/api/work/stale${query ? `?${query}` : ""}`),
@@ -41,7 +41,7 @@ export function StaleTasksView({ initial }: { initial: StaleView }) {
   const allIds = useMemo(() => view.people.flatMap((p) => p.projects.flatMap((g) => g.tasks.map((task) => task.id))), [view]);
 
   const go = (patch: Partial<{ days: number; auto: StaleAutoFilter; space: string | null }>) => {
-    const next = staleApiQuery({ days: view.days, auto: view.auto, space: view.space, ...patch });
+    const next = staleApiQuery({ ...staleParamsOf(view), ...patch });
     router.push(`/my-work/stale${next ? `?${next}` : ""}`);
   };
   const toggle = (ids: readonly string[], on: boolean) =>
@@ -111,6 +111,7 @@ function Filters({ view, onChange }: { view: StaleView; onChange: (patch: Partia
   const { t } = useI18n();
   const dayChoices = [...new Set<number>([...DAY_CHOICES, view.days])].sort((a, b) => a - b);
   const field = `min-h-11 md:min-h-9 ${WORK_SELECT}`;
+  const here = view.spaces.find((s) => s.id === view.here) ?? null;
   return (
     <section aria-label={t("stale.filters")} className="space-y-2">
       <div className="flex flex-wrap items-center gap-3">
@@ -127,13 +128,17 @@ function Filters({ view, onChange }: { view: StaleView; onChange: (patch: Partia
         {view.spaces.length > 1 ? (
           <label className="flex items-center gap-2 text-sm text-fg-muted">
             {t("stale.space.label")}
-            <select className={field} value={view.space ?? ""} onChange={(e) => onChange({ space: e.target.value || null })}>
-              <option value="">{t("stale.space.all")}</option>
-              {view.spaces.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.name}
-                </option>
-              ))}
+            {/* each space is its own account: the space I am in is first (the default), «كل المساحات» a choice; inside «الشركة» «كل المساحات» is the default */}
+            <select className={field} value={staleParamsOf(view).space ?? ""} onChange={(e) => onChange({ space: e.target.value || null })}>
+              {here ? <option value="">{here.name}</option> : <option value="">{t("stale.space.all")}</option>}
+              {here ? <option value={STALE_ALL_SPACES}>{t("stale.space.all")}</option> : null}
+              {view.spaces
+                .filter((s) => s.id !== here?.id)
+                .map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
             </select>
           </label>
         ) : null}

@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 import { TodayWaitingCard } from "@/components/today/waiting-card";
 import { I18nProvider } from "@/lib/i18n";
 import { ToastProvider } from "@/components/ui/toast";
+import { STALE_ALL_SPACES, parseStaleParams, staleApiQuery, staleParamsOf } from "@/lib/work/stale";
 
 /**
  * B4 — each space is its own account: the parts of the screens that draw the per-space groups of «الشركة» (the view over all the spaces) and the
@@ -57,5 +58,19 @@ describe("Today «بانتظار قرارك»", () => {
     expect(markup.match(/انتقل/g)).toHaveLength(2);
     // the rows are replaced by the groups: nothing is listed twice
     expect(markup).not.toContain('href="/approvals/r1"');
+  });
+});
+
+describe("«مهام قديمة»: asking for the same answer again", () => {
+  const base = { days: 14, auto: "all" as const };
+
+  it("the space I am in is the default and is left out of the address; «كل المساحات» is written as `all` (left out it would mean the space I am in); another space is written by id", () => {
+    expect(staleParamsOf({ ...base, space: "a", here: "a" }).space).toBeNull();
+    expect(staleParamsOf({ ...base, space: null, here: "a" }).space).toBe(STALE_ALL_SPACES);
+    expect(staleParamsOf({ ...base, space: "b", here: "a" }).space).toBe("b");
+    // inside «الشركة» (no space «here») all the spaces ARE the default
+    expect(staleParamsOf({ ...base, space: null, here: null }).space).toBeNull();
+    expect(staleApiQuery(staleParamsOf({ ...base, space: null, here: "a" }))).toBe("space=all");
+    expect(parseStaleParams(new URLSearchParams("space=all")).space).toBe(STALE_ALL_SPACES);
   });
 });
