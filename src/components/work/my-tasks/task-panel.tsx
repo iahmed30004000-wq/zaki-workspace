@@ -10,6 +10,7 @@ import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { goHref } from "@/lib/space-link";
 import { isForeignTask } from "@/lib/work/my-tasks";
+import { DueDayChip } from "./due-chip";
 import { useWorkTask } from "./use-work-tasks";
 
 /**
@@ -19,11 +20,14 @@ import { useWorkTask } from "./use-work-tasks";
  */
 export function TaskPanel({
   taskId,
+  todayIso,
   onClose,
   onToggle,
   onDue,
 }: {
   taskId: string | null;
+  /** The company's today (what makes the due chip say «اليوم» and «بكرا»). */
+  todayIso?: string;
   onClose: () => void;
   onToggle: (id: string, done: boolean) => void;
   onDue: (id: string, day: string | null) => void;
@@ -95,14 +99,7 @@ export function TaskPanel({
                 <dt className="text-fg-muted">{t("task.due")}</dt>
                 <dd>
                   {task.editable ? (
-                    <input
-                      key={task.dueDay ?? "none"}
-                      type="date"
-                      aria-label={t("task.due")}
-                      defaultValue={task.dueDay ?? ""}
-                      onChange={(e) => onDue(task.id, e.target.value === "" ? null : e.target.value)}
-                      className="rounded border border-border bg-transparent px-1 py-0.5 text-sm"
-                    />
+                    <DueDayChip day={task.dueDay} todayIso={todayIso} onChange={(day) => onDue(task.id, day)} className="border border-border text-fg" />
                   ) : (
                     <span suppressHydrationWarning>{task.dueDate ? fmtDMY(task.dueDate) : t("mytasks.due.none")}</span>
                   )}

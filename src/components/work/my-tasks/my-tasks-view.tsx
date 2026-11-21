@@ -144,7 +144,7 @@ export function MyTasksView({
         {data.truncated ? <p className="px-2 pt-3 text-center text-xs text-muted">{t("mytasks.truncated")}</p> : null}
       </div>
 
-      <TaskPanel taskId={params.taskId} onClose={() => go({ taskId: null })} onToggle={rowActions.onToggle} onDue={rowActions.onDue} />
+      <TaskPanel taskId={params.taskId} todayIso={data.todayIso} onClose={() => go({ taskId: null })} onToggle={rowActions.onToggle} onDue={rowActions.onDue} />
       <span className="sr-only" aria-live="polite">
         {t("mytasks.count", { n: fmtNumber(data.tasks.length) })}
       </span>

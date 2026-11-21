@@ -9,6 +9,7 @@ import { PinMark, RewardBadge, type RewardBadgeData } from "@/components/rewards
 import { StepProgressChip } from "@/components/task-steps/step-progress";
 import { RunningChip } from "@/components/time/running-chip";
 import { RecurringBadge } from "@/components/recurrence/recurring-badge";
+import { DueDayChip } from "@/components/work/my-tasks/due-chip";
 import { AutoMark } from "@/components/work/stale/auto-mark";
 import { PRIORITY_STYLES, fmtDMY, fmtRelative } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -112,15 +113,8 @@ export function WorkRow({
           />
           {showStage ? <StateChip tone={STAGE_TONE[task.columnStage] ?? "neutral"} className="max-md:hidden">{enumLabel("WorkStage", task.columnStage)}</StateChip> : null}
           {task.editable ? (
-            <input
-              // a refused change puts the old day back: the new value is a new element
-              key={task.dueDay ?? "none"}
-              type="date"
-              aria-label={t("task.due")}
-              defaultValue={task.dueDay ?? ""}
-              onChange={(e) => onDue(task.id, e.target.value === "" ? null : e.target.value)}
-              className={cn("w-28 max-md:w-24 rounded-lg border border-transparent bg-transparent px-1 py-0.5 text-[13px] hover:border-border focus:border-border focus:outline-none", overdue ? "text-danger" : "text-fg-muted")}
-            />
+            // P2.3: a short Arabic label (اليوم · بكرا · 23 تشرين الثاني) over the invisible native box: a tap opens the picker, `mm/dd/yyyy` is never drawn
+            <DueDayChip day={task.dueDay} todayIso={todayIso} overdue={overdue} onChange={(day) => onDue(task.id, day)} />
           ) : (
             <span className={cn("w-28 text-[13px]", overdue ? "text-danger" : "text-fg-muted")} title={task.dueDate ? fmtDMY(task.dueDate) : undefined} suppressHydrationWarning>
               {task.dueDate ? fmtRelative(task.dueDate) : ""}
