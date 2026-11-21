@@ -131,6 +131,23 @@ describe("the selection model", () => {
     expect(doors.removeMany(["a"])).toEqual({ path: "/api/chat/messages/delete", method: "POST", body: { ids: ["a"] } });
   });
 
+  it("S5.2: the forward door's body takes an optional comment (at most 1000 characters); the caps and the author switch are as they were", async () => {
+    const { forwardManySchema } = await import("@/server/chat/messages");
+    expect(forwardManySchema.safeParse({ messageIds: ["a"], targetIds: ["t"] }).success).toBe(true);
+    expect(forwardManySchema.safeParse({ messageIds: ["a"], targetIds: ["t"], withoutAuthor: true, comment: "شوف هاد" }).success).toBe(true);
+    expect(forwardManySchema.safeParse({ messageIds: ["a"], targetIds: ["t"], comment: "x".repeat(1000) }).success).toBe(true);
+    expect(forwardManySchema.safeParse({ messageIds: ["a"], targetIds: ["t"], comment: "x".repeat(1001) }).success).toBe(false);
+    expect(forwardManySchema.safeParse({ messageIds: ["a"], targetIds: Array.from({ length: 11 }, (_, i) => `t${i}`) }).success).toBe(false);
+    expect(forwardManySchema.safeParse({ messageIds: ["a"], targetIds: ["t"], comment: 5 }).success).toBe(false);
+  });
+
+  it("S5.2: the bar's forward button opens the sheet that sends by itself: the old list of targets and its checkbox grid are gone", () => {
+    const dialogs = readFileSync("src/components/chat/v2/menu/selection-dialogs.tsx", "utf8");
+    expect(dialogs).not.toContain("data-forward-target={t.id}");
+    expect(dialogs).not.toContain("chatsel.fwd.hide_author");
+    expect(dialogs).toContain("<ForwardSheet");
+  });
+
   it("the selected messages come back in the conversation's order, whatever order they were picked in, and a message that left the window is dropped", () => {
     expect(orderedSelection(["m2", "m1", "gone"], messages).map((m) => m.id)).toEqual(["m1", "m2"]);
   });

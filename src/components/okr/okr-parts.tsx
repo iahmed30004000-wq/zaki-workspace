@@ -192,7 +192,7 @@ export function KrFields({
         <span className="text-xs font-medium text-fg-muted">{t("okr.krTitle")}</span>
         <Input value={draft.title} onChange={(e) => set({ title: e.target.value })} minLength={2} maxLength={160} placeholder={t("okr.krTitlePlaceholder")} />
       </label>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         {linked ? null : (
           <label className="block space-y-1">
             <span className="text-xs font-medium text-fg-muted">{t("okr.krStart")}</span>

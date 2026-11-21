@@ -72,10 +72,11 @@ function DepartmentPicker({ rows, value, onChange }: { rows: Department[]; value
   );
 }
 
-export function TicketsDesk({ me, defaultDepartmentId }: { me: Me; defaultDepartmentId: string | null }) {
+export function TicketsDesk({ me, defaultDepartmentId, openTicketId = null }: { me: Me; defaultDepartmentId: string | null; openTicketId?: string | null }) {
   const { t } = useI18n();
   const manage = me.role === "OWNER" || me.role === "ADMIN";
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // a link to ONE ticket (`?ticket=`) opens its sheet at once
+  const [detailId, setDetailId] = useState<string | null>(openTicketId);
   const qc = useQueryClient();
   const mine = useQuery({
     queryKey: ["tickets", "mine"],

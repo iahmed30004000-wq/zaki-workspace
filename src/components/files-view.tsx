@@ -134,8 +134,8 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
 
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4">
-      <header className="flex items-center justify-between">
-        <div>
+      <header className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-[12rem] flex-1">
           <h1 className="text-xl font-bold">{t("files.title")}</h1>
           <p className="text-xs font-medium">{list.data?.space ? t("spacelib.of_space", { name: list.data.space.name }) : t("spacelib.of_company")}</p>
           <p className="text-xs text-muted">{t("spacelib.hint")}</p>
@@ -217,7 +217,7 @@ export function FilesView({ me, may = { edit: true, delete: true } }: { me: { id
                     </button>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   {f.previewable && (
                     <Button size="sm" variant="ghost" aria-label={t("files.preview")} onClick={() => setPreview(f)}>
                       <Eye className="size-4" />

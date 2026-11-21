@@ -110,13 +110,25 @@ export const FIRST_STEPS: readonly FirstStepDef[] = [
   },
 ];
 
-/** The steps this viewer is shown in this phase (a registry can be passed for tests or a later phase). */
+/**
+ * S3.3 — while «الإعدادات» is ONE door (the switch `settingsOneDoor`) the guide lives ONLY inside settings › «المساعدة», so the card has no step that sends a person to it («افتح الدليل»), and the theme has
+ * ONE home, «المظهر واللغة» of the person's own settings: that step leads there instead of to an article of the guide. Every other step is untouched. Pure: the module's list is never changed.
+ */
+export const ONE_DOOR_STEP_HREFS: Readonly<Record<string, string>> = { theme: "/settings/me/language" };
+export const ONE_DOOR_DROPPED_STEPS: readonly string[] = ["open-guide"];
+
+export function oneDoorSteps(registry: readonly FirstStepDef[]): FirstStepDef[] {
+  return registry.filter((step) => !ONE_DOOR_DROPPED_STEPS.includes(step.id)).map((step) => (ONE_DOOR_STEP_HREFS[step.id] ? { ...step, href: ONE_DOOR_STEP_HREFS[step.id] as string } : step));
+}
+
+/** The steps this viewer is shown in this phase (a registry can be passed for tests or a later phase). `oneDoor`: S3.3 above; left out, today's steps. */
 export function stepsFor(
   audience: Audience,
   phase: number = CURRENT_PHASE,
   registry: readonly FirstStepDef[] = FIRST_STEPS,
+  oneDoor = false,
 ): FirstStepDef[] {
-  return registry.filter((step) => step.availableFrom <= phase && canRead(audience, step.audience));
+  return (oneDoor ? oneDoorSteps(registry) : registry).filter((step) => step.availableFrom <= phase && canRead(audience, step.audience));
 }
 
 /** A step as the card receives it: plain data, safe to hand to the browser. */

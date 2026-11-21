@@ -191,7 +191,7 @@ describe("a guest gets the guest notice on /analytics, /settings, /goals and /id
   it("/analytics: the notice instead of the company's numbers and the staff names with their workload", async () => {
     const w = await companyWorld();
     await loginAs(w.guest.id);
-    const element = (await AnalyticsPage()) as PageElement;
+    const element = (await AnalyticsPage({})) as PageElement;
     const markup = await html(element);
     expect(markup).toContain(NOTICE);
     expect(markup).not.toContain(t("analytics.title"));
@@ -243,9 +243,9 @@ describe("everybody else keeps the four pages exactly as before", () => {
 
       // the reports box of the grid: a lead's and up by the template (the tab always was); a member gets the notice
       // (the OWNER's «التقارير» is a section of «لوحة التحكم» since 2026-11-02: his page sends him there; tests/db/control-panel.test.ts owns it)
-      if (person === w.owner) await expect(AnalyticsPage(), who).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
+      if (person === w.owner) await expect(AnalyticsPage({}), who).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
       else {
-        const reports = await html(AnalyticsPage());
+        const reports = await html(AnalyticsPage({}));
         expect(reports, who).not.toContain(NOTICE);
         if (person === w.member) expect(reports, who).toContain(t("access.section_off"));
         else expect(reports, who).toContain(t("analytics.title"));
@@ -275,7 +275,7 @@ describe("everybody else keeps the four pages exactly as before", () => {
     });
     await loginAs(w.member.id);
     (globalThis as { __zkCookieJar?: Map<string, string> }).__zkCookieJar?.set(SPACE_COOKIE, w.space.id);
-    expect(await html(AnalyticsPage())).toContain(`Staffer ${w.secret}`);
+    expect(await html(AnalyticsPage({}))).toContain(`Staffer ${w.secret}`);
   });
 });
 
@@ -401,24 +401,24 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   ideas: () => IdeasPage(),
   production: () => ProductionPage(),
   departments: () => DepartmentsPage(),
-  tickets: () => TicketsPage(),
+  tickets: () => TicketsPage({}),
   campaigns: () => CampaignsPage(),
   crm: () => CrmPage(),
   files: () => FilesPage(),
   documents: () => DocumentsPage(),
   knowledge: () => KnowledgePage(),
-  team: () => MembersPage(),
+  team: () => MembersPage({}),
   space: () => CurrentSpacePage(),
-  reports: () => AnalyticsPage(),
-  automation: () => AutomationPage(),
-  telegram: () => TelegramPage(),
+  reports: () => AnalyticsPage({}),
+  automation: () => AutomationPage({}),
+  telegram: () => TelegramPage({}),
   settings: () => SettingsPage(),
-  archive: () => ArchivePage(),
+  archive: () => ArchivePage({}),
   board: () => OwnerBoardPage({ searchParams: {} }),
   assistant: () => OwnerAssistantPage({ searchParams: {} }),
   checkins: () => CheckinsPage(),
   approvals: () => ApprovalsPage({ searchParams: {} }),
-  structure: () => StructurePage(),
+  structure: () => StructurePage({}),
   development: () => DevelopmentPage({ searchParams: {} }),
   // «الطلبات» of the new map (navV2): W1.4's inbox (the company's switch `workRequests` is on in this world; off, the same address serves the approvals page)
   requests: () => RequestsPage({ searchParams: {} }),
@@ -795,7 +795,7 @@ describe("W1.1: with the switch `workMyTasks` ON, «مهامي» serves every ra
 describe("W1.8: «الأقسام» «التذاكر» «الحملات» — a guest is refused on every page the tab is not offered on, and the tab is honest for staff", () => {
   const PAGES: { tab: TabKey; page: PageCall }[] = [
     { tab: "departments", page: () => DepartmentsPage() },
-    { tab: "tickets", page: () => TicketsPage() },
+    { tab: "tickets", page: () => TicketsPage({}) },
     { tab: "campaigns", page: () => CampaignsPage() },
   ];
 

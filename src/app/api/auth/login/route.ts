@@ -99,7 +99,8 @@ export async function POST(req: Request) {
       await db.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
       // Sign the session version read BEFORE the password check: a reset or "log out everywhere"
       // that landed during the check leaves this cookie already stale instead of being undone.
-      await startSession(user.id, { tv: user.tokenVersion });
+      // (a NEW session row for this device, with its user agent: the app's okhttp and every browser alike; the answer and its cookie are as before)
+      await startSession(user.id, { tv: user.tokenVersion, fresh: true, userAgent: req.headers.get("user-agent") });
       await audit("auth.login", { actorId: user.id, orgId: active.organizationId });
       const owed = onboardingStateOf(user, active.organization.settings);
       const res = NextResponse.json({ ok: true, next: owed.mustChangePassword || owed.transparencyPending ? "/onboarding" : "/" });

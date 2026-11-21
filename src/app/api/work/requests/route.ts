@@ -3,7 +3,7 @@ import { ForbiddenError } from "@/server/auth";
 import { withApi } from "@/server/api";
 import { requireActor } from "@/server/policy/actor";
 import { assertFeatureOn } from "@/server/services/features";
-import { workRequestsOf } from "@/server/services/work-requests";
+import { requestsScopeHere, workRequestsOf } from "@/server/services/work-requests";
 import { requestTabOf } from "@/components/work/requests/types";
 
 /**
@@ -17,7 +17,8 @@ export async function GET(req: Request) {
     if (actor.isExternal) throw new ForbiddenError("guest.no_access");
     await assertFeatureOn(actor.orgId, "workRequests");
     const tab = requestTabOf(new URL(req.url).searchParams.get("tab"));
-    return NextResponse.json(await workRequestsOf(actor, tab));
+    // B4: the space the caller is in (inside «الشركة»: all of them, grouped by space)
+    return NextResponse.json(await workRequestsOf(actor, tab, await requestsScopeHere(actor)));
   });
 }
 

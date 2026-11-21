@@ -17,6 +17,9 @@ import { Group, WarnFix } from "@/components/settings-me/parts";
  * C4.1 — «الأجهزة»: the Android app(s) paired with the account (`AppDevice`, the list of «ربط التطبيق» moved here), the browsers that receive notifications
  * (`PushSubscription`, with «افصل» = `DELETE /api/me/push/[id]`) and «اطلع من كل الأجهزة» (`POST /api/me/logout-everywhere`: ends every session of the person, THIS
  * device included — said on screen before the button is pressed, and the device's copy of the messages is wiped like at any sign-out).
+ *
+ * C4.2 — «الجلسات المفتوحة»: every device signed in to the account (`GET /api/me/sessions`, this one marked «هالجهاز») with «اطلع من هالجهاز» for ONE of them
+ * (`DELETE /api/me/sessions/[id]`): that device is refused at its next request and the others keep working. Ending THIS device is a sign-out and says so first.
  */
 
 /** The name of a browser the person will recognise, from its user agent: «كروم على ويندوز». Anything unknown is «متصفح ما بنعرف اسمه». */
@@ -63,14 +66,111 @@ function Browsers() {
   return (
     <ul data-browsers className="space-y-2">
       {list.map((s) => (
-        <li key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
-          <div className="min-w-0">
+        <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+          <div className="min-w-[10rem] flex-1">
             <p className="truncate text-sm font-medium text-fg">{browserLabelOf(s.userAgent, { unknown: t("settingsMe.v.browsers.unknown"), on: "على" })}</p>
             <p className="text-xs text-fg-muted">{s.lastUsedAt ? t("settingsMe.v.browsers.last", { when: fmtDateTime(s.lastUsedAt) }) : t("settingsMe.v.browsers.never")}</p>
           </div>
           <Button type="button" size="sm" variant="ghost" onClick={() => void remove(s.id)}>
             {t("settingsMe.v.browsers.remove")}
           </Button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** What a device leaves behind when the person signs out of it: nothing of the person stays queued or cached here for the next one. */
+async function leaveThisDevice(): Promise<void> {
+  await clearAllOutboxes();
+  await wipeChatCache();
+  clearMirror();
+  window.location.href = "/login";
+}
+
+interface SessionRow {
+  id: string;
+  current: boolean;
+  createdAt: string;
+  lastSeenAt: string;
+  userAgent: string | null;
+}
+
+/** The label of a session's device: the Android app (its HTTP client says so) or a browser the person will recognise. */
+export function sessionLabelOf(userAgent: string | null | undefined, words: { app: string; unknown: string; on: string }): string {
+  if (userAgent && /okhttp/i.test(userAgent)) return words.app;
+  return browserLabelOf(userAgent, { unknown: words.unknown, on: words.on });
+}
+
+function Sessions() {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const [list, setList] = useState<SessionRow[] | null>(null);
+  const [asking, setAsking] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = useCallback(async () => {
+    const res = await fetch("/api/me/sessions", { cache: "no-store", credentials: "same-origin" });
+    if (res.ok) setList(((await res.json()) as { sessions: SessionRow[] }).sessions);
+    else setList([]);
+  }, []);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function end(row: SessionRow) {
+    setBusy(true);
+    try {
+      await apiDelete(`/api/me/sessions/${encodeURIComponent(row.id)}`);
+    } catch {
+      toast(t("settingsMe.v.sessions.failed"), "error");
+      setBusy(false);
+      return;
+    }
+    if (row.current) {
+      await leaveThisDevice();
+      return;
+    }
+    toast(t("settingsMe.v.sessions.ended"), "success");
+    setAsking(null);
+    setBusy(false);
+    await load();
+  }
+
+  if (list === null) return <p className="text-sm text-fg-muted">{t("settingsMe.loading")}</p>;
+  if (list.length === 0) return <p className="text-sm text-fg-muted">{t("settingsMe.v.sessions.none")}</p>;
+  const words = { app: t("settingsMe.v.sessions.app"), unknown: t("settingsMe.v.browsers.unknown"), on: t("settingsMe.v.sessions.on") };
+  return (
+    <ul data-sessions className="space-y-2">
+      {list.map((s) => (
+        <li key={s.id} data-session={s.current ? "current" : "other"} className="space-y-2 rounded-xl border border-border bg-surface p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-[10rem] flex-1">
+              <p className="truncate text-sm font-medium text-fg">
+                {sessionLabelOf(s.userAgent, words)}
+                {s.current ? <span className="ms-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent">{t("settingsMe.v.sessions.current")}</span> : null}
+              </p>
+              <p className="text-xs text-fg-muted">{t("settingsMe.v.sessions.last", { when: fmtDateTime(s.lastSeenAt) })}</p>
+              <p className="text-xs text-fg-muted">{t("settingsMe.v.sessions.since", { when: fmtDateTime(s.createdAt) })}</p>
+            </div>
+            {asking === s.id ? null : (
+              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => (s.current ? setAsking(s.id) : void end(s))}>
+                {t("settingsMe.v.sessions.end")}
+              </Button>
+            )}
+          </div>
+          {asking === s.id ? (
+            <div role="alertdialog" aria-label={t("settingsMe.v.sessions.confirm")} className="space-y-2">
+              <p className="text-sm text-fg">{t("settingsMe.v.sessions.confirm")}</p>
+              <div className="flex gap-2">
+                <Button type="button" variant="danger" disabled={busy} onClick={() => void end(s)}>
+                  {t("settingsMe.v.everywhere.yes")}
+                </Button>
+                <Button type="button" variant="ghost" disabled={busy} onClick={() => setAsking(null)}>
+                  {t("settingsMe.v.everywhere.cancel")}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </li>
       ))}
     </ul>
@@ -92,11 +192,8 @@ function LogoutEverywhere() {
       setBusy(false);
       return;
     }
-    // this device signs out too: nothing of the person stays queued or cached here for the next one
-    await clearAllOutboxes();
-    await wipeChatCache();
-    clearMirror();
-    window.location.href = "/login";
+    // this device signs out too
+    await leaveThisDevice();
   }
 
   return (
@@ -141,6 +238,9 @@ export function DevicesSection({ appConnection }: { appConnection: boolean }) {
       </Group>
       <Group title={t("settingsMe.v.browsers")} hint={t("settingsMe.v.browsers.hint")} id="v-browsers">
         <Browsers />
+      </Group>
+      <Group title={t("settingsMe.v.sessions")} hint={t("settingsMe.v.sessions.hint")} id="v-sessions">
+        <Sessions />
       </Group>
       <Group title={t("settingsMe.v.everywhere")} hint={t("settingsMe.v.everywhere.hint")} id="v-everywhere">
         <LogoutEverywhere />

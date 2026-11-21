@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
-import { MoreVertical } from "lucide-react";
+import { Check, FolderPlus, MoreVertical } from "lucide-react";
+import { useRowMenuGestures } from "@/components/chat/v2/list/long-press";
+import { FolderSheetConnected } from "@/components/chat/v2/list/folder-sheet";
+import { useChatPrefs, useSaveChatPrefs } from "@/components/chat/v2/list/folder-tabs";
+import { folderMenuOffers, setChatInFolder } from "@/lib/chat/folders";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useOptionalToast } from "@/components/ui/toast";
 import { PurgeConfirm, RowMenuItems, rowMenuOffers, useRowCall, type RowAction } from "@/components/chat/home/row-menu";
@@ -65,49 +69,8 @@ export function rowHasMenu(row: ChatRowDto, ctx: RowMenuContext): boolean {
   return hasPersonalItems(row, ctx) || hasManagerItems(row, ctx);
 }
 
-const LONG_PRESS_MS = 500;
-
-/**
- * The gestures that open a row's menu: a right click, or a finger held for half a second (the click that follows a long press is swallowed so the
- * row does not open under the menu).
- */
-export function useRowMenuGestures(onOpen: () => void, enabled: boolean) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const swallow = useRef(false);
-  const clear = useCallback(() => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = null;
-  }, []);
-  useEffect(() => clear, [clear]);
-  if (!enabled) return {};
-  return {
-    onContextMenu: (event: React.MouseEvent) => {
-      event.preventDefault();
-      onOpen();
-    },
-    onTouchStart: () => {
-      clear();
-      timer.current = setTimeout(() => {
-        timer.current = null;
-        swallow.current = true;
-        onOpen();
-      }, LONG_PRESS_MS);
-    },
-    onTouchMove: clear,
-    onTouchEnd: () => {
-      clear();
-      // the click of a long press comes right after the finger lifts; if none comes (the browser sent a context menu instead) the next real click must not be swallowed
-      if (swallow.current) setTimeout(() => (swallow.current = false), 400);
-    },
-    onTouchCancel: clear,
-    onClickCapture: (event: React.MouseEvent) => {
-      if (!swallow.current) return;
-      swallow.current = false;
-      event.preventDefault();
-      event.stopPropagation();
-    },
-  };
-}
+/** The gestures that open a row's menu (a right click, a long press): they live in `list/long-press.ts` since S5.3, where the folder strip uses them too. */
+export { useRowMenuGestures };
 
 /** After a pin, an archive or a delete the list and the forum views are asked for again (the live line also sends it; this makes it immediate). */
 export function useRefreshChatRows() {
@@ -215,6 +178,54 @@ export function PersonalMenuItems({ row, call }: { row: ChatRowDto; call: Person
   );
 }
 
+/**
+ * S5.3 — «أضف لمجلد»: inside any `DropdownMenuContent`, one entry per folder of the person (a tick where the chat already is: choosing it again takes the
+ * chat out) and «مجلد جديد…» (opens the sheet with this chat picked). Mounted only while the menu is open, so the prefs are read then and not per row.
+ * Nothing at all while the company's switch `chatFolders` is off (the prefs say `foldersOn`), and nothing for a space's own row. One choice is one save.
+ */
+export function FolderMenuItems({ row, onNew }: { row: ChatRowDto; onNew: () => void }) {
+  const prefs = useChatPrefs();
+  const save = useSaveChatPrefs();
+  const toast = useOptionalToast();
+  if (!prefs.foldersOn || !prefs.orgId) return null;
+  const orgId = prefs.orgId;
+  const offers = folderMenuOffers(row, prefs.folders);
+  if (!offers) return null;
+  const choose = (item: (typeof offers.items)[number]) => {
+    const next = setChatInFolder(prefs.folders, item.id, row.id, !item.has);
+    if (next === prefs.folders) return;
+    save({ folders: { [orgId]: next } }).then(
+      () => toast?.toast(ct(item.has ? "chatfolders.removed_toast" : "chatfolders.added_toast", { name: item.name }), "success"),
+      () => toast?.toast(ct("chatfolders.failed"), "error"),
+    );
+  };
+  return (
+    <>
+      <DropdownMenuSeparator />
+      <DropdownMenuLabel>{ct("chatfolders.menu_label")}</DropdownMenuLabel>
+      {offers.items.map((item) => (
+        <DropdownMenuItem key={item.id} disabled={item.full} data-folder-menu-item={item.id} onSelect={() => choose(item)}>
+          <span aria-hidden="true">{item.emoji ?? "📁"}</span>
+          <span className="min-w-0 flex-1 truncate">{item.name}</span>
+          {item.has ? (
+            <>
+              <Check aria-hidden="true" className="size-4 text-accent" />
+              <span className="sr-only">{ct("chatfolders.menu_in")}</span>
+            </>
+          ) : null}
+          {item.full ? <span className="text-xs text-fg-muted">{ct("chatfolders.menu_full")}</span> : null}
+        </DropdownMenuItem>
+      ))}
+      {offers.canCreate ? (
+        <DropdownMenuItem data-folder-menu-new="" onSelect={onNew}>
+          <FolderPlus aria-hidden="true" className="size-4" />
+          {ct("chatfolders.menu_new")}
+        </DropdownMenuItem>
+      ) : null}
+    </>
+  );
+}
+
 export function RowActionsMenu({
   row,
   ctx,
@@ -234,6 +245,8 @@ export function RowActionsMenu({
   const router = useRouter();
   const refresh = useRefreshChatRows();
   const [confirming, setConfirming] = useState(false);
+  // S5.3: «مجلد جديد…» of the «أضف لمجلد» entry opens the small folder sheet with this chat already picked
+  const [folderSheet, setFolderSheet] = useState(false);
   const { busy: managing, call } = useRowCall((action: RowAction) => {
     refresh();
     if ((action === "purge" || action === "delete") && openConversationId === row.id) router.push(chatHref.list);
@@ -262,10 +275,12 @@ export function RowActionsMenu({
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           {personal ? <PersonalMenuItems row={row} call={mine.call} /> : null}
+          <FolderMenuItems row={row} onNew={() => setFolderSheet(true)} />
           {personal && managers ? <DropdownMenuSeparator /> : null}
           {managers ? <RowMenuItems id={row.id} pinned={row.pinned === true} call={call} onPurge={() => setConfirming(true)} {...target} /> : null}
         </DropdownMenuContent>
       </DropdownMenu>
+      {folderSheet ? <FolderSheetConnected open onOpenChange={setFolderSheet} initialChatIds={[row.id]} /> : null}
       {managers ? <PurgeConfirm open={confirming} id={row.id} title={row.title} busy={busy} call={call} onClose={() => setConfirming(false)} /> : null}
     </>
   );

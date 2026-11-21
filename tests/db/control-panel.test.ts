@@ -154,13 +154,13 @@ describe("who may open the control panel", () => {
     expect(old).toContain(AR["ownerboard.title.owner"]);
     expect(old).not.toContain('data-testid="cp-nav"');
     // «التقارير» is its own page again for the owner
-    await expect(AnalyticsPage()).resolves.toBeTruthy();
+    await expect(AnalyticsPage({})).resolves.toBeTruthy();
 
     await setFeature(w.org.id, "controlPanel", true);
     await setFeature(w.org.id, "ownerBoard", false);
     await expect(controlPanelAccess(await requireActor())).rejects.toMatchObject({ name: "NotFoundError" });
     expect(await html(await HomePage({}))).not.toContain('data-testid="control-panel"');
-    await expect(AnalyticsPage()).resolves.toBeTruthy();
+    await expect(AnalyticsPage({})).resolves.toBeTruthy();
   });
 
   it("«اليوم» draws the panel for the owner and for nobody else", async () => {
@@ -196,9 +196,9 @@ describe("who may open the control panel", () => {
   it("/analytics sends the owner into «التقارير» of the panel; an admin keeps the old page", async () => {
     const w = await world();
     await loginAs(w.owner.id);
-    await expect(AnalyticsPage()).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
+    await expect(AnalyticsPage({})).rejects.toThrow("NEXT_REDIRECT:/owner?v=reports");
     await loginAs(w.admin.id);
-    await expect(AnalyticsPage()).resolves.toBeTruthy();
+    await expect(AnalyticsPage({})).resolves.toBeTruthy();
   });
 });
 
@@ -246,12 +246,13 @@ describe("the panel's numbers and sentences", () => {
   it("an idea that waited more than 7 days for its first look is counted; a fresh one and a reviewed one are not", async () => {
     const w = await world();
     const idea = (title: string, status: "NEW" | "UNDER_REVIEW", createdAt: Date) =>
-      db.idea.create({ data: { orgId: w.org.id, creatorId: w.owner.id, title, status, createdAt } });
+      // B4: an idea lives in a space (its «الأفكار» page is that space's): the sentence counts per space, as the page its link opens does
+      db.idea.create({ data: { orgId: w.org.id, workspaceId: w.sales.id, creatorId: w.owner.id, title, status, createdAt } });
     await idea("قديمة", "NEW", ago(10));
     await idea("جديدة", "NEW", ago(1));
     await idea("انراجعت", "UNDER_REVIEW", ago(30));
     const home = await loadPanelHome(await accessAs(w.owner.id), NOW);
-    expect(home.insights.find((i) => i.id === "ideas_waiting")?.params).toEqual({ n: 1, days: 7 });
+    expect(home.insights.find((i) => i.id === "ideas_waiting")?.params).toEqual({ n: 1, days: 7, space: "المبيعات" });
   });
 
   it("a quiet company with nobody late: «ما في شي يستدعي الانتباه» and no warning", async () => {

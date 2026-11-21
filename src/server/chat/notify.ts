@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
 import { stripFormatting } from "@/lib/chat/format/parse";
+import { zakiToWords } from "@/lib/chat/zaki-emoji";
 import { pushNotification } from "@/server/notify";
 import { isViewing } from "@/server/realtime/viewing";
 import { canReadConversation, type ConversationFacts } from "@/server/policy/conversation";
@@ -32,9 +33,22 @@ import { pushChatNote } from "@/server/push-chat";
 /** How many characters of a message the bell and the push carry. */
 export const PREVIEW_CHARS = 140;
 
-/** The words of a body for a bell or a push: the markers stripped from the WHOLE body (a spoiler is masked, a link keeps its label), then cut. */
+/**
+ * The words of a body for a bell or a push: a Zaki emoji (`:zaki_party:`) first becomes its Arabic name in brackets (S5.6: nobody reads a raw code in a notification), the markers are stripped
+ * from the WHOLE body (a spoiler is masked, a link keeps its label), then it is cut.
+ */
 export function previewText(body: string): string {
-  return stripFormatting(body, { math: true, partial: true }).slice(0, PREVIEW_CHARS);
+  return stripFormatting(zakiToWords(body), { math: true, partial: true }).slice(0, PREVIEW_CHARS);
+}
+
+/**
+ * S5.2: what the bell and the push say for a forward that carried no comment: the words of the one message, or — for several — how many were passed on (Western digits,
+ * the Arabic number form of the noun). An attachment-only message has no words: the empty text becomes «أرسل مرفقًا» in `notifyAfterSend`.
+ */
+export function forwardedPreview(count: number, body: string): string {
+  if (count <= 1) return body;
+  if (count === 2) return "حوّل لك رسالتين";
+  return count % 100 >= 3 && count % 100 <= 10 ? `حوّل لك ${count} رسائل` : `حوّل لك ${count} رسالة`;
 }
 
 export async function notifyMessageToAudience(opts: {

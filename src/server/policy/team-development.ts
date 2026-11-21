@@ -3,7 +3,8 @@ import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { assertFeatureOn } from "@/server/services/features";
-import { subtreeOf, type ManagerMap } from "@/lib/team-development";
+import type { ManagerMap } from "@/lib/team-development";
+import { reportsFromLines } from "@/server/policy/people-scope";
 
 /**
  * «الأداء والتطوير» — WHO MAY READ AND WRITE WHAT, in one place. Every page and every route of the feature asks
@@ -64,7 +65,8 @@ export async function devAccess(actor: Actor): Promise<DevAccess> {
     rows.filter((r) => r.status === "ACTIVE" && r.role !== "GUEST").map((r) => [r.userId, { name: r.user.name, jobTitle: r.user.jobTitle ?? null, role: r.role }] as const),
   );
   const members = new Map(rows.filter((r) => r.role !== "GUEST").map((r) => [r.userId, { role: r.role, status: r.status }] as const));
-  const below = subtreeOf(managerOf, actor.userId).filter((id) => id !== actor.userId && staff.has(id) && staff.get(id)?.role !== "OWNER");
+  // «فريقي» (A2.3, D-A3): the one rule of policy/people-scope.ts: ACTIVE staff below the viewer, through any status, depth ≤ 6
+  const below = reportsFromLines(rows, actor.userId);
   const reach = actor.isOwner ? null : new Set(below);
   return {
     orgId: actor.orgId,

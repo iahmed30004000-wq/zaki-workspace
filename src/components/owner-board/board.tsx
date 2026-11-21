@@ -245,11 +245,11 @@ const FORMULA_OF: Record<string, string> = {
   lastActivity: "ownerboard.col.lastActivity.formula",
 };
 
-export function PeopleTable({ t, o, personHref, sortHref }: { t: ServerT; o: Overview; personHref: (userId: string) => string; sortHref: (key: SortKey, dir: "asc" | "desc") => string }) {
+export function PeopleTable({ t, o, personHref, sortHref, title }: { t: ServerT; o: Overview; personHref: (userId: string) => string; sortHref: (key: SortKey, dir: "asc" | "desc") => string; /** S3.3: the title when the table is a part of «الناس» («نشاط الناس»); left out, «الناس». */ title?: string }) {
   const tz = o.window.timeZone;
   return (
     <section data-testid="ob-people">
-      <h2 className="mb-2 text-sm font-semibold">{t("ownerboard.people.title")}</h2>
+      <h2 className="mb-2 text-sm font-semibold">{title ?? t("ownerboard.people.title")}</h2>
       {o.people.length === 0 ? (
         <p className="rounded-xl border border-border bg-surface-1 px-4 py-8 text-center text-sm text-muted">{t("ownerboard.people.empty")}</p>
       ) : (

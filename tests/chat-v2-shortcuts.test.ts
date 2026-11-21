@@ -250,19 +250,19 @@ describe("the sheet that lists them", () => {
     expect(html).toContain(AR["chatui.keys.title"]!);
   });
 
-  it("only «Ctrl» and «Esc» are Latin: Alt, Shift and Enter are written «ألت», «شيفت», «إنتر» and the arrows are ↑ ↓", () => {
+  it("the key names are Latin as on the keyboard — Ctrl, Alt, Shift, Esc (the owner, 2026-11-21) — and the arrows are ↑ ↓", () => {
     const text = html.replace(/<[^>]*>/g, " ");
-    const latin = text.replace(/\bCtrl\b/g, " ").replace(/\bEsc\b/g, " ").match(/[A-Za-z]{2,}/g) ?? [];
+    const latin = text.replace(/\bCtrl\b/g, " ").replace(/\bEsc\b/g, " ").replace(/\bAlt\b/g, " ").replace(/\bShift\b/g, " ").match(/[A-Za-z]{2,}/g) ?? [];
     expect(latin).toEqual([]);
     expect(html).toContain("Ctrl");
     expect(html).toContain("Esc");
-    expect(html).toContain(AR["chatui.keys.alt"]!);
-    expect(html).toContain(AR["chatui.keys.shift"]!);
-    expect(AR["chatui.keys.alt"]).toBe("ألت");
-    expect(AR["chatui.keys.shift"]).toBe("شيفت");
+    expect(html).toContain("Alt");
+    expect(html).toContain("Shift");
+    expect(AR["chatui.keys.alt"]).toBeUndefined();
+    expect(AR["chatui.keys.shift"]).toBeUndefined();
     expect(html).toContain("↑");
     expect(html).toContain("↓");
-    expect(text).not.toMatch(/\b(?:Alt|Shift|Enter|Return|Del|Tab)\b/);
+    expect(text).not.toMatch(/\b(?:Enter|Return|Del|Tab)\b/);
   });
 
   it("is drawn with theme tokens and logical sides only", () => {

@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
-import { MeetingButton } from "@/components/calls/meeting-button";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import { ChatPwaHost } from "@/components/pwa/chat-pwa-host";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
@@ -28,11 +27,16 @@ import { useForumHolds } from "@/lib/chat/v2/use-forum";
 import { useChatOrders } from "@/lib/chat/v2/use-orders";
 import { cn } from "@/lib/utils";
 import { CompanyRows } from "./company-rows";
+import { useInlineFolders } from "./folder-inline";
 import { FolderRail, FolderTabs, useChatPrefs } from "./folder-tabs";
 import { ListHeader } from "./list-header";
+import { useFolderSourceRows } from "./use-folder-chats";
 import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
 import { ListEmpty, ListError, ListSkeleton } from "./list-states";
 import { NewMessageFab } from "./new-message-fab";
+import { NewGroupDialog } from "@/components/chat/home/new-group-dialog";
+import { NewTopicDialog } from "@/components/chat/home/new-topic-dialog";
+import { useSpaceSections } from "@/lib/chat/v2/use-space-sections";
 import { VirtualRows } from "./virtual-rows";
 
 /**
@@ -161,13 +165,19 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const [folderKey, setFolderKey] = useState<TabKey>("all");
   // C3a.2: the person's own folders and the built-in tabs they hid (nothing of either until the prefs have come, or while the company's switch is off)
   const prefs = useChatPrefs();
+  // S5.3: the «+» at the end of the strip, the long press on a tab, and the sheets they open
+  const inline = useInlineFolders();
+  // S5.3: the rows the person's own folders are drawn from: the list, plus (one-list shape) the topics of the current space that a folder lists by hand
+  const folderSource = useFolderSourceRows(list, prefs.folders);
   const [query, setQuery] = useState("");
   const [newDm, setNewDm] = useState(false);
+  const [newGroup, setNewGroup] = useState(false);
+  const [newTopic, setNewTopic] = useState(false);
   const [creatingSpace, setCreatingSpace] = useState(false);
 
   // C3a.1: «الأرشيف» is offered only while the switch is on AND the person has a chat they archived (the server sends none as archived while it is off)
   const archived = list.personal && list.archivedRows.length > 0;
-  const folders = useMemo(() => tabsOf({ canOversee: list.canOversee, guest, archived, folders: prefs.folders, hidden: prefs.hidden }), [list.canOversee, guest, archived, prefs.folders, prefs.hidden]);
+  const folders = useMemo(() => tabsOf({ canOversee: list.canOversee, guest, archived, folders: prefs.folders, hidden: prefs.hidden, oneSpace: list.scope === "space" }), [list.canOversee, guest, archived, prefs.folders, prefs.hidden, list.scope]);
   const folder = tabKeyOf(folderKey, folders);
   // one of the person's own folders (its definition), or none: the tabs are the built-in ones plus theirs, and `folder` is the key of one of them
   const custom = useMemo(() => prefs.folders.find((f) => customTabKey(f.id) === folder) ?? null, [prefs.folders, folder]);
@@ -176,10 +186,10 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const words = normalizeQuery(query);
 
   const rows = useMemo(() => {
-    if (custom) return folderRows(list.rows, custom, { scope: list.scope, spaceId: list.spaceId }, { query: words, orders });
+    if (custom) return folderRows(folderSource, custom, { scope: list.scope, spaceId: list.spaceId }, { query: words, orders });
     if (builtin === null || isCompanyFolder(builtin)) return [];
     return listRows(builtin === "archived" ? list.archivedRows : list.rows, { scope: list.scope, spaceId: list.spaceId, folder: builtin, query: words, orders });
-  }, [list.rows, list.archivedRows, list.scope, list.spaceId, custom, builtin, words, orders]);
+  }, [list.rows, list.archivedRows, list.scope, list.spaceId, custom, builtin, words, orders, folderSource]);
   const items = useMemo(() => rowItems(rows), [rows]);
 
   // C2.6: the keyboard (Alt+↑/↓, Alt+Shift+↑/↓, Ctrl+1…9) reads the rows in the order they are drawn and the folders of THIS list. A space row is not a
@@ -203,10 +213,10 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       Object.fromEntries(
         folders.map((f) => {
           const def = prefs.folders.find((x) => customTabKey(x.id) === f.key);
-          return [f.key, def ? customFolderBadge(list.rows, def) : folderBadge(summary, f.key as ListFolderKey)];
+          return [f.key, def ? customFolderBadge(folderSource, def) : folderBadge(summary, f.key as ListFolderKey)];
         }),
       ) as Partial<Record<TabKey, number>>,
-    [folders, summary, prefs.folders, list.rows],
+    [folders, summary, prefs.folders, folderSource],
   );
 
   // the list of ONE space (D-N2 «كل مساحة حساب»): its topics have no manager flag of their own, so the space's own view says whether the viewer manages it
@@ -215,6 +225,12 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
     () => ({ enabled: rowMenu, canPurge, canModerate: oneSpace.space?.canModerate === true, personal: list.personal }),
     [rowMenu, canPurge, oneSpace.space?.canModerate, list.personal],
   );
+
+  // «موضوع جديد» (the owner, 2026-11-21): in the list of ONE space, for whoever may open a topic there (the server decides again); the dialog opens once the space's sections are in
+  const topicSpaceId = list.scope === "space" && !guest && oneSpace.space?.canCreateTopic === true ? list.spaceId : null;
+  const sections = useSpaceSections(topicSpaceId ?? "", newTopic);
+  const openTopic = topicSpaceId ? () => setNewTopic(true) : undefined;
+  const openGroup = guest ? undefined : () => setNewGroup(true);
 
   // «افتح مساحة» only for whoever may open one and only when there is nothing at all in the list (the old home's rule, the shell's own query)
   const empty = !list.isPending && list.rows.length === 0;
@@ -225,22 +241,17 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   return (
     <div className="flex min-h-0 flex-1">
       {/* the desktop keeps the folders in a column beside the list (like a messenger); the phone has them as a strip on top */}
-      {tall ? null : <FolderRail folders={folders} active={folder} badges={badges} onChange={setFolderKey} />}
+      {tall ? null : <FolderRail folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {tall ? (
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
         <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
       ) : (
-        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
+        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
-      {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} /> : null}
+      {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} /> : null}
       {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
       <ChatPwaHost guest={guest} />
-      {canMeet && tall ? (
-        <div className="shrink-0 border-b border-border/60 px-3 py-2">
-          <MeetingButton />
-        </div>
-      ) : null}
       {/* C3a.3: «المحفوظة» before it exists: one pinned entry on top of the list (the folder «الكل», no search) */}
       {savedOn && !hasSaved && !company && !words && folder === "all" && !list.isPending ? <SavedEntry tall={tall} /> : null}
       {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}
@@ -258,8 +269,11 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
       )}
 
-      {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} /> : null}
+      {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} onGroup={openGroup} onTopic={openTopic} canMeet={canMeet} /> : null}
       {!guest ? <NewDmDialog open={newDm} onOpenChange={setNewDm} /> : null}
+      {!guest ? <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} /> : null}
+      {topicSpaceId && oneSpace.space && newTopic && sections.settled ? <NewTopicDialog open onOpenChange={setNewTopic} space={{ id: topicSpaceId, name: oneSpace.space.name, sections: sections.sections }} /> : null}
+      {inline.element}
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
       </div>
     </div>

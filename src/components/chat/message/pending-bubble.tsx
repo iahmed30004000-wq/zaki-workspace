@@ -2,6 +2,9 @@ import React from "react";
 import type { OutboxItem } from "@/lib/chat/outbox/queue";
 import { ct } from "@/lib/chat/text";
 import { fmtTime } from "@/lib/format";
+import { JumboEmoji } from "@/components/chat/v2/bubble/jumbo-emoji";
+import { ZakiEmojiText } from "@/components/chat/v2/bubble/zaki-emoji-text";
+import { emojiTokens } from "@/lib/chat/zaki-emoji";
 
 /**
  * A message of mine that has not reached the server yet (the outbox, src/lib/chat/outbox/): the same bubble as my own
@@ -25,6 +28,8 @@ const action = "inline-flex min-h-11 items-center rounded-lg px-3 text-xs font-s
 export function PendingBubble({ item, onRetry, onDelete, onCopy, onEdit }: PendingBubbleProps) {
   const failed = Boolean(item.failed);
   const hasText = item.body.trim().length > 0;
+  // S5.6: the same words the sent bubble will have — a Zaki code is its picture (never the raw `:zaki_id:`) and one to three emojis alone are big (no pop: it is not an arrival)
+  const tokens = hasText ? emojiTokens(item.body) : null;
   return (
     <div className="group mb-2.5" data-message-row="mine" data-pending-message={item.clientId} data-outbox-state={failed ? "failed" : "pending"}>
       <div className="flex flex-row-reverse items-end gap-1.5">
@@ -35,7 +40,9 @@ export function PendingBubble({ item, onRetry, onDelete, onCopy, onEdit }: Pendi
             className={`max-w-[85%] min-w-0 break-words rounded-[17px] rounded-ee-md border border-dashed px-3 py-1.5 sm:max-w-[75%] ${failed ? "border-danger/50 bg-danger/10" : "border-bubble-out/60 bg-bubble-out text-bubble-out-fg opacity-80"}`}
           >
             {hasText
-              ? <p className="whitespace-pre-wrap text-sm leading-relaxed">{item.body}</p>
+              ? tokens && tokens.length <= 3
+                ? <JumboEmoji tokens={tokens} fresh={false} />
+                : <p className="whitespace-pre-wrap text-sm leading-relaxed"><ZakiEmojiText text={item.body} render={(plain) => plain} /></p>
               : <p className="text-sm italic text-fg-muted">{ct("outbox.attachments_only")}</p>}
             <span className="mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted">
               <time dateTime={new Date(item.createdAt).toISOString()} dir="ltr" className="tabular-nums">{fmtTime(new Date(item.createdAt).toISOString())}</time>

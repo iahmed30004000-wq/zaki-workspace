@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -347,6 +347,29 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // mark, is counted apart from people's own work and can be hidden from the list (the owner's answer D-W4 is pending: this is the recommended default). OFF by default: off, the page and its route answer «not found».
   workStaleSweep: false,
   zakiEmojis: true,
+  // «لوحة التحكم» الواحدة (src/components/control-panel/, src/lib/control-panel.ts, A2.1): /owner becomes ONE page with a side list of sections (نظرة عامة، الناس، التقارير، الحسابات والصلاحيات، المساحات، الميزات، التكاملات، الهيكل والتطوير،
+  // الأرشيف والرقابة، مساعد المالك، إعدادات الشركة); the existing screens are MOVED into it (the old addresses redirect to their section for the person who may open it), the AI connection is ONE place, the owner edits the
+  // templates of «قوالب الصلاحيات» and the company's landing page, pinned work tabs and menu order there. A section a person may not open answers «not found». OFF by default: /owner and every old page are exactly what they were.
+  controlPanelV2: false,
+  // «قوالب المساحات» (src/lib/spaces/templates.ts, src/server/services/workspaces.ts `applySpaceTemplate`, I1.2): «مساحة من قالب» on «كل المساحات» opens a space that already has the topics (and for «إنتاج المحتوى» the project
+  // «خط الإنتاج» with its stages) of the Telegram group it replaces: عمليات الطلبات، إنتاج المحتوى، الإدارة، منتج / براند، فاضية. The template writes only inside the new space, makes a topic private (only its creator) where the template says so,
+  // adds nobody beyond the creator and the people named at creation, and never makes a project in «الشركة». ⚠️ A template is a starting point, not a rule: its topics are ordinary topics. 🔧 OFF by default: off, the button is not shown
+  // and a request with a template answers «not found»; a space made with no template is exactly what it was either way, and the spaces already made keep everything.
+  spaceTemplates: false,
+  // «الإعدادات» باب واحد (src/lib/nav/places.ts `settingsOneDoor`, src/components/settings-me/, S3.1): the menu (drawer, rail, side menu, avatar menu) shows ONE row «الإعدادات» that opens «إعداداتي» (`/settings/me`) instead of «إعداداتي» + «دليل زاكي» + «ترتيب» + «الإدارة»;
+  // the frame gets two groups - «إعداداتي» (the person's own sections, the guide inside «المساعدة») and, for the owner and the admins, «إعدادات الشركة» (company data, the switches, the integrations, the spaces: the control panel's own section bodies, reused) with one
+  // row «لوحة التحكم»; «ترتيب» becomes a small icon button in the drawer's header and at the top of the rail; the place «الإدارة» leaves the menu of an admin who holds the panel (staff keep «الناس»). It needs `controlPanelV2` on (the section bodies and the rows into the panel live there): while that is off this
+  // switch changes nothing. OFF by default: off, the menu, /settings, /profile and every old address are exactly what they were; `/settings` and `/profile` and the old admin addresses answer either way.
+  settingsOneDoor: false,
+  // «إشارة التوثيق» (src/components/ui/verified-badge.tsx, `OrganizationMember.verifiedAt`, `POST /api/organizations/[id]/members/[userId]/verify`, S5.5): the OWNER (the rank, never a capability) gives a person a small check badge from the person's card in «الناس» and takes it back there; every
+  // grant and every revoke is a line in the audit log. The badge is drawn next to the name in the chat list, the conversation's header, the bubbles, the «@» list, the people dock and the members' lists. It is ONLY a badge: the screens carry a `verified` yes / no, never the time and never who granted it, and
+  // nothing is sent to a guest (a partner never learns who is who from it). ON by default: nothing shows until the owner grants a first one. Off: no badge is drawn anywhere and the control on the card disappears; the grants already made are kept and come back with the switch.
+  verifiedBadge: true,
+  // «تسجيل نص الاجتماعات» (src/server/calls/transcripts.ts, minutes.ts, `CallTranscriptLine`, `POST /api/voice-agent/transcript`, S6.2): the owner decided «لا بس كتابة»: ONLY TEXT is kept, NO audio is ever stored or uploaded. While this is on AND «المساعد بالاجتماعات» is on
+  // AND the owner turned the record on for ONE call, a visible mark «عم يتسجّل النص» is drawn for everybody in the call room, the voice agent sends each finished sentence (with who said it) through a signed door, the lines are kept for the retention days the owner sets (default 30, then deleted
+  // by a job), and when the call ends a job writes the minutes (summary, decisions, proposed tasks) through the owner's provider after the usual redaction, posts them into the call's conversation (a meeting by link: the space's «عام» topic, else only the page /calls/[id]/minutes), and the tasks wait as
+  // proposal cards the owner approves (nothing is created by itself). No guest ever sees a transcript. Without a graphics card the minutes arrive AFTER the call, not live. OFF by default: off, nothing is recorded, the mark and the button are not drawn, and what was already kept is deleted when its days run out.
+  meetingMinutes: false,
   // «المظهر الجديد افتراضي» (src/lib/themes/boot.ts, D1's `systemTheme()`, C4.1): for a person who NEVER chose a theme, and for «تلقائي حسب الجهاز» (a choice in «إعداداتي»), the device
   // decides between the two flat themes — «ليل أزرق» for a dark device, «سماء» for a light one — instead of «ليل» for everybody. OFF until the owner turns it on: a person who never chose
   // stays on «ليل» exactly as today (`DEFAULT_THEME` and the installed app's colours never change), and «تلقائي حسب الجهاز» then picks between «ليل» and «نهار». Nobody who CHOSE a theme is moved.
@@ -605,4 +628,9 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   themeSwitchFx: { group: "platform" },
   themeV2Default: { group: "platform" },
   expenseForms: { group: "work", dependsOn: ["approvals"] },
+  controlPanelV2: { group: "owner", dependsOn: ["ownerBoard"] },
+  spaceTemplates: { group: "work" },
+  settingsOneDoor: { group: "owner", dependsOn: ["controlPanelV2"] },
+  verifiedBadge: { group: "chat" },
+  meetingMinutes: { group: "owner", dependsOn: ["assistantInMeetings"] },
 };

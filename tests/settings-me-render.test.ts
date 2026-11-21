@@ -720,14 +720,14 @@ describe("C4.1 · the sections", () => {
     expect(moveKey(["a", "b", "c"], 2, 1)).toEqual(["a", "b", "c"]);
   });
 
-  it("«الاختصارات»: the table of the chat sheet plus Ctrl+0 and Ctrl+, ; only Ctrl and Esc are Latin", () => {
+  it("«الاختصارات»: the table of the chat sheet plus Ctrl+0 and Ctrl+, ; only the key names Ctrl, Alt, Shift and Esc are Latin", () => {
     const html = render(createElement(ShortcutsSection));
     expect(html.match(/<li /g)).toHaveLength(8 + 2);
     expect(html).toContain(AR["settingsMe.k.settings"] as string);
     expect(html).toContain(">Ctrl<");
     expect(html).toContain(">Esc<");
     expect(html).toContain(AR["chatsaved.keys.open"] as string);
-    const latinWords = [...html.matchAll(/>([^<]*)</g)].map((m) => m[1] as string).filter((text) => /[A-Za-z]{2,}/.test(text) && text !== "Ctrl" && text !== "Esc");
+    const latinWords = [...html.matchAll(/>([^<]*)</g)].map((m) => m[1] as string).filter((text) => /[A-Za-z]{2,}/.test(text) && !["Ctrl", "Alt", "Shift", "Esc"].includes(text));
     expect(latinWords).toEqual([]);
   });
 

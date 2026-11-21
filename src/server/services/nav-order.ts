@@ -4,15 +4,18 @@ import { ForbiddenError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { navExtrasOf } from "@/server/policy/org-settings";
 import { featuresOff } from "@/lib/features";
-import { buildNav, type NavModel, type NavSubject } from "@/lib/nav/places";
+import { buildNav, rankAtLeast, type NavModel, type NavRole, type NavSubject } from "@/lib/nav/places";
+import { panelSectionsFor } from "@/lib/control-panel";
 import { firstUnseen, readNavOrder, type NavOrder } from "@/lib/nav/order";
 import type { SpaceLayout } from "@/lib/cards/shared";
-import { parseAddress, type AddressKind, type ForeignSpace } from "@/lib/nav/shell-v2";
+import { parseAddress, settingsOneDoorOf, type AddressKind, type ForeignSpace } from "@/lib/nav/shell-v2";
 import { safeNext } from "@/lib/space-link";
 import { loadCard } from "./cards";
 import { bannerInsteadOfSwitch, currentSpace, spacesOf } from "./current-space";
+import { panelFactsOf } from "./control-panel";
 import { spaceOfApproval } from "./approvals";
 import { orgDayStart } from "./org-day";
+import { spaceFigures } from "./space-figures";
 import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "./team-scope";
 
 /**
@@ -27,7 +30,7 @@ import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } f
  * Who the map is drawn for — the one place that turns an actor into a `NavSubject`, shared by the (app) layout and by
  * the save below, so «what the person may see» is decided the same way in both.
  */
-export function navSubjectOf(actor: Pick<Actor, "role" | "caps" | "isExternal">, orgSettings: unknown, space: { manager: boolean; layout?: SpaceLayout } | null, supervisor = false): NavSubject {
+export function navSubjectOf(actor: Pick<Actor, "role" | "caps" | "isExternal">, orgSettings: unknown, space: { manager: boolean; layout?: SpaceLayout } | null, supervisor = false, panel = false): NavSubject {
   return {
     role: actor.role,
     caps: [...actor.caps],
@@ -39,7 +42,20 @@ export function navSubjectOf(actor: Pick<Actor, "role" | "caps" | "isExternal">,
     ...(space?.layout ? { spaceLayout: space.layout } : {}),
     // N1.1/N1.2: the company's switch `navV2` (the new map, OFF by default) and the work tools the owner pinned as tabs
     ...navExtrasOf(orgSettings),
+    // S3.1: «الإعدادات» is ONE door (its switch AND the one control panel): only written when true, so the subject of a company without it is exactly what it was
+    ...(settingsOneDoorOf(orgSettings) ? { settingsOneDoor: true, ...(panel && !actor.isExternal ? { panel: true } : {}) } : {}),
   };
+}
+
+/**
+ * S3.1 — with «الإعدادات» as ONE door, does this ADMIN or OWNER hold the control panel (at least one of its sections, the same capability checks the panel's own list makes:
+ * `panelSectionsFor`)? Then the place «الإدارة» leaves their menu (`oneDoorHidesAdmin`). False without the switch, for staff below ADMIN and for a guest, and no database read is made then.
+ * Read from the database, never from the cookie (`panelFactsOf` is shared with the panel itself, once per request).
+ */
+export async function oneDoorPanelFor(actor: Actor, orgSettings: unknown): Promise<boolean> {
+  if (!settingsOneDoorOf(orgSettings) || actor.isExternal || !rankAtLeast(actor.role as NavRole, "ADMIN")) return false;
+  const { facts } = await panelFactsOf(actor);
+  return panelSectionsFor(facts).length > 0;
 }
 
 /** Does an ACTIVE, non-guest person answer to this one («الهيكل»)? One indexed count; read from the database on every layout render. */
@@ -60,25 +76,12 @@ export async function overdueBySpace(userId: string, orgIds: readonly string[], 
   const scope = await loadWorkScope(userId);
   const spaceIds = scopeSpaceIds(scope);
   if (spaceIds.length === 0) return {};
-  const visible = taskVisibleWhere(scope);
   const out: Record<string, number> = {};
   await Promise.all(
     orgIds.map(async (orgId) => {
-      const before = await orgDayStart(orgId, now);
-      const rows = await db.task.groupBy({
-        by: ["workspaceId"],
-        where: {
-          orgId,
-          archived: false,
-          completedAt: null,
-          dueDate: { lt: before },
-          workspaceId: { in: spaceIds },
-          OR: [{ assigneeId: userId }, { coAssignees: { some: { userId } } }],
-          AND: [visible],
-        },
-        _count: { _all: true },
-      });
-      for (const row of rows) out[row.workspaceId] = row._count._all;
+      // B4: the per-space numbers come from `spaceFigures`, the one source (the same query «كل المساحات», the report and the overview use)
+      const figures = await spaceFigures({ orgId, spaceIds, todayStart: await orgDayStart(orgId, now), scope, assigneeId: userId });
+      for (const [spaceId, figure] of figures) if (figure.overdue > 0) out[spaceId] = figure.overdue;
     }),
   );
   return out;
@@ -138,7 +141,7 @@ async function spaceOfThing(actor: Actor, kind: AddressKind, id: string): Promis
 export async function visibleNavFor(actor: Actor): Promise<NavModel> {
   const org = await db.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } });
   const space = await currentSpace(actor);
-  return buildNav(navSubjectOf(actor, org?.settings, space, await hasActiveReports(actor)));
+  return buildNav(navSubjectOf(actor, org?.settings, space, await hasActiveReports(actor), await oneDoorPanelFor(actor, org?.settings)));
 }
 
 /** The person's saved order (null: the code's order). A stored value that is damaged reads as «none», never as an error. */

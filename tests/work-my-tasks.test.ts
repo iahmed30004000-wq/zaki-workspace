@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  ALL_SPACES,
+  isForeignTask,
   DEFAULT_MY_TASKS_PARAMS,
   DUE_BUCKETS,
   LEGACY_TAB_CHIP,
@@ -82,6 +84,17 @@ describe("the address is the state", () => {
     expect(parseMyTasksParams(new URLSearchParams(myTasksHref(p).split("?")[1]))).toEqual(p);
     // a space is only written for «أنا», a project only for «مشروع», a month only for the calendar
     expect(myTasksHref({ ...DEFAULT_MY_TASKS_PARAMS, spaceId: "s1", projectId: "p1", month: "2026-12" })).toBe("/my-work?space=s1");
+  });
+
+  it("B4: «كل مساحاتي» is written in the address (it is never the default: a plain /my-work is the space I am in)", () => {
+    expect(ALL_SPACES).toBe("all");
+    expect(parseMyTasksParams({ space: "all" }).spaceId).toBe(ALL_SPACES);
+    expect(myTasksHref({ ...DEFAULT_MY_TASKS_PARAMS, spaceId: ALL_SPACES })).toBe("/my-work?space=all");
+    expect(DEFAULT_MY_TASKS_PARAMS.spaceId).toBeNull();
+  });
+
+  it("B4: the panel's answer for a task of another space is told apart from a task", () => {
+    expect(isForeignTask({ foreign: { taskId: "t", spaceId: "s", spaceName: "ب" } })).toBe(true);
   });
 });
 

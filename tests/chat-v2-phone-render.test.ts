@@ -160,6 +160,36 @@ describe("the list column on the phone", () => {
     expect(src).toContain("end-4");
     expect(/className="([^"]*)"/.exec(src)?.[1] ?? "").not.toMatch(/(?<![\w-])(?:left|right)-/);
   });
+
+  it("«اجتماع جديد» lives in the pencil button's menu, not in a full-width strip under the folders", () => {
+    const list = read("src/components/chat/v2/list/chat-list-column.tsx");
+    expect(list).not.toContain("<MeetingButton");
+    expect(list).not.toContain("border-border/60 px-3 py-2");
+    expect(list).toMatch(/<NewMessageFab [^\n]*canMeet=\{canMeet\}/);
+    const fab = read("src/components/chat/v2/list/new-message-fab.tsx");
+    expect(fab).toContain('ct("chath.new_dm")');
+    expect(fab).toContain('ct("calls.meeting_new")');
+    expect(fab).toContain("DropdownMenuItem");
+    expect(fab).toContain("/api/calls");
+  });
+
+  it("the pencil is a menu for everybody who is not a guest (a message, a group); «اجتماع جديد» is in it only for who may open meetings", () => {
+    const withMeet = (canMeet: boolean) => {
+      const client = new QueryClient();
+      installChatDefaults(client);
+      client.setQueryData(chatKeys.list(), LIST);
+      return wrap(createElement(ChatListColumn as unknown as FunctionComponent<Record<string, unknown>>, { variant: "screen", userId: "u1", guest: false, canMeet, rowMenu: true, canPurge: false }), client);
+    };
+    const noMeet = /<button[^>]*data-chat-fab[^>]*>/.exec(withMeet(false))?.[0] ?? "";
+    expect(noMeet).not.toBe("");
+    expect(noMeet).toContain("aria-haspopup");
+    const menu = withMeet(true);
+    const fab = /<button[^>]*data-chat-fab[^>]*>/.exec(menu)?.[0] ?? "";
+    expect(fab).toContain('aria-haspopup="menu"');
+    expect(fab).toContain("end-4");
+    // closed: the strip's words are nowhere on the screen
+    expect(menu).not.toContain("اجتماع جديد");
+  });
 });
 
 describe("the conversation screen's box", () => {

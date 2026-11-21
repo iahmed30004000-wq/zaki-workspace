@@ -4,7 +4,7 @@ import ApprovalsPage from "@/app/(app)/approvals/page";
 import { RequestsView } from "@/components/work/requests/requests-view";
 import { requestTabOf } from "@/components/work/requests/types";
 import { isFeatureOn } from "@/server/services/features";
-import { workRequestsOf } from "@/server/services/work-requests";
+import { requestsScopeHere, workRequestsOf } from "@/server/services/work-requests";
 
 /**
  * «الطلبات» — /requests (W1.4): one inbox of everything that waits for a decision, two tabs («بانتظاري» / «طلباتي»), each row acting in place
@@ -19,7 +19,8 @@ export default async function RequestsPage({ searchParams }: { searchParams?: Re
   if (refusedToGuest(actor, "requests")) return <GuestNotice />;
   if (!(await isFeatureOn(actor.orgId, "workRequests"))) return ApprovalsPage({ searchParams });
   const raw = searchParams?.["tab"];
-  const view = await workRequestsOf(actor, requestTabOf(typeof raw === "string" ? raw : undefined));
+  // B4: each space is its own account: the space the person is in (inside «الشركة»: all of them, grouped by space with «انتقل»)
+  const view = await workRequestsOf(actor, requestTabOf(typeof raw === "string" ? raw : undefined), await requestsScopeHere(actor));
   return <RequestsView initial={view} />;
 }
 

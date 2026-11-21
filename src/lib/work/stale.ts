@@ -31,9 +31,15 @@ export const isStaleAutoFilter = (v: unknown): v is StaleAutoFilter => (STALE_AU
 export interface StaleParams {
   days: number;
   auto: StaleAutoFilter;
-  /** One of the spaces the person manages; null: all of them. */
+  /**
+   * One of the spaces the person manages. `null` is the DEFAULT: the space they are in when they manage it (each space is its own account, owner's
+   * decision of 2026-11-21), else all of the spaces they manage; `STALE_ALL_SPACES` is the explicit «كل المساحات».
+   */
   space: string | null;
 }
+
+/** `?space=all`: every space the person manages, asked for on purpose. */
+export const STALE_ALL_SPACES = "all";
 
 export const DEFAULT_STALE_PARAMS: StaleParams = { days: STALE_DEFAULT_DAYS, auto: "all", space: null };
 
@@ -60,6 +66,15 @@ export function parseStaleParams(source: Source): StaleParams {
     auto: isStaleAutoFilter(auto) ? auto : DEFAULT_STALE_PARAMS.auto,
     space: space && space.length <= 64 ? space : null,
   };
+}
+
+/**
+ * What to ask again to get THIS answer: the space is written only when it is not the default (the space the person is in), and «كل المساحات» is written
+ * as `all` — left out it would mean the space the person is in.
+ */
+export function staleParamsOf(view: Pick<StaleView, "days" | "auto" | "space" | "here">): StaleParams {
+  const space = view.space === null ? (view.here ? STALE_ALL_SPACES : null) : view.space === view.here ? null : view.space;
+  return { days: view.days, auto: view.auto, space };
 }
 
 /** The query string the screen and the route share (a default is left out). */
@@ -140,7 +155,10 @@ export interface StaleOption {
 export interface StaleView {
   days: number;
   auto: StaleAutoFilter;
+  /** The space the list is cut for (its id); null: all the spaces the person manages. */
   space: string | null;
+  /** The space the person is in when they manage it (the select's first, default option); null otherwise (inside «الشركة», or a space they do not manage). */
+  here: string | null;
   builtAt: number;
   viewerId: string;
   /** Today as the company reads it (`YYYY-MM-DD`): the earliest day a postponement may name. */

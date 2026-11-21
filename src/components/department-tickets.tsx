@@ -157,7 +157,7 @@ export function DepartmentTickets({
           >
             <Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={t("ticket.titlePlaceholder")} required minLength={3} maxLength={200} />
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder={t("ticket.descPlaceholder")} />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Select value={priority} onChange={(e) => setPriority(e.target.value)}>
                 {enumOptions("TaskPriority").map((o) => (
                   <option key={o.value} value={o.value}>
@@ -209,7 +209,7 @@ export function DepartmentTickets({
           >
             <Input value={title} onChange={(e) => setTitle(e.target.value)} required minLength={3} maxLength={200} />
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={3} placeholder={t("ticket.descPlaceholder")} />
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               <Select value={priority} onChange={(e) => setPriority(e.target.value)}>
                 {enumOptions("TaskPriority").map((o) => (
                   <option key={o.value} value={o.value}>
@@ -248,7 +248,7 @@ export function DepartmentTickets({
             {rows.map((r) => (
               <li key={r.id} className="flex flex-wrap items-center gap-2 py-2">
                 <span dir="ltr" className="shrink-0 font-mono text-xs text-muted">T{r.number}</span>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-[8rem] flex-1">
                   <button
                     type="button"
                     onClick={() => setDetailId(r.id)}

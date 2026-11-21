@@ -80,6 +80,8 @@ export interface ContractMember {
   workspaces: MemberWorkspace[];
   /** A1.1 (switch `permissionTemplates`): the template the person was last given and whether they were changed by hand since. Absent: none. */
   template?: MemberTemplate;
+  /** S5.5 (switch `verifiedBadge`): `true` only when the OWNER gave the person the check badge; absent otherwise (never `false`, never the time). */
+  verified?: boolean;
 }
 
 export interface ContractSpace {
@@ -157,6 +159,7 @@ export function normalizeMember(raw: Partial<ContractMember> & { id: string }): 
     ...(raw.template && typeof raw.template.id === "string" && typeof raw.template.name === "string"
       ? { template: { id: raw.template.id, name: raw.template.name, modified: raw.template.modified === true } }
       : {}),
+    ...(raw.verified === true ? { verified: true } : {}),
   };
 }
 

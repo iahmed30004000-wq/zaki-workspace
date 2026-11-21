@@ -283,14 +283,14 @@ describe("the automation and Telegram screens show their controls to whoever hol
    */
   async function automationRole(userId: string): Promise<string> {
     await loginAs(userId);
-    const page = (await AutomationPage()) as PageElement & { type?: unknown };
+    const page = (await AutomationPage({})) as PageElement & { type?: unknown };
     if (page.type === GuestNotice) return "notice";
     const view = page.props["children"] as PageElement;
     return (view.props["ctx"] as { orgRole: string }).orgRole;
   }
   async function telegramRole(userId: string): Promise<string> {
     await loginAs(userId);
-    const view = (await TelegramPage()) as PageElement;
+    const view = (await TelegramPage({})) as PageElement;
     return (view.props["ctx"] as { orgRole: string }).orgRole;
   }
 

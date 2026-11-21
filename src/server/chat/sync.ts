@@ -19,6 +19,7 @@ import { presentMessage, type Viewer } from "@/server/chat/redact";
 import { decorateMustRead } from "@/server/services/must-read";
 import { linkPreviewsOn } from "@/server/chat/link-preview";
 import { isFeatureOn } from "@/server/services/features";
+import { hiddenIdsAmong, notHiddenFor } from "@/server/chat/hidden-messages";
 import type { RealtimeKind } from "@/server/realtime/emit";
 
 /**
@@ -37,6 +38,9 @@ import type { RealtimeKind } from "@/server/realtime/emit";
  *
  * A change of the person's OWN pin, archive, mark or mute (C3a.1) is an event for them alone (`conversation.changed` with `targetUserId`, ids only): it
  * falls into `rowCandidates` like any row event, and the row they get back carries `pinnedByMe`, `archivedByMe` and `markedUnread` from the one list query.
+ *
+ * A message the person hid for themselves («حذف عندي», S5.7) never comes back to them in `messages`; the event that hid it (`conversation.changed` with their `targetUserId` and the
+ * message id, ids only) makes their OTHER devices take it out: the feed answers `hidden`, the ids the person hid, read from their own table (never from the event).
  *
  * `removed` holds the conversations the person can no longer read: a topic made private for the people dropped, a chat they left, a
  * conversation that no longer exists. It is built from `conversation.changed` and from `membership.changed` about THEM, and it names only a
@@ -104,6 +108,7 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
   const ownMembership = new Set<string>(); // conversations a `membership.changed` event about ME named: the server wrote it because I had a place there (a removal, a leave), so I knew it
   const readPairs: { conversationId: string; userId: string }[] = [];
   const deliveredPairs: { conversationId: string; userId: string }[] = [];
+  const hiddenCandidates = new Set<string>(); // messages an event about ME says I hid on some device
   const spaceTouches = new Map<string, Date>(); // spaces told «something changed» without a conversation (a topic opened)
   let aboutMe = false;
 
@@ -128,6 +133,7 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
     convIds.add(cv);
     if (ids.spaceId) eventSpace.set(cv, ids.spaceId);
     if (MESSAGE_EVENTS.has(kind as RealtimeKind) && ids.messageId) messageIds.add(ids.messageId);
+    if (kind === "conversation.changed" && ids.targetUserId === mine && ids.messageId) hiddenCandidates.add(ids.messageId);
     if (ROW_EVENTS.has(kind as RealtimeKind)) rowCandidates.add(cv);
     if (kind === "conversation.changed" || (kind === "membership.changed" && ids.userId === mine)) removalCandidates.add(cv);
     if (kind === "membership.changed" && ids.userId === mine) ownMembership.add(cv);
@@ -166,7 +172,7 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
   // ---- messages: only of conversations the person reads, presented for them ----
   const wanted = [...messageIds];
   const rows = wanted.length && visible.size
-    ? await db.chatMessage.findMany({ where: { id: { in: wanted }, orgId: ctx.orgId, conversationId: { in: [...visible.keys()] } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: messageInclude() })
+    ? await db.chatMessage.findMany({ where: { id: { in: wanted }, orgId: ctx.orgId, conversationId: { in: [...visible.keys()] }, ...notHiddenFor(mine) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], include: messageInclude() })
     : [];
   const messages: MessageDto[] = [];
   const byConversation = new Map<string, { rows: typeof rows; dtos: MessageDto[] }>();
@@ -259,7 +265,9 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
     if (ownMembership.has(id) || couldHaveKnown(rec, v, ctx.userId)) removed.push(id);
   }
 
-  return { cursor, ...more, messages, reads, delivered, rows: listRows, removed };
+  // «حذف عندي»: the ids THIS person hid (their own table decides, not the event), so another device of theirs takes them out of its windows
+  const hidden = hiddenCandidates.size ? [...(await hiddenIdsAmong(mine, [...hiddenCandidates]))] : [];
+  return { cursor, ...more, messages, reads, delivered, rows: listRows, removed, ...(hidden.length ? { hidden } : {}) };
 }
 
 /** Could this person have known the conversation (so that «you can no longer read it» tells them nothing new)? */

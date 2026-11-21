@@ -8,7 +8,7 @@ import type { NavModel, NavRole, PlaceKey } from "@/lib/nav/places";
 import { AvatarMenu, type AvatarUser } from "./avatar-menu";
 import { ariaCurrent } from "./current";
 import { NavIcon } from "./nav-icons";
-import { NavOptions } from "./nav-options";
+import { NavOptions, NavOrderButton, SettingsDoor, useSettingsOneDoor } from "./nav-options";
 import { SortableItem, SortableList } from "./nav-sort";
 import { PlaceBadge } from "./place-badge";
 import { RAIL_BADGE_POSITION, railCellClass } from "./rail-style";
@@ -76,6 +76,8 @@ export function Rail({
   dock?: ReactNode;
 }) {
   const { t } = useI18n();
+  // S3.1: «الإعدادات» is ONE door: one gear cell in the foot replaces «⋯» (the guide, «ترتيب», «إعداداتي»), and «ترتيب» is a small icon button at the top
+  const oneDoor = useSettingsOneDoor();
   const home = nav.places[0]?.href ?? "/";
   const brand = space?.name ?? orgName ?? t("app.brand");
   return (
@@ -90,6 +92,7 @@ export function Rail({
             <span className="zk-star absolute -end-1 -top-1 size-[13px] text-accent-2" />
           </span>
         </Link>
+        {oneDoor ? <NavOrderButton orderLocked={orderLocked} onEditStart={editing ? undefined : onEditStart} className="mb-1" /> : null}
 
         <nav aria-label={t("shell.places")} data-tour="places" className="min-h-0 w-full flex-1 overflow-y-auto overscroll-contain px-1">
           {editing && onReorder ? (
@@ -142,7 +145,7 @@ export function Rail({
           ) : null}
           {dock}
           <InstallAppButton collapsed />
-          <NavOptions variant="rail" orderLocked={orderLocked} onEditStart={editing ? undefined : onEditStart} settingsHref={settingsHref} />
+          {oneDoor ? <SettingsDoor variant="rail" pathname={pathname} /> : <NavOptions variant="rail" orderLocked={orderLocked} onEditStart={editing ? undefined : onEditStart} settingsHref={settingsHref} />}
           <SpaceSwitcher variant="rail" isGuest={isGuest} current={space} canOverview={canOverview} showCounts />
           <AvatarMenu user={user} rank={rank} variant="rail" />
         </div>

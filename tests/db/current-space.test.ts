@@ -215,6 +215,6 @@ describe("«كل المساحات» — the owner's and the admins' look over ev
     expect(cards.find((c) => c.id === w.a.id)).toMatchObject({ open: 1, overdue: 0, members: 1 });
 
     await loginAs(w.member.id);
-    await expect(SpacesPage()).rejects.toThrow("NEXT_REDIRECT:/");
+    await expect(SpacesPage({})).rejects.toThrow("NEXT_REDIRECT:/");
   });
 });

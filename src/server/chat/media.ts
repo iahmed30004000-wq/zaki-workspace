@@ -6,6 +6,8 @@ import { canRead, loadConversationFacts, loadOrgFacts, type ConversationFacts, t
 import { memberCan } from "@/server/policy/actor";
 import { attachmentView } from "@/server/chat/attachments";
 import { linkPreviewsOn } from "@/server/chat/link-preview";
+import { notHiddenFor } from "@/server/chat/hidden-messages";
+import { linkKeyOf, linksOfBody } from "@/lib/chat/v2/info/link-list";
 import type { AttachmentDto } from "@/server/chat/dto";
 import { loadWorkScope, taskVisibleWhere } from "@/server/services/team-scope";
 import { canReadTicket } from "@/server/services/tickets";
@@ -18,9 +20,10 @@ import { canReadTicket } from "@/server/services/tickets";
  *
  *  - media: the attachments of NON-DELETED messages, newest first. NEVER the file of a deleted message (for the owner either: the attachment route serves him the
  *    original, this list is not a way to it), never a system line, never an upload no message claimed, never a file the library deleted. `MEDIA` is the pictures and
- *    the videos together (what the viewer steps through). `LINK` is the messages with a link card (`previewId`, status OK) and exists only while the link-preview
- *    switches are on (the same two switches that decide whether the card is drawn at all).
- *  - counts: one number per kind, by the same rule, so a tab with nothing in it is not drawn.
+ *    the videos together (what the viewer steps through). `LINK` (S5.4) is EVERY web address found in the words of a message that is not deleted and not a system
+ *    line, newest first, one row per page (`linksOfBody`); a card's title and picture are added only from an OK preview of THAT address while the link-preview
+ *    switches are on (the same two switches that decide whether the card is drawn at all). The address itself is the message's own text, so it is listed either way.
+ *  - counts: one number per kind, by the same rule (the tabs are always drawn; the number is what they show).
  *  - work: the tasks and tickets made from a message of THIS conversation (a message that was deleted since leaves no row here, as it leaves no chip on the
  *    screen). A task by P0.2's rule (`taskVisibleWhere`: a private task is not even counted for a person it does not concern), a ticket by the ticket door's own
  *    reader rule (`canReadTicket`); a guest learns of neither (as on the message chips).
@@ -60,12 +63,14 @@ export interface MediaItemDto {
 }
 
 export interface LinkItemDto {
-  /** the message's id (also the `before` cursor) */
+  /** `<message id>:<place of the address in it>` — the row's own key (the `before` cursor is the message's id) */
   id: string;
   messageId: string;
   at: string;
   authorName: string;
   url: string;
+  /** the address's host as the reader sees it (`www.` dropped) */
+  host: string;
   title: string | null;
   description: string | null;
   siteName: string | null;
@@ -92,19 +97,19 @@ async function readable(ctx: OrgAccessContext, conversationId: string): Promise<
   return { facts, org };
 }
 
-/** The messages whose attachments may be listed: of this conversation, not deleted, not a system line. */
-const listable = (orgId: string, conversationId: string): Prisma.ChatMessageWhereInput => ({ orgId, conversationId, deletedAt: null, kind: { not: "SYSTEM" } });
+/** The messages whose attachments may be listed: of this conversation, not deleted, not a system line, and not hidden by this person for themselves (S5.7, «حذف عندي»). */
+const listable = (orgId: string, conversationId: string, userId: string): Prisma.ChatMessageWhereInput => ({ orgId, conversationId, deletedAt: null, kind: { not: "SYSTEM" }, ...notHiddenFor(userId) });
 
 const KINDS_OF: Record<Exclude<MediaKind, "LINK">, string[]> = { IMAGE: ["IMAGE"], VIDEO: ["VIDEO"], FILE: ["FILE"], AUDIO: ["AUDIO"], MEDIA: ["IMAGE", "VIDEO"] };
 
 export async function listConversationMedia(ctx: OrgAccessContext, conversationId: string, query: MediaQuery): Promise<MediaPageDto | MediaCountsDto> {
   await readable(ctx, conversationId);
-  const messages = listable(ctx.orgId, conversationId);
+  const messages = listable(ctx.orgId, conversationId, ctx.userId);
 
   if (query.counts === "1" && query.kind === undefined) {
     const [groups, links] = await Promise.all([
       db.messageAttachment.groupBy({ by: ["kind"], where: { message: messages, file: { orgId: ctx.orgId, deletedAt: null } }, _count: { _all: true } }),
-      linkCount(ctx.orgId, conversationId),
+      linkCount(ctx.orgId, conversationId, ctx.userId),
     ]);
     const counts = { IMAGE: 0, VIDEO: 0, FILE: 0, AUDIO: 0, LINK: links };
     for (const g of groups) if (g.kind === "IMAGE" || g.kind === "VIDEO" || g.kind === "FILE" || g.kind === "AUDIO") counts[g.kind] = g._count._all;
@@ -117,7 +122,7 @@ export async function listConversationMedia(ctx: OrgAccessContext, conversationI
 }
 
 async function listAttachments(ctx: OrgAccessContext, conversationId: string, kinds: string[], before: string | undefined, limit: number): Promise<MediaPageDto> {
-  const messages = listable(ctx.orgId, conversationId);
+  const messages = listable(ctx.orgId, conversationId, ctx.userId);
   // the cursor is the attachment's `(message time, id)`: two pictures of the same instant (an album) are ordered by id, so a page can end between them
   let cursor: Prisma.MessageAttachmentWhereInput | null = null;
   if (before) {
@@ -159,46 +164,92 @@ async function listAttachments(ctx: OrgAccessContext, conversationId: string, ki
   return { items, links: [], next: rows.length > limit ? (page.at(-1)?.id ?? null) : null };
 }
 
+/** How many messages one read of the links tab looks at, and how many reads one request makes while it still has fewer addresses than the page asks for. */
+const LINK_BATCH = 100;
+const LINK_ROUNDS = 6;
+/** The messages looked at to count the addresses (newest first): the tab's number is a count of the recent ones, never a full scan of a huge conversation. */
+const LINK_COUNT_SCAN = 1000;
+
+/**
+ * The messages that may carry an address: an ordinary text message that is not deleted (a deleted message's words are secret even from this list, the owner too)
+ * and whose words contain `http` or `www.`. The words are then read by the chat's one tokenizer, so a message that only says «http» as a word gives nothing.
+ */
+const linkMessages = (orgId: string, conversationId: string, userId: string): Prisma.ChatMessageWhereInput => ({
+  ...listable(orgId, conversationId, userId),
+  kind: "TEXT",
+  OR: [{ body: { contains: "http", mode: "insensitive" } }, { body: { contains: "www.", mode: "insensitive" } }],
+});
+
+const beforeMessage = (anchor: { id: string; createdAt: Date }): Prisma.ChatMessageWhereInput => ({ OR: [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lt: anchor.id } }] });
+
 async function listLinks(ctx: OrgAccessContext, conversationId: string, before: string | undefined, limit: number): Promise<MediaPageDto> {
-  // the card exists only while the switches are on: with them off the list is empty and the cursor means nothing
-  if (!(await linkPreviewsOn(ctx.orgId))) return { items: [], links: [], next: null };
+  // the card's words only while the switches are on; the address is the message's own text and is listed either way
+  const cardsOn = await linkPreviewsOn(ctx.orgId);
   let cursor: Prisma.ChatMessageWhereInput | null = null;
   if (before) {
     const anchor = await db.chatMessage.findFirst({ where: { id: before, orgId: ctx.orgId, conversationId }, select: { id: true, createdAt: true } });
     if (!anchor) throw new NotFoundError("chat.e.not_found");
-    cursor = { OR: [{ createdAt: { lt: anchor.createdAt } }, { createdAt: anchor.createdAt, id: { lt: anchor.id } }] };
+    cursor = beforeMessage(anchor);
   }
-  const rows = await db.chatMessage.findMany({
-    where: { ...linkMessages(ctx.orgId, conversationId), ...(cursor ? { AND: [cursor] } : {}) },
-    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-    take: limit + 1,
-    select: { id: true, createdAt: true, author: { select: { name: true } }, preview: { select: { url: true, title: true, description: true, siteName: true, imageFileId: true } } },
-  });
-  const page = rows.slice(0, limit);
   const links: LinkItemDto[] = [];
-  for (const row of page) {
-    if (!row.preview) continue;
-    links.push({
-      id: row.id,
-      messageId: row.id,
-      at: row.createdAt.toISOString(),
-      authorName: row.author.name,
-      url: row.preview.url,
-      title: row.preview.title,
-      description: row.preview.description,
-      siteName: row.preview.siteName,
-      image: row.preview.imageFileId ? `/api/chat/messages/${row.id}/preview/image` : null,
+  const seen = new Set<string>();
+  let next: string | null = null;
+  // a page is `limit` ADDRESSES (newest first), so the messages are read in batches until there are enough; the cursor is the last message looked at
+  scan: for (let round = 0; round < LINK_ROUNDS; round++) {
+    const rows = await db.chatMessage.findMany({
+      where: { ...linkMessages(ctx.orgId, conversationId, ctx.userId), ...(cursor ? { AND: [cursor] } : {}) },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: LINK_BATCH + 1,
+      select: {
+        id: true,
+        createdAt: true,
+        body: true,
+        author: { select: { name: true } },
+        preview: { select: { url: true, title: true, description: true, siteName: true, imageFileId: true, status: true } },
+      },
     });
+    const batch = rows.slice(0, LINK_BATCH);
+    for (let i = 0; i < batch.length; i++) {
+      const row = batch[i]!;
+      linksOfBody(row.body).forEach((found, place) => {
+        if (seen.has(found.key)) return;
+        seen.add(found.key);
+        // the card is the preview of the message's FIRST address: it speaks only for that address, and only when it was made (status OK)
+        const card = cardsOn && row.preview?.status === "OK" && linkKeyOf(row.preview.url) === found.key ? row.preview : null;
+        links.push({
+          id: `${row.id}:${place}`,
+          messageId: row.id,
+          at: row.createdAt.toISOString(),
+          authorName: row.author.name,
+          url: found.url,
+          host: found.host,
+          title: card?.title ?? null,
+          description: card?.description ?? null,
+          siteName: card?.siteName ?? null,
+          image: card?.imageFileId ? `/api/chat/messages/${row.id}/preview/image` : null,
+        });
+      });
+      if (links.length >= limit) {
+        next = i < batch.length - 1 || rows.length > LINK_BATCH ? row.id : null;
+        break scan;
+      }
+    }
+    if (rows.length <= LINK_BATCH) {
+      next = null;
+      break;
+    }
+    const last = batch[batch.length - 1]!;
+    cursor = beforeMessage(last);
+    next = last.id;
   }
-  return { items: [], links, next: rows.length > limit ? (page.at(-1)?.id ?? null) : null };
+  return { items: [], links, next };
 }
 
-/** The messages that carry a link card: an ordinary text message whose preview was made (the card of a deleted message is gone for everybody). */
-const linkMessages = (orgId: string, conversationId: string): Prisma.ChatMessageWhereInput => ({ ...listable(orgId, conversationId), kind: "TEXT", previewId: { not: null }, preview: { status: "OK" } });
-
-async function linkCount(orgId: string, conversationId: string): Promise<number> {
-  if (!(await linkPreviewsOn(orgId))) return 0;
-  return db.chatMessage.count({ where: linkMessages(orgId, conversationId) });
+async function linkCount(orgId: string, conversationId: string, userId: string): Promise<number> {
+  const rows = await db.chatMessage.findMany({ where: linkMessages(orgId, conversationId, userId), orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: LINK_COUNT_SCAN, select: { body: true } });
+  const seen = new Set<string>();
+  for (const row of rows) for (const found of linksOfBody(row.body)) seen.add(found.key);
+  return seen.size;
 }
 
 // ───────────────────────────── «الشغل» ─────────────────────────────

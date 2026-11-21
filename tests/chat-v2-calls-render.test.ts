@@ -42,6 +42,11 @@ const VIEW: CallView = {
   conversationTitle: "مبيعات الشام",
   spaceId: null,
   video: true,
+  kind: "TOPIC",
+  rangCount: 0,
+  startedByMe: false,
+  answered: false,
+  endedHow: null,
   startedAt: "2026-11-19T10:00:00.000Z",
   endedAt: null,
   startedBy: { id: "u2", name: "سلمى", avatarUrl: null },
@@ -60,6 +65,29 @@ describe("the bar of a live call", () => {
     expect(tokens).toEqual(expect.arrayContaining(["bg-ok", "text-ok-fg", "min-h-11", "w-full", "animate-pulse", "motion-reduce:animate-none"]));
     expect(html).toContain("lucide-phone-call");
     expect(html).toContain("lucide-chevron-left");
+  });
+
+  it("shows up to three of the people in the call, and how many are in (the Telegram video-chat bar), still ONE button", () => {
+    const people = [1, 2, 3, 4].map((n) => ({ userId: `u${n}`, name: `شخص${n}`, avatarUrl: null }));
+    const html = draw(createElement(CallBarView, { onJoin: noop, people, count: 4 }));
+    expect(html.match(/<button/g)).toHaveLength(1);
+    expect(html).toContain("4 بالمكالمة");
+    expect(html.match(/data-call-face/g)).toHaveLength(3);
+    const two = draw(createElement(CallBarView, { onJoin: noop, people: people.slice(0, 2), count: 2 }));
+    expect(two).toContain("اتنين بالمكالمة");
+    expect(two.match(/data-call-face/g)).toHaveLength(2);
+    // nobody connected yet: the old words alone, no faces
+    const none = draw(createElement(CallBarView, { onJoin: noop, people: [], count: 0 }));
+    expect(none).not.toContain("data-call-face");
+    expect(none).toContain(AR["chatui.pane.call_bar"]!);
+  });
+
+  it("is hidden for a person who is already inside the call, and the header's button no longer repeats it", () => {
+    const bar = read("src/components/chat/v2/pane/call-bar.tsx");
+    expect(bar).toContain("insideCall(going.id,");
+    const button = read("src/components/calls/call-button.tsx");
+    expect(button).toContain("joinInBar");
+    expect(read("src/components/chat/v2/pane/pane-header.tsx")).toMatch(/<CallButton[^>]*joinInBar/);
   });
 });
 
@@ -84,6 +112,24 @@ describe("the ring (the incoming-call card)", () => {
     expect(tokens).not.toContain("shadow-lg");
   });
 
+  it("a PRIVATE call's card is a full-screen overlay on a phone with two big buttons, and the compact banner from `md` up", () => {
+    const html = draw(createElement(CallRingCard, { view: { ...VIEW, kind: "DM", conversationTitle: null }, onDecline: noop, onAnswer: noop }));
+    const tokens = classTokens(html);
+    expect(tokens).toEqual(expect.arrayContaining(["inset-0", "z-[70]", "bg-surface-1", "min-h-14", "md:inset-auto", "md:rounded-2xl", "md:shadow-card", "md:min-h-11", "md:top-[calc(0.75rem+env(safe-area-inset-top))]"]));
+    expect(html).toContain('role="alertdialog"');
+    expect(html.match(/<button/g)).toHaveLength(2);
+    expect(html).toContain(AR["calls.ring.decline"]!);
+    expect(html).toContain(AR["calls.ring.answer"]!);
+    // the notch and the home bar are respected
+    expect(html).toContain("env(safe-area-inset-bottom)");
+  });
+
+  it("a topic's or a meeting's ring stays the compact banner on every width", () => {
+    const tokens = classTokens(card());
+    expect(tokens).not.toContain("z-[70]");
+    expect(tokens).not.toContain("min-h-14");
+  });
+
   it("«رفض» is the button set's danger variant and «ردّ» is the green `ok` pair; a voice call says so", () => {
     const html = card();
     expect(html).toMatch(/<button[^>]*class="[^"]*bg-danger text-danger-fg[^"]*"[^>]*>[^]*?رفض/);
@@ -98,10 +144,19 @@ describe("the ring (the incoming-call card)", () => {
     expect(src).toContain('event.kind !== "call.ring"');
     expect(src).toContain("`/api/calls/${encodeURIComponent(event.callId)}`");
     expect(src).toContain("export const RING_FOR_MS = 30_000;");
-    expect(src).toContain("const tone = startRing();");
+    // the ring tone still plays on the card (now through the one-tab lock, with the chosen tone and the vibration)
+    expect(src).toContain("const stopSound = startRing();");
+    expect(src).toContain("startSharedRing(ringingId");
     expect(src).toContain("router.push(`/calls/${encodeURIComponent(id)}`);");
     expect(src).toContain("void ensurePush(true);");
     expect(src).toContain("call?.prefetch(view.id);");
+  });
+
+  it("«رفض» tells the server (the caller hears it); the card also closes when the call changes under it (answered elsewhere, ended)", () => {
+    const src = read("src/components/calls/call-ring.tsx");
+    expect(src).toContain("/decline");
+    expect(src).toContain('event.kind === "call.changed"');
+    expect(src).toContain("ringIsOver(");
   });
 });
 
@@ -136,6 +191,13 @@ describe("«مكالمة» in a header and in the info panel", () => {
     expect(src).toContain("router.push(`/calls/${encodeURIComponent(out.id)}`);");
     expect(src).toContain('event.kind === "call.changed" && event.conversationId === conversationId');
     expect(src).toContain("void ensurePush(true);");
+  });
+
+  it("«رنّ على الكل» is OFF by default for a topic or a group (a private call always rings): a call there does not wake the whole space", () => {
+    const src = read("src/components/calls/call-button.tsx");
+    expect(src).toContain("const [ring, setRing] = React.useState(false);");
+    expect(src).not.toContain("React.useState(true)");
+    expect(src).toContain("ring: isDm || ring");
   });
 
   it("the header mounts the same button (and the assistant's call for the owner's own chat): no second call button", () => {

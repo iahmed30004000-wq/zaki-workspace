@@ -6,6 +6,7 @@ import { NotFoundError } from "@/server/auth";
 import { actorFeatureOn } from "@/server/services/features";
 import { boardAccess } from "@/server/policy/board";
 import { ControlPanelPage } from "./control-panel-view";
+import { ControlPanelV2 } from "@/components/control-panel/panel-v2";
 import { loadOverview, loadPerson, OwnerBoardError, type BoardQuery } from "@/server/services/owner-board";
 import { parseBoardQuery } from "@/server/services/owner-board-io";
 import { BoardCards, DefinitionNote, FilterBar, PeopleTable, PersonPage, TodayStrip, boardHref, paramsOf } from "@/components/owner-board/board";
@@ -20,6 +21,8 @@ import { BoardCards, DefinitionNote, FilterBar, PeopleTable, PersonPage, TodaySt
  */
 export default async function OwnerBoardPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { actor } = await pageActor();
+  // A2.1: with the switch `controlPanelV2` ON /owner is ONE page with a side list of sections (the old page below is untouched while it is OFF)
+  if (await actorFeatureOn(actor, "controlPanelV2")) return ControlPanelV2({ actor, searchParams: searchParams ?? {} });
   const access = await boardAccess(actor).catch((err: unknown) => {
     if (err instanceof NotFoundError) notFound();
     throw err;

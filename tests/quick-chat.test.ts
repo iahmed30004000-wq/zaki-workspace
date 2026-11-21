@@ -16,6 +16,7 @@ vi.mock("next/navigation", () => ({
 (globalThis as { React?: typeof React }).React = React;
 
 import { QuickChat, type QuickChatPeopleDto } from "@/components/shell/quick-chat";
+import { DrawerChromeContext } from "@/components/shell/nav-options";
 import { I18nProvider } from "@/lib/i18n";
 import { AR } from "@/lib/i18n/dict";
 
@@ -58,10 +59,24 @@ describe("the floating quick chat", () => {
     expect(out).not.toContain(AR["quickChat.search"]!);
     // it sits above the phone's bar, in the PHYSICAL left corner the owner asked for («اليسار تحت»): in an
     // RTL screen that is `end`, and `start` would put it on the right. The call's mini window uses the same.
+    // (P2.1: the 3.5rem is the OLD bottom bar's height, so it stays only while that bar exists — the old map, this test's default;
+    // with the new map the phone has no bar and no bubble: the next test and tests/phone-chrome.test.ts)
     expect(out).toContain("bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))]");
     expect(out).toContain("end-[18px]");
     expect(out).not.toMatch(/\bstart-3\b/);
     expect(out).toContain("items-end");
+  });
+
+  it("with the new map's drawer the bubble is not drawn on a phone (max-md:hidden) and keeps the corner from md up, with no bottom-bar offset", () => {
+    const Chrome = DrawerChromeContext.Provider as unknown as FunctionComponent<{ value: boolean; children?: ReactNode }>;
+    const out = renderToStaticMarkup(
+      createElement(Translations, { initial: "ar" }, createElement(Queries, { client: new QueryClient() }, createElement(Chrome, { value: true }, createElement(QuickChat, { enabled: true })))),
+    );
+    const root = /<div[^>]*class="([^"]*fixed[^"]*)"/.exec(out)?.[1] ?? "";
+    expect(root).toContain("max-md:hidden");
+    expect(root).toContain("end-[18px]");
+    expect(root).toContain("bottom-[18px]");
+    expect(root).not.toContain("3.5rem");
   });
 
   it("open, it lists the whole company — the online first as they came — with the other space marked", () => {

@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import React, { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -9,12 +10,18 @@ import { cn } from "@/lib/utils";
 import type { NavPlace, TabKey } from "@/lib/nav/places";
 import { ariaCurrent } from "./current";
 import { Grip, SortableItem, SortableList } from "./nav-sort";
+import { centredIndex, DEFAULT_WHEEL_PREFS, loadWheelPrefs, WHEEL_EVENT, wheelLook, type WheelPrefs } from "@/lib/nav/tab-wheel";
+import { primeTick, tick } from "@/lib/nav/wheel-tick";
 
 /**
  * The tabs of the place on screen: «مهامي · المشاريع · القائمة …» inside «الشغل». On the new map (`embedded`) they sit INSIDE the page bar beside the
  * place's name, as in the owner's mock-up (`.pbar`: on a computer pills, the current one accent on accent-soft; on a phone, on a row of their own, an
  * underline in the accent); on the old map they are their own strip under the top bar. It scrolls sideways on a narrow screen and brings the current tab into
  * view; a place with a single tab (or none) has no strip at all — one tab is not a choice.
+ *
+ * On a PHONE the strip is a WHEEL (the owner, 2026-11-21: like the alarm's picker, turned on its side): it snaps, the tab in the middle is the chosen one (the
+ * page follows when it settles there), the ones beside it shrink and fade, and a tick can sound for each tab that reaches the middle. The person's three
+ * switches (the wheel, the motion, the tick) are in «المظهر واللغة»; with the wheel off it is the plain strip below. A computer keeps the plain strip.
  *
  * In the reorder mode («ترتيب», `editing`) each tab wears a grip and is dragged instead of followed; the new order of the
  * tab keys goes to `onReorder`.
@@ -43,14 +50,25 @@ export function PlaceTabs({
   const { t } = useI18n();
   const listRef = useRef<HTMLUListElement>(null);
 
+  const router = useRouter();
+  const items = useMemo(() => (place ? [...place.tabs, ...(place.more ?? [])] : []), [place]);
+  const { wheelOn, prefs } = useWheelPrefs(editing);
+
+  useRosary(listRef);
+  useWheel(listRef, wheelOn, prefs, items, tab, (href) => router.push(href));
   useEffect(() => {
-    // instant, and only as far as needed (nothing moves when the tab is already visible)
-    listRef.current?.querySelector<HTMLElement>("[data-current]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
-  }, [place?.key, tab]);
+    // instant, and only as far as needed (nothing moves when the tab is already visible); the wheel brings the current tab to the MIDDLE
+    listRef.current?.querySelector<HTMLElement>("[data-current]")?.scrollIntoView({ block: "nearest", inline: wheelOn ? "center" : "nearest", behavior: wheelOn && prefs.motion ? "smooth" : "auto" });
+  }, [place?.key, tab, wheelOn, prefs.motion]);
 
   // one tab alone is not a choice; but «المزيد» beside a tab (the new map) is
   if (!place || place.tabs.length + ((place.more?.length ?? 0) > 0 ? 1 : 0) < 2) return null;
-  const listClass = cn("flex min-w-0 flex-1 gap-0.5 overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden", embedded ? "px-0" : "px-2 py-1 md:px-4");
+  const listClass = cn(
+    "flex min-w-0 flex-1 cursor-grab gap-0.5 overflow-x-auto active:cursor-grabbing max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden",
+    embedded ? "px-0" : "px-2 py-1 md:px-4",
+    // the wheel: room at both ends so the first and the last tab can reach the middle, a snap on every tab, the ends fading out like the alarm's picker
+    wheelOn && "snap-x snap-mandatory px-[40%] [mask-image:linear-gradient(to_right,transparent,#000_22%,#000_78%,transparent)]",
+  );
 
   return (
     <nav
@@ -86,16 +104,21 @@ export function PlaceTabs({
           </ul>
         </SortableList>
       ) : (
-        <ul ref={listRef} className={listClass}>
-          {place.tabs.map((item) => {
+        <ul ref={listRef} className={listClass} data-tab-wheel={wheelOn ? "" : undefined}>
+          {/* the rosary: the tabs AND what the place keeps beyond them, in ONE strip that runs sideways (wheel, finger, or a pressed mouse): no menu */}
+          {items.map((item, i) => {
             const active = item.key === tab;
+            const firstMore = i === place.tabs.length;
             return (
-              <li key={item.key} className="shrink-0">
+              <li key={item.key} data-wheel-item={wheelOn ? "" : undefined} className={cn("shrink-0", wheelOn && "group snap-center")}>
                 <Link
                   href={item.href}
+                  onClick={wheelOn ? (e) => e.currentTarget.scrollIntoView({ block: "nearest", inline: "center", behavior: prefs.motion ? "smooth" : "auto" }) : undefined}
                   aria-current={ariaCurrent(active, item.href, pathname)}
                   data-current={active ? "" : undefined}
-                  className={tabClass(active)}
+                  data-shell={firstMore ? "more-tabs" : undefined}
+                  draggable={false}
+                  className={cn(tabClass(active), wheelOn && "px-4 group-data-[centered]:text-accent")}
                 >
                   {t(item.labelKey)}
                 </Link>
@@ -104,10 +127,149 @@ export function PlaceTabs({
           })}
         </ul>
       )}
-      {editing ? null : <MoreTabs place={place} tab={tab} pathname={pathname} />}
       {end}
     </nav>
   );
+}
+
+/** The person's three choices for the wheel, this device's, and whether the wheel is what is drawn now (a phone-wide screen, the wheel on, not in «ترتيب»). */
+function useWheelPrefs(editing: boolean): { wheelOn: boolean; prefs: WheelPrefs } {
+  const [prefs, setPrefs] = useState<WheelPrefs>(DEFAULT_WHEEL_PREFS);
+  const [phone, setPhone] = useState(false);
+  useEffect(() => {
+    setPrefs(loadWheelPrefs());
+    const onChange = (e: Event) => setPrefs((e as CustomEvent<WheelPrefs>).detail ?? loadWheelPrefs());
+    window.addEventListener(WHEEL_EVENT, onChange);
+    const query = window.matchMedia("(max-width: 767px)");
+    const onMedia = () => setPhone(query.matches);
+    onMedia();
+    query.addEventListener("change", onMedia);
+    return () => {
+      window.removeEventListener(WHEEL_EVENT, onChange);
+      query.removeEventListener("change", onMedia);
+    };
+  }, []);
+  return { wheelOn: phone && prefs.wheel && !editing, prefs };
+}
+
+/**
+ * The wheel's behaviour: on every scroll the tabs are drawn by their distance from the middle (`wheelLook`), the nearest one is marked `data-centered`
+ * and, with the tick on, a new one reaching the middle ticks; a moment after the strip stops, the page goes to the tab that is in the middle.
+ */
+function useWheel(ref: React.RefObject<HTMLUListElement>, on: boolean, prefs: WheelPrefs, items: { key: string; href: string }[], current: string | null, go: (href: string) => void) {
+  const latest = useRef({ items, current, go, prefs });
+  latest.current = { items, current, go, prefs };
+  useEffect(() => {
+    const el = ref.current;
+    if (!el || !on) return;
+    let frame = 0;
+    let settle = 0;
+    let last = -1;
+    const paint = (): number => {
+      const nodes = Array.from(el.querySelectorAll<HTMLElement>("[data-wheel-item]"));
+      const box = el.getBoundingClientRect();
+      const mid = box.left + box.width / 2;
+      const centres = nodes.map((n) => {
+        const r = n.getBoundingClientRect();
+        return r.left + r.width / 2;
+      });
+      const index = centredIndex(centres, mid);
+      nodes.forEach((n, i) => {
+        const look = wheelLook((centres[i] ?? mid) - mid, n.offsetWidth + 8, latest.current.prefs.motion);
+        n.style.opacity = String(look.opacity);
+        n.style.transform = latest.current.prefs.motion ? `scale(${look.scale})` : "";
+        if (i === index) n.setAttribute("data-centered", "");
+        else n.removeAttribute("data-centered");
+      });
+      if (index !== last) {
+        if (last !== -1 && latest.current.prefs.sound) tick();
+        last = index;
+      }
+      return index;
+    };
+    const onScroll = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(paint);
+      window.clearTimeout(settle);
+      settle = window.setTimeout(() => {
+        const index = paint();
+        const { items: list, current: now, go: open } = latest.current;
+        const target = list[index];
+        if (target && target.key !== now) open(target.href);
+      }, 140);
+    };
+    const onTouch = () => primeTick();
+    paint();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    el.addEventListener("pointerdown", onTouch, { passive: true });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
+      el.removeEventListener("scroll", onScroll);
+      el.removeEventListener("pointerdown", onTouch);
+      el.querySelectorAll<HTMLElement>("[data-wheel-item]").forEach((n) => {
+        n.style.opacity = "";
+        n.style.transform = "";
+        n.removeAttribute("data-centered");
+      });
+    };
+  }, [ref, on, prefs.motion, prefs.sound, items.length]);
+}
+
+/**
+ * The strip as a rosary: the mouse WHEEL moves it sideways (when it is wider than the screen), a pressed mouse drags it, a finger swipes it by itself (the
+ * browser's own scroll). A drag that moved is not a click, so letting go over a tab does not open it.
+ */
+function useRosary(ref: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rtl = () => getComputedStyle(el).direction === "rtl";
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      el.scrollBy({ left: rtl() ? -e.deltaY : e.deltaY });
+    };
+    let startX = 0;
+    let startLeft = 0;
+    let down = false;
+    let moved = false;
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      down = true;
+      moved = false;
+      startX = e.clientX;
+      startLeft = el.scrollLeft;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!down) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 5) moved = true;
+      if (moved) el.scrollLeft = startLeft - dx;
+    };
+    const onUp = () => {
+      down = false;
+    };
+    const onClick = (e: MouseEvent) => {
+      if (moved) {
+        e.preventDefault();
+        e.stopPropagation();
+        moved = false;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    el.addEventListener("click", onClick, true);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      el.removeEventListener("click", onClick, true);
+    };
+  }, [ref]);
 }
 
 /**

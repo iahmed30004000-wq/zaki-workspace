@@ -30,10 +30,26 @@ export interface AttachmentDto {
   url: string;
 }
 
+/** One person behind a reaction chip («مين تفاعل», S5.6). `me` only on the viewer's own row. */
+export interface ReactorDto {
+  id: string;
+  name: string;
+  /** `/api/avatars/<id>`; never for a guest */
+  avatar?: string | null;
+  me?: true;
+}
+
 export interface ReactionDto {
+  /** a unicode emoji, or a known Zaki code (`:zaki_clap:`) */
   emoji: string;
+  /** the truth: how many people reacted, whoever the viewer may name */
   count: number;
   mine: boolean;
+  /**
+   * «مين تفاعل» (S5.6): the people who reacted with it, at most `REACTORS_CAP` of them, only those THIS viewer may be told: a guest sees only himself; the ✅ of «لازم ينقرأ» (a
+   * receipt) names its people to the author, the moderators and the owner only. `count` may be larger than `by.length`; absent when nobody is named.
+   */
+  by?: ReactorDto[];
 }
 
 export interface NoteDto {
@@ -97,9 +113,12 @@ export interface MessageDto {
   authorName: string;
   /** `/api/avatars/<id>` — the sender's picture, or null (the initials are drawn). */
   authorAvatar?: string | null;
+  /** «إشارة التوثيق» (S5.5): the author carries the check badge. `true` only when it is so (absent otherwise, never `false`), never for a guest viewer, and never while the company's switch `verifiedBadge` is off; no time and no granter travel with it. */
+  authorVerified?: boolean;
   createdAt: string;
   clientId?: string | null;
-  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean } | null;
+  /** `quote` (S5.7, «رد بالاقتباس»): the piece of the original the sender picked; present only with a live original, plain text (the screen escapes it) */
+  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean; quote?: string } | null;
   forwardedFrom?: { name: string } | null;
   mentions: string[];
   attachments: AttachmentDto[];
@@ -199,6 +218,8 @@ export interface MemberDto {
   role?: string;
   muted?: boolean;
   avatarUrl?: string | null;
+  /** «إشارة التوثيق» (S5.5): `true` only when the person carries the badge; absent otherwise and for a guest viewer. */
+  verified?: boolean;
 }
 
 export interface ReaderDto {
@@ -344,6 +365,8 @@ export interface ChatRowDto {
   avatarUrl?: string | null;
   /** a private chat: who is on the other side */
   peerId?: string;
+  /** a private chat: the other person carries the check badge «إشارة التوثيق» (S5.5): `true` only, absent otherwise, never for a guest, never while the switch `verifiedBadge` is off */
+  verified?: boolean;
   /** the space a topic or a private chat belongs to (the small chip on a row of the one list); a private chat of the old days is «الشركة»'s */
   space: { id: string; name: string } | null;
   lastMessage: ChatRowLastMessageDto | null;
@@ -404,7 +427,7 @@ export type ConversationHeaderDto = Omit<ConversationDto, "messages" | "readers"
   audience: AudienceDto;
   memberCount: number;
   /** a private chat: the other person */
-  peer?: { id: string; name: string; avatarUrl?: string | null };
+  peer?: { id: string; name: string; avatarUrl?: string | null; /** «إشارة التوثيق» (S5.5): `true` only, absent otherwise and for a guest */ verified?: boolean };
 };
 
 /** `GET /api/chat/conversations/[id]/messages`: one window of a conversation, oldest first. */
@@ -433,6 +456,8 @@ export interface SyncDto {
   rows: ChatRowDto[];
   /** conversations the person can no longer read (left, made private, a peer who left the company, deleted) */
   removed: string[];
+  /** S5.7, «حذف عندي»: the messages this person hid for themselves since the cursor (ids only: their other devices take them out of the windows); absent when none */
+  hidden?: string[];
 }
 
 export interface OversightConversationDto {
@@ -492,6 +517,8 @@ export interface DirectoryPersonDto {
   avatarUrl?: string | null;
   /** «آخر ظهور»: an ISO time, null (unknown or hidden), or ABSENT (switch off / a guest asks); see services/last-seen.ts */
   lastSeenAt?: string | null;
+  /** «إشارة التوثيق» (S5.5): `true` only when the person carries the badge; absent otherwise and while the switch is off */
+  verified?: boolean;
 }
 
 /** A search hit in the chat (src/server/chat/search.ts). */

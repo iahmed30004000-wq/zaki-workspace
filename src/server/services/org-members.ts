@@ -1,12 +1,13 @@
 import type { MemberStatus, OrgRole, Prisma, TicketStatus, WorkspaceRole } from "@prisma/client";
 import { db } from "@/server/db";
+import { ForbiddenError, NotFoundError, ValidationError, audit } from "@/server/auth";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
 import { sectionGridOn } from "@/server/policy/section-grid";
 import { RANK } from "@/server/policy/rank";
 import type { Actor } from "@/server/policy/actor";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { inCatalogueOrder } from "@/server/services/member-rules";
-import { orgSummaryOf } from "@/server/services/features";
+import { assertFeatureOn, orgSummaryOf } from "@/server/services/features";
 import { featureOn } from "@/lib/features";
 import { appliedTemplateOf, roleTemplatesOf, templateStateOf, type AppliedTemplate, type MemberTemplate } from "@/lib/permission-templates";
 import { taskParticipantFilter } from "@/server/services/team-scope";
@@ -92,6 +93,11 @@ export interface RosterMember {
    * («معدّل»). Absent while the switch is off or nobody gave them one.
    */
   template?: MemberTemplate;
+  /**
+   * «إشارة التوثيق» (S5.5, switch `verifiedBadge`): `true` only when the OWNER gave the person the check badge (absent otherwise, like every `verified` of the chat DTOs), never the time and never
+   * who granted it. ABSENT while the company's switch is off: the card then draws no badge. (The card's own control asks the verify door for the person's state.)
+   */
+  verified?: boolean;
 }
 
 export interface Roster {
@@ -151,6 +157,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
       capabilities: true,
       revokedCapabilities: true,
       primaryOwner: true,
+      verifiedAt: true,
       managerId: true,
       manager: { select: { name: true } },
       user: {
@@ -171,6 +178,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
   // A1.1: «القالب: X» only while the company's switch is on; the name is the template's own now (renamed since: the new name)
   const settings = (await orgSummaryOf(orgId))?.settings ?? {};
   const templatesOn = featureOn(settings, "permissionTemplates");
+  const verifiedOn = featureOn(settings, "verifiedBadge");
   const applied = templatesOn ? await lastAppliedTemplates(orgId, ids) : new Map<string, AppliedTemplate>();
   const templateNames = templatesOn ? new Map(roleTemplatesOf(settings).map((t) => [t.id, t.name])) : new Map<string, string>();
   // the open-work counts the roster shows never count a private task the person asking may not see
@@ -230,6 +238,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     openWork: openWork.get(r.user.id) ?? 0,
     workspaces: spacesOf.get(r.user.id) ?? [],
     ...templateOf(r.user.id, r, applied, templateNames),
+    ...(verifiedOn && r.verifiedAt !== null && r.status === "ACTIVE" && r.role !== "GUEST" ? { verified: true } : {}),
   }));
   members.sort(
     (a, b) =>
@@ -243,4 +252,44 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     sectionGrid,
     spaces: visible ? orgSpaces.filter((s) => visible.has(s.id)) : orgSpaces,
   };
+}
+
+// ---------- «إشارة التوثيق» (S5.5) ----------
+
+/** Is this person verified? The OWNER only (the person's card asks it when it opens); the switch `verifiedBadge` off: «not found». */
+export async function memberVerifiedState(actor: Pick<Actor, "orgId" | "isOwner">, userId: string): Promise<{ verified: boolean }> {
+  if (!actor.isOwner) throw new ForbiddenError("verified.e.owner_only");
+  await assertFeatureOn(actor.orgId, "verifiedBadge");
+  // all-statuses: the owner reads (and may take back) the badge of anybody of his company, whatever their status
+  const row = await db.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: actor.orgId, userId } }, select: { verifiedAt: true } });
+  if (!row) throw new NotFoundError("orgm.not_member");
+  return { verified: row.verifiedAt !== null };
+}
+
+/**
+ * The OWNER gives a person the check badge, or takes it back (`verified` false). The OWNER RANK decides (`actor.isOwner`): no capability an admin can hold opens this door.
+ * The company's switch `verifiedBadge` must be on (off: «not found»; the stored grants stay). A guest (an external partner) is never verified, and a person who is not ACTIVE
+ * is not given a first badge (taking one back works for anybody). Repeating what is already true changes nothing and writes no audit line; every real change is a line of the
+ * audit log (who, whom, when): `org.member_verified` / `org.member_unverified`. Returns whether the person is verified after the call.
+ */
+export async function setMemberVerified(actor: Pick<Actor, "userId" | "orgId" | "isOwner">, userId: string, verified: boolean): Promise<{ verified: boolean; changed: boolean }> {
+  if (!actor.isOwner) throw new ForbiddenError("verified.e.owner_only");
+  await assertFeatureOn(actor.orgId, "verifiedBadge");
+  const target = await db.organizationMember.findUnique({
+    where: { organizationId_userId: { organizationId: actor.orgId, userId } },
+    select: { id: true, role: true, status: true, verifiedAt: true },
+  });
+  if (!target) throw new NotFoundError("orgm.not_member");
+  if (verified) {
+    if (target.role === "GUEST") throw new ValidationError([{ path: "userId", message: "verified.e.guest" }]);
+    if (target.status !== "ACTIVE") throw new ValidationError([{ path: "userId", message: "verified.e.inactive" }]);
+  }
+  // one conditional write: two owners tapping at the same moment make ONE change and ONE audit line
+  const res = await db.organizationMember.updateMany({
+    where: { id: target.id, verifiedAt: verified ? null : { not: null } },
+    data: { verifiedAt: verified ? new Date() : null },
+  });
+  if (res.count === 0) return { verified, changed: false };
+  await audit(verified ? "org.member_verified" : "org.member_unverified", { actorId: actor.userId, orgId: actor.orgId, target: userId });
+  return { verified, changed: true };
 }

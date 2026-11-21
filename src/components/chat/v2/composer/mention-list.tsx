@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { ASSISTANT_MENTION_ID } from "@/lib/chat/conversation/mentions";
 import { ct } from "@/lib/chat/text";
 import type { MentionChoice } from "@/lib/chat/v2/composer/types";
@@ -35,6 +36,8 @@ export function MentionList({ choices, pickAt, onHover, onChoose }: { choices: M
               </span>
             )}
             <span className="min-w-0 flex-1 truncate">{member.all ? `@${member.name}` : member.name}</span>
+            {/* S5.5: the people come from the conversation's own list (`MemberDto.verified`); «@الكل» and the assistant have none */}
+            {member.verified ? <VerifiedBadge /> : null}
             {member.all ? <span className="text-xs text-fg-muted">{ct("chatc.mention_all_hint")}</span> : null}
             {member.id === ASSISTANT_MENTION_ID ? <span className="text-xs text-fg-muted">{ct("chatai.mention_hint")}</span> : null}
           </button>

@@ -14,6 +14,7 @@ import { frameDrivenQuery, touchesConversation, useFrameRefresh } from "@/lib/re
 import { Avatar } from "@/components/ui/avatar";
 import { CallButton } from "@/components/calls/call-button";
 import { AssistantRow } from "@/components/chat/assistant-row";
+import { useDrawerChrome } from "./nav-options";
 
 /** One row of `GET /api/chat/directory?scope=company` (src/server/chat/directory.ts). */
 export interface QuickChatPersonDto {
@@ -77,10 +78,14 @@ export interface QuickChatConversationDto {
  * Theme tokens only (`bg-surface-1`, `text-fg`, `bg-accent`…), logical CSS only, no new dependency:
  * the movement is CSS.
  *
+ * P2.1 — with the new map (the drawer; `useDrawerChrome`) the round button is NOT drawn on a phone: it floated over the page and the phone has the chat as a place of its own. From `md` up it
+ * is where it was, in the corner. The old map keeps its bottom bar, so there the button still sits above it (the `3.5rem` is that bar's height and is only used while the bar exists).
+ *
  * `defaultOpen` is for server-render tests.
  */
 export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: boolean; defaultOpen?: boolean }) {
   const { t } = useI18n();
+  const drawerChrome = useDrawerChrome();
   const [open, setOpen] = useState(defaultOpen);
   const [peer, setPeer] = useState<QuickChatPersonDto | null>(null);
   const [conversationId, setConversationId] = useState<string | null>(null);
@@ -233,7 +238,11 @@ export function QuickChat({ enabled = true, defaultOpen = false }: { enabled?: b
   return (
     <div
       ref={rootRef}
-      className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] end-[18px] z-50 flex flex-col items-end gap-2 md:bottom-[18px]"
+      className={cn(
+        "fixed end-[18px] z-50 flex flex-col items-end gap-2",
+        // the new map: no bottom bar to clear and nothing floats over a phone's page; the old map: above its bottom bar
+        drawerChrome ? "bottom-[18px] max-md:hidden" : "bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] md:bottom-[18px]",
+      )}
     >
       {open ? (
         <section

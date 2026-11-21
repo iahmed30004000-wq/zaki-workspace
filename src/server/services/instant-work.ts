@@ -115,11 +115,20 @@ export async function inboxSpaceFor(who: SpaceSubject, spaceId: string | null | 
 }
 
 /** What the clients need to know: where a quick task would go (null: no space) and the inbox project's id once it exists (a read: nothing is made). */
-export async function inboxInfo(who: SpaceSubject, spaceId: string | null | undefined): Promise<{ space: InboxSpace | null; projectId: string | null }> {
+export async function inboxInfo(
+  who: SpaceSubject,
+  spaceId: string | null | undefined,
+): Promise<{ space: InboxSpace | null; projectId: string | null; choose: boolean; spaces: InboxSpace[] }> {
   const space = await inboxSpaceFor(who, spaceId);
-  if (!space) return { space: null, projectId: null };
+  if (!space) return { space: null, projectId: null, choose: false, spaces: [] };
   const project = await db.project.findUnique({ where: { workspaceId_systemKey: { workspaceId: space.id, systemKey: INSTANT_PROJECT_KEY } }, select: { id: true } });
-  return { space, projectId: project?.id ?? null };
+  // B4 — each space is its own account: inside a space the task goes there; inside «الشركة» (or with no space) the person CHOOSES among their spaces
+  // instead of the first one being used silently (`choose`; `spaces` are the ones a task can go to)
+  const all = await spacesOf(who);
+  const here = all.find((s) => s.id === spaceId);
+  const choose = !(here && here.kind !== "HQ" && here.role !== "GUEST");
+  const spaces = all.filter((s) => s.kind === "STANDARD" && s.layout === "STANDARD" && s.role !== "GUEST").map((s) => ({ id: s.id, name: s.name }));
+  return { space, projectId: project?.id ?? null, choose, spaces };
 }
 
 /**

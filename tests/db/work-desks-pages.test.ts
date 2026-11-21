@@ -34,7 +34,7 @@ describe("the tickets and campaigns pages", () => {
     const w = await world();
     await loginAs(w.designer.id);
     enter(deptSpaceIdOf(w.dept.id));
-    const tickets = (await TicketsPage()) as ReactElement<DeskProps>;
+    const tickets = (await TicketsPage({})) as ReactElement<DeskProps>;
     expect(tickets.type).toBe(TicketsDesk);
     expect(tickets.props).toMatchObject({ me: { id: w.designer.id, role: "MEMBER" }, defaultDepartmentId: w.dept.id });
     const campaigns = (await CampaignsPage()) as ReactElement<DeskProps>;
@@ -42,14 +42,14 @@ describe("the tickets and campaigns pages", () => {
     expect(campaigns.props.defaultDepartmentId).toBe(w.dept.id);
 
     enter(w.hq);
-    expect(((await TicketsPage()) as ReactElement<DeskProps>).props.defaultDepartmentId).toBeNull();
+    expect(((await TicketsPage({})) as ReactElement<DeskProps>).props.defaultDepartmentId).toBeNull();
   });
 
   it("a guest gets the notice, never the desk", async () => {
     const w = await world();
     const guest = await makeUser({ orgId: w.org.id, role: "GUEST", name: `Guest ${uid()}` });
     await loginAs(guest.id);
-    expect(((await TicketsPage()) as ReactElement).type).not.toBe(TicketsDesk);
+    expect(((await TicketsPage({})) as ReactElement).type).not.toBe(TicketsDesk);
     expect(((await CampaignsPage()) as ReactElement).type).not.toBe(CampaignsDesk);
   });
 });

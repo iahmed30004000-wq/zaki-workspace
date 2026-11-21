@@ -11,7 +11,7 @@ import { TicketsDesk } from "@/components/work-desks";
  * company's, and the API refuses guests); somebody whose `directory.view` is off gets the «not enabled» notice, like
  * the departments page. Inside a department's space, that department's desk opens first.
  */
-export default async function TicketsPage() {
+export default async function TicketsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = await getServerT();
   const { user, actor } = await pageActor();
   if (actor.isExternal) {
@@ -22,7 +22,10 @@ export default async function TicketsPage() {
   const here = space?.kind === "DEPARTMENT"
     ? await db.workspace.findUnique({ where: { id: space.id }, select: { departmentId: true } })
     : null;
-  return <TicketsDesk me={{ id: user.id, role: actor.role, may: sectionMay(actor.caps, "tickets") }} defaultDepartmentId={here?.departmentId ?? null} />;
+  // `?ticket=<id>`: «مواعيد اليوم» (and any link to one ticket) opens that ticket's sheet; the detail door decides again whether the person may read it
+  const asked = searchParams?.["ticket"];
+  const openTicketId = typeof asked === "string" && asked.length > 0 && asked.length <= 64 ? asked : null;
+  return <TicketsDesk me={{ id: user.id, role: actor.role, may: sectionMay(actor.caps, "tickets") }} defaultDepartmentId={here?.departmentId ?? null} openTicketId={openTicketId} />;
 }
 
 export const dynamic = "force-dynamic";

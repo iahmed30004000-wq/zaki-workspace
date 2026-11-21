@@ -265,12 +265,12 @@ export function CustomersTab({
 			{rows.map((c) => (
 				<div key={c.id} className="rounded-xl border border-border bg-surface-1 p-4">
 					<div className="flex items-start justify-between gap-2">
-						<div className="flex items-center gap-2">
-							<div className="grid size-9 place-items-center rounded-lg bg-info/10 text-info">
+						<div className="flex min-w-0 items-center gap-2">
+							<div className="grid size-9 shrink-0 place-items-center rounded-lg bg-info/10 text-info">
 								<Users className="size-4.5" />
 							</div>
-							<div>
-								<p className="font-medium text-fg">{c.name}</p>
+							<div className="min-w-0">
+								<p className="break-words font-medium text-fg">{c.name}</p>
 								{c.company ? (
 									<p className="flex items-center gap-1 text-xs text-muted">
 										<Building2 className="size-3" />
@@ -280,7 +280,7 @@ export function CustomersTab({
 							</div>
 						</div>
 						{canEdit ? (
-							<div className="flex gap-1">
+							<div className="flex shrink-0 gap-1">
 								<button
 									aria-label={t("common.edit")}
 									onClick={() => onEdit(c)}
@@ -349,19 +349,19 @@ export function OpportunitiesTab({
 			{rows.map((o) => (
 				<div key={o.id} className="rounded-xl border border-border bg-surface-1 p-4">
 					<div className="flex flex-wrap items-center justify-between gap-2">
-						<div className="flex items-center gap-2">
-							<span dir="ltr" className="rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-muted">
+						<div className="flex min-w-0 items-center gap-2">
+							<span dir="ltr" className="shrink-0 rounded bg-surface-2 px-1.5 py-0.5 font-mono text-xs text-muted">
 								OP-{o.number}
 							</span>
-							<div>
-								<p className="font-medium text-fg">{o.title}</p>
+							<div className="min-w-0">
+								<p className="break-words font-medium text-fg">{o.title}</p>
 								<p className="text-xs text-muted">
 									{t("crm.for")} {o.customer?.name ?? "—"}
 									{o.customer?.company ? ` — ${o.customer.company}` : ""}
 								</p>
 							</div>
 						</div>
-						<div className="flex items-center gap-2">
+						<div className="flex flex-wrap items-center gap-2">
 							<span className="text-sm font-semibold text-fg">
 								{o.value == null ? t("enum.none") : fmtNumber(o.value)}
 							</span>
@@ -447,7 +447,7 @@ function CustomerModal({
 					<label className="text-xs text-muted">{t("crm.company")}</label>
 					<Input value={company} onChange={(e) => setCompany(e.target.value)} />
 				</div>
-				<div className="grid grid-cols-2 gap-3">
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					<div>
 						<label className="text-xs text-muted">{t("crm.email")}</label>
 						<Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
@@ -526,7 +526,7 @@ function OpportunityModal({
 					<label className="text-xs text-muted">{t("crm.title")} *</label>
 					<Input value={title} onChange={(e) => setTitle(e.target.value)} required minLength={3} />
 				</div>
-				<div className="grid grid-cols-2 gap-3">
+				<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
 					{canSeePrices ? (
 						<div>
 							<label className="text-xs text-muted">{t("crm.value")}</label>

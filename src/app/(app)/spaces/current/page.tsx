@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { pageActor } from "@/app/(app)/_access";
 import { Card, CardBody } from "@/components/ui/card";
 import { WorkspaceEditButton } from "@/components/workspace-edit-button";
@@ -6,6 +7,8 @@ import { TaskPrivacyBulkButton } from "@/components/task-privacy-bulk-button";
 import { getServerT } from "@/lib/i18n/server";
 import { db } from "@/server/db";
 import { currentSpace } from "@/server/services/current-space";
+import { actorFeatureOn } from "@/server/services/features";
+import { settingsHref } from "@/components/space-settings/tabs";
 
 export const metadata = { title: getServerT().t("spaces.manage.title") };
 
@@ -18,6 +21,7 @@ function Notice({ text }: { text: string }) {
  * projects page (the owner's ask, 2026-10-30). Only for whoever manages that space (the owner, its ADMIN, an org ADMIN
  * who is in it: `currentSpace(...).manager`); everybody else, an external partner included, gets a plain notice and
  * no data about the space. The routes behind the buttons (`PATCH /api/workspaces/[id]`, `/members`) refuse them too.
+ * A2.2: with the switch `controlPanelV2` ON a manager is sent to the space's ONE settings page (`/spaces/[id]/settings`); everybody else keeps the notice above.
  */
 export default async function CurrentSpacePage() {
   const { t } = getServerT();
@@ -26,6 +30,7 @@ export default async function CurrentSpacePage() {
   const space = await currentSpace(actor);
   if (!space) return <Notice text={t("spaces.manage.none")} />;
   if (!space.manager) return <Notice text={t("spaces.manage.not_yours")} />;
+  if (await actorFeatureOn(actor, "controlPanelV2")) redirect(settingsHref(space.id));
   const info = await db.workspace.findUnique({ where: { id: space.id }, select: { name: true, description: true } });
   if (!info) return <Notice text={t("spaces.manage.none")} />;
 
@@ -40,19 +45,19 @@ export default async function CurrentSpacePage() {
       </header>
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("spaces.manage.edit_hint")}</p>
+          <p className="min-w-[14rem] flex-1 text-sm text-fg-muted">{t("spaces.manage.edit_hint")}</p>
           <WorkspaceEditButton workspaceId={space.id} name={info.name} description={info.description} />
         </CardBody>
       </Card>
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("spaces.manage.members_hint")}</p>
+          <p className="min-w-[14rem] flex-1 text-sm text-fg-muted">{t("spaces.manage.members_hint")}</p>
           <WorkspaceMembersButton workspaceId={space.id} />
         </CardBody>
       </Card>
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("taskpriv.bulk_hint")}</p>
+          <p className="min-w-[14rem] flex-1 text-sm text-fg-muted">{t("taskpriv.bulk_hint")}</p>
           <TaskPrivacyBulkButton workspaceId={space.id} />
         </CardBody>
       </Card>

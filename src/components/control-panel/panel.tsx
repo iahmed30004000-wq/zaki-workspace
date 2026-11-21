@@ -24,10 +24,17 @@ const stagger = (i: number) => ({ animationDelay: `${Math.min(i, 6) * 70}ms` });
 
 // ───────────────────────────────────────── the cards ─────────────────────────────────────────
 
-function Kpi({ label, value, hint, formula, tone, index }: { label: string; value: string; hint?: string; formula: string; tone?: "danger" | "ok"; index: number }) {
+function Kpi({ label, value, hint, formula, tone, index, scope }: { label: string; value: string; hint?: string; formula: string; tone?: "danger" | "ok"; index: number; scope?: string }) {
   return (
     <li className={cn(CARD, RISE, "flex min-w-0 flex-col gap-1")} style={stagger(index)} data-kpi={label}>
-      <span className="text-xs text-fg-muted">{label}</span>
+      <span className="flex items-start justify-between gap-2 text-xs text-fg-muted">
+        <span>{label}</span>
+        {scope ? (
+          <span data-scope className="shrink-0 rounded-full border border-border bg-surface-2 px-2 py-0.5">
+            {scope}
+          </span>
+        ) : null}
+      </span>
       <span className={cn("text-3xl font-bold leading-none tabular-nums", tone === "danger" ? "text-danger" : tone === "ok" ? "text-ok" : "text-fg")}>{value}</span>
       {hint ? <span className="text-xs text-fg-muted">{hint}</span> : null}
       <p className="mt-1 text-xs leading-5 text-fg-muted">{formula}</p>
@@ -36,7 +43,8 @@ function Kpi({ label, value, hint, formula, tone, index }: { label: string; valu
 }
 
 /** `compact`: two cards a row whatever the screen (the home's column is narrow); otherwise four from a large screen up. */
-export function KpiGrid({ t, kpis, compact = false }: { t: ServerT; kpis: PanelKpis; compact?: boolean }) {
+/** `scope`: what the numbers are counted over («كل الشركة» / «مساحة: X»), drawn on every card (A2.1: no figure without its scope). */
+export function KpiGrid({ t, kpis, compact = false, scope }: { t: ServerT; kpis: PanelKpis; compact?: boolean; scope?: string }) {
   const rate = kpis.onTimeRate;
   const weekHint =
     kpis.completedChange === null
@@ -49,16 +57,17 @@ export function KpiGrid({ t, kpis, compact = false }: { t: ServerT; kpis: PanelK
   return (
     <section aria-label={t("cp.kpi.title")}>
       <ul className={cn("grid grid-cols-2 gap-3", compact ? "" : "lg:grid-cols-4")}>
-        <Kpi label={t("cp.kpi.done_today")} value={fmtNumber(kpis.doneToday)} hint={`${t("cp.kpi.week_line", { n: fmtNumber(kpis.completedWeek) })} · ${weekHint}`} formula={t("cp.kpi.done_today.formula")} index={0} />
-        <Kpi label={t("cp.kpi.overdue")} value={fmtNumber(kpis.overdue)} tone={kpis.overdue > 0 ? "danger" : "ok"} formula={t("cp.kpi.overdue.formula")} index={1} />
+        <Kpi label={t("cp.kpi.done_today")} value={fmtNumber(kpis.doneToday)} hint={`${t("cp.kpi.week_line", { n: fmtNumber(kpis.completedWeek) })} · ${weekHint}`} formula={t("cp.kpi.done_today.formula")} index={0} {...(scope ? { scope } : {})} />
+        <Kpi label={t("cp.kpi.overdue")} value={fmtNumber(kpis.overdue)} tone={kpis.overdue > 0 ? "danger" : "ok"} formula={t("cp.kpi.overdue.formula")} index={1} {...(scope ? { scope } : {})} />
         <Kpi
           label={t("cp.kpi.on_time")}
           value={rate === null ? "—" : `${rate}%`}
           {...(kpis.onTimePrev !== null ? { hint: t("cp.kpi.on_time.prev", { prev: kpis.onTimePrev }) } : {})}
           formula={t("cp.kpi.on_time.formula")}
           index={2}
+          {...(scope ? { scope } : {})}
         />
-        <Kpi label={t("cp.kpi.active")} value={t("cp.kpi.active_value", { n: fmtNumber(kpis.activeToday), total: fmtNumber(kpis.staff) })} formula={t("cp.kpi.active.formula")} index={3} />
+        <Kpi label={t("cp.kpi.active")} value={t("cp.kpi.active_value", { n: fmtNumber(kpis.activeToday), total: fmtNumber(kpis.staff) })} formula={t("cp.kpi.active.formula")} index={3} {...(scope ? { scope } : {})} />
       </ul>
     </section>
   );
@@ -243,7 +252,7 @@ export function WeekChart({ t, series }: { t: ServerT; series: PanelReports["ser
 const PRIORITIES = ["URGENT", "HIGH", "NORMAL", "LOW", "NONE"] as const;
 const IDEA_STATUSES = ["NEW", "UNDER_REVIEW", "PLANNING", "LAUNCHED", "REJECTED"] as const;
 
-export function ReportsView({ t, r }: { t: ServerT; r: PanelReports }) {
+export function ReportsView({ t, r, hidden = { v: "reports" } }: { t: ServerT; r: PanelReports; hidden?: Record<string, string> }) {
   const byPriority = new Map(r.byPriority.map((x) => [x.priority, x.n]));
   const maxPriority = Math.max(1, ...PRIORITIES.map((p) => byPriority.get(p) ?? 0));
   const maxWork = Math.max(1, ...r.workload.map((w) => w.n));
@@ -258,7 +267,9 @@ export function ReportsView({ t, r }: { t: ServerT; r: PanelReports }) {
       </header>
 
       <form method="get" action="/owner" className="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-surface p-3 shadow-card">
-        <input type="hidden" name="v" value="reports" />
+        {Object.entries(hidden).map(([name, value]) => (
+          <input key={name} type="hidden" name={name} value={value} />
+        ))}
         <label className="flex flex-col gap-1 text-xs text-fg-muted">
           {t("cp.rep.space")}
           <select name="space" defaultValue={r.spaceId ?? ""} className="rounded-lg border border-border bg-surface-1 px-2 py-1.5 text-sm text-fg">

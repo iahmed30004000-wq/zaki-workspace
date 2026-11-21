@@ -27,7 +27,8 @@ async function world() {
 describe("tasks: work cannot be assigned to a suspended or an offboarded person", () => {
   async function taskWorld() {
     const w = await world();
-    const ws = await makeWorkspace(w.org.id, [{ userId: w.member.id }, { userId: w.admin.id, role: "ADMIN" }]);
+    // B4 (a task is given only to a person of its space): the active colleague works in the space too
+    const ws = await makeWorkspace(w.org.id, [{ userId: w.member.id }, { userId: w.admin.id, role: "ADMIN" }, { userId: w.active.id }]);
     const made = await makeProject(ws.id);
     const actor = { userId: w.member.id, orgId: w.org.id };
     const input = (assigneeId: string | null) => ({

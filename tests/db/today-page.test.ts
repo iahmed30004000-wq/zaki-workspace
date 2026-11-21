@@ -82,7 +82,8 @@ const allowedLinks = /^(\/|\/\?view=today|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|
  * checked on its own (its links go to the panel's own page, the list of late work and the ideas, nowhere else) and taken out for the checks that
  * are about the rest of the page.
  */
-const panelLinks = /^(\/owner(\/people\/[\w-]+|\?v=\w+)?|\/list\?filter=overdue|\/ideas)$/;
+// B4: the late-work and ideas sentences enter the space they name (`/go?space=…&next=…`: «مهامي» on its late tasks, its «الأفكار»), not `/list?filter=overdue`
+const panelLinks = /^(\/owner(\/people\/[\w-]+|\?v=\w+)?|\/go\?space=[\w-]+(&amp;|&)next=[\w%.-]+)$/;
 function splitPanel(markup: string): { rest: string; panel: string } {
   const marker = markup.indexOf('data-testid="control-panel"');
   if (marker < 0) return { rest: markup, panel: "" };
@@ -314,9 +315,16 @@ describe("the home page: who sees what", () => {
     expect(owner).not.toContain("مهمة الموقوف");
     expect(owner).not.toContain("موقوف سامي");
 
+    // A2.3: «فريقي» — an admin has the pulse only once somebody answers to them (users.manage no longer decides it)
     await joinWorkspace(w.admin.id, w.wsIn.id); // an admin gets no space by rank
     await loginAs(w.admin.id);
-    expect(await html(HomePage({}))).toContain(t("today.pulse.title")); // and then manages people by default
+    expect(await html(HomePage({}))).not.toContain(t("today.pulse.title"));
+    await setMember(w.org.id, w.lead.id, { managerId: w.admin.id }); // «عمر قائد» holds the colleague's task
+    await loginAs(w.admin.id);
+    const admin = await html(HomePage({}));
+    expect(admin).toContain(t("today.pulse.title"));
+    expect(admin).toContain("مهمة الزميل عمر"); // the person under them holds it
+    expect(admin).toContain(t("today.team.scope_mine")); // and the card says whose numbers they are
 
     for (const person of [w.member, w.lead]) {
       await loginAs(person.id);
@@ -327,7 +335,7 @@ describe("the home page: who sees what", () => {
 
     await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"] });
     await loginAs(w.member.id);
-    expect(await html(HomePage({}))).toContain(t("today.pulse.title"));
+    expect(await html(HomePage({}))).not.toContain(t("today.pulse.title")); // the box alone makes no team
   });
 
   it("serves the ACTIVE company: somebody whose older membership is suspended sees the newer company's work and nothing of the old one", async () => {
@@ -629,14 +637,19 @@ describe("W1.7 «اليوم» simplified: the one team card (navV2 ON)", () => {
     expect(hrefsOf(slotOf(await html(todayPage()), "team"))).not.toContain("/owner");
   });
 
-  it("whoever holds users.manage gets it; a plain member, a team lead and a partner do not", async () => {
+  it("whoever has people under them gets it (A2.3: users.manage decides nothing); a person with nobody under them, a plain member, a team lead and a partner do not", async () => {
     const { w } = await busyWorld();
     await setFeatures(w.org.id, { navV2: true });
     for (const person of [w.member, w.lead]) {
       await loginAs(person.id);
       expect(cardsOf(await html(todayPage())), person.name).not.toContain("team");
     }
+    // the box alone makes no team: no card instead of a card of zeros
     await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"] });
+    await loginAs(w.member.id);
+    expect(cardsOf(await html(todayPage()))).not.toContain("team");
+    // somebody answers to them: the card is there, and says whose numbers they are (the page narrows to the space they are in)
+    await setMember(w.org.id, w.lead.id, { managerId: w.member.id });
     await loginAs(w.member.id);
     const markup = await html(todayPage());
     expect(cardsOf(markup)).toContain("team");

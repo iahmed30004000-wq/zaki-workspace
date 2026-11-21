@@ -9,6 +9,7 @@ import { DropOverlay } from "@/components/chat/v2/composer/drop-overlay";
 import { PasteSendDialog } from "@/components/chat/v2/composer/paste-dialog";
 import { loadRecentEmoji, rememberEmoji } from "@/lib/chat/v2/composer/recent-emoji";
 import { useComposer, type ComposerParams } from "@/lib/chat/v2/composer/use-composer";
+import { useReplyQuote } from "@/lib/chat/v2/phone/reply-quote";
 
 /**
  * C2.5 — THE COMPOSER OF THE NEW PANE (`chatLayoutV2`). It takes what `ChatComposer` takes (plus «↑»'s `editLast`) and wraps the same logic in `useComposer`:
@@ -20,6 +21,8 @@ export function ChatComposerV2(props: ComposerParams) {
   const { detail, conversationId, onMessage, editing, reply, onCancelReply, onCancelEdit } = props;
   const [recents, setRecents] = React.useState<string[]>([]);
   React.useEffect(() => setRecents(loadRecentEmoji()), []);
+  // S5.7 «رد بالاقتباس»: the piece picked for the reply being written (the send takes it from the same store)
+  const replyQuote = useReplyQuote(conversationId, reply?.id);
   const recording = c.voice.mode !== "idle";
   return (
     <>
@@ -27,6 +30,7 @@ export function ChatComposerV2(props: ComposerParams) {
         c={c}
         me={detail.me}
         reply={reply}
+        replyQuote={replyQuote}
         editing={editing}
         onCancelReply={onCancelReply}
         onCancelEdit={onCancelEdit}

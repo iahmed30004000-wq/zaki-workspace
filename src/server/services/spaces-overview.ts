@@ -3,7 +3,8 @@ import { db } from "@/server/db";
 import type { Actor } from "@/server/policy/actor";
 import { unreadBySpace } from "@/server/chat/unread";
 import { spacesOf } from "@/server/services/current-space";
-import { loadWorkScope, taskVisibleWhere } from "@/server/services/team-scope";
+import { loadWorkScope } from "@/server/services/team-scope";
+import { spaceFigures } from "@/server/services/space-figures";
 import { resolveTimeZone, zonedDayStart } from "@/lib/zoned-time";
 
 /**
@@ -40,8 +41,8 @@ export async function spacesOverview(actor: Actor, now: Date = new Date()): Prom
     unreadBySpace({ userId: actor.userId, orgId: actor.orgId, orgRole: actor.role }),
   ]);
   const todayStart = zonedDayStart(now, resolveTimeZone(org?.timezone));
-  const open = { orgId: actor.orgId, workspaceId: { in: ids }, archived: false, completedAt: null, AND: [taskVisibleWhere(scope)] };
-  const [members, openBy, overdueBy] = await Promise.all([
+  // the open and late numbers are `spaceFigures`, the one per-space source (the same as the report «حسب المساحة» and the overview's insight)
+  const [members, figures] = await Promise.all([
     /* The people who are actually there: suspending somebody keeps their organization row and, for a
        while, their space row too, so counting rows alone showed a space with people who had left. A
        GUEST is a person of the space (an external partner) and still counts — the status decides. */
@@ -53,20 +54,17 @@ export async function spacesOverview(actor: Actor, now: Date = new Date()): Prom
       },
       _count: { _all: true },
     }),
-    db.task.groupBy({ by: ["workspaceId"], where: open, _count: { _all: true } }),
-    db.task.groupBy({ by: ["workspaceId"], where: { ...open, dueDate: { lt: todayStart } }, _count: { _all: true } }),
+    spaceFigures({ orgId: actor.orgId, spaceIds: ids, todayStart, scope }),
   ]);
-  const count = (rows: Array<{ workspaceId: string; _count: { _all: number } }>) =>
-    new Map(rows.map((r) => [r.workspaceId, r._count._all] as const));
-  const [m, o, d] = [count(members), count(openBy), count(overdueBy)];
+  const m = new Map(members.map((r) => [r.workspaceId, r._count._all] as const));
   return spaces.map((s) => ({
     id: s.id,
     name: s.name,
     emoji: s.emoji,
     kind: s.kind,
     members: m.get(s.id) ?? 0,
-    open: o.get(s.id) ?? 0,
-    overdue: d.get(s.id) ?? 0,
+    open: figures.get(s.id)?.open ?? 0,
+    overdue: figures.get(s.id)?.overdue ?? 0,
     unread: unread[s.id] ?? 0,
   }));
 }

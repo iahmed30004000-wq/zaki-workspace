@@ -9,12 +9,14 @@ import { assertCan, requireActor } from "@/server/policy/actor";
 import { can, effectiveCapabilities } from "@/server/policy/capabilities";
 import { parseJson } from "@/server/validation";
 import { createWorkspace } from "@/server/services/workspaces";
+import { assertFeatureOn } from "@/server/services/features";
+import { SPACE_TEMPLATE_KEYS } from "@/lib/spaces/templates";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { unreadBySpace } from "@/server/chat/unread";
 import { currentSpace } from "@/server/services/current-space";
 import { foreignSpaceOf, overdueBySpace } from "@/server/services/nav-order";
 import { orgSummaryOf } from "@/server/services/features";
-import { waitingRequestCount } from "@/server/services/work-requests";
+import { requestsScopeHere, waitingRequestCount } from "@/server/services/work-requests";
 import { log } from "@/server/log";
 import { featureOn } from "@/lib/features";
 import { SPACE_LAYOUTS } from "@/lib/cards/shared";
@@ -100,7 +102,8 @@ export async function GET(req: Request) {
       ? await (async () => {
           const actor = await requireActor();
           if (actor.isExternal || !featureOn((await orgSummaryOf(actor.orgId))?.settings, "workRequests")) return 0;
-          return waitingRequestCount(actor);
+          // B4: the space the person is in (inside «الشركة» or with none: all of them), the same number the page's «بانتظاري» heads
+          return waitingRequestCount(actor, await requestsScopeHere(actor));
         })().catch((err: unknown) => {
           // a number that cannot be counted is no number: it never takes the spaces, the unread counts and the banner down with it
           log.warn("work_requests.count_failed", { message: err instanceof Error ? err.message : String(err) });
@@ -132,7 +135,9 @@ const createSchema = z.object({
   memberIds: z.array(z.string().min(1)).max(200).optional(),
   /** «نوع المساحة»: a general space (default) or a space of «لوحات» only. */
   layout: z.enum(SPACE_LAYOUTS).optional(),
-});
+  /** I1.2 «قالب»: one of the five templates (`src/lib/spaces/templates.ts`), behind the switch `spaceTemplates`. Nobody is added by it. */
+  template: z.enum(SPACE_TEMPLATE_KEYS).optional(),
+}).refine((v) => !v.template || !v.layout || v.layout === "STANDARD", { message: "spaces.template_layout", path: ["template"] });
 
 /**
  * Opens a space. It needs the capability `spaces.create` (the owner and the admins by default; the owner
@@ -156,6 +161,8 @@ export async function POST(req: Request) {
       caps = effectiveCapabilities(member);
     }
     assertCan({ caps }, "spaces.create");
+    // a template is behind its switch, in THIS company (the one the space is made in); a request with none never reads the settings
+    if (input.template) await assertFeatureOn(orgId, "spaceTemplates");
 
     const { workspace, added } = await createWorkspace(actor.userId, {
       organizationId: orgId,
@@ -163,6 +170,7 @@ export async function POST(req: Request) {
       description: input.description ?? null,
       memberIds: input.memberIds,
       layout: input.layout,
+      template: input.template,
     });
     if (added.length) {
       await notifyMembership({
@@ -178,7 +186,7 @@ export async function POST(req: Request) {
       actorId: actor.userId,
       orgId,
       target: workspace.id,
-      meta: { name: workspace.name },
+      meta: { name: workspace.name, ...(input.template ? { template: input.template } : {}) },
     });
     return NextResponse.json({ workspace }, { status: 201 });
   });

@@ -23,6 +23,7 @@ import ChatConversationPage from "@/app/(app)/chat/[id]/page";
 import WhiteboardPage from "@/app/(app)/chat/[id]/whiteboard/page";
 import ChatInfoPage from "@/app/(app)/chat/[id]/info/page";
 import CallPage from "@/app/(app)/calls/[id]/page";
+import CallMinutesPage from "@/app/(app)/calls/[id]/minutes/page";
 import WatchPage from "@/app/(app)/watch/page";
 import WatchSessionPage from "@/app/(app)/watch/[id]/page";
 import ArchivePage from "@/app/(app)/archive/page";
@@ -83,6 +84,7 @@ import GuidePage from "@/app/(app)/guide/page";
 import GuideArticlePage from "@/app/(app)/guide/[slug]/page";
 import SpacesPage from "@/app/(app)/spaces/page";
 import CurrentSpacePage from "@/app/(app)/spaces/current/page";
+import SpaceSettingsPage from "@/app/(app)/spaces/[id]/settings/page";
 import TicketsPage from "@/app/(app)/tickets/page";
 import CampaignsPage from "@/app/(app)/campaigns/page";
 import * as goRoute from "@/app/go/route";
@@ -132,7 +134,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/spaces/[id]/settings", "/tickets", "/campaigns", "/calls/[id]", "/calls/[id]/minutes", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation), the one-time onboarding and «ابعت لـ…» (`/share`, M1a: where the phone's share sheet lands;
@@ -185,19 +187,20 @@ const PAGES: Record<string, PageCall> = {
   "/chat/[id]/info": (args) => ChatInfoPage({ params: idOf(args) }),
   "/chat/s/[spaceId]": () => ChatForumPage(),
   "/calls/[id]": (args) => CallPage({ params: idOf(args) }),
+  "/calls/[id]/minutes": (args) => CallMinutesPage({ params: idOf(args) }),
   "/watch": () => WatchPage(),
   "/watch/[id]": (args) => WatchSessionPage({ params: idOf(args) }),
-  "/archive": () => ArchivePage(),
+  "/archive": () => ArchivePage({}),
   "/owner": ({ searchParams }) => OwnerBoardPage({ searchParams }),
   "/owner/people/[id]": (args) => OwnerBoardPersonPage({ params: idOf(args), searchParams: {} }),
   "/owner/assistant": ({ searchParams }) => OwnerAssistantPage({ searchParams }),
-  "/owner/assistant/settings": () => OwnerAssistantSettingsPage(),
+  "/owner/assistant/settings": () => OwnerAssistantSettingsPage({}),
   "/approvals": ({ searchParams }) => ApprovalsPage({ searchParams }),
   "/approvals/[id]": (args) => ApprovalPage({ params: idOf(args) }),
   "/approvals/forms": ({ searchParams }) => ApprovalFormsPage({ searchParams }),
   // W1.4 «الطلبات»: a page of its own; the approvals pages above stay
   "/requests": ({ searchParams }) => RequestsPage({ searchParams }),
-  "/structure": () => StructurePage(),
+  "/structure": () => StructurePage({}),
   "/development": ({ searchParams }) => DevelopmentPage({ searchParams }),
   "/development/skills": () => DevelopmentSkillsPage(),
   "/development/settings": () => DevelopmentSettingsPage(),
@@ -224,7 +227,7 @@ const PAGES: Record<string, PageCall> = {
   "/production": () => ProductionPage(),
   "/departments": () => DepartmentsPage(),
   "/teams": () => TeamsPage(),
-  "/members": () => MembersPage(),
+  "/members": () => MembersPage({}),
   "/files": () => FilesPage(),
   "/documents": () => DocumentsPage(),
   "/documents/[id]": (args) => DocumentRoute({ params: idOf(args) }),
@@ -234,9 +237,9 @@ const PAGES: Record<string, PageCall> = {
   "/manufacturing/orders": () => MfgOrdersRoute(),
   "/manufacturing/reports": () => MfgReportsRoute({ searchParams: {} }),
   "/crm": () => CrmPage(),
-  "/analytics": () => AnalyticsPage(),
-  "/automation": () => AutomationPage(),
-  "/telegram": () => TelegramPage(),
+  "/analytics": () => AnalyticsPage({}),
+  "/automation": () => AutomationPage({}),
+  "/telegram": () => TelegramPage({}),
   "/settings": () => SettingsPage(),
   "/profile": () => ProfilePage(),
   // C4.1 «إعداداتي»: `/profile` now REDIRECTS to its first section (the old address keeps working); the sections are one dynamic page
@@ -246,9 +249,10 @@ const PAGES: Record<string, PageCall> = {
   "/app-link": ({ searchParams }) => AppLinkPage({ searchParams }),
   "/guide": () => GuidePage(),
   "/guide/[slug]": ({ params }) => GuideArticlePage({ params: { slug: params["slug"] ?? "" } }),
-  "/spaces": () => SpacesPage(),
+  "/spaces": () => SpacesPage({}),
   "/spaces/current": () => CurrentSpacePage(),
-  "/tickets": () => TicketsPage(),
+  "/spaces/[id]/settings": (args) => SpaceSettingsPage({ params: idOf(args) }),
+  "/tickets": () => TicketsPage({}),
   "/campaigns": () => CampaignsPage(),
   "/login": () => LoginPage(),
   "/register": () => RegisterPage(),
@@ -420,6 +424,9 @@ function addressesOf(route: string, w: World): string[] {
       return [...spaces.map((s) => s.project.id), GONE].map((id) => `/projects/${id}`);
     case "/projects/[id]/timeline":
       return [...spaces.map((s) => s.project.id), GONE].map((id) => `/projects/${id}/timeline`);
+    case "/spaces/[id]/settings":
+      // A2.2: a space of the team, the one shared with the partner, the one nobody is in, and one that is gone
+      return [...spaces.map((s) => s.space.id), GONE].map((id) => `/spaces/${id}/settings`);
     case "/boards/[id]":
       return [...spaces.map((s) => s.board.id), GONE].map((id) => `/boards/${id}`);
     case "/tasks/[id]":
@@ -437,6 +444,9 @@ function addressesOf(route: string, w: World): string[] {
       return [w.teamSpace.space.id, w.closed.space.id, GONE].map((id) => `/chat/s/${id}`);
     case "/calls/[id]":
       return [w.topicCall.id, w.closedMeeting.id, GONE].map((id) => `/calls/${id}`);
+    case "/calls/[id]/minutes":
+      // S6.2: the minutes of a call the owner can see, of one that is closed, and of one that is gone (the switch is off here: not found for every rank)
+      return [w.topicCall.id, w.closedMeeting.id, GONE].map((id) => `/calls/${id}/minutes`);
     case "/watch/[id]":
       return [w.watch.id, GONE].map((id) => `/watch/${id}`);
     case "/cards/[id]":
@@ -555,7 +565,9 @@ describe("every page × the five ranks: an element, a redirect to a page that ex
           expect(end.kind === "broken" ? end.error : end.kind, where).toMatch(/^(?:rendered|not-found)$/);
           // not vacuous: the owner opens every page of the shell, with every id that exists
           // (W1.9 /my-work/stale is OFF by default: not-found is its honest answer, tested in work-stale-sweep.test.ts)
-          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && !address.includes(GONE)) {
+          // (A2.2 /spaces/[id]/settings answers not-found while controlPanelV2 is OFF, the default; the owner opens it with the switch ON in space-settings.test.ts)
+          // (S6.2 /calls/[id]/minutes answers not-found while meetingMinutes is OFF, the default; the owner reads the minutes with it ON in tests/db/meeting-minutes.test.ts)
+          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && route !== "/spaces/[id]/settings" && route !== "/calls/[id]/minutes" && !address.includes(GONE)) {
             expect(end.kind, `${where}: the owner opens it`).toBe("rendered");
           }
         }

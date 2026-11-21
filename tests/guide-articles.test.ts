@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import {
   ARTICLES,
+  EXTRA_ARTICLE_AUDIENCE,
   articleText,
   articlesFor,
   blocksFor,
@@ -172,10 +173,13 @@ describe("the articles: the data itself", () => {
   });
 
   it("agrees with the audience table: every slug is listed there, with the same level", () => {
+    // the one table, plus the articles added after it (I1.2: EXTRA_ARTICLE_AUDIENCE, folded into the table by the integrator): no slug is in both
+    const table: Record<string, Audience> = { ...ARTICLE_AUDIENCE, ...EXTRA_ARTICLE_AUDIENCE };
+    expect(Object.keys(ARTICLE_AUDIENCE).filter((k) => k in EXTRA_ARTICLE_AUDIENCE)).toEqual([]);
     for (const article of ARTICLES) {
-      expect(ARTICLE_AUDIENCE[article.slug as keyof typeof ARTICLE_AUDIENCE], article.slug).toBe(article.audience);
+      expect(table[article.slug], article.slug).toBe(article.audience);
     }
-    expect(Object.keys(ARTICLE_AUDIENCE).sort()).toEqual(ARTICLES.map((a) => a.slug).sort());
+    expect(Object.keys(table).sort()).toEqual(ARTICLES.map((a) => a.slug).sort());
   });
 
   it("only uses audiences that exist, and every article has something to read", () => {
@@ -437,5 +441,64 @@ describe("«الاعتمادات والرخص»: the in-app credits every licenc
     expect(md).not.toContain("Ibrahim Nabeel Salah");
     expect(md).toContain("zaki-digits");
     expect(md).toContain("Lalezar");
+  });
+});
+
+describe("«من تيليجرام لزاكي» (I1.2): which group becomes which space, who joins, which bot becomes which card", () => {
+  const article = () => bySlug("telegram-to-zaki");
+  const text = () => articleText(article(), "staff");
+
+  it("exists in the guide for the team (staff and above), never for a guest, and sits before the credits", () => {
+    expect(article().title).toBe("من تيليجرام لزاكي");
+    expect(article().audience).toBe("staff");
+    expect(articlesFor("everyone").map((a) => a.slug)).not.toContain("telegram-to-zaki");
+    expect(articlesFor("staff").map((a) => a.slug)).toContain("telegram-to-zaki");
+    const slugs = ARTICLES.map((a) => a.slug);
+    expect(slugs.indexOf("telegram-to-zaki")).toBe(slugs.indexOf("credits") - 1);
+    expect(readableArticle("telegram-to-zaki", "everyone")).toBeNull();
+    expect(readableArticle("telegram-to-zaki", "staff")?.blocks.length).toBeGreaterThan(0);
+  });
+
+  it("says which Telegram group becomes which space: the four templates and the blank one, with their topics and the pipeline's stages", () => {
+    for (const word of ["عمليات الطلبات", "إنتاج المحتوى", "الإدارة", "منتج / براند", "فاضية"]) expect(text(), word).toContain(`«${word}»`);
+    for (const topic of ["غير مؤكد", "مؤكد", "مرتجع", "شكاوى", "روابط", "تحميل", "سكربتات", "تقارير وأداء", "أفكار", "قرارات", "إعلانات", "تنسيق", "محتوى", "مشاكل"]) {
+      expect(text(), topic).toContain(`«${topic}»`);
+    }
+    expect(text()).toContain("«خط الإنتاج»");
+    expect(text()).toContain("فكرة ثم سكربت ثم تصوير ثم مونتاج ثم جاهز ثم منشور");
+  });
+
+  it("says who joins: nobody but the creator and the people they name, and that two topics open private", () => {
+    expect(text()).toContain("القالب ما بيضيف حدا");
+    expect(text()).toContain("«خاص»");
+    expect(text()).toContain("شكاوى");
+    expect(text()).toContain("قرارات");
+  });
+
+  it("says which bot becomes which card, through the doors that exist, with no customer data", () => {
+    expect(text()).toContain("«أحداث نظام الطلبات»");
+    expect(text()).toContain("«باب الرسائل»");
+    expect(text()).toContain("«افتح الطلب»");
+    expect(text()).toContain("بدون مبالغ وبدون بيانات زبائن");
+  });
+
+  it("keeps money out of chat: the cash and expenses groups get no template, and nothing is said to be moved from Telegram", () => {
+    expect(text()).toContain("ما إلهم قالب");
+    expect(text()).toContain("ما في نقل لرسائل تيليجرام القديمة");
+    expect(text()).not.toMatch(/شعار|لوغو|صور المجموعة/);
+  });
+
+  it("keeps the risk with its fix: a warning about the complaints topic carries the way out", () => {
+    const warns = article().blocks.filter((b): b is Extract<Block, { type: "warn" }> => b.type === "warn");
+    expect(warns.length).toBeGreaterThan(0);
+    expect(warns[0]?.text).toContain("شكاوى");
+    expect(warns[0]?.fix).toContain("نظام الطلبات");
+  });
+
+  it("is found by its own words in the guide's search", async () => {
+    const { search } = await import("@/lib/guide/articles");
+    for (const query of ["تيليجرام", "قالب مساحة", "تلجرام قروب"]) {
+      expect(search(query, "staff").map((a) => a.slug), query).toContain("telegram-to-zaki");
+    }
   });
 });

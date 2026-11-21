@@ -33,13 +33,10 @@
   align-items: center;
   gap: 0.25rem;
 }
-@media (max-width: 767px) {
-  .zx[data-size="bar"][data-style="lamp"],
-  .zx[data-size="bar"][data-style="warmth"] {
-    --zx-w: 112px;
-    --zx-travel: 68px;
-  }
-}
+/*
+ * P2.1 — there is no phone cap here: the sizes are set inline from the control's own table (fx-control.tsx `DIM`, which its drag maths read too), so a media rule that changed them could never win and
+ * would only lie. The new map draws these looks from `md` up (its phone bar has an icon in the drawer instead); the old map's phone bar still draws them at their own size.
+ */
 .zx-track {
   position: relative;
   box-sizing: border-box;

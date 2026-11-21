@@ -112,7 +112,7 @@ describe("«الهيكل» applies the people screen's rank limit", () => {
     expect(can(w.admin.id)).toBe(false); // himself, an admin
     expect(can(w.owner.id)).toBe(false); // the owner has no supervisor
 
-    const page = await html(StructurePage());
+    const page = await html(StructurePage({}));
     expect(page).toContain(`data-change-supervisor="${w.lead.id}"`);
     expect(page).not.toContain(`data-change-supervisor="${w.admin2.id}"`);
     expect(page).not.toContain(`data-change-supervisor="${w.owner.id}"`);

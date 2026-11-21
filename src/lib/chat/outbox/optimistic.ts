@@ -3,6 +3,7 @@ import type { MessageDto } from "@/server/chat/dto";
 import { appendPending, failPending, removePending, replacePending, resumePending, type PendingInput } from "@/lib/chat/cache/pending";
 import type { Outbox, OutboxFailure } from "@/lib/chat/outbox/queue";
 import { postChatMessage, SEND_TIMEOUT_MS, type ChatSendPayload } from "@/lib/chat/outbox/send";
+import { replyQuoteStore } from "@/lib/chat/v2/phone/reply-quote";
 
 /**
  * C1.8 — THE FIRST ATTEMPT OF A SEND, OPTIMISTIC. The composer calls `startOptimisticSend` when the person presses send:
@@ -49,7 +50,10 @@ export type OptimisticOutcome =
   | { kind: "full" };
 
 export function startOptimisticSend(deps: OptimisticDeps, input: OptimisticSendInput): { shown: false } | { shown: true; done: Promise<OptimisticOutcome> } {
-  const { payload, conversationId } = input;
+  const { conversationId } = input;
+  // S5.7 «رد بالاقتباس»: the quote the person picked for THIS reply (the store gives it once, and only for the message being answered) rides with the request and with the
+  // outbox's copy; when the bubble is not drawn early (`shown: false`) the caller sends the old way and the quote stays where it is for the reply bar
+  const payload: ChatSendPayload = { ...input.payload };
   const body = payload.body.trim();
   if (payload.attachmentIds.length > 0 || payload.voice === true || body.length === 0) return { shown: false };
 
@@ -61,6 +65,8 @@ export function startOptimisticSend(deps: OptimisticDeps, input: OptimisticSendI
     ...(input.replyTo ? { replyTo: input.replyTo } : {}),
   });
   if (!shown) return { shown: false };
+  const quote = payload.replyToId ? (payload.replyQuote ?? replyQuoteStore.take(conversationId, payload.replyToId)) : null;
+  if (quote) payload.replyQuote = quote;
 
   const keep = (opts: { retryAfterSec?: number; failed?: OutboxFailure } = {}): OptimisticOutcome | null => {
     const result = deps.outbox.enqueue(
@@ -69,7 +75,7 @@ export function startOptimisticSend(deps: OptimisticDeps, input: OptimisticSendI
         conversationId,
         body,
         mentions: payload.mentions,
-        ...(payload.replyToId ? { replyToId: payload.replyToId } : {}),
+        ...(payload.replyToId ? { replyToId: payload.replyToId, ...(payload.replyQuote ? { replyQuote: payload.replyQuote } : {}) } : {}),
         ...(payload.mentionAll ? { mentionAll: true } : {}),
         ...(payload.noPreview ? { noPreview: true } : {}),
         ...(payload.silent ? { silent: true } : {}),

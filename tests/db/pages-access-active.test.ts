@@ -132,6 +132,8 @@ describe("routes serve the ACTIVE company, never the suspended one", () => {
     const suspended = await makeUser({ orgId: team.org.id, role: "MEMBER" });
     const offboarded = await makeUser({ orgId: team.org.id, role: "MEMBER" });
     const colleague = await makeUser({ orgId: team.org.id, role: "MEMBER" });
+    // B4 (a task is given only to a person of its space): the active colleague works in the space
+    await db.workspaceMember.create({ data: { workspaceId: ws.id, userId: colleague.id } });
     await suspendMember(team.org.id, suspended.id);
     await db.organizationMember.update({
       where: { organizationId_userId: { organizationId: team.org.id, userId: offboarded.id } },
@@ -235,7 +237,7 @@ describe("pages serve the ACTIVE company, with the role held there", () => {
       data: { capabilities: ["reports.view"] },
     });
     await loginAs(w.person.id);
-    const page = await html(AnalyticsPage());
+    const page = await html(AnalyticsPage({}));
     expect(page).toContain(t("analytics.ideasTotal", { total: 2 }));
     expect(page).not.toContain(t("analytics.ideasTotal", { total: 5 }));
   });

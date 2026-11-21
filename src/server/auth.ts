@@ -5,7 +5,9 @@ import { db } from "./db";
 import { perRequest } from "./env";
 import { log } from "./log";
 import { getSessionUser, clearSessionCookie, setSessionCookie } from "./session";
+import { createSession, readSession, renewSession, revokeReplacedSession, touchSession } from "./services/sessions";
 import type { OrgRole, WorkspaceRole } from "@prisma/client";
+import { headers } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { onboardingStateOf } from "./policy/org-settings";
 import { isSpaceManager, workspaceRoleOf } from "./workspace-role";
@@ -38,12 +40,17 @@ export interface CurrentUser {
    * not be laundered into a brand-new cookie.
    */
   tv: number;
+  /** The `UserSession` this request belongs to (C4.2); null for a cookie issued before the table existed. */
+  sid?: string | null;
 }
 
 /**
  * The signed-in user, or null. Null means: no cookie, a cookie that is no longer honoured (the
- * user's session version moved on: suspended, offboarded, password reset, "log out everywhere"),
- * or no ACTIVE membership anywhere. Safe to call in server components.
+ * user's session version moved on: suspended, offboarded, password reset, "log out everywhere"; or
+ * ITS session row was ended or is gone: «اطلع من هالجهاز», C4.2), or no ACTIVE membership anywhere.
+ * A cookie without a session id (issued before C4.2) is still honoured until it expires: the deploy
+ * signs nobody out. The session row is read in parallel with the user (no extra round trip) and its
+ * `lastSeenAt` is written at most once every few minutes (`touchSession`). Safe to call in server components.
  *
  * Read ONCE per server render (`perRequest`, F1.1): the layout and the page both ask, and the second ask is free. Nothing
  * outlives the render, so a session revoked a moment later is refused by the very next request.
@@ -51,28 +58,34 @@ export interface CurrentUser {
 export const currentUser: () => Promise<CurrentUser | null> = perRequest(async () => {
   const session = await getSessionUser();
   if (!session) return null;
-  const user = await db.user.findUnique({
-    where: { id: session.userId },
-    select: {
-      id: true,
-      email: true,
-      username: true,
-      name: true,
-      locale: true,
-      tokenVersion: true,
-      mustChangePassword: true,
-      transparencyVersion: true,
-      memberships: {
-        where: { status: "ACTIVE" },
-        orderBy: { createdAt: "asc" },
-        take: 1,
-        select: { organization: { select: { settings: true } } },
+  const [user, row] = await Promise.all([
+    db.user.findUnique({
+      where: { id: session.userId },
+      select: {
+        id: true,
+        email: true,
+        username: true,
+        name: true,
+        locale: true,
+        tokenVersion: true,
+        mustChangePassword: true,
+        transparencyVersion: true,
+        memberships: {
+          where: { status: "ACTIVE" },
+          orderBy: { createdAt: "asc" },
+          take: 1,
+          select: { organization: { select: { settings: true } } },
+        },
       },
-    },
-  });
+    }),
+    session.sid ? readSession(session.sid) : Promise.resolve(null),
+  ]);
   if (!user || user.tokenVersion !== session.tv) return null;
   const active = user.memberships[0];
   if (!active) return null;
+  // a cookie that names a session must find it live and the person's own; a cookie that names none is an old one (honoured until it expires)
+  if (session.sid && (!row || row.userId !== user.id || row.revokedAt)) return null;
+  if (row) await touchSession(row);
   return {
     id: user.id,
     email: user.email,
@@ -80,6 +93,7 @@ export const currentUser: () => Promise<CurrentUser | null> = perRequest(async (
     name: user.name,
     locale: user.locale,
     tv: user.tokenVersion,
+    sid: session.sid ?? null,
     ...onboardingStateOf(user, active.organization.settings),
   };
 });
@@ -114,8 +128,14 @@ export async function requireUser(opts: { allowPending?: boolean } = {}): Promis
 }
 
 /**
- * Signs `userId` in: a cookie carrying a session version and whatever onboarding they still owe.
+ * Signs `userId` in: a cookie carrying a session version, the id of the person's session row and whatever onboarding they still owe.
  * Used after login, password change and accepting the notice.
+ *
+ * `opts.fresh` (a sign-in, a registration) starts a NEW session row for this device (`opts.userAgent` is stored trimmed) and ends the one the browser's
+ * old cookie named, so a browser that signs in again is one device in the list, not two. Without it the cookie being replaced KEEPS its session: the row
+ * follows the new version and expiry (a password change leaves this device signed in and ends the others through the version). An old cookie that has no
+ * session stays as it is (the re-issue is old-shaped too: the deploy changes nothing for it) unless `opts.adopt` asks for it to get a row now
+ * (`GET /api/me/sessions`: the person opened their devices list, so this device must be in it and endable from another).
  *
  * `opts.tv` is the version to sign. A sign-in (nobody is authenticated yet) leaves it out and gets
  * the CURRENT version. A request that is already authenticated passes the version it was
@@ -123,7 +143,7 @@ export async function requireUser(opts: { allowPending?: boolean } = {}): Promis
  * session was revoked in the meantime that cookie is simply already stale, instead of the
  * revocation being undone by a fresh read.
  */
-export async function startSession(userId: string, opts: { tv?: number } = {}): Promise<void> {
+export async function startSession(userId: string, opts: { tv?: number; fresh?: boolean; adopt?: boolean; userAgent?: string | null } = {}): Promise<{ sid: string | null }> {
   const user = await db.user.findUniqueOrThrow({
     where: { id: userId },
     select: {
@@ -139,12 +159,36 @@ export async function startSession(userId: string, opts: { tv?: number } = {}): 
     },
   });
   const onboarding = onboardingStateOf(user, user.memberships[0]?.organization.settings ?? {});
+  const tv = opts.tv ?? user.tokenVersion;
+  const held = await getSessionUser();
+  let sid: string | null = null;
+  if (opts.fresh) {
+    if (held?.sid) await revokeReplacedSession(held.sid);
+    sid = await createSession({ userId, tokenVersion: tv, userAgent: opts.userAgent !== undefined ? opts.userAgent : await requestUserAgent() });
+  } else if (held?.sid && held.userId === userId) {
+    // the request's own session: NEVER re-read or revived here (a revocation that landed in flight leaves this cookie dead)
+    sid = held.sid;
+    await renewSession(sid, userId, tv);
+  } else if (opts.adopt) {
+    sid = await createSession({ userId, tokenVersion: tv, userAgent: opts.userAgent !== undefined ? opts.userAgent : await requestUserAgent() });
+  }
   await setSessionCookie({
     userId,
-    tv: opts.tv ?? user.tokenVersion,
+    tv,
+    ...(sid ? { sid } : {}),
     ...(onboarding.mustChangePassword ? { mcp: true } : {}),
     ...(onboarding.transparencyPending ? { tp: true } : {}),
   });
+  return { sid };
+}
+
+/** The caller's user agent, for a session created outside a sign-in route (an old cookie being adopted). Null when there is no request to read. */
+async function requestUserAgent(): Promise<string | null> {
+  try {
+    return (await headers()).get("user-agent");
+  } catch {
+    return null;
+  }
 }
 
 export class UnauthorizedError extends Error {
