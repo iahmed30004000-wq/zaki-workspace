@@ -2,7 +2,7 @@
  * The place's tabs as a WHEEL on a phone (the owner, 2026-11-21: «زي المنبّه… بس يمين وشمال، 3 خيارات، والمحدد اللي بالنص، مع أنيميشن وصوت ويقدر يطفّيه»).
  * Like the alarm's picker turned on its side: the tabs run sideways under the thumb, the one in the middle is the chosen one, and the ones beside it shrink and
  * fade. Three choices, kept on this device: the wheel itself (off: the plain strip it always was), the motion (the shrinking and fading), the tick (a small sound
- * and a buzz each time a new tab reaches the middle; off until asked for). All of it is plain data here, so it is tested without a browser.
+ * and a buzz each time a new tab reaches the middle), the glass (the frosted look). All four are on from the start and can be switched off. All of it is plain data here, so it is tested without a browser.
  */
 
 export interface WheelPrefs {
@@ -12,9 +12,12 @@ export interface WheelPrefs {
   motion: boolean;
   /** a tick (sound and a buzz) for each tab that reaches the middle */
   sound: boolean;
+  /** the glass: a frosted capsule behind the strip and a clear glass band behind the tab in the middle, like the alarm's picker */
+  glass: boolean;
 }
 
-export const DEFAULT_WHEEL_PREFS: WheelPrefs = { wheel: true, motion: true, sound: false };
+// the owner (2026-11-21): «صوت التقليب بين القوائم والثيم الزجاجي كما منبه آبل» — both ON from the start; each can be switched off in «المظهر واللغة»
+export const DEFAULT_WHEEL_PREFS: WheelPrefs = { wheel: true, motion: true, sound: true, glass: true };
 
 export const WHEEL_KEY = "zk-tab-wheel";
 /** Fired on `window` when the choice is saved, so a strip that is on screen follows a switch flipped in the settings at once. */
@@ -33,7 +36,7 @@ export function parseWheelPrefs(raw: unknown): WheelPrefs {
   if (!value || typeof value !== "object") return { ...DEFAULT_WHEEL_PREFS };
   const o = value as Record<string, unknown>;
   const pick = (key: keyof WheelPrefs): boolean => (typeof o[key] === "boolean" ? (o[key] as boolean) : DEFAULT_WHEEL_PREFS[key]);
-  return { wheel: pick("wheel"), motion: pick("motion"), sound: pick("sound") };
+  return { wheel: pick("wheel"), motion: pick("motion"), sound: pick("sound"), glass: pick("glass") };
 }
 
 export function loadWheelPrefs(): WheelPrefs {

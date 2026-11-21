@@ -7,8 +7,8 @@ import { parseSpot, spotOf, spotStyle, SPOT_KEY } from "@/lib/calls/mini-window"
 const read = (path: string) => readFileSync(path, "utf8");
 
 describe("the tabs as a wheel (the owner, 2026-11-21: like the alarm's picker, sideways, the middle one is the chosen one)", () => {
-  it("the wheel is on, it moves, and it is silent until the person asks for the tick", () => {
-    expect(DEFAULT_WHEEL_PREFS).toEqual({ wheel: true, motion: true, sound: false });
+  it("the wheel is on, it moves, it ticks and it is glass from the start (the owner: «صوت التقليب والثيم الزجاجي كما منبه آبل»)", () => {
+    expect(DEFAULT_WHEEL_PREFS).toEqual({ wheel: true, motion: true, sound: true, glass: true });
     expect(WHEEL_KEY).toBe("zk-tab-wheel");
   });
 
@@ -16,7 +16,8 @@ describe("the tabs as a wheel (the owner, 2026-11-21: like the alarm's picker, s
     expect(parseWheelPrefs(null)).toEqual(DEFAULT_WHEEL_PREFS);
     expect(parseWheelPrefs("{not json")).toEqual(DEFAULT_WHEEL_PREFS);
     expect(parseWheelPrefs('{"wheel":false}')).toEqual({ ...DEFAULT_WHEEL_PREFS, wheel: false });
-    expect(parseWheelPrefs('{"sound":true,"motion":false,"wheel":"yes"}')).toEqual({ wheel: true, motion: false, sound: true });
+    expect(parseWheelPrefs('{"sound":true,"motion":false,"wheel":"yes"}')).toEqual({ wheel: true, motion: false, sound: true, glass: true });
+    expect(parseWheelPrefs('{"glass":false,"sound":false}')).toEqual({ ...DEFAULT_WHEEL_PREFS, glass: false, sound: false });
   });
 
   it("the middle one is the tab whose centre is nearest the middle of the strip", () => {
@@ -53,12 +54,37 @@ describe("the tabs as a wheel (the owner, 2026-11-21: like the alarm's picker, s
     expect(tabs).toContain("useRosary(");
   });
 
-  it("the three choices are in «المظهر واللغة», each with its words", () => {
+  it("the glass: a frosted capsule behind the strip and a clear band behind the tab in the middle, behind the words, only while the wheel and the glass are on", () => {
+    const tabs = read("src/components/shell/place-tabs.tsx");
+    expect(tabs).toContain("const glass = wheelOn && prefs.glass;");
+    expect(tabs).toContain("data-wheel-glass");
+    expect(tabs).toContain("data-wheel-band");
+    expect(tabs).toContain("backdrop-blur");
+    // the band is drawn BEFORE the list in the markup, so the words are above it
+    expect(tabs.indexOf("data-wheel-band")).toBeLessThan(tabs.indexOf("<ul ref={listRef} className={listClass} data-tab-wheel"));
+    // in a right-to-left page the band is centred the other way round
+    expect(tabs).toContain("rtl:translate-x-1/2");
+  });
+
+  it("the tick is a click with a body (two notes), loud enough to be heard, and the person can switch it off", () => {
+    const tick = read("src/lib/nav/wheel-tick.ts");
+    expect(tick).toContain("2300");
+    expect(tick).toContain("980");
+    expect(tick).toContain("navigator.vibrate");
+    expect(read("src/components/shell/place-tabs.tsx")).toMatch(/prefs\.sound/);
+  });
+
+  it("the person's own word is «دولاب»", () => {
+    expect(AR["settingsMe.wheel.wheel"]).toContain("دولاب");
+    expect(AR["settingsMe.wheel.glass"]).toBe("زجاج");
+  });
+
+  it("the four choices are in «المظهر واللغة», each with its words", () => {
     const section = read("src/components/settings-me/language-section.tsx");
     expect(section).toContain("<TabWheelBlock");
     const block = read("src/components/settings-me/tab-wheel-block.tsx");
-    for (const key of ["wheel", "motion", "sound"]) expect(block).toContain(`settingsMe.wheel.${key}`);
-    for (const key of ["settingsMe.wheel.title", "settingsMe.wheel.hint", "settingsMe.wheel.wheel", "settingsMe.wheel.motion", "settingsMe.wheel.sound"]) expect(AR[key], key).toBeTruthy();
+    for (const key of ["wheel", "motion", "sound", "glass"]) expect(block).toContain(`settingsMe.wheel.${key}`);
+    for (const key of ["settingsMe.wheel.title", "settingsMe.wheel.hint", "settingsMe.wheel.wheel", "settingsMe.wheel.motion", "settingsMe.wheel.sound", "settingsMe.wheel.glass", "settingsMe.wheel.glass.hint"]) expect(AR[key], key).toBeTruthy();
   });
 });
 

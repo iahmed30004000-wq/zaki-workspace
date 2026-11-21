@@ -70,6 +70,7 @@ export function PlaceTabs({
     wheelOn && "snap-x snap-mandatory px-[40%] [mask-image:linear-gradient(to_right,transparent,#000_22%,#000_78%,transparent)]",
   );
 
+  const glass = wheelOn && prefs.glass;
   return (
     <nav
       aria-label={t("shell.tabs", { place: t(place.labelKey) })}
@@ -104,6 +105,12 @@ export function PlaceTabs({
           </ul>
         </SortableList>
       ) : (
+        <div
+          data-wheel-glass={glass ? "" : undefined}
+          className={cn("relative min-w-0 flex-1", glass && "mx-2 my-1 overflow-hidden rounded-full border border-fg/10 bg-surface-1/50 backdrop-blur-xl")}
+        >
+          {/* the glass band behind the tab in the middle (the alarm picker's selection): clear, frosted, behind the words */}
+          {glass ? <span aria-hidden data-wheel-band className="pointer-events-none absolute inset-y-1 start-1/2 w-28 -translate-x-1/2 rounded-full border border-fg/20 bg-fg/10 shadow-sm backdrop-blur-md rtl:translate-x-1/2" /> : null}
         <ul ref={listRef} className={listClass} data-tab-wheel={wheelOn ? "" : undefined}>
           {/* the rosary: the tabs AND what the place keeps beyond them, in ONE strip that runs sideways (wheel, finger, or a pressed mouse): no menu */}
           {items.map((item, i) => {
@@ -126,6 +133,7 @@ export function PlaceTabs({
             );
           })}
         </ul>
+        </div>
       )}
       {end}
     </nav>
