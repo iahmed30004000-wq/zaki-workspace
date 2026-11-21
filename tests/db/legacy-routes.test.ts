@@ -23,6 +23,7 @@ import ChatConversationPage from "@/app/(app)/chat/[id]/page";
 import WhiteboardPage from "@/app/(app)/chat/[id]/whiteboard/page";
 import ChatInfoPage from "@/app/(app)/chat/[id]/info/page";
 import CallPage from "@/app/(app)/calls/[id]/page";
+import CallMinutesPage from "@/app/(app)/calls/[id]/minutes/page";
 import WatchPage from "@/app/(app)/watch/page";
 import WatchSessionPage from "@/app/(app)/watch/[id]/page";
 import ArchivePage from "@/app/(app)/archive/page";
@@ -132,7 +133,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/spaces/[id]/settings", "/tickets", "/campaigns", "/calls/[id]", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/spaces/[id]/settings", "/tickets", "/campaigns", "/calls/[id]", "/calls/[id]/minutes", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation) and the one-time onboarding.
@@ -184,6 +185,7 @@ const PAGES: Record<string, PageCall> = {
   "/chat/[id]/info": (args) => ChatInfoPage({ params: idOf(args) }),
   "/chat/s/[spaceId]": () => ChatForumPage(),
   "/calls/[id]": (args) => CallPage({ params: idOf(args) }),
+  "/calls/[id]/minutes": (args) => CallMinutesPage({ params: idOf(args) }),
   "/watch": () => WatchPage(),
   "/watch/[id]": (args) => WatchSessionPage({ params: idOf(args) }),
   "/archive": () => ArchivePage({}),
@@ -438,6 +440,9 @@ function addressesOf(route: string, w: World): string[] {
       return [w.teamSpace.space.id, w.closed.space.id, GONE].map((id) => `/chat/s/${id}`);
     case "/calls/[id]":
       return [w.topicCall.id, w.closedMeeting.id, GONE].map((id) => `/calls/${id}`);
+    case "/calls/[id]/minutes":
+      // S6.2: the minutes of a call the owner can see, of one that is closed, and of one that is gone (the switch is off here: not found for every rank)
+      return [w.topicCall.id, w.closedMeeting.id, GONE].map((id) => `/calls/${id}/minutes`);
     case "/watch/[id]":
       return [w.watch.id, GONE].map((id) => `/watch/${id}`);
     case "/cards/[id]":
@@ -557,7 +562,8 @@ describe("every page × the five ranks: an element, a redirect to a page that ex
           // not vacuous: the owner opens every page of the shell, with every id that exists
           // (W1.9 /my-work/stale is OFF by default: not-found is its honest answer, tested in work-stale-sweep.test.ts)
           // (A2.2 /spaces/[id]/settings answers not-found while controlPanelV2 is OFF, the default; the owner opens it with the switch ON in space-settings.test.ts)
-          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && route !== "/spaces/[id]/settings" && !address.includes(GONE)) {
+          // (S6.2 /calls/[id]/minutes answers not-found while meetingMinutes is OFF, the default; the owner reads the minutes with it ON in tests/db/meeting-minutes.test.ts)
+          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && route !== "/spaces/[id]/settings" && route !== "/calls/[id]/minutes" && !address.includes(GONE)) {
             expect(end.kind, `${where}: the owner opens it`).toBe("rendered");
           }
         }
