@@ -121,7 +121,8 @@ export function onSpeechIssue(handler: (kind: SpeechIssue) => void): () => void 
 }
 
 function report(kind: SpeechIssue): void {
-  if (reported.has(kind)) return;
+  // with nobody listening the issue is kept for later (the guide's window may not be mounted yet): it is only «said» once somebody heard it
+  if (reported.has(kind) || issueHandlers.size === 0) return;
   reported.add(kind);
   for (const handler of [...issueHandlers]) handler(kind);
 }
@@ -129,13 +130,18 @@ function report(kind: SpeechIssue): void {
 // ───────────────────────────────────────── the voices ─────────────────────────────────────────
 
 const VOICES_TIMEOUT_MS = 2000;
+/** Once the wait has run out with nothing, a device with no voices does not make every answer wait again (a voice that shows up later is still found). */
+let gaveUp = false;
+let loading: Promise<SpeechSynthesisVoice[]> | null = null;
 
 /** The device's voices: at once when they are there, else when the browser announces them (`voiceschanged`) or after a timeout (some never do). */
 function loadVoices(): Promise<SpeechSynthesisVoice[]> {
   const synth = window.speechSynthesis;
   const now = synth.getVoices();
   if (now.length > 0) return Promise.resolve(now);
-  return new Promise((resolve) => {
+  if (gaveUp) return Promise.resolve(now);
+  if (loading) return loading;
+  loading = new Promise<SpeechSynthesisVoice[]>((resolve) => {
     let done = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let poll: ReturnType<typeof setInterval> | undefined;
@@ -145,7 +151,10 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
       if (timer) clearTimeout(timer);
       if (poll) clearInterval(poll);
       synth.removeEventListener?.("voiceschanged", check);
-      resolve(synth.getVoices());
+      const voices = synth.getVoices();
+      if (voices.length === 0) gaveUp = true;
+      loading = null;
+      resolve(voices);
     };
     function check() {
       if (synth.getVoices().length > 0) finish();
@@ -154,6 +163,7 @@ function loadVoices(): Promise<SpeechSynthesisVoice[]> {
     poll = setInterval(check, 150);
     timer = setTimeout(finish, VOICES_TIMEOUT_MS);
   });
+  return loading;
 }
 
 async function bestArabicVoice(): Promise<SpeechSynthesisVoice | null> {
@@ -201,6 +211,9 @@ function sayPiece(text: string, voice: SpeechSynthesisVoice, prefs: VoicePrefs):
   return new Promise((resolve) => {
     let settled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
+    const started = Date.now();
+    // an estimate of how long the piece takes; the engine's own `end` normally comes first
+    const budget = Math.max(4000, (text.length * 140) / prefs.rate + 3000);
     const finish = (ok: boolean) => {
       if (settled) return;
       settled = true;
@@ -217,7 +230,17 @@ function sayPiece(text: string, voice: SpeechSynthesisVoice, prefs: VoicePrefs):
     u.volume = prefs.volume;
     u.onend = () => finish(true);
     u.onerror = (e) => finish(e.error === "canceled" || e.error === "interrupted");
-    timer = setTimeout(() => finish(true), Math.max(4000, (text.length * 140) / prefs.rate + 3000));
+    // the watchdog: an engine that never says `end` must not hang the call. While the engine still says it is speaking the wait is extended (a slow voice),
+    // up to three times the estimate; after that the piece is cancelled so the next one never plays on top of it.
+    const arm = (ms: number) => {
+      timer = setTimeout(() => {
+        const synth = window.speechSynthesis;
+        if (synth.speaking && Date.now() - started < budget * 3) return arm(1000);
+        if (synth.speaking) synth.cancel();
+        finish(true);
+      }, ms);
+    };
+    arm(budget);
     try {
       window.speechSynthesis.speak(u);
     } catch {

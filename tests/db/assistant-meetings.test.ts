@@ -289,6 +289,15 @@ describe("the text answer (S6.1)", () => {
     expect(await assistantLines(w.topic.id)).toHaveLength(0);
   });
 
+  it("only an answer to somebody who spoke TO the assistant is written (an unprompted one is never put into the history)", async () => {
+    const w = await world();
+    said = "ملاحظة من عندي.";
+    await ask(w.callId, { addressed: false });
+    expect(await assistantLines(w.topic.id)).toHaveLength(0);
+    await ask(w.callId, { addressed: true });
+    expect(await assistantLines(w.topic.id)).toHaveLength(1);
+  });
+
   it("a meeting by link has no conversation: the answer is spoken only, nothing breaks", async () => {
     const w = await world();
     const byLink = await db.call.create({ data: { orgId: w.org.id, startedById: w.owner.id, title: "اجتماع برابط" } });

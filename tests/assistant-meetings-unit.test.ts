@@ -92,6 +92,11 @@ describe("the voice agent's side (voice-agent/, a Python program: its own tests 
     expect(agent).not.toContain("last_spoke_at");
   });
 
+  it("a follow-up is short (twelve words at most), and only the two real names take a glued «و»", () => {
+    expect(logic).toContain("FOLLOW_UP_MAX_WORDS = 12");
+    expect(logic).toContain("PREFIXABLE_NAMES");
+  });
+
   it("the names are matched as whole words (token by token), never as a piece of another word", () => {
     expect(logic).toContain("def is_named");
     expect(logic).toContain("def _tokens");

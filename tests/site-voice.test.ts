@@ -52,6 +52,14 @@ describe("what is said", () => {
     expect(cleanForSpeech("اضغط على e12 أو [e7] أو C:\\Users\\x\\file.txt الآن")).toBe("اضغط على أو أو الآن");
   });
 
+  it("keeps ordinary Latin words that only look like markup or paths: «TCP/IP», «and/or», «a < 5 and b > 3», «E5»", () => {
+    expect(cleanForSpeech("نستعمل TCP/IP و and/or هون")).toBe("نستعمل TCP/IP و and/or هون");
+    expect(cleanForSpeech("إذا a < 5 and b > 3 بنكمل")).toBe("إذا a < 5 and b > 3 بنكمل");
+    expect(cleanForSpeech("موديل E5 أحسن")).toBe("موديل E5 أحسن");
+    // but a real tag and a path with two separators go
+    expect(cleanForSpeech("قبل <br/> بعد src/app/page")).toBe("قبل بعد");
+  });
+
   it("an answer that is only symbols is nothing to say", () => {
     expect(cleanForSpeech("**  ✅ ⚠️ 🔧 ---")).toBe("");
     expect(cleanForSpeech("   ")).toBe("");

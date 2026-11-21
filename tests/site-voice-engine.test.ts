@@ -167,6 +167,37 @@ describe("the voice that speaks", () => {
     expect(issues).toEqual(["no_voice"]);
   });
 
+  it("a device with no voices makes the FIRST answer wait for the list, not every answer after it", async () => {
+    synth.voices = [];
+    const voice = await load();
+    voice.onSpeechIssue(() => undefined);
+    const first = voice.speak("أهلًا فيك.");
+    await vi.advanceTimersByTimeAsync(2100);
+    await first;
+    let second = false;
+    void voice.speak("وكمان مرة.").then(() => {
+      second = true;
+    });
+    await vi.advanceTimersByTimeAsync(5);
+    expect(second).toBe(true);
+    // a voice that shows up later is still found
+    synth.voices = [sa];
+    const third = voice.speak("هلأ في صوت.");
+    await vi.runAllTimersAsync();
+    await third;
+    expect(synth.said.filter((s) => s.volume > 0).map((s) => s.text)).toEqual(["هلأ في صوت."]);
+  });
+
+  it("an issue raised while nobody listens is kept for the one who listens later (the guide's window may not be open yet)", async () => {
+    synth.voices = [en];
+    const voice = await load();
+    await voice.speak("أهلًا.");
+    const issues: string[] = [];
+    voice.onSpeechIssue((kind) => issues.push(kind));
+    expect(await voice.hasArabicVoice()).toBe(false);
+    expect(issues).toEqual(["no_voice"]);
+  });
+
   it("reports an Arabic voice when there is one", async () => {
     const voice = await load();
     expect(await voice.hasArabicVoice()).toBe(true);
@@ -224,6 +255,21 @@ describe("a long answer", () => {
     await vi.runAllTimersAsync();
     await done;
     expect(synth.said.length).toBeLessThanOrEqual(before + 1);
+  });
+
+  it("the watchdog does not cut a slow voice short: while the engine still says it is speaking the piece is not finished, and an engine stuck for good is cancelled", async () => {
+    synth.auto = false;
+    const voice = await load();
+    let finished = false;
+    void voice.speak("جملة وحدة.").then(() => {
+      finished = true;
+    });
+    // the estimate for this piece is a little over four seconds: at ten seconds it is still speaking, so the call keeps waiting
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(finished).toBe(false);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(finished).toBe(true);
+    expect(synth.cancels).toBeGreaterThanOrEqual(1);
   });
 
   it("an engine that never fires `end` does not hang the call: a watchdog moves on", async () => {

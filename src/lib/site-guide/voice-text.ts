@@ -76,8 +76,8 @@ export function clampPrefs(raw: unknown): VoicePrefs {
 
 const ARABIC_LETTER = /[؀-ۿݐ-ݿ]/;
 const LATIN_LETTER = /[A-Za-z]/;
-const SYMBOLS = /[\p{Extended_Pictographic}️‍⃣←-⇿•●▪◦✓✔✗✘]/gu;
-const MARKS = /[*_~`>|#{}[\]]/g;
+const SYMBOLS = /[\p{Extended_Pictographic}\uFE0F\u200D\u20E3\u2190-\u21FF\u2022\u25CF\u25AA\u25E6\u2713\u2714\u2717\u2718]/gu;
+const MARKS = /[*_~`|#{}[\]]/g;
 const TRAILING_PUNCT = /[.!?؟،,;؛:]+$/;
 const EDGE_PUNCT = /^[("'«»]+|[)"'«»]+$/g;
 
@@ -86,9 +86,10 @@ function isNoiseToken(token: string): boolean {
   const core = token.replace(EDGE_PUNCT, "").replace(TRAILING_PUNCT, "");
   if (core === "") return false;
   if (/^(?:https?:\/\/|www\.)/i.test(core)) return true;
-  if (/^e\d{1,3}$/i.test(core)) return true; // the guide's own element references
+  if (/^e\d{1,3}$/.test(core)) return true; // the guide's own element references (always lower case: «E5» is a name)
   if (ARABIC_LETTER.test(core)) return false; // «و/أو» is a word
-  if (/[/\\]/.test(core) && (LATIN_LETTER.test(core) || /^[~.]?[/\\][\w.-]/.test(core))) return true; // a path
+  // a path: it starts with a separator, or has two or more of them, or a backslash («TCP/IP» and «and/or» are words)
+  if (/^[~.]?[/\\][\w.-]/.test(core) || (LATIN_LETTER.test(core) && (/\\/.test(core) || (core.match(/\//g) ?? []).length >= 2))) return true;
   if (/^[A-Za-z]:[/\\]/.test(core)) return true;
   if (/^[+\d][\d\s\-+().]*$/.test(core) && core.replace(/\D/g, "").length >= 10) return true; // a phone number or a long id of digits
   if (core.length >= 12 && /^[A-Za-z0-9_-]+$/.test(core) && /\d/.test(core)) return true; // an id, a hash
@@ -104,7 +105,7 @@ export function cleanForSpeech(raw: string): string {
   let text = raw
     .replace(/```[\s\S]*?```/g, " ")
     .replace(/\[([^\]]*)\]\(([^)]*)\)/g, "$1")
-    .replace(/<[^>\n]{1,200}>/g, " ")
+    .replace(/<\/?[A-Za-z][^>\n]{0,200}>/g, " ")
     .replace(SYMBOLS, " ")
     .replace(MARKS, " ");
   const lines = text
@@ -117,7 +118,7 @@ export function cleanForSpeech(raw: string): string {
         .replace(/\(\s*\)/g, " ")
         .replace(/\s+([.!?؟،,;؛:])/g, "$1")
         .replace(/\s+/g, " ")
-        .replace(/^[-•]\s+/, "")
+        .replace(/^(?:[-•]\s+|>+\s*)/, "")
         .trim(),
     )
     .filter((line) => line !== "" && /[\p{L}\p{N}]/u.test(line));

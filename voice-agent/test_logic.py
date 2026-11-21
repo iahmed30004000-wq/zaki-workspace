@@ -27,12 +27,16 @@ class AddressedTests(unittest.TestCase):
         self.assertTrue(logic.is_addressed("ذكي، لخص", None, 100.0))
         self.assertTrue(logic.is_addressed("يا بوت اكتب هيك", None, 100.0))
         self.assertTrue(logic.is_addressed("وزاكي كمان شو رأيه", None, 100.0))
+        self.assertTrue(logic.is_addressed("والمساعد شو رأيه", None, 100.0))
         self.assertFalse(logic.is_addressed("خلينا نكمل بالموضوع", None, 100.0))
 
     def test_a_name_is_a_whole_word_never_a_piece_of_another_word(self):
         # «المساعدة» is help, «تذكير» is a reminder, «ذكية» is smart (feminine), «مساعدك» is your help: none of them is a call
         for said in ("المساعدة مهمة بالمشروع", "بدنا تذكير للاجتماع", "هاي فكرة ذكية", "شكرا على مساعدتك", "بحتاج مساعدك بالتقرير", "الزاكية بالصف"):
             self.assertFalse(logic.is_addressed(said, None, 100.0), said)
+        # «وذكي» (and smart) and «ومساعد» (and somebody's assistant) are ordinary phrases, only the two real names take the glued letter
+        self.assertFalse(logic.is_addressed("حل ممتاز وذكي", None, 100.0))
+        self.assertFalse(logic.is_addressed("المدير ومساعد المدير", None, 100.0))
         # no piece of the name makes a phrase either
         self.assertFalse(logic.is_addressed("يا ريت بوت", None, 100.0))
 
@@ -48,6 +52,15 @@ class AddressedTests(unittest.TestCase):
         self.assertFalse(logic.is_addressed("وكمان؟", 91.9, 100.0, same_speaker=True))  # a little more than 8
         self.assertFalse(logic.is_addressed("وكمان؟", 75.0, 100.0, same_speaker=True))  # the old 25 seconds are gone
         self.assertEqual(logic.FOLLOW_UP_SECONDS, 8.0)
+
+    def test_a_follow_up_is_short(self):
+        twelve = " ".join(["كلمة"] * 12)
+        thirteen = " ".join(["كلمة"] * 13)
+        self.assertTrue(logic.is_addressed(twelve, 95.0, 100.0, same_speaker=True))
+        self.assertFalse(logic.is_addressed(thirteen, 95.0, 100.0, same_speaker=True))
+        # a long sentence that names it is still a call
+        self.assertTrue(logic.is_addressed(thirteen + " يا مساعد", 95.0, 100.0, same_speaker=False))
+        self.assertEqual(logic.FOLLOW_UP_MAX_WORDS, 12)
 
     def test_the_name_addresses_it_from_anybody_at_any_time(self):
         self.assertTrue(logic.is_addressed("يا مساعد وين وصلنا", 10.0, 100.0, same_speaker=False))

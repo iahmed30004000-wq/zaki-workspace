@@ -8,10 +8,14 @@ MAX_AGE_SECONDS = 60
 
 # the assistant answers only when it is spoken to: its name (a whole word), or a short follow-up from the SAME person it has just answered
 WAKE_WORDS = ("مساعد", "المساعد", "زاكي", "ذكي", "يا بوت")
-# one letter that Arabic glues to the front of a word («و» and, «ف» so): «وزاكي» is still the name, «بذكي» or «للمساعد» are not matched
+# one letter that Arabic glues to the front of a word («و» and, «ف» so): «وزاكي» and «والمساعد» are still the name. Only for the two names that are not
+# also ordinary words: «وذكي» (and smart) and «ومساعد» (and an assistant of somebody) are not calls.
 WAKE_PREFIXES = ("و", "ف")
+PREFIXABLE_NAMES = ("زاكي", "المساعد")
 # 8 seconds, not 25: a longer window made a side talk between two other people look like a question to the assistant
 FOLLOW_UP_SECONDS = 8.0
+# and a follow-up is SHORT: a long sentence from the same person is side talk, not a follow-up question
+FOLLOW_UP_MAX_WORDS = 12
 SILENCE = "[صمت]"
 
 
@@ -42,6 +46,7 @@ def _tokens(text: str) -> list[str]:
 
 
 _WAKE_PHRASES = tuple(tuple(_tokens(w)) for w in WAKE_WORDS)
+_PREFIXABLE = frozenset(normalize(w) for w in PREFIXABLE_NAMES)
 
 
 def is_named(text: str) -> bool:
@@ -55,7 +60,7 @@ def is_named(text: str) -> bool:
             window = tuple(words[i : i + size])
             if window == phrase:
                 return True
-            if size == 1 and any(window[0] == prefix + phrase[0] for prefix in WAKE_PREFIXES):
+            if size == 1 and phrase[0] in _PREFIXABLE and any(window[0] == prefix + phrase[0] for prefix in WAKE_PREFIXES):
                 return True
     return False
 
@@ -65,7 +70,12 @@ def is_addressed(text: str, last_spoke_at: float | None, now: float, same_speake
     What other people say in that window is not for it, however soon after it spoke."""
     if is_named(text):
         return True
-    return same_speaker and last_spoke_at is not None and 0 <= now - last_spoke_at <= FOLLOW_UP_SECONDS
+    return (
+        same_speaker
+        and last_spoke_at is not None
+        and 0 <= now - last_spoke_at <= FOLLOW_UP_SECONDS
+        and len(_tokens(text)) <= FOLLOW_UP_MAX_WORDS
+    )
 
 
 class FollowUp:

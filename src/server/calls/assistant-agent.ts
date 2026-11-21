@@ -249,7 +249,7 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
   if (owner) await recordUsage({ orgId: call.orgId, userId: owner.userId }, dayKeyOf(now, await orgTimeZone(call.orgId)), completion.usage);
   // the same words as a text line of the call's conversation (a meeting by link has none: skipped silently); a failure here never costs the spoken answer
   const posted =
-    !silent && owner
+    !silent && input.addressed && owner
       ? await postCallLine({ orgId: call.orgId, conversationId: call.conversationId, authorId: owner.userId, text: reply, local: !usedFast && small }).catch((err: unknown) => {
           // the name of the error only: never the words
           log.warn("assistant_meeting.line_failed", { name: err instanceof Error ? err.name : "unknown" });
