@@ -39,7 +39,7 @@ export function PanelFrame({ t, sections, current, notice, oneNav = false, child
       </header>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
         <nav aria-label={t(oneNav ? "cpone.nav.label" : "cpv2.nav.label")} className="md:sticky md:top-4 md:w-56 md:shrink-0" data-testid="cp-side-list">
-          <ul className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
+          <ul className="strip-scroll flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
             {sections.map((key) => (
               <li key={key} className="shrink-0 md:shrink">
                 <Link
