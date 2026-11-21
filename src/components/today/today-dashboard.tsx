@@ -2,6 +2,8 @@ import Link from "next/link";
 import { fmtNumber } from "@/lib/format";
 import { getServerT } from "@/lib/i18n/server";
 import type { DashboardMine, DashboardTeam, TodayDashboard as TodayDashboardData } from "@/lib/today";
+import type { TeamScopeInfo } from "@/server/policy/people-scope";
+import { ScopeChip } from "@/components/today/scope-chip";
 import { cn } from "@/lib/utils";
 
 /**
@@ -81,7 +83,7 @@ function WeekRing({ mine }: { mine: DashboardMine }) {
   );
 }
 
-function TeamStrip({ team }: { team: DashboardTeam }) {
+function TeamStrip({ team }: { team: DashboardTeam & { scope?: TeamScopeInfo } }) {
   const { t } = getServerT();
   const stats = [
     { n: team.doneWeek, label: t("today.dash.team_done"), danger: false },
@@ -93,7 +95,8 @@ function TeamStrip({ team }: { team: DashboardTeam }) {
       <h3 id="today-dash-team" className="text-sm font-semibold text-fg">
         {t("today.dash.team")}
       </h3>
-      <p className="text-xs leading-5 text-fg-muted">{t("today.dash.team_scope")}</p>
+      {/* A2.3: every KPI says what it counted; without a scope from the service (an old caller) the strip keeps its general sentence */}
+      {team.scope ? <ScopeChip info={team.scope} /> : <p className="text-xs leading-5 text-fg-muted">{t("today.dash.team_scope")}</p>}
       <div className="mt-2 flex flex-wrap gap-x-8 gap-y-2">
         {stats.map((s) => (
           <p key={s.label} className="flex items-baseline gap-2">

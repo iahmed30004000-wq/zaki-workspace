@@ -11,7 +11,7 @@ import { orgSummaryOf } from "@/server/services/features";
 import { cookies } from "next/headers";
 import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/components/shell/sidebar-cookie";
 import { currentSpace, spacesOf } from "@/server/services/current-space";
-import { hasActiveReports, navSubjectOf } from "@/server/services/nav-order";
+import { hasActiveReports, navSubjectOf, oneDoorPanelFor } from "@/server/services/nav-order";
 import { CallRing } from "@/components/calls/call-ring";
 import { CallProvider } from "@/components/calls/call-provider";
 import { SWITCH_COOKIE } from "@/lib/themes/switch-fx";
@@ -53,7 +53,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const avatarUrl = me?.avatarUrl ?? null;
   // the two places the shell draws that are the owner's switches (a switched-off one is not drawn at all)
   const on = featuresOf(org?.settings);
-  const subject = navSubjectOf(actor, org?.settings, space, supervisor);
+  // S3.1: with «الإعدادات» as ONE door an admin who holds the control panel has no place «الإدارة» (one more read, only while the switch is on and for ADMIN and above)
+  const subject = navSubjectOf(actor, org?.settings, space, supervisor, await oneDoorPanelFor(actor, org?.settings));
   // N1.2 — the new map is wired: `navSubjectOf` hands the switch to `buildNav`, and the shell draws the rail and the drawer when it is on
   const navV2 = subject.navV2 === true;
   // D-N5: the company's order wins while it is set (the person's own is only read, never written: `User.navOrder` stays stored)
@@ -68,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       isGuest={actor.isExternal}
       nav={buildNav(subject)}
       navV2={navV2}
+      settingsOneDoor={subject.settingsOneDoor === true}
       navOrder={navV2 ? menu.order : ownOrder}
       orderLocked={navV2 && menu.personalLocked}
       noWorkSpace={navV2 && !actor.isExternal && holdsNoWork(spaces.map((s) => ({ holdsProjects: s.kind !== "HQ" })))}

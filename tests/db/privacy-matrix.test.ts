@@ -18,6 +18,7 @@ import * as deleteManyRoute from "@/app/api/chat/messages/delete/route";
 import * as taskGet from "@/app/api/tasks/[id]/route";
 import * as tasksList from "@/app/api/tasks/route";
 import * as memberRoute from "@/app/api/organizations/[id]/members/[userId]/route";
+import * as verifyRoute from "@/app/api/organizations/[id]/members/[userId]/verify/route";
 import * as headerRoute from "@/app/api/chat/conversations/[id]/header/route";
 import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
 import * as readMarkRoute from "@/app/api/chat/conversations/[id]/read/route";
@@ -1490,6 +1491,7 @@ describe("privacy matrix — the C3c.1 checklist", () => {
   for (const kind of Object.keys(CHECKLIST_WRITE)) {
     it(`${kind}: who may send, tick and add; who reads; the silent eye and the guest change nothing and leave nothing; no item word outside the message window`, async () => {
       const w = await getWorld();
+      await setFeature(w.orgId, "chatChecklists", true); // OFF by default
       const id = w.ids[kind]!;
       const wrong: string[] = [];
       const wants = (who: Persona) => cells(CHECKLIST_WRITE[kind]!)[PERSONAS.indexOf(who)]!;
@@ -1571,5 +1573,58 @@ describe("privacy matrix — the C3c.1 checklist", () => {
 
   it("the table has one cell per persona in every row", () => {
     for (const row of Object.values(CHECKLIST_WRITE)) expect(cells(row)).toHaveLength(PERSONAS.length);
+  });
+});
+
+// ───────────────────────────── S5.5: the verification badge «إشارة التوثيق» ─────────────────────────────
+// It is only a badge. WHO may give or take it: the OWNER rank (the primary owner and the partners), nobody else, whatever capability they hold. WHO is told of it:
+// every persona who READS the message sees it on the author's name (the same cells as the open topic's door), EXCEPT the guest, who is told nothing — it is no way
+// to learn ranks — and the surfaces never carry the time or the granter.
+describe("privacy matrix — the S5.5 verification badge", () => {
+  const GIVES: Record<Persona, boolean> = { owner: true, partnerWith: true, partnerWithout: true, orgAdminOut: false, spaceAdmin: false, memberIn: false, memberOut: false, teamMember: false, guest: false };
+
+  it("only the OWNER rank grants or takes the badge; every persona reads it on the author's name except the guest, who is told nothing", async () => {
+    const w = await getWorld();
+    const wrong: string[] = [];
+    const door = (who: Persona, userId: string, verified: boolean) =>
+      loginAs(w.people[who].id).then(() => call(verifyRoute.POST, { url: "http://localhost/api/x", body: { verified }, params: { id: w.orgId, userId } }));
+    // the door: a no-op take-back on somebody who has none answers 200 for the owner ranks and 403 for everybody else
+    for (const who of PERSONAS) {
+      const res = await door(who, w.people.memberOut.id, false);
+      if ((res.status === 200) !== GIVES[who]) wrong.push(`${who} · door: expected ${GIVES[who] ? "may" : "may not"} (got ${res.status})`);
+    }
+    expect(wrong).toEqual([]);
+    // the owner verifies the author of the open topic's message; each persona reads it
+    expect((await door("owner", w.people.memberIn.id, true)).status).toBe(200);
+    const id = w.ids["open"]!;
+    for (const who of PERSONAS) {
+      await loginAs(w.people[who].id);
+      const res = await call(messagesRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/messages`, params: { id } });
+      const reads = expected(CONVERSATIONS, "open", who);
+      if ((res.status === 200) !== reads) { wrong.push(`${who} · door of the open topic`); continue; }
+      if (!reads) continue;
+      const marked = res.text.includes('"authorVerified":true');
+      const want = who !== "guest";
+      if (marked !== want) wrong.push(`${who} · badge: expected ${want ? "sees" : "is told nothing"}`);
+      if (res.text.includes("verifiedAt")) wrong.push(`${who} · the time of the grant travelled`);
+      if (who === "guest" && res.text.includes("verified")) wrong.push("guest · the word verified travelled");
+    }
+    expect(wrong).toEqual([]);
+    // the private chat's row and the header: the peer's badge for staff, nothing for anybody who may not read it
+    const dmId = w.ids["dm"]!;
+    await loginAs(w.people.memberIn.id);
+    const asPeer = await call(headerRoute.GET, { url: `http://localhost/api/chat/conversations/${dmId}/header`, params: { id: dmId } });
+    expect(asPeer.status).toBe(200);
+    for (const who of PERSONAS) {
+      await loginAs(w.people[who].id);
+      const res = await call(headerRoute.GET, { url: `http://localhost/api/chat/conversations/${dmId}/header`, params: { id: dmId } });
+      if (res.status !== 200) {
+        expect(res.text, `${who}`).not.toContain("verified");
+        continue;
+      }
+      if (who === "guest") expect(res.text).not.toContain("verified");
+      expect(res.text).not.toContain("verifiedAt");
+    }
+    await door("owner", w.people.memberIn.id, false);
   });
 });

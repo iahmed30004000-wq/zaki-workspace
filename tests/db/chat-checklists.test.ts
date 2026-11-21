@@ -55,6 +55,8 @@ async function world() {
   const second = await makeUser({ orgId: t.org.id, role: "MEMBER", name: "Second" });
   await db.workspaceMember.create({ data: { workspaceId: ws.id, userId: second.id, role: "MEMBER" } });
   const topic = await db.conversation.create({ data: { orgId: t.org.id, kind: "TOPIC", spaceId: ws.id, title: "General" } });
+  // the switch is OFF by default: every test of the lists starts with the company having turned it on
+  await setSwitch(t.org.id, "chatChecklists", true);
   return { ...t, ws, second, topic };
 }
 type World = Awaited<ReturnType<typeof world>>;

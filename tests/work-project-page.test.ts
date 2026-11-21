@@ -173,6 +173,7 @@ const answer = (over: Partial<WorkTasksResult> = {}): WorkTasksResult => ({
   spaces: [{ id: "w1", name: "ألفا", kind: "STANDARD" }],
   projects: [{ id: "p1", name: "مشروع أ", workspaceId: "w1", spaceName: "ألفا" }],
   current: { id: "w1", hq: false },
+  space: { id: "w1", name: "ألفا" },
   scopeFellBack: false,
   timeZone: "Asia/Damascus",
   todayIso: "2026-11-20",

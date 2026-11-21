@@ -6,7 +6,7 @@ import { db } from "@/server/db";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere } from "@/server/services/team-scope";
 import { currentSpace } from "@/server/services/current-space";
-import { isFeatureOn } from "@/server/services/features";
+import { actorFeatureOn, isFeatureOn } from "@/server/services/features";
 import { INSTANT_PROJECT_KEY } from "@/server/services/instant-work";
 import { goHref } from "@/lib/space-link";
 import { Card, CardBody } from "@/components/ui/card";
@@ -14,6 +14,8 @@ import { PROJECT_TONE, QuietEmpty, StateChip } from "@/components/work/look";
 import { ProjectsToolbar } from "@/components/projects-toolbar";
 import { WorkspaceMembersButton } from "@/components/workspace-members-button";
 import { WorkspaceTeamsButton } from "@/components/workspace-teams-button";
+import { SettingsLink } from "@/components/space-settings/settings-link";
+import { settingsHref } from "@/components/space-settings/tabs";
 import { fmtDMY } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
 import { getServerT } from "@/lib/i18n/server";
@@ -77,6 +79,9 @@ export default async function ProjectsPage({
       ? await db.workspace.findUnique({ where: { id: wsFilter }, select: { name: true, description: true } })
       : null;
   const wsName = wsInfo?.name ?? "";
+  // A2.2: with the switch `controlPanelV2` ON the buttons of the space (its people, its «المقاطع») are links to the space's ONE settings page; an external partner
+  // is not offered that page and keeps the dialogs
+  const settingsPage = !actor.isExternal && (await actorFeatureOn(actor, "controlPanelV2"));
   return (
     <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
       <header className="flex items-center justify-between">
@@ -85,7 +90,16 @@ export default async function ProjectsPage({
           {wsName ? <span className="text-sm font-normal text-fg-muted"> · {wsName}</span> : null}
         </h1>
         <div className="flex items-center gap-2">
-          {wsInfo ? (
+          {wsInfo && settingsPage ? (
+            <>
+              {space?.manager ? (
+                <SettingsLink href={settingsHref(wsFilter as string)} label={t("spset.open")} icon="general" />
+              ) : (
+                <SettingsLink href={settingsHref(wsFilter as string, "people")} label={t("ws.members")} icon="people" />
+              )}
+              <SettingsLink href={settingsHref(wsFilter as string, "teams")} label={t("spaceteams.title")} icon="teams" />
+            </>
+          ) : wsInfo ? (
             <>
               {/* «تعديل المساحة» and «أعضاء المساحة» moved to «الإدارة» > «المساحة» for whoever manages the space
                   (2026-10-30); the people list stays here, read-only, for everybody else in it (it was never taken away) */}

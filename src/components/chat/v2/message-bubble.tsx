@@ -4,6 +4,7 @@ import React from "react";
 import { Check } from "lucide-react";
 import type { MessageDto, ReaderDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { CardBubble } from "@/components/chat/message/card-bubble";
 import { OrderCardBubble } from "@/components/chat/message/order-state-card";
 import { PollCard } from "@/components/chat/message/poll-card";
@@ -15,7 +16,9 @@ import { BubbleMedia } from "@/components/chat/v2/bubble/bubble-media";
 import { BubbleFooter, ForwardedHeader, ReactionChips, ReplyBlock } from "@/components/chat/v2/bubble/bubble-parts";
 import { useLongPress } from "@/components/chat/v2/bubble/use-long-press";
 import { ReactionPop } from "@/components/chat/v2/phone/reaction-pop";
+import { ReactorsSheet } from "@/components/chat/v2/menu/reactors-sheet";
 import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
+import { useOpenForwardSource } from "@/components/chat/v2/forward/use-open-forward-source";
 import { ct } from "@/lib/chat/text";
 import { replyOnDoubleClick } from "@/lib/chat/v2/menu/gestures";
 import { isFreshArrival } from "@/lib/chat/v2/phone/motion";
@@ -99,6 +102,8 @@ export interface MessageBubbleProps {
 function MessageBubbleView({ message, conversationId, facts, start, end, mentionNames, readers = [], highlighted = false, menu, hover, select, onReact, onJump, onAck, onOpenWork, onHintTicket, onSuggestProblem }: MessageBubbleProps) {
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
+  // S5.6: «مين تفاعل» — the chip that was long-pressed (or right-clicked); the sheet is drawn BESIDE the article, never inside it
+  const [who, setWho] = React.useState<{ emoji: string } | null>(null);
   const articleRef = React.useRef<HTMLElement>(null);
   // C2.8: a bubble that mounts within seconds of its message being written has just ARRIVED: it fades up (120 ms). Decided once, at mount: a re-render never
   // replays it, and opening a chat or scrolling up (old messages) draws none. Off under reduced motion (the class below).
@@ -110,6 +115,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const downAt = React.useRef(0);
   const gestures = useBubbleGestures();
   const translation = useTranslation(message.id);
+  // S5.2: the «محوّلة من» header is a button: the server says where the original is (only when I may read it)
+  const openForwardSource = useOpenForwardSource(conversationId, onJump);
   const canAct = !facts.oversight && !message.deleted && message.kind !== "SYSTEM";
   // C3b.5: while selecting, a press anywhere on the row picks it: the bubble takes no pointer (so its long press and double-click gestures never start) and draws no menu or hover buttons
   const selecting = select?.on === true && canAct;
@@ -180,16 +187,18 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               {sender && start ? (
                 <p data-sender className={cn("mb-0.5 truncate text-xs font-semibold", nameTone(message.authorName))}>
                   {message.authorName}
+                  {/* S5.5: «موثّق» after the sender's name (the server sends `authorVerified` only to staff, only while the switch is on) */}
+                  {message.authorVerified ? <VerifiedBadge className="ms-1 [&>svg]:size-3.5" /> : null}
                 </p>
               ) : null}
-              {message.forwardedFrom && !message.deleted ? <ForwardedHeader name={message.forwardedFrom.name} /> : null}
+              {message.forwardedFrom && !message.deleted ? <ForwardedHeader name={message.forwardedFrom.name} onOpen={() => openForwardSource(message.id)} /> : null}
               {message.replyTo ? <ReplyBlock replyTo={message.replyTo} onJump={onJump} /> : null}
               {mentionsMe ? (
                 <span data-mentions-me className="mb-1 block text-xs font-semibold text-warn">
                   {ct("chatc.mention_me")}
                 </span>
               ) : null}
-              <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} formatting={facts.formatting} />
+              <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} formatting={facts.formatting} fresh={fresh} />
               {!message.deleted && <MessageTranslation state={translation.state} onHide={translation.hide} />}
               {!message.deleted ? <LinkPreviewCard preview={message.preview} enabled={facts.linkPreviews} /> : null}
               {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} /> : null}
@@ -200,7 +209,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               <CustomerHint hint={hint} canProblem={facts.canProblem} onTicket={onHintTicket ? () => onHintTicket(message) : undefined} />
               {suggestKind && onSuggestProblem ? <ProblemSuggestion onSuggest={() => onSuggestProblem(message, suggestKind)} /> : null}
               <ReactionPop reactions={message.reactions}>
-                <ReactionChips message={message} canAct={canAct} onReact={onReact} />
+                <ReactionChips message={message} canAct={canAct} onReact={onReact} onWho={(emoji) => setWho({ emoji })} />
               </ReactionPop>
               <BubbleFooter message={message} singleTick={facts.saved} />
             </article>
@@ -208,6 +217,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
             {menuNode}
           </div>
           <ReaderRow readers={readers} />
+          {who ? <ReactorsSheet open onOpenChange={(open) => (open ? undefined : setWho(null))} reactions={message.reactions} initial={who.emoji} /> : null}
         </div>
       </div>
     </div>

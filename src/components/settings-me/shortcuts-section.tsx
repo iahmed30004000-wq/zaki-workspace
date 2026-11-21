@@ -18,9 +18,9 @@ function KeyCap({ name }: { name: string }) {
     case "esc":
       return <kbd className={cap}>Esc</kbd>;
     case "alt":
-      return <kbd className={cap}>{ct("chatui.keys.alt")}</kbd>;
+      return <kbd className={cap}>Alt</kbd>;
     case "shift":
-      return <kbd className={cap}>{ct("chatui.keys.shift")}</kbd>;
+      return <kbd className={cap}>Shift</kbd>;
     case "up":
       return <kbd className={cap}>↑</kbd>;
     case "down":

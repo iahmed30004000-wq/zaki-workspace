@@ -54,7 +54,7 @@ describe("«الميزات»: who switches", () => {
     await as(w.member.id, w.ws.id);
     const res = await call(featuresRoute.GET);
     expect(res.status).toBe(200);
-    expect(res.json?.["features"]).toEqual(FEATURES.map((key) => ({ key, on: key !== "ownerHiddenOnline" && key !== "ownerAssistant" && key !== "chatAssistant" && key !== "apiDoor" && key !== "economyMode" && key !== "dbBackup" && key !== "voiceTranscript" && key !== "externalGateway" && key !== "morningDigest" && key !== "messageTranslate" && key !== "imageOcr" && key !== "semanticSearch" && key !== "emailToTask" && key !== "assistantInMeetings" && key !== "taskPrivacy" && key !== "omsLink" && key !== "knowledgeCards" && key !== "quickRecall" && key !== "orderStatus" && key !== "autoTickets" && key !== "mustRead" && key !== "orderTemplateHint" && key !== "navV2" && key !== "omsEvents" && key !== "doorMessages" && key !== "chatLayoutV2" && key !== "workInbox" && key !== "permissionTemplates" && key !== "workRequests" && key !== "workStages" && key !== "workMyTasks" && key !== "workStaleSweep" && key !== "expenseForms" && key !== "themeV2Default" && key !== "controlPanelV2" })));
+    expect(res.json?.["features"]).toEqual(FEATURES.map((key) => ({ key, on: key !== "ownerHiddenOnline" && key !== "ownerAssistant" && key !== "chatAssistant" && key !== "apiDoor" && key !== "economyMode" && key !== "dbBackup" && key !== "voiceTranscript" && key !== "externalGateway" && key !== "morningDigest" && key !== "messageTranslate" && key !== "imageOcr" && key !== "semanticSearch" && key !== "emailToTask" && key !== "assistantInMeetings" && key !== "taskPrivacy" && key !== "omsLink" && key !== "knowledgeCards" && key !== "quickRecall" && key !== "orderStatus" && key !== "autoTickets" && key !== "mustRead" && key !== "orderTemplateHint" && key !== "navV2" && key !== "omsEvents" && key !== "doorMessages" && key !== "chatLayoutV2" && key !== "workInbox" && key !== "permissionTemplates" && key !== "workRequests" && key !== "workStages" && key !== "workMyTasks" && key !== "workStaleSweep" && key !== "expenseForms" && key !== "themeV2Default" && key !== "controlPanelV2" && key !== "spaceTemplates" && key !== "settingsOneDoor" && key !== "meetingMinutes" })));
     expect(await isFeatureOn(w.org.id, "watch")).toBe(true);
     // «حقول مخصصة» is listed and on by default (its doors are pinned in custom-fields.test.ts)
     expect(await isFeatureOn(w.org.id, "customFields")).toBe(true);
@@ -170,6 +170,14 @@ describe("«الميزات»: «قوائم المهام بالدردشة» (on b
   it("off: a list is refused at the send and its item doors answer «not found»; on: they answer again; the owner's switch is the only one", async () => {
     const w = await world();
     const topic = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", spaceId: w.ws.id, title: "General" } });
+    // OFF by default: nothing of it answers until the owner turns it on
+    await as(w.member.id, w.ws.id);
+    expect(await isFeatureOn(w.org.id, "chatChecklists")).toBe(false);
+    const refusedByDefault = await call(messagesRoute.POST, { params: { id: topic.id }, body: { body: "قائمة", checklist: { items: ["أ", "ب"] } } });
+    expect(refusedByDefault.status).toBe(404);
+    expect(refusedByDefault.json?.["message"]).toBe("features.off");
+    await as(w.owner.id, w.ws.id);
+    expect((await flip("chatChecklists", true)).json).toEqual({ key: "chatChecklists", on: true });
     await as(w.member.id, w.ws.id);
     const sent = await call(messagesRoute.POST, { params: { id: topic.id }, body: { body: "قائمة", checklist: { items: ["أ", "ب"] } } });
     expect(sent.status).toBe(201);

@@ -38,6 +38,8 @@ export interface SurfaceProps {
   c: SurfaceEngine;
   me: { canPoll?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
   reply: MessageDto | null;
+  /** S5.7 «رد بالاقتباس»: the piece of `reply` the person picked (the bar shows it in place of the whole message) */
+  replyQuote?: string | null;
   editing: MessageDto | null;
   onCancelReply: () => void;
   onCancelEdit: () => void;
@@ -61,7 +63,7 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, onNoPreviewChange }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, onNoPreviewChange }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   // C3b.2: the first https link of the draft is what the server will visit after the send; ✕ says «no preview» for THAT link (another first link brings the line back)
   const draftLink = linkPreviews && !editing ? firstLink(c.body) : null;
@@ -129,7 +131,7 @@ export function ComposerSurface({ c, me, reply, editing, onCancelReply, onCancel
   return (
     <>
     <form onSubmit={c.submit} className="mx-auto flex w-full max-w-[904px] flex-col gap-2" data-composer-surface>
-      <ReplyEditBar reply={reply} editing={editing} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} />
+      <ReplyEditBar reply={reply} editing={editing} quote={replyQuote} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} />
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
       <MentionList choices={c.choices} pickAt={c.pickAt} onHover={c.setPick} onChoose={c.selectMention} />
       {previewHref && !noPreview ? (

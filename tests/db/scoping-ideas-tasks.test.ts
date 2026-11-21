@@ -189,6 +189,8 @@ describe("tasks: an assignee must belong to the actor's organization (checked in
   it("updateTask still assigns a colleague of the same org, and un-assigns with null", async () => {
     const { f, work, actor } = await setup();
     const colleague = await makeUser({ orgId: f.org.id, role: "MEMBER" });
+    // B4 (a task is given only to a person of its space): the colleague works in the task's space
+    await db.workspaceMember.create({ data: { workspaceId: f.wsIn.id, userId: colleague.id } });
     const assigned = await updateTask(actor, work.task.id, { assigneeId: colleague.id });
     expect(assigned.assigneeId).toBe(colleague.id);
     const cleared = await updateTask(actor, work.task.id, { assigneeId: null });
@@ -198,6 +200,7 @@ describe("tasks: an assignee must belong to the actor's organization (checked in
   it("updateTask can resend the current assignee and change other fields (nothing is being re-assigned)", async () => {
     const { f, work, actor } = await setup();
     const colleague = await makeUser({ orgId: f.org.id, role: "MEMBER" });
+    await db.workspaceMember.create({ data: { workspaceId: f.wsIn.id, userId: colleague.id } });
     await updateTask(actor, work.task.id, { assigneeId: colleague.id });
     // the colleague later leaves the org; a form that resends the unchanged assignee must still save
     await db.organizationMember.deleteMany({ where: { organizationId: f.org.id, userId: colleague.id } });

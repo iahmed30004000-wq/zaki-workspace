@@ -2,27 +2,11 @@ import { redirect } from "next/navigation";
 import { pageActor, SectionOffNotice } from "@/app/(app)/_access";
 import { panelRedirectFor } from "@/server/services/control-panel";
 import { carriedQuery } from "@/lib/legacy-routes";
-import { db } from "@/server/db";
-import { actorCan, type Actor } from "@/server/policy/actor";
-import { RANK } from "@/server/policy/rank";
+import { actorCan } from "@/server/policy/actor";
+import { staffDirectory } from "@/server/chat/directory";
 import { getServerT } from "@/lib/i18n/server";
 import { OrgMembersView } from "@/components/org-members-view";
-import { StaffDirectory, type DirectoryPerson } from "@/components/members/staff-directory";
-
-/**
- * The people an ordinary member may look at: ACTIVE ones only, with job title, rank and e-mail (the
- * caller holds `directory.view`, or they would not be here). Ordered by rank, the owner first.
- */
-async function loadDirectory(actor: Actor): Promise<DirectoryPerson[]> {
-  const rows = await db.organizationMember.findMany({
-    where: { organizationId: actor.orgId, status: "ACTIVE" },
-    orderBy: { createdAt: "asc" },
-    select: { role: true, user: { select: { id: true, name: true, jobTitle: true, email: true, avatarUrl: true } } },
-  });
-  return rows
-    .map((r) => ({ id: r.user.id, name: r.user.name, jobTitle: r.user.jobTitle, role: r.role, email: r.user.email, avatarUrl: r.user.avatarUrl }))
-    .sort((a, b) => RANK[b.role] - RANK[a.role]);
-}
+import { StaffDirectory } from "@/components/members/staff-directory";
 
 /**
  * الأعضاء والصلاحيات. The team manager for whoever holds the capability `users.manage` (the owner
@@ -60,7 +44,8 @@ export default async function MembersPage({ searchParams }: { searchParams?: Rec
 
   if (!actorCan(actor, "directory.view")) return <SectionOffNotice />;
 
-  const people = await loadDirectory(actor);
+  // the ACTIVE people, the owner first; `verified` rides along for a non-guest viewer while the switch is on (src/server/chat/directory.ts)
+  const people = await staffDirectory(actor.orgId, actor.role);
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
       <header>

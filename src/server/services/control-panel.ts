@@ -14,6 +14,8 @@ import { resolveTimeZone } from "@/lib/zoned-time";
 import { orgTimeZone } from "@/server/services/org-day";
 import { loadCompanyToday, loadPeopleActivity, type TodayRow } from "@/server/services/owner-board";
 import { loadAnalytics } from "@/server/services/analytics";
+import { ideaPlaceWhere } from "@/server/services/ideas";
+import { spaceFigures } from "@/server/services/space-figures";
 import { addDays, dayKeyOf, resolveWindow } from "@/lib/owner-board";
 import { zonedDayStart } from "@/lib/zoned-time";
 import {
@@ -101,8 +103,24 @@ interface Figures {
   unassigned: number;
   stale: number;
   completedForecastWindow: number;
-  ideasWaiting: number;
-  overdueBySpace: { name: string; n: number }[];
+  /** The space with the most ideas waiting for a first look, counted exactly as the page its link opens lists them; null when none waits. */
+  ideasWaiting: { id: string; name: string; n: number } | null;
+  overdueBySpace: { id: string; name: string; n: number }[];
+}
+
+/**
+ * B4 — where the ideas that waited past the line are: per space, counted with `ideaPlaceWhere`, the very filter the «الأفكار» page of that space uses (inside
+ * «الشركة» it also reads the company's own and the shared ones), so the number in the sentence is what its link opens. The space with the most, ties by name.
+ */
+async function ideasWaitingTop(orgId: string, spaces: readonly { id: string; name: string; kind: string }[], before: Date): Promise<Figures["ideasWaiting"]> {
+  const counted = await Promise.all(
+    spaces.map(async (s) => ({
+      id: s.id,
+      name: s.name,
+      n: await db.idea.count({ where: { orgId, status: "NEW", createdAt: { lt: before }, AND: [ideaPlaceWhere({ spaceId: s.id, isHq: s.kind === "HQ" })] } }),
+    })),
+  );
+  return counted.filter((c) => c.n > 0).sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, "ar"))[0] ?? null;
 }
 
 /** The company's open work right now, and the facts the insights are made of. */
@@ -110,7 +128,8 @@ async function loadFigures(orgId: string, todayStart: Date, now: Date): Promise<
   const staleBefore = new Date(now.getTime() - STALE_DAYS * DAY_MS);
   const windowStart = new Date(todayStart.getTime() - (FORECAST_DAYS - 1) * DAY_MS);
   const ideasBefore = new Date(now.getTime() - IDEA_WAIT_DAYS * DAY_MS);
-  const [open, overdueBySpace, forecast, ideas] = await Promise.all([
+  const spaces = await db.workspace.findMany({ where: { organizationId: orgId, archivedAt: null }, select: { id: true, name: true, kind: true }, orderBy: [{ name: "asc" }, { id: "asc" }] });
+  const [open, perSpace, forecast, ideas] = await Promise.all([
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ open: number; overdue: number; unassigned: number; stale: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "open",
@@ -118,17 +137,18 @@ async function loadFigures(orgId: string, todayStart: Date, now: Date): Promise<
         (count(*) FILTER (WHERE t."assigneeId" IS NULL AND NOT EXISTS (SELECT 1 FROM "TaskCoAssignee" co WHERE co."taskId" = t."id")))::int AS "unassigned",
         (count(*) FILTER (WHERE t."updatedAt" < ${ts(staleBefore)}))::int AS "stale"
       FROM "Task" t WHERE t."orgId" = ${orgId} AND t."completedAt" IS NULL AND NOT t."archived"`),
-    // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
-    db.$queryRaw<{ name: string; n: number }[]>(Prisma.sql`
-      SELECT w."name" AS "name", count(*)::int AS "n"
-      FROM "Task" t JOIN "Workspace" w ON w."id" = t."workspaceId"
-      WHERE t."orgId" = ${orgId} AND t."completedAt" IS NULL AND NOT t."archived" AND t."dueDate" < ${ts(todayStart)} AND w."archivedAt" IS NULL
-      GROUP BY w."name" ORDER BY 2 DESC, 1 LIMIT 5`),
+    // B4: the per-space late numbers are `spaceFigures` (an owner-level aggregate: no viewer scope; its audience is narrowed in A1.3, policy/board.ts)
+    spaceFigures({ orgId, spaceIds: spaces.map((s) => s.id), todayStart }),
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ n: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "n" FROM "Task" t WHERE t."orgId" = ${orgId} AND t."completedAt" >= ${ts(windowStart)} AND t."completedAt" < ${ts(now)}`),
-    db.idea.count({ where: { orgId, status: "NEW", createdAt: { lt: ideasBefore } } }),
+    ideasWaitingTop(orgId, spaces, ideasBefore),
   ]);
+  const overdueBySpace = spaces
+    .map((s) => ({ id: s.id, name: s.name, n: perSpace.get(s.id)?.overdue ?? 0 }))
+    .filter((s) => s.n > 0)
+    .sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, "ar"))
+    .slice(0, 5);
   return {
     open: open[0]?.open ?? 0,
     overdue: open[0]?.overdue ?? 0,
@@ -258,12 +278,8 @@ export async function loadPanelReports(access: BoardAccess, query: { space?: str
       SELECT floor(extract(epoch FROM (${ts(tomorrow)} - t."completedAt")) / 604800)::int AS "ago", count(*)::int AS "n"
       FROM "Task" t WHERE t."orgId" = ${orgId} AND t."workspaceId" = ANY(${arr(wsIds)}) AND t."completedAt" >= ${ts(seriesFrom)} AND t."completedAt" < ${ts(tomorrow)} GROUP BY 1`),
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
-    db.$queryRaw<{ id: string; open: number; overdue: number; done30: number }[]>(Prisma.sql`
-      SELECT t."workspaceId" AS "id",
-        (count(*) FILTER (WHERE t."completedAt" IS NULL AND NOT t."archived"))::int AS "open",
-        (count(*) FILTER (WHERE t."completedAt" IS NULL AND NOT t."archived" AND t."dueDate" < ${ts(todayStart)}))::int AS "overdue",
-        (count(*) FILTER (WHERE t."completedAt" >= ${ts(since30)}))::int AS "done30"
-      FROM "Task" t WHERE t."orgId" = ${orgId} AND t."workspaceId" = ANY(${arr(wsIds)}) GROUP BY 1`),
+    // B4: ONE source for the per-space numbers (`spaceFigures`, shared with «كل المساحات» and the overview's insight)
+    spaceFigures({ orgId, spaceIds: wsIds, todayStart, since: since30 }),
   ]);
 
   const points = new Map<number, WeekPoint>();
@@ -271,9 +287,9 @@ export async function loadPanelReports(access: BoardAccess, query: { space?: str
   for (const r of finished) if (r.ago >= 0 && r.ago < SERIES_WEEKS) points.set(r.ago, { ago: r.ago, created: points.get(r.ago)?.created ?? 0, completed: r.n });
 
   const nameOfSpace = new Map(spaces.map((s) => [s.id, s.name] as const));
-  const bySpace = rowsBySpace
-    .filter((r) => nameOfSpace.has(r.id))
-    .map((r) => ({ id: r.id, name: nameOfSpace.get(r.id) as string, open: r.open, overdue: r.overdue, done30: r.done30 }))
+  const bySpace = [...rowsBySpace]
+    .filter(([id]) => nameOfSpace.has(id))
+    .map(([id, r]) => ({ id, name: nameOfSpace.get(id) as string, open: r.open, overdue: r.overdue, done30: r.done }))
     .sort((a, b) => b.overdue - a.overdue || b.open - a.open || a.name.localeCompare(b.name, "ar"));
 
   return {
@@ -379,7 +395,16 @@ export async function panelRedirectFor(actor: Actor, address: string, extra?: Re
   if (!panelSectionsFor(facts).includes(target.section)) return null;
   // a part of «التكاملات» that is not offered to this person (the AI connection is the owner's) keeps the old page, which answers as it always did
   if (target.section === "integrations" && target.part && !(await integrationPartsOf(actor)).includes(target.part as IntegrationPart)) return null;
-  return panelRedirectHref(address, extra);
+  return panelRedirectHref(address, extra, await panelOneDoorOn(actor));
+}
+
+/**
+ * S3.2 — is «الإعدادات» ONE door for this company (`settingsOneDoor`) AND the one control panel it needs (`controlPanelV2`) on? Then the panel is its own place with ONE navigation,
+ * «الناس» is one section, and the settings sections are «إعدادات الشركة». The same rule as `oneDoorOnFor` (src/components/settings-me/server-data.ts) and `settingsOneDoorOf` (src/lib/nav/shell-v2.ts).
+ */
+export async function panelOneDoorOn(actor: Pick<Actor, "orgId">): Promise<boolean> {
+  const [door, panel] = await Promise.all([isFeatureOn(actor.orgId, "settingsOneDoor"), isFeatureOn(actor.orgId, "controlPanelV2")]);
+  return door && panel;
 }
 
 /**

@@ -164,7 +164,7 @@ export function ChecklistView({ checklist, busy = false, error = "", onAct, onMa
 /**
  * The list of a message, with its requests. «اعمل منها مهمة» is drawn for a person who may make work of a message (the header the pane already holds says so: `me.canMakeWork`,
  * the tasks box of the section grid) while the message has not become a task; it runs the ONE door that makes work of a message (the same dialog and the same privacy rule as
- * the menu's item: a list from a private conversation makes a private task) and then asks for the steps (`POST …/checklist/steps`).
+ * the menu's item: a list from a private conversation makes a private task); the dialog itself then asks for the steps (`checklistStepsRequest`), from this button and from the menu alike.
  */
 export function ChecklistBubble({ message, conversationId }: { message: MessageDto; conversationId: string }) {
   const qc = useQueryClient();
@@ -203,9 +203,8 @@ export function ChecklistBubble({ message, conversationId }: { message: MessageD
     }
   }
 
-  async function stepsFor(taskId: string) {
-    const response = await fetch(`/api/chat/messages/${encodeURIComponent(message.id)}/checklist/steps`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ taskId }) }).catch(() => null);
-    setNotice(ct(response?.ok ? "chatcl.to_task_done" : "chatcl.to_task_steps_failed"));
+  function madeTask(stepsCopied: boolean | undefined) {
+    setNotice(ct(stepsCopied ? "chatcl.to_task_done" : "chatcl.to_task_steps_failed"));
     // the «صارت مهمة» chip: no event of the feed says that a task was made of a message, so the messages are asked for again
     void qc.invalidateQueries({ queryKey: chatKeys.messages(conversationId), exact: true });
   }
@@ -220,13 +219,13 @@ export function ChecklistBubble({ message, conversationId }: { message: MessageD
       ) : null}
       {making ? (
         <MakeWorkDialog
-          message={{ id: message.id, body: message.body }}
+          message={{ id: message.id, body: message.body, kind: message.kind }}
           kind="task"
           privateSource={privateSource}
           onClose={() => setMaking(false)}
           onDone={(made) => {
             setMaking(false);
-            if (made.kind === "task") void stepsFor(made.id);
+            if (made.kind === "task") madeTask(made.stepsCopied);
           }}
         />
       ) : null}

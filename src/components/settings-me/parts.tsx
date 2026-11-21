@@ -5,19 +5,34 @@ import { ChevronRight } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { sectionHintKey, sectionLabelKey, SETTINGS_ME_HREF, type SectionKey } from "@/components/settings-me/sections";
+import { useSettingsOneDoor } from "@/components/shell/nav-options";
 
 /** The head of a section: «رجوع» on the phone (the section is a pushed screen there), then its name and its one line. */
 export function SectionHead({ section }: { section: SectionKey }) {
   const { t } = useI18n();
+  const oneDoor = useSettingsOneDoor();
   return (
     <header className="px-3 pb-3 pt-3 md:px-0 md:pt-0">
       <Link href={SETTINGS_ME_HREF} className="mb-2 inline-flex min-h-11 items-center gap-1 text-sm text-accent md:hidden">
         <ChevronRight aria-hidden="true" className="size-4" />
         {t("settingsMe.back")}
       </Link>
-      <h1 className="text-xl font-semibold text-fg">{t(sectionLabelKey(section))}</h1>
-      <p className="mt-0.5 text-[13px] text-fg-muted">{t(sectionHintKey(section))}</p>
+      <h1 className="text-xl font-semibold text-fg">{t(sectionLabelKey(section, oneDoor))}</h1>
+      <p className="mt-0.5 text-[13px] text-fg-muted">{t(sectionHintKey(section, oneDoor))}</p>
     </header>
+  );
+}
+
+/** S3.1 — «رجوع لإعداداتي» above a section of «إعدادات الشركة» (the control panel's own body has its own title, so there is no second head): the phone's way back to the list. */
+export function BackLink() {
+  const { t } = useI18n();
+  return (
+    <div className="px-3 pt-3 md:hidden">
+      <Link href={SETTINGS_ME_HREF} data-settings-back="" className="inline-flex min-h-11 items-center gap-1 text-sm text-accent">
+        <ChevronRight aria-hidden="true" className="size-4" />
+        {t("settingsMe.back")}
+      </Link>
+    </div>
   );
 }
 

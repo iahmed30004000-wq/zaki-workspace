@@ -44,6 +44,7 @@ const answer = (params: MyTasksParams, tasks: WorkTaskDto[]): WorkTasksResult =>
   spaces: [],
   projects: [],
   current: { id: "w", hq: false },
+  space: { id: "w", name: "ألفا" },
   scopeFellBack: false,
   timeZone: "Asia/Damascus",
   todayIso: "2026-11-20",

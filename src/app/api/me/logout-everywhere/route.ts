@@ -17,6 +17,8 @@ export async function POST() {
     // a browser or a phone that is signed out must not go on receiving the words of their messages
     await db.$transaction([
       db.user.update({ where: { id: user.id }, data: { tokenVersion: { increment: 1 } }, select: { id: true } }),
+      // every session row of the person is ended with it (the version already refuses their cookies; the rows must not stay listed as live)
+      db.userSession.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
       db.pushSubscription.deleteMany({ where: { userId: user.id } }),
       db.appDevice.deleteMany({ where: { userId: user.id } }),
     ]);

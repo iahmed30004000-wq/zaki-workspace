@@ -28,6 +28,7 @@ import { isAssistantChatOf } from "@/lib/chat/assistant-chat";
 import { translateOffered } from "@/server/services/message-translate";
 import { ASSISTANT_MENTION_ID, ASSISTANT_MENTION_NAME } from "@/lib/chat/conversation/mentions";
 import { lastSeenReader } from "@/server/services/last-seen";
+import { verifiedIdsAmong } from "@/server/chat/space-people";
 import type { Prisma } from "@prisma/client";
 
 /** ---------- create topic ---------- */
@@ -437,6 +438,21 @@ export async function conversationDetail(
     }
   }
 
+  // who the composer offers for «@»: the topic's audience (a guest gets the rows only; never the space's people)
+  const mentionables: MemberDto[] =
+    org!.role === "GUEST"
+      ? members
+      : [
+          ...(await mentionablesOf(ctx.orgId, facts, conv.spaceId ?? null, members, online)),
+          // «@المساعد»: only where the company's switch is on and the owner's key is saved (src/server/services/chat-assistant.ts); never for a guest
+          ...((await chatAssistantOffered(ctx.orgId)) ? [{ id: ASSISTANT_MENTION_ID, name: ASSISTANT_MENTION_NAME, online: false, role: "AI" }] : []),
+        ];
+  // «إشارة التوثيق» (S5.5): one query for every person listed here; a guest is told nothing, and the company's switch off means no badge
+  if (org!.role !== "GUEST" && (await isFeatureOn(ctx.orgId, "verifiedBadge"))) {
+    const verified = await verifiedIdsAmong(ctx.orgId, [...members, ...mentionables].map((m) => m.id));
+    for (const m of [...members, ...mentionables]) if (verified.has(m.id)) m.verified = true;
+  }
+
   const title =
     facts.kind === "DM"
       ? (conv.members.find((m) => m.userId !== ctx.userId)?.user.name ?? conv.title ?? "")
@@ -495,14 +511,7 @@ export async function conversationDetail(
       })
     ).map((m) => ({ id: m.id, authorName: m.author.name, preview: previewOf(m.body, m.deletedAt) })),
     members,
-    mentionables:
-      org!.role === "GUEST"
-        ? members
-        : [
-            ...(await mentionablesOf(ctx.orgId, facts, conv.spaceId ?? null, members, online)),
-            // «@المساعد»: only where the company's switch is on and the owner's key is saved (src/server/services/chat-assistant.ts); never for a guest
-            ...((await chatAssistantOffered(ctx.orgId)) ? [{ id: ASSISTANT_MENTION_ID, name: ASSISTANT_MENTION_NAME, online: false, role: "AI" }] : []),
-          ],
+    mentionables,
     messages: messages.reverse(), // oldest first in the payload
     // topics and groups: each person's avatar sits under the last message they read (DMs have ticks)
     readers:
@@ -641,6 +650,8 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
   if (!conv) throw new NotFoundError("chat.e.not_found");
   const [canCall, canMakeTask, canMakeTicket, canAnnounce] = caps;
   const peerRow = facts.kind === "DM" ? (conv.members.find((m) => m.userId !== ctx.userId) ?? null) : null;
+  // «إشارة التوثيق» (S5.5): the other person of a private chat, one small query, only while the company's switch is on and never for a guest
+  const peerVerified = peerRow && staff && (await feature("verifiedBadge")) ? (await verifiedIdsAmong(ctx.orgId, [peerRow.userId])).has(peerRow.userId) : false;
 
   // «آخر ظهور» of the OTHER person of a private chat (a DM only, and only for one of its two people); same rule as the old detail
   let peerSeen: { peerLastSeenAt?: string | null; timeZone?: string } = {};
@@ -721,7 +732,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     space: conv.space ? { id: conv.space.id, name: conv.space.name, hasExternal: false } : null,
     audience,
     memberCount,
-    ...(peerRow ? { peer: { id: peerRow.userId, name: peerRow.user.name, avatarUrl: org.role === "GUEST" ? null : peerRow.user.avatarUrl } } : {}),
+    ...(peerRow ? { peer: { id: peerRow.userId, name: peerRow.user.name, avatarUrl: org.role === "GUEST" ? null : peerRow.user.avatarUrl, ...(peerVerified ? { verified: true } : {}) } } : {}),
     ...peerSeen,
     me: {
       canPost: mayPost,

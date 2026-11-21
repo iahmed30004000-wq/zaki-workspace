@@ -3,7 +3,10 @@
 import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { KeyRound, Loader2, LogOut, PauseCircle, RotateCcw, UserMinus } from "lucide-react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
+import { ApiError, apiGet, apiPost } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
@@ -460,6 +463,9 @@ export function MemberSheet({
           )}
         </Section>
 
+        {/* S5.5: «إشارة التوثيق» — the OWNER only (the server checks the rank again), never a guest; it sits here, in the shared card, wherever the section lives */}
+        {actor.role === "OWNER" && member.role !== "GUEST" ? <VerifiedSection orgId={orgId} member={member} onPatch={onPatch} onChanged={onChanged} /> : null}
+
         {templates.enabled && acts.edit && member.role !== "OWNER" && member.role !== "GUEST" ? (
           <Section title={t("ptemplates.section")}>
             <MemberTemplateSection
@@ -589,6 +595,59 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
       </h3>
       {children}
     </section>
+  );
+}
+
+/**
+ * «إشارة التوثيق» (S5.5): the owner's switch for ONE person. It asks the door for the person's state when the card opens (the roster's `verified` is used when it has one);
+ * a refusal (the company's switch is off) draws nothing. Granting and taking back are one tap each, with a toast; the server audits both.
+ */
+function VerifiedSection({ orgId, member, onPatch, onChanged }: { orgId: string; member: ContractMember; onPatch: (userId: string, patch: Partial<ContractMember>) => void; onChanged: () => void }) {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const url = `/api/organizations/${encodeURIComponent(orgId)}/members/${encodeURIComponent(member.id)}/verify`;
+  const key = ["member-verified", orgId, member.id] as const;
+  const query = useQuery({ queryKey: key, queryFn: () => apiGet<{ verified: boolean }>(url), retry: false, refetchOnWindowFocus: false, staleTime: 30_000 });
+  const [busy, setBusy] = useState(false);
+  const fromRoster = member.verified;
+  const verified = query.data?.verified ?? fromRoster;
+  // no answer (still asking, or the switch is off): nothing is drawn
+  if (verified === undefined) return null;
+  // a person who is not active is not given a first badge (the server refuses); the one they have may still be taken back
+  if (!verified && member.status !== "ACTIVE") return null;
+
+  async function change(next: boolean) {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const res = await apiPost<{ ok: true; verified: boolean }>(url, { verified: next });
+      qc.setQueryData(key, { verified: res.verified });
+      onPatch(member.id, { verified: res.verified });
+      onChanged();
+      toast(t(res.verified ? "verified.granted" : "verified.revoked", { name: member.name }), "success");
+    } catch (err) {
+      const k = err instanceof ApiError && err.messageKey ? err.messageKey : "";
+      toast(k && t(k) !== k ? t(k) : t("verified.failed"), "error");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Section title={t("verified.section")}>
+      <div data-verified-section className="space-y-2 rounded-xl border border-border bg-surface p-3">
+        <p className="flex items-center gap-1.5 text-sm text-fg">
+          {verified ? <VerifiedBadge /> : null}
+          {t(verified ? "verified.state_on" : "verified.state_off")}
+        </p>
+        <p className="text-xs leading-5 text-fg-muted">{t("verified.help")}</p>
+        <Button type="button" data-action="verify" variant={verified ? "secondary" : "primary"} aria-busy={busy || undefined} aria-disabled={busy || undefined} onClick={() => void change(!verified)} className="h-11 w-full">
+          {busy ? <Loader2 className="size-4 animate-spin" aria-hidden="true" /> : null}
+          {t(verified ? "verified.revoke" : "verified.grant")}
+        </Button>
+      </div>
+    </Section>
   );
 }
 

@@ -16,6 +16,7 @@ import { orgDayStart, orgTimeZone } from "@/server/services/org-day";
 import { dayOfInstant, dueInstantForDay, parseDayText } from "@/lib/due-day";
 import {
   STALE_EVENT,
+  STALE_ALL_SPACES,
   STALE_LIST_LIMIT,
   STALE_SWEEP_MAX,
   daysIdle,
@@ -112,14 +113,17 @@ async function openCounts(actor: Actor, ids: string[], scope: WorkScope): Promis
   return out;
 }
 
-/** The people a task of the managed spaces may be given to: ACTIVE members of those spaces who are not partners, plus the viewer. */
+/**
+ * The people a task of the managed spaces may be given to: ACTIVE members of those spaces who are not partners (B4: a task is given only to a person of its
+ * space, `task-assign.ts`), and the OWNER rank, who needs no row in a space.
+ */
 async function assignableIn(actor: Actor, spaceIds: string[]): Promise<StaleOption[]> {
   const rows = await db.organizationMember.findMany({
     where: {
       organizationId: actor.orgId,
       status: "ACTIVE",
       role: { not: "GUEST" },
-      OR: [{ userId: actor.userId }, { user: { workspaceLinks: { some: { workspaceId: { in: spaceIds } } } } }],
+      OR: [{ role: "OWNER" }, { user: { workspaceLinks: { some: { workspaceId: { in: spaceIds } } } } }],
     },
     select: { user: { select: { id: true, name: true } } },
   });
@@ -127,9 +131,12 @@ async function assignableIn(actor: Actor, spaceIds: string[]): Promise<StaleOpti
 }
 
 /** The review list: the old tasks grouped by person and project, the numbers beside them, and the choices the bulk bar needs. */
-export async function staleListFor(actor: Actor, params: StaleParams, now: Date = new Date()): Promise<StaleView> {
+export async function staleListFor(actor: Actor, params: StaleParams, now: Date = new Date(), opts: { current?: { id: string; kind: string } | null } = {}): Promise<StaleView> {
   const spaces = await assertStaleManager(actor);
-  const space = params.space && spaces.some((s) => s.id === params.space) ? params.space : null;
+  // B4 — each space is its own account: the list opens on the space the person is in (when they manage it); «كل المساحات» is an explicit choice, and
+  // inside «الشركة» (or a space they do not manage) the default is all the spaces they manage. Without `current` (a caller with no request) it is all of them.
+  const here = opts.current && opts.current.kind !== "HQ" && spaces.some((s) => s.id === opts.current!.id) ? opts.current.id : null;
+  const space = params.space === STALE_ALL_SPACES ? null : params.space && spaces.some((s) => s.id === params.space) ? params.space : here;
   const spaceIds = space ? [space] : spaces.map((s) => s.id);
   const cutoff = staleCutoff(now, params.days);
   const scope = await loadWorkScope(actor.userId);
@@ -194,6 +201,7 @@ export async function staleListFor(actor: Actor, params: StaleParams, now: Date 
     days: params.days,
     auto: params.auto,
     space,
+    here,
     builtAt: now.getTime(),
     viewerId: actor.userId,
     today: dayOfInstant(now, await orgTimeZone(actor.orgId)),

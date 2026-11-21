@@ -91,7 +91,7 @@ const ideaStatuses: IdeaStatus[] = ["NEW", "UNDER_REVIEW", "PLANNING", "LAUNCHED
           {t("analytics.ideasFunnel")}
           <span className="ms-2 text-xs font-normal text-muted">{t("analytics.ideasTotal", { total: data.ideas })}</span>
         </h2>
-        <div className="grid grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {ideaStatuses.map((status) => {
             const count = byStatus.get(status) ?? 0;
             return (

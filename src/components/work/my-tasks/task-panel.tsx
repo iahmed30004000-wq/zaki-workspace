@@ -8,6 +8,9 @@ import { fmtDMY, fmtNumber } from "@/lib/format";
 import { columnLabel, enumLabel } from "@/lib/i18n/enums";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { goHref } from "@/lib/space-link";
+import { isForeignTask } from "@/lib/work/my-tasks";
+import { DueDayChip } from "./due-chip";
 import { useWorkTask } from "./use-work-tasks";
 
 /**
@@ -17,18 +20,23 @@ import { useWorkTask } from "./use-work-tasks";
  */
 export function TaskPanel({
   taskId,
+  todayIso,
   onClose,
   onToggle,
   onDue,
 }: {
   taskId: string | null;
+  /** The company's today (what makes the due chip say «اليوم» and «بكرا»). */
+  todayIso?: string;
   onClose: () => void;
   onToggle: (id: string, done: boolean) => void;
   onDue: (id: string, day: string | null) => void;
 }) {
   const { t } = useI18n();
   const query = useWorkTask(taskId);
-  const detail = query.data;
+  // a task of ANOTHER space is never opened here: only where it lives and the way there (each space is its own account)
+  const foreign = query.data && isForeignTask(query.data) ? query.data.foreign : null;
+  const detail = query.data && !isForeignTask(query.data) ? query.data : undefined;
   const task = detail?.task;
   const done = task?.completedAt != null;
   const missing = query.error instanceof ApiError && query.error.status === 404;
@@ -49,6 +57,14 @@ export function TaskPanel({
             </p>
           ) : null}
           {query.isError ? <p className="py-6 text-sm text-danger">{missing ? t("mytasks.panel.not_found") : t("mytasks.panel.error")}</p> : null}
+          {foreign ? (
+            <div role="status" data-panel="foreign-space" className="space-y-3 py-4 text-sm">
+              <p className="text-fg">{t("navv2.banner.foreign", { name: foreign.spaceName })}</p>
+              <a href={goHref(foreign.spaceId, `/my-work?task=${foreign.taskId}`)} className="inline-flex min-h-11 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-accent-fg">
+                {t("navv2.banner.go")}
+              </a>
+            </div>
+          ) : null}
           {detail && task ? (
             <div className="space-y-4 text-sm">
               <div className="flex flex-wrap items-center gap-2">
@@ -83,14 +99,7 @@ export function TaskPanel({
                 <dt className="text-fg-muted">{t("task.due")}</dt>
                 <dd>
                   {task.editable ? (
-                    <input
-                      key={task.dueDay ?? "none"}
-                      type="date"
-                      aria-label={t("task.due")}
-                      defaultValue={task.dueDay ?? ""}
-                      onChange={(e) => onDue(task.id, e.target.value === "" ? null : e.target.value)}
-                      className="rounded border border-border bg-transparent px-1 py-0.5 text-sm"
-                    />
+                    <DueDayChip day={task.dueDay} todayIso={todayIso} onChange={(day) => onDue(task.id, day)} className="border border-border text-fg" />
                   ) : (
                     <span suppressHydrationWarning>{task.dueDate ? fmtDMY(task.dueDate) : t("mytasks.due.none")}</span>
                   )}

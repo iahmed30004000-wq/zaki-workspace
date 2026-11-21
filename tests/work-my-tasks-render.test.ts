@@ -79,7 +79,8 @@ const result = (over: Partial<WorkTasksResult> = {}): WorkTasksResult => ({
     { id: "w2", name: "بيتا", kind: "STANDARD" },
   ],
   projects: [{ id: "p1", name: "مشروع أ", workspaceId: "w1", spaceName: "ألفا" }],
-  current: { id: "w1", hq: false },
+  current: { id: "w1", hq: false, name: "ألفا" },
+  space: { id: "w1", name: "ألفا" },
   scopeFellBack: false,
   timeZone: "Asia/Damascus",
   todayIso: "2026-11-20",
@@ -109,8 +110,8 @@ describe("a row (D1's list row)", () => {
   it("the look: a round two-line tick, a person's circle instead of a name, an overdue open task wears its day in the danger colour", () => {
     const markup = row(task({ id: "1", dueDay: "2026-11-10", dueDate: "2026-11-10T09:00:00.000Z" }), { todayIso: "2026-11-20" });
     expect(markup).toMatch(/<button[^>]*class="[^"]*rounded-full border-2/);
-    expect(markup).toMatch(/type="date"[^>]*class="[^"]*text-danger/);
-    expect(row(task({ id: "1", dueDay: "2026-11-10", completedAt: "2026-11-19T09:00:00.000Z" }), { todayIso: "2026-11-20" })).not.toMatch(/type="date"[^>]*class="[^"]*text-danger/);
+    expect(markup).toMatch(/<label[^>]*class="[^"]*text-danger/);
+    expect(row(task({ id: "1", dueDay: "2026-11-10", completedAt: "2026-11-19T09:00:00.000Z" }), { todayIso: "2026-11-20" })).not.toMatch(/<label[^>]*class="[^"]*text-danger/);
     // the last row of a card has no divider under it
     expect(markup).toContain("last:border-b-0");
   });
@@ -223,6 +224,25 @@ describe("the bar: views, scopes, chips", () => {
     expect(bar(DEFAULT_MY_TASKS_PARAMS, result({ spaces: [{ id: "w1", name: "ألفا", kind: "STANDARD" }] }))).not.toContain("كل مساحاتي");
   });
 
+  it("B4: the space select puts the space I am in FIRST (the default), then «كل مساحاتي» (a choice), then the others; inside «الشركة» «كل مساحاتي» is first", () => {
+    const options = (markup: string) => [...markup.matchAll(/<option value="([^"]*)"[^>]*>([^<]*)<\/option>/g)].map((m) => [m[1], m[2]]);
+    const spaceSelect = (markup: string) => markup.slice(markup.indexOf('aria-label="المساحة"'), markup.indexOf("</select>", markup.indexOf('aria-label="المساحة"')));
+    const here = options(spaceSelect(bar(DEFAULT_MY_TASKS_PARAMS, result())));
+    expect(here).toEqual([
+      ["", "ألفا"],
+      ["all", "كل مساحاتي"],
+      ["w2", "بيتا"],
+    ]);
+    // asked for «كل مساحاتي» explicitly: that option is the selected one
+    expect(spaceSelect(bar({ ...DEFAULT_MY_TASKS_PARAMS, spaceId: "all" }, result()))).toMatch(/<option value="all" selected/);
+    const hq = bar(DEFAULT_MY_TASKS_PARAMS, result({ current: { id: "hq", hq: true, name: "الشركة" }, space: { id: null, name: null } }));
+    expect(options(spaceSelect(hq))).toEqual([
+      ["", "كل مساحاتي"],
+      ["w1", "ألفا"],
+      ["w2", "بيتا"],
+    ]);
+  });
+
   it("scope «مشروع» offers the picker of projects", () => {
     const markup = bar({ ...DEFAULT_MY_TASKS_PARAMS, scope: "project" }, result({ spaces: [{ id: "w1", name: "ألفا", kind: "STANDARD" }] }));
     expect(markup).toContain("اختر مشروع");
@@ -252,6 +272,14 @@ describe("the whole screen", () => {
     expect(markup).toContain("مهمة جديدة: اكتب العنوان واضغط إدخال");
     expect(markup).toContain("data-task-row=\"1\"");
     expect(textOf(markup)).toContain("3 مهمة");
+  });
+
+  it("B4: the line under the title says WHICH space the tasks are of; with all of them it says so; a row names its space only when the list crosses spaces", () => {
+    expect(textOf(view(result()))).toContain("مهامك في مساحة «ألفا»");
+    const all = view(result({ space: { id: null, name: null } }));
+    expect(textOf(all)).toContain("مهامك من كل مساحاتك بمكان واحد");
+    expect(all).toContain("ZK-2 · بيتا");
+    expect(view(result())).not.toContain("ZK-2 · بيتا");
   });
 
   it("an empty answer says so and offers a quick task; a person who cannot add sees no quick add", () => {

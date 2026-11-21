@@ -401,7 +401,7 @@ const TAB_PAGES: Record<TabKey, PageCall> = {
   ideas: () => IdeasPage(),
   production: () => ProductionPage(),
   departments: () => DepartmentsPage(),
-  tickets: () => TicketsPage(),
+  tickets: () => TicketsPage({}),
   campaigns: () => CampaignsPage(),
   crm: () => CrmPage(),
   files: () => FilesPage(),
@@ -795,7 +795,7 @@ describe("W1.1: with the switch `workMyTasks` ON, «مهامي» serves every ra
 describe("W1.8: «الأقسام» «التذاكر» «الحملات» — a guest is refused on every page the tab is not offered on, and the tab is honest for staff", () => {
   const PAGES: { tab: TabKey; page: PageCall }[] = [
     { tab: "departments", page: () => DepartmentsPage() },
-    { tab: "tickets", page: () => TicketsPage() },
+    { tab: "tickets", page: () => TicketsPage({}) },
     { tab: "campaigns", page: () => CampaignsPage() },
   ];
 

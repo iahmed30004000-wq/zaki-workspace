@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { onlineUserIds } from "@/server/realtime/presence";
-import { spacePeopleWhere } from "@/server/chat/space-people";
+import { spacePeopleWhere, verifiedShownTo } from "@/server/chat/space-people";
 import { lastSeenReader } from "@/server/services/last-seen";
 
 /**
@@ -29,6 +29,8 @@ export interface PresencePerson {
    * is off or the viewer may not be told (a guest), so an older client and the old «غير متصل» are untouched.
    */
   lastSeenAt?: string | null;
+  /** «إشارة التوثيق» (S5.5): `true` only for a verified colleague, while the switch is on and the viewer is not a guest; ABSENT otherwise. */
+  verified?: boolean;
 }
 
 export interface PresenceRoster {
@@ -66,12 +68,14 @@ export async function presenceRoster(orgId: string, viewerId: string, opts: Rost
       status: true,
       lastSeenAt: true,
       hideLastSeen: true,
+      verifiedAt: true,
       user: { select: { id: true, name: true, jobTitle: true, avatarUrl: true } },
     },
     orderBy: { createdAt: "asc" },
   });
   const online = new Set(await onlineUserIds(orgId));
   const seen = await lastSeenReader(orgId, viewerId);
+  const badges = await verifiedShownTo(orgId, { userId: viewerId });
   const people = rows
     .map((r) => ({
       userId: r.userId,
@@ -80,6 +84,7 @@ export async function presenceRoster(orgId: string, viewerId: string, opts: Rost
       role: r.role,
       avatarUrl: r.user.avatarUrl,
       ...seen.field(r),
+      ...(badges && r.verifiedAt ? { verified: true as const } : {}),
       // the viewer is looking at this very screen: they are at their screen, whatever the stream says
       online: r.userId === viewerId || (online.has(r.userId) && !(opts.hideOwner && r.role === "OWNER")),
     }))

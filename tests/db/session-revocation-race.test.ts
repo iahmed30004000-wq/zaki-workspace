@@ -35,6 +35,8 @@ import * as meRoute from "@/app/api/me/route";
 import * as workspacesRoute from "@/app/api/workspaces/route";
 import * as memberLogoutRoute from "@/app/api/organizations/[id]/members/[userId]/logout/route";
 import * as memberPasswordRoute from "@/app/api/organizations/[id]/members/[userId]/password/route";
+import * as sessionOne from "@/app/api/me/sessions/[id]/route";
+import { createSessionToken } from "@/server/session";
 import { call, db, loginAs, logout, makeTeam, makeWorkspace, TEST_PASSWORD } from "./helpers";
 import { sessionClaims, sessionCookie, setSessionCookie } from "./login-helpers";
 
@@ -104,5 +106,33 @@ describe("a revocation during an in-flight request is not laundered into a fresh
     await call(transparencyRoute.POST, { body: { accept: true } });
 
     expect((await call(meRoute.GET)).status, "the thief kept a session through the reset").toBe(401);
+  });
+});
+
+describe("ending ONE device (C4.2) is not laundered either", () => {
+  it("«اطلع من هالجهاز» landing while that device has a request in flight leaves the cookie the request re-issues already dead; the person's other device is untouched", async () => {
+    const { member } = await makeTeam();
+    const tv = await tokenVersionOf(member.id);
+    const expiresAt = new Date(Date.now() + 3600_000);
+    const a = await db.userSession.create({ data: { userId: member.id, tokenVersion: tv, expiresAt } });
+    const b = await db.userSession.create({ data: { userId: member.id, tokenVersion: tv, expiresAt } });
+    const cookieA = await createSessionToken({ userId: member.id, tv, sid: a.id });
+    const cookieB = await createSessionToken({ userId: member.id, tv, sid: b.id });
+
+    hooks.midRequest = async () => {
+      setSessionCookie(cookieB); // the other device ends this one while its request is being served
+      const res = await call(sessionOne.DELETE, { method: "DELETE", params: { id: a.id } });
+      expect(res.status).toBe(200);
+      setSessionCookie(cookieA);
+    };
+    setSessionCookie(cookieA);
+    await call(transparencyRoute.POST, { body: { accept: true } });
+
+    expect((await sessionClaims())?.sid, "the re-issued cookie still names the ended session").toBe(a.id);
+    expect((await call(meRoute.GET)).status, "the ended device survived").toBe(401);
+    setSessionCookie(cookieB);
+    expect((await call(meRoute.GET)).status).toBe(200);
+    expect((await db.userSession.findUniqueOrThrow({ where: { id: a.id } })).revokedAt).not.toBeNull();
+    expect((await db.userSession.findUniqueOrThrow({ where: { id: b.id } })).revokedAt).toBeNull();
   });
 });

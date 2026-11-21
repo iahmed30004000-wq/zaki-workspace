@@ -8,6 +8,8 @@ import { FormattedText } from "@/lib/chat/format/render";
 import { ct } from "@/lib/chat/text";
 import { ZakiEmojiText, isStickerOnly } from "@/components/chat/v2/bubble/zaki-emoji-text";
 import { ChecklistBubble } from "@/components/chat/v2/bubble/bubble-checklist";
+import { JumboEmoji } from "@/components/chat/v2/bubble/jumbo-emoji";
+import { emojiTokens } from "@/lib/chat/zaki-emoji";
 
 /**
  * C2.4 — the words of a message: the deleted line, or the body with the people it mentions highlighted and the order numbers in it as chips (a chip is
@@ -17,11 +19,18 @@ import { ChecklistBubble } from "@/components/chat/v2/bubble/bubble-checklist";
  * (`src/lib/chat/format/parse.ts`), then every plain run of it goes through the same mention highlight and order chips as before, so a mention or an order number
  * inside a bold word still works and a marker never splits a name. `formatting` is the company's switch `chatFormatting` (absent: on): off, the body is drawn as
  * the plain text it is (markers and all), exactly as before C3b.
+ *
+ * S5.6 — a text message of ONE to THREE emojis (unicode, Zaki or both) and nothing else (no file, card or poll with it) is drawn BIG by `JumboEmoji`; `fresh` (the bubble
+ * has just ARRIVED, decided once when it mounted) makes it pop, a tap replays a wiggle. Everything else is drawn exactly as before.
  */
-export function BubbleBody({ message, mentionNames, conversationId, orderChips, formatting = true }: { message: MessageDto; mentionNames: readonly string[]; conversationId: string; orderChips: boolean; formatting?: boolean }) {
+export function BubbleBody({ message, mentionNames, conversationId, orderChips, formatting = true, fresh = false }: { message: MessageDto; mentionNames: readonly string[]; conversationId: string; orderChips: boolean; formatting?: boolean; fresh?: boolean }) {
   if (message.deleted) return <p className="text-sm italic text-fg-muted">{ct("chatc.deleted")}</p>;
   const body = message.body;
   if (!body) return null;
+  if (message.kind === "TEXT" && message.attachments.length === 0 && !message.card && !message.poll) {
+    const tokens = emojiTokens(body);
+    if (tokens && tokens.length <= 3) return <JumboEmoji tokens={tokens} fresh={fresh} />;
+  }
   const bare = (text: string) => (orderChips ? <OrderText text={text} conversationId={conversationId} /> : text);
   // the owner's Zaki emojis (:zaki_smile:) become their pictures; a message of only those is a big sticker
   const sticker = isStickerOnly(body);

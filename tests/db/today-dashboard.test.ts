@@ -14,7 +14,7 @@ import { actorOf, at, isPlain, put, setMember, setZone, world, type World } from
  *    message of a space they are not in adds nothing to any number;
  *  - a guest (an external partner) gets no cards at all;
  *  - the company's day and week (from Sunday), by Organization.timezone;
- *  - the team strip is counts only, for the owner and whoever holds users.manage;
+ *  - the team strip is counts only, for the owner and whoever has people under them (A2.3, «فريقي»; users.manage decides nothing);
  *  - the unread chat is the badge's own count, so a topic of a space the person left or never joined is not in it.
  */
 
@@ -171,7 +171,7 @@ describe("nobody gets numbers they may not see", () => {
   });
 });
 
-describe("the team strip: counts only, for the owner and whoever holds users.manage", () => {
+describe("the team strip: counts only, for the owner and whoever has people under them (A2.3)", () => {
   async function busy() {
     const w = await world();
     await finished(w, "in", w.member.id, "2026-10-20T10:00:00Z");
@@ -190,20 +190,24 @@ describe("the team strip: counts only, for the owner and whoever holds users.man
   it("the owner counts every space of the company, with no name in the result", async () => {
     const w = await busy();
     const team = (await dashFor(w.owner.id))?.team;
-    expect(team).toEqual({ doneWeek: 3, dueToday: 2, peopleLate: 3 });
+    expect(team).toEqual({ scope: { who: "company", spaceName: null }, doneWeek: 3, dueToday: 2, peopleLate: 3 });
     expect(JSON.stringify(await dashFor(w.owner.id))).not.toMatch(/[؀-ۿ]|Member|Lead|Admin/);
   });
 
-  it("an admin or a member given users.manage counts only the spaces they can open; the others get none", async () => {
+  // A2.3: «فريقي» (D-A3) — users.manage decides nothing; the people under the person do (more in today-team-scope.test.ts)
+  it("a manager counts only the people under them, in the spaces they can open; a person with nobody under them gets none, users.manage or not", async () => {
     const w = await busy();
     await joinWorkspace(w.admin.id, w.wsIn.id);
-    expect((await dashFor(w.admin.id))?.team).toEqual({ doneWeek: 2, dueToday: 1, peopleLate: 2 });
+    expect((await dashFor(w.admin.id))?.team).toBeNull(); // an ADMIN holds users.manage by rank, but nobody answers to them
+    await setMember(w.org.id, w.member.id, { managerId: w.admin.id });
+    await setMember(w.org.id, w.lead.id, { managerId: w.admin.id });
+    expect((await dashFor(w.admin.id))?.team).toEqual({ scope: { who: "reports", spaceName: null }, doneWeek: 2, dueToday: 1, peopleLate: 2 });
     expect((await dashFor(w.member.id))?.team).toBeNull();
     expect((await dashFor(w.lead.id))?.team).toBeNull();
     await setMember(w.org.id, w.member.id, { capabilities: ["users.manage"] });
-    expect((await dashFor(w.member.id))?.team).toEqual({ doneWeek: 2, dueToday: 1, peopleLate: 2 });
+    expect((await dashFor(w.member.id))?.team).toBeNull();
     await setMember(w.org.id, w.admin.id, { revokedCapabilities: ["users.manage"] });
-    expect((await dashFor(w.admin.id))?.team).toBeNull();
+    expect((await dashFor(w.admin.id))?.team).toMatchObject({ doneWeek: 2 }); // the same people either way
   });
 
   it("a person who is no longer active is not counted among the people who are late", async () => {

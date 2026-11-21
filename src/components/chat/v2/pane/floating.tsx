@@ -13,8 +13,25 @@ import { mentionsButtonOf, pruneVisited, walkTargetsOf, type DownButton, type Me
  */
 
 /** The date of the top visible message, floating at the top; it shows while the person scrolls and fades after a moment (never under reduced motion: it just goes). */
-export function StickyDateChip({ label, visible }: { label: string | null; visible: boolean }) {
+export function StickyDateChip({ label, visible, onOpen }: { label: string | null; visible: boolean; /** S5.7 (c): a tap on the chip opens the date jump; absent, the chip is only a label */ onOpen?: () => void }) {
   if (!label) return null;
+  if (onOpen) {
+    // while it shows, it is a real button (a tap opens the calendar); while it is faded out it takes no touch, so it never steals a tap from the message under it
+    return (
+      <div data-sticky-date className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
+        <button
+          type="button"
+          data-sticky-date-button=""
+          aria-label={`${label}: ${ct("chatparity.date.open")}`}
+          tabIndex={visible ? 0 : -1}
+          onClick={onOpen}
+          className={`rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-fg-muted shadow-sm transition-opacity duration-150 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent motion-reduce:transition-none ${visible ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"}`}
+        >
+          {label}
+        </button>
+      </div>
+    );
+  }
   return (
     <div aria-hidden="true" data-sticky-date className="pointer-events-none absolute inset-x-0 top-2 z-10 flex justify-center">
       <span className={`rounded-full border border-border bg-surface px-3 py-1 text-xs font-semibold text-fg-muted shadow-sm transition-opacity duration-150 motion-reduce:transition-none ${visible ? "opacity-100" : "opacity-0"}`}>{label}</span>

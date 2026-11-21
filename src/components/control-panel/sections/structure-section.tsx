@@ -24,8 +24,8 @@ export async function StructureSection({ ctx }: { ctx: SectionCtx }) {
   const parts = STRUCTURE_PARTS.map((key) => ({ key, href: panelHref("structure", key), name: t(`cpv2.structure.part.${key}`), current: key === part }));
   return (
     <div className="space-y-4" data-testid="cp-structure" data-part={part}>
-      <SectionHeader t={t} section="structure" hint={t("cpv2.structure.hint")} />
-      <PartNav label={t("cpv2.structure.nav")} parts={parts} />
+      <SectionHeader t={t} section="structure" hint={t("cpv2.structure.hint")} title={ctx.oneDoor ? t("cpone.nav.structure") : undefined} />
+      <PartNav label={t(ctx.oneDoor ? "cpone.structure.nav" : "cpv2.structure.nav")} parts={parts} />
       {part === "development" ? await DevelopmentBody({ actor, searchParams, where: developmentWhere }) : part === "structure" ? await StructureBody({ actor, where: developmentWhere }) : notFound()}
     </div>
   );

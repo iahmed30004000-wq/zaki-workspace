@@ -4,7 +4,11 @@ The voice agent of «المساعد بالاجتماعات»: a small program on
     room audio --(voice activity)--> sentence --(faster-whisper)--> text --(POST /api/voice-agent/turn)--> answer --(Piper)--> room audio
 
 Free software only: faster-whisper and Piper run here, on the CPU. The workspace decides WHAT to say (it asks the owner's own model, with the
-words filtered first); this program only hears and speaks. Nothing is recorded: audio lives in memory for the length of one sentence.
+words filtered first); this program only hears and speaks. NO AUDIO IS EVER STORED: sound lives in memory for the length of one sentence.
+
+Only while the OWNER has turned on «تسجيل نص الاجتماعات» for this call (the workspace tells it: the join says `transcript`, and /transcript flips it) every finished
+sentence is also handed over as TEXT, with who said it, to a second signed door (POST /api/voice-agent/transcript: {callId, personId, text}). The minutes are
+written by the workspace AFTER the call. Without a graphics card the speech is written on the processor, so nothing here is live.
 """
 import asyncio
 import json
@@ -31,6 +35,11 @@ log = logging.getLogger("voice-agent")
 
 SECRET = os.environ.get("VOICE_AGENT_SECRET", "")
 TURN_URL = os.environ.get("WORKSPACE_TURN_URL", "")  # https://workspace.zakiai.io/api/voice-agent/turn
+# The door of the written lines (S6.2), beside the turn door and signed the same way. Derived from the turn address unless set.
+TRANSCRIPT_URL = os.environ.get("WORKSPACE_TRANSCRIPT_URL", "").strip() or (TURN_URL.rsplit("/", 1)[0] + "/transcript" if TURN_URL else "")
+# When the door says «not stored» (the record is off for that call) the agent stops sending for this long.
+TRANSCRIPT_PAUSE_SECONDS = 60
+TRANSCRIPT_LINE_MAX = 1500
 WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
 PIPER_VOICE = os.environ.get("PIPER_VOICE", "/models/ar_JO-kareem-medium.onnx")
 MAX_SESSIONS = int(os.environ.get("MAX_SESSIONS", "2"))
@@ -154,13 +163,17 @@ def synthesize(text: str):
 
 
 class Meeting:
-    def __init__(self, call_id, room_name, url, token, title):
+    def __init__(self, call_id, room_name, url, token, title, transcript=False):
         self.call_id, self.room_name, self.url, self.token, self.title = call_id, room_name, url, token, title
+        # the owner turned the TEXT record on for this call: finished sentences go to the signed transcript door (text only, never sound)
+        self.transcript = bool(transcript)
+        self.transcript_pause_until = 0.0
         self.room = rtc.Room()
         self.source = None
         self.tasks = set()
         self.history = []
-        self.last_spoke_at = None
+        # who the assistant answered last and when it finished speaking: only that person's next SHORT sentence is a follow-up (logic.FOLLOW_UP_SECONDS)
+        self.follow = logic.FollowUp()
         self.speaking = False
         self.busy = asyncio.Lock()
         self.closed = asyncio.Event()
@@ -169,7 +182,7 @@ class Meeting:
         @self.room.on("track_subscribed")
         def on_track(track, _publication, participant):
             if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity != "assistant":
-                self._spawn(self.listen(track, participant.name or "مشارك"))
+                self._spawn(self.listen(track, participant.name or "مشارك", participant.identity))
 
         @self.room.on("disconnected")
         def on_disconnected(*_):
@@ -207,7 +220,7 @@ class Meeting:
         await self.room.disconnect()
         log.info("left %s", self.room_name)
 
-    async def listen(self, track, speaker: str) -> None:
+    async def listen(self, track, speaker: str, speaker_id: str) -> None:
         """One person's microphone: cut it into sentences by voice activity, and hand each sentence on."""
         vad = webrtcvad.Vad(2)
         stream = rtc.AudioStream(track, sample_rate=RATE, num_channels=1)
@@ -229,16 +242,19 @@ class Meeting:
                     pcm = np.concatenate(frames)
                     frames, quiet = [], 0
                     if len(pcm) / RATE >= MIN_UTTERANCE_SECONDS:
-                        self._spawn(self.heard(pcm, speaker))
+                        self._spawn(self.heard(pcm, speaker, speaker_id))
 
-    async def heard(self, pcm, speaker: str) -> None:
+    async def heard(self, pcm, speaker: str, speaker_id: str) -> None:
         began = time.time()  # the speaker has just finished: everything from here is the wait they feel
         text = await recognise(pcm)
         stt_ms = int((time.time() - began) * 1000)
         if logic.is_noise(text, STT_PROMPT):
             log.info("heard noise (%.1fs of audio, listened %d ms)", len(pcm) / RATE, stt_ms)
             return
-        addressed = logic.is_addressed(text, self.last_spoke_at, time.time())
+        if self.transcript and TRANSCRIPT_URL and time.time() >= self.transcript_pause_until:
+            self._spawn(self.record(speaker_id, text))  # a text line for the minutes; it never delays the answer
+        # the follow-up window is measured to the moment the person STOPPED talking (`began`), not to the end of the slow recognition
+        addressed = logic.is_addressed(text, self.follow.at, began, same_speaker=self.follow.is_follow_up(speaker_id, began))
         log.info("heard %.1fs of audio, listened %d ms, addressed=%s%s", len(pcm) / RATE, stt_ms, addressed, f", text: {text}" if DEBUG else "")
         self.history.append({"role": "user", "text": f"{speaker}: {text}"})
         self.history = self.history[-12:]
@@ -258,12 +274,31 @@ class Meeting:
                 self.history.append({"role": "assistant", "text": answer})
                 spoke = time.time()
                 await self.say(answer)
+                self.follow.answered(speaker_id, time.time())  # the follow-up window of this person starts when the answer ends
                 log.info(
                     "answered: listened %d ms + thought %d ms + voice %d ms to the end of the answer, %d ms after they stopped%s",
                     stt_ms, think_ms, int((time.time() - spoke) * 1000), int((time.time() - began) * 1000), f", said: {answer}" if DEBUG else "",
                 )
             else:
                 log.info("no answer (listened %d ms, waited %d ms)", stt_ms, think_ms)
+
+    async def record(self, speaker_id: str, text: str) -> None:
+        """One finished sentence as TEXT for the minutes: who said it and what. Signed like the turn request. Failure only costs that line."""
+        body = json.dumps({"callId": self.call_id, "personId": speaker_id, "text": text[:TRANSCRIPT_LINE_MAX]}, ensure_ascii=False)
+        ts = int(time.time())
+        headers = {"content-type": "application/json", "x-agent-timestamp": str(ts), "x-agent-signature": logic.sign(SECRET, ts, body)}
+        try:
+            async with aiohttp.ClientSession() as http:
+                async with http.post(TRANSCRIPT_URL, data=body.encode(), headers=headers, timeout=aiohttp.ClientTimeout(total=15)) as res:
+                    if res.status != 200:
+                        log.warning("transcript refused: %s", res.status)
+                        self.transcript_pause_until = time.time() + TRANSCRIPT_PAUSE_SECONDS
+                        return
+                    answer = await res.json()
+                    if not answer.get("stored"):  # the record is not on for this call: stop sending for a while
+                        self.transcript_pause_until = time.time() + TRANSCRIPT_PAUSE_SECONDS
+        except Exception as err:  # the meeting goes on; this line is lost
+            log.warning("transcript failed: %s", err)
 
     async def ask(self, speaker: str, text: str, addressed: bool) -> str:
         body = json.dumps(
@@ -278,7 +313,9 @@ class Meeting:
                     if res.status != 200:
                         log.warning("turn refused: %s", res.status)
                         return ""
-                    return (await res.json()).get("reply", "")
+                    answer = await res.json()
+                    # «[صمت]» or nothing: the assistant stays quiet, even when it was named (it never invents a sentence instead)
+                    return answer.get("reply", "") if logic.should_speak(answer) else ""
         except Exception as err:  # the meeting goes on without an answer
             log.warning("turn failed: %s", err)
             return ""
@@ -323,7 +360,6 @@ class Meeting:
             await self.source.wait_for_playout()
         finally:
             self.speaking = False
-            self.last_spoke_at = time.time()
 
 
 meetings = {}
@@ -344,7 +380,7 @@ async def join(request: web.Request) -> web.Response:
         return web.json_response({"ok": True})
     if len(meetings) >= MAX_SESSIONS:  # speech to text on a CPU: two meetings at once is plenty
         return web.json_response({"error": "busy"}, status=429)
-    meeting = Meeting(call_id, data["room"], data["url"], data["token"], data.get("title"))
+    meeting = Meeting(call_id, data["room"], data["url"], data["token"], data.get("title"), data.get("transcript", False))
     meetings[call_id] = meeting
     try:
         await meeting.start()
@@ -358,6 +394,16 @@ async def join(request: web.Request) -> web.Response:
         meetings.pop(call_id, None)
 
     asyncio.create_task(cleanup())
+    return web.json_response({"ok": True})
+
+
+async def set_transcript(request: web.Request) -> web.Response:
+    """The owner turned the text record of this call on or off (signed like join and leave): start or stop sending the written lines."""
+    data = json.loads(await authed(request))
+    meeting = meetings.get(str(data["callId"]))
+    if meeting:
+        meeting.transcript = bool(data.get("on", False))
+        meeting.transcript_pause_until = 0.0
     return web.json_response({"ok": True})
 
 
@@ -389,7 +435,7 @@ def main() -> None:
     )
     log.info("models ready, listening on port %s", os.environ.get("PORT", "8080"))
     app = web.Application()
-    app.add_routes([web.post("/join", join), web.post("/leave", leave), web.get("/health", health)])
+    app.add_routes([web.post("/join", join), web.post("/leave", leave), web.post("/transcript", set_transcript), web.get("/health", health)])
     web.run_app(app, port=int(os.environ.get("PORT", "8080")))
 
 

@@ -6,10 +6,22 @@ import { db } from "@/server/db";
 import { parseJson } from "@/server/validation";
 import { SpaceConflictError, deleteEmptyWorkspace, readWorkspace } from "@/server/services/workspaces";
 
-const renameSchema = z.object({
-  name: z.string().trim().min(2, "name.too_short").max(80, "name.too_long"),
-  description: z.string().trim().max(300).nullable().optional(),
-});
+/** The space's emoji (A2.2, «عام»): one picture, never text — a pictograph in at most 16 characters (a flag or a family is several code points); `null` clears it. */
+const emojiSchema = z
+  .string()
+  .trim()
+  .max(16, "space.emoji_invalid")
+  .refine((value) => /[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}]/u.test(value) && !/[\p{L}\p{N}]/u.test(value), "space.emoji_invalid")
+  .nullable();
+
+/** Any of the three; the old body (a name and a description) is still valid, an empty body is not. */
+const renameSchema = z
+  .object({
+    name: z.string().trim().min(2, "name.too_short").max(80, "name.too_long").optional(),
+    description: z.string().trim().max(300).nullable().optional(),
+    emoji: emojiSchema.optional(),
+  })
+  .refine((body) => body.name !== undefined || body.description !== undefined || body.emoji !== undefined, "name.too_short");
 
 /**
  * GET: one space, for the people in it (any role, an org GUEST included) and for the OWNER, who needs
@@ -22,21 +34,21 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   });
 }
 
-/** PATCH: rename / re-describe a space. Its ADMIN, the OWNER, or an org ADMIN who is in it. */
+/** PATCH: rename / re-describe a space, or change its emoji. Its ADMIN, the OWNER, or an org ADMIN who is in it. */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   return withApi(async () => {
     const ctx = await requireWorkspace(params.id, ["ADMIN"]);
     const input = await parseJson(renameSchema, req);
     const updated = await db.workspace.update({
       where: { id: params.id },
-      data: { name: input.name, description: input.description ?? undefined },
-      select: { id: true, name: true, description: true },
+      data: { name: input.name, description: input.description ?? undefined, emoji: input.emoji },
+      select: { id: true, name: true, description: true, emoji: true },
     });
     await audit("workspace.renamed", {
       actorId: ctx.userId,
       orgId: ctx.orgId,
       target: params.id,
-      meta: { name: input.name },
+      meta: { name: input.name ?? null, emoji: input.emoji !== undefined },
     });
     return NextResponse.json({ workspace: updated });
   });

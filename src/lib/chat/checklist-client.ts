@@ -1,4 +1,4 @@
-import { isBlankText, MAX_CHECKLIST_ITEM_LENGTH, MAX_CHECKLIST_ITEMS, MAX_CHECKLIST_TITLE } from "@/lib/chat/checklist";
+import { CHECKLIST_KIND, isBlankText, MAX_CHECKLIST_ITEM_LENGTH, MAX_CHECKLIST_ITEMS, MAX_CHECKLIST_TITLE } from "@/lib/chat/checklist";
 
 /**
  * «قائمة مهام» (C3c.1): the small pure parts of the checklist screens (the composer's dialog and the bubble), so they can be tested without a browser.
@@ -58,6 +58,14 @@ export function checklistRequestOf(messageId: string, action: ChecklistAction): 
     case "remove":
       return { url: `${base}/${encodeURIComponent(action.itemId)}`, method: "DELETE" };
   }
+}
+
+/** True for the message that carries a list: «اعمل منها مهمة» on it must copy the items into the task's steps, from every door. */
+export const isChecklistMessage = (message: { kind?: string | undefined }): boolean => message.kind === CHECKLIST_KIND;
+
+/** «اعمل منها مهمة» on a list: after the task is made (the one door of messages, `POST …/task`), this writes the list's items as its steps. */
+export function checklistStepsRequest(messageId: string, taskId: string): { url: string; method: "POST"; body: { taskId: string } } {
+  return { url: `/api/chat/messages/${encodeURIComponent(messageId)}/checklist/steps`, method: "POST", body: { taskId } };
 }
 
 /** The line under a ticked item: who finished it and when. A guest is not told who (the server leaves the name out), so he reads only the time. */

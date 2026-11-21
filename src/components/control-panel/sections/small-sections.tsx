@@ -18,7 +18,7 @@ export async function SpacesSection({ ctx }: { ctx: SectionCtx }) {
   return (
     <div className="space-y-4" data-testid="cp-spaces">
       <SectionHeader t={t} section="spaces" hint={t("cpv2.spaces.hint")} />
-      {await SpacesBody({ actor, heading: "h2" })}
+      {await SpacesBody({ actor, heading: "h2", settingsLinks: ctx.oneDoor === true })}
     </div>
   );
 }
@@ -28,8 +28,8 @@ export async function ArchiveSection({ ctx }: { ctx: SectionCtx }) {
   if (!actorCan(actor, "archive.view")) return notFound();
   return (
     <div className="space-y-4" data-testid="cp-archive">
-      <SectionHeader t={t} section="archive" />
-      {await ArchiveBody({ heading: "h2" })}
+      <SectionHeader t={t} section="archive" title={ctx.oneDoor ? t("cpv2.dd.nav.archive") : undefined} />
+      {await ArchiveBody({ heading: "h2", titled: ctx.oneDoor !== true })}
     </div>
   );
 }

@@ -87,6 +87,44 @@ describe("giving a task directly: yourself, somebody below, somebody of the same
   });
 });
 
+describe("B4 — each space is its own account: a task is given only to a person of the task's space", () => {
+  it("a person of ANOTHER space cannot be given the task, whatever the rank (create, update, and beside the first); nothing is written", async () => {
+    const w = await world();
+    const memberOut = await makeUser({ orgId: w.org.id, role: "MEMBER", name: "Member Elsewhere" });
+    const leadOut = await makeUser({ orgId: w.org.id, role: "LEAD", name: "Lead Elsewhere" });
+    await makeWorkspace(w.org.id, [{ userId: memberOut.id }, { userId: leadOut.id }], "Elsewhere");
+    for (const target of [memberOut, leadOut]) {
+      await expect(createTask(w.as(w.admin), w.input(target.id)), target.name).rejects.toMatchObject({ message: "assign.target_not_in_space" });
+    }
+    expect(await db.task.count({ where: { orgId: w.org.id } })).toBe(0);
+    const task = await w.existing(w.member.id);
+    await expect(updateTask(w.as(w.admin), task.id, { assigneeId: memberOut.id })).rejects.toMatchObject({ message: "assign.target_not_in_space" });
+    await expect(updateTask(w.as(w.admin), task.id, { coAssigneeIds: [w.member2.id, memberOut.id] })).rejects.toMatchObject({ message: "assign.target_not_in_space" });
+    const after = await db.task.findUniqueOrThrow({ where: { id: task.id }, include: { coAssignees: true } });
+    expect(after.assigneeId).toBe(w.member.id);
+    expect(after.coAssignees).toEqual([]);
+    // the door says it in Arabic (a key the dictionary knows)
+    expect(AR["assign.target_not_in_space"]).toBeTruthy();
+  });
+
+  it("the owner rank is the exception as a TARGET (he needs no row in any space); as a giver he is held to the same rule", async () => {
+    const w = await world();
+    expect((await createTask(w.as(w.admin), w.input(w.owner.id))).assignRequest?.toUserId).toBe(w.owner.id);
+    expect((await createTask(w.as(w.owner), w.input(w.member.id))).assigneeId).toBe(w.member.id);
+    const outside = await makeUser({ orgId: w.org.id, role: "MEMBER", name: "Outside" });
+    await expect(createTask(w.as(w.owner), w.input(outside.id))).rejects.toMatchObject({ message: "assign.target_not_in_space" });
+  });
+
+  it("existing rows are not rewritten: a task already held by somebody outside the space keeps its holder when something else changes", async () => {
+    const w = await world();
+    const outside = await makeUser({ orgId: w.org.id, role: "MEMBER", name: "Old holder" });
+    const task = await w.existing(outside.id);
+    const saved = await updateTask(w.as(w.admin), task.id, { title: "renamed" });
+    expect(saved.assigneeId).toBe(outside.id);
+    expect(saved.title).toBe("renamed");
+  });
+});
+
 describe("giving a task upward is a request", () => {
   it("create: the task is born without the higher person, a request waits, and only they are told", async () => {
     const w = await world();

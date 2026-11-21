@@ -87,10 +87,12 @@ export default async function ApprovalsPage({ searchParams }: { searchParams?: R
   const canAll = actor.isOwner || spaces.some((s) => s.manager);
   const requested = viewOf(one("v"));
   const view = requested === "all" && !canAll ? "mine" : requested;
+  // the company-wide list is the owner's; «طلباتي» and «بانتظاري» are the space the person is in (inside «الشركة», the view over all of them: every space)
+  const narrowTo = space.kind === "HQ" ? null : space.id;
   const [items, waiting] = await Promise.all([
-    // the company-wide list is the owner's; «طلباتي» and «بانتظاري» are the space the person is in
-    listApprovals(actor, { view, workspaceId: view === "all" ? null : space.id }),
-    waitingCount(actor),
+    listApprovals(actor, { view, workspaceId: view === "all" ? null : narrowTo }),
+    // B4: the number on the tab counts the list it heads
+    waitingCount(actor, { workspaceId: narrowTo }),
   ]);
   const tabs = [
     { key: "mine", label: t("approvals.view.mine") },

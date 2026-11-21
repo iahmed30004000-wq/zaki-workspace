@@ -18,6 +18,7 @@ import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/compo
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { useToast } from "@/components/ui/toast";
 import { MeEffects } from "@/components/settings-me/me-effects";
+import { SETTINGS_DOOR_HREF, useSettingsOneDoor } from "./nav-options";
 import { clearMirror } from "@/lib/device-prefs";
 
 /** What the menu shows of the signed-in person (CurrentUser fits as it is). */
@@ -59,6 +60,8 @@ export function Initial({ name, src, large = false, onAccent = false }: { name: 
  * pinned by tests/shell-render.test.ts; «حسابي» is the first section of «إعداداتي» and its old address `/profile` redirects there), and mounts `MeEffects` (draws nothing):
  * the device's copy of the person's choices and Ctrl+, .
  *
+ * S3.3: while «الإعدادات» is ONE door the theme row and its sheet are gone (the theme's home is the person's own settings, «المظهر واللغة»).
+ *
  * The theme sheet opens only once the menu has closed and handed focus back to the avatar, so the sheet
  * remembers the avatar as its opener and gives focus back to it when it closes.
  *
@@ -79,6 +82,8 @@ export function AvatarMenu({
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
+  // S3.1: «الإعدادات» is ONE door: the menu keeps the theme, ONE row «الإعدادات» (it replaces «إعداداتي», «الدليل» and «حسابي»: «حسابي» is the first section inside) and the sign-out
+  const oneDoor = useSettingsOneDoor();
   const [themeOpen, setThemeOpen] = useState(false);
   const themeAfterClose = useRef(false);
   const handle = user.username ? `@${user.username}` : (user.email ?? "");
@@ -140,15 +145,17 @@ export function AvatarMenu({
           }}
         >
           <div className="relative flex items-center gap-3 px-3 pb-3 pt-2">
-            <Link
-              href="/settings/me"
-              data-settings-me-link
-              aria-label={t("settingsMe.avatar")}
-              title={t("settingsMe.avatar")}
-              className="absolute end-1 top-0 grid size-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
-            >
-              <Settings aria-hidden="true" className="size-4" />
-            </Link>
+            {oneDoor ? null : (
+              <Link
+                href="/settings/me"
+                data-settings-me-link
+                aria-label={t("settingsMe.avatar")}
+                title={t("settingsMe.avatar")}
+                className="absolute end-1 top-0 grid size-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                <Settings aria-hidden="true" className="size-4" />
+              </Link>
+            )}
             <Initial name={user.name} src={user.avatarUrl} large />
             <div className="min-w-0 flex-1 pe-9">
               <p className="truncate text-sm font-semibold text-fg"><bdi>{user.name}</bdi></p>
@@ -161,26 +168,40 @@ export function AvatarMenu({
             </div>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onSelect={() => {
-              themeAfterClose.current = true;
-            }}
-          >
-            <Palette aria-hidden="true" className="size-4 text-muted" />
-            {t("theme.picker")}
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/guide">
-              <BookOpen aria-hidden="true" className="size-4 text-muted" />
-              {t("guide.title")}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/profile">
-              <UserRound aria-hidden="true" className="size-4 text-muted" />
-              {t("shell.avatar.account")}
-            </Link>
-          </DropdownMenuItem>
+          {/* S3.3: while «الإعدادات» is ONE door the theme has ONE home (settings › «المظهر واللغة»), so this menu draws no theme row and no sheet */}
+          {oneDoor ? null : (
+            <DropdownMenuItem
+              onSelect={() => {
+                themeAfterClose.current = true;
+              }}
+            >
+              <Palette aria-hidden="true" className="size-4 text-muted" />
+              {t("theme.picker")}
+            </DropdownMenuItem>
+          )}
+          {oneDoor ? (
+            <DropdownMenuItem asChild>
+              <Link href={SETTINGS_DOOR_HREF} data-settings-me-link data-settings-door="">
+                <Settings aria-hidden="true" className="size-4 text-muted" />
+                {t("settingsOneDoor.door")}
+              </Link>
+            </DropdownMenuItem>
+          ) : (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/guide">
+                  <BookOpen aria-hidden="true" className="size-4 text-muted" />
+                  {t("guide.title")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <UserRound aria-hidden="true" className="size-4 text-muted" />
+                  {t("shell.avatar.account")}
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem tone="danger" disabled={logout.isPending} onSelect={() => logout.mutate()}>
             <LogOut aria-hidden="true" className="size-4" />
@@ -189,16 +210,18 @@ export function AvatarMenu({
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Sheet open={themeOpen} onOpenChange={setThemeOpen}>
-        <SheetContent aria-describedby={undefined}>
-          <SheetHeader>
-            <SheetTitle>{t("shell.avatar.theme_title")}</SheetTitle>
-          </SheetHeader>
-          <SheetBody>
-            <ThemePicker />
-          </SheetBody>
-        </SheetContent>
-      </Sheet>
+      {oneDoor ? null : (
+        <Sheet open={themeOpen} onOpenChange={setThemeOpen}>
+          <SheetContent aria-describedby={undefined}>
+            <SheetHeader>
+              <SheetTitle>{t("shell.avatar.theme_title")}</SheetTitle>
+            </SheetHeader>
+            <SheetBody>
+              <ThemePicker />
+            </SheetBody>
+          </SheetContent>
+        </Sheet>
+      )}
     </>
   );
 }

@@ -56,7 +56,7 @@ describe("the guards of the new screen cover the folders of C2.8", () => {
   });
 });
 
-describe("on screen only «Ctrl» and «Esc» are Latin", () => {
+describe("on screen only the key names «Ctrl», «Alt», «Shift» and «Esc» are Latin", () => {
   function walk(dir: string, out: string[] = []): string[] {
     for (const name of readdirSync(dir)) {
       const full = path.join(dir, name);
@@ -78,21 +78,23 @@ describe("on screen only «Ctrl» and «Esc» are Latin", () => {
     return out;
   }
 
-  it("no word on screen, in the new chat or the call entry points, is written in Latin letters except the two key names", () => {
+  it("no word on screen, in the new chat or the call entry points, is written in Latin letters except the four key names", () => {
     const files = [...walk(path.join(ROOT, "src/components/chat/v2")), ...["call-button", "call-ring", "meeting-button"].map((n) => path.join(ROOT, `src/components/calls/${n}.tsx`))];
     const offenders: string[] = [];
     for (const file of files) {
       for (const { text, line } of readable(file)) {
-        for (const word of text.match(/[A-Za-z]{2,}/g) ?? []) if (word !== "Ctrl" && word !== "Esc") offenders.push(`${path.relative(ROOT, file)}:${line}  ${word}`);
+        for (const word of text.match(/[A-Za-z]{2,}/g) ?? []) if (!["Ctrl", "Alt", "Shift", "Esc"].includes(word)) offenders.push(`${path.relative(ROOT, file)}:${line}  ${word}`);
       }
     }
     expect(offenders).toEqual([]);
   });
 
-  it("the shortcuts sheet draws exactly those two as Latin", () => {
+  it("the shortcuts sheet draws exactly those four as Latin", () => {
     const src = read("src/components/chat/v2/menu/shortcuts-sheet.tsx");
     expect(src).toContain(">Ctrl</kbd>");
     expect(src).toContain(">Esc</kbd>");
+    expect(src).toContain(">Alt</kbd>");
+    expect(src).toContain(">Shift</kbd>");
     expect(read("tests/arabic-ui.test.ts")).toMatch(/"Ctrl",[^\n]*\n\s*"Esc",/);
   });
 });

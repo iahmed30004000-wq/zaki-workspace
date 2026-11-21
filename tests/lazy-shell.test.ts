@@ -139,6 +139,16 @@ describe("the calls library is loaded when a call starts or rings, not with the 
     expect(calls.rooms[next]?.localParticipant.setCameraEnabled).toHaveBeenCalledWith(true);
   });
 
+  it("a joiner of a topic's call enters muted: with `mic: false` neither the microphone nor the camera is opened", async () => {
+    const before = calls.rooms.length;
+    await mount().join("c3", true, { mic: false });
+    const room = calls.rooms[before];
+    expect(room, "a room was made").toBeDefined();
+    expect(room?.connect).toHaveBeenCalled();
+    expect(room?.localParticipant.setMicrophoneEnabled).not.toHaveBeenCalled();
+    expect(room?.localParticipant.setCameraEnabled).not.toHaveBeenCalled();
+  });
+
   it("the library is evaluated once: a second call reuses it", () => {
     expect(calls.loads).toBe(1);
   });

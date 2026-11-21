@@ -226,7 +226,17 @@ export interface QuickTaskBody {
   boardId: string;
   title: string;
   assigneeId: string;
+  description?: string;
   dueDate?: string;
+}
+
+/** The longest specification the quick add sends (the server accepts 10 000; a quick task is not a document). */
+export const QUICK_DESCRIPTION_MAX = 2000;
+
+/** The specification as it is sent: trimmed, cut, and absent when empty. */
+function quickDescription(text: string | undefined): { description?: string } {
+  const description = cutAt((text ?? "").trim(), QUICK_DESCRIPTION_MAX).trimEnd();
+  return description === "" ? {} : { description };
 }
 
 /** At most `max` characters, never leaving the first half of an emoji at the end. */
@@ -256,7 +266,7 @@ function quickDueAt(due: QuickDue, timeZone: string, now?: Date): string | undef
  */
 export function quickTaskBody(
   quickAdd: TodayQuickAddData,
-  input: { projectId: string; title: string; due: QuickDue; timeZone: string; now?: Date },
+  input: { projectId: string; title: string; due: QuickDue; timeZone: string; now?: Date; assigneeId?: string; description?: string },
 ): QuickTaskBody | null {
   const title = cutAt(input.title.trim(), TASK_TITLE_MAX).trimEnd();
   if (title === "") return null;
@@ -268,7 +278,8 @@ export function quickTaskBody(
     projectId: target.projectId,
     boardId: target.boardId,
     title,
-    assigneeId: quickAdd.assigneeId,
+    assigneeId: input.assigneeId || quickAdd.assigneeId,
+    ...quickDescription(input.description),
     ...(dueDate ? { dueDate } : {}),
   };
 }
@@ -288,20 +299,49 @@ export interface WorkInboxInfo {
   space: { id: string; name: string } | null;
   /** The inbox project of that space once it exists (so the list of projects does not show it twice). */
   projectId: string | null;
+  /**
+   * B4 — inside «الشركة» (or with no space) the person CHOOSES the space instead of the first one being used silently: `choose` says so, `spaces` are the spaces a
+   * task can go to. Inside a space `choose` is false: the task goes to that space.
+   */
+  choose?: boolean;
+  spaces?: { id: string; name: string }[];
 }
+
+/** The quick add must ask which space: the person is in «الشركة» and has more than one space to put the task in (with one, it is that one). */
+export const mustChooseSpace = (inbox: WorkInboxInfo | null | undefined): boolean => Boolean(inbox?.choose && (inbox.spaces?.length ?? 0) > 1);
 
 /** The body of POST /api/instant/inbox: the person's own task, due today unless they say otherwise. No project: the server knows where. */
 export interface QuickInboxBody {
   title: string;
+  /** The space it goes to, when the person chose one (inside «الشركة»). */
+  spaceId?: string;
   assigneeId: string;
+  /** What the task needs (its specification), when the person wrote it. */
+  description?: string;
   dueDate?: string;
 }
 
-export function quickInboxBody(quickAdd: TodayQuickAddData, input: { title: string; due: QuickDue; timeZone: string; now?: Date }): QuickInboxBody | null {
+export function quickInboxBody(
+  quickAdd: TodayQuickAddData,
+  input: { title: string; due: QuickDue; timeZone: string; now?: Date; assigneeId?: string; description?: string; spaceId?: string | null },
+): QuickInboxBody | null {
   const title = cutAt(input.title.trim(), TASK_TITLE_MAX).trimEnd();
   if (title === "") return null;
   const dueDate = quickDueAt(input.due, input.timeZone, input.now);
-  return { title, assigneeId: quickAdd.assigneeId, ...(dueDate ? { dueDate } : {}) };
+  return { title, ...(input.spaceId ? { spaceId: input.spaceId } : {}), assigneeId: input.assigneeId || quickAdd.assigneeId, ...quickDescription(input.description), ...(dueDate ? { dueDate } : {}) };
+}
+
+/** One line of «اليوم» inside «الشركة»: the person's own numbers in one space (`getTodayBySpace`). */
+export interface TodayBySpaceRow {
+  id: string;
+  name: string;
+  emoji: string | null;
+  /** Open tasks the person holds there. */
+  open: number;
+  /** …of which late. */
+  overdue: number;
+  /** Messages waiting for them in its topics. */
+  unread: number;
 }
 
 // ───────────────────────────────────────── «اليوم» simplified (W1.7) ─────────────────────────────────────────
@@ -450,6 +490,8 @@ export interface TodayWaiting {
   /** The real count: the length of W1.4's «بانتظاري». */
   total: number;
   rows: WaitingRowView[];
+  /** B4: only inside «الشركة»: what waits, space by space (`spaceId: null`: the company-wide tickets). The card draws these, each with «انتقل». */
+  groups?: { spaceId: string | null; name: string | null; total: number }[];
 }
 
 /** The newest `WAITING_TOP` rows across the inbox's sections (each section is already filtered by what the person may see); null when nothing waits. */

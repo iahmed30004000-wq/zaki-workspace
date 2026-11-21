@@ -26,6 +26,14 @@ export type NewActionKey = (typeof NEW_ACTIONS)[number];
 /** The query parameter a page reads to open its own form (`useNewIntent`). */
 export const NEW_PARAM = "new";
 
+/**
+ * M1a — the `?new=message` intent: the chat opens with its «محادثة جديدة» dialog ready. The wheel still opens that dialog in place (`NEW_HREF.message` stays
+ * null: it is already on screen), but an address needs one: the installed app's shortcut «رسالة جديدة» (`src/app/manifest.ts`) and anything that cannot open
+ * the wheel. The chat list serves it (`src/components/pwa/new-message-intent.tsx`, through `useNewIntent`).
+ */
+export const NEW_MESSAGE_INTENT = "message";
+export const NEW_MESSAGE_HREF = `/chat?${NEW_PARAM}=${NEW_MESSAGE_INTENT}`;
+
 /** Where an action goes when it is a page's own form; null when the wheel opens it in place. */
 export const NEW_HREF: Record<NewActionKey, string | null> = {
   task: "/?new=task",

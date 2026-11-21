@@ -1,6 +1,6 @@
 "use client";
 
-import type { KeyboardEvent, MouseEvent } from "react";
+import type { ComponentProps, KeyboardEvent, MouseEvent } from "react";
 import dynamic from "next/dynamic";
 import { Moon, Sun } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -79,6 +79,38 @@ export function PlainSwitch({ className }: { className?: string }) {
           {dark ? <Moon className="size-3.5" /> : <Sun className="size-3.5" />}
         </span>
       </span>
+    </button>
+  );
+}
+
+/**
+ * P2.1 — «ليل / نهار» as ONE icon (a sun or a moon on a round tonal ground) for the phone's drawer header: the wide switch is a computer's control (the app bar draws it from `md`), and the effect looks
+ * are 112–168px wide, which is what crowded the phone's bar into three or four rows. The same toggle as the switch (`useThemeToggle`: the person's own dark theme, the reveal while effects are
+ * allowed, an instant swap otherwise); it carries the switch role and the same Arabic name. Any button attribute (`data-shell`) passes through.
+ */
+export function ThemeIconButton({ className, ...rest }: ComponentProps<"button">) {
+  const { t } = useI18n();
+  const { dark, setDark } = useThemeToggle();
+  const { gate } = useSwitchFx();
+  const onClick = (e: MouseEvent<HTMLButtonElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const origin = e.detail > 0 ? { x: e.clientX, y: e.clientY } : { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    setDark(!dark, origin);
+  };
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={dark}
+      aria-label={t("themeSwitch.aria")}
+      title={t(dark ? "themeSwitch.toggle_to_day" : "themeSwitch.toggle_to_dark")}
+      onClick={onClick}
+      onPointerEnter={gate.fxOn ? prefetchReveal : undefined}
+      onFocus={gate.fxOn ? prefetchReveal : undefined}
+      {...rest}
+      className={cn("grid size-11 shrink-0 place-items-center rounded-full bg-accent-fg/15 text-accent-fg transition-colors hover:bg-accent-fg/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-fg", className)}
+    >
+      {dark ? <Moon aria-hidden="true" className="size-5" /> : <Sun aria-hidden="true" className="size-5" />}
     </button>
   );
 }

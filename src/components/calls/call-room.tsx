@@ -2,10 +2,15 @@
 
 import React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { ChevronUp } from "lucide-react";
 import { Track, type Participant } from "livekit-client";
 import { ct, ctCount } from "@/lib/chat/text";
 import { bestGrid } from "@/lib/calls/layout";
-import { ringbackMsLeft, startRing } from "@/lib/calls/ring-sound";
+import { ringbackFor, startRingback } from "@/lib/calls/ring-sound";
+import { endKeyOf, leaveTarget, micOnAtJoin } from "@/lib/calls/session";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { useRealtime } from "@/lib/realtime/use-realtime";
 import { Avatar } from "@/components/ui/avatar";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, type CallView } from "./call-api";
@@ -13,6 +18,12 @@ import { CallInvite } from "./call-invite";
 import { nameOf, PersonPicture, Quality } from "./call-media";
 import { useOptionalCall, type CallApi } from "./call-provider";
 import { RING_FOR_MS } from "./call-ring";
+import { RecordingMark } from "./recording-mark";
+
+/** When the caller's page asks again after the ring time: the server ends a private call nobody answered a few seconds later (src/server/calls/calls.ts `NO_ANSWER_MS`). */
+const NO_ANSWER_ASK_MS = 36_000;
+/** How long the words of a call that ended under the person («رفض المكالمة», «خلصت المكالمة») stay before the chat comes back. */
+const END_NOTE_MS = 2_500;
 
 /**
  * The page of one call, as simple as a phone call (the owner's bar: «السلاسة وعدم التعقيد ولا الخطوات الزائدة»):
@@ -69,7 +80,8 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
   joinRef.current = join;
   React.useEffect(() => {
     void load().then((v) => {
-      if (v && !v.endedAt) void joinRef.current(callId, v.video);
+      // a private call and its starter open the microphone; a joiner of a topic's call comes in muted
+      if (v && !v.endedAt) void joinRef.current(callId, v.video, { mic: micOnAtJoin(v) });
     });
   }, [load, callId]);
 
@@ -83,6 +95,16 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
   React.useEffect(() => {
     if (phase === "in") void load();
   }, [count, phase, load]);
+
+  // the call changed under this page (the other person declined it, it ended, somebody joined): read it again, at once.
+  // The caller's page hears «رفض المكالمة» this way, before the room closes.
+  useRealtime((event) => {
+    if (event.kind === "call.changed" && event.callId === callId) void load();
+  });
+  // the room closed under the person (declined, ended by a host, the other hung up): ask once more why, for the words
+  React.useEffect(() => {
+    if (phase === "ended") void load();
+  }, [phase, load]);
 
   async function removePerson(userId: string) {
     try {
@@ -118,75 +140,95 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
     }
   }
 
-  // «إنهاء للكل» asks once: the first tap turns the button into «أكيد؟», the second ends the call for everybody
-  const [confirming, setConfirming] = React.useState(false);
-  React.useEffect(() => {
-    if (!confirming) return;
-    const t = setTimeout(() => setConfirming(false), 4000);
-    return () => clearTimeout(t);
-  }, [confirming]);
+  // «اطلع» is ONE tap: the call is left and the page is the conversation again (home for a meeting) — no screen in between
+  const router = useRouter();
+  const [leaving, setLeaving] = React.useState(false);
+  const back = leaveTarget(view);
+  function leaveNow() {
+    setLeaving(true);
+    router.replace(back);
+    void call.leave();
+  }
+  // «إنهاء للكل» (a host's, from the menu next to «اطلع»): one tap on the item ends the call for everybody and leaves
   async function endForAll() {
-    if (!confirming) return setConfirming(true);
-    setConfirming(false);
     try {
       await callApi(`${api}/end`, {});
     } catch (e) {
       say(e instanceof Error ? e.message : ct("calls.action_failed"), "error");
       return;
     }
-    await call.leave();
-    void load();
+    leaveNow();
   }
+
+  // the call was left from somewhere else (another device took the seat): back to the chat, with no screen to read. Only after this page
+  // had joined — a page opened over a call this tab left earlier is about to join it again.
+  const wasIn = React.useRef(false);
+  React.useEffect(() => {
+    if (phase === "in" || phase === "connecting") wasIn.current = true;
+    else if (phase === "left" && wasIn.current && !leaving) router.replace(back);
+  }, [phase, leaving, router, back]);
 
   // a tap on somebody's picture makes it the big one; a tap on the big one puts everybody back
   const [pinned, setPinned] = React.useState<string | null>(null);
 
-  // the caller hears the ring until somebody joins (or the 30 s the other side rings are over)
+  // the caller of a PRIVATE call hears the soft ringback (its own tone, never the incoming ringtone) until somebody joins or
+  // the 30 s the other side rings are over; never in a topic call, a meeting, or a call somebody joined rather than started
   const aloneInCall = phase === "in" && call.everyone.length <= 1;
+  const ringKind = view?.kind ?? null;
+  const ringRang = view?.rangCount ?? 0;
   const startedAt = view?.startedAt ?? null;
   React.useEffect(() => {
-    if (!aloneInCall || !startedAt) return;
-    const left = ringbackMsLeft({ alone: true, startedAt, now: Date.now(), forMs: RING_FOR_MS });
+    if (!aloneInCall || !startedAt || !ringKind) return;
+    const left = ringbackFor({ view: { kind: ringKind, rangCount: ringRang, startedAt }, alone: true, now: Date.now(), forMs: RING_FOR_MS });
     if (left <= 0) return;
-    const stop = startRing();
+    const stop = startRingback();
     const timer = setTimeout(stop, left);
     return () => {
       clearTimeout(timer);
       stop();
     };
-  }, [aloneInCall, startedAt]);
+  }, [aloneInCall, startedAt, ringKind, ringRang]);
+
+  // nobody answered a private call: the server ends it as a missed call a few seconds after the ring time; the caller's page asks then,
+  // so it closes by itself with «ما حدا ردّ» instead of waiting in an empty room
+  const waitingForAnswer = aloneInCall && ringKind === "DM" && ringRang > 0 && !view?.endedAt;
+  React.useEffect(() => {
+    if (!waitingForAnswer || !startedAt) return;
+    const wait = Math.max(0, Date.parse(startedAt) + NO_ANSWER_ASK_MS - Date.now());
+    const t = setTimeout(() => void load(), wait);
+    return () => clearTimeout(t);
+  }, [waitingForAnswer, startedAt, load]);
 
   function copyLink() {
     if (!view) return;
     void navigator.clipboard?.writeText(`${window.location.origin}${view.path}`).then(() => say(ct("calls.link_copied")), () => say(ct("calls.action_failed"), "error"));
   }
 
-  const back = view?.conversationId ? `/chat/${view.conversationId}` : "/chat";
   const title = view?.title || view?.conversationTitle || ct("calls.page_title");
   const ended = !!view?.endedAt;
+  // the call ended under the person (declined, hung up on, a host ended it, taken out): its words for a moment, then the chat again
+  const endNote = !loadError && !leaving && (ended || phase === "ended" || phase === "removed");
+  React.useEffect(() => {
+    if (!endNote) return;
+    const t = setTimeout(() => router.replace(back), END_NOTE_MS);
+    return () => clearTimeout(t);
+  }, [endNote, router, back]);
+
+  // the person tapped «اطلع»: the page is already on its way to the chat
+  if (leaving) return null;
 
   if (loadError || ended || (phase !== "in" && phase !== "connecting" && phase !== "lost")) {
     const line = loadError
       ? loadError
-      : ended || phase === "ended"
-        ? ct("calls.ended")
-        : phase === "removed"
-          ? ct("calls.removed_me")
-          : phase === "left"
-            ? ct("calls.left")
-            : phase === "denied"
-              ? call.state.error
-              : ct("calls.connecting");
-    const canRejoin = !loadError && !ended && (phase === "left" || phase === "denied");
+      : endNote
+        ? ct(endKeyOf(view, phase))
+        : phase === "denied"
+          ? call.state.error
+          : ct("calls.connecting");
     return (
       <section dir="rtl" lang="ar" className="mx-auto flex max-w-md flex-col items-center gap-4 p-6 text-center" aria-label={title}>
         <h1 className="text-xl font-bold">{title}</h1>
         <p role="status">{line}</p>
-        {canRejoin && view && (
-          <button type="button" onClick={() => void join(callId, false)} className="min-h-11 rounded-full bg-ok px-6 font-semibold text-ok-fg">
-            {ct("calls.again")}
-          </button>
-        )}
         <Link href={back} className="min-h-11 rounded-lg px-4 py-2 text-accent hover:bg-surface-2">
           {ct("calls.back")}
         </Link>
@@ -214,6 +256,7 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
           <h1 className="truncate text-sm font-bold">{title}</h1>
           <p className="text-xs text-fg-muted">{phase === "in" ? ctCount("calls.count", everyone.length) : ct("calls.connecting")}</p>
         </div>
+        <RecordingMark callId={callId} />
         {(call.state.reconnecting || phase === "lost") && <p role="status" className="rounded-full bg-warn/15 px-3 py-1 text-xs text-warn">{ct("calls.reconnecting")}</p>}
       </header>
 
@@ -302,22 +345,38 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
           />
         )}
         <Round on={panel !== "none"} onClick={() => setPanel((v) => (v === "none" ? "people" : "none"))} label={ct("calls.people")} icon="👥" />
-        {/* «اطلع»: alone, the call goes on; a host also has «إنهاء للكل» (the owner's «زر انهاء مكالمة لمنشئ + خروج») */}
-        <button
-          type="button"
-          onClick={() => void call.leave()}
-          aria-label={ct("calls.leave")}
-          title={ct("calls.leave")}
-          className={`inline-flex h-12 min-w-12 items-center justify-center gap-1 rounded-full px-4 font-semibold ${view?.can.end ? "border border-danger text-danger hover:bg-danger/10" : "bg-danger text-danger-fg"}`}
-        >
-          <span aria-hidden="true">📴</span>
-          <span className="max-sm:sr-only">{ct("calls.leave")}</span>
-        </button>
-        {view?.can.end && (
-          <button type="button" onClick={() => void endForAll()} className="inline-flex h-12 items-center justify-center gap-1 rounded-full bg-danger px-4 text-sm font-semibold text-danger-fg">
-            {confirming ? ct("calls.end_confirm") : ct("calls.end_all")}
+        {/* «اطلع»: one tap, straight back to the chat. A host also has a small menu beside it with «إنهاء للكل» (the owner's «زر انهاء مكالمة لمنشئ + خروج»): one tap on the item ends it */}
+        <div className="inline-flex items-center gap-1">
+          <button
+            type="button"
+            onClick={leaveNow}
+            aria-label={ct("calls.leave")}
+            title={ct("calls.leave")}
+            className="inline-flex h-12 min-w-12 items-center justify-center gap-1 rounded-full bg-danger px-4 font-semibold text-danger-fg"
+          >
+            <span aria-hidden="true">📴</span>
+            <span className="max-sm:sr-only">{ct("calls.leave")}</span>
           </button>
-        )}
+          {view?.can.end && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label={ct("calls.more")}
+                  title={ct("calls.more")}
+                  className="inline-flex h-12 w-9 items-center justify-center rounded-full border border-border bg-surface-1 hover:bg-surface-2"
+                >
+                  <ChevronUp aria-hidden="true" className="size-5" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="end" className="z-[80]">
+                <DropdownMenuItem tone="danger" onSelect={() => void endForAll()}>
+                  {ct("calls.end_all")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+        </div>
       </nav>
     </section>
   );

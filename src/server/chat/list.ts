@@ -13,6 +13,7 @@ import { previewOf } from "@/server/chat/redact";
 import { dmStatusFor } from "@/server/chat/messages";
 import { archivedByMeSql, personalOnSql } from "@/server/chat/read-state";
 import { SAVED_TITLE_KEY } from "@/server/chat/dm";
+import { notHiddenSql } from "@/server/chat/hidden-messages";
 import { AR } from "@/lib/i18n/dict";
 
 /**
@@ -164,6 +165,8 @@ export interface ConvRecord {
   peerPrimaryOwner: boolean | null;
   peerLastReadAt: Date | null;
   peerLastDeliveredAt: Date | null;
+  /** «إشارة التوثيق» (S5.5): the other person's badge, read INSIDE the list's one query and only while the company's switch is on (null: none, or the switch is off) */
+  peerVerifiedAt?: Date | null;
   /** C3a.3: «الرسائل المحفوظة» — a private chat whose two people are the same person (no other person, no ticks, no call) */
   selfDm?: boolean;
   /** C3a.3: a saved chat while the company's switch `savedMessages` is off: not listed for anybody (the data stays) */
@@ -217,6 +220,18 @@ export function savedOnSql(orgId: string): Prisma.Sql {
   )`;
 }
 
+/**
+ * SQL: the company's switch `verifiedBadge` (S5.5), read INSIDE the list's one query like `savedOnSql` (the sync feed reads no settings of its own). The same rule as `featureOn`: a stored boolean
+ * wins, anything else is the default, which is ON.
+ */
+export function verifiedOnSql(orgId: string): Prisma.Sql {
+  return Prisma.sql`COALESCE(
+    (SELECT CASE WHEN jsonb_typeof(o.settings -> 'features' -> 'verifiedBadge') = 'boolean' THEN (o.settings -> 'features' ->> 'verifiedBadge')::boolean END
+     FROM "Organization" o WHERE o.id = ${orgId}),
+    true
+  )`;
+}
+
 /** The list's own rule, as SQL: what narrows the rows that are loaded. `canRead` decides afterwards. */
 function visibleSql(v: ListViewer): Prisma.Sql {
   const notGuest = !v.guest;
@@ -261,10 +276,10 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
   const statJoin = stats
     ? Prisma.sql`
     LEFT JOIN LATERAL (
-      -- the newest message, a deleted one included (its text never leaves the database: the row shows «رسالة محذوفة»)
+      -- the newest message, a deleted one included (its text never leaves the database: the row shows «رسالة محذوفة»); one the person hid for themselves (S5.7) is not the newest FOR THEM
       SELECT m.id, CASE WHEN m."deletedAt" IS NULL THEN m.body END AS body, m.kind, m."deletedAt", m."createdAt", m."authorId", au.name AS "authorName"
       FROM "ChatMessage" m JOIN "User" au ON au.id = m."authorId"
-      WHERE m."conversationId" = c.id
+      WHERE m."conversationId" = c.id AND ${notHiddenSql(uid, "m")}
       ORDER BY m."createdAt" DESC, m.id DESC
       LIMIT 1
     ) lm ON true
@@ -272,7 +287,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
       -- unread and mentions come from the read mark, never from a stored counter; a system line never counts; silent oversight and an archived topic count nothing
       SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE m.mentions && ARRAY[${uid}, ${MENTION_ALL_ID}]::text[]) AS mn
       FROM "ChatMessage" m
-      WHERE m."conversationId" = c.id AND m."authorId" <> ${uid} AND m."deletedAt" IS NULL AND m.kind <> 'SYSTEM'
+      WHERE m."conversationId" = c.id AND m."authorId" <> ${uid} AND m."deletedAt" IS NULL AND m.kind <> 'SYSTEM' AND ${notHiddenSql(uid, "m")}
         AND (cm.id IS NULL OR m."createdAt" > cm."lastReadAt")
         AND (${v.oversight}::boolean = false OR cm.id IS NOT NULL)
         AND c."archivedAt" IS NULL
@@ -290,6 +305,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
       po.id AS "peerId", pu.name AS "peerName", pu."avatarUrl" AS "peerAvatar", pom.status::text AS "peerStatus", pom.role::text AS "peerRole",
       pom.capabilities AS "peerCapabilities", pom."revokedCapabilities" AS "peerRevoked", pom."primaryOwner" AS "peerPrimaryOwner",
       pcm."lastReadAt" AS "peerLastReadAt", pcm."lastDeliveredAt" AS "peerLastDeliveredAt",
+      CASE WHEN ${verifiedOnSql(v.orgId)} AND ${!v.guest}::boolean THEN pom."verifiedAt" END AS "peerVerifiedAt",
       (c.kind = 'DM' AND po.id = ${uid} AND split_part(split_part(c."dmKey", '@', 1), '|', 1) = split_part(split_part(c."dmKey", '@', 1), '|', 2)) AS "selfDm",
       (c.kind = 'DM' AND split_part(split_part(c."dmKey", '@', 1), '|', 1) <> '' AND split_part(split_part(c."dmKey", '@', 1), '|', 1) = split_part(split_part(c."dmKey", '@', 1), '|', 2) AND NOT ${savedOnSql(v.orgId)}) AS "savedHidden"
       ${statSelect}
@@ -430,6 +446,8 @@ function conversationRow(r: ConvRecord, v: ListViewer): ChatRowDto {
   if (r.kind === "DM") {
     row.avatarUrl = saved ? null : r.peerAvatar;
     if (r.peerId) row.peerId = r.peerId; // for «المحفوظة» it is me: the screen knows the chat by that (`isSavedRow`)
+    // «إشارة التوثيق» (S5.5): the other person's badge (the SQL already left it out for a guest and while the switch is off); never on «المحفوظة» (that is me)
+    if (!saved && r.peerVerifiedAt && !v.guest) row.verified = true;
   }
   if (topic) {
     row.topicType = r.topicType as ChatRowDto["topicType"];

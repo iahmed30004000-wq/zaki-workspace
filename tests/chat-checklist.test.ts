@@ -15,7 +15,9 @@ import {
   type ChecklistRow,
   type ChecklistViewer,
 } from "@/lib/chat/checklist";
-import { buildChecklistPayload, checklistDraftProblem, checklistRequestOf, doneLineKey, emptyChecklistDraft, filledItems } from "@/lib/chat/checklist-client";
+import { buildChecklistPayload, checklistDraftProblem, checklistRequestOf, checklistStepsRequest, doneLineKey, emptyChecklistDraft, filledItems, isChecklistMessage } from "@/lib/chat/checklist-client";
+import { menuFor, type MessageMenuContext } from "@/components/chat/message/message-menu-registry";
+import type { MessageKind } from "@/server/chat/dto";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
 import { rowPreview } from "@/lib/chat/row-preview";
 import { FEATURES, FEATURE_DEFAULTS, FEATURE_META, featureOn } from "@/lib/features";
@@ -221,11 +223,11 @@ describe("the registries", () => {
     expect(read("src/server/chat/sync.ts")).toMatch(/MESSAGE_EVENTS = new Set<RealtimeKind>\(\[[^\]]*"checklist\.changed"/);
   });
 
-  it("the switch `chatChecklists`: ON by default, in the chat group, and it needs the new screen", () => {
+  it("the switch `chatChecklists`: OFF by default, in the chat group, and it needs the new screen", () => {
     expect(FEATURES).toContain("chatChecklists");
-    expect(FEATURE_DEFAULTS.chatChecklists).toBe(true);
-    expect(featureOn({}, "chatChecklists")).toBe(true);
-    expect(featureOn({ features: { chatChecklists: false } }, "chatChecklists")).toBe(false);
+    expect(FEATURE_DEFAULTS.chatChecklists).toBe(false);
+    expect(featureOn({}, "chatChecklists")).toBe(false);
+    expect(featureOn({ features: { chatChecklists: true } }, "chatChecklists")).toBe(true);
     expect(FEATURE_META.chatChecklists).toEqual({ group: "chat", dependsOn: ["chatLayoutV2"] });
     expect(AR["features.chatChecklists.name"]).toBeTruthy();
     expect(AR["features.chatChecklists.hint"]).toContain("⚠️");
@@ -291,7 +293,7 @@ describe("the items' words stay out of every other reader of a message", () => {
   });
 
   it("the migration is additive: two new tables, nothing dropped, nothing altered", () => {
-    const sql = read("prisma/migrations/20261124101000_chat_checklists/migration.sql");
+    const sql = read("prisma/migrations/20261126130000_chat_checklists/migration.sql");
     expect([...sql.matchAll(/CREATE TABLE "(\w+)"/g)].map((m) => m[1])).toEqual(["ChatChecklist", "ChatChecklistItem"]);
     expect(sql).not.toMatch(/DROP |TRUNCATE|DELETE FROM|ALTER COLUMN|RENAME/);
     expect(sql).toContain('"othersCanAdd" BOOLEAN NOT NULL DEFAULT false');
@@ -302,5 +304,52 @@ describe("the items' words stay out of every other reader of a message", () => {
     expect(sql).toMatch(/"ChatChecklist_messageId_fkey" FOREIGN KEY \("messageId"\) REFERENCES "ChatMessage"\("id"\) ON DELETE CASCADE/);
     // a released folder is frozen: this one is NOT in the pin list until it has been deployed
     expect(read("prisma/migrations/RELEASED.txt")).not.toContain("chat_checklists");
+  });
+});
+
+/** The two gaps of the audit: the wire kind is a member of the union, and «اعمل منها مهمة» from the MENU (not only the list's own button) writes the steps. */
+describe("a CHECKLIST message in the screens' unions and in the message menu", () => {
+  it("MessageKind and the menu registry's kind both hold CHECKLIST (the wire value is CHECKLIST_KIND)", () => {
+    const kind: MessageKind = CHECKLIST_KIND as MessageKind; // does not compile unless the union holds "CHECKLIST"
+    expect(kind).toBe("CHECKLIST");
+    expect(read("src/server/chat/dto.ts")).toMatch(/export type MessageKind = [^;]*"CHECKLIST"/);
+    expect(read("src/components/chat/message/message-menu-registry.ts")).toMatch(/kind: "TEXT" \| "VOICE" \| "SYSTEM" \| "POLL" \| "CARD" \| "CHECKLIST";/);
+  });
+
+  it("the menu of a list: reply, copy, task and delete as for a text; no edit (the words are the title and the items are not editable as text), no forward and no save (a copy would carry no items: the server refuses both)", () => {
+    const base: MessageMenuContext = { mine: true, deleted: false, kind: "CHECKLIST", hasText: true, pinned: false, conversationKind: "TOPIC", canPost: true, canModerate: false, oversight: false, canMakeWork: true, surface: "v2" };
+    const ids = menuFor(base).map((a) => a.id);
+    expect(ids).toContain("task");
+    expect(ids).toContain("reply");
+    expect(ids).toContain("delete");
+    expect(ids).not.toContain("edit");
+    expect(ids).not.toContain("forward");
+    expect(menuFor({ ...base, canSaved: true }).map((a) => a.id)).not.toContain("saved");
+    expect(menuFor({ ...base, kind: "TEXT", canSaved: true }).map((a) => a.id)).toEqual(expect.arrayContaining(["forward", "saved"]));
+    // nobody who may not make work of a message is offered the task, a list or not
+    expect(menuFor({ ...base, canMakeWork: false }).map((a) => a.id)).not.toContain("task");
+  });
+
+  it("the list's message is recognised by its wire kind, and the steps request is the one door's (taskId in the body)", () => {
+    expect(isChecklistMessage({ kind: "CHECKLIST" })).toBe(true);
+    expect(isChecklistMessage({ kind: "TEXT" })).toBe(false);
+    expect(isChecklistMessage({})).toBe(false);
+    expect(checklistStepsRequest("m 1", "t1")).toEqual({ url: "/api/chat/messages/m%201/checklist/steps", method: "POST", body: { taskId: "t1" } });
+  });
+
+  it("«اعمل منها مهمة» writes the steps from EVERY door: the dialog itself asks, the bubble and the menu host only say how it went", () => {
+    const dialog = read("src/components/chat/message/make-work-dialog.tsx");
+    // after the task of a list was made, the dialog (the one place both doors run) posts the steps, for a task only
+    expect(dialog).toMatch(/kind === "task" && id && message && isChecklistMessage\(message\)/);
+    expect(dialog).toContain("checklistStepsRequest(message.id, id)");
+    expect(dialog).toContain("stepsCopied");
+    // the menu host hands the dialog the WHOLE message (its kind decides), not a copy without it
+    expect(read("src/components/chat/v2/pane/seams/menu-host.tsx")).toContain("setMaking({ message, kind: id })");
+    expect(read("src/components/chat/v2/pane/seams/menu-host.tsx")).toContain("made.stepsCopied");
+    // the bubble no longer asks for the steps on its own (that would be a second request: «steps exist», 403)
+    const bubble = read("src/components/chat/v2/bubble/bubble-checklist.tsx");
+    expect(bubble).not.toContain("/checklist/steps");
+    expect(bubble).toContain("kind: message.kind");
+    expect(bubble).toContain("made.stepsCopied");
   });
 });

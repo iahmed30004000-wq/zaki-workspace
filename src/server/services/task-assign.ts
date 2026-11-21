@@ -62,7 +62,12 @@ export async function judgeAssignment(
 
   const kind = assignKindByRank(me.role, target.role);
   if (kind === "refused") throw new ForbiddenError("assign.guest_no_request");
-  if (kind === "direct") return "direct";
+  if (kind === "direct") {
+    // B4 — each space is its own account (owner's decision, 2026-11-21): a task is handed only to a person OF ITS SPACE, who can open it. The OWNER rank needs
+    // no row in any space (as in the quick task); nothing is rewritten for a task already held by somebody outside (this runs only when the holder changes).
+    if (target.role !== "OWNER" && !(await inSpace(targetId, target.role))) throw new ForbiddenError("assign.target_not_in_space");
+    return "direct";
+  }
 
   // a request is answered on the task's own page, so the addressed person must be able to open it
   if (!(await inSpace(targetId, target.role))) throw new ForbiddenError("assign.request_not_in_space");

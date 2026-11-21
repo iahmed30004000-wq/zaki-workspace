@@ -3,6 +3,7 @@
  * `/api/workspaces` read the same rules, and the tests read them directly.
  */
 
+import { featureOn } from "../features";
 import type { NavPlace, PlaceKey, TabKey } from "./places";
 
 /** What the app bar of a place draws. The search is the palette; «جديد» is the wheel (its own list of actions comes from the server). */
@@ -121,4 +122,23 @@ export function parseAddress(pathname: string): { kind: AddressKind; id: string 
  */
 export function holdsNoWork(spaces: readonly { holdsProjects?: boolean }[]): boolean {
   return !spaces.some((space) => space.holdsProjects !== false);
+}
+
+// ───────────────────────────────────────── the phone's chrome (P2.1) ─────────────────────────────────────────
+
+/**
+ * P2.1 — the drawer's row «المرشد» (the owner's guide) tells the guide to open its panel with this window event: on a phone the compass does not float over the
+ * page, so the drawer is where it lives. The guide (src/components/site-guide/site-guide.tsx) is its own lazy chunk and the drawer cannot import it, so the name is here.
+ */
+export const GUIDE_OPEN_EVENT = "zaki:guide-open";
+
+// ───────────────────────────────────────── ONE «الإعدادات» door (S3.1) ─────────────────────────────────────────
+
+/**
+ * Is «الإعدادات» ONE door for this company? Its own switch `settingsOneDoor` AND the one control panel (`controlPanelV2`): the company group of the settings frame draws the panel's section
+ * bodies and the row that opens the panel, so without the panel the switch changes nothing (the owner can only turn it on while the panel is on, `FEATURE_META`; one already on stays harmless
+ * if the panel is switched off later). Pure: the layout, the pages and the tests read it from `Organization.settings`.
+ */
+export function settingsOneDoorOf(orgSettings: unknown): boolean {
+  return featureOn(orgSettings, "settingsOneDoor") && featureOn(orgSettings, "controlPanelV2");
 }

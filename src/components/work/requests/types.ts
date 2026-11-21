@@ -93,8 +93,24 @@ export interface RequestSection {
   allHref: string | null;
 }
 
+/**
+ * B4 — inside «الشركة» (the view over ALL the person's spaces) the inbox is also given per space: one group per space that has something waiting, in the
+ * order of the spaces, then the company-wide one (`spaceId: null`: tickets belong to departments, which have no space). `sections` stays the flat total.
+ */
+export interface RequestGroup {
+  spaceId: string | null;
+  /** The space's name; null for the company-wide group. */
+  name: string | null;
+  total: number;
+  sections: RequestSection[];
+}
+
 export interface WorkRequestsView {
   tab: RequestTab;
+  /** B4: the space the lists are cut for (the one the person is in); null inside «الشركة» / with no narrowing. */
+  space?: { id: string; name: string } | null;
+  /** B4: only inside «الشركة»: the same rows grouped by space (each group is drawn with «انتقل»). */
+  groups?: RequestGroup[];
   /** The signed-in person (the ticket «استلمها» assigns the ticket to them). */
   viewerId: string;
   /** When the server built this answer: the screen's cache is keyed by it, so a page the person comes back to is never an older answer. */

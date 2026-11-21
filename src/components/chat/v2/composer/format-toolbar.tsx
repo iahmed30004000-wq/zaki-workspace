@@ -14,10 +14,10 @@ const ICONS: Record<FormatAction, LucideIcon> = {
   link: Link2,
 };
 
-/** The shortcut as a tooltip says it, built from parts: «Ctrl» and the letter are Latin, Shift is its Arabic key name. */
+/** The shortcut as a tooltip says it, built from parts: the key names (Ctrl, Shift) and the letter are Latin, as on the keyboard. */
 function shortcutText(action: FormatAction): string {
   const { shift, letter } = FORMAT_SHORTCUT_KEYS[action];
-  return ["Ctrl", ...(shift ? [ct("chatui.keys.shift")] : []), letter].join("+");
+  return ["Ctrl", ...(shift ? ["Shift"] : []), letter].join("+");
 }
 
 /**

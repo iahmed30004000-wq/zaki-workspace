@@ -6,7 +6,7 @@ import Link from "next/link";
 import { DndContext, KeyboardSensor, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, MoreVertical } from "lucide-react";
+import { GripVertical, MoreVertical, Settings } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody } from "@/components/ui/card";
@@ -17,6 +17,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { SpaceDeleteButton } from "@/components/space-delete-button";
 import { fmtNumber } from "@/lib/format";
 import { goHref } from "@/lib/space-link";
+import { settingsHref } from "@/components/space-settings/tabs";
+import { NewSpaceFromTemplate } from "@/components/space-templates/new-space-from-template";
 
 export interface BoardCard {
   id: string;
@@ -33,9 +35,10 @@ export interface BoardCard {
  * The cards of «كل المساحات», managed in place (the owner's asks, 2026-10-26): drag a card by its handle to put the spaces
  * in order (it is the order of the switcher too; «الشركة» stays first and does not move), and a «⋯» on each card: edit
  * the name, archive, delete (the OWNER, a standard space; a department's space says where it is deleted). The server
- * decides again (src/server/services/space-manage.ts, space-delete.ts).
+ * decides again (src/server/services/space-manage.ts, space-delete.ts). `settingsLinks` (A2.2: the switch `controlPanelV2` is ON) adds «إعدادات المساحة» to the
+ * menu, the way into the space's own settings page.
  */
-export function SpacesBoard({ cards, hereId, manage, owner }: { cards: BoardCard[]; hereId: string | null; manage: boolean; owner: boolean }) {
+export function SpacesBoard({ cards, hereId, manage, owner, settingsLinks = false }: { cards: BoardCard[]; hereId: string | null; manage: boolean; owner: boolean; settingsLinks?: boolean }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -65,38 +68,46 @@ export function SpacesBoard({ cards, hereId, manage, owner }: { cards: BoardCard
   }
 
   return (
-    <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {hq.map((s) => (
-        <li key={s.id} className="relative">
-          <SpaceCardView card={s} here={s.id === hereId} />
-        </li>
-      ))}
+    <>
+      {/* «مساحة من قالب» (I1.2): drawn only to a person who may open a space and only while the switch `spaceTemplates` is on; nothing here otherwise */}
       {manage ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
-          <SortableContext items={rest.map((c) => c.id)} strategy={rectSortingStrategy}>
-            {rest.map((s) => (
-              <SortableCard key={s.id} card={s} here={s.id === hereId} owner={owner} />
-            ))}
-          </SortableContext>
-        </DndContext>
-      ) : (
-        rest.map((s) => (
+        <div className="flex justify-end">
+          <NewSpaceFromTemplate />
+        </div>
+      ) : null}
+      <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {hq.map((s) => (
           <li key={s.id} className="relative">
             <SpaceCardView card={s} here={s.id === hereId} />
           </li>
-        ))
-      )}
-    </ul>
+        ))}
+        {manage ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => void onDragEnd(e)}>
+            <SortableContext items={rest.map((c) => c.id)} strategy={rectSortingStrategy}>
+              {rest.map((s) => (
+                <SortableCard key={s.id} card={s} here={s.id === hereId} owner={owner} settingsLinks={settingsLinks} />
+              ))}
+            </SortableContext>
+          </DndContext>
+        ) : (
+          rest.map((s) => (
+            <li key={s.id} className="relative">
+              <SpaceCardView card={s} here={s.id === hereId} />
+            </li>
+          ))
+        )}
+      </ul>
+    </>
   );
 }
 
-function SortableCard({ card, here, owner }: { card: BoardCard; here: boolean; owner: boolean }) {
+function SortableCard({ card, here, owner, settingsLinks }: { card: BoardCard; here: boolean; owner: boolean; settingsLinks: boolean }) {
   const { t } = useI18n();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: card.id });
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={isDragging ? "relative z-20 opacity-80" : "relative"}>
       <div className="absolute end-2 top-2 z-10 flex items-center gap-1">
-        <CardActions card={card} owner={owner} />
+        {settingsLinks ? <SettingsGear card={card} /> : <CardActions card={card} owner={owner} settingsLinks={settingsLinks} />}
         <button
           type="button"
           aria-label={`${t("spaces.card.drag")}: ${card.name}`}
@@ -112,7 +123,20 @@ function SortableCard({ card, here, owner }: { card: BoardCard; here: boolean; o
   );
 }
 
-function CardActions({ card, owner }: { card: BoardCard; owner: boolean }) {
+/**
+ * S3.3 — with `settingsLinks` (the board of «إعدادات الشركة», «الإعدادات» is ONE door) the card has ONE action, a gear to the space's own settings page: its name, its people, its archive and its
+ * delete are there, once, instead of a second copy in a menu on the card.
+ */
+function SettingsGear({ card }: { card: BoardCard }) {
+  const { t } = useI18n();
+  return (
+    <Link href={settingsHref(card.id)} data-space-gear="" aria-label={`${t("spset.open")}: ${card.name}`} title={t("spset.open")} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg">
+      <Settings aria-hidden="true" className="size-4" />
+    </Link>
+  );
+}
+
+function CardActions({ card, owner, settingsLinks }: { card: BoardCard; owner: boolean; settingsLinks: boolean }) {
   const { t } = useI18n();
   const { toast } = useToast();
   const router = useRouter();
@@ -154,6 +178,7 @@ function CardActions({ card, owner }: { card: BoardCard; owner: boolean }) {
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
+          {settingsLinks && <DropdownMenuItem onSelect={() => router.push(settingsHref(card.id))}>⚙️ {t("spset.open")}</DropdownMenuItem>}
           {card.kind !== "DEPARTMENT" && <DropdownMenuItem onSelect={() => setRenaming(true)}>✏️ {t("spaces.card.rename")}</DropdownMenuItem>}
           <DropdownMenuItem onSelect={() => void archive()}>🗄 {t("spaces.card.archive")}</DropdownMenuItem>
         </DropdownMenuContent>

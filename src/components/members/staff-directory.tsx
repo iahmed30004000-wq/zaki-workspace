@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { ROLE_KEYS } from "@/lib/i18n/roles";
 import type { OrgRoleName, TFn } from "@/lib/members-ui";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,8 @@ export interface DirectoryPerson {
   email: string | null;
   /** `/api/avatars/<id>` — the picture they uploaded, or null for their initials. */
   avatarUrl?: string | null;
+  /** «إشارة التوثيق» (S5.5): `true` only when the person carries the badge and the company's switch is on */
+  verified?: boolean;
 }
 
 /**
@@ -35,7 +38,10 @@ export function StaffDirectory({ people, t, linkProfiles }: { people: readonly D
           <>
             <Avatar name={p.name} src={p.avatarUrl} className="h-11 w-11 text-sm" />
             <div className="min-w-0 flex-1">
-              <p className="break-words text-sm font-medium text-fg">{p.name}</p>
+              <p className="break-words text-sm font-medium text-fg">
+                {p.name}
+                {p.verified ? <VerifiedBadge className="ms-1" /> : null}
+              </p>
               {p.jobTitle ? <p className="break-words text-xs text-fg-muted">{p.jobTitle}</p> : null}
               {p.email ? (
                 <p className="mt-0.5 text-xs text-muted">

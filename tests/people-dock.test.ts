@@ -109,7 +109,8 @@ describe("the people dock", () => {
     expect(column, "the padded column is gone: the dock would land under the phone's bar").not.toBeNull();
     const inside = column![1]!;
     // the page scrolls first, the dock is its own row under it (and the company's switch can leave it out)
-    expect(inside).toMatch(/<main[\s\S]*<\/main>[\s\S]*<PeopleDock enabled=\{!isGuest && peopleDock\} \/>/);
+    // (P2.1: with the new map the row is hidden below md, `hideOnPhone`, and the drawer's header holds the count instead: tests/phone-chrome.test.ts)
+    expect(inside).toMatch(/<main[\s\S]*<\/main>[\s\S]*<PeopleDock enabled=\{!isGuest && peopleDock\} hideOnPhone=\{navV2\} \/>/);
     // and it is never a floating layer over the content
     const dock = readFileSync(path.resolve(__dirname, "..", "src/components/shell/people-dock.tsx"), "utf8");
     expect(dock).not.toMatch(/className="[^"]*\bfixed\b/);
@@ -146,5 +147,21 @@ describe("who the dock lists (the owner, 2026-10-30: my space, or for the owner 
     expect(owner).toContain(AR["shell.dock.scope_company"]!);
     const member = html({ ...ROSTER, meId: "u1" }, { defaultOpen: true });
     expect(member).not.toContain("data-dock-scope");
+  });
+});
+
+describe("«إشارة التوثيق» in the dock (S5.5)", () => {
+  const MARKED: PresenceRosterDto = { ...ROSTER, people: ROSTER.people.map((p) => (p.userId === "u1" ? { ...p, verified: true } : p)) };
+
+  it("a verified person carries the small badge next to the name, and nobody else does", () => {
+    const out = html(MARKED, { defaultOpen: true });
+    expect(out.match(/data-verified-badge/g)).toHaveLength(1);
+    // its accessible name is «موثّق», and it sits in the same row as the name
+    expect(out).toContain('aria-label="موثّق"');
+    expect(out).toMatch(/سلمى عبيد<\/span><span data-verified-badge/);
+  });
+
+  it("a roster with no `verified` (the switch is off, or a guest) draws no badge", () => {
+    expect(html(ROSTER, { defaultOpen: true })).not.toContain("data-verified-badge");
   });
 });

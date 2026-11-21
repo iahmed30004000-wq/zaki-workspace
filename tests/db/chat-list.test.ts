@@ -5,6 +5,7 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 import * as listRoute from "@/app/api/chat/list/route";
+import * as topicsRoute from "@/app/api/chat/spaces/[spaceId]/topics/route";
 import { chatHome } from "@/server/chat/home";
 import { chatList } from "@/server/chat/list";
 import { dmKeyOf, openDm } from "@/server/chat/dm";
@@ -303,5 +304,35 @@ describe("GET /api/chat/list and the switch chatOneList", () => {
     await loginAs(w.t.member.id);
     const res = (await get()).json as { rows: ChatRowDto[] };
     expect(res.rows.find((r) => r.kind === "SPACE" && r.id === bare.id)?.topicCount).toBe(2);
+  });
+});
+
+describe("S5.3 — a folder keeps TOPIC ids: what the person may no longer read drops out of every door the folder reads", () => {
+  it("a picked topic is a row of the one-space list and of the space's own view while the person may read it; once they are out of it, neither names it", async () => {
+    const w = await getWorld();
+    const picked = await db.conversation.create({
+      data: { orgId: w.t.org.id, kind: "TOPIC", spaceId: w.s1.id, title: "PickedSecretTitle", restricted: true, members: { create: [{ userId: w.t.member.id }, { userId: w.spaceAdmin.id }] } },
+    });
+    const view = async () => {
+      await loginAs(w.t.member.id);
+      const res = await call(topicsRoute.GET, { url: `http://localhost/api/chat/spaces/${w.s1.id}/topics`, params: { spaceId: w.s1.id } });
+      return (res.json as unknown as { rows: ChatRowDto[] }).rows;
+    };
+    // readable: in the list of the space and in the space's view, as a TOPIC row the picker and the folder can use
+    const listed = (await chatList(w.memberCtx, { spaceId: w.s1.id })).rows;
+    expect(listed.find((r) => r.id === picked.id)).toMatchObject({ kind: "TOPIC", title: "PickedSecretTitle" });
+    expect((await view()).find((r) => r.id === picked.id)).toMatchObject({ kind: "TOPIC" });
+    // the person is taken out of the restricted topic: the id may still sit in their folder, but no door names it any more
+    await db.conversationMember.deleteMany({ where: { conversationId: picked.id, userId: w.t.member.id } });
+    const after = (await chatList(w.memberCtx, { spaceId: w.s1.id })).rows;
+    expect(after.some((r) => r.id === picked.id)).toBe(false);
+    expect(JSON.stringify(after)).not.toContain("PickedSecretTitle");
+    const afterView = await view();
+    expect(afterView.some((r) => r.id === picked.id)).toBe(false);
+    expect(JSON.stringify(afterView)).not.toContain("PickedSecretTitle");
+    // and the one list (one row per space) never carried a topic row at all
+    const one = (await chatList(w.memberCtx)).rows;
+    expect(one.some((r) => r.id === picked.id)).toBe(false);
+    await db.conversation.delete({ where: { id: picked.id } });
   });
 });

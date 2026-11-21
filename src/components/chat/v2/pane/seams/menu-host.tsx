@@ -5,6 +5,8 @@ import type { ConversationHeaderDto, MemberDto, MessageDto, ReaderDto } from "@/
 import { menuFor, type MessageMenuId } from "@/components/chat/message/message-menu-registry";
 import { ReaderList } from "@/components/chat/message/message-item";
 import { ForwardDialog, NoteDialog } from "@/components/chat/message/message-dialogs";
+import { ForwardSheet } from "@/components/chat/v2/forward/forward-sheet";
+import { useMultiSelectSwitch } from "@/lib/chat/selection";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BubbleGesturesContext, type BubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { MessageMenuV2 } from "@/components/chat/v2/menu/message-menu-v2";
@@ -128,12 +130,13 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         onClose={() => setMaking(null)}
         onDone={(made) => {
           setMaking(null);
-          commands.say(made.kind === "task" ? "chatc.work.task_made" : "chatc.work.ticket_made", "success");
+          if (made.kind === "task" && made.stepsCopied === false) commands.say("chatcl.to_task_steps_failed", "error");
+          else commands.say(made.kind === "task" ? (made.stepsCopied ? "chatcl.to_task_done" : "chatc.work.task_made") : "chatc.work.ticket_made", "success");
           commands.refresh();
         }}
       />
       {ticketOpen && header.me.id ? <TicketDetailModal ticketId={ticketOpen} currentUserId={header.me.id} onClose={() => setTicketOpen(null)} /> : null}
-      <ForwardHost />
+      <ForwardHost header={header} />
       <NoteDialog
         message={noting}
         onClose={() => setNoting(null)}
@@ -159,9 +162,15 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
   );
 }
 
-/** «حوّل»: the dialog reads the pane's STATE (which message is being forwarded), so it is its own small part — the rest of the host never draws for a reply or an edit. */
-function ForwardHost() {
+/**
+ * «حوّل»: the dialog reads the pane's STATE (which message is being forwarded), so it is its own small part — the rest of the host never draws for a reply or an edit.
+ * S5.2: with the company's switch `chatMultiSelect` on it is THE forward sheet (the one «حدّد» then «حوّل» opens too: search, the saved chat, every space's places, several
+ * targets, a comment, «افتح»); with it off, the plain list of before (the sheet's doors answer «not found» then).
+ */
+function ForwardHost({ header }: { header: ConversationHeaderDto }) {
   const { conversationId, forwarding, endForward, say } = usePaneActions();
+  const sheet = useMultiSelectSwitch(header);
+  if (sheet) return <ForwardSheet open={forwarding !== null} from={conversationId} messageIds={forwarding ? [forwarding.id] : []} onClose={endForward} />;
   return (
     <ForwardDialog
       message={forwarding}

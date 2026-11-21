@@ -1,8 +1,11 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { chatList } from "@/server/chat/list";
-import { unreadTotal } from "@/server/chat/unread";
+import { unreadBySpace, unreadTotal } from "@/server/chat/unread";
+import { spacesOf } from "@/server/services/current-space";
+import { spaceFigures } from "@/server/services/space-figures";
 import { actorCan, actorCanWork, type Actor } from "@/server/policy/actor";
+import { hasTeam, inTeam, loadPeopleScope, teamScopeInfoOf, teamTaskWhere, type TeamScopeInfo } from "@/server/policy/people-scope";
 import { actorFeatureOn } from "@/server/services/features";
 import { loadWorkScope, narrowScope, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
 import { workRequestsOf } from "@/server/services/work-requests";
@@ -13,6 +16,7 @@ import {
   type TodayDashboard,
   type TodayFollowUp,
   type TodayMentions,
+  type TodayBySpaceRow,
   type TodayWaiting,
   mentionRowsOf,
   topWaiting,
@@ -34,8 +38,11 @@ import { nextZonedDayStart, resolveTimeZone, zonedDayStart, zonedParts, zonedWal
  *    الأحد (the region's first day), never by the server's clock.
  *  - MINE: open, overdue, due today, finished this week, and the week's progress. Only tasks assigned to the
  *    person, open (or finished this week) and not archived.
- *  - THE TEAM («الفريق هالأسبوع») is for the OWNER and whoever holds users.manage, counts only: finished this
- *    week, due today, and HOW MANY people hold something overdue. No name, no title, no customer, no price.
+ *  - THE TEAM («الفريق هالأسبوع») is «فريقي» (A2.3, D-A3, `policy/people-scope.ts`): the company for the OWNER rank that holds `board.team`,
+ *    otherwise exactly the people under the person in the reporting line (nobody under them: no strip, never a 0; `users.manage` no
+ *    longer decides it). Counts only: finished this week, due today, and HOW MANY people of the scope hold something overdue (as the
+ *    primary person, or — for «my team» — beside somebody else; each once) — all through `taskVisibleWhere`, so a task the person may not open is in no number. No name, no title, no customer, no price.
+ *    It says what it counted (`scope`).
  *  - UNREAD CHAT is `unreadTotal` itself, the count behind the badge on «الدردشة»: it already leaves out every
  *    topic of a space the person is not in, and the owner's silent reading adds nothing.
  *  - The result is plain data (numbers and booleans): see `TodayDashboard` in src/lib/today.ts.
@@ -49,18 +56,25 @@ export interface DashboardOptions {
    * space the person can open. A space the person cannot open leaves nothing.
    */
   space?: { id: string; kind: string } | null;
+  /** «فريقي» over every space the person can open, not only the one they are in (see `TodayOptions.teamWide` in today.ts). Off by default. */
+  teamWide?: boolean;
 }
 
-export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {}): Promise<TodayDashboard | null> {
+/** «الفريق هالأسبوع» with what it counted over (A2.3). */
+export type ScopedDashboardTeam = DashboardTeam & { scope: TeamScopeInfo };
+export type ScopedDashboard = Omit<TodayDashboard, "team"> & { team: ScopedDashboardTeam | null };
+
+export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {}): Promise<ScopedDashboard | null> {
   // an external partner gets no company numbers, whatever the page asks
   if (actor.isExternal) return null;
 
   const now = opts.now ?? new Date();
   const spaceId = opts.space === undefined ? undefined : (opts.space?.id ?? null);
 
-  const [org, accessible] = await Promise.all([
+  const [org, accessible, people] = await Promise.all([
     db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true } }),
     loadWorkScope(actor.userId),
+    loadPeopleScope(actor),
   ]);
   const scope = spaceId === undefined ? accessible : narrowScope(accessible, spaceId);
 
@@ -98,25 +112,52 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
     return { open: nOpen, overdue: nOverdue, dueToday: nToday, doneWeek: nDone, weekTotal: total, percent };
   }
 
-  async function loadTeam(): Promise<DashboardTeam | null> {
-    if (taskSpaces.length === 0) return null;
-    const [nDone, nToday, late] = await Promise.all([
-      db.task.count({ where: doneThisWeek }),
-      db.task.count({ where: { ...open, dueDate: { gte: todayStart, lt: tomorrowStart } } }),
+  async function loadTeam(): Promise<ScopedDashboardTeam | null> {
+    // «فريقي» (A2.3): the people of the scope, over what THIS person may open (a hidden task is in no number). By default the one space the
+    // person is in; with `teamWide`, every space of this company they can open.
+    let teamScope = scope;
+    let teamSpaces = taskSpaces;
+    if (opts.teamWide) {
+      const wideIds = scopeSpaceIds(accessible);
+      const rows = wideIds.length ? await db.workspace.findMany({ where: { id: { in: wideIds }, organizationId: actor.orgId }, select: { id: true } }) : [];
+      teamScope = accessible;
+      teamSpaces = actorCanWork(actor, "tasks.view") ? rows.map((r) => r.id) : [];
+    }
+    if (teamSpaces.length === 0) return null;
+    const teamVisible = { orgId: actor.orgId, workspaceId: { in: teamSpaces }, archived: false, AND: [taskVisibleWhere(teamScope), teamTaskWhere(people)] } satisfies Prisma.TaskWhereInput;
+    const teamOpen = { ...teamVisible, completedAt: null } satisfies Prisma.TaskWhereInput;
+    const teamLate = { ...teamOpen, dueDate: { lt: todayStart } } satisfies Prisma.TaskWhereInput;
+    const [nDone, nToday, late, lateShared] = await Promise.all([
+      db.task.count({ where: { ...teamVisible, completedAt: { gte: weekStart, lt: weekEnd } } }),
+      db.task.count({ where: { ...teamOpen, dueDate: { gte: todayStart, lt: tomorrowStart } } }),
       db.task.groupBy({
         by: ["assigneeId"],
         where: {
-          ...open,
-          dueDate: { lt: todayStart },
+          ...teamLate,
           // somebody who still works here: a suspended or offboarded person is not counted, and neither is a task nobody holds
           assignee: { memberships: { some: { organizationId: actor.orgId, status: "ACTIVE" } } },
         },
       }),
+      // «فريقي»: a team-mate who only SHARES an overdue task is late too (the same rule the count of tasks used: the task is theirs beside somebody else)
+      people.kind === "reports"
+        ? db.taskCoAssignee.findMany({ where: { userId: { in: [...people.reportIds] }, task: teamLate }, select: { userId: true }, distinct: ["userId"] })
+        : Promise.resolve([] as { userId: string }[]),
     ]);
-    return { doneWeek: nDone, dueToday: nToday, peopleLate: late.length };
+    // only people OF THE SCOPE are counted as late, each once: an outsider who holds a task that merely names a team-mate beside them adds nobody
+    const lateIds = new Set<string>(lateShared.map((r) => r.userId));
+    for (const r of late) if (r.assigneeId !== null && inTeam(people, r.assigneeId)) lateIds.add(r.assigneeId);
+    const peopleLate = lateIds.size;
+    const spaceName = !opts.teamWide && opts.space?.id && teamSpaces.length === 1 ? await spaceNameOf(opts.space.id) : null;
+    return { scope: teamScopeInfoOf(people, spaceName) as TeamScopeInfo, doneWeek: nDone, dueToday: nToday, peopleLate };
   }
 
-  const showTeam = actor.isOwner || actorCan(actor, "users.manage");
+  /** The name of the space the numbers were narrowed to (for the chip). */
+  async function spaceNameOf(id: string): Promise<string | null> {
+    return (await db.workspace.findFirst({ where: { id, organizationId: actor.orgId }, select: { name: true } }))?.name ?? null;
+  }
+
+  // «فريقي» (A2.3): the company for the OWNER rank holding `board.team`, otherwise the people under the person; nobody under them: no strip
+  const showTeam = hasTeam(people);
   const [mine, team, unreadChat] = await Promise.all([
     loadMine(),
     showTeam ? loadTeam() : Promise.resolve(null),
@@ -132,11 +173,16 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
  * count come from `workRequestsOf(actor, "waiting")` (P0.2 `taskVisibleWhere` for a request on a task, the approver's turn, the departments,
  * the spaces the person moderates). `null` while `workRequests` is off, for a guest, and when nothing waits.
  */
-export async function getTodayWaiting(actor: Actor): Promise<TodayWaiting | null> {
+export async function getTodayWaiting(actor: Actor, opts: { space?: { id: string; kind: string } | null } = {}): Promise<TodayWaiting | null> {
   if (actor.isExternal) return null;
   if (!(await actorFeatureOn(actor, "workRequests"))) return null;
-  const view = await workRequestsOf(actor, "waiting");
-  return topWaiting(view.sections);
+  // B4 — each space is its own account: the space the person is in (inside «الشركة», or with none, all of them, grouped by space with the way there).
+  // Without `space` nothing narrows it (the service's old shape).
+  const scope = opts.space === undefined ? {} : opts.space && opts.space.kind !== "HQ" ? { spaceId: opts.space.id } : { groups: true };
+  const view = await workRequestsOf(actor, "waiting", scope);
+  const top = topWaiting(view.sections);
+  if (top && view.groups) top.groups = view.groups.map((g) => ({ spaceId: g.spaceId, name: g.name, total: g.total }));
+  return top;
 }
 
 /**
@@ -177,4 +223,24 @@ export async function getTodayFollowUps(actor: Actor, opts: { now?: Date } = {})
     const late = day.getTime() < Date.UTC(clock.year, clock.month - 1, clock.day);
     return { id: r.id, title: r.title, late, dueLabel: fmtRelative(new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 12), todayStandIn) };
   });
+}
+
+/**
+ * «اليوم» inside «الشركة» (B4: the view over all the person's spaces): one row per space of theirs (never «الشركة» itself) with THEIR open and late tasks there
+ * and the messages waiting for them in its topics — `spaceFigures`, the one per-space source, through the same visibility rule as every task list.
+ * A partner gets none.
+ */
+export async function getTodayBySpace(actor: Actor, now: Date = new Date()): Promise<TodayBySpaceRow[]> {
+  if (actor.isExternal) return [];
+  const spaces = (await spacesOf(actor)).filter((s) => s.kind !== "HQ");
+  if (spaces.length === 0) return [];
+  const [org, scope, unread] = await Promise.all([
+    db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true } }),
+    loadWorkScope(actor.userId),
+    unreadBySpace({ userId: actor.userId, orgId: actor.orgId, orgRole: actor.role }),
+  ]);
+  const figures = actorCanWork(actor, "tasks.view")
+    ? await spaceFigures({ orgId: actor.orgId, spaceIds: spaces.map((s) => s.id), todayStart: zonedDayStart(now, resolveTimeZone(org?.timezone)), scope, assigneeId: actor.userId })
+    : null;
+  return spaces.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, open: figures?.get(s.id)?.open ?? 0, overdue: figures?.get(s.id)?.overdue ?? 0, unread: unread[s.id] ?? 0 }));
 }

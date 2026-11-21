@@ -83,6 +83,8 @@ model User {
   chatDeletions   ChatMessage[]        @relation("ChatDeleter")
   scheduledChat   ScheduledChatMessage[] @relation("ScheduledChatAuthor")
   chatReactions   ChatReaction[]
+  // S5.7 «حذف عندي»: the messages this person hid for themselves only
+  hiddenMessages  ChatMessageHidden[]
   pollVotes       PollVote[]
   checklistItemsAdded ChatChecklistItem[] @relation("ChecklistItemAdder")
   checklistItemsDone  ChatChecklistItem[] @relation("ChecklistItemDoer")
@@ -106,9 +108,31 @@ model User {
   hostedWatches   WatchSession[]       @relation("WatchHost")
   startedWatches  WatchSession[]       @relation("WatchStarter")
   callSeats       CallPerson[]
+  callWords       CallTranscriptLine[]
   pushDevices     PushSubscription[]
   appDevices      AppDevice[]
+  sessions        UserSession[]
   issuedApiTokens ApiToken[]           @relation("ApiTokenIssuer")
+}
+
+// One signed-in browser or phone of a person (C4.2, src/server/services/sessions.ts). The session cookie carries this row's id (`sid`); currentUser()
+// refuses a cookie whose row is revoked or gone, so ONE device can be ended without moving `User.tokenVersion` (which ends them all). A cookie issued
+// before this table existed has no `sid` and keeps working until it expires (it is migrated to a row the first time its owner opens «الأجهزة»).
+// `tokenVersion` is the person's version this session was issued under: a bump (suspend, password reset, «اطلع من كل الأجهزة») leaves the row behind,
+// and the list hides it. `lastSeenAt` is written at most once every few minutes per session (never on every request). The user agent is stored trimmed.
+model UserSession {
+  id           String    @id @default(cuid())
+  userId       String
+  createdAt    DateTime  @default(now())
+  lastSeenAt   DateTime  @default(now())
+  expiresAt    DateTime
+  userAgent    String?
+  tokenVersion Int       @default(0)
+  revokedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
 }
 
 // ---------- departments (the company's pools: design / dev / IT / sales) ----------
@@ -547,6 +571,8 @@ model ChatMessage {
   previewId       String?
   // «ابعت بدون صوت» (C3c.2): the sender chose silence. The message is an ordinary one for reading, unread counts and the badge; it makes NO bell, push or arrival sound (notify.ts, arrival-sound.ts).
   silent          Boolean   @default(false)
+  // «رد بالاقتباس» (S5.7): the part of the replied-to message the sender picked (at most 280 characters, only ever stored with replyToId, and only a piece the parent really holds). NULL: an ordinary reply.
+  replyQuote      String?
   createdAt       DateTime  @default(now())
 
   organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -559,6 +585,8 @@ model ChatMessage {
   forwardedFrom ChatMessage?        @relation("ChatForwards", fields: [forwardedFromId], references: [id], onDelete: SetNull)
   forwards      ChatMessage[]       @relation("ChatForwards")
   reactions     ChatReaction[]
+  // «حذف عندي» (S5.7): the people who hid this message for themselves (it is still here for everybody else)
+  hiddenFor     ChatMessageHidden[]
   // «استطلاع»: the poll a POLL message carries (its question is the message body)
   poll          Poll?
   // «قائمة مهام» (C3c.1): the checklist a CHECKLIST message carries (its title is the message body)
@@ -661,6 +689,21 @@ model ChatReaction {
 
   @@unique([messageId, userId, emoji])
   @@index([messageId])
+}
+
+// «حذف عندي» (S5.7): one row = one person hid one message FOR THEMSELVES. It never changes the message for anybody else, never touches the owner's archive,
+// and every read path of that person (page, sync, search, media, the list's last line and unread counts) leaves the message out.
+model ChatMessageHidden {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
 }
 
 // «استطلاع»: a poll inside a topic. The message (kind POLL) carries the question in its body; the poll,
@@ -861,16 +904,40 @@ model Call {
   startedById    String
   startedAt      DateTime  @default(now())
   endedAt        DateTime?
+  // S6.2 «تسجيل نص الاجتماع»: the OWNER turned the TEXT record on for this call (only while the switch `meetingMinutes` is on). NO audio is ever stored: only written lines.
+  transcribe     Boolean   @default(false)
+  // the minutes after the call: null (none) | pending | done | empty | failed
+  minutesState   String?
+  // { summary, decisions[], tasks[{title, who?}], proposals[], lines, at } once done; { tries, lastTryAt } while pending
+  minutes        Json?
 
   organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   space        Workspace?    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   startedBy    User          @relation("CallStarter", fields: [startedById], references: [id], onDelete: Cascade)
   people       CallPerson[]
+  words        CallTranscriptLine[]
 
   @@index([conversationId, endedAt])
   @@index([spaceId, startedAt])
   @@index([orgId, startedAt])
+}
+
+// S6.2: one finished sentence of a call that the owner chose to write down, with who said it (the voice agent sends it through the signed door
+// /api/voice-agent/transcript). TEXT ONLY: there is no audio column and no file anywhere. Hard-deleted after the company's retention days
+// (default 30, `Organization.settings.meetingMinutes.retentionDays`) by the job `callTranscripts`. Never shown to a guest.
+model CallTranscriptLine {
+  id       String   @id @default(cuid())
+  callId   String
+  personId String
+  text     String
+  at       DateTime @default(now())
+
+  call   Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+  person User @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([callId, at])
+  @@index([at])
 }
 
 // One person's seat in a call: brought in by «ضيف حدا» (`invitedById`: they may join without reading the
@@ -1050,6 +1117,9 @@ model OrganizationMember {
   // most once a minute: src/server/realtime/presence.ts), and their own «إخفاء آخر ظهوري» choice (null counts as false).
   lastSeenAt        DateTime?
   hideLastSeen      Boolean? @default(false)
+  // «إشارة التوثيق» (S5.5): the moment the company's OWNER gave this person the small check badge (null: none). Only the OWNER grants or takes it away (never a capability);
+  // the chat and the lists carry a `verified` boolean, never this time and never who granted it. The value survives the company switch `verifiedBadge` being turned off.
+  verifiedAt        DateTime?
   createdAt      DateTime     @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

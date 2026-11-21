@@ -7,6 +7,8 @@ import type { DisconnectReason, LocalAudioTrack, LocalTrack, Participant, Room, 
 import { ct } from "@/lib/chat/text";
 import { AWAY_TOPIC, decodeAway, encodeAway, micHeld, type MicFacts } from "@/lib/calls/mic";
 import { isDrop, isFresh, MAX_REJOINS, miniVisible, rejoinDelayMs } from "@/lib/calls/session";
+import { playConnect, playEnd } from "@/lib/calls/tones";
+import { clampOffset, DEFAULT_CORNER, isTap, loadSpot, saveSpot, type Spot, spotOf, spotStyle } from "@/lib/calls/mini-window";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, callErrorText, type CallView } from "./call-api";
 import { ensurePush } from "./push-client";
@@ -56,7 +58,8 @@ export interface CallApi {
   /** the call's picture in the browser's floating window, where it has one */
   canPip: boolean;
   pip: () => void;
-  join: (callId: string, video: boolean) => Promise<void>;
+  /** `opts.mic: false`: enter with the microphone (and camera) off, like a joiner of a topic's call; the default is on */
+  join: (callId: string, video: boolean, opts?: { mic?: boolean }) => Promise<void>;
   leave: () => Promise<void>;
   toggle: (what: "mic" | "cam" | "screen") => Promise<void>;
   startAudio: () => Promise<void>;
@@ -110,8 +113,8 @@ function livekit(): LiveKit {
 
 const MEMO_KEY = "zk-active-call";
 
-/** The call this tab is in, kept across a reload of the page (switching space reloads it): {id, video}. */
-function remember(call: { id: string; video: boolean } | null): void {
+/** The call this tab is in, kept across a reload of the page (switching space reloads it): {id, video, mic}. */
+function remember(call: { id: string; video: boolean; mic: boolean } | null): void {
   try {
     if (call) sessionStorage.setItem(MEMO_KEY, JSON.stringify(call));
     else sessionStorage.removeItem(MEMO_KEY);
@@ -120,11 +123,11 @@ function remember(call: { id: string; video: boolean } | null): void {
   }
 }
 
-function remembered(): { id: string; video: boolean } | null {
+function remembered(): { id: string; video: boolean; mic: boolean } | null {
   try {
     const raw = sessionStorage.getItem(MEMO_KEY);
-    const v = raw ? (JSON.parse(raw) as { id?: unknown; video?: unknown }) : null;
-    return v && typeof v.id === "string" ? { id: v.id, video: v.video === true } : null;
+    const v = raw ? (JSON.parse(raw) as { id?: unknown; video?: unknown; mic?: unknown }) : null;
+    return v && typeof v.id === "string" ? { id: v.id, video: v.video === true, mic: v.mic !== false } : null;
   } catch {
     return null;
   }
@@ -207,6 +210,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const roomRef = React.useRef<Room | null>(null);
   const joining = React.useRef(false);
   const lastVideo = React.useRef(false);
+  // whether the person's microphone is open: a joiner of a topic's call starts muted, and a quiet rejoin keeps what they chose
+  const lastMic = React.useRef(true);
   const rejoins = React.useRef(0);
   const prefetched = React.useRef<{ callId: string; pass: Pass; at: number } | null>(null);
   // the page is going away (a reload, switching space): the disconnect that follows is not a choice
@@ -238,11 +243,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     return callApi<Pass>(`/api/calls/${encodeURIComponent(callId)}/token`, {});
   }, []);
 
-  const join = React.useCallback(async (callId: string, video: boolean) => {
+  const join = React.useCallback(async (callId: string, video: boolean, opts?: { mic?: boolean }) => {
     if (joining.current) return;
     if (roomRef.current && state.callId === callId && (state.phase === "in" || state.phase === "connecting")) return;
     joining.current = true;
     lastVideo.current = video;
+    const mic = opts?.mic !== false;
+    lastMic.current = mic;
     // one call at a time: a new one closes the old one
     const old = roomRef.current;
     roomRef.current = null;
@@ -339,11 +346,16 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       roomRef.current = room;
       rejoins.current = 0;
-      remember({ id: callId, video });
+      // really connected: the call counts as answered (a private call nobody connected to is a missed call; the person's other screens stop ringing)
+      void callApi(`/api/calls/${encodeURIComponent(callId)}/joined`, {}).catch(() => undefined);
+      remember({ id: callId, video, mic });
       patch({ phase: "in", reconnecting: false, needsAudioTap: !room.canPlaybackAudio });
       try {
-        await room.localParticipant.setMicrophoneEnabled(true);
-        if (video) await room.localParticipant.setCameraEnabled(true);
+        // a joiner of a topic's or a group's call comes in muted (and with no camera): they open them when they want to speak
+        if (mic) {
+          await room.localParticipant.setMicrophoneEnabled(true);
+          if (video) await room.localParticipant.setCameraEnabled(true);
+        }
       } catch {
         // no permission, or no device: the person is in and hears everybody; the buttons ask again
         say(ct("calls.no_media"));
@@ -368,7 +380,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         rejoins.current--; // wait for the person to come back; visibility below tries again
         return;
       }
-      void join(callId, lastVideo.current);
+      void join(callId, lastVideo.current, { mic: lastMic.current });
     }, rejoinDelayMs(attempt));
     return () => clearTimeout(t);
   }, [state.phase, state.callId, join, patch]);
@@ -438,7 +450,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // back on the tab, or back online: a lost call is tried again at once
   React.useEffect(() => {
     const again = () => {
-      if (state.phase === "lost" && state.callId && document.visibilityState === "visible") void join(state.callId, lastVideo.current);
+      if (state.phase === "lost" && state.callId && document.visibilityState === "visible") void join(state.callId, lastVideo.current, { mic: lastMic.current });
     };
     document.addEventListener("visibilitychange", again);
     window.addEventListener("online", again);
@@ -462,7 +474,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     void callApi<CallView>(`/api/calls/${encodeURIComponent(memo.id)}`).then(
       (v) => {
         if (v.endedAt) remember(null);
-        else void joinRef.current(memo.id, memo.video);
+        else void joinRef.current(memo.id, memo.video, { mic: memo.mic });
       },
       () => remember(null),
     );
@@ -473,9 +485,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const callId = state.callId;
     roomRef.current = null;
     remember(null);
+    // «اطلع» is ONE step: the call is «left» at once (the small window goes, the page goes back to the chat); the room and the server catch up behind it
+    patch({ phase: "left", reconnecting: false });
     if (room) await room.disconnect().catch(() => undefined);
     if (callId) await fetch(`/api/calls/${encodeURIComponent(callId)}/leave`, { method: "POST" }).catch(() => undefined);
-    patch({ phase: "left", reconnecting: false });
   }, [patch, state.callId]);
 
   const toggle = React.useCallback(async (what: "mic" | "cam" | "screen") => {
@@ -489,7 +502,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      if (what === "mic") await me.setMicrophoneEnabled(!me.isMicrophoneEnabled);
+      if (what === "mic") {
+        const next = !me.isMicrophoneEnabled;
+        await me.setMicrophoneEnabled(next);
+        lastMic.current = next; // a quiet rejoin keeps what the person chose
+      }
       else if (what === "cam") await me.setCameraEnabled(!me.isCameraEnabled);
       else await me.setScreenShareEnabled(!me.isScreenShareEnabled, { audio: true, contentHint: "detail" });
     } catch {
@@ -508,7 +525,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     // the library starts arriving at once, in step with the pass
     const loaded = loadCallLibs();
     loaded.catch(() => undefined);
-    void callApi<Pass>(`/api/calls/${encodeURIComponent(callId)}/token`, {}).then(
+    // `prefetch`: the phone is only ringing — fetching the pass is not answering (the call counts as answered when the browser connects)
+    void callApi<Pass>(`/api/calls/${encodeURIComponent(callId)}/token`, { prefetch: true }).then(
       async (pass) => {
         prefetched.current = { callId, pass, at: Date.now() };
         try {
@@ -531,6 +549,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const actions = React.useRef({ toggle, leave, pip });
   actions.current = { toggle, leave, pip };
   const inCall = state.phase === "in";
+
+  // a short blip when the call connects and another when it ends (never again for a quiet rejoin after a drop of the network)
+  const connectedFor = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (state.phase === "in" && state.callId && connectedFor.current !== state.callId) {
+      connectedFor.current = state.callId;
+      playConnect();
+    } else if ((state.phase === "left" || state.phase === "ended" || state.phase === "removed") && connectedFor.current) {
+      connectedFor.current = null;
+      playEnd();
+    }
+  }, [state.phase, state.callId]);
+
   React.useEffect(() => {
     if (!inCall || typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
     setMediaAction("enterpictureinpicture", () => actions.current.pip());
@@ -582,7 +613,32 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The call while the person is on another page: a small window in the corner. */
+/** Where each corner of the small window sits at rest: under the app's top bar, or above the home bar of a phone, at the page's start or end edge. */
+const MINI_CORNER_CLASS = {
+  "top-start": "top-[calc(4rem+env(safe-area-inset-top))] start-3",
+  "top-end": "top-[calc(4rem+env(safe-area-inset-top))] end-3",
+  "bottom-start": "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] start-3",
+  "bottom-end": "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] end-3",
+} as const;
+
+/** The notch and the home bar, in pixels (a hidden probe reads the `env()` values the page itself would use). */
+function safeInsets(): { top: number; bottom: number } {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const out = { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+  probe.remove();
+  return out;
+}
+
+/**
+ * The call while the person is on another page: a small window in a corner. It is MOVED by dragging its picture (or the strip under it) with a finger
+ * or the mouse: it follows the pointer, never leaves the screen, and on release STAYS where it was dropped (the owner, 2026-11-21: «أقدر أحرّكها»), which it
+ * remembers on this device as two fractions of the room there is. Until it is moved it sits in the bottom corner at the end of the line. A tap that does not
+ * move still returns to the call. Only the drag handles take the touch (`touch-none`), so scrolling the page elsewhere is untouched; the notch and the home
+ * bar stay clear.
+ */
 function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
   const { state, room, everyone } = api;
   const me = room?.localParticipant;
@@ -590,9 +646,72 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
   const href = `/calls/${encodeURIComponent(state.callId ?? "")}`;
   const micOn = !!me?.isMicrophoneEnabled && !state.micHeld;
 
+  const boxRef = React.useRef<HTMLElement>(null);
+  const [spot, setSpot] = React.useState<Spot | null>(null);
+  // the remembered place is read once the window is on screen (the first draw is the same on the server and the browser)
+  React.useEffect(() => setSpot(loadSpot()), []);
+  // while a finger or the mouse holds the window: where its top-left corner is, in pixels
+  const [held, setHeld] = React.useState<{ left: number; top: number } | null>(null);
+  const offsetRef = React.useRef<{ dx: number; dy: number } | null>(null);
+  const drag = React.useRef<{ id: number; from: { x: number; y: number }; rect: DOMRect; moved: boolean } | null>(null);
+  const justDragged = React.useRef(false);
+
+  function onPointerDown(e: React.PointerEvent<HTMLElement>) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // the buttons under the picture are for tapping, never for dragging
+    if ((e.target as HTMLElement).closest("button")) return;
+    const box = boxRef.current;
+    if (!box) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // a pointer that is already gone: the drag simply does not start
+      return;
+    }
+    drag.current = { id: e.pointerId, from: { x: e.clientX, y: e.clientY }, rect: box.getBoundingClientRect(), moved: false };
+    justDragged.current = false;
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLElement>) {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    const to = { x: e.clientX, y: e.clientY };
+    if (!d.moved && isTap(d.from, to)) return;
+    d.moved = true;
+    const next = clampOffset({ dx: to.x - d.from.x, dy: to.y - d.from.y }, d.rect, { width: window.innerWidth, height: window.innerHeight });
+    offsetRef.current = next;
+    setHeld({ left: d.rect.left + next.dx, top: d.rect.top + next.dy });
+  }
+  function onPointerEnd(e: React.PointerEvent<HTMLElement>) {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    if (!d.moved) return; // a tap: the link back to the call does its work
+    justDragged.current = true; // the click that follows a drag is not a tap
+    const o = offsetRef.current ?? { dx: 0, dy: 0 };
+    const next = spotOf({ left: d.rect.left + o.dx, top: d.rect.top + o.dy, width: d.rect.width, height: d.rect.height }, { width: window.innerWidth, height: window.innerHeight }, safeInsets());
+    offsetRef.current = null;
+    setHeld(null);
+    setSpot(next);
+    saveSpot(next);
+  }
+  const handle = { onPointerDown, onPointerMove, onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd };
+
   return (
-    <aside dir="rtl" lang="ar" aria-label={ct("calls.mini")} className="fixed bottom-20 end-3 z-[55] w-44 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-lg md:bottom-4">
-      <Link href={href} className="relative block aspect-video bg-surface-2" aria-label={ct("calls.back_to_call")}>
+    <aside
+      ref={boxRef}
+      dir="rtl"
+      lang="ar"
+      aria-label={ct("calls.mini")}
+      onClickCapture={(e) => {
+        if (!justDragged.current) return;
+        justDragged.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      style={held ? { left: held.left, top: held.top, right: "auto", bottom: "auto", transform: "none" } : spot ? spotStyle(spot) : undefined}
+      className={`fixed z-[55] w-44 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-lg ${held || spot ? "" : MINI_CORNER_CLASS[DEFAULT_CORNER]}`}
+    >
+      <Link href={href} draggable={false} {...handle} className="relative block aspect-video touch-none select-none bg-surface-2" aria-label={ct("calls.back_to_call")}>
         {main && room && libs ? (
           <libs.media.PersonPicture p={main.p} me={me} source={main.source} fit={main.source === libs.lk.Track.Source.ScreenShare ? "contain" : "cover"} small />
         ) : (
@@ -601,7 +720,7 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
         {state.reconnecting && <span className="absolute inset-x-0 top-0 bg-warn/80 px-1 text-center text-xs text-fg">{ct("calls.reconnecting_short")}</span>}
         {state.micHeld && !state.reconnecting && <span className="absolute inset-x-0 top-0 bg-warn/80 px-1 text-center text-xs text-fg">{ct("calls.mic_held")}</span>}
       </Link>
-      <div className="flex items-center justify-between gap-1 p-1.5">
+      <div {...handle} className="flex touch-none items-center justify-between gap-1 p-1.5">
         <button
           type="button"
           onClick={() => void api.toggle("mic")}

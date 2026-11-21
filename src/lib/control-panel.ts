@@ -12,6 +12,9 @@
  * 🔧 Nothing here reads a customer, a price or the text of a message: only counts, dates and the names of the company's own staff.
  */
 
+import { goHref } from "@/lib/space-link";
+import { DEFAULT_MY_TASKS_PARAMS, myTasksHref } from "@/lib/work/my-tasks";
+
 export type InsightTone = "good" | "warn" | "info";
 
 /** One sentence for the owner: a key into the dictionary, its numbers and names, and where to look next. */
@@ -98,8 +101,9 @@ export interface InsightInput {
   stale: number;
   /** Tasks finished in the last `FORECAST_DAYS` days. */
   completedForecastWindow: number;
-  ideasWaiting: number;
-  overdueBySpace: { name: string; n: number }[];
+  /** B4: the space with the most ideas waiting for a first look, counted as that space's «الأفكار» page lists them; null: none waits. */
+  ideasWaiting: { id: string; name: string; n: number } | null;
+  overdueBySpace: { id: string; name: string; n: number }[];
 }
 
 // ───────────────────────────────────────── small arithmetic ─────────────────────────────────────────
@@ -160,7 +164,15 @@ export function buildInsights(input: InsightInput): Insight[] {
   // 1. the company's late work, and where most of it is
   if (input.overdue > 0) {
     const top = [...input.overdueBySpace].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, "ar"))[0];
-    add("overdue", "warn", { n: input.overdue, space: top?.name ?? "—", spaceN: top?.n ?? 0 }, [], "/list?filter=overdue");
+    // B4 — each space is its own account: the link enters the space with the most late work (`/go`) and opens «مهامي» on its late tasks (the old
+    // `/list?filter=overdue` was read by nothing). With no space to name there is nothing to open.
+    add(
+      "overdue",
+      "warn",
+      { n: input.overdue, space: top?.name ?? "—", spaceN: top?.n ?? 0 },
+      [],
+      top ? goHref(top.id, myTasksHref({ ...DEFAULT_MY_TASKS_PARAMS, scope: "space", chip: "overdue" })) : null,
+    );
   }
 
   // 2. the people holding the most late tasks
@@ -218,7 +230,10 @@ export function buildInsights(input: InsightInput): Insight[] {
   if (top) add("top", "good", { name: top.name, n: top.completed }, [top.userId]);
 
   // 10. ideas waiting for a first look
-  if (input.ideasWaiting > 0) add("ideas_waiting", "info", { n: input.ideasWaiting, days: IDEA_WAIT_DAYS }, [], "/ideas");
+  // B4: the number is that of ONE space and the link opens that space's «الأفكار», so the sentence counts exactly what the link shows
+  if (input.ideasWaiting && input.ideasWaiting.n > 0) {
+    add("ideas_waiting", "info", { n: input.ideasWaiting.n, days: IDEA_WAIT_DAYS, space: input.ideasWaiting.name }, [], goHref(input.ideasWaiting.id, "/ideas"));
+  }
 
   // nothing past a threshold at all: say so, once
   if (!out.some((i) => i.tone === "warn")) add("all_clear", "good");
@@ -357,6 +372,76 @@ export function panelSectionsFor(f: PanelFacts): PanelSectionKey[] {
     company: f.ownerRank,
   };
   return PANEL_V2_SECTIONS.filter((key) => may[key]);
+}
+
+// ───────────────────────────────────────── S3.2: «لوحة التحكم» with ONE navigation (switch `settingsOneDoor`) ─────────────────────────────────────────
+//
+// With «الإعدادات» as ONE door the panel is its own place (the owner's and the admins' menu) and draws ONE list: نظرة عامة · الناس · التقارير · الهيكل والأداء · الأرشيف والرقابة ·
+// مساعد المالك. The four sections that are settings (the spaces, the switches, the integrations, the company's data) live in «إعدادات الشركة» of the settings frame, and
+// «الحسابات والصلاحيات» is a part of «الناس» (with the permission templates and the activity table). Nothing here decides who may open what: the list is `panelSectionsFor`'s,
+// re-grouped (the capability guard is exactly the panel's own, and every section still decides again on the server).
+
+/** The ONE navigation of the panel with the door on, in the owner's order. Each key is a section of the panel (`PANEL_V2_SECTIONS`) and has a name in `cpone.nav.<key>`. */
+export const PANEL_ONE_NAV = ["overview", "people", "reports", "structure", "archive", "assistant"] as const;
+export type PanelOneNavKey = (typeof PANEL_ONE_NAV)[number];
+
+/** The sections that are settings: with the door on they are «إعدادات الشركة» (`/settings/me/<key>`), not entries of the panel. */
+export const ONE_DOOR_SETTINGS_SECTIONS = ["spaces", "features", "integrations", "company"] as const satisfies readonly PanelSectionKey[];
+
+export const isOneDoorSettingsSection = (value: unknown): value is (typeof ONE_DOOR_SETTINGS_SECTIONS)[number] => typeof value === "string" && (ONE_DOOR_SETTINGS_SECTIONS as readonly string[]).includes(value);
+
+/**
+ * The entries of the one navigation this person may open, from the sections `panelSectionsFor` offered them. «الناس» is offered when the person may open the activity table (the board's reach)
+ * or the accounts (`users.manage`): the two old sections are its parts now.
+ */
+export function panelOneNavFor(sections: readonly PanelSectionKey[]): PanelOneNavKey[] {
+  return PANEL_ONE_NAV.filter((key) => (key === "people" ? sections.includes("people") || sections.includes("accounts") : sections.includes(key)));
+}
+
+/** The parts of «الناس»: the accounts with their permissions, the permission templates, and the activity table. Stable ids (`?s=people&part=<id>`). */
+export const PEOPLE_PARTS = ["accounts", "templates", "activity"] as const;
+export type PeoplePart = (typeof PEOPLE_PARTS)[number];
+
+/** Other words that lead to a part: the permissions of a person are edited in their sheet, inside «الحسابات والصلاحيات». */
+const PEOPLE_PART_ALIASES: Readonly<Record<string, PeoplePart>> = { permissions: "accounts" };
+
+/**
+ * The parts of «الناس» this person may open: the accounts for whoever may open «الحسابات والصلاحيات», the templates next to them for the OWNER rank (only that rank ever edited the list),
+ * the activity table for whoever the board serves.
+ */
+export function peoplePartsFor(sections: readonly PanelSectionKey[], ownerRank: boolean): PeoplePart[] {
+  const accounts = sections.includes("accounts");
+  return PEOPLE_PARTS.filter((part) => (part === "accounts" ? accounts : part === "templates" ? accounts && ownerRank : sections.includes("people")));
+}
+
+/** The keys the board's people table reads from the address (`parseBoardQuery`): an old link that carries one of them was a link to the activity table. */
+export const BOARD_FILTER_KEYS = ["range", "from", "to", "space", "person", "sort", "dir"] as const;
+
+/**
+ * The part of «الناس» an address asks for: `part` when it is given; otherwise the activity table when the address carries a board filter (the old `?s=people&sort=…` and the filter
+ * form's own links were that table) and it is offered; otherwise the first part offered. Same answers as `peoplePartOf` for the rest (an alias, a part not offered: `null`).
+ */
+export function peoplePartFromQuery(query: Readonly<Record<string, string | string[] | undefined>>, offered: readonly PeoplePart[]): PeoplePart | null {
+  const one = (key: string): string | undefined => {
+    const value = query[key];
+    const text = Array.isArray(value) ? value[0] : value;
+    return text === "" ? undefined : text;
+  };
+  const asked = one("part");
+  if (asked === undefined && offered.includes("activity") && BOARD_FILTER_KEYS.some((key) => one(key) !== undefined)) return "activity";
+  return peoplePartOf(asked, offered);
+}
+
+/**
+ * The part asked for: the first one offered when none is asked (or the word is unknown), the part an alias names, and `null` for a part that exists but is not offered to this
+ * person (the page answers «not found», like a section) or when no part is offered at all.
+ */
+export function peoplePartOf(asked: unknown, offered: readonly PeoplePart[]): PeoplePart | null {
+  const first = offered[0];
+  if (first === undefined) return null;
+  const word = typeof asked === "string" ? (PEOPLE_PART_ALIASES[asked] ?? asked) : undefined;
+  if (word === undefined || !(PEOPLE_PARTS as readonly string[]).includes(word)) return first;
+  return offered.includes(word as PeoplePart) ? (word as PeoplePart) : null;
 }
 
 /** What a number is counted over: the whole company, or the spaces of the person's reach (a manager sees the numbers of the spaces they manage). */

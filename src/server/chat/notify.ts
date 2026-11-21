@@ -2,16 +2,24 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
 import { stripFormatting } from "@/lib/chat/format/parse";
+import { zakiToWords } from "@/lib/chat/zaki-emoji";
 import { pushNotification } from "@/server/notify";
 import { isViewing } from "@/server/realtime/viewing";
 import { canReadConversation, type ConversationFacts } from "@/server/policy/conversation";
 import { hqSpaceId } from "@/server/chat/hq";
-import { notifyOn, notifyTypeOf, pushBodyFor, readChatPrefs, type ChatPrefs } from "@/lib/chat/prefs";
+import { notifyOn, notifyTypeOf, PREVIEW_OFF_TEXT, pushBodyFor, readChatPrefs, type ChatPrefs } from "@/lib/chat/prefs";
+import { customerDataHint } from "@/lib/chat/customer-data-hint";
+import { pushChatNote } from "@/server/push-chat";
 
 /**
  * Chat notifications: a message reaches the people of its audience that are NOT looking at the
  * app right now. Online people see the message live; a notification for them would be noise.
- * A DM notifies its other person once per unread thread (no stacking of the same conversation).
+ * A DM's BELL keeps one row per unread thread (no stacking of the same conversation), but its PUSH goes out for every message (M1a): a phone whose app is
+ * closed shows each one, grouped by conversation by the service worker (`public/sw.js`, `tag` = the conversation's id), not only the first of the run.
+ *
+ * M1a: what a push SAYS is the sender's name (the title) and the words with their markers stripped. A message shaped like a customer's data (the order template,
+ * or a phone number: `customerDataHint`) reaches the push as «رسالة جديدة» only, like «بدون معاينة»: a push crosses the browser vendor's push service and shows
+ * on a lock screen. The bell and the chat keep the words (nothing in the chat is hidden or changed).
  *
  * C4.1: each person's own choices (`User.chatPrefs.notifications`) are read here. A message is one of five kinds FOR a person (private · topic · mention · reply
  * to me · call: `notifyTypeOf`); a kind they switched off notifies them of nothing (no bell row, no push), and a kind whose preview they switched off sends the
@@ -25,9 +33,22 @@ import { notifyOn, notifyTypeOf, pushBodyFor, readChatPrefs, type ChatPrefs } fr
 /** How many characters of a message the bell and the push carry. */
 export const PREVIEW_CHARS = 140;
 
-/** The words of a body for a bell or a push: the markers stripped from the WHOLE body (a spoiler is masked, a link keeps its label), then cut. */
+/**
+ * The words of a body for a bell or a push: a Zaki emoji (`:zaki_party:`) first becomes its Arabic name in brackets (S5.6: nobody reads a raw code in a notification), the markers are stripped
+ * from the WHOLE body (a spoiler is masked, a link keeps its label), then it is cut.
+ */
 export function previewText(body: string): string {
-  return stripFormatting(body, { math: true, partial: true }).slice(0, PREVIEW_CHARS);
+  return stripFormatting(zakiToWords(body), { math: true, partial: true }).slice(0, PREVIEW_CHARS);
+}
+
+/**
+ * S5.2: what the bell and the push say for a forward that carried no comment: the words of the one message, or — for several — how many were passed on (Western digits,
+ * the Arabic number form of the noun). An attachment-only message has no words: the empty text becomes «أرسل مرفقًا» in `notifyAfterSend`.
+ */
+export function forwardedPreview(count: number, body: string): string {
+  if (count <= 1) return body;
+  if (count === 2) return "حوّل لك رسالتين";
+  return count % 100 >= 3 && count % 100 <= 10 ? `حوّل لك ${count} رسائل` : `حوّل لك ${count} رسالة`;
 }
 
 export async function notifyMessageToAudience(opts: {
@@ -56,6 +77,8 @@ export async function notifyMessageToAudience(opts: {
   const named = new Set(opts.mentionedIds ?? []);
   const everyone = new Set(opts.allIds ?? []);
   const plain = previewText(opts.preview);
+  // M1a: a customer's data never rides a push (the preview of the chat itself is untouched)
+  const customerData = customerDataHint(opts.preview) !== null;
   const prefs = await prefsOf(targets);
   // who the message answers (a reply to MY message is its own kind): read only when somebody here has chosen something and the chat is not a private one
   const repliedTo = prefs.size > 0 && opts.kind !== "DM" ? await replyAuthorOf(opts.messageId) : null;
@@ -67,21 +90,27 @@ export async function notifyMessageToAudience(opts: {
     if (chosen && !notifyOn(chosen, type)) continue;
     // held back only for a person who is LOOKING at the app (a visible tab); an open but hidden tab still gets the push (F0.5)
     if (!addressed && (await isViewing(userId))) continue;
+    const title = named.has(userId) ? `${opts.title} ${MENTION_TITLE}` : everyone.has(userId) ? `${opts.title} ${MENTION_ALL_TITLE}` : opts.title;
+    // C4.1: preview off = the push carries «رسالة جديدة», never the words (the bell keeps its body); M1a: the same for a customer's data
+    const spoken = customerData ? PREVIEW_OFF_TEXT : plain;
     if (!addressed && opts.kind === "DM") {
       const unread = await db.notification.findFirst({
         where: { userId, readAt: null, type: "chat_message", linkUrl: { contains: opts.conversationId } },
         select: { id: true },
       });
-      if (unread) continue;
+      if (unread) {
+        // M1a: the bell already has this chat's row, so no second one — but the phone is told of THIS message too
+        pushChatNote([userId], { title, body: chosen ? pushBodyFor(chosen, type, spoken) : spoken, linkUrl: messageLink(opts.conversationId, opts.messageId), conversationId: opts.conversationId, workspaceId });
+        continue;
+      }
     }
     await pushNotification({
       userId,
       type: "chat_message",
-      title: named.has(userId) ? `${opts.title} ${MENTION_TITLE}` : everyone.has(userId) ? `${opts.title} ${MENTION_ALL_TITLE}` : opts.title,
+      title,
       // C3b.1: the words, not the markers (`**bold**`, a link's `[label](address)`); a spoiler's words are not read out on a lock screen
       body: plain,
-      // C4.1: preview off = the push carries «رسالة جديدة», never the words (the bell above keeps its body)
-      ...(chosen ? { pushBody: pushBodyFor(chosen, type, plain) } : {}),
+      ...(chosen ? { pushBody: pushBodyFor(chosen, type, spoken) } : customerData ? { pushBody: PREVIEW_OFF_TEXT } : {}),
       linkUrl: messageLink(opts.conversationId, opts.messageId),
       workspaceId,
     });

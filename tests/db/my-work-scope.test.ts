@@ -3,7 +3,7 @@
  * the chips, the stage filter and the board, the visibility rule on every read (a hidden task is not listed, counted, opened or found), the old addresses that
  * redirect behind the switch `workMyTasks`, and the doors (list, quick task, panel, stage move).
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("next/navigation", () => ({
   redirect: (to: string) => {
@@ -24,7 +24,7 @@ import * as tasksRoute from "@/app/api/work/tasks/route";
 import * as taskRoute from "@/app/api/work/tasks/[id]/route";
 import * as stageRoute from "@/app/api/work/tasks/[id]/stage/route";
 import { SPACE_COOKIE } from "@/server/services/current-space";
-import { getWorkTaskDetail, getWorkTasks } from "@/server/services/my-work";
+import { getWorkTaskDetail, getWorkTasks, workTaskPanelFor } from "@/server/services/my-work";
 import { DEFAULT_MY_TASKS_PARAMS, MY_TASK_CHIPS, parseMyTasksParams, type MyTasksParams, type WorkTasksResult } from "@/lib/work/my-tasks";
 import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorkspace } from "./helpers";
 import { html, type PageElement } from "./pages-access-helpers";
@@ -358,6 +358,15 @@ describe("the old addresses, behind the switch", () => {
 });
 
 describe("the doors", () => {
+  // the routes read the real clock for «today»; NOW is fixed in the past, so without this the file goes red the day after (only Date is faked: the driver keeps running)
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(NOW);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("GET /api/work/tasks: 404 while the switch is off; on, it answers the same screen the page draws, with no hidden task in it", async () => {
     const w = await world();
     await loginAs(w.me.id);
@@ -455,6 +464,85 @@ describe("the doors", () => {
     // a guest of the space never moves a task
     await loginAs(w.guest.id);
     expect([403, 404]).toContain((await call(stageRoute.POST, { params: { id: t.id }, body: { stage: "DONE" } })).status);
+  });
+});
+
+describe("B4 — each space is its own account: «مهامي» opens on the space I am in", () => {
+  it("the default is the CURRENT space (not all of mine); «كل مساحاتي» is an explicit choice; another space is a choice too", async () => {
+    const w = await world();
+    const t = w.tasks;
+    const inA = await getWorkTasks(w.me.id, P(), { now: NOW, current: cur(w.A) });
+    expect(ids(inA).sort()).toEqual([t.mineA, t.undated].map((x) => x.id).sort());
+    expect(inA.space).toEqual({ id: w.A.ws.id, name: "Alpha" });
+    // the chips' numbers count the same list (never a number the chip cannot reach)
+    expect(inA.counts.today).toBe(1);
+    expect(inA.counts.week).toBe(1);
+    expect(inA.counts.overdue).toBe(0);
+    const inB = await getWorkTasks(w.me.id, P(), { now: NOW, current: cur(w.B) });
+    expect(ids(inB).sort()).toEqual([t.mineB, t.shared, t.hiddenMineElsewhere].map((x) => x.id).sort());
+    // «كل مساحاتي»: explicit, from inside a space
+    const all = await getWorkTasks(w.me.id, P({ spaceId: "all" }), { now: NOW, current: cur(w.A) });
+    expect(ids(all).length).toBe(6);
+    expect(all.space).toEqual({ id: null, name: null });
+    // another of my spaces, explicit
+    const other = await getWorkTasks(w.me.id, P({ spaceId: w.C.ws.id }), { now: NOW, current: cur(w.A) });
+    expect(ids(other)).toEqual([t.mineC.id]);
+    expect(other.space.name).toBe("Gamma");
+    // a space that is not mine never widens anything: back to the default (the current space)
+    const foreign = await getWorkTasks(w.me.id, P({ spaceId: w.D.ws.id }), { now: NOW, current: cur(w.A) });
+    expect(ids(foreign).sort()).toEqual(ids(inA).sort());
+  });
+
+  it("inside «الشركة» the default is ALL my spaces (it is the view over all of them)", async () => {
+    const w = await world();
+    const hq = await db.workspace.create({ data: { organizationId: w.orgId, name: "الشركة", slug: `hq-${w.orgId}`, systemKey: "hq", kind: "HQ", members: { create: [{ userId: w.me.id }] } } });
+    const r = await getWorkTasks(w.me.id, P(), { now: NOW, current: { id: hq.id, kind: "HQ" } });
+    expect(ids(r).length).toBe(6);
+    expect(r.space).toEqual({ id: null, name: null });
+    // and one of the spaces is a choice there
+    const one = await getWorkTasks(w.me.id, P({ spaceId: w.B.ws.id }), { now: NOW, current: { id: hq.id, kind: "HQ" } });
+    expect(ids(one).sort()).toEqual([w.tasks.mineB, w.tasks.shared, w.tasks.hiddenMineElsewhere].map((x) => x.id).sort());
+  });
+
+  it("the «مشروع» picker lists the projects of the current space only (in «الشركة»: all of them); a project asked for by its own address still opens", async () => {
+    const w = await world();
+    const inA = await getWorkTasks(w.me.id, P({ scope: "project" }), { now: NOW, current: cur(w.A) });
+    expect(inA.projects.map((p) => p.name)).toEqual(["Alpha project"]);
+    const hq = await db.workspace.create({ data: { organizationId: w.orgId, name: "الشركة", slug: `hq-${w.orgId}`, systemKey: "hq", kind: "HQ", members: { create: [{ userId: w.me.id }] } } });
+    const inHq = await getWorkTasks(w.me.id, P({ scope: "project" }), { now: NOW, current: { id: hq.id, kind: "HQ" } });
+    expect(inHq.projects.map((p) => p.name).sort()).toEqual(["Alpha project", "Beta project", "Gamma project"]);
+    // the project page of another space (its banner offers «انتقل لها») still reads its own tasks
+    const direct = await getWorkTasks(w.me.id, P({ scope: "project", projectId: w.B.project.id }), { now: NOW, current: cur(w.A) });
+    expect(ids(direct)).toContain(w.tasks.mineB.id);
+  });
+
+  it("the side panel opens only a task of the current space: a task of another space answers with where it lives (never its content); in «الشركة» every task opens", async () => {
+    const w = await world();
+    const there = await workTaskPanelFor(w.me.id, w.tasks.mineB.id, cur(w.A));
+    expect(there).toEqual({ foreign: { taskId: w.tasks.mineB.id, spaceId: w.B.ws.id, spaceName: "Beta" } });
+    expect(JSON.stringify(there)).not.toContain("mine B");
+    const here = await workTaskPanelFor(w.me.id, w.tasks.mineA.id, cur(w.A));
+    expect(here).toMatchObject({ task: { id: w.tasks.mineA.id, title: "mine A" } });
+    // a hidden task is still nothing at all
+    expect(await workTaskPanelFor(w.me.id, w.tasks.hidden.id, cur(w.A))).toBeNull();
+    const hq = await db.workspace.create({ data: { organizationId: w.orgId, name: "الشركة", slug: `hq-${w.orgId}`, systemKey: "hq", kind: "HQ", members: { create: [{ userId: w.me.id }] } } });
+    expect(await workTaskPanelFor(w.me.id, w.tasks.mineB.id, { id: hq.id, kind: "HQ" })).toMatchObject({ task: { id: w.tasks.mineB.id } });
+  });
+
+  it("the door: the panel's route reads the cookie (a task of another space is the foreign answer), and the list's route defaults to the cookie's space", async () => {
+    const w = await world();
+    await switchOn(w.orgId);
+    await loginAs(w.me.id);
+    jar().set(SPACE_COOKIE, w.A.ws.id);
+    const foreign = await call(taskRoute.GET, { params: { id: w.tasks.mineB.id } });
+    expect(foreign.status).toBe(200);
+    expect(foreign.json).toEqual({ foreign: { taskId: w.tasks.mineB.id, spaceId: w.B.ws.id, spaceName: "Beta" } });
+    const own = await call(taskRoute.GET, { params: { id: w.tasks.mineA.id } });
+    expect(own.json).toMatchObject({ task: { id: w.tasks.mineA.id } });
+    const list = await call(tasksRoute.GET, { url: "http://localhost/api/work/tasks" });
+    expect((list.json?.["tasks"] as { id: string }[]).map((x) => x.id).sort()).toEqual([w.tasks.mineA.id, w.tasks.undated.id].sort());
+    const all = await call(tasksRoute.GET, { url: "http://localhost/api/work/tasks?space=all" });
+    expect((all.json?.["tasks"] as { id: string }[]).length).toBe(6);
   });
 });
 

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
-import { integrationPartOf, panelHref, type IntegrationPart } from "@/lib/control-panel";
+import { integrationPartOf, type IntegrationPart } from "@/lib/control-panel";
+import { panelSectionHref } from "@/lib/legacy-routes";
 import { companyPanelAccess, integrationPartsOf } from "@/server/services/control-panel";
 import { loadAiPlace } from "@/server/services/ai-settings";
 import { isFeatureOn } from "@/server/services/features";
@@ -27,7 +28,8 @@ export async function IntegrationsSection({ ctx }: { ctx: SectionCtx }) {
   const part: IntegrationPart = integrationPartOf(Array.isArray(asked) ? asked[0] : asked);
   // a part the person may not open (the AI connection is the owner's) is «not found», like a section
   if (!allowed.includes(part)) return notFound();
-  const parts = allowed.map((key) => ({ key, href: panelHref("integrations", key), name: t(`cpv2.integrations.part.${key}`), current: key === part }));
+  // S3.3: inside the settings frame (`ctx.oneDoor`) the parts are addresses of the frame, not of the panel
+  const parts = allowed.map((key) => ({ key, href: panelSectionHref("integrations", key, ctx.oneDoor === true), name: t(`cpv2.integrations.part.${key}`), current: key === part }));
   return (
     <div className="space-y-4" data-testid="cp-integrations" data-part={part}>
       <SectionHeader t={t} section="integrations" hint={t("cpv2.integrations.hint")} />
