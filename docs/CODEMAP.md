@@ -533,12 +533,12 @@ high count is a wide surface: changing its signature reaches all of them.
 | `production` | 525 | 10 | Daily production. |
 | `space-place` | 30 | 10 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
 | `active-people` | 71 | 9 | "Nobody who was suspended or removed still counts." A suspended or offboarded member keeps their OrganizationMember row (history, authorship), so a query that reads that table w… |
+| `chat-assistant` | 499 | 9 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `ideas` | 419 | 9 | Membership context resolved from the idea's own org (shared by API routes). |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
 | `accounts` | 956 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
-| `chat-assistant` | 499 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
 | `instant-work` | 204 | 8 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
@@ -687,9 +687,9 @@ to be added to, and the places a bug can leave the row half-written.
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 16 | `server/services/files.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>+4 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
-| `Conversation` | 29 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+11 more |
+| `Conversation` | 30 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+12 more |
 | `ConversationMember` | 22 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 5<br>`server/chat/read-state.ts`: 3<br>`server/chat/messages.ts`: 2<br>+5 more |
-| `ChatMessage` | 14 | `server/chat/messages.ts`: 6<br>`server/chat/link-preview.ts`: 2<br>`server/services/must-read.ts`: 2<br>`server/chat/door-message.ts`: 1<br>+3 more |
+| `ChatMessage` | 15 | `server/chat/messages.ts`: 6<br>`server/chat/link-preview.ts`: 2<br>`server/services/must-read.ts`: 2<br>`server/calls/assistant-agent.ts`: 1<br>+4 more |
 | `LinkPreview` | 3 | `server/chat/link-preview.ts`: 3 |
 | `ScheduledChatMessage` | 6 | `server/chat/scheduled.ts`: 5<br>`server/jobs/chat-scheduled.ts`: 1 |
 | `ChatReaction` | 4 | `server/chat/messages.ts`: 2<br>`server/services/must-read.ts`: 2 |
