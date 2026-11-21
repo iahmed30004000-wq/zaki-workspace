@@ -11,7 +11,7 @@ import { TicketsDesk } from "@/components/work-desks";
  * company's, and the API refuses guests); somebody whose `directory.view` is off gets the «not enabled» notice, like
  * the departments page. Inside a department's space, that department's desk opens first.
  */
-export default async function TicketsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> } = {}) {
+export default async function TicketsPage({ searchParams }: { searchParams?: Record<string, string | string[] | undefined> }) {
   const { t } = await getServerT();
   const { user, actor } = await pageActor();
   if (actor.isExternal) {
