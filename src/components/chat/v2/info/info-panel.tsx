@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { InfoTabs } from "@/components/chat/v2/info/info-tabs";
 import { MuteRow } from "@/components/chat/v2/info/info-mute";
+import { TopicSoundRow } from "@/components/chat/v2/info/info-sound";
 import { CallButton } from "@/components/calls/call-button";
 import { TopicSettingsDialog } from "@/components/chat/conversation/topic-settings-dialog";
 import { useChatRow } from "@/lib/chat/cache/selectors";
@@ -115,6 +116,8 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
         </div>
 
         <MuteRow header={header} saved={saved} />
+        {/* S5.1: «صوت هالموضوع»: كل الرسائل / الذكر بس (this device; only while the company's switch `chatSounds` is on) */}
+        <TopicSoundRow header={header} saved={saved} />
 
         <div className={`space-y-3 ${card}`}>
           {model.kind === "dm" && profile ? (
