@@ -1,8 +1,9 @@
 import type { Prisma } from "@prisma/client";
-import type { AttachmentDto, MessageDto, ReactionDto, SystemMeta } from "./dto";
+import type { AttachmentDto, MessageDto, ReactionDto, ReactorDto, SystemMeta } from "./dto";
 import { attachmentView } from "./attachments";
 import { presentPoll, type PollRow } from "./poll-shared";
 import { stripFormatting } from "@/lib/chat/format/parse";
+import { zakiToWords } from "@/lib/chat/zaki-emoji";
 
 export { attachmentView };
 
@@ -54,7 +55,7 @@ type MessageRow = {
   deletedBy?: { name: string } | null;
   authorId: string;
   author?: { id: string; name: string; avatarUrl?: string | null };
-  reactions?: { emoji: string; userId: string }[];
+  reactions?: { emoji: string; userId: string; /** the reactor's name and picture («مين تفاعل»); absent: nobody is named */ user?: { name: string; avatarUrl?: string | null } }[];
   attachments?: (Parameters<typeof attachmentView>[0] & { id: string })[];
   revisions?: { body: string; createdAt: Date }[];
   notes?: { id: string; authorId: string; author: { name: string }; body: string; createdAt: Date }[];
@@ -65,21 +66,43 @@ type MessageRow = {
   preview?: { url: string; title: string | null; description: string | null; siteName: string | null; imageFileId: string | null; status: string } | null;
 };
 
-/** Reactions grouped by emoji, oldest entry first, `mine` from the viewer's own rows. */
-function groupReactions(rows: { emoji: string; userId: string }[] | undefined, viewerId: string): ReactionDto[] {
+/** How many reactors one chip names («مين تفاعل»): the count stays the truth, the list is a window of it (a message with hundreds of reactions must not carry hundreds of names). */
+export const REACTORS_CAP = 50;
+/** The ✅ of «لازم ينقرأ» (`ACK_EMOJI` in src/server/services/must-read.ts): somebody's receipt, not a reaction to be listed. */
+const RECEIPT_EMOJI = "✅";
+
+/**
+ * Reactions grouped by emoji, oldest entry first, `mine` from the viewer's own rows, and «مين تفاعل» (`by`): who reacted, for the people who may be told.
+ *  - everybody who can read the message may see the names (it is the conversation's own audience: a restricted topic is readable by its members only, so no name leaves it);
+ *  - a GUEST sees only himself (the staff behind a chip are not his to learn; his own row is);
+ *  - the ✅ receipt names its people to the message's author, the moderators and the owner only (the same people «لازم ينقرأ» names the missing to); the others get the count and themself.
+ * The names come with the message rows (one join, no query per message).
+ */
+function groupReactions(rows: MessageRow["reactions"], viewer: Viewer, opts: { authorId: string }): ReactionDto[] {
   if (!rows?.length) return [];
+  const viewerId = viewer.userId;
+  const guest = viewer.role === "GUEST";
+  const mayNameReceipts = opts.authorId === viewerId || viewer.canModerateHere || (viewer.oversight ?? viewer.role === "OWNER"); // oversight-ok: the fallback of a hand-made viewer
   const order: string[] = [];
-  const byEmoji = new Map<string, { count: number; mine: boolean }>();
+  const byEmoji = new Map<string, { count: number; mine: boolean; by: ReactorDto[] }>();
   for (const r of rows) {
     if (!byEmoji.has(r.emoji)) {
-      byEmoji.set(r.emoji, { count: 0, mine: false });
+      byEmoji.set(r.emoji, { count: 0, mine: false, by: [] });
       order.push(r.emoji);
     }
     const g = byEmoji.get(r.emoji)!;
     g.count += 1;
-    if (r.userId === viewerId) g.mine = true;
+    const isMe = r.userId === viewerId;
+    if (isMe) g.mine = true;
+    if (!r.user) continue;
+    const named = isMe || (!guest && (r.emoji !== RECEIPT_EMOJI || mayNameReceipts));
+    if (!named || g.by.length >= REACTORS_CAP) continue;
+    g.by.push({ id: r.userId, name: r.user.name, ...(guest ? {} : { avatar: r.user.avatarUrl ?? null }), ...(isMe ? { me: true as const } : {}) });
   }
-  return order.map((emoji) => ({ emoji, ...byEmoji.get(emoji)! }));
+  return order.map((emoji) => {
+    const { count, mine, by } = byEmoji.get(emoji)!;
+    return { emoji, count, mine, ...(by.length ? { by } : {}) };
+  });
 }
 
 function attachmentDtos(rows: MessageRow["attachments"]): AttachmentDto[] {
@@ -136,7 +159,7 @@ export function presentMessage(
     // a deleted message takes its files and reactions with it, for everybody but the OWNER
     // (he reads the original, files included); the attachment route refuses the bytes the same way
     attachments: deleted && !isOwner ? [] : attachmentDtos(row.attachments),
-    reactions: deleted && !isOwner ? [] : groupReactions(row.reactions, viewer.userId),
+    reactions: deleted && !isOwner ? [] : groupReactions(row.reactions, viewer, { authorId: row.authorId }),
     system: systemMeta(row),
   };
   if (row.videoAtSec !== null && row.videoAtSec !== undefined) dto.videoAtSec = row.videoAtSec;
@@ -173,7 +196,7 @@ export function presentMessage(
     dto.replyTo = {
       id: row.replyTo.id,
       // C3b.1: the words, not the markers (`**bold**`, a spoiler's bars, a link's address), where the company's formatting switch is on
-      preview: row.replyTo.deletedAt ? null : viewer.formatting === true ? stripFormatting(row.replyTo.body, { math: true }) : row.replyTo.body,
+      preview: row.replyTo.deletedAt ? null : zakiToWords(viewer.formatting === true ? stripFormatting(row.replyTo.body, { math: true }) : row.replyTo.body), // S5.6: a Zaki emoji is its Arabic name here, never the raw code
       authorName: row.replyTo.author.name,
       deleted: !!row.replyTo.deletedAt,
     };
@@ -233,7 +256,7 @@ export function presentMessage(
 export function previewOf(body: string | null, deletedAt: Date | null, opts: { format?: boolean } = {}): string | null {
   if (deletedAt) return null;
   if (body === null) return null;
-  return (opts.format === true ? stripFormatting(body, { math: true }) : body).slice(0, 140); // 140: the same length as the bell and the push (`PREVIEW_CHARS` in notify.ts)
+  return zakiToWords(opts.format === true ? stripFormatting(body, { math: true }) : body).slice(0, 140); // 140: the same length as the bell and the push (`PREVIEW_CHARS` in notify.ts)
 }
 
 export type PrismaTx = Prisma.TransactionClient;

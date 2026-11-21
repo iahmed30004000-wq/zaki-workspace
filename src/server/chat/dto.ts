@@ -30,10 +30,26 @@ export interface AttachmentDto {
   url: string;
 }
 
+/** One person behind a reaction chip («مين تفاعل», S5.6). `me` only on the viewer's own row. */
+export interface ReactorDto {
+  id: string;
+  name: string;
+  /** `/api/avatars/<id>`; never for a guest */
+  avatar?: string | null;
+  me?: true;
+}
+
 export interface ReactionDto {
+  /** a unicode emoji, or a known Zaki code (`:zaki_clap:`) */
   emoji: string;
+  /** the truth: how many people reacted, whoever the viewer may name */
   count: number;
   mine: boolean;
+  /**
+   * «مين تفاعل» (S5.6): the people who reacted with it, at most `REACTORS_CAP` of them, only those THIS viewer may be told: a guest sees only himself; the ✅ of «لازم ينقرأ» (a
+   * receipt) names its people to the author, the moderators and the owner only. `count` may be larger than `by.length`; absent when nobody is named.
+   */
+  by?: ReactorDto[];
 }
 
 export interface NoteDto {

@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
 import { stripFormatting } from "@/lib/chat/format/parse";
+import { zakiToWords } from "@/lib/chat/zaki-emoji";
 import { pushNotification } from "@/server/notify";
 import { isViewing } from "@/server/realtime/viewing";
 import { canReadConversation, type ConversationFacts } from "@/server/policy/conversation";
@@ -25,9 +26,12 @@ import { notifyOn, notifyTypeOf, pushBodyFor, readChatPrefs, type ChatPrefs } fr
 /** How many characters of a message the bell and the push carry. */
 export const PREVIEW_CHARS = 140;
 
-/** The words of a body for a bell or a push: the markers stripped from the WHOLE body (a spoiler is masked, a link keeps its label), then cut. */
+/**
+ * The words of a body for a bell or a push: a Zaki emoji (`:zaki_party:`) first becomes its Arabic name in brackets (S5.6: nobody reads a raw code in a notification), the markers are stripped
+ * from the WHOLE body (a spoiler is masked, a link keeps its label), then it is cut.
+ */
 export function previewText(body: string): string {
-  return stripFormatting(body, { math: true, partial: true }).slice(0, PREVIEW_CHARS);
+  return stripFormatting(zakiToWords(body), { math: true, partial: true }).slice(0, PREVIEW_CHARS);
 }
 
 /**
