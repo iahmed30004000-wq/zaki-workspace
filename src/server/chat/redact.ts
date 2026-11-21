@@ -4,6 +4,7 @@ import { attachmentView } from "./attachments";
 import { presentPoll, type PollRow } from "./poll-shared";
 import { stripFormatting } from "@/lib/chat/format/parse";
 import { zakiToWords } from "@/lib/chat/zaki-emoji";
+import { featureOn } from "@/lib/features";
 
 export { attachmentView };
 
@@ -54,7 +55,13 @@ type MessageRow = {
   deletedById?: string | null;
   deletedBy?: { name: string } | null;
   authorId: string;
-  author?: { id: string; name: string; avatarUrl?: string | null };
+  /** the company the message was written in (every database row carries it): which of the author's memberships counts for the badge */
+  orgId?: string;
+  /**
+   * `memberships`: the author's memberships that carry a badge, ONLY those (`messageInclude` asks `verifiedAt: { not: null }`) — so a row here means «verified». `organization.settings` is
+   * there to read the company's switch `verifiedBadge` (absent: read as on). The time itself never leaves the server.
+   */
+  author?: { id: string; name: string; avatarUrl?: string | null; memberships?: { organizationId: string; organization?: { settings: unknown } }[] };
   reactions?: { emoji: string; userId: string; /** the reactor's name and picture («مين تفاعل»); absent: nobody is named */ user?: { name: string; avatarUrl?: string | null } }[];
   attachments?: (Parameters<typeof attachmentView>[0] & { id: string })[];
   revisions?: { body: string; createdAt: Date }[];
@@ -105,6 +112,17 @@ function groupReactions(rows: MessageRow["reactions"], viewer: Viewer, opts: { a
   });
 }
 
+/**
+ * «إشارة التوثيق» (S5.5): does this message's author carry the badge, FOR THIS VIEWER? Never for a guest (a partner must not learn who is who from a mark), never on a system
+ * line, and never while the company's switch is off (the grant stays stored). One join with the message rows (`messageInclude`), no query of its own.
+ */
+function authorVerified(row: MessageRow, viewer: Viewer): boolean {
+  if (viewer.role === "GUEST" || row.kind === "SYSTEM") return false;
+  const m = row.author?.memberships?.find((x) => x.organizationId === row.orgId);
+  if (!m) return false;
+  return m.organization === undefined || featureOn(m.organization.settings, "verifiedBadge");
+}
+
 function attachmentDtos(rows: MessageRow["attachments"]): AttachmentDto[] {
   return (rows ?? []).map((a) => attachmentView(a));
 }
@@ -153,6 +171,7 @@ export function presentMessage(
     // a GUEST never receives a picture address: the bytes route refuses him, so an address in his
     // payload would only be a broken image on his screen (his chat draws initials)
     authorAvatar: viewer.role === "GUEST" ? null : (row.author?.avatarUrl ?? null),
+    ...(authorVerified(row, viewer) ? { authorVerified: true } : {}),
     createdAt: row.createdAt.toISOString(),
     clientId: row.clientId ?? null,
     mentions: (Array.isArray(row.mentions) ? (row.mentions as string[]) : []),

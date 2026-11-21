@@ -6,6 +6,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Megaphone, MoreVertical, Search } from "lucide-react";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { CallButton } from "@/components/calls/call-button";
 import { AssistantCallButton } from "@/components/site-guide/assistant-call-button";
@@ -182,7 +183,15 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
           <HeaderAvatar header={header} />
         </span>
         <div className="pointer-events-none relative min-w-0 flex-1 text-start">
-          <h1 className="truncate font-semibold leading-tight">{header.title}</h1>
+          {/* S5.5: «موثّق» next to the other person's name in a private chat (the plain title keeps its own shape for everybody else) */}
+          {header.kind === "DM" && header.peer?.verified ? (
+            <h1 className="flex min-w-0 items-center gap-1 font-semibold leading-tight">
+              <span className="truncate">{header.title}</span>
+              <VerifiedBadge />
+            </h1>
+          ) : (
+            <h1 className="truncate font-semibold leading-tight">{header.title}</h1>
+          )}
           {channel || subtitle.privacy || subtitle.line ? (
             <p data-header-subtitle className={`flex min-w-0 items-center gap-1.5 text-xs ${subtitle.typing ? "text-accent" : "text-fg-muted"}`}>
               {channel && !subtitle.typing ? (

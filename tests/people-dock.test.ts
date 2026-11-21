@@ -149,3 +149,19 @@ describe("who the dock lists (the owner, 2026-10-30: my space, or for the owner 
     expect(member).not.toContain("data-dock-scope");
   });
 });
+
+describe("«إشارة التوثيق» in the dock (S5.5)", () => {
+  const MARKED: PresenceRosterDto = { ...ROSTER, people: ROSTER.people.map((p) => (p.userId === "u1" ? { ...p, verified: true } : p)) };
+
+  it("a verified person carries the small badge next to the name, and nobody else does", () => {
+    const out = html(MARKED, { defaultOpen: true });
+    expect(out.match(/data-verified-badge/g)).toHaveLength(1);
+    // its accessible name is «موثّق», and it sits in the same row as the name
+    expect(out).toContain('aria-label="موثّق"');
+    expect(out).toMatch(/سلمى عبيد<\/span><span data-verified-badge/);
+  });
+
+  it("a roster with no `verified` (the switch is off, or a guest) draws no badge", () => {
+    expect(html(ROSTER, { defaultOpen: true })).not.toContain("data-verified-badge");
+  });
+});

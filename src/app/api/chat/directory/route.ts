@@ -36,12 +36,13 @@ export async function GET(req: Request) {
             inSpace: p.inSpace,
             online: p.online,
             ...(p.lastSeenAt !== undefined ? { lastSeenAt: p.lastSeenAt } : {}),
+            ...(p.verified ? { verified: true } : {}),
             user: { id: p.userId, name: p.name, jobTitle: p.jobTitle, avatarUrl: p.avatarUrl ?? null },
           })),
       });
     }
     // the people of the space the person is in
-    const people = await chatDirectory(ctx.orgId, space?.id ?? null, seen);
+    const people = await chatDirectory(ctx.orgId, space?.id ?? null, seen, ctx.orgRole);
     return NextResponse.json({
       ...zone,
       assistant,
@@ -51,6 +52,7 @@ export async function GET(req: Request) {
           userId: p.userId,
           role: p.role,
           ...(p.lastSeenAt !== undefined ? { lastSeenAt: p.lastSeenAt } : {}),
+          ...(p.verified ? { verified: true } : {}),
           user: { id: p.userId, name: p.name, jobTitle: p.jobTitle, avatarUrl: p.avatarUrl ?? null },
         })),
     });

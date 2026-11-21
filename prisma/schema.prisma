@@ -1036,6 +1036,9 @@ model OrganizationMember {
   // most once a minute: src/server/realtime/presence.ts), and their own «إخفاء آخر ظهوري» choice (null counts as false).
   lastSeenAt        DateTime?
   hideLastSeen      Boolean? @default(false)
+  // «إشارة التوثيق» (S5.5): the moment the company's OWNER gave this person the small check badge (null: none). Only the OWNER grants or takes it away (never a capability);
+  // the chat and the lists carry a `verified` boolean, never this time and never who granted it. The value survives the company switch `verifiedBadge` being turned off.
+  verifiedAt        DateTime?
   createdAt      DateTime     @default(now())
 
   organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)

@@ -4,6 +4,7 @@ import React from "react";
 import { Check } from "lucide-react";
 import type { MessageDto, ReaderDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { CardBubble } from "@/components/chat/message/card-bubble";
 import { OrderCardBubble } from "@/components/chat/message/order-state-card";
 import { PollCard } from "@/components/chat/message/poll-card";
@@ -186,6 +187,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               {sender && start ? (
                 <p data-sender className={cn("mb-0.5 truncate text-xs font-semibold", nameTone(message.authorName))}>
                   {message.authorName}
+                  {/* S5.5: «موثّق» after the sender's name (the server sends `authorVerified` only to staff, only while the switch is on) */}
+                  {message.authorVerified ? <VerifiedBadge className="ms-1 [&>svg]:size-3.5" /> : null}
                 </p>
               ) : null}
               {message.forwardedFrom && !message.deleted ? <ForwardedHeader name={message.forwardedFrom.name} onOpen={() => openForwardSource(message.id)} /> : null}

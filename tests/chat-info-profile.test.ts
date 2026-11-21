@@ -390,6 +390,14 @@ describe("the tabs, drawn", () => {
     expect(html).toContain("data-info-empty=\"members\"");
   });
 
+  it("S5.5: «الأعضاء» draws the check badge next to a verified person's name, and next to nobody else", () => {
+    const list = people(["أحمد", "سلمى", "ليلى"]).map((p, i) => (i === 1 ? { ...p, verified: true } : p));
+    const html = tabs(makeHeader(), { client: seeded({ counts: counts() }), people: { mentionables: list }, initialTab: "members" });
+    expect(html.match(/data-verified-badge/g)).toHaveLength(1);
+    expect(html).toMatch(/سلمى<\/bdi><span data-verified-badge/);
+    expect(tabs(makeHeader(), { client: seeded({ counts: counts() }), people: { mentionables: people(["أحمد"]) }, initialTab: "members" })).not.toContain("data-verified-badge");
+  });
+
   it("uses theme tokens and logical sides only, with 44 px targets, and no Latin word or key on screen", () => {
     const html = tabs(makeHeader(), { client: seeded({ counts: counts({ IMAGE: 1 }), pages: { media: page([media("a"), media("v", "VIDEO")]) } }), people: { mentionables: people(["أحمد"]) } });
     expect(html).not.toMatch(/#[0-9a-fA-F]{3,8}\b|\b(?:bg|text|border)-(?:white|black)\b/);

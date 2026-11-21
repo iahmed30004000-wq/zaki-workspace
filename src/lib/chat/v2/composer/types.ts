@@ -25,4 +25,6 @@ export interface MentionChoice {
   online?: boolean;
   avatarUrl?: string | null;
   all?: boolean;
+  /** «إشارة التوثيق» (S5.5): the person carries the check badge (`MemberDto.verified`; absent otherwise) */
+  verified?: boolean;
 }
