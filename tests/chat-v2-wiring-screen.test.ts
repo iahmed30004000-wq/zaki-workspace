@@ -226,7 +226,7 @@ describe("Ctrl+0 is a shortcut of the table and the sheet (C3a.3)", () => {
     const html = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(ShortcutsSheet, { open: true, onOpenChange: noop, portal: false })));
     expect(html).toContain(AR["chatsaved.keys.open"]!);
     expect(textOf(html)).toContain("Ctrl + 0");
-    const latin = textOf(html).replace(/\bCtrl\b/g, " ").replace(/\bEsc\b/g, " ").match(/[A-Za-z]{2,}/g) ?? [];
+    const latin = textOf(html).replace(/\bCtrl\b/g, " ").replace(/\bEsc\b/g, " ").replace(/\bAlt\b/g, " ").replace(/\bShift\b/g, " ").match(/[A-Za-z]{2,}/g) ?? [];
     expect(latin).toEqual([]);
   });
 

@@ -368,6 +368,8 @@ const LATIN_ON_SCREEN = [
   "OMS",
   "Ctrl", // the name of a key on the keyboard shortcut hint
   "Esc",
+  "Alt", // the owner asked for the key names in English (2026-11-21)
+  "Shift",
   "OP", // the prefix of an opportunity's number (OP-12), like T12 for a ticket
 ];
 
@@ -562,7 +564,7 @@ describe("no English reaches a screen", () => {
     expect(findings.map((f) => `${f.where}  ${f.what}`)).toEqual([]);
   });
 
-  it("the allow-list stays short: brand names, provider names, two key names and one code prefix", () => {
+  it("the allow-list stays short: brand names, provider names, four key names and one code prefix", () => {
     expect(LATIN_ON_SCREEN.length).toBeLessThan(14);
   });
 

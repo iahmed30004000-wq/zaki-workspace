@@ -6,8 +6,8 @@ import { SHEET_ROWS, type KeyName } from "@/lib/chat/shortcuts";
 import { ct } from "@/lib/chat/text";
 
 /**
- * The name of a key as it is written on screen. ⚠️ Only «Ctrl» and «Esc» may be Latin (`tests/arabic-ui.test.ts` allows exactly those two key names and
- * its allow-list may not grow): the others are Arabic letters — «ألت», «شيفت» — and the arrows are ↑ ↓.
+ * The name of a key as it is written on screen. The keys are named as on the keyboard, «Ctrl», «Alt», «Shift», «Esc» (the owner asked for them in English, 2026-11-21; `tests/arabic-ui.test.ts` allows exactly these four key names;
+ * its allow-list may not grow); the arrows are ↑ ↓.
  */
 function KeyCap({ name }: { name: KeyName }) {
   switch (name) {
@@ -16,9 +16,9 @@ function KeyCap({ name }: { name: KeyName }) {
     case "esc":
       return <kbd className={cap}>Esc</kbd>;
     case "alt":
-      return <kbd className={cap}>{ct("chatui.keys.alt")}</kbd>;
+      return <kbd className={cap}>Alt</kbd>;
     case "shift":
-      return <kbd className={cap}>{ct("chatui.keys.shift")}</kbd>;
+      return <kbd className={cap}>Shift</kbd>;
     case "up":
       return <kbd className={cap}>↑</kbd>;
     case "down":

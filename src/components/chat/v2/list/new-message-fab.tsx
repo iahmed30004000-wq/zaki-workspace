@@ -2,7 +2,7 @@
 
 import React from "react";
 import { useRouter } from "next/navigation";
-import { SquarePen, Video } from "lucide-react";
+import { MessagesSquare, SquarePen, Users, Video } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useOptionalToast } from "@/components/ui/toast";
@@ -15,13 +15,17 @@ import { ct } from "@/lib/chat/text";
  * indicator. It is the button set's own `fab` (D1: a screen does not invent its own accent button). The computer has the pencil in the list header
  * instead, so this is hidden from `md`.
  *
- * Batch 1 (2026-11-21): for a person who may open meetings (`canMeet`) it opens a small menu — «رسالة جديدة» and «اجتماع جديد» — instead of the full-width
- * meeting strip that used to sit under the folders. «اجتماع جديد» opens a meeting of the person's space at once (the same door as the meeting button of
- * the empty screen: POST /api/calls) and goes into it. Without `canMeet` the pencil is the plain «رسالة جديدة» button it always was.
+ * Batch 1 (2026-11-21): for a person who may open meetings (`canMeet`) it opens a small menu instead of the full-width meeting strip that used to sit under
+ * the folders. «اجتماع جديد» opens a meeting of the person's space at once (the same door as the meeting button of the empty screen: POST /api/calls) and goes
+ * into it.
+ *
+ * Batch 2 (2026-11-21, the owner: «زر إنشاء المواضيع أو الجروب ما لقيته»): the menu is where everything new starts — «رسالة جديدة», «مجموعة جديدة», «موضوع جديد»
+ * (`onTopic`, given only to somebody who may open a topic in the space on screen) and «اجتماع جديد». With nothing but a message to offer the pencil is the plain
+ * «رسالة جديدة» button it always was.
  */
 const FAB_CLASS = "absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] end-4 z-20 md:hidden";
 
-export function NewMessageFab({ onClick, canMeet = false }: { onClick: () => void; canMeet?: boolean }) {
+export function NewMessageFab({ onClick, onGroup, onTopic, canMeet = false }: { onClick: () => void; onGroup?: () => void; onTopic?: () => void; canMeet?: boolean }) {
   const router = useRouter();
   const toast = useOptionalToast();
   const [busy, setBusy] = React.useState(false);
@@ -38,7 +42,7 @@ export function NewMessageFab({ onClick, canMeet = false }: { onClick: () => voi
     }
   }
 
-  if (!canMeet) {
+  if (!canMeet && !onGroup && !onTopic) {
     return (
       <Button type="button" variant="fab" aria-label={ct("chath.new_dm")} data-chat-fab="" onClick={onClick} className={FAB_CLASS}>
         <SquarePen className="size-6" aria-hidden="true" />
@@ -56,9 +60,21 @@ export function NewMessageFab({ onClick, canMeet = false }: { onClick: () => voi
         <DropdownMenuItem onSelect={onClick}>
           <SquarePen aria-hidden="true" className="size-4" /> {ct("chath.new_dm")}
         </DropdownMenuItem>
-        <DropdownMenuItem onSelect={() => void newMeeting()}>
-          <Video aria-hidden="true" className="size-4" /> {ct("calls.meeting_new")}
-        </DropdownMenuItem>
+        {onGroup ? (
+          <DropdownMenuItem onSelect={onGroup}>
+            <Users aria-hidden="true" className="size-4" /> {ct("chath.group.new")}
+          </DropdownMenuItem>
+        ) : null}
+        {onTopic ? (
+          <DropdownMenuItem onSelect={onTopic}>
+            <MessagesSquare aria-hidden="true" className="size-4" /> {ct("chath.topic.new")}
+          </DropdownMenuItem>
+        ) : null}
+        {canMeet ? (
+          <DropdownMenuItem onSelect={() => void newMeeting()}>
+            <Video aria-hidden="true" className="size-4" /> {ct("calls.meeting_new")}
+          </DropdownMenuItem>
+        ) : null}
       </DropdownMenuContent>
     </DropdownMenu>
   );

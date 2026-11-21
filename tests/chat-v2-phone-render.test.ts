@@ -173,16 +173,16 @@ describe("the list column on the phone", () => {
     expect(fab).toContain("/api/calls");
   });
 
-  it("a person who may not open meetings keeps the plain pencil (no menu); one who may gets a menu button", () => {
+  it("the pencil is a menu for everybody who is not a guest (a message, a group); «اجتماع جديد» is in it only for who may open meetings", () => {
     const withMeet = (canMeet: boolean) => {
       const client = new QueryClient();
       installChatDefaults(client);
       client.setQueryData(chatKeys.list(), LIST);
       return wrap(createElement(ChatListColumn as unknown as FunctionComponent<Record<string, unknown>>, { variant: "screen", userId: "u1", guest: false, canMeet, rowMenu: true, canPurge: false }), client);
     };
-    const plain = /<button[^>]*data-chat-fab[^>]*>/.exec(withMeet(false))?.[0] ?? "";
-    expect(plain).not.toBe("");
-    expect(plain).not.toContain("aria-haspopup");
+    const noMeet = /<button[^>]*data-chat-fab[^>]*>/.exec(withMeet(false))?.[0] ?? "";
+    expect(noMeet).not.toBe("");
+    expect(noMeet).toContain("aria-haspopup");
     const menu = withMeet(true);
     const fab = /<button[^>]*data-chat-fab[^>]*>/.exec(menu)?.[0] ?? "";
     expect(fab).toContain('aria-haspopup="menu"');

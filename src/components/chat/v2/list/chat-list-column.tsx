@@ -33,6 +33,9 @@ import { useFolderSourceRows } from "./use-folder-chats";
 import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
 import { ListEmpty, ListError, ListSkeleton } from "./list-states";
 import { NewMessageFab } from "./new-message-fab";
+import { NewGroupDialog } from "@/components/chat/home/new-group-dialog";
+import { NewTopicDialog } from "@/components/chat/home/new-topic-dialog";
+import { useSpaceSections } from "@/lib/chat/v2/use-space-sections";
 import { VirtualRows } from "./virtual-rows";
 
 /**
@@ -167,6 +170,8 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const folderSource = useFolderSourceRows(list, prefs.folders);
   const [query, setQuery] = useState("");
   const [newDm, setNewDm] = useState(false);
+  const [newGroup, setNewGroup] = useState(false);
+  const [newTopic, setNewTopic] = useState(false);
   const [creatingSpace, setCreatingSpace] = useState(false);
 
   // C3a.1: «الأرشيف» is offered only while the switch is on AND the person has a chat they archived (the server sends none as archived while it is off)
@@ -220,6 +225,12 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
     [rowMenu, canPurge, oneSpace.space?.canModerate, list.personal],
   );
 
+  // «موضوع جديد» (the owner, 2026-11-21): in the list of ONE space, for whoever may open a topic there (the server decides again); the dialog opens once the space's sections are in
+  const topicSpaceId = list.scope === "space" && !guest && oneSpace.space?.canCreateTopic === true ? list.spaceId : null;
+  const sections = useSpaceSections(topicSpaceId ?? "", newTopic);
+  const openTopic = topicSpaceId ? () => setNewTopic(true) : undefined;
+  const openGroup = guest ? undefined : () => setNewGroup(true);
+
   // «افتح مساحة» only for whoever may open one and only when there is nothing at all in the list (the old home's rule, the shell's own query)
   const empty = !list.isPending && list.rows.length === 0;
   const spaces = useQuery({ queryKey: ORGS_QUERY_KEY, queryFn: fetchSpaces, staleTime: 60_000, enabled: !guest && empty });
@@ -235,7 +246,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
         <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
       ) : (
-        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
+        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
       {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} /> : null}
       {/* C3a.3: «المحفوظة» before it exists: one pinned entry on top of the list (the folder «الكل», no search) */}
@@ -255,8 +266,10 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
       )}
 
-      {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} canMeet={canMeet} /> : null}
+      {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} onGroup={openGroup} onTopic={openTopic} canMeet={canMeet} /> : null}
       {!guest ? <NewDmDialog open={newDm} onOpenChange={setNewDm} /> : null}
+      {!guest ? <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} /> : null}
+      {topicSpaceId && oneSpace.space && newTopic && sections.settled ? <NewTopicDialog open onOpenChange={setNewTopic} space={{ id: topicSpaceId, name: oneSpace.space.name, sections: sections.sections }} /> : null}
       {inline.element}
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
       </div>

@@ -326,7 +326,7 @@ describe("the list column wires the inline folders (and keeps what the calls age
     expect(src).toContain("useFolderSourceRows");
   });
   it("is not restyled: the pencil still gets canMeet", () => {
-    expect(src).toContain("<NewMessageFab onClick={() => setNewDm(true)} canMeet={canMeet} />");
+    expect(src).toContain("<NewMessageFab onClick={() => setNewDm(true)} onGroup={openGroup} onTopic={openTopic} canMeet={canMeet} />");
   });
 });
 
