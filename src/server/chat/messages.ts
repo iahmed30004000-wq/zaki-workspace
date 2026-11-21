@@ -22,6 +22,8 @@ import { emojiOnlyCount, isZakiCode } from "@/lib/chat/zaki-emoji";
 import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "@/server/chat/poll-shared";
 import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, forwardedPreview, DELETED_PREVIEW } from "@/server/chat/notify";
 import { FORWARD_COMMENT_MAX } from "@/lib/chat/forward";
+import { stripFormatting } from "@/lib/chat/format/parse";
+import { cleanQuote, quoteIsPartOf } from "@/lib/chat/v2/menu/gestures";
 import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
 import { afterMessageSent } from "@/server/services/chat-assistant";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
@@ -77,6 +79,8 @@ export const sendSchema = z
     noPreview: z.boolean().optional(),
     // «ابعت بدون صوت» (C3c.2): no bell, no push, no arrival sound for this message (it still counts as unread); ignored while the company's `chatSilentSend` switch is off
     silent: z.boolean().optional(),
+    // «رد بالاقتباس» (S5.7): the piece of the replied-to message that was selected; kept only with `replyToId`, only when the parent really holds it, cut to 280 characters
+    replyQuote: z.string().max(1000).optional(),
   })
   .refine((v) => (v.body?.trim().length ?? 0) > 0 || (v.attachmentIds?.length ?? 0) > 0, {
     message: "chat.e.empty",
@@ -186,9 +190,16 @@ export async function sendMessage(
     input.videoAtSec !== undefined && (await db.watchSession.count({ where: { conversationId } })) > 0 ? input.videoAtSec : null;
 
   // the reply target must belong to the same conversation
+  let replyQuote: string | null = null;
   if (input.replyToId) {
-    const parent = await db.chatMessage.findFirst({ where: { id: input.replyToId, conversationId }, select: { id: true } });
+    const parent = await db.chatMessage.findFirst({ where: { id: input.replyToId, conversationId }, select: { id: true, body: true, kind: true, deletedAt: true } });
     if (!parent) throw new NotFoundError("chat.e.reply_not_found");
+    // «رد بالاقتباس» (S5.7): the screen's own feature (`chatLayoutV2`). A quote is a piece of the parent's words that the parent REALLY holds (as written or as drawn) — a made-up one
+    // is dropped and the reply goes as an ordinary reply; a deleted parent or a system line has no words to quote.
+    if (input.replyQuote !== undefined && !parent.deletedAt && parent.kind !== "SYSTEM" && (await isFeatureOn(ctx.orgId, "chatLayoutV2"))) {
+      const quote = cleanQuote(input.replyQuote);
+      if (quote && quoteIsPartOf(quote, parent.body, stripFormatting(parent.body, { math: true }))) replyQuote = quote;
+    }
   }
 
   // mentions must be people who may read the conversation (the policy decides, not a member row:
@@ -226,6 +237,7 @@ export async function sendMessage(
         body,
         kind,
         replyToId: input.replyToId ?? null,
+        ...(replyQuote ? { replyQuote } : {}),
         mentions: wantsAll ? [...mentionIds, MENTION_ALL_ID] : mentionIds,
         ...(input.clientId ? { clientId: input.clientId } : {}),
         ...(silent ? { silent: true } : {}),
@@ -731,7 +743,8 @@ export const forwardManySchema = z.object({
   /** S5.2: a line sent with the forward, as its own message AFTER the copies in every target (empty: none) */
   comment: z.string().max(FORWARD_COMMENT_MAX).optional(),
 });
-export const deleteManySchema = z.object({ ids: z.array(idShape).min(1).max(MULTI_MAX_MESSAGES) });
+// `forMe` (S5.7, «حذف عندي»): the ids are hidden for the person only, nothing is deleted (the door decides; see src/server/chat/hidden-messages.ts)
+export const deleteManySchema = z.object({ ids: z.array(idShape).min(1).max(MULTI_MAX_MESSAGES), forMe: z.boolean().optional() });
 
 export type ForwardManyResult = { targetId: string; ok: true; ids: string[]; commentId?: string } | { targetId: string; ok: false; error: string };
 export type DeleteManyResult = { id: string; ok: true } | { id: string; ok: false; error: string };

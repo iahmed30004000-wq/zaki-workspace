@@ -2,8 +2,11 @@
 
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { Quote } from "lucide-react";
 import type { ConversationHeaderDto, ReaderDto } from "@/server/chat/dto";
 import { JumpButtons, StickyDateChip, useMentionsWalk } from "@/components/chat/v2/pane/floating";
+import { DateJumpSheet } from "@/components/chat/v2/pane/date-jump-sheet";
+import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { useMessageMenu } from "@/components/chat/v2/pane/seams/menu-host";
 import { CallsDialog } from "@/components/chat/v2/pane/service-rows";
@@ -20,6 +23,10 @@ import { useOutbox } from "@/lib/chat/outbox/use-outbox";
 import { playChatSound } from "@/lib/chat/sounds";
 import { runFlags } from "@/lib/chat/group";
 import { ct } from "@/lib/chat/text";
+import { menuFor } from "@/components/chat/message/message-menu-registry";
+import { menuContextV2 } from "@/lib/chat/v2/menu/menu-context";
+import { quoteFromSelection } from "@/lib/chat/v2/menu/gestures";
+import { replyQuoteStore } from "@/lib/chat/v2/phone/reply-quote";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { arrivalSoundOf } from "@/lib/chat/v2/pane/arrival-sound";
@@ -31,6 +38,61 @@ import { buildRows } from "@/lib/chat/viewport/rows";
 
 /** How long the sticky date stays after the last scroll. */
 const STICKY_DATE_MS = 1400;
+
+/** What a selection must NOT be taken from: the quote block of another message, the footer, the sender's name (they are not the message's own words). */
+const NOT_QUOTABLE = "[data-reply-block],[data-bubble-footer],[data-sender]";
+
+/**
+ * S5.7 (d) — «رد بالاقتباس». When the person selects words inside ONE message of the log, a small button shows over the selection; pressing it starts an ordinary reply to that
+ * message (the same door a double click uses, so the registry still decides who may reply) and leaves the picked piece for the reply bar and the send (`replyQuoteStore`). The
+ * browser's own selection (and its own menu) is untouched; the button only reads `selectionchange`, never writes to the page.
+ */
+function QuoteSelectionButton({ root, onQuote }: { root: React.RefObject<HTMLElement>; onQuote: (messageId: string, quote: string) => void }) {
+  const [at, setAt] = React.useState<{ messageId: string; quote: string; x: number; y: number; width: number } | null>(null);
+  React.useEffect(() => {
+    const idOf = (node: Node | null): string | null => {
+      const el = node instanceof Element ? node : (node?.parentElement ?? null);
+      return el?.closest?.("[data-message-id]")?.getAttribute("data-message-id") ?? null;
+    };
+    const onChange = () => {
+      const sel = document.getSelection();
+      const box = root.current;
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0 || !box || !box.contains(sel.anchorNode) || !box.contains(sel.focusNode)) return setAt(null);
+      const range = sel.getRangeAt(0);
+      const common = range.commonAncestorContainer;
+      const commonEl = common instanceof Element ? common : common.parentElement;
+      if (commonEl?.closest(NOT_QUOTABLE)) return setAt(null);
+      const picked = quoteFromSelection({ text: sel.toString(), anchorMessageId: idOf(sel.anchorNode), focusMessageId: idOf(sel.focusNode) });
+      if (!picked) return setAt(null);
+      const rect = range.getBoundingClientRect();
+      const frame = box.getBoundingClientRect();
+      setAt({ ...picked, x: rect.left + rect.width / 2 - frame.left, y: rect.top - frame.top, width: frame.width });
+    };
+    document.addEventListener("selectionchange", onChange);
+    return () => document.removeEventListener("selectionchange", onChange);
+  }, [root]);
+  if (!at) return null;
+  return (
+    <button
+      type="button"
+      data-quote-button=""
+      // a press must not collapse the selection before the click lands
+      onPointerDown={(e) => e.preventDefault()}
+      onMouseDown={(e) => e.preventDefault()}
+      onClick={() => {
+        onQuote(at.messageId, at.quote);
+        document.getSelection()?.removeAllRanges();
+        setAt(null);
+      }}
+      // the coordinates are the browser's own (from the left edge of the log), so the button is placed by `left`, not by a logical edge
+      style={{ top: Math.max(at.y - 48, 4), left: Math.min(Math.max(at.x - 60, 4), Math.max(at.width - 150, 4)) }}
+      className="absolute z-20 inline-flex min-h-11 items-center gap-1.5 rounded-full border border-border bg-surface px-3 text-sm font-semibold text-accent shadow-lg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+    >
+      <Quote aria-hidden="true" className="size-4" />
+      {ct("chatparity.quote.action")}
+    </button>
+  );
+}
 
 /**
  * C2.4 — THE VIEWPORT of the conversation: the virtualized, reverse log (newest at the bottom). It is only the DRAWING of what the two C1 hooks decide:
@@ -154,8 +216,26 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
 
   const stickyLabel = topId && byId.get(topId) ? dayLabelOf(byId.get(topId)!.createdAt) : null;
 
+  // S5.7 (c): a tap on the floating date opens the calendar of the date jump, on the month the log is at
+  const [dateOpen, setDateOpen] = React.useState(false);
+  const topAt = topId && byId.get(topId) ? new Date(byId.get(topId)!.createdAt) : null;
+  // S5.7 (d): «رد بالاقتباس» starts the reply through the bubble's own gesture door, then keeps the piece for the bar and the send
+  const gestures = useBubbleGestures();
+  const logRef = React.useRef<HTMLDivElement>(null);
+  const quoteReply = React.useCallback(
+    (messageId: string, quote: string) => {
+      const message = byId.get(messageId);
+      if (!message || !gestures || message.deleted) return;
+      // only where the registry offers «رد» (the same rule the double click uses): a quote is never left behind for a reply that did not start
+      if (!menuFor(menuContextV2(message, facts, { readerCount: 0, askKind: false })).some((item) => item.id === "reply")) return;
+      gestures.reply(message, facts);
+      replyQuoteStore.set(conversationId, messageId, quote);
+    },
+    [byId, gestures, facts, conversationId],
+  );
+
   return (
-    <div data-message-viewport className="relative flex min-h-0 flex-1 flex-col bg-surface-1">
+    <div ref={logRef} data-message-viewport className="relative flex min-h-0 flex-1 flex-col bg-surface-1">
       <div ref={v.scrollRef} role="log" aria-label={ct("chatc.log")} data-conversation-id={conversationId} onScroll={flashDate} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="relative w-full" style={{ height: v.totalSize }}>
           {v.items.map((item) => {
@@ -171,7 +251,9 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
         </div>
       </div>
       <CallsDialog messages={callsOpen?.type === "calls" ? callsOpen.messages : null} onClose={() => setOpenedCalls(null)} />
-      <StickyDateChip label={stickyLabel} visible={scrolling} />
+      <StickyDateChip label={stickyLabel} visible={scrolling} onOpen={() => setDateOpen(true)} />
+      <DateJumpSheet open={dateOpen} onOpenChange={setDateOpen} conversationId={conversationId} initial={topAt} onJump={commands.jumpTo} />
+      {gestures && !header.me.oversight ? <QuoteSelectionButton root={logRef} onQuote={quoteReply} /> : null}
       <JumpButtons
         down={down}
         mentions={walk.mentions}

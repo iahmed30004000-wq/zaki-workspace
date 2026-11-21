@@ -45,7 +45,17 @@ export function ReplyBlock({ replyTo, onJump }: { replyTo: NonNullable<MessageDt
       className="mb-1.5 flex w-full min-w-0 flex-col items-start rounded-e-md border-s-[3px] border-accent bg-surface-2/60 px-2 py-1 text-start text-xs hover:bg-surface-2"
     >
       <span className="block max-w-full truncate font-semibold text-accent">{replyTo.authorName}</span>
-      <span className="line-clamp-1 max-w-full text-fg-muted">{replyTo.deleted ? ct("chatc.deleted") : (replyTo.preview ?? ct("chatc.message_fallback"))}</span>
+      {/* S5.7 «رد بالاقتباس»: the piece the sender picked, in place of the whole preview (never for a deleted original); React escapes it — it is text, never markup */}
+      {replyTo.quote && !replyTo.deleted ? (
+        <span data-reply-quote className="line-clamp-2 max-w-full whitespace-pre-line text-fg-muted">
+          <span aria-hidden="true" className="me-1 font-bold text-accent">
+            “
+          </span>
+          {replyTo.quote}
+        </span>
+      ) : (
+        <span className="line-clamp-1 max-w-full text-fg-muted">{replyTo.deleted ? ct("chatc.deleted") : (replyTo.preview ?? ct("chatc.message_fallback"))}</span>
+      )}
     </button>
   );
 }

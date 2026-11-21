@@ -117,7 +117,8 @@ export interface MessageDto {
   authorVerified?: boolean;
   createdAt: string;
   clientId?: string | null;
-  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean } | null;
+  /** `quote` (S5.7, «رد بالاقتباس»): the piece of the original the sender picked; present only with a live original, plain text (the screen escapes it) */
+  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean; quote?: string } | null;
   forwardedFrom?: { name: string } | null;
   mentions: string[];
   attachments: AttachmentDto[];
@@ -455,6 +456,8 @@ export interface SyncDto {
   rows: ChatRowDto[];
   /** conversations the person can no longer read (left, made private, a peer who left the company, deleted) */
   removed: string[];
+  /** S5.7, «حذف عندي»: the messages this person hid for themselves since the cursor (ids only: their other devices take them out of the windows); absent when none */
+  hidden?: string[];
 }
 
 export interface OversightConversationDto {

@@ -13,6 +13,7 @@ import { AR } from "@/lib/i18n/dict";
 import { currentSpace } from "@/server/services/current-space";
 import type { Actor } from "@/server/policy/actor";
 import { loadWorkScope, scopeSpaceIds } from "@/server/services/team-scope";
+import { notHiddenFor, notHiddenSql } from "@/server/chat/hidden-messages";
 
 /**
  * SEARCH IN THE CHAT (the owner's ask, 2026-10-25): inside one conversation, and across the topics and messages of
@@ -63,8 +64,8 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
   if (extras) {
     // «البحث الشامل» off: the jump and the person filter are part of the search, so they are off with it
     if (!(await isFeatureOn(ctx.orgId, "search"))) return [];
-    if (options.since) return conversationJump(conversationId, options.since, options.from);
-    if (!search || search.text.length < 2) return options.from ? personMessages(conversationId, options.from) : [];
+    if (options.since) return conversationJump(ctx.userId, conversationId, options.since, options.from);
+    if (!search || search.text.length < 2) return options.from ? personMessages(ctx.userId, conversationId, options.from) : [];
   }
   if (!search || search.text.length < 2) return [];
   // «البحث الشامل» off (or economy mode with it held off): no hits, and no query over the messages
@@ -75,13 +76,13 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
       table: "ChatMessage",
       search,
       rank: false,
-      where: [Prisma.sql`"conversationId" = ${conversationId}`, ...(options.from ? [Prisma.sql`"authorId" = ${options.from}`] : []), ...searchableSql],
+      where: [Prisma.sql`"conversationId" = ${conversationId}`, ...(options.from ? [Prisma.sql`"authorId" = ${options.from}`] : []), ...searchableSql, notHiddenSql(ctx.userId, "ChatMessage")],
       order: Prisma.sql`"createdAt" DESC`,
     },
     take: 30,
     load: (ids) =>
       db.chatMessage.findMany({
-        where: { conversationId, ...searchable, ...byPerson, id: { in: ids } },
+        where: { conversationId, ...searchable, ...notHiddenFor(ctx.userId), ...byPerson, id: { in: ids } },
         select: { id: true, body: true, createdAt: true, author: { select: { name: true } } },
       }),
   });
@@ -98,8 +99,8 @@ export async function searchConversation(ctx: OrgAccessContext, conversationId: 
   const pictures = await pictureTextHits(
     ctx.orgId,
     search,
-    options.from ? Prisma.sql`m."conversationId" = ${conversationId} AND m."authorId" = ${options.from}` : Prisma.sql`m."conversationId" = ${conversationId}`,
-    { conversationId, ...byPerson },
+    options.from ? Prisma.sql`m."conversationId" = ${conversationId} AND m."authorId" = ${options.from} AND ${notHiddenSql(ctx.userId)}` : Prisma.sql`m."conversationId" = ${conversationId} AND ${notHiddenSql(ctx.userId)}`,
+    { conversationId, ...notHiddenFor(ctx.userId), ...byPerson },
     30,
   );
   for (const pic of pictures) {
@@ -124,9 +125,9 @@ const hitOf = (conversationId: string, m: { id: string; body: string; createdAt:
 });
 
 /** C3d — the date jump: the first message (of this person, when given) at or after the instant. */
-async function conversationJump(conversationId: string, since: Date, from: string | undefined): Promise<MessageHitDto[]> {
+async function conversationJump(userId: string, conversationId: string, since: Date, from: string | undefined): Promise<MessageHitDto[]> {
   const first = await db.chatMessage.findFirst({
-    where: { conversationId, ...searchable, createdAt: { gte: since }, ...(from ? { authorId: from } : {}) },
+    where: { conversationId, ...searchable, ...notHiddenFor(userId), createdAt: { gte: since }, ...(from ? { authorId: from } : {}) },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     select: hitSelect,
   });
@@ -134,9 +135,9 @@ async function conversationJump(conversationId: string, since: Date, from: strin
 }
 
 /** C3d — «من:» alone: the person's messages here, newest first. */
-async function personMessages(conversationId: string, from: string): Promise<MessageHitDto[]> {
+async function personMessages(userId: string, conversationId: string, from: string): Promise<MessageHitDto[]> {
   const rows = await db.chatMessage.findMany({
-    where: { conversationId, ...searchable, authorId: from },
+    where: { conversationId, ...searchable, ...notHiddenFor(userId), authorId: from },
     orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     take: 30,
     select: hitSelect,
@@ -259,6 +260,7 @@ export async function searchChat(
         where: [
           Prisma.sql`"orgId" = ${ctx.orgId}`,
           ...searchableSql,
+          notHiddenSql(ctx.userId, "ChatMessage"),
           Prisma.sql`"conversationId" IN (SELECT "id" FROM "Conversation" WHERE "orgId" = ${ctx.orgId} AND ${placeSql})`,
         ],
         order: Prisma.sql`"createdAt" DESC`,
@@ -266,7 +268,7 @@ export async function searchChat(
       take: Math.max(60, caps.messages * 4),
       load: (ids) =>
         db.chatMessage.findMany({
-          where: { orgId: ctx.orgId, conversation: { orgId: ctx.orgId, ...here }, ...searchable, id: { in: ids } },
+          where: { orgId: ctx.orgId, conversation: { orgId: ctx.orgId, ...here }, ...searchable, ...notHiddenFor(ctx.userId), id: { in: ids } },
           select: {
             id: true,
             body: true,
@@ -306,7 +308,7 @@ export async function searchChat(
   }
   // the messages whose pictures carry the words: the same place, and the same reading check per conversation as for any message
   const seen = new Set(messages.map((m) => m.id));
-  for (const pic of await pictureTextHits(ctx.orgId, search, Prisma.sql`m."conversationId" IN (SELECT "id" FROM "Conversation" WHERE "orgId" = ${ctx.orgId} AND ${placeSql})`, { conversation: { orgId: ctx.orgId, ...here } }, 60)) {
+  for (const pic of await pictureTextHits(ctx.orgId, search, Prisma.sql`m."conversationId" IN (SELECT "id" FROM "Conversation" WHERE "orgId" = ${ctx.orgId} AND ${placeSql}) AND ${notHiddenSql(ctx.userId)}`, { conversation: { orgId: ctx.orgId, ...here }, ...notHiddenFor(ctx.userId) }, 60)) {
     for (const link of pic.file.chatLinks) {
       if (messages.length >= caps.messages) break;
       const m = link.message;

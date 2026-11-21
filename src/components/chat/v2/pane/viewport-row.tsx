@@ -1,18 +1,22 @@
 "use client";
 
 import React from "react";
+import { Reply } from "lucide-react";
 import type { MessageDto, ReaderDto } from "@/server/chat/dto";
 import { MessageBubble, type MessageMenuSlotApi } from "@/components/chat/v2/message-bubble";
 import { PendingBubble } from "@/components/chat/message/pending-bubble";
 import { CallsChip, DaySeparator, ServiceLine, UnreadLine } from "@/components/chat/v2/pane/service-rows";
 import { usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { useMenuDialogs } from "@/components/chat/v2/pane/seams/menu-host";
+import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { isPendingMessage, outboxItemOfPending } from "@/lib/chat/cache/pending";
 import { runFlags } from "@/lib/chat/group";
 import type { OutboxItem } from "@/lib/chat/outbox/queue";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import { sameRow, type Row } from "@/lib/chat/viewport/rows";
 import { findCustomerNumbers } from "@/lib/tickets/customer-number";
+import { SLIDE_MS, prefersReducedMotion } from "@/lib/chat/v2/phone/motion";
+import { REPLY_COMMIT_PX, attachReplySwipe, hapticTick } from "@/lib/chat/v2/phone/swipe-reply";
 
 /** What every row of the log shares; it changes only when the header's flags, the people, the readers, the menu or the pending handlers do. */
 export interface RowEnv {
@@ -31,6 +35,52 @@ export interface RowEnv {
   select?: { on: boolean; selected: ReadonlySet<string>; toggle: (messageId: string) => void };
 }
 
+/**
+ * S5.7 (b) — SWIPE TO REPLY around ONE bubble (the phone). The finger drags the bubble toward the end (leftwards here) and a reply arrow appears at the start side; at the trigger the
+ * phone buzzes, and lifting the finger starts the reply the same way a double click does (`gestures.reply`: the registry decides whether this person may reply to this message).
+ * The rules are `src/lib/chat/v2/phone/swipe-reply.ts` (a finger only; never the vertical scroll, the swipe back's edge, a link or a player, selected text or the multi-select); this
+ * only moves two elements by hand (no render per move) and honours reduced motion. `touch-pan-y` leaves the page's vertical scroll to the browser.
+ */
+function SwipeReplyBox({ message, facts, enabled, children }: { message: MessageDto; facts: BubbleFacts; enabled: boolean; children: React.ReactNode }) {
+  const gestures = useBubbleGestures();
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const leadRef = React.useRef<HTMLDivElement>(null);
+  const iconRef = React.useRef<HTMLSpanElement>(null);
+  const live = React.useRef({ gestures, message, facts, enabled });
+  live.current = { gestures, message, facts, enabled };
+  const wired = gestures !== null;
+  React.useEffect(() => {
+    const box = boxRef.current;
+    const lead = leadRef.current;
+    const icon = iconRef.current;
+    if (!wired || !box || !lead || !icon) return;
+    const rtl = () => (typeof document !== "undefined" ? (document.documentElement.dir || getComputedStyle(box).direction) === "rtl" : true);
+    return attachReplySwipe(box as unknown as Parameters<typeof attachReplySwipe>[0], {
+      rtl,
+      width: () => window.innerWidth,
+      enabled: () => live.current.enabled,
+      hasSelection: () => window.getSelection()?.isCollapsed === false,
+      onPull: (px, settle) => {
+        lead.style.transition = settle && !prefersReducedMotion() ? `transform ${SLIDE_MS}ms ease-out` : "none";
+        lead.style.transform = px > 0 ? `translateX(${(rtl() ? -1 : 1) * px}px)` : "";
+        icon.style.opacity = String(Math.min(px / REPLY_COMMIT_PX, 1));
+      },
+      onReply: () => live.current.gestures?.reply(live.current.message, live.current.facts),
+      haptic: () => void hapticTick(),
+    });
+  }, [wired]);
+  return (
+    <div ref={boxRef} data-swipe-reply-box="" className="relative touch-pan-y">
+      <span ref={iconRef} aria-hidden="true" data-swipe-reply-icon="" style={{ opacity: 0 }} className="pointer-events-none absolute inset-y-0 start-1 flex items-center">
+        <span className="grid size-8 place-items-center rounded-full bg-surface-2 text-accent">
+          <Reply className="size-4 rtl:-scale-x-100" />
+        </span>
+      </span>
+      <div ref={leadRef}>{children}</div>
+    </div>
+  );
+}
+
 function BubbleRow({ message, start, end, env, highlighted }: { message: MessageDto; start: boolean; end: boolean; env: RowEnv; highlighted: boolean }) {
   const commands = usePaneCommands();
   const dialogs = useMenuDialogs();
@@ -40,26 +90,30 @@ function BubbleRow({ message, start, end, env, highlighted }: { message: Message
   const picked = env.select?.selected.has(message.id) ?? false;
   const toggle = env.select?.toggle;
   const select = React.useMemo(() => (env.select?.on && toggle ? { on: true, selected: picked, toggle } : undefined), [env.select?.on, picked, toggle]);
+  // the reply swipe is for a live message of somebody's, never while messages are being picked and never for the owner's silent reading
+  const swipes = !select && !env.facts.oversight && !message.deleted;
   return (
-    <MessageBubble
-      message={message}
-      conversationId={env.conversationId}
-      facts={env.facts}
-      start={start}
-      end={end}
-      mentionNames={env.mentionNames}
-      readers={env.readersByMessage.get(message.id)}
-      highlighted={highlighted}
-      menu={env.menu}
-      hover={env.hover}
-      select={select}
-      onReact={commands.react}
-      onJump={commands.jumpTo}
-      onAck={commands.ack}
-      onOpenWork={onOpenWork}
-      onHintTicket={onHintTicket}
-      onSuggestProblem={onSuggest}
-    />
+    <SwipeReplyBox message={message} facts={env.facts} enabled={swipes}>
+      <MessageBubble
+        message={message}
+        conversationId={env.conversationId}
+        facts={env.facts}
+        start={start}
+        end={end}
+        mentionNames={env.mentionNames}
+        readers={env.readersByMessage.get(message.id)}
+        highlighted={highlighted}
+        menu={env.menu}
+        hover={env.hover}
+        select={select}
+        onReact={commands.react}
+        onJump={commands.jumpTo}
+        onAck={commands.ack}
+        onOpenWork={onOpenWork}
+        onHintTicket={onHintTicket}
+        onSuggestProblem={onSuggest}
+      />
+    </SwipeReplyBox>
   );
 }
 

@@ -13,6 +13,7 @@ import { previewOf } from "@/server/chat/redact";
 import { dmStatusFor } from "@/server/chat/messages";
 import { archivedByMeSql, personalOnSql } from "@/server/chat/read-state";
 import { SAVED_TITLE_KEY } from "@/server/chat/dm";
+import { notHiddenSql } from "@/server/chat/hidden-messages";
 import { AR } from "@/lib/i18n/dict";
 
 /**
@@ -275,10 +276,10 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
   const statJoin = stats
     ? Prisma.sql`
     LEFT JOIN LATERAL (
-      -- the newest message, a deleted one included (its text never leaves the database: the row shows «رسالة محذوفة»)
+      -- the newest message, a deleted one included (its text never leaves the database: the row shows «رسالة محذوفة»); one the person hid for themselves (S5.7) is not the newest FOR THEM
       SELECT m.id, CASE WHEN m."deletedAt" IS NULL THEN m.body END AS body, m.kind, m."deletedAt", m."createdAt", m."authorId", au.name AS "authorName"
       FROM "ChatMessage" m JOIN "User" au ON au.id = m."authorId"
-      WHERE m."conversationId" = c.id
+      WHERE m."conversationId" = c.id AND ${notHiddenSql(uid, "m")}
       ORDER BY m."createdAt" DESC, m.id DESC
       LIMIT 1
     ) lm ON true
@@ -286,7 +287,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
       -- unread and mentions come from the read mark, never from a stored counter; a system line never counts; silent oversight and an archived topic count nothing
       SELECT COUNT(*) AS n, COUNT(*) FILTER (WHERE m.mentions && ARRAY[${uid}, ${MENTION_ALL_ID}]::text[]) AS mn
       FROM "ChatMessage" m
-      WHERE m."conversationId" = c.id AND m."authorId" <> ${uid} AND m."deletedAt" IS NULL AND m.kind <> 'SYSTEM'
+      WHERE m."conversationId" = c.id AND m."authorId" <> ${uid} AND m."deletedAt" IS NULL AND m.kind <> 'SYSTEM' AND ${notHiddenSql(uid, "m")}
         AND (cm.id IS NULL OR m."createdAt" > cm."lastReadAt")
         AND (${v.oversight}::boolean = false OR cm.id IS NOT NULL)
         AND c."archivedAt" IS NULL

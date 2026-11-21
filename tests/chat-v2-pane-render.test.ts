@@ -135,6 +135,17 @@ describe("the rows of the log", () => {
     expect(draw(row(rows, "message", 0), env(), messages[1]!.id, messages)).not.toContain("ring-accent");
   });
 
+  it("S5.7: a bubble sits in the swipe-to-reply box (pan-y keeps the vertical scroll); the arrow is hidden from readers and the pending bubble has none", () => {
+    const messages = makeConversation(2);
+    const rows = buildRows(messages);
+    const html = draw(row(rows, "message", 1), env(), null, messages);
+    expect(html).toContain("data-swipe-reply-box");
+    expect(html).toContain("touch-pan-y");
+    expect(html).toMatch(/data-swipe-reply-icon[^>]*aria-hidden="true"|aria-hidden="true"[^>]*data-swipe-reply-icon/);
+    const pending = makeConversation(1, 1, () => ({ id: "pending:abc", clientId: "abc", mine: true, body: "x", pending: { state: "sending" } }));
+    expect(draw(row(buildRows(pending), "message"), env(), null, pending)).not.toContain("data-swipe-reply-box");
+  });
+
   it("the run's last bubble leaves a gap and the ones inside it sit close", () => {
     const messages = makeConversation(3);
     const rows = buildRows(messages);

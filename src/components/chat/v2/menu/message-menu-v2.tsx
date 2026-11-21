@@ -3,7 +3,7 @@
 import React from "react";
 import { usePathname } from "next/navigation";
 import { QueryClientContext } from "@tanstack/react-query";
-import { Ellipsis, Reply, SmilePlus } from "lucide-react";
+import { Ellipsis, EyeOff, Reply, SmilePlus } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -16,6 +16,7 @@ import { useOptionalToast } from "@/components/ui/toast";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { keepInSaved, savedFlagsOf, type ListWithSaved } from "@/lib/chat/v2/menu/menu-context";
 import { selectionStore, useSelectionEnabled } from "@/lib/chat/selection";
+import { useParityActions } from "@/lib/chat/v2/phone/parity-actions";
 import { ct } from "@/lib/chat/text";
 
 export interface MessageMenuV2Props {
@@ -58,6 +59,9 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [reactOpen, setReactOpen] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
+  // S5.7 (a): «حذف عندي» is this package's own item BESIDE the registry's list (the registry is the old screens' too): it hides the message for the person only and asks first
+  const parity = useParityActions();
+  const [confirmHide, setConfirmHide] = React.useState(false);
   // C3a.3: «حوّل للمحفوظة» runs HERE (the item is the registry's; the doors are today's dm and forward doors). Whether it is on offer comes from the cached list, read only
   // while a menu is open and only when a query client is above (a render on its own has none: no item); the server decides again
   const queries = React.useContext(QueryClientContext);
@@ -143,6 +147,12 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
                 </DropdownMenuItem>
               );
             })}
+            {parity && context.messageId ? (
+              <DropdownMenuItem data-menu-item="hide-for-me" tone="danger" className={ROW} onSelect={() => setConfirmHide(true)}>
+                <EyeOff aria-hidden="true" className="size-5 shrink-0" />
+                {ct("chatparity.hide.menu")}
+              </DropdownMenuItem>
+            ) : null}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -166,6 +176,22 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
                   </li>
                 );
               })}
+              {parity && context.messageId ? (
+                <li>
+                  <button
+                    type="button"
+                    data-menu-item="hide-for-me"
+                    className="flex min-h-11 w-full items-center gap-3 rounded-lg px-3 text-start text-base text-danger hover:bg-surface-2"
+                    onClick={() => {
+                      onSheetOpenChange(false);
+                      setConfirmHide(true);
+                    }}
+                  >
+                    <EyeOff aria-hidden="true" className="size-5 shrink-0" />
+                    {ct("chatparity.hide.menu")}
+                  </button>
+                </li>
+              ) : null}
             </ul>
           </SheetBody>
         </SheetContent>
@@ -194,6 +220,31 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
               }}
             >
               {ct("chatui.menu.delete")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={confirmHide} onOpenChange={setConfirmHide}>
+        <DialogContent portal={portal} aria-label={ct("chatparity.hide.title")}>
+          <DialogHeader>
+            <DialogTitle>{ct("chatparity.hide.title")}</DialogTitle>
+          </DialogHeader>
+          <DialogBody>
+            <p>{ct("chatparity.hide.body")}</p>
+          </DialogBody>
+          <DialogFooter>
+            <Button type="button" variant="secondary" onClick={() => setConfirmHide(false)}>
+              {ct("chatc.cancel")}
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => {
+                setConfirmHide(false);
+                if (parity && context.messageId) void parity.hide([context.messageId]);
+              }}
+            >
+              {ct("chatparity.hide.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

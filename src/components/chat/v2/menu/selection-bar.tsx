@@ -2,10 +2,12 @@
 
 import React from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { Copy, Forward, ListChecks, Trash2, X } from "lucide-react";
+import { Copy, EyeOff, Forward, ListChecks, Trash2, X } from "lucide-react";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { useOptionalToast } from "@/components/ui/toast";
 import { DeleteManyDialog, ForwardManyDialog, TaskFromSelectionDialog } from "@/components/chat/v2/menu/selection-dialogs";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { useChatMessages } from "@/lib/chat/cache/selectors";
 import { scheduleSync } from "@/lib/chat/cache/runtime";
@@ -14,6 +16,7 @@ import { copyTextOf, deletableOf, escapeLeavesSelection, forwardableOf, orderedS
 import { ct, ctCount } from "@/lib/chat/text";
 import { copyText } from "@/lib/chat/v2/menu/clipboard";
 import { isSavedHeader } from "@/lib/chat/v2/menu/menu-context";
+import { useParityActions } from "@/lib/chat/v2/phone/parity-actions";
 import { doors, type Door } from "@/lib/chat/v2/pane/message-actions";
 import { cn } from "@/lib/utils";
 
@@ -30,6 +33,7 @@ export function SelectionBar({
   onForward,
   onCopy,
   onDelete,
+  onHide,
   onTask,
   onClose,
 }: {
@@ -41,6 +45,8 @@ export function SelectionBar({
   onForward: () => void;
   onCopy: () => void;
   onDelete: () => void;
+  /** S5.7 «حذف عندي»: hide the picked messages for me only. Absent: the button is not drawn (a bar with no pane around it). */
+  onHide?: () => void;
   onTask: () => void;
   onClose: () => void;
 }) {
@@ -69,8 +75,45 @@ export function SelectionBar({
       {hideForward ? null : action("forward", ct("chatsel.bar.forward"), Forward, onForward)}
       {action("copy", ct("chatsel.bar.copy"), Copy, onCopy)}
       {action("delete", ct("chatsel.bar.delete"), Trash2, onDelete, true)}
+      {onHide ? (
+        <button
+          type="button"
+          data-selection-action="hide"
+          disabled={busy || count === 0}
+          aria-label={ct("chatparity.hide.bar")}
+          onClick={onHide}
+          className="inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-medium text-fg hover:bg-surface-2 disabled:pointer-events-none disabled:opacity-50 md:min-h-9"
+        >
+          <EyeOff aria-hidden="true" className="size-5 shrink-0" />
+          <span className="hidden sm:inline">{ct("chatparity.hide.bar")}</span>
+        </button>
+      ) : null}
       {action("task", ct("chatsel.bar.task"), ListChecks, onTask)}
     </div>
+  );
+}
+
+/** S5.7 «حذف عندي» for a selection: one question, one button — nothing is deleted for anybody else. */
+function HideManyDialog({ open, count, busy, onClose, onConfirm }: { open: boolean; count: number; busy: boolean; onClose: () => void; onConfirm: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={(next) => (next ? undefined : onClose())}>
+      <DialogContent aria-label={ct("chatparity.hide.title")}>
+        <DialogHeader>
+          <DialogTitle>{ct("chatparity.hide.title")}</DialogTitle>
+        </DialogHeader>
+        <DialogBody>
+          <p>{count > 1 ? ct("chatparity.hide.body_many", { n: count }) : ct("chatparity.hide.body")}</p>
+        </DialogBody>
+        <DialogFooter>
+          <Button type="button" variant="secondary" onClick={onClose} disabled={busy}>
+            {ct("chatc.cancel")}
+          </Button>
+          <Button type="button" variant="danger" onClick={onConfirm} disabled={busy}>
+            {ct("chatparity.hide.confirm")}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -101,7 +144,8 @@ export function SelectionBarHost({ header }: { header: ConversationHeaderDto }) 
   const commands = usePaneCommands();
   const selection = useSelection();
   const { messages } = useChatMessages(header.id);
-  const [dialog, setDialog] = React.useState<"forward" | "delete" | "task" | null>(null);
+  const parity = useParityActions();
+  const [dialog, setDialog] = React.useState<"forward" | "delete" | "hide" | "task" | null>(null);
   const [busy, setBusy] = React.useState(false);
   const picked = React.useMemo(() => orderedSelection(selection.ids, messages), [selection.ids, messages]);
   const makeTask = Boolean(header.me.canMakeWork) && header.me.canMakeTask !== false;
@@ -171,11 +215,27 @@ export function SelectionBarHost({ header }: { header: ConversationHeaderDto }) 
         onForward={() => setDialog("forward")}
         onCopy={() => void copy()}
         onDelete={() => setDialog("delete")}
+        {...(parity ? { onHide: () => setDialog("hide") } : {})}
         onTask={() => setDialog("task")}
         onClose={selectionStore.end}
       />
       <ForwardManyDialog open={dialog === "forward"} from={header.id} count={forwardableOf(picked).forward.length} skipped={forwardableOf(picked).skipped} busy={busy} onClose={() => setDialog(null)} onSend={(ids, hide) => void forward(ids, hide)} />
       <DeleteManyDialog open={dialog === "delete"} count={deletableOf(picked, header.me.canModerate).length} skipped={picked.length - deletableOf(picked, header.me.canModerate).length} busy={busy} onClose={() => setDialog(null)} onConfirm={() => void remove()} />
+      <HideManyDialog
+        open={dialog === "hide"}
+        count={picked.length}
+        busy={busy}
+        onClose={() => setDialog(null)}
+        onConfirm={() => {
+          const ids = picked.map((m) => m.id);
+          setBusy(true);
+          void (parity?.hide(ids) ?? Promise.resolve({ ok: 0, total: 0 })).then((r) => {
+            setBusy(false);
+            setDialog(null);
+            if (r.ok > 0) selectionStore.end();
+          });
+        }}
+      />
       <TaskFromSelectionDialog
         open={dialog === "task"}
         messages={picked}

@@ -2,6 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { ConversationSearch } from "@/components/chat/conversation/conversation-search";
 import { InfoJumpContext } from "@/components/chat/v2/info/info-jump";
@@ -16,7 +17,11 @@ import { VoiceMiniPlayer } from "@/components/chat/v2/pane/voice-mini-player";
 import { ComposerHost } from "@/components/chat/v2/pane/seams/composer-host";
 import { InfoHost } from "@/components/chat/v2/pane/seams/info-host";
 import { MenuHost } from "@/components/chat/v2/pane/seams/menu-host";
+import { useOptionalToast } from "@/components/ui/toast";
+import { chatKeys } from "@/lib/chat/cache/keys";
+import { isPendingMessage } from "@/lib/chat/cache/pending";
 import { isNotFound } from "@/lib/chat/cache/pages";
+import { hideMessage } from "@/lib/chat/cache/writer";
 import { useChatHeader, useChatRow } from "@/lib/chat/cache/selectors";
 import { useConversationHistory, type ConversationHistory } from "@/lib/chat/history/use-conversation-history";
 import { ct } from "@/lib/chat/text";
@@ -25,6 +30,8 @@ import { bubbleFactsOf, sameFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { usePeople } from "@/lib/chat/v2/pane/use-people";
 import { chatHref } from "@/lib/chat/v2/routes";
+import { ParityActionsContext, type ParityActions } from "@/lib/chat/v2/phone/parity-actions";
+import { replyQuoteStore } from "@/lib/chat/v2/phone/reply-quote";
 
 export interface ConversationPaneProps {
   conversationId: string;
@@ -111,6 +118,51 @@ function InfoJumpProvider({ children }: { children: React.ReactNode }) {
   return <InfoJumpContext.Provider value={jump}>{children}</InfoJumpContext.Provider>;
 }
 
+/**
+ * S5.7 — the pane's small extras beside its seam: «حذف عندي» (the doors, the cache write and the toast live here; the menu and the selection bar only call it) and the
+ * housekeeping of the quote of «رد بالاقتباس» (a quote belongs to the reply being written: once that reply is another one or none, the quote goes).
+ */
+function ParityProvider({ conversationId, children }: { conversationId: string; children: React.ReactNode }) {
+  const qc = useQueryClient();
+  const toast = useOptionalToast();
+  const live = React.useRef(toast);
+  live.current = toast;
+  const reply = usePaneActions().reply;
+  React.useEffect(() => {
+    replyQuoteStore.keepOnly(conversationId, reply?.id ?? null);
+  }, [conversationId, reply]);
+  const value = React.useMemo<ParityActions>(
+    () => ({
+      hide: async (messageIds) => {
+        const ids = [...new Set(messageIds)].filter((id) => !isPendingMessage({ id }));
+        if (ids.length === 0) return { ok: 0, total: 0 };
+        let done: string[] = [];
+        try {
+          if (ids.length === 1) {
+            const res = await fetch(`/api/chat/messages/${encodeURIComponent(ids[0]!)}/hide`, { method: "POST" });
+            if (res.ok) done = ids;
+          } else {
+            const res = await fetch("/api/chat/messages/delete", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ ids, forMe: true }) });
+            if (res.ok) done = ((await res.json()) as { results: { id: string; ok: boolean }[] }).results.filter((r) => r.ok).map((r) => r.id);
+          }
+        } catch {
+          /* nothing went: said below */
+        }
+        for (const id of done) hideMessage(qc, conversationId, id);
+        if (done.length) {
+          // the row's last line and numbers are the server's: ask again
+          void qc.invalidateQueries({ queryKey: chatKeys.list() });
+          void qc.invalidateQueries({ queryKey: chatKeys.spaces() });
+        }
+        live.current?.toast(ct(done.length ? (ids.length > 1 ? "chatparity.hide.done_many" : "chatparity.hide.done") : "chatparity.hide.failed"), done.length ? "success" : "error");
+        return { ok: done.length, total: ids.length };
+      },
+    }),
+    [qc, conversationId],
+  );
+  return <ParityActionsContext.Provider value={value}>{children}</ParityActionsContext.Provider>;
+}
+
 function PaneBody({ header, history, people, watch }: { header: ConversationHeaderDto; history: ConversationHistory; people: PaneMembers | null; watch: boolean }) {
   // only the commands: a reply or an edit being started must not draw the whole pane again
   const commands = usePaneCommands();
@@ -121,24 +173,26 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
   const facts = sameFacts(kept.current, next) ? kept.current : next;
   kept.current = facts;
   return (
-    <MenuHost header={header} members={people?.members ?? NO_MEMBERS}>
-      <section dir="rtl" lang="ar" data-chat-pane-root data-pane-state="ready" className="relative flex h-full min-h-0 flex-col bg-surface" aria-label={header.title}>
-        <MediaViewerProvider messages={history.messages} conversationId={header.id} onShowInChat={commands.jumpTo}>
-          <InfoJumpProvider>
-            <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
-            <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} />
-            <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
-            <CallBar conversationId={header.id} enabled={header.calls !== false} />
-            <SearchPanel conversationId={header.id} people={people} />
-            {header.me.oversight ? <p className="border-b border-border p-2 text-center text-sm">{ct("chatc.oversight_banner")}</p> : null}
-            {header.space?.hasExternal ? <p className="p-2 text-sm">{ct("chatc.external")}</p> : null}
-            <MessageViewport header={header} history={history} facts={facts} people={people} />
-            <ComposerHost header={header} people={people} onSent={() => !history.atNewest && void history.backToNewest()} />
-            <InfoHost header={header} />
-          </InfoJumpProvider>
-        </MediaViewerProvider>
-      </section>
-    </MenuHost>
+    <ParityProvider conversationId={header.id}>
+      <MenuHost header={header} members={people?.members ?? NO_MEMBERS}>
+        <section dir="rtl" lang="ar" data-chat-pane-root data-pane-state="ready" className="relative flex h-full min-h-0 flex-col bg-surface" aria-label={header.title}>
+          <MediaViewerProvider messages={history.messages} conversationId={header.id} onShowInChat={commands.jumpTo}>
+            <InfoJumpProvider>
+              <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
+              <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} />
+              <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
+              <CallBar conversationId={header.id} enabled={header.calls !== false} />
+              <SearchPanel conversationId={header.id} people={people} />
+              {header.me.oversight ? <p className="border-b border-border p-2 text-center text-sm">{ct("chatc.oversight_banner")}</p> : null}
+              {header.space?.hasExternal ? <p className="p-2 text-sm">{ct("chatc.external")}</p> : null}
+              <MessageViewport header={header} history={history} facts={facts} people={people} />
+              <ComposerHost header={header} people={people} onSent={() => !history.atNewest && void history.backToNewest()} />
+              <InfoHost header={header} />
+            </InfoJumpProvider>
+          </MediaViewerProvider>
+        </section>
+      </MenuHost>
+    </ParityProvider>
   );
 }
 

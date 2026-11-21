@@ -2,6 +2,7 @@ import { db } from "@/server/db";
 import type { OrgAccessContext } from "@/server/auth";
 import { hqSpaceId } from "@/server/chat/hq";
 import { archivedByMeSql } from "@/server/chat/read-state";
+import { notHiddenSql } from "@/server/chat/hidden-messages";
 
 /**
  * The number on «الدردشة» in the menus: messages waiting for me, in ONE query.
@@ -32,6 +33,7 @@ export async function unreadTotal(ctx: OrgAccessContext, spaceId: string | null 
       AND m."authorId" <> ${ctx.userId}
       AND m."deletedAt" IS NULL
       AND m.kind <> 'SYSTEM'
+      AND ${notHiddenSql(ctx.userId)}
       AND c."archivedAt" IS NULL
       AND NOT ${archivedByMeSql(ctx.orgId)}
       AND (${isGuest} = false OR c.kind = 'TOPIC')
@@ -72,6 +74,7 @@ export async function unreadBySpace(ctx: OrgAccessContext): Promise<Record<strin
       AND m."authorId" <> ${ctx.userId}
       AND m."deletedAt" IS NULL
       AND m.kind <> 'SYSTEM'
+      AND ${notHiddenSql(ctx.userId)}
       AND c."archivedAt" IS NULL
       AND NOT ${archivedByMeSql(ctx.orgId)}
       AND (${isGuest} = false OR c.kind = 'TOPIC')

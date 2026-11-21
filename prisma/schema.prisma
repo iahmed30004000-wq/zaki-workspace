@@ -83,6 +83,8 @@ model User {
   chatDeletions   ChatMessage[]        @relation("ChatDeleter")
   scheduledChat   ScheduledChatMessage[] @relation("ScheduledChatAuthor")
   chatReactions   ChatReaction[]
+  // S5.7 «حذف عندي»: the messages this person hid for themselves only
+  hiddenMessages  ChatMessageHidden[]
   pollVotes       PollVote[]
   chatOrders      UserChatOrder[]
   messageRevisions MessageRevision[]   @relation("RevisionEditor")
@@ -566,6 +568,8 @@ model ChatMessage {
   previewId       String?
   // «ابعت بدون صوت» (C3c.2): the sender chose silence. The message is an ordinary one for reading, unread counts and the badge; it makes NO bell, push or arrival sound (notify.ts, arrival-sound.ts).
   silent          Boolean   @default(false)
+  // «رد بالاقتباس» (S5.7): the part of the replied-to message the sender picked (at most 280 characters, only ever stored with replyToId, and only a piece the parent really holds). NULL: an ordinary reply.
+  replyQuote      String?
   createdAt       DateTime  @default(now())
 
   organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -578,6 +582,8 @@ model ChatMessage {
   forwardedFrom ChatMessage?        @relation("ChatForwards", fields: [forwardedFromId], references: [id], onDelete: SetNull)
   forwards      ChatMessage[]       @relation("ChatForwards")
   reactions     ChatReaction[]
+  // «حذف عندي» (S5.7): the people who hid this message for themselves (it is still here for everybody else)
+  hiddenFor     ChatMessageHidden[]
   // «استطلاع»: the poll a POLL message carries (its question is the message body)
   poll          Poll?
   revisions     MessageRevision[]
@@ -678,6 +684,21 @@ model ChatReaction {
 
   @@unique([messageId, userId, emoji])
   @@index([messageId])
+}
+
+// «حذف عندي» (S5.7): one row = one person hid one message FOR THEMSELVES. It never changes the message for anybody else, never touches the owner's archive,
+// and every read path of that person (page, sync, search, media, the list's last line and unread counts) leaves the message out.
+model ChatMessageHidden {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  createdAt DateTime @default(now())
+
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId])
+  @@index([userId])
 }
 
 // «استطلاع»: a poll inside a topic. The message (kind POLL) carries the question in its body; the poll,
