@@ -78,7 +78,8 @@ export function MyTasksView({
   }
 
   const stale = query.isPlaceholderData;
-  const showSpace = data.spaces.length > 1 && (data.params.scope !== "space");
+  // the space's name sits on a row only when the list crosses spaces (all my spaces / «الشركة»): inside one space the title already says which
+  const showSpace = data.spaces.length > 1 && data.space.id === null;
   const rowActions = {
     onOpen: (id: string) => go({ taskId: id }),
     onToggle: (id: string, done: boolean) => actions.complete.mutate({ id, done }),
@@ -88,7 +89,7 @@ export function MyTasksView({
 
   return (
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
-      <Header count={data.tasks.length} />
+      <Header count={data.tasks.length} spaceName={data.space.name} />
       <div className="mx-auto w-full max-w-6xl px-4 md:px-5">
         <Toolbar params={params} data={data} onChange={go} staleHref={staleHref} />
         {data.canAdd ? <QuickAdd onAdd={(title) => actions.add.mutateAsync(title)} pending={actions.add.isPending} /> : null}
@@ -152,13 +153,15 @@ export function MyTasksView({
 
 }
 
-function Header({ count }: { count?: number }) {
+function Header({ count, spaceName = null }: { count?: number; spaceName?: string | null }) {
   const { t } = useI18n();
+  // each space is its own account: the line says WHICH space these tasks are of (or that they are of all of them)
+  const line = spaceName ? t("mytasks.subtitle.space", { name: spaceName }) : t("mytasks.subtitle");
   return (
     <header className="mx-auto flex w-full max-w-6xl items-center gap-3 px-4 pb-1 pt-4 md:px-5">
       <div className="min-w-0 flex-1">
         <h1 className="text-[19px] font-bold leading-tight text-fg">{t("mywork.title")}</h1>
-        <p className="text-[13px] text-fg-muted">{count === undefined ? t("mytasks.subtitle") : `${t("mytasks.subtitle")} · ${t("mytasks.count", { n: fmtNumber(count) })}`}</p>
+        <p className="text-[13px] text-fg-muted">{count === undefined ? line : `${line} · ${t("mytasks.count", { n: fmtNumber(count) })}`}</p>
       </div>
     </header>
   );

@@ -20,6 +20,9 @@ export type MyTaskScope = (typeof MY_TASK_SCOPES)[number];
 export const MY_TASK_CHIPS = ["today", "overdue", "week", "nodate", "done", "created"] as const;
 export type MyTaskChip = (typeof MY_TASK_CHIPS)[number];
 
+/** `?space=all`: «كل مساحاتي», never the default (the default is the space the person is in). */
+export const ALL_SPACES = "all";
+
 export const MY_TASK_SORTS = ["due", "priority", "updated", "title"] as const;
 export type MyTaskSort = (typeof MY_TASK_SORTS)[number];
 
@@ -42,7 +45,10 @@ export interface MyTasksParams {
   chip: MyTaskChip | null;
   sort: MyTaskSort;
   group: MyTaskGroup;
-  /** Scope «أنا»: narrow to one of my spaces (the space chip row). */
+  /**
+   * Scope «أنا»: which of my spaces. `null` = the DEFAULT: the space I am in (each space is its own account, owner's decision of 2026-11-21), and inside
+   * «الشركة» all of them; `ALL_SPACES` = «كل مساحاتي», an explicit choice; any other value = that space.
+   */
   spaceId: string | null;
   /** Scope «مشروع»: the picked project. */
   projectId: string | null;
@@ -209,7 +215,9 @@ export interface WorkTasksResult {
   spaces: WorkSpaceOption[];
   projects: WorkProjectOption[];
   /** The space the person is in, and whether it is «الشركة» (no projects there, D-N3). */
-  current: { id: string | null; hq: boolean };
+  current: { id: string | null; hq: boolean; name?: string | null };
+  /** The space the list is cut for: its id and name; `id: null` = all of the person's spaces («كل مساحاتي», or the default inside «الشركة»). */
+  space: { id: string | null; name: string | null };
   /** «المساحة» was asked for and not possible here (the person is in «الشركة»): the screen shows «أنا» and says why. */
   scopeFellBack: boolean;
   timeZone: string;
@@ -230,6 +238,18 @@ export interface WorkTaskDetail {
   createdAt: string;
   commentCount: number;
 }
+
+/**
+ * What the side panel is given for a task that lives in ANOTHER space than the one the person is in: only where it lives (never its title or anything
+ * else), so the panel can say «هاد من مساحة «X»» and offer «انتقل لها» instead of opening it silently.
+ */
+export interface WorkTaskForeign {
+  foreign: { taskId: string; spaceId: string; spaceName: string };
+}
+
+export type WorkTaskPanel = WorkTaskDetail | WorkTaskForeign;
+
+export const isForeignTask = (panel: WorkTaskPanel): panel is WorkTaskForeign => "foreign" in panel;
 
 export const MY_TASKS_LIMIT = 300;
 

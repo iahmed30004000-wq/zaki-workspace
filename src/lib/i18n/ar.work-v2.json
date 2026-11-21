@@ -94,6 +94,7 @@
   "work.stage.saved": "انحفظت المرحلة",
   "column.stage_manager_only": "اختيار مرحلة العمود لمدير المساحة فقط",
   "mytasks.subtitle": "مهامك من كل مساحاتك بمكان واحد",
+  "mytasks.subtitle.space": "مهامك في مساحة «{name}»",
   "mytasks.view.label": "طريقة العرض",
   "mytasks.view.list": "قائمة",
   "mytasks.view.board": "لوحة",

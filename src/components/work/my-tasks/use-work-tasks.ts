@@ -18,7 +18,7 @@ import {
   withStage,
   workTasksKey,
   type MyTasksParams,
-  type WorkTaskDetail,
+  type WorkTaskPanel,
   type WorkTaskDto,
   type WorkTasksResult,
 } from "@/lib/work/my-tasks";
@@ -47,7 +47,7 @@ export function useWorkTasks(params: MyTasksParams, first: { data: WorkTasksResu
 export function useWorkTask(id: string | null) {
   return useQuery({
     queryKey: workTaskKey(id ?? ""),
-    queryFn: () => apiGet<WorkTaskDetail>(`/api/work/tasks/${id}`),
+    queryFn: () => apiGet<WorkTaskPanel>(`/api/work/tasks/${id}`),
     enabled: id !== null,
     staleTime: 10_000,
     retry: false,

@@ -462,7 +462,7 @@ Doors in use: `requireActor` 174 · `activeOrgCtx` 104 · `(none)` 40 · `requir
 | GET | `/api/work/requests` | requireActor | `features`: assertFeatureOn<br>`work-requests`: workRequestsOf |
 | GET, POST | `/api/work/stale` | requireActor | `features`: assertFeatureOn<br>`stale-tasks`: staleListFor, sweepStale |
 | GET, POST | `/api/work/tasks` | requireActor | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn, isFeatureOn<br>`instant-work`: createInboxTask, createInstantTask, inboxSpaceFor<br>`my-work`: workScreenFor<br>`org-day`: orgTimeZone |
-| GET | `/api/work/tasks/[id]` | requireActor | `features`: assertFeatureOn<br>`my-work`: getWorkTaskDetail |
+| GET | `/api/work/tasks/[id]` | requireActor | `features`: assertFeatureOn<br>`current-space`: currentSpace<br>`my-work`: workTaskPanelFor |
 | POST | `/api/work/tasks/[id]/stage` | requireTeamWork | `features`: assertFeatureOn<br>`tasks`: moveTask<br>`n8n`: dispatchEvent |
 | GET, POST | `/api/workspaces` | requireUser | `workspaces`: createWorkspace<br>`features`: assertFeatureOn<br>`access`: accessibleWorkspaceIds<br>`current-space`: currentSpace<br>`nav-order`: foreignSpaceOf, overdueBySpace<br>`features`: orgSummaryOf<br>`work-requests`: waitingRequestCount |
 | GET, PATCH, DELETE | `/api/workspaces/[id]` | requireWorkspace ‡ | `workspaces`: SpaceConflictError, deleteEmptyWorkspace, readWorkspace |
@@ -502,7 +502,7 @@ high count is a wide surface: changing its signature reaches all of them.
 |---|---|---|---|
 | `features` | 87 | 165 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 120 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `current-space` | 155 | 69 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
+| `current-space` | 155 | 70 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 273 | 47 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 34 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
@@ -560,7 +560,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `api-tokens` | 204 | 5 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
 | `must-read` | 232 | 5 | «لازم ينقرأ» (Q1.6): an instruction post that people must acknowledge. |
-| `my-work` | 511 | 5 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
+| `my-work` | 544 | 5 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
 | `owner-assistant-chat` | 306 | 5 | «مساعد المالك» — THE CONVERSATION. |
 | `owner-board-sections` | 85 | 5 | «لوحة المالك» — THE EXTENSION POINT. |
 | `reminders` | 169 | 5 | «ذكّرني» — a person's reminder for THEMSELVES (never for somebody else), on a task, on a chat message, or on its own. |
