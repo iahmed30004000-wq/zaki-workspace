@@ -166,7 +166,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
 
   // C3a.1: «الأرشيف» is offered only while the switch is on AND the person has a chat they archived (the server sends none as archived while it is off)
   const archived = list.personal && list.archivedRows.length > 0;
-  const folders = useMemo(() => tabsOf({ canOversee: list.canOversee, guest, archived, folders: prefs.folders, hidden: prefs.hidden }), [list.canOversee, guest, archived, prefs.folders, prefs.hidden]);
+  const folders = useMemo(() => tabsOf({ canOversee: list.canOversee, guest, archived, folders: prefs.folders, hidden: prefs.hidden, oneSpace: list.scope === "space" }), [list.canOversee, guest, archived, prefs.folders, prefs.hidden, list.scope]);
   const folder = tabKeyOf(folderKey, folders);
   // one of the person's own folders (its definition), or none: the tabs are the built-in ones plus theirs, and `folder` is the key of one of them
   const custom = useMemo(() => prefs.folders.find((f) => customTabKey(f.id) === folder) ?? null, [prefs.folders, folder]);

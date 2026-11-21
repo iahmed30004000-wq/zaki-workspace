@@ -61,3 +61,22 @@ describe("the phone is brief and in order", () => {
     expect(page.match(/min-w-\[14rem\] flex-1/g)).toHaveLength(3);
   });
 });
+
+describe("batch 0: the small things", () => {
+  it("the assignee chip shortens a name at the whitespace (a real \s, not the letter s)", () => {
+    const form = read("src/components/today/quick-add.tsx");
+    const backslash = String.fromCharCode(92);
+    expect(form).toContain(`.split(/${backslash}s+/)[0]`);
+    expect(form).not.toContain(".split(/s+/)");
+  });
+
+  it("the chat tab that holds a space's topics is called «المواضيع» when the list is of ONE space, «المساحات» otherwise", async () => {
+    const { tabsOf } = await import("@/lib/chat/folders");
+    const label = (tabs: ReturnType<typeof tabsOf>) => tabs.find((t) => t.key === "spaces")?.labelKey;
+    expect(label(tabsOf({ canOversee: false, oneSpace: true }))).toBe("chatui.folder.topics");
+    expect(label(tabsOf({ canOversee: false }))).toBe("chatui.folder.spaces");
+    // the shared list of tabs is never changed by the first call
+    expect(label(tabsOf({ canOversee: false }))).toBe("chatui.folder.spaces");
+    expect(AR["chatui.folder.topics"]).toBe("المواضيع");
+  });
+});

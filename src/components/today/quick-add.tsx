@@ -344,7 +344,7 @@ export function QuickAddForm({
                 <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-semibold text-accent">
                   {Array.from(person.name.trim())[0] ?? ""}
                 </span>
-                <bdi className="max-w-28 truncate">{person.id === quickAdd.assigneeId ? person.name : person.name.trim().split(/s+/)[0]}</bdi>
+                <bdi className="max-w-28 truncate">{person.id === quickAdd.assigneeId ? person.name : person.name.trim().split(/\s+/)[0]}</bdi>
               </label>
             ))}
           </div>
