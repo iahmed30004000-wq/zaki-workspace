@@ -125,7 +125,7 @@ describe("the moderators' buttons (the topics door; the server decides again)", 
 });
 
 describe("what is NOT drawn", () => {
-  it("the panel's own model has no tabs (they are their own module, `info-tabs.ts`, and draw only what has data) and no placeholder", () => {
+  it("the panel's own model has no tabs (they are their own module, `info-tabs.ts`; the four content tabs are always drawn there, S5.4)", () => {
     const m = infoModelOf(makeHeader(), none) as unknown as Record<string, unknown>;
     expect(Object.keys(m)).not.toContain("tabs");
   });
@@ -134,37 +134,39 @@ describe("what is NOT drawn", () => {
 // ───────────────────────────── C3d ─────────────────────────────
 const noCounts = { IMAGE: 0, VIDEO: 0, FILE: 0, AUDIO: 0, LINK: 0 };
 
+// S5.4 (changed deliberately): the four content tabs are ALWAYS there, each with an empty sentence of its own, and «الأعضاء» is there for a topic or a group; «الشغل»
+// and «المثبّتة» still draw only with data. The new rules are pinned in tests/chat-info-profile.test.ts; these are the old ones, restated for the new behaviour.
 describe("C3d — which tabs exist", () => {
-  it("none from a guess: nothing known is no tab", () => {
-    expect(tabsOf({ counts: null, work: null, pinned: 0 })).toEqual([]);
-    expect(tabsOf({ counts: noCounts, work: { tasks: 0, tickets: 0 }, pinned: 0 })).toEqual([]);
+  it("nothing known: the four content tabs are still there (S5.4), the old «الشغل» and «المثبّتة» are not (no data), no members tab for a private chat", () => {
+    expect(tabsOf({ counts: null, work: null, pinned: 0, members: null }).map((t) => t.id)).toEqual(["media", "files", "links", "voice"]);
+    expect(tabsOf({ counts: noCounts, work: { tasks: 0, tickets: 0 }, pinned: 0, members: null }).map((t) => t.id)).toEqual(["media", "files", "links", "voice"]);
   });
 
-  it("the plan's order, only the ones with data; «الوسائط» counts the pictures and the videos together, «الشغل» the tasks and the tickets", () => {
-    const tabs = tabsOf({ counts: { ...noCounts, IMAGE: 2, VIDEO: 1, AUDIO: 3 }, work: { tasks: 1, tickets: 2 }, pinned: 4 });
-    expect(tabs.map((t) => [t.id, t.count])).toEqual([["media", 3], ["voice", 3], ["work", 3], ["pinned", 4]]);
-    expect(tabs.map((t) => t.labelKey)).toEqual(["chatinfo.tab.media", "chatinfo.tab.voice", "chatinfo.tab.work", "chatinfo.tab.pinned"]);
-    expect(INFO_TAB_ORDER).toEqual(["media", "files", "links", "voice", "work", "pinned"]);
+  it("the plan's order; «الوسائط» counts the pictures and the videos together, «الشغل» the tasks and the tickets", () => {
+    const tabs = tabsOf({ counts: { ...noCounts, IMAGE: 2, VIDEO: 1, AUDIO: 3 }, work: { tasks: 1, tickets: 2 }, pinned: 4, members: null });
+    expect(tabs.map((t) => [t.id, t.count])).toEqual([["media", 3], ["files", 0], ["links", 0], ["voice", 3], ["work", 3], ["pinned", 4]]);
+    expect(tabs.map((t) => t.labelKey)).toEqual(["chatinfo.tab.media", "chatinfo.tab.files", "chatinfo.tab.links", "chatinfo.tab.voice", "chatinfo.tab.work", "chatinfo.tab.pinned"]);
+    expect(INFO_TAB_ORDER).toEqual(["media", "files", "links", "voice", "members", "work", "pinned"]);
     for (const id of INFO_TAB_ORDER) expect(AR[tabLabelKey(id)], id).toBeTruthy();
   });
 
-  it("the tab shown is the chosen one while it has data, otherwise the first", () => {
-    const tabs = tabsOf({ counts: { ...noCounts, FILE: 1, LINK: 1 }, work: null, pinned: 0 });
+  it("the tab shown is the chosen one, otherwise the first content tab with data", () => {
+    const tabs = tabsOf({ counts: { ...noCounts, FILE: 1, LINK: 1 }, work: null, pinned: 0, members: null });
     expect(activeTabOf(tabs, null)).toBe("files");
     expect(activeTabOf(tabs, "links")).toBe("links");
-    // the chosen tab lost its data: back to the first
-    expect(activeTabOf(tabs, "voice")).toBe("files");
+    // a tab that is no longer in the list: back to the first with data
+    expect(activeTabOf(tabs, "work")).toBe("files");
     expect(activeTabOf([], "files")).toBeNull();
   });
 
   it("the arrow keys move between tabs the way a right-to-left row reads: the right arrow is the PREVIOUS tab, the left arrow the NEXT; the ends stop", () => {
-    const tabs = tabsOf({ counts: { ...noCounts, IMAGE: 1, FILE: 1, LINK: 1 }, work: null, pinned: 0 });
+    const tabs = tabsOf({ counts: { ...noCounts, IMAGE: 1, FILE: 1, LINK: 1 }, work: null, pinned: 0, members: null });
     expect(tabAfterKey(tabs, "media", "ArrowLeft")).toBe("files");
     expect(tabAfterKey(tabs, "files", "ArrowRight")).toBe("media");
     expect(tabAfterKey(tabs, "media", "ArrowRight")).toBe("media");
-    expect(tabAfterKey(tabs, "links", "ArrowLeft")).toBe("links");
+    expect(tabAfterKey(tabs, "voice", "ArrowLeft")).toBe("voice");
     expect(tabAfterKey(tabs, "files", "Home")).toBe("media");
-    expect(tabAfterKey(tabs, "files", "End")).toBe("links");
+    expect(tabAfterKey(tabs, "files", "End")).toBe("voice");
     expect(tabAfterKey(tabs, "files", "Enter")).toBeNull();
     expect(tabAfterKey([], null, "ArrowLeft")).toBeNull();
   });

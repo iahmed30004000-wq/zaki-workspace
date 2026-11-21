@@ -67,10 +67,11 @@ describe("a private chat", () => {
     expect(draw(dmHeader({ me: { canCall: false } }))).not.toContain(AR["calls.menu_label"]!);
   });
 
-  it("has NO «🔔 الإشعارات» (no per-person mute door), NO audience block and NO moderator button", () => {
+  // S5.4 (changed deliberately): the panel now HAS a mute row (the chat list's own presets, tests/chat-info-profile.test.ts); the old bell emoji and «🔔 الإشعارات» button are still not drawn
+  it("has NO «🔔 الإشعارات» button (the mute is its own row of presets), NO audience block and NO moderator button", () => {
     const html = draw(dmHeader({ me: { canModerate: true } }), { people: { members: people(["أحمد", "سلمى"]) } });
     expect(html).not.toContain("🔔");
-    expect(html).not.toContain("الإشعارات");
+    expect(html).not.toContain("data-info-names");
     expect(html).not.toContain("data-info-audience");
     expect(html).not.toContain("data-info-moderator");
   });
@@ -152,11 +153,13 @@ describe("a topic", () => {
 });
 
 describe("what is not drawn", () => {
-  it("with nothing known, none of the six tabs of C3d (they draw only what has data: see below), and no empty placeholder for them", () => {
+  // S5.4 (changed deliberately): the four content tabs are ALWAYS drawn (with an empty sentence each); only the old «الشغل» and «المثبّتة» wait for data
+  it("with nothing known, the four content tabs and the members are there (S5.4), «الشغل» and «المثبّتة» are not (they draw only with data)", () => {
     const html = draw(makeHeader({ me: { canModerate: true } }));
-    for (const word of ["الوسائط", "الملفات", "الروابط", "الصوتيات", "الشغل", "المثبّتة"]) expect(html).not.toContain(word);
-    expect(html).not.toContain('role="tablist"');
-    expect(html).not.toContain("data-info-tabs");
+    for (const word of ["الوسائط", "الملفات", "الروابط", "الصوتيات"]) expect(html).toContain(word);
+    for (const word of ["الشغل", "المثبّتة"]) expect(html).not.toContain(word);
+    expect(html).toContain('role="tablist"');
+    expect(html).toContain("data-info-tabs");
   });
 });
 
@@ -219,11 +222,14 @@ describe("where the panel is drawn (read from the source: there is no browser he
     expect(data).toContain("/teams");
   });
 
-  it("no per-person mute is drawn: no «اكتم الإشعارات», no bell", () => {
+  // S5.4 (changed deliberately): the panel HAS a mute row now, in its own file (`info-mute.tsx`, pinned in tests/chat-info-profile.test.ts) through the existing presets.
+  // What stays true: the old bell button and the old «اكتم الإشعارات» wording (the header menu's item that never had a door) are not drawn in these files.
+  it("the old bell button and «اكتم الإشعارات» are not drawn; the mute is the row's own file", () => {
     const code = (src: string) => src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
-    for (const file of ["src/components/chat/v2/info/info-panel.tsx", "src/components/chat/v2/pane/seams/info-host.tsx", "src/lib/chat/v2/info/info-model.ts"]) {
+    for (const file of ["src/components/chat/v2/info/info-panel.tsx", "src/components/chat/v2/pane/seams/info-host.tsx"]) {
       expect(code(read(file)), file).not.toMatch(/🔔|اكتم الإشعارات|["'`]mute["'`]|menu\.mute/);
     }
+    expect(read("src/components/chat/v2/info/info-panel.tsx")).toContain("<MuteRow");
   });
 });
 
@@ -258,25 +264,27 @@ function seeded(parts: { counts?: MediaCountsDto["counts"]; work?: ConversationW
 const tabWords = ["الوسائط", "الملفات", "الروابط", "الصوتيات", "الشغل", "المثبّتة"] as const;
 const tabIds = (html: string) => [...html.matchAll(/data-info-tab="([a-z]+)"/g)].map((m) => m[1]);
 
-describe("C3d — the tabs draw only what has data", () => {
-  it("nothing known, nothing drawn: no tab list, no placeholder (the cache holds no counts yet)", () => {
+// S5.4 (changed deliberately): the old rule «a tab with no data is not drawn» now holds only for «الشغل» and «المثبّتة»; the four content tabs (and the members of a
+// topic) are always drawn with an empty sentence. The new rules: tests/chat-info-profile.test.ts.
+describe("C3d — the tabs: always the content ones, the old «الشغل» and «المثبّتة» only with data", () => {
+  it("nothing known yet: the content tabs are drawn (and the members of a topic) but none of the other two", () => {
     const html = draw(makeHeader());
-    expect(html).not.toContain("data-info-tabs");
-    for (const word of tabWords) expect(html).not.toContain(word);
+    expect(tabIds(html)).toEqual(["media", "files", "links", "voice", "members"]);
+    for (const word of ["الشغل", "المثبّتة"]) expect(html).not.toContain(word);
   });
 
-  it("counts of zero and an empty work list draw nothing either", () => {
+  it("counts of zero and an empty work list: the content tabs say they are empty, nothing else is drawn", () => {
     const html = draw(makeHeader(), { client: seeded({ counts: counts(), work: { tasks: [], tickets: [] } }) });
-    expect(html).not.toContain("data-info-tabs");
+    expect(tabIds(html)).toEqual(["media", "files", "links", "voice", "members"]);
+    expect(html).toContain('data-info-empty="media"');
   });
 
-  it("only the tabs that have data: pictures and videos count together in «الوسائط»; the rest follow in the plan's order", () => {
+  it("pictures and videos count together in «الوسائط»; the work and the pinned join with data, in the plan's order", () => {
     const header = makeHeader({ pinnedMessages: [{ id: "p1", authorName: "ليلى", preview: "اجتماع الخميس" }] });
     const work: ConversationWorkDto = { tasks: [{ id: "t1", key: "ZK-12", title: "جهّزي العرض", done: false, assigneeName: "ليلى", messageId: "m1" }], tickets: [] };
     const html = draw(header, { client: seeded({ counts: counts({ IMAGE: 2, VIDEO: 1, AUDIO: 4 }), work, pages: { media: page([media({ id: "a" })]) } }) });
-    expect(tabIds(html)).toEqual(["media", "voice", "work", "pinned"]);
+    expect(tabIds(html)).toEqual(["media", "files", "links", "voice", "members", "work", "pinned"]);
     for (const word of ["الوسائط", "الصوتيات", "الشغل", "المثبّتة"]) expect(html).toContain(word);
-    for (const word of ["الملفات", "الروابط"]) expect(html).not.toContain(word);
     // the number beside «الوسائط» is 2 + 1
     expect(html).toMatch(/data-info-tab="media"[^>]*>.*?<span class="flex-1">الوسائط<\/span><span aria-hidden="true" class="[^"]*">3<\/span>/);
   });
@@ -286,6 +294,7 @@ describe("C3d — the tabs draw only what has data", () => {
     expect(html).toContain('role="tablist"');
     expect(html).toMatch(/role="tab"[^>]*id="info-tab-files"[^>]*aria-selected="true"/);
     expect(html).toMatch(/role="tab"[^>]*id="info-tab-pinned"[^>]*aria-selected="false"[^>]*tabindex="-1"/);
+    expect(html).toMatch(/role="tab"[^>]*id="info-tab-media"[^>]*aria-selected="false"[^>]*tabindex="-1"/);
     expect(html).toContain('role="tabpanel" id="info-panel-files" aria-labelledby="info-tab-files"');
   });
 
@@ -298,6 +307,8 @@ describe("C3d — the tabs draw only what has data", () => {
     expect(html).not.toContain("elsewhere.example");
     expect(html).toContain(AR["chatinfo.media.video"]!.replace("{name}", "فيديو.mp4"));
     expect(html).toContain('src="/api/chat/attachments/a"');
+    // S5.4: the video tile is a frame of the video, not only an icon (pinned in tests/chat-info-profile.test.ts)
+    expect(html).toContain("data-info-video-frame");
   });
 
   it("«الملفات»: the name, the size and the author, a download link on our own address, and «اعرض بالمحادثة»", () => {
@@ -316,12 +327,12 @@ describe("C3d — the tabs draw only what has data", () => {
   });
 
   it("«الروابط»: the title and the site, opened in a new tab with no referrer; a link that is not http(s) is shown but never made a link", () => {
-    const link = (id: string, url: string): LinkItemDto => ({ id, messageId: id, at: "2026-11-02T09:00:00.000Z", authorName: "سلمى", url, title: `عنوان ${id}`, description: null, siteName: "example.com", image: null });
+    const link = (id: string, url: string): LinkItemDto => ({ id, messageId: id, at: "2026-11-02T09:00:00.000Z", authorName: "سلمى", url, host: "example.com", title: `عنوان ${id}`, description: null, siteName: "example.com", image: null });
     const html = draw(makeHeader(), { client: seeded({ counts: counts({ LINK: 2 }), pages: { links: page([], [link("l1", "https://example.com/a"), link("l2", "javascript:alert(1)")]) } }) });
     expect(html).toContain('href="https://example.com/a"');
     expect(html).toContain('rel="noopener noreferrer nofollow"');
     expect(html).toContain("عنوان l2");
-    expect(html).not.toContain("javascript:alert");
+    expect(html).not.toContain('href="javascript:');
   });
 
   it("«الشغل»: tasks (a done one marked) and tickets (with their state), each with «اعرض بالمحادثة»", () => {
@@ -333,7 +344,7 @@ describe("C3d — the tabs draw only what has data", () => {
       tickets: [{ id: "k1", key: "ZK-T4", title: "الطلب متأخر", status: "IN_PROGRESS", assigneeName: "سامر", messageId: "m3" }],
     };
     const html = draw(makeHeader(), { client: seeded({ work }) });
-    expect(tabIds(html)).toEqual(["work"]);
+    expect(tabIds(html)).toEqual(["media", "files", "links", "voice", "members", "work"]);
     expect(html).toContain('href="/tasks/t1"');
     expect(html).toContain("ZK-12");
     expect(html).toContain(AR["chatinfo.work.done"]!);
@@ -345,7 +356,7 @@ describe("C3d — the tabs draw only what has data", () => {
 
   it("«المثبّتة»: the header's pinned messages, nothing asked of the server for them", () => {
     const html = draw(makeHeader({ pinnedMessages: [{ id: "p1", authorName: "ليلى", preview: "اجتماع الخميس" }, { id: "p2", authorName: "سامر", preview: null }] }));
-    expect(tabIds(html)).toEqual(["pinned"]);
+    expect(tabIds(html)).toEqual(["media", "files", "links", "voice", "members", "pinned"]);
     expect(html).toContain('data-info-pinned="p1"');
     expect(html).toContain("اجتماع الخميس");
     expect(html).toContain(AR["chatinfo.pinned.empty_preview"]!);
@@ -479,7 +490,7 @@ describe("C3d — where it is wired (read from the source: there is no browser h
 
   it("the panel mounts the tabs and still imports nothing of the pane's provider", () => {
     const panel = read("src/components/chat/v2/info/info-panel.tsx");
-    expect(panel).toContain("<InfoTabs header={header} />");
+    expect(panel).toContain("<InfoTabs header={header} people={people} />");
     for (const file of ["info-panel.tsx", "info-tabs.tsx", "info-jump.tsx", "list-search-results.tsx"]) {
       expect(read(`src/components/chat/v2/info/${file}`), file).not.toContain("pane-actions");
     }

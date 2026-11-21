@@ -1,0 +1,12 @@
+{
+  "chatprof.header.open": "افتح معلومات «{name}»",
+  "chatprof.tab.members": "الأعضاء",
+  "chatprof.empty.media": "ما في صور أو فيديوهات بهالمحادثة لسا",
+  "chatprof.empty.files": "ما في ملفات بهالمحادثة لسا",
+  "chatprof.empty.links": "ما في روابط بهالمحادثة لسا",
+  "chatprof.empty.voice": "ما في تسجيلات صوتية بهالمحادثة لسا",
+  "chatprof.empty.members": "ما في أسماء لعرضها هون",
+  "chatprof.members.online": "متصل هلأ",
+  "chatprof.mute.label": "كتم الإشعارات",
+  "chatprof.mute.muted": "الإشعارات مكتومة"
+}
