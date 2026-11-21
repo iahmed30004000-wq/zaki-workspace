@@ -5,7 +5,6 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
-import { MeetingButton } from "@/components/calls/meeting-button";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
 import { ForumView } from "@/components/chat/v2/forum/forum-view";
@@ -233,11 +232,6 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true) })} />
       )}
       {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} /> : null}
-      {canMeet && tall ? (
-        <div className="shrink-0 border-b border-border/60 px-3 py-2">
-          <MeetingButton />
-        </div>
-      ) : null}
       {/* C3a.3: «المحفوظة» before it exists: one pinned entry on top of the list (the folder «الكل», no search) */}
       {savedOn && !hasSaved && !company && !words && folder === "all" && !list.isPending ? <SavedEntry tall={tall} /> : null}
       {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}
@@ -255,7 +249,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
       )}
 
-      {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} /> : null}
+      {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} canMeet={canMeet} /> : null}
       {!guest ? <NewDmDialog open={newDm} onOpenChange={setNewDm} /> : null}
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
       </div>
