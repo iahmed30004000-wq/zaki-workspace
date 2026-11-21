@@ -423,6 +423,8 @@ describe("the minutes", () => {
       { personId: w.member.id, text: "رقم الزبون 0791234567 وعنوانه شارع الجامعة عمارة 5" },
       { personId: w.admin.id, text: "تمام، نأجل الإطلاق أسبوع وأنا بجهز تقرير الميزانية" },
     ]);
+    // earlier tests may have left their own calls waiting: this test looks at exactly its own call
+    await db.call.updateMany({ where: { minutesState: "pending", id: { not: c.id } }, data: { minutesState: null } });
     const tasksBefore = await db.task.count();
     const r = await runPendingMinutes(new Date());
     expect(r).toMatchObject({ built: 1 });

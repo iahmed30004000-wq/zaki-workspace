@@ -102,8 +102,8 @@ export async function storeTranscriptLine(rawBody: string, now: Date = new Date(
   const call = await db.call.findUnique({ where: { id: body.callId }, select: { orgId: true, endedAt: true, transcribe: true } });
   if (!call || call.endedAt || !call.transcribe) return { stored: false };
   if (!(await minutesSwitchesOn(call.orgId))) return { stored: false };
-  // the speaker must be a person of THIS company (a guest of the call included: it is their voice in the room)
-  const member = await db.organizationMember.findFirst({ where: { organizationId: call.orgId, userId: body.personId }, select: { userId: true } });
+  // the speaker must be a person of THIS company (a guest of the call included: it is their voice in the room; a suspended person is not)
+  const member = await db.organizationMember.findFirst({ where: { organizationId: call.orgId, userId: body.personId, status: "ACTIVE" }, select: { userId: true } });
   if (!member) return { stored: false };
   const key = `transcript.${body.callId}`;
   if (!transcriptLimiter.check(key).ok) throw new AssistantError("siteguide.rate_limited", "rate_limited");

@@ -24,7 +24,7 @@ export default async function CallMinutesPage({ params }: { params: { id: string
   }
   const m = view.minutes;
   return (
-    <main dir="rtl" lang="ar" className="mx-auto flex max-w-2xl flex-col gap-4 p-4 sm:p-6">
+    <div dir="rtl" lang="ar" className="mx-auto flex max-w-2xl flex-col gap-4 p-4 sm:p-6">
       <header className="flex flex-col gap-1">
         <h1 className="text-xl font-bold">{t("calls.minutes.page_title")}</h1>
         <p className="text-sm text-fg-muted">
@@ -93,7 +93,7 @@ export default async function CallMinutesPage({ params }: { params: { id: string
       <Link href={`/calls/${params.id}`} className="inline-flex min-h-11 w-fit items-center rounded-lg px-4 text-sm text-accent hover:bg-surface-2">
         {t("calls.minutes.back")}
       </Link>
-    </main>
+    </div>
   );
 }
 
