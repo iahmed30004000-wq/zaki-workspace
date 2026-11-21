@@ -28,6 +28,17 @@ export const PANEL_REDIRECTS: Readonly<Record<string, PanelTarget>> = {
 };
 
 /**
+ * S3.1 — with «الإعدادات» as ONE door (switch `settingsOneDoor`) the two old addresses of the settings lead into the frame of «إعداداتي» (`/settings/me`): `/profile` to «حسابي» (it always did), `/settings`
+ * to the first section of «إعدادات الشركة» the person may open (`firstCompanySection`, a key of src/components/settings-me/sections.ts) and, for a person who has none, to the index of the frame.
+ * Nobody lands on a dead end and nothing is removed: with the switch off both pages are exactly what they were.
+ */
+export const SETTINGS_ME_ROOT = "/settings/me";
+export function settingsDoorTarget(address: "/settings" | "/profile", firstCompanySection: string | null = null): string {
+  if (address === "/profile") return `${SETTINGS_ME_ROOT}/account`;
+  return firstCompanySection ? `${SETTINGS_ME_ROOT}/${firstCompanySection}` : SETTINGS_ME_ROOT;
+}
+
+/**
  * The query an old page was opened with, ready to ride to its section: the first value of each key, without the keys the panel uses itself (`s`, `part`, `v`). A link that
  * carries a message (`/automation?google=connected` from Google's callback, `/members?new=person` from «جديد») must still say it after the hop.
  */

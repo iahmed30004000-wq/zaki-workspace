@@ -19,12 +19,16 @@ import { PrimitiveSamples } from "@/components/theme/primitive-samples";
 import { actorFeatureOn, listFeatures } from "@/server/services/features";
 import { panelHref } from "@/lib/control-panel";
 import { embedServer } from "@/server/services/search-embeddings";
+import { settingsDoorTarget } from "@/lib/legacy-routes";
+import { companyAccessFor, oneDoorOnFor } from "@/components/settings-me/server-data";
 
 export default async function SettingsPage() {
   const { t } = getServerT();
   const { actor } = await pageActor();
   // The company's headcount and which integrations are connected: not for an external partner.
   if (refusedToGuest(actor, "settings")) return <GuestNotice />;
+  // S3.1: with «الإعدادات» as ONE door this address is only a door: it leads into the frame of «إعداداتي», to the first section of «إعدادات الشركة» the person may open (or the frame's index)
+  if (await oneDoorOnFor(actor)) redirect(settingsDoorTarget("/settings", (await companyAccessFor(actor))?.group.sections[0] ?? null));
 
   const org = await db.organization.findUnique({
     where: { id: actor.orgId },

@@ -14,6 +14,7 @@ import { AvatarMenu, type AvatarUser } from "./avatar-menu";
 import { SpaceSwitcher, type ShellSpace } from "./space-switcher";
 import { ariaCurrent } from "./current";
 import { Grip, NavOrderControls, NavOrderToggle, SortableItem, SortableList } from "./nav-sort";
+import { NavOrderButton, SettingsDoor, useSettingsOneDoor } from "./nav-options";
 
 /**
  * The computer's side menu (from `md`), on the START side — the right, in Arabic («نجمة وطريق»):
@@ -81,6 +82,8 @@ export function Sidebar({
   canReset?: boolean;
 }) {
   const { t } = useI18n();
+  // S3.1: «الإعدادات» is ONE door: one row replaces «دليل زاكي» and «ترتيب», and «ترتيب» is a small icon button in the header
+  const oneDoor = useSettingsOneDoor();
   // the space you are in, written where «زاكي» was and in its lettering (the owner's ask, 2026-10-25); a long name
   // steps down a size so it fits the menu, and the folded rail keeps the space's mark
   const brand = space?.name ?? t("app.brand");
@@ -99,6 +102,20 @@ export function Sidebar({
     >
       <div className="relative isolate flex h-[88px] shrink-0 flex-col justify-center overflow-hidden border-b border-border px-4">
         <ThemeDecor kind="sidebar" />
+        {oneDoor && onEditStart ? (
+          <NavOrderButton
+            onEditStart={
+              editing
+                ? undefined
+                : () => {
+                    // the folded menu has no room for grips and a label: open it first
+                    if (collapsed) onToggle();
+                    onEditStart();
+                  }
+            }
+            className={cn("absolute top-1 z-10 bg-surface-1/70", collapsed ? "end-0.5 size-7" : "end-2 size-8")}
+          />
+        ) : null}
         <Link
           href="/"
           aria-label={brand}
@@ -195,6 +212,9 @@ export function Sidebar({
       {/* the pinned block: «دليل زاكي», the install button, the fold and the person. It never shrinks and never overlaps the list above it (`data-sidebar="footer"`) */}
       <div data-sidebar="footer" className="relative z-10 shrink-0 bg-surface-1">
       <div className={cn("shrink-0 px-3 pb-1", collapsed && "px-2")}>
+        {oneDoor ? (
+          <SettingsDoor variant="sidebar" collapsed={collapsed} pathname={pathname} />
+        ) : (
         <Link
           href="/guide"
           aria-current={ariaCurrent(pathname.startsWith("/guide"), "/guide", pathname)}
@@ -207,6 +227,7 @@ export function Sidebar({
           <BookOpen aria-hidden="true" className="size-5 shrink-0 text-accent-2" />
           <span className={cn("truncate", collapsed && "sr-only")}>{t("shell.guide")}</span>
         </Link>
+        )}
         <InstallAppButton collapsed={collapsed} />
         {/* «ترتيب»: starts the reorder mode; while it is on, «تم» and «رجّع الترتيب الأصلي» take its place */}
         {onEditStart && onEditDone && onReset ? (
@@ -214,7 +235,7 @@ export function Sidebar({
             <NavOrderControls onDone={onEditDone} onReset={onReset} canReset={canReset} className="py-1" />
           ) : editing ? (
             <NavOrderToggle collapsed onClick={onEditDone} />
-          ) : (
+          ) : oneDoor ? null : (
             <NavOrderToggle
               collapsed={collapsed}
               onClick={() => {
