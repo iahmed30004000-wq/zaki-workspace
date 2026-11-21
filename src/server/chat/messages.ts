@@ -957,7 +957,8 @@ export async function markDelivered(ctx: OrgAccessContext, conversationId: strin
 /** The include every message query uses, so presentMessage always has what it needs. */
 export function messageInclude() {
   return {
-    author: { select: { id: true, name: true, avatarUrl: true } },
+    // «إشارة التوثيق» (S5.5): the author's ACTIVE memberships that carry a badge (a person who is not active is nobody: no mark), and the company's settings to read its switch (the second query runs only when somebody on the page is verified)
+    author: { select: { id: true, name: true, avatarUrl: true, memberships: { where: { verifiedAt: { not: null }, status: "ACTIVE" }, select: { organizationId: true, organization: { select: { settings: true } } } } } },
     deletedBy: { select: { name: true } },
     replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: { name: true } } } },
     forwardedFrom: { select: { author: { select: { name: true } } } },

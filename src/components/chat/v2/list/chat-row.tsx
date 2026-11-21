@@ -4,6 +4,7 @@ import React, { memo, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { Archive, BellOff, Bookmark, Check, CheckCheck, Lock, Megaphone, Pin, Users, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { RowActionsMenu, rowHasMenu, useRowMenuGestures, type RowMenuContext } from "@/components/chat/v2/row-menu";
 import { useChatPersonalState, useChatRow } from "@/lib/chat/cache/selectors";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
@@ -131,6 +132,8 @@ export function RowView({
           >
             <bdi>{row.title}</bdi>
           </Link>
+          {/* S5.5: the other person of a private chat carries the check badge (the server sends `verified` only to staff and only while the switch is on) */}
+          {row.verified && row.kind === "DM" ? <VerifiedBadge className="[&>svg]:size-3.5" /> : null}
           {space ? <Users className={cn("size-3.5 shrink-0", quiet)} aria-label={ct("chatui.row.space")} role="img" /> : null}
           {marks.map((mark) => {
             const Icon = MARK_ICON[mark.key];

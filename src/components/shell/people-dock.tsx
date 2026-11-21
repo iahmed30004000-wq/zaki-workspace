@@ -13,6 +13,7 @@ import { lastSeenLabel } from "@/lib/last-seen";
 import { cn } from "@/lib/utils";
 import { frameDrivenQuery, useFrameRefresh } from "@/lib/realtime/live-refresh";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { railCellClass } from "./rail-style";
 
 /** What `GET /api/presence` answers (src/server/services/presence-roster.ts). */
@@ -25,6 +26,8 @@ export interface PresencePersonDto {
   avatarUrl?: string | null;
   /** «آخر ظهور»: an ISO time, null (unknown or hidden), or absent (the switch is off / a guest): then the old «غير متصل» stays */
   lastSeenAt?: string | null;
+  /** «إشارة التوثيق» (S5.5): `true` only when the person carries the badge (the server sends it to staff only, and only while the company's switch is on) */
+  verified?: boolean;
 }
 
 export interface PresenceRosterDto {
@@ -194,7 +197,10 @@ export function PeopleDock({
                   ) : null}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className={cn("block truncate text-sm font-semibold", !p.online && "text-fg-muted")}>{p.name}</span>
+                  <span className={cn("flex min-w-0 items-center gap-1 text-sm font-semibold", !p.online && "text-fg-muted")}>
+                    <span className="truncate">{p.name}</span>
+                    {p.verified ? <VerifiedBadge /> : null}
+                  </span>
                   <span className="block truncate text-xs text-fg-muted">{p.jobTitle ?? t("shell.dock.no_title")}</span>
                 </span>
                 <span data-last-seen className={cn("max-w-[8.5rem] shrink-0 text-end text-xs leading-tight", p.online ? "font-semibold text-ok" : "text-fg-muted")}>

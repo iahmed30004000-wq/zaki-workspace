@@ -164,6 +164,8 @@ export interface ConvRecord {
   peerPrimaryOwner: boolean | null;
   peerLastReadAt: Date | null;
   peerLastDeliveredAt: Date | null;
+  /** «إشارة التوثيق» (S5.5): the other person's badge, read INSIDE the list's one query and only while the company's switch is on (null: none, or the switch is off) */
+  peerVerifiedAt?: Date | null;
   /** C3a.3: «الرسائل المحفوظة» — a private chat whose two people are the same person (no other person, no ticks, no call) */
   selfDm?: boolean;
   /** C3a.3: a saved chat while the company's switch `savedMessages` is off: not listed for anybody (the data stays) */
@@ -212,6 +214,18 @@ function scopeSql(f: ListFilter, userId: string): Prisma.Sql {
 export function savedOnSql(orgId: string): Prisma.Sql {
   return Prisma.sql`COALESCE(
     (SELECT CASE WHEN jsonb_typeof(o.settings -> 'features' -> 'savedMessages') = 'boolean' THEN (o.settings -> 'features' ->> 'savedMessages')::boolean END
+     FROM "Organization" o WHERE o.id = ${orgId}),
+    true
+  )`;
+}
+
+/**
+ * SQL: the company's switch `verifiedBadge` (S5.5), read INSIDE the list's one query like `savedOnSql` (the sync feed reads no settings of its own). The same rule as `featureOn`: a stored boolean
+ * wins, anything else is the default, which is ON.
+ */
+export function verifiedOnSql(orgId: string): Prisma.Sql {
+  return Prisma.sql`COALESCE(
+    (SELECT CASE WHEN jsonb_typeof(o.settings -> 'features' -> 'verifiedBadge') = 'boolean' THEN (o.settings -> 'features' ->> 'verifiedBadge')::boolean END
      FROM "Organization" o WHERE o.id = ${orgId}),
     true
   )`;
@@ -290,6 +304,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
       po.id AS "peerId", pu.name AS "peerName", pu."avatarUrl" AS "peerAvatar", pom.status::text AS "peerStatus", pom.role::text AS "peerRole",
       pom.capabilities AS "peerCapabilities", pom."revokedCapabilities" AS "peerRevoked", pom."primaryOwner" AS "peerPrimaryOwner",
       pcm."lastReadAt" AS "peerLastReadAt", pcm."lastDeliveredAt" AS "peerLastDeliveredAt",
+      CASE WHEN ${verifiedOnSql(v.orgId)} AND ${!v.guest}::boolean THEN pom."verifiedAt" END AS "peerVerifiedAt",
       (c.kind = 'DM' AND po.id = ${uid} AND split_part(split_part(c."dmKey", '@', 1), '|', 1) = split_part(split_part(c."dmKey", '@', 1), '|', 2)) AS "selfDm",
       (c.kind = 'DM' AND split_part(split_part(c."dmKey", '@', 1), '|', 1) <> '' AND split_part(split_part(c."dmKey", '@', 1), '|', 1) = split_part(split_part(c."dmKey", '@', 1), '|', 2) AND NOT ${savedOnSql(v.orgId)}) AS "savedHidden"
       ${statSelect}
@@ -430,6 +445,8 @@ function conversationRow(r: ConvRecord, v: ListViewer): ChatRowDto {
   if (r.kind === "DM") {
     row.avatarUrl = saved ? null : r.peerAvatar;
     if (r.peerId) row.peerId = r.peerId; // for «المحفوظة» it is me: the screen knows the chat by that (`isSavedRow`)
+    // «إشارة التوثيق» (S5.5): the other person's badge (the SQL already left it out for a guest and while the switch is off); never on «المحفوظة» (that is me)
+    if (!saved && r.peerVerifiedAt && !v.guest) row.verified = true;
   }
   if (topic) {
     row.topicType = r.topicType as ChatRowDto["topicType"];

@@ -2,6 +2,7 @@
 
 import { ChevronLeft } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { useI18n } from "@/lib/i18n";
 import { lastLoginLine, spacesSummary, type ContractMember } from "@/lib/members-ui";
 import { cn } from "@/lib/utils";
@@ -27,6 +28,8 @@ export function MemberCard({
   const { t } = useI18n();
   const dimmed = member.status !== "ACTIVE";
   const identity = member.username ? `@${member.username}` : member.email;
+  // S5.5: «موثّق» next to the name; the roster sends `verified` only while the company's switch is on
+  const verified = (member as ContractMember & { verified?: boolean }).verified === true;
 
   return (
     <li>
@@ -45,6 +48,7 @@ export function MemberCard({
         <span className="min-w-0 flex-1 space-y-1.5">
           <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span className="break-words text-sm font-semibold text-fg">{member.name}</span>
+            {verified ? <VerifiedBadge /> : null}
             {isSelf ? (
               <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-semibold text-accent">{t("members.you")}</span>
             ) : null}

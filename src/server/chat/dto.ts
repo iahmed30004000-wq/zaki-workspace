@@ -113,6 +113,8 @@ export interface MessageDto {
   authorName: string;
   /** `/api/avatars/<id>` — the sender's picture, or null (the initials are drawn). */
   authorAvatar?: string | null;
+  /** «إشارة التوثيق» (S5.5): the author carries the check badge. `true` only when it is so (absent otherwise, never `false`), never for a guest viewer, and never while the company's switch `verifiedBadge` is off; no time and no granter travel with it. */
+  authorVerified?: boolean;
   createdAt: string;
   clientId?: string | null;
   replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean } | null;
@@ -215,6 +217,8 @@ export interface MemberDto {
   role?: string;
   muted?: boolean;
   avatarUrl?: string | null;
+  /** «إشارة التوثيق» (S5.5): `true` only when the person carries the badge; absent otherwise and for a guest viewer. */
+  verified?: boolean;
 }
 
 export interface ReaderDto {
@@ -360,6 +364,8 @@ export interface ChatRowDto {
   avatarUrl?: string | null;
   /** a private chat: who is on the other side */
   peerId?: string;
+  /** a private chat: the other person carries the check badge «إشارة التوثيق» (S5.5): `true` only, absent otherwise, never for a guest, never while the switch `verifiedBadge` is off */
+  verified?: boolean;
   /** the space a topic or a private chat belongs to (the small chip on a row of the one list); a private chat of the old days is «الشركة»'s */
   space: { id: string; name: string } | null;
   lastMessage: ChatRowLastMessageDto | null;
@@ -420,7 +426,7 @@ export type ConversationHeaderDto = Omit<ConversationDto, "messages" | "readers"
   audience: AudienceDto;
   memberCount: number;
   /** a private chat: the other person */
-  peer?: { id: string; name: string; avatarUrl?: string | null };
+  peer?: { id: string; name: string; avatarUrl?: string | null; /** «إشارة التوثيق» (S5.5): `true` only, absent otherwise and for a guest */ verified?: boolean };
 };
 
 /** `GET /api/chat/conversations/[id]/messages`: one window of a conversation, oldest first. */
@@ -508,6 +514,8 @@ export interface DirectoryPersonDto {
   avatarUrl?: string | null;
   /** «آخر ظهور»: an ISO time, null (unknown or hidden), or ABSENT (switch off / a guest asks); see services/last-seen.ts */
   lastSeenAt?: string | null;
+  /** «إشارة التوثيق» (S5.5): `true` only when the person carries the badge; absent otherwise and while the switch is off */
+  verified?: boolean;
 }
 
 /** A search hit in the chat (src/server/chat/search.ts). */

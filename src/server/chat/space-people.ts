@@ -15,6 +15,17 @@ export function spacePeopleWhere(orgId: string, spaceId: string): Prisma.Organiz
   };
 }
 
+/**
+ * «إشارة التوثيق» (S5.5): which of these people carry the badge in this company. ONE query for the whole list (never one per person); the caller has already checked the company's
+ * switch `verifiedBadge` and that the viewer is not a guest. Only ids come out: the time of the grant and who gave it never leave the server.
+ */
+export async function verifiedIdsAmong(orgId: string, userIds: readonly string[]): Promise<Set<string>> {
+  const ids = [...new Set(userIds)];
+  if (!ids.length) return new Set();
+  const rows = await db.organizationMember.findMany({ where: { organizationId: orgId, userId: { in: ids }, status: "ACTIVE", verifiedAt: { not: null } }, select: { userId: true } });
+  return new Set(rows.map((r) => r.userId));
+}
+
 /** Is this person one of the space's people? */
 export async function isOfSpace(orgId: string, spaceId: string, userId: string): Promise<boolean> {
   return (await db.organizationMember.count({ where: { AND: [spacePeopleWhere(orgId, spaceId)], userId, status: "ACTIVE" } })) > 0;

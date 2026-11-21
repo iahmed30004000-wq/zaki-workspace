@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bookmark, Phone, Search, X } from "lucide-react";
 import type { ConversationHeaderDto, MemberDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { InfoTabs } from "@/components/chat/v2/info/info-tabs";
 import { MuteRow } from "@/components/chat/v2/info/info-mute";
 import { CallButton } from "@/components/calls/call-button";
@@ -27,6 +28,7 @@ function Names({ names }: { names: MemberDto[] }) {
         <li key={m.id} className="flex min-h-11 items-center gap-3 px-3">
           <Avatar name={m.name} src={m.avatarUrl} className="size-7 text-xs" />
           <bdi className="min-w-0 flex-1 truncate">{m.name}</bdi>
+          {m.verified ? <VerifiedBadge /> : null}
         </li>
       ))}
     </ul>
@@ -96,7 +98,11 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
               {model.avatar.emoji}
             </span>
           )}
-          <h3 className="mt-2 max-w-full break-words text-lg font-semibold">{model.title}</h3>
+          <h3 className="mt-2 flex max-w-full items-center justify-center gap-1.5 break-words text-lg font-semibold">
+            <span className="min-w-0 break-words">{model.title}</span>
+            {/* S5.5: «موثّق» next to the other person's name in a private chat */}
+            {model.kind === "dm" && !saved && header.peer?.verified ? <VerifiedBadge /> : null}
+          </h3>
           {model.subtitle && !saved ? <p className="max-w-full break-words text-sm text-fg-muted">{model.subtitle}</p> : null}
         </section>
 
