@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Compass, Mic, PhoneCall, PhoneOff, Send, Square, X } from "lucide-react";
+import { Compass, Mic, PhoneCall, PhoneOff, Send, SlidersHorizontal, Square, X } from "lucide-react";
 import { ApiError, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
 import { GUIDE_CALL_EVENT, MAX_HISTORY_TURNS, MAX_STEPS_PER_ASK, type GuideAction } from "@/lib/site-guide/rules";
 import { GUIDE_ATTR, readPage } from "@/components/site-guide/page-reader";
 import { clearHighlight, highlight, judge, nameOfControl, typeInto, type Verdict } from "@/components/site-guide/executor";
-import { canListen, listenOnce, speak, stopSpeaking, type Listener } from "@/components/site-guide/voice";
+import { canListen, hasArabicVoice, listenOnce, onSpeechIssue, speak, stopSpeaking, unlockAudio, type Listener } from "@/components/site-guide/voice";
+import { VoiceSettings } from "@/components/site-guide/voice-settings";
 
 /**
  * «المرشد» — the owner's guide, as a floating button and a small panel (src/server/services/site-guide.ts is the other half).
@@ -71,6 +72,14 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
   );
 
   const push = useCallback((line: Line) => setLines((old) => [...old, line].slice(-40)), []);
+  const [voiceOpen, setVoiceOpen] = useState(false);
+
+  // a device that cannot speak (no Arabic voice, or an utterance failed) says so in words: the answer stays on the screen as text
+  useEffect(
+    () => onSpeechIssue((kind) => push({ role: "note", text: t(kind === "no_voice" ? "voiceStack.no_voice" : "voiceStack.speak_failed") })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [push],
+  );
 
   const refusal = (v: Extract<Verdict, { ok: false }>) => t(`siteGuide.refused.${v.reason}`);
 
@@ -257,6 +266,7 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
   // «اتصل بالمساعد» in the assistant's own conversation: open the panel and start the voice call
   useEffect(() => {
     const onCall = () => {
+      unlockAudio(); // still inside the tap that sent the event: the timer below is not
       setOpen(true);
       window.setTimeout(() => startCallRef.current(), 50);
     };
@@ -265,6 +275,7 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
   }, []);
 
   const startCall = () => {
+    unlockAudio(); // inside the tap: a phone stays mute for the answers otherwise
     if (!listenCanStart) {
       push({ role: "note", text: t("siteGuide.voice_unsupported") });
       return;
@@ -272,6 +283,7 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
     callingRef.current = true;
     stopRef.current = false;
     setCalling(true);
+    void hasArabicVoice(); // no Arabic voice on this device: said once, in words (the answers stay on the screen)
     listenNext();
   };
 
@@ -329,11 +341,22 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
                   {calling ? <PhoneOff className="h-4 w-4" aria-hidden="true" /> : <PhoneCall className="h-4 w-4" aria-hidden="true" />}
                 </button>
               )}
+              <button
+                type="button"
+                onClick={() => setVoiceOpen((v) => !v)}
+                aria-label={t("voiceStack.settings")}
+                title={t("voiceStack.settings")}
+                aria-expanded={voiceOpen}
+                className={`flex h-8 w-8 items-center justify-center rounded-full ${voiceOpen ? "bg-info/15 text-info" : "text-fg hover:bg-surface-2"}`}
+              >
+                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+              </button>
               <button type="button" onClick={() => { endCall(); clearHighlight(); setOpen(false); }} aria-label={t("siteGuide.close")} className="flex h-8 w-8 items-center justify-center rounded-full text-fg hover:bg-surface-2">
                 <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </span>
           </header>
+          {voiceOpen && <VoiceSettings />}
           <div className="min-h-[8rem] flex-1 space-y-2 overflow-y-auto px-3 py-2 text-sm" aria-live="polite">
             {lines.length === 0 && <p className="text-fg-muted">{t("siteGuide.empty")}</p>}
             {lines.map((l, i) => (

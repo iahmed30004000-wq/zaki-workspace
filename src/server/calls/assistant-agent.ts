@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
@@ -11,6 +12,9 @@ import { dayKeyOf } from "@/lib/owner-board";
 import { hmacHex, safeEqual } from "@/server/crypto";
 import { log } from "@/server/log";
 import { FixedWindowLimiter } from "@/server/rate-limit";
+import { emitRealtime } from "@/server/realtime/emit";
+import { moveLastMessageAt, systemMessage } from "@/server/chat/system";
+import { ASSISTANT_BODY_PREFIX, conversationHasGuest } from "@/server/services/chat-assistant";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { orgTimeZone } from "@/server/services/org-day";
 import { assertWithinQuota, getSettings, recordUsage, usageSummary } from "@/server/services/owner-assistant-settings";
@@ -28,6 +32,8 @@ import { ASSISTANT_IDENTITY, assistantPass, callsServer, peopleInRoom, requireCa
  *           constant time, valid for one minute.
  *   WHAT IT KNOWS  the words said in the meeting (filtered like the chat assistant: phones, e-mails, links, secrets masked), the call's title,
  *           and nothing else: no tasks, no customers, no messages. It answers only when somebody addresses it.
+ *   TEXT    an answer that is spoken is ALSO written as a line of the call's conversation (the same «المساعد» line as in the chat; none for a meeting
+ *           by link, a closed conversation or one with a guest in it). Silence («[صمت]») is neither spoken nor written.
  *   TRACE   one audit row per answer: counts only, never the words.
  */
 
@@ -139,22 +145,21 @@ export async function dismissAssistant(ctx: OrgAccessContext, callId: string): P
 
 export const MEETING_SYSTEM_PROMPT = [
   "أنت «المساعد»، عضو بالاجتماع بصوتك. المالك دعاك للمكالمة.",
-  "احكِ بالعربية الفصحى المبسّطة الواضحة، بجمل قصيرة: جملة إلى ثلاث جمل على الأكثر، بدون لهجة عامية. هالكلام بينقرأ بصوت عالي، فلا تستعمل رموز ولا قوائم ولا أي تنسيق، وكل الأرقام تُكتب بالحروف.",
+  "احكِ باللهجة الشامية البسيطة الواضحة، متل ما بيحكي الناس بالاجتماع، بجمل قصيرة: جملة إلى ثلاث جمل على الأكثر. هالكلام بينقرأ بصوت عالي، فلا تستعمل رموز ولا قوائم ولا أي تنسيق، وكل الأرقام تُكتب بالحروف.",
   "ما بتعرف من الشغل إلا اللي انقال بالاجتماع نفسه. لا تخترع أرقام ولا أسماء ولا مهام. إذا ما بتعرف قول ما بعرف.",
   "ما بتنفّذ شي ولا بتوعد بتنفيذ شي. إذا طلبوا منك عمل بالنظام قول إنك بتسجّله كملاحظة وإنه الشخص ينفّذه بنفسه.",
-  "إذا الكلام مش موجّه إلك وما عندك شي مفيد تضيفه، ردّ بكلمة وحدة بالضبط: [صمت]",
+  "إذا الكلام مش موجّه إلك، أو ما فهمت شو انقال، أو ما عندك شي مفيد تضيفه، ردّ بكلمة وحدة بالضبط: [صمت]",
 ].join("\n");
 
+/** The model's word for «I have nothing to say». It is never spoken and never written, even when the assistant was named. */
 export const SILENCE = "[صمت]";
-/** What it says when it was addressed but the model had nothing to say (an unclear sentence, an empty answer). */
-export const REPEAT_REQUEST = "لم أفهم جيدًا، هل يمكنك أن تعيد من فضلك؟";
 
 const turnSchema = z.object({
   callId: z.string().min(1).max(64),
   /** who spoke last (a display name; the agent knows it from the room) */
   speaker: z.string().max(80).default(""),
   text: z.string().min(1).max(1500),
-  /** it was said TO the assistant (its name, or the minute right after it spoke) */
+  /** it was said TO the assistant (its name as a whole word, or a short follow-up of the person it has just answered: decided by the agent) */
   addressed: z.boolean().default(true),
   history: z.array(z.object({ role: z.enum(["user", "assistant"]), text: z.string().max(1500) })).max(12).default([]),
 });
@@ -178,7 +183,7 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
   if (!parsed.success) throw new ValidationError(parsed.error.issues.map((i) => ({ path: i.path.join("."), message: "validation.failed" })));
   const input = parsed.data;
 
-  const call = await db.call.findUnique({ where: { id: input.callId }, select: { orgId: true, endedAt: true, title: true, conversation: { select: { title: true } } } });
+  const call = await db.call.findUnique({ where: { id: input.callId }, select: { orgId: true, endedAt: true, title: true, conversationId: true, conversation: { select: { title: true } } } });
   if (!call || call.endedAt) throw new NotFoundError("calls.e.not_found");
   await assertFeatureOn(call.orgId, "assistantInMeetings");
   await assertFeatureOn(call.orgId, "ownerAssistant");
@@ -202,6 +207,7 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
   const heard = `${where ? `عنوان الاجتماع: ${clean(where)}\n` : ""}${input.addressed ? "موجّه إليك" : "مش موجّه إليك"}${input.speaker ? ` · ${clean(input.speaker)}` : ""}:\n${clean(input.text)}`;
   const messages: AiChatMessage[] = [...history, { role: "user", content: heard }];
   let completion: AiCompletion | null = null;
+  let usedFast = false;
   let model = choice?.model ?? "";
   if (fast) {
     try {
@@ -216,6 +222,7 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
         log.warn("assistant_meeting.fast_failed", { reason: "empty_answer" });
       } else {
         completion = answer;
+        usedFast = true;
         model = fast.model;
       }
     } catch (err) {
@@ -235,16 +242,54 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
     });
   }
   const reply = completion.text.replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f*#_`>|]/g, " ").replace(/\s+/g, " ").trim().slice(0, 600);
-  const wantsSilence = reply === "" || reply.includes(SILENCE);
-  // silence is only for talk that was not meant for the assistant: when somebody spoke TO it, it never just stays quiet
-  const silent = wantsSilence && !input.addressed;
-  const spoken = wantsSilence ? REPEAT_REQUEST : reply;
+  // «[صمت]» (or nothing) is silence, whoever spoke: an addressed silence is NOT answered (the old «please repeat» sentence broke into side talk)
+  const silent = reply === "" || reply.includes(SILENCE);
   // the cost is the owner's: it is his assistant, his key
   const owner = await db.organizationMember.findFirst({ where: { organizationId: call.orgId, role: "OWNER", status: "ACTIVE" }, select: { userId: true }, orderBy: { createdAt: "asc" } });
   if (owner) await recordUsage({ orgId: call.orgId, userId: owner.userId }, dayKeyOf(now, await orgTimeZone(call.orgId)), completion.usage);
+  // the same words as a text line of the call's conversation (a meeting by link has none: skipped silently); a failure here never costs the spoken answer
+  const posted =
+    !silent && input.addressed && owner
+      ? await postCallLine({ orgId: call.orgId, conversationId: call.conversationId, authorId: owner.userId, text: reply, local: !usedFast && small }).catch((err: unknown) => {
+          // the name of the error only: never the words
+          log.warn("assistant_meeting.line_failed", { name: err instanceof Error ? err.name : "unknown" });
+          return false;
+        })
+      : false;
   await db.auditLog.create({
-    data: { action: "assistant.meeting_turn", actorId: null, orgId: call.orgId, target: input.callId, meta: { heard: input.text.length, said: silent ? 0 : spoken.length, addressed: input.addressed, model } },
+    data: { action: "assistant.meeting_turn", actorId: null, orgId: call.orgId, target: input.callId, meta: { heard: input.text.length, said: silent ? 0 : reply.length, addressed: input.addressed, model, posted } },
   });
-  return { reply: silent ? "" : spoken, silent };
+  return { reply: silent ? "" : reply, silent };
+}
+
+/**
+ * The assistant's answer as a line of the call's conversation: the SAME row «@المساعد» writes (`kind` SYSTEM, `{k:"assistant", p:{text}}`, authored by the
+ * owner's row because a row needs an author, drawn as «المساعد»), so it follows the conversation's own visibility. No new table.
+ * Nothing is written for a call with no conversation (a meeting by link), a closed or archived conversation, or one that has a guest among its people:
+ * the voice stays in the room, but a text line would stay in a history a guest can read. Returns whether a line was written.
+ */
+async function postCallLine(input: { orgId: string; conversationId: string | null; authorId: string; text: string; local: boolean }): Promise<boolean> {
+  if (!input.conversationId) return false;
+  const conv = await db.conversation.findUnique({
+    where: { id: input.conversationId },
+    select: { id: true, orgId: true, kind: true, spaceId: true, restricted: true, closedAt: true, archivedAt: true },
+  });
+  if (!conv || conv.orgId !== input.orgId || conv.closedAt || conv.archivedAt) return false;
+  const kind = conv.kind === "TOPIC" ? "TOPIC" : conv.kind === "DM" ? "DM" : "GROUP";
+  if (await conversationHasGuest({ kind, spaceId: conv.spaceId, restricted: conv.restricted }, conv.id, input.orgId)) return false;
+  const first = (await db.chatMessage.count({ where: { conversationId: conv.id, kind: "SYSTEM", body: { startsWith: ASSISTANT_BODY_PREFIX } } })) === 0;
+  const p: Record<string, string | number> = { text: input.text };
+  if (first) p["first"] = 1;
+  if (input.local) p["local"] = 1;
+  await db.$transaction(async (tx) => {
+    const msg = await tx.chatMessage.create({
+      data: { orgId: input.orgId, conversationId: conv.id, authorId: input.authorId, body: systemMessage("assistant", p), kind: "SYSTEM", clientId: `assistant:call:${randomUUID()}` },
+      select: { id: true, createdAt: true },
+    });
+    await tx.conversation.update({ where: { id: conv.id }, data: { updatedAt: new Date() } });
+    await moveLastMessageAt(tx, conv.id, msg.createdAt);
+    await emitRealtime(tx, input.orgId, "message.created", { conversationId: conv.id, messageId: msg.id, ...(conv.spaceId ? { spaceId: conv.spaceId } : {}) });
+  });
+  return true;
 }
 

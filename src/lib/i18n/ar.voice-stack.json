@@ -1,0 +1,12 @@
+{
+  "voiceStack.settings": "إعدادات الصوت",
+  "voiceStack.rate": "سرعة الحكي",
+  "voiceStack.slow": "أبطأ",
+  "voiceStack.fast": "أسرع",
+  "voiceStack.volume": "علو الصوت",
+  "voiceStack.test": "جرّب الصوت",
+  "voiceStack.test_text": "هيك بيكون صوتي. إذا مناسبك خلّي الإعدادات متل ما هي.",
+  "voiceStack.device_only": "بتنحفظ على هالجهاز بس.",
+  "voiceStack.no_voice": "جهازك ما فيه صوت عربي، فالجواب رح يظهر مكتوب وما رح أحكيه. بتقدر تضيف صوت عربي من إعدادات الجهاز (اللغات والصوت).",
+  "voiceStack.speak_failed": "ما قدرت أحكي الجواب بصوتي، اقراه من الشاشة."
+}
