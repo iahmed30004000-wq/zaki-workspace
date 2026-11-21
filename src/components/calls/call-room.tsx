@@ -18,6 +18,7 @@ import { CallInvite } from "./call-invite";
 import { nameOf, PersonPicture, Quality } from "./call-media";
 import { useOptionalCall, type CallApi } from "./call-provider";
 import { RING_FOR_MS } from "./call-ring";
+import { RecordingMark } from "./recording-mark";
 
 /** When the caller's page asks again after the ring time: the server ends a private call nobody answered a few seconds later (src/server/calls/calls.ts `NO_ANSWER_MS`). */
 const NO_ANSWER_ASK_MS = 36_000;
@@ -255,6 +256,7 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
           <h1 className="truncate text-sm font-bold">{title}</h1>
           <p className="text-xs text-fg-muted">{phase === "in" ? ctCount("calls.count", everyone.length) : ct("calls.connecting")}</p>
         </div>
+        <RecordingMark callId={callId} />
         {(call.state.reconnecting || phase === "lost") && <p role="status" className="rounded-full bg-warn/15 px-3 py-1 text-xs text-warn">{ct("calls.reconnecting")}</p>}
       </header>
 

@@ -22,6 +22,7 @@ import {
 import { closeRoom, dropFromRoom, muteInRoom, passFor, peopleInRoom, requireCallsServer, roomOf } from "./livekit";
 import { pushTo } from "./push";
 import { assistantState } from "./assistant-agent";
+import { queueMinutes } from "./transcripts";
 import { ct } from "@/lib/chat/text";
 
 /**
@@ -166,6 +167,7 @@ async function finishCall(call: CallRow, opts: { authorId: string; now?: Date; c
       await emitRealtime(tx, call.orgId, "call.changed", { conversationId: call.conversationId, callId: call.id });
     }
   });
+  if (first) await queueMinutes(call.id); // S6.2: a call that had the text record on is queued for its minutes (never throws)
   if (first && opts.closeRoom) await closeRoom(call.id);
   if (first && !opts.quiet) await notifyMissed(call.startedById, missedBy, call.conversationId);
   return true;
@@ -570,6 +572,7 @@ export async function endCall(ctx: OrgAccessContext, callId: string): Promise<vo
     missedBy = await writeEndLine(tx, call, ctx.userId);
     await emitRealtime(tx, call.orgId, "call.changed", { ...(call.conversationId ? { conversationId: call.conversationId } : {}), callId });
   });
+  await queueMinutes(callId); // S6.2: the host's «إنهاء للكل» is the other place a call ends: a call that had the text record on is queued for its minutes
   await closeRoom(callId);
   await notifyMissed(call.startedById, missedBy, call.conversationId);
 }

@@ -12,6 +12,7 @@ import { runOmsSync, type OmsSyncRun } from "@/server/integrations/oms-sync";
 import { wipeCustomerNumbers } from "@/server/services/problem-tickets";
 import { runTicketEscalation } from "@/server/services/ticket-escalation";
 import { runMustReadReminders } from "@/server/services/must-read";
+import { runCallTranscripts, type CallTranscriptsRun } from "./call-transcripts";
 
 /**
  * Every background job of the app, in one place: `runDueJobs(now)` runs whatever is due at `now`.
@@ -46,12 +47,14 @@ export interface JobsRun {
   ticketEscalation: { reminded: number; escalated: number } | null;
   /** Q1.6: reminders of the messages that must be read */
   mustRead: { reminded: number; listed: number } | null;
+  /** S6.2: the written lines of calls past their retention days deleted, and the minutes of the calls that ended with the text record on */
+  callTranscripts: CallTranscriptsRun | null;
   /** The names of the jobs that threw. */
   failed: string[];
 }
 
 export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
-  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, mailTasks: null, searchEmbed: null, omsSync: null, customerWipe: null, ticketEscalation: null, mustRead: null, failed: [] };
+  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, mailTasks: null, searchEmbed: null, omsSync: null, customerWipe: null, ticketEscalation: null, mustRead: null, callTranscripts: null, failed: [] };
   try {
     result.reminders = await fireDueReminders(now);
   } catch (err) {
@@ -129,6 +132,13 @@ export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
   } catch (err) {
     result.failed.push("mailTasks");
     log.error("jobs.failed", { job: "mailTasks", message: err instanceof Error ? err.name : "error" });
+  }
+  // S6.2: last on purpose: writing minutes asks a model and may take a while; nothing above waits for it
+  try {
+    result.callTranscripts = await runCallTranscripts(now);
+  } catch (err) {
+    result.failed.push("callTranscripts");
+    log.error("jobs.failed", { job: "callTranscripts", message: err instanceof Error ? err.name : "error" });
   }
   return result;
 }

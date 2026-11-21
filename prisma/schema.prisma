@@ -106,6 +106,7 @@ model User {
   hostedWatches   WatchSession[]       @relation("WatchHost")
   startedWatches  WatchSession[]       @relation("WatchStarter")
   callSeats       CallPerson[]
+  callWords       CallTranscriptLine[]
   pushDevices     PushSubscription[]
   appDevices      AppDevice[]
   sessions        UserSession[]
@@ -868,16 +869,40 @@ model Call {
   startedById    String
   startedAt      DateTime  @default(now())
   endedAt        DateTime?
+  // S6.2 «تسجيل نص الاجتماع»: the OWNER turned the TEXT record on for this call (only while the switch `meetingMinutes` is on). NO audio is ever stored: only written lines.
+  transcribe     Boolean   @default(false)
+  // the minutes after the call: null (none) | pending | done | empty | failed
+  minutesState   String?
+  // { summary, decisions[], tasks[{title, who?}], proposals[], lines, at } once done; { tries, lastTryAt } while pending
+  minutes        Json?
 
   organization Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   space        Workspace?    @relation(fields: [spaceId], references: [id], onDelete: Cascade)
   conversation Conversation? @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   startedBy    User          @relation("CallStarter", fields: [startedById], references: [id], onDelete: Cascade)
   people       CallPerson[]
+  words        CallTranscriptLine[]
 
   @@index([conversationId, endedAt])
   @@index([spaceId, startedAt])
   @@index([orgId, startedAt])
+}
+
+// S6.2: one finished sentence of a call that the owner chose to write down, with who said it (the voice agent sends it through the signed door
+// /api/voice-agent/transcript). TEXT ONLY: there is no audio column and no file anywhere. Hard-deleted after the company's retention days
+// (default 30, `Organization.settings.meetingMinutes.retentionDays`) by the job `callTranscripts`. Never shown to a guest.
+model CallTranscriptLine {
+  id       String   @id @default(cuid())
+  callId   String
+  personId String
+  text     String
+  at       DateTime @default(now())
+
+  call   Call @relation(fields: [callId], references: [id], onDelete: Cascade)
+  person User @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([callId, at])
+  @@index([at])
 }
 
 // One person's seat in a call: brought in by «ضيف حدا» (`invitedById`: they may join without reading the

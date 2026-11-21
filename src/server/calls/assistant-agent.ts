@@ -73,7 +73,7 @@ export function setAgentFetchForTests(next: Fetch | null): void {
   fetchImpl = next;
 }
 
-async function tellAgent(settings: AgentSettings, path: "/join" | "/leave", payload: Record<string, unknown>): Promise<void> {
+async function tellAgent(settings: AgentSettings, path: "/join" | "/leave" | "/transcript", payload: Record<string, unknown>): Promise<void> {
   const body = JSON.stringify(payload);
   const ts = Math.floor(Date.now() / 1000);
   let res: Response;
@@ -94,7 +94,14 @@ async function tellAgent(settings: AgentSettings, path: "/join" | "/leave", payl
   }
 }
 
-async function assertOwnerOfOpenCall(ctx: OrgAccessContext, callId: string): Promise<void> {
+/** «تسجيل نص الاجتماعات» (S6.2): tell the agent in the room to start or stop sending its finished sentences to the signed door (the owner's switch of ONE call). */
+export async function tellAgentTranscript(callId: string, on: boolean): Promise<void> {
+  const agent = agentSettings();
+  if (!agent) throw new ForbiddenError("calls.e.assistant_not_configured");
+  await tellAgent(agent, "/transcript", { callId, on });
+}
+
+export async function assertOwnerOfOpenCall(ctx: OrgAccessContext, callId: string): Promise<void> {
   await assertFeatureOn(ctx.orgId, "calls");
   await assertFeatureOn(ctx.orgId, "ownerAssistant");
   await assertFeatureOn(ctx.orgId, "assistantInMeetings");
@@ -121,13 +128,15 @@ export async function inviteAssistant(ctx: OrgAccessContext, callId: string): Pr
   const server = requireCallsServer();
   const here = await peopleInRoom(callId);
   if (here?.some((p) => p.identity === ASSISTANT_IDENTITY)) return;
-  const call = await db.call.findUniqueOrThrow({ where: { id: callId }, select: { title: true, conversation: { select: { title: true } } } });
+  const call = await db.call.findUniqueOrThrow({ where: { id: callId }, select: { title: true, transcribe: true, conversation: { select: { title: true } } } });
   await tellAgent(agent, "/join", {
     callId,
     room: roomOf(callId),
     url: server.url,
     token: await assistantPass(server, callId),
     title: call.title ?? call.conversation?.title ?? null,
+    // S6.2: the owner turned the TEXT record on for this call (the agent sends its finished sentences to the signed door only while this is true)
+    transcript: call.transcribe && (await isFeatureOn(ctx.orgId, "meetingMinutes")),
   });
   await db.auditLog.create({ data: { action: "assistant.meeting_join", actorId: ctx.userId, orgId: ctx.orgId, target: callId, meta: {} } });
 }
@@ -138,6 +147,8 @@ export async function dismissAssistant(ctx: OrgAccessContext, callId: string): P
   const agent = agentSettings();
   if (!agent) throw new ForbiddenError("calls.e.assistant_not_configured");
   await tellAgent(agent, "/leave", { callId });
+  // S6.2: with the assistant gone nobody writes the words: the record of this call is off (the mark must never say «عم يتسجّل» for nothing)
+  await db.call.updateMany({ where: { id: callId, transcribe: true }, data: { transcribe: false } });
   await db.auditLog.create({ data: { action: "assistant.meeting_leave", actorId: ctx.userId, orgId: ctx.orgId, target: callId, meta: {} } });
 }
 
@@ -268,7 +279,7 @@ export async function assistantTurn(rawBody: string, now: Date = new Date()): Pr
  * Nothing is written for a call with no conversation (a meeting by link), a closed or archived conversation, or one that has a guest among its people:
  * the voice stays in the room, but a text line would stay in a history a guest can read. Returns whether a line was written.
  */
-async function postCallLine(input: { orgId: string; conversationId: string | null; authorId: string; text: string; local: boolean }): Promise<boolean> {
+export async function postCallLine(input: { orgId: string; conversationId: string | null; authorId: string; text: string; local: boolean; /** ids of `AiProposal` rows drawn as cards under the line (S6.2: the minutes' proposed tasks) */ props?: readonly string[] }): Promise<boolean> {
   if (!input.conversationId) return false;
   const conv = await db.conversation.findUnique({
     where: { id: input.conversationId },
@@ -281,6 +292,7 @@ async function postCallLine(input: { orgId: string; conversationId: string | nul
   const p: Record<string, string | number> = { text: input.text };
   if (first) p["first"] = 1;
   if (input.local) p["local"] = 1;
+  if (input.props && input.props.length > 0) p["props"] = input.props.join(",");
   await db.$transaction(async (tx) => {
     const msg = await tx.chatMessage.create({
       data: { orgId: input.orgId, conversationId: conv.id, authorId: input.authorId, body: systemMessage("assistant", p), kind: "SYSTEM", clientId: `assistant:call:${randomUUID()}` },
