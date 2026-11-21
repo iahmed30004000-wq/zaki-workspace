@@ -56,7 +56,7 @@ export function DangerTab({ spaceId, name, canArchive, canDelete, department }: 
 
       {canArchive ? (
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-1 p-4">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[14rem] flex-1">
             <h2 className="text-sm font-semibold text-fg">{t("spset.danger.archive")}</h2>
             <p className="text-xs leading-5 text-fg-muted">{t("spset.danger.archive_hint")}</p>
           </div>

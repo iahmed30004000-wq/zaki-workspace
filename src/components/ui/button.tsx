@@ -10,7 +10,7 @@ import { cva, type VariantProps } from "class-variance-authority";
  * `fab` is the 56 px round accent button (a phone's «new message» / «new task»). The API of the component is the old one: `variant` and `size`.
  */
 const button = cva(
-  "inline-flex items-center justify-center gap-1.5 rounded-[10px] text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+  "inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[10px] text-sm font-medium transition-colors disabled:pointer-events-none disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
   {
     variants: {
       variant: {
@@ -19,7 +19,7 @@ const button = cva(
         secondary: "bg-surface text-fg hover:bg-surface-2 border border-border",
         ghost: "text-fg-muted hover:bg-surface-2 hover:text-fg",
         danger: "bg-danger text-danger-fg hover:bg-danger/90",
-        link: "h-auto rounded-none p-0 text-accent hover:underline",
+        link: "h-auto whitespace-normal rounded-none p-0 text-accent hover:underline",
         fab: "size-14 rounded-full bg-accent text-accent-fg shadow-card hover:bg-accent/90",
       },
       size: {

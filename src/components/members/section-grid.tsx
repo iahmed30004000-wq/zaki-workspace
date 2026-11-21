@@ -31,8 +31,8 @@ export function SectionGrid({
   const hasTasks = rows.some((row) => row.section === "tasks");
 
   return (
-    <div>
-      <table className="w-full table-fixed text-sm">
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[19rem] table-fixed text-sm">
         <caption className="sr-only">{`${t("members.sections_title")}: ${caption}`}</caption>
         <thead>
           <tr className="text-xs text-fg-muted">

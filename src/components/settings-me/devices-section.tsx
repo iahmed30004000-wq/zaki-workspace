@@ -66,8 +66,8 @@ function Browsers() {
   return (
     <ul data-browsers className="space-y-2">
       {list.map((s) => (
-        <li key={s.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
-          <div className="min-w-0">
+        <li key={s.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+          <div className="min-w-[10rem] flex-1">
             <p className="truncate text-sm font-medium text-fg">{browserLabelOf(s.userAgent, { unknown: t("settingsMe.v.browsers.unknown"), on: "على" })}</p>
             <p className="text-xs text-fg-muted">{s.lastUsedAt ? t("settingsMe.v.browsers.last", { when: fmtDateTime(s.lastUsedAt) }) : t("settingsMe.v.browsers.never")}</p>
           </div>
@@ -143,8 +143,8 @@ function Sessions() {
     <ul data-sessions className="space-y-2">
       {list.map((s) => (
         <li key={s.id} data-session={s.current ? "current" : "other"} className="space-y-2 rounded-xl border border-border bg-surface p-3">
-          <div className="flex items-center justify-between gap-3">
-            <div className="min-w-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-[10rem] flex-1">
               <p className="truncate text-sm font-medium text-fg">
                 {sessionLabelOf(s.userAgent, words)}
                 {s.current ? <span className="ms-2 rounded-full bg-accent/10 px-2 py-0.5 text-xs text-accent">{t("settingsMe.v.sessions.current")}</span> : null}

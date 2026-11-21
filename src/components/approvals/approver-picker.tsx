@@ -65,7 +65,7 @@ export function ApproverPicker({ people, value, onChange, idPrefix }: { people: 
         <p className="text-xs text-fg-muted">{t("approvals.picker.nobody_left")}</p>
       ) : (
         <div className="flex items-center gap-2">
-          <Select id={`${idPrefix}-pick`} aria-label={t("approvals.picker.choose")} value={pick} onChange={(e) => setPick(e.target.value)}>
+          <Select id={`${idPrefix}-pick`} className="min-w-0 flex-1" aria-label={t("approvals.picker.choose")} value={pick} onChange={(e) => setPick(e.target.value)}>
             <option value="">{t("approvals.picker.choose")}</option>
             {free.map((p) => (
               <option key={p.id} value={p.id}>

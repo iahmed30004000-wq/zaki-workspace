@@ -56,8 +56,8 @@ export function AppDevices({ reloadKey = 0, headingId = "app-devices", showHeadi
       {devices && devices.length === 0 ? <p className="text-sm text-fg-muted">{ct("appLink.none")}</p> : null}
       <ul className="space-y-2">
         {(devices ?? []).map((d) => (
-          <li key={d.id} className="flex items-center justify-between gap-3 rounded-xl border border-muted bg-surface p-3">
-            <div className="min-w-0">
+          <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-muted bg-surface p-3">
+            <div className="min-w-[10rem] flex-1">
               <p className="truncate text-sm font-medium text-fg">{d.name}</p>
               <p className="text-xs text-fg-muted">{d.lastSeenAt ? ct("appLink.last_seen", { when: fmtDateTime(d.lastSeenAt) }) : ct("appLink.never")}</p>
             </div>

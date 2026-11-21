@@ -173,7 +173,7 @@ export function GoalsView({ canManage, canDelete = canManage }: { canManage: boo
 	return (
 		<div className="mx-auto max-w-4xl space-y-4 p-4 md:p-6">
 			<header className="flex flex-wrap items-center justify-between gap-3">
-				<div>
+				<div className="min-w-[12rem] flex-1">
 					<h1 className="flex items-center gap-2 text-lg font-semibold text-fg">
 						<Target className="size-5 text-accent" />
 						{t(okr ? "okr.pageTitle" : "goal.title")}
@@ -414,7 +414,7 @@ function GoalEditor({
 			>
 				<Input value={title} onChange={(e) => setTitle(e.target.value)} required minLength={2} maxLength={160} placeholder={t("goal.titlePlaceholder")} />
 				<Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} placeholder={t("goal.descPlaceholder")} />
-				<div className="grid grid-cols-2 gap-2">
+				<div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
 					<label className="block space-y-1">
 						<span className="text-xs font-medium text-fg-muted">{t("goal.periodLabel")}</span>
 						<Select value={period} onChange={(e) => setPeriod(e.target.value)}>
@@ -456,8 +456,8 @@ function GoalEditor({
 				) : null}
 				{okr && !goal ? (
 					<div className="space-y-2">
-						<div className="flex items-center justify-between gap-2">
-							<div>
+						<div className="flex flex-wrap items-center justify-between gap-2">
+							<div className="min-w-[10rem] flex-1">
 								<p className="text-xs font-semibold text-fg">{t("okr.keyResults")}</p>
 								<p className="text-xs text-fg-muted">{t("okr.keyResultsHint")}</p>
 							</div>
