@@ -192,6 +192,45 @@ export function SpaceList({ current = null, canOverview = false, isGuest = false
 }
 
 /**
+ * The phone drawer's spaces as a DROPDOWN: closed it is ONE row (the space the person is in, with what waits in the OTHER spaces as a pill and a
+ * chevron); a tap opens the same {@link SpaceList} under it. The list stays in the page when closed (`hidden`), so the counts and the names are
+ * still there for the tests and the readers of the page's source; a screen reader gets `aria-expanded` and `aria-controls`.
+ */
+export function SpaceDropdown({ current = null, canOverview = false, isGuest = false, onNavigate }: { current?: ShellSpace | null; canOverview?: boolean; isGuest?: boolean; onNavigate?: () => void }) {
+  const { t } = useI18n();
+  const [open, setOpen] = useState(false);
+  const query = useSpaces();
+  const spaces = (query.data?.organizations ?? []).flatMap((org) => org.workspaces);
+  const others = spaces.filter((space) => space.id !== current?.id);
+  const unread = others.reduce((sum, space) => sum + (space.unread ?? 0), 0);
+  const overdue = others.reduce((sum, space) => sum + (space.overdue ?? 0), 0);
+  const label = t("navv2.drawer.spaces");
+  return (
+    <div data-shell="space-dropdown">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-controls="drawer-space-list"
+        className="flex h-12 w-full items-center gap-2 rounded-xl px-2 text-sm font-semibold text-fg transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      >
+        <span aria-hidden="true" className="grid size-5 shrink-0 place-items-center text-base leading-none">
+          {current?.emoji ?? <Layers className="size-4 text-muted" />}
+        </span>
+        <span className="min-w-0 flex-1 truncate text-start">
+          <bdi>{current?.name ?? label}</bdi>
+        </span>
+        {open ? null : <CountPills name={label} unread={unread} overdue={overdue} />}
+        <ChevronDown aria-hidden="true" className={cn("size-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
+      </button>
+      <div id="drawer-space-list" hidden={!open} className="pt-1">
+        <SpaceList current={current} canOverview={canOverview} isGuest={isGuest} onNavigate={onNavigate} />
+      </div>
+    </div>
+  );
+}
+
+/**
  * Where the switcher sits: `sidebar` the computer's side menu (a full-width button and «+» beside it),
  * `rail` the side menu folded to icons, `strip` the end of «الشغل»'s tab strip on a phone.
  */

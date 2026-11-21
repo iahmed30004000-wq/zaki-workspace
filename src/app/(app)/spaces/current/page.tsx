@@ -45,19 +45,19 @@ export default async function CurrentSpacePage() {
       </header>
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("spaces.manage.edit_hint")}</p>
+          <p className="min-w-[14rem] flex-1 text-sm text-fg-muted">{t("spaces.manage.edit_hint")}</p>
           <WorkspaceEditButton workspaceId={space.id} name={info.name} description={info.description} />
         </CardBody>
       </Card>
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("spaces.manage.members_hint")}</p>
+          <p className="min-w-[14rem] flex-1 text-sm text-fg-muted">{t("spaces.manage.members_hint")}</p>
           <WorkspaceMembersButton workspaceId={space.id} />
         </CardBody>
       </Card>
       <Card>
         <CardBody className="flex flex-wrap items-center justify-between gap-3">
-          <p className="min-w-0 flex-1 text-sm text-fg-muted">{t("taskpriv.bulk_hint")}</p>
+          <p className="min-w-[14rem] flex-1 text-sm text-fg-muted">{t("taskpriv.bulk_hint")}</p>
           <TaskPrivacyBulkButton workspaceId={space.id} />
         </CardBody>
       </Card>

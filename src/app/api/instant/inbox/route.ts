@@ -15,6 +15,8 @@ const schema = z.object({
   /** The person it is for; nobody named: the person's own. */
   assigneeId: z.string().min(1).optional(),
   assigneeIds: z.array(z.string().min(1)).max(50).optional(),
+  /** What the task needs: its specification (the quick add's second field). */
+  description: z.string().max(10_000).nullable().optional(),
   priority: z.enum(["URGENT", "HIGH", "NORMAL", "LOW"]).default("NORMAL"),
   // a day ("2026-11-05") or a full instant: a day is noon in the COMPANY's zone, never the browser's (review B5)
   dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
@@ -43,6 +45,7 @@ export async function POST(req: Request) {
     const task = await createInboxTask(ctx, space.id, {
       title: input.title,
       assigneeIds: input.assigneeIds?.length ? input.assigneeIds : input.assigneeId ? [input.assigneeId] : undefined,
+      description: input.description?.trim() ? input.description.trim() : null,
       priority: input.priority,
       dueDate,
     });

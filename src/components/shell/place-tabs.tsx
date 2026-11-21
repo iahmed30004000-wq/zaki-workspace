@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import React, { useEffect, useRef, type ReactNode } from "react";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -43,6 +43,7 @@ export function PlaceTabs({
   const { t } = useI18n();
   const listRef = useRef<HTMLUListElement>(null);
 
+  useRosary(listRef);
   useEffect(() => {
     // instant, and only as far as needed (nothing moves when the tab is already visible)
     listRef.current?.querySelector<HTMLElement>("[data-current]")?.scrollIntoView({ block: "nearest", inline: "nearest" });
@@ -50,7 +51,7 @@ export function PlaceTabs({
 
   // one tab alone is not a choice; but «المزيد» beside a tab (the new map) is
   if (!place || place.tabs.length + ((place.more?.length ?? 0) > 0 ? 1 : 0) < 2) return null;
-  const listClass = cn("flex min-w-0 flex-1 gap-0.5 overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden", embedded ? "px-0" : "px-2 py-1 md:px-4");
+  const listClass = cn("flex min-w-0 flex-1 cursor-grab gap-0.5 overflow-x-auto active:cursor-grabbing max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden", embedded ? "px-0" : "px-2 py-1 md:px-4");
 
   return (
     <nav
@@ -87,14 +88,18 @@ export function PlaceTabs({
         </SortableList>
       ) : (
         <ul ref={listRef} className={listClass}>
-          {place.tabs.map((item) => {
+          {/* the rosary: the tabs AND what the place keeps beyond them, in ONE strip that runs sideways (wheel, finger, or a pressed mouse): no menu */}
+          {[...place.tabs, ...(place.more ?? [])].map((item, i) => {
             const active = item.key === tab;
+            const firstMore = i === place.tabs.length;
             return (
               <li key={item.key} className="shrink-0">
                 <Link
                   href={item.href}
                   aria-current={ariaCurrent(active, item.href, pathname)}
                   data-current={active ? "" : undefined}
+                  data-shell={firstMore ? "more-tabs" : undefined}
+                  draggable={false}
                   className={tabClass(active)}
                 >
                   {t(item.labelKey)}
@@ -104,10 +109,65 @@ export function PlaceTabs({
           })}
         </ul>
       )}
-      {editing ? null : <MoreTabs place={place} tab={tab} pathname={pathname} />}
       {end}
     </nav>
   );
+}
+
+/**
+ * The strip as a rosary: the mouse WHEEL moves it sideways (when it is wider than the screen), a pressed mouse drags it, a finger swipes it by itself (the
+ * browser's own scroll). A drag that moved is not a click, so letting go over a tab does not open it.
+ */
+function useRosary(ref: React.RefObject<HTMLElement>) {
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rtl = () => getComputedStyle(el).direction === "rtl";
+    const onWheel = (e: WheelEvent) => {
+      if (el.scrollWidth <= el.clientWidth + 1 || Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      el.scrollBy({ left: rtl() ? -e.deltaY : e.deltaY });
+    };
+    let startX = 0;
+    let startLeft = 0;
+    let down = false;
+    let moved = false;
+    const onDown = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse" || e.button !== 0) return;
+      down = true;
+      moved = false;
+      startX = e.clientX;
+      startLeft = el.scrollLeft;
+    };
+    const onMove = (e: PointerEvent) => {
+      if (!down) return;
+      const dx = e.clientX - startX;
+      if (Math.abs(dx) > 5) moved = true;
+      if (moved) el.scrollLeft = startLeft - dx;
+    };
+    const onUp = () => {
+      down = false;
+    };
+    const onClick = (e: MouseEvent) => {
+      if (moved) {
+        e.preventDefault();
+        e.stopPropagation();
+        moved = false;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("pointerdown", onDown);
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    el.addEventListener("click", onClick, true);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      el.removeEventListener("click", onClick, true);
+    };
+  }, [ref]);
 }
 
 /**

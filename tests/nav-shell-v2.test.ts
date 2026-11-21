@@ -142,10 +142,13 @@ describe("the shell on the new map (navV2 ON)", () => {
     expect(off).toMatch(/<aside[^>]*w-64/);
   });
 
-  it("the tab strip is the four tabs of «الشغل» at most, and «المزيد» beside them", () => {
+  it("the tab strip is ONE rosary: the four tabs of «الشغل» and what comes after them, no menu (the wheel, a finger or a pressed mouse moves it)", () => {
     const strip = /<nav[^>]*data-tour="tabs"[^>]*>[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
-    expect(strip).toContain(AR["nav.tab.more"] as string);
-    expect(hrefs(strip).length).toBeLessThanOrEqual(4);
+    const nav2 = buildNav(who("MEMBER")).places.find((p) => p.key === "work");
+    expect(hrefs(strip)).toEqual([...(nav2?.tabs ?? []), ...(nav2?.more ?? [])].map((x) => x.href));
+    expect(strip).toContain("data-shell=\"more-tabs\"");
+    expect(strip).not.toContain("aria-haspopup");
+    expect(read("src/components/shell/place-tabs.tsx")).toContain("addEventListener(\"wheel\"");
   });
 
   it("«اليوم» is the current place at «/» (its address in the new map is «/?view=today»)", () => {
@@ -241,6 +244,15 @@ describe("the drawer (phone)", () => {
     expect(html).toContain(AR["navv2.space.overdue"]?.replace("{name}", "التسويق").replace("{n}", "7") as string);
     // a space with nothing waiting draws no empty pill
     expect(html).not.toContain(AR["navv2.space.overdue"]?.replace("{name}", "الشركة").replace("{n}", "0") as string);
+  });
+
+  it("the spaces are a dropdown: one closed row for the space the person is in, the list hidden until it is tapped", () => {
+    const html = drawer();
+    expect(html).toContain('data-shell="space-dropdown"');
+    expect(html).toMatch(/<button[^>]*aria-expanded="false"[^>]*aria-controls="drawer-space-list"/);
+    expect(html).toMatch(/<div id="drawer-space-list" hidden=""/);
+    expect(read("src/components/shell/drawer.tsx")).toContain("<SpaceDropdown");
+    expect(read("src/components/shell/space-switcher.tsx")).toMatch(/setOpen\(\(v\) => !v\)/);
   });
 
   it("lists every place, then «دليل زاكي», and has a slot for the chat list", () => {
