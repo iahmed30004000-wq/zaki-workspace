@@ -8,6 +8,7 @@ import { CheckCircle2, FileText, Film, Headphones, Image as ImageIcon, Link2, Pi
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import type { LinkItemDto, MediaItemDto, MediaPageDto, WorkTaskDto, WorkTicketDto } from "@/server/chat/media";
 import { Avatar } from "@/components/ui/avatar";
+import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { MediaViewerContext, MediaViewerProvider, safeMediaUrl, viewerItemsOfMedia } from "@/components/chat/v2/media-viewer";
 import { useInfoJump } from "@/components/chat/v2/info/info-jump";
 import { ct, ctCount } from "@/lib/chat/text";
@@ -381,6 +382,7 @@ function MembersPanel({ model, pending }: { model: MembersTab | null; pending: b
         <li key={m.id} className="flex min-h-11 items-center gap-3 px-2 py-1">
           <Avatar name={m.name} src={m.avatarUrl ?? null} className="size-9 text-sm" />
           <bdi className="min-w-0 flex-1 truncate text-sm">{m.name}</bdi>
+          {m.verified ? <VerifiedBadge /> : null}
           {m.online ? <span role="img" aria-label={ct("chatprof.members.online")} className="size-2.5 shrink-0 rounded-full bg-success" /> : null}
         </li>
       ))}

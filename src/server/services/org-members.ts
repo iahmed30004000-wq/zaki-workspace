@@ -238,7 +238,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     openWork: openWork.get(r.user.id) ?? 0,
     workspaces: spacesOf.get(r.user.id) ?? [],
     ...templateOf(r.user.id, r, applied, templateNames),
-    ...(verifiedOn && r.verifiedAt !== null ? { verified: true } : {}),
+    ...(verifiedOn && r.verifiedAt !== null && r.status === "ACTIVE" && r.role !== "GUEST" ? { verified: true } : {}),
   }));
   members.sort(
     (a, b) =>

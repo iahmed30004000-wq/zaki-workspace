@@ -37,7 +37,7 @@ export function MentionList({ choices, pickAt, onHover, onChoose }: { choices: M
             )}
             <span className="min-w-0 flex-1 truncate">{member.all ? `@${member.name}` : member.name}</span>
             {/* S5.5: the people come from the conversation's own list (`MemberDto.verified`); «@الكل» and the assistant have none */}
-            {(member as MentionChoice & { verified?: boolean }).verified ? <VerifiedBadge /> : null}
+            {member.verified ? <VerifiedBadge /> : null}
             {member.all ? <span className="text-xs text-fg-muted">{ct("chatc.mention_all_hint")}</span> : null}
             {member.id === ASSISTANT_MENTION_ID ? <span className="text-xs text-fg-muted">{ct("chatai.mention_hint")}</span> : null}
           </button>

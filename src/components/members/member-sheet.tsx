@@ -610,7 +610,7 @@ function VerifiedSection({ orgId, member, onPatch, onChanged }: { orgId: string;
   const key = ["member-verified", orgId, member.id] as const;
   const query = useQuery({ queryKey: key, queryFn: () => apiGet<{ verified: boolean }>(url), retry: false, refetchOnWindowFocus: false, staleTime: 30_000 });
   const [busy, setBusy] = useState(false);
-  const fromRoster = (member as ContractMember & { verified?: boolean }).verified;
+  const fromRoster = member.verified;
   const verified = query.data?.verified ?? fromRoster;
   // no answer (still asking, or the switch is off): nothing is drawn
   if (verified === undefined) return null;
@@ -623,7 +623,7 @@ function VerifiedSection({ orgId, member, onPatch, onChanged }: { orgId: string;
     try {
       const res = await apiPost<{ ok: true; verified: boolean }>(url, { verified: next });
       qc.setQueryData(key, { verified: res.verified });
-      onPatch(member.id, { verified: res.verified } as unknown as Partial<ContractMember>);
+      onPatch(member.id, { verified: res.verified });
       onChanged();
       toast(t(res.verified ? "verified.granted" : "verified.revoked", { name: member.name }), "success");
     } catch (err) {

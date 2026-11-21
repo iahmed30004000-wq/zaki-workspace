@@ -80,13 +80,15 @@ describe("the one badge", () => {
       ["src/components/chat/v2/list/chat-row.tsx", /row\.verified[\s\S]{0,80}<VerifiedBadge/],
       ["src/components/chat/v2/pane/pane-header.tsx", /header\.kind === "DM" && header\.peer\?\.verified \? \([\s\S]{0,300}<VerifiedBadge/],
       ["src/components/chat/v2/message-bubble.tsx", /message\.authorVerified \? <VerifiedBadge/],
-      ["src/components/chat/v2/composer/mention-list.tsx", /verified\?: boolean \}\)\.verified \? <VerifiedBadge/],
+      ["src/components/chat/v2/composer/mention-list.tsx", /member\.verified \? <VerifiedBadge/],
       ["src/components/chat/v2/info/info-panel.tsx", /m\.verified \? <VerifiedBadge/],
       ["src/components/shell/people-dock.tsx", /p\.verified \? <VerifiedBadge/],
       ["src/components/members/member-card.tsx", /verified \? <VerifiedBadge/],
       ["src/components/members/staff-directory.tsx", /p\.verified \? <VerifiedBadge/],
     ];
     for (const [file, pattern] of surfaces) expect(read(file), file).toMatch(pattern);
+    // the info panel's «الأعضاء» tab draws it too (that file already uses a check icon for finished tasks, so it is not in the one-component loop below)
+    expect(read("src/components/chat/v2/info/info-tabs.tsx")).toMatch(/m\.verified \? <VerifiedBadge/);
     // one component: nobody draws a second check mark of their own
     for (const [file] of surfaces) expect(read(file), file).not.toMatch(/BadgeCheck|CheckCircle/);
   });
@@ -94,7 +96,7 @@ describe("the one badge", () => {
   it("a member's card draws it next to the name only for a verified person", () => {
     const base = normalizeMember({ id: "u1", name: "سلمى عبيد", role: "MEMBER", status: "ACTIVE" });
     const card = (verified: boolean | undefined) =>
-      html(createElement(MemberCard, { member: { ...base, ...(verified === undefined ? {} : { verified }) } as typeof base, isSelf: false, now: Date.now(), onOpen: () => {} }));
+      html(createElement(MemberCard, { member: { ...base, ...(verified === undefined ? {} : { verified }) }, isSelf: false, now: Date.now(), onOpen: () => {} }));
     expect(card(true)).toContain('aria-label="موثّق"');
     expect(card(false)).not.toContain("data-verified-badge");
     expect(card(undefined)).not.toContain("data-verified-badge");
@@ -108,6 +110,23 @@ describe("the one badge", () => {
     ];
     const out = html(createElement(StaffDirectory, { people, t, linkProfiles: false }));
     expect(out.match(/data-verified-badge/g)).toHaveLength(1);
+  });
+});
+
+describe("the roster keeps the yes", () => {
+  it("normalizeMember carries `verified: true` and drops anything else (never `false`, never a time)", () => {
+    const base = { id: "u1", name: "x", role: "MEMBER" as const, status: "ACTIVE" as const };
+    expect(normalizeMember({ ...base, verified: true }).verified).toBe(true);
+    for (const v of [false, undefined, "true", 1, null]) expect(normalizeMember({ ...base, verified: v as never })).not.toHaveProperty("verified");
+    expect(normalizeMember({ ...base, verifiedAt: "2026-01-01" } as never)).not.toHaveProperty("verifiedAt");
+  });
+
+  it("no surface casts around the type any more: the members' contract, the «@» choice and the sheet read `verified` directly", () => {
+    for (const file of ["src/components/members/member-card.tsx", "src/components/members/member-sheet.tsx", "src/components/chat/v2/composer/mention-list.tsx"]) {
+      expect(read(file), file).not.toMatch(/& \{ verified\?: boolean \}|as unknown as Partial<ContractMember>/);
+    }
+    expect(read("src/lib/chat/v2/composer/types.ts")).toMatch(/verified\?: boolean/);
+    expect(read("src/lib/members-ui.ts")).toMatch(/verified\?: boolean/);
   });
 });
 

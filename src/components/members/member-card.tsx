@@ -29,7 +29,7 @@ export function MemberCard({
   const dimmed = member.status !== "ACTIVE";
   const identity = member.username ? `@${member.username}` : member.email;
   // S5.5: «موثّق» next to the name; the roster sends `verified` only while the company's switch is on
-  const verified = (member as ContractMember & { verified?: boolean }).verified === true;
+  const verified = member.verified === true;
 
   return (
     <li>
