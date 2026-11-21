@@ -503,8 +503,16 @@ const usesV2 = (subject: NavSubject): boolean => subject.navV2 === true;
  * S3.1 — the place «الإدارة» is not on the map of an ADMIN or OWNER who holds the control panel while «الإعدادات» is ONE door: its tabs (the people, the reports, the archive, the
  * integrations, the space, the assistant, the structure) are sections of «لوحة التحكم», and the panel is reached from «إعدادات الشركة». Staff keep the place (called «الناس» when they
  * hold no administration: the directory and «لوحتي»). Both maps follow it; the pages and the routes of every tab still answer and still decide again on the server.
+ *
+ * S3.2 — what takes its slot is «لوحة التحكم», a place of its own (`oneDoorPanelPlace`): one row to `/owner`, no tab strip, because the panel draws its ONE navigation itself.
  */
 export const oneDoorHidesAdmin = (subject: NavSubject): boolean => subject.settingsOneDoor === true && subject.panel === true && rankAtLeast(subject.role, "ADMIN");
+
+/**
+ * S3.2 — the place «لوحة التحكم» of an ADMIN or OWNER who holds the panel while «الإعدادات» is ONE door. It keeps the key `admin` (the slot, the saved menu order, the app bar and
+ * `locate` for every address of the administration stay as they are), but it is ONE page: no tabs and no «المزيد», so the tab strip never repeats the panel's own list.
+ */
+const oneDoorPanelPlace = (v2: boolean): NavPlace => ({ key: "admin", href: "/owner", labelKey: "nav.place.controlPanel", icon: "reports", tabs: [], ...(v2 ? { more: [] } : {}) });
 
 /**
  * Every address the app had before Phase 2. Each one is still a page (`src/app/(app)/<route>/page.tsx`,
@@ -643,7 +651,10 @@ export function buildNav(subject: NavSubject): NavModel {
   for (const def of placesFor(subject.spaceLayout, v2)) {
     if (!meets(def.requires, subject)) continue;
     if (def.feature && subject.off?.includes(def.feature)) continue;
-    if (def.key === "admin" && oneDoorHidesAdmin(subject)) continue;
+    if (def.key === "admin" && oneDoorHidesAdmin(subject)) {
+      places.push(oneDoorPanelPlace(v2));
+      continue;
+    }
     if (v2) {
       const drawn = buildPlaceV2(def, subject);
       if (drawn) places.push(drawn);

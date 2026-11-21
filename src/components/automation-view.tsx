@@ -251,8 +251,8 @@ x-zaki-signature: sha256=HMAC_SHA256(secret, "{timestamp}.{raw body}")`}
         )}
 
         {/* event log — every attempt, success or failure */}
-        <div className="overflow-hidden rounded-lg border border-border">
-          <table className="w-full text-right text-xs">
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full min-w-[32rem] text-right text-xs">
             <thead className="bg-surface-2 text-muted">
               <tr>
                 <th className="px-2 py-1.5 font-medium">{t("log.direction")}</th>

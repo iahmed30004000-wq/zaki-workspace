@@ -1,20 +1,23 @@
 "use client";
 
 import React from "react";
-import type { HomeDto, MessageDto } from "@/server/chat/dto";
+import type { MessageDto } from "@/server/chat/dto";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { forwardTargets, type ForwardTarget } from "@/components/chat/message/message-dialogs";
+import { useQueryClient } from "@tanstack/react-query";
+import { ForwardSheet } from "@/components/chat/v2/forward/forward-sheet";
+import { useChatMessages } from "@/lib/chat/cache/selectors";
+import { scheduleSync } from "@/lib/chat/cache/runtime";
+import { forwardableOf, orderedSelection, selectionStore, useSelection } from "@/lib/chat/selection";
 import { titleOf } from "@/components/chat/message/make-work-dialog";
 import { ct } from "@/lib/chat/text";
 import { WORK_INBOX_REF } from "@/lib/today";
 
-/** The most conversations one forward goes to (the server holds the same cap). */
-const TARGETS_MAX = 10;
-
 /**
- * C3b.5 — «حوّل» for a selection: pick one conversation or more (up to ten) from the places the old forward dialog lists (every topic I may write in and every private
- * chat of mine, never the one I am in), and say whether the copies carry the original sender's name. The server checks every target again and reports each one.
+ * C3b.5 → S5.2 — «حوّل» for a selection: it opens THE forward sheet (`ForwardSheet`, the same one the single «حوّل» of a message opens): search, the saved chat on top, the
+ * recents, every space's places, up to ten picked, an optional comment, «بدون اسم المرسل الأصلي», ONE «إرسال» and a toast with «افتح». It reads the picked messages itself
+ * (the selection and the conversation's loaded window, in the conversation's order, polls left out) and, once at least one target got its copies, ends the selection and asks
+ * the feed to catch up. `count` and `busy` are the bar's; `onSend` is no longer used (the bar's own sender was replaced by the sheet's).
  */
 export function ForwardManyDialog({
   open,
@@ -23,7 +26,6 @@ export function ForwardManyDialog({
   skipped,
   busy,
   onClose,
-  onSend,
 }: {
   open: boolean;
   from: string;
@@ -33,69 +35,26 @@ export function ForwardManyDialog({
   skipped: number;
   busy: boolean;
   onClose: () => void;
-  onSend: (targetIds: string[], withoutAuthor: boolean) => void;
+  /** kept so the bar still compiles; the sheet sends by itself */
+  onSend?: (targetIds: string[], withoutAuthor: boolean) => void;
 }) {
-  const [targets, setTargets] = React.useState<ForwardTarget[] | null>(null);
-  const [picked, setPicked] = React.useState<string[]>([]);
-  const [hideAuthor, setHideAuthor] = React.useState(false);
-  React.useEffect(() => {
-    if (!open) return;
-    setTargets(null);
-    setPicked([]);
-    setHideAuthor(false);
-    let alive = true;
-    void fetch("/api/chat/home", { cache: "no-store" })
-      .then((r) => (r.ok ? (r.json() as Promise<HomeDto>) : Promise.reject(new Error("home"))))
-      .then((home) => alive && setTargets(forwardTargets(home, from)))
-      .catch(() => alive && setTargets([]));
-    return () => {
-      alive = false;
-    };
-  }, [open, from]);
-  const toggle = (id: string) => setPicked((now) => (now.includes(id) ? now.filter((x) => x !== id) : now.length >= TARGETS_MAX ? now : [...now, id]));
+  const qc = useQueryClient();
+  const selection = useSelection();
+  const { messages } = useChatMessages(from);
+  const ids = React.useMemo(() => forwardableOf(orderedSelection(selection.ids, messages)).forward.map((m) => m.id), [selection.ids, messages]);
   return (
-    <Dialog open={open} onOpenChange={(next) => !next && onClose()}>
-      <DialogContent aria-label={ct("chatsel.fwd.title")}>
-        <DialogHeader>
-          <DialogTitle>{ct("chatsel.fwd.title")}</DialogTitle>
-        </DialogHeader>
-        <DialogBody>
-          <p className="mb-2 text-sm text-fg-muted">{ct("chatsel.fwd.hint")}</p>
-          {skipped > 0 ? <p className="mb-2 text-sm text-warn">{ct("chatsel.fwd.skipped")}</p> : null}
-          {targets === null ? (
-            <p role="status">…</p>
-          ) : targets.length === 0 ? (
-            <p>{ct("chatsel.fwd.empty")}</p>
-          ) : (
-            <ul className="flex max-h-72 flex-col overflow-y-auto">
-              {targets.map((t) => {
-                const on = picked.includes(t.id);
-                return (
-                  <li key={t.id}>
-                    <label className="flex min-h-11 w-full cursor-pointer items-center gap-3 rounded-md px-3 hover:bg-surface-2">
-                      <input type="checkbox" data-forward-target={t.id} checked={on} disabled={!on && picked.length >= TARGETS_MAX} onChange={() => toggle(t.id)} className="size-4" />
-                      <span className="min-w-0 truncate">{t.label}</span>
-                    </label>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-          <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 px-3 text-sm">
-            <input type="checkbox" data-forward-hide-author checked={hideAuthor} onChange={(e) => setHideAuthor(e.currentTarget.checked)} className="size-4" />
-            <span>{ct("chatsel.fwd.hide_author")}</span>
-          </label>
-        </DialogBody>
-        <DialogFooter>
-          <Button type="button" variant="secondary" onClick={onClose}>
-            {ct("chatc.cancel")}
-          </Button>
-          <Button type="button" disabled={busy || picked.length === 0 || count === 0} onClick={() => onSend(picked, hideAuthor)}>
-            {ct("chatsel.fwd.send")}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <ForwardSheet
+      open={open}
+      from={from}
+      messageIds={count === 0 ? [] : ids}
+      skipped={skipped}
+      busy={busy}
+      onClose={onClose}
+      onSent={() => {
+        selectionStore.end();
+        scheduleSync(qc);
+      }}
+    />
   );
 }
 

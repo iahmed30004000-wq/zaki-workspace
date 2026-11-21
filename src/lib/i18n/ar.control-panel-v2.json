@@ -131,5 +131,7 @@
   "cpv2.settings.moved_hint": "اسم الشركة وحالة السيرفر وتوكنات الأنظمة والميزات صارت بلوحة التحكم، كل وحدة بقسمها.",
   "cpv2.settings.open_company": "إعدادات الشركة",
   "cpv2.settings.open_features": "الميزات",
-  "cpv2.settings.open_integrations": "التكاملات"
+  "cpv2.settings.open_integrations": "التكاملات",
+  "cpv2.dd.nav.archive": "الأرشيف",
+  "cpv2.dd.people.activity_title": "نشاط الناس"
 }

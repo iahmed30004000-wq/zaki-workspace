@@ -153,7 +153,7 @@ export function DocumentsView({
 
       {canCreate && (
         <form onSubmit={create} className="flex flex-wrap items-end gap-2 rounded-[14px] bg-surface-1 p-3">
-          <label className="min-w-0 flex-1 text-xs text-fg-muted">
+          <label className="min-w-[12rem] flex-1 text-xs text-fg-muted">
             {t("docs.new_title_label")}
             <Input ref={titleBox} value={title} maxLength={LIMITS.title} onChange={(e) => setTitle(e.target.value)} placeholder={t("docs.new_title_ph")} className="mt-1" />
           </label>

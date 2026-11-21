@@ -21,9 +21,20 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY:-}
       - GROQ_STT_MODEL=${GROQ_STT_MODEL:-whisper-large-v3}
       - TTS_ENGINE=${TTS_ENGINE:-edge}
+      # the voice: for a Levantine sound try EDGE_VOICE=ar-JO-TaimNeural; EDGE_RATE is its speed (+10% faster, -10% slower)
       - EDGE_VOICE=${EDGE_VOICE:-ar-SA-HamedNeural}
+      - EDGE_RATE=${EDGE_RATE:-+0%}
       - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - GEMINI_VOICE=${GEMINI_VOICE:-Kore}
+      - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL:-gemini-3.8-flash-lite-tts}
+      # the local Piper voice (the backup of edge and gemini); EMPTY = the voice's own setting
+      - PIPER_LENGTH_SCALE=${PIPER_LENGTH_SCALE:-}
+      - PIPER_NOISE_SCALE=${PIPER_NOISE_SCALE:-}
+      - PIPER_NOISE_W=${PIPER_NOISE_W:-}
+      - PIPER_SENTENCE_SILENCE=${PIPER_SENTENCE_SILENCE:-}
+      # a hint for the recogniser so it knows the assistant's names (a single space sends none)
+      - STT_PROMPT=${STT_PROMPT:-اجتماع عمل. المساعد زاكي يشارك فيه.}
+      - VOICE_FILLER_TEXT=${VOICE_FILLER_TEXT:-حسنًا، لحظة من فضلك.}
     volumes:
       - voice-models:/models
     expose:

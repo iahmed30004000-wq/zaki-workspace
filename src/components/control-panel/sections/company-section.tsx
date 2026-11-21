@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { loadCompanySettings } from "@/server/services/control-panel";
-import { panelHref } from "@/lib/control-panel";
+import { panelSectionHref } from "@/lib/legacy-routes";
 import { OrgNameForm } from "@/components/org-name-form";
 import { ServerHealthCard } from "@/components/server-health-card";
 import { SystemTokensCard } from "@/components/system-tokens-card";
@@ -30,7 +30,7 @@ export async function CompanySection({ ctx }: { ctx: SectionCtx }) {
       <CompanySettingsForm initial={{ timezone: view.timezone, landing: view.landing, workTabs: view.workTabs, menuOrder: view.menuOrder, personalOrders: view.personalOrders }} />
       <p className="text-xs leading-5 text-fg-muted">
         {t("cpv2.company.chat_link")}{" "}
-        <Link href={panelHref("features")} className="text-info underline">
+        <Link href={panelSectionHref("features", undefined, ctx.oneDoor === true)} className="text-info underline">
           {t("cpv2.section.features")}
         </Link>
       </p>

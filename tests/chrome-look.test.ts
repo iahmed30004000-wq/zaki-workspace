@@ -231,8 +231,16 @@ describe("the toast is the mock-up's dark pill", () => {
   });
 });
 
+describe("the toast sits under the phone's ONE-row bar (P2.1)", () => {
+  it("offset by the bar's 56px row (top-14) and the notch: the bar is one row now, so the old guess is exactly right (tests/ui-feedback.test.ts pins the classes)", () => {
+    const src = read("src/components/ui/toast.tsx");
+    expect(src).toContain("top-14");
+    expect(src).toContain("pt-[max(0.75rem,env(safe-area-inset-top))]");
+  });
+});
+
 describe("the floating button is the mock-up's 56 px circle", () => {
-  it("the quick chat's button is size-14 on the accent", () => {
+  it("the quick chat's button is size-14 on the accent (P2.1: still, from md up; a phone with the new map does not draw it)", () => {
     const src = read("src/components/shell/quick-chat.tsx");
     expect(src).toMatch(/grid size-14 place-items-center rounded-full bg-accent/);
   });

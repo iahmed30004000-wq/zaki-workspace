@@ -319,6 +319,32 @@ describe("the per-place app bar", () => {
     expect(html).toContain(AR["nav.place.chat"] as string);
     expect(html).toContain('data-tour="search"');
     expect(html).not.toContain(AR["shell.theme.aria"] as string);
+    // P2.1: on a phone the search is an ICON in the bar's one row (the same palette: the wide bar is for md and up), not a line of its own
+    expect(html).toContain('data-palette-trigger="icon"');
+    expect(html).not.toMatch(/data-tour="search"[^>]*class="[^"]*basis-full/);
+  });
+
+  it("P2.1: «ليل / نهار» and «؟» are computer controls (hidden below md), the bell and «جديد» stay; the bar's actions never wrap", () => {
+    where.pathname = "/my-work";
+    const nav = buildNav(who("MEMBER"));
+    const html = render(
+      createElement(AppBar, {
+        nav,
+        place: "work" as PlaceKey,
+        title: AR["nav.place.work"] as string,
+        pathname: "/my-work",
+        audience: audienceOf({ isExternal: false, caps: [] }),
+        user: USER,
+        rank: "MEMBER" as NavRole,
+        space: SPACE,
+        newActions: ["message"],
+        onOpenDrawer: () => {},
+      }),
+    );
+    expect(html).toMatch(/data-phone-hidden="theme"/);
+    expect(html).toMatch(/<div[^>]*data-phone-hidden="help"[^>]*class="[^"]*max-md:hidden/);
+    expect(html).toContain(`aria-label="${AR["notif.title"]}"`);
+    expect(/<div[^>]*data-shell="app-bar-actions"[^>]*>/.exec(html)?.[0]).not.toContain("flex-wrap");
   });
 });
 

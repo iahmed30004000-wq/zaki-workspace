@@ -97,6 +97,14 @@ body {
   background: transparent;
 }
 
+/* A strip that scrolls sideways (a row of tabs or chips) draws no bar: the 8px bar above stays on pages and long lists. */
+.strip-scroll {
+  scrollbar-width: none;
+}
+.strip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 *:focus-visible {
   @apply outline-none ring-2 ring-accent ring-offset-1 ring-offset-surface;
 }

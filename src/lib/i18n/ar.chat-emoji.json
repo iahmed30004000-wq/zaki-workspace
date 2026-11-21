@@ -1,0 +1,14 @@
+{
+  "chatemoji.who.title": "مين تفاعل",
+  "chatemoji.who.all": "الكل",
+  "chatemoji.who.me": "أنت",
+  "chatemoji.who.more": "و {count} غيرهم",
+  "chatemoji.who.hint": "اضغط ضغطة طويلة (أو كليك يمين) لتشوف مين تفاعل",
+  "chatemoji.who.empty": "ما حدا تفاعل لسا",
+  "chatemoji.who.tab": "{emoji}، {count}",
+  "chatemoji.tab_task": "حالات المهام",
+  "chatemoji.picker.emoji": "إيموجي",
+  "chatemoji.picker.zaki": "ذكي",
+  "chatemoji.picker.task": "حالات المهام",
+  "chat.e.zaki_reaction_off": "إيموجي ذكي غير مفعّل في هذه الشركة، فلا يُقبل كتفاعل."
+}

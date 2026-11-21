@@ -51,7 +51,7 @@ export async function LegacyMyWorkPage({ searchParams }: { searchParams: { tab?:
         <InstantWorkButton kind="task" />
       </header>
 
-      <nav className="flex gap-1 overflow-x-auto border-b border-border bg-surface px-4" aria-label={t("mywork.title")}>
+      <nav className="strip-scroll flex gap-1 overflow-x-auto border-b border-border bg-surface px-4" aria-label={t("mywork.title")}>
         {MY_WORK_TABS.map((k) => (
           <Link
             key={k}

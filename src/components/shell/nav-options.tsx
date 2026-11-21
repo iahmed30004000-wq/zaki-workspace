@@ -35,6 +35,13 @@ export function OrderLockedNote({ className }: { className?: string }) {
 export const SettingsOneDoorContext = createContext(false);
 export const useSettingsOneDoor = (): boolean => useContext(SettingsOneDoorContext);
 
+/**
+ * P2.1 — the frame has the new map's DRAWER (`navV2`): below `md` there is no bottom bar and no presence row, the quick chat's bubble is not drawn and the compass lives in the drawer. The frame provides it once;
+ * the two lazy floating helpers (`QuickChat`, `SiteGuide`) read it, so their props (pinned by tests/lazy-shell.test.ts) do not change. False (the default): the old bottom bar is there and they float above it as before.
+ */
+export const DrawerChromeContext = createContext(false);
+export const useDrawerChrome = (): boolean => useContext(DrawerChromeContext);
+
 /** The address the ONE row opens: the frame of «إعداداتي» (it also holds «إعدادات الشركة» for whoever manages the company). */
 export const SETTINGS_DOOR_HREF = "/settings/me";
 

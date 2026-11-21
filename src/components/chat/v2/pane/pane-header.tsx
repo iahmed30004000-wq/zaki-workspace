@@ -42,7 +42,7 @@ function HeaderAvatar({ header }: { header: ConversationHeaderDto }) {
 /**
  * C2.4 — THE HEADER of the conversation pane: back (phone) · picture · title · subtitle · actions («🔍», the call button, «⋮»).
  *
- * The title and its line are ONE button: a press only TOGGLES `infoOpen` in the pane's actions (C2.7 draws the panel in `seams/info-host.tsx`).
+ * The picture, the title and its line are ONE block with ONE button over all of it (S5.4; before, only the title text was the button): a press only TOGGLES `infoOpen` in the pane's actions (C2.7 draws the panel in `seams/info-host.tsx`).
  * The line says what the spec says — a private chat: the other person's last seen (the old head's line); a topic: «المساحة · 42 عضو», or «🔒 خاص · 4
  * أشخاص» with the P0.4 wording and NO name (the header carries a count, the names are in the sheet the lock chip opens); «عم يكتب…» whenever somebody
  * types. The «⋮» draws only the items that already have a server door (`headerMenuOf`): «اكتم الإشعارات» has none before C3a, so it is not drawn. The in-app sounds
@@ -168,29 +168,40 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
       <Link href={chatHref.list} aria-label={ct("chatc.back")} onClick={onLinkClick(chatHref.list)} className={`${iconButton} md:hidden`}>
         <ArrowRight aria-hidden="true" className="size-5" />
       </Link>
-      <HeaderAvatar header={header} />
-      <div className="min-w-0 flex-1">
-        <button type="button" data-header-title aria-expanded={a.infoOpen} aria-label={ct("chatui.pane.menu.info")} onClick={a.toggleInfo} className="block w-full min-w-0 text-start">
+      {/* S5.4: the picture, the name and the line under it are ONE block with ONE button stretched over all of it (a tap on any of them opens the info); the lock chip is its own button above it, so no button holds another */}
+      <div data-header-identity className="relative flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg">
+        <button
+          type="button"
+          data-header-title
+          aria-expanded={a.infoOpen}
+          aria-label={ct("chatprof.header.open", { name: header.title })}
+          onClick={a.toggleInfo}
+          className="absolute inset-0 rounded-lg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+        />
+        <span className="pointer-events-none relative shrink-0">
+          <HeaderAvatar header={header} />
+        </span>
+        <div className="pointer-events-none relative min-w-0 flex-1 text-start">
           <h1 className="truncate font-semibold leading-tight">{header.title}</h1>
-        </button>
-        {channel || subtitle.privacy || subtitle.line ? (
-          <p data-header-subtitle className={`flex min-w-0 items-center gap-1.5 text-xs ${subtitle.typing ? "text-accent" : "text-fg-muted"}`}>
-            {channel && !subtitle.typing ? (
-              <span data-header-channel="" className="inline-flex shrink-0 items-center gap-1 font-medium text-accent">
-                <Megaphone aria-hidden="true" className="size-3.5" />
-                {channel}
-              </span>
-            ) : null}
-            {channel && !subtitle.typing && (subtitle.privacy || subtitle.line) ? <span aria-hidden="true">·</span> : null}
-            {subtitle.privacy && !subtitle.typing ? (
-              <button type="button" data-privacy aria-label={ct("chatp.open_sheet")} onClick={() => setPrivacyOpen(true)} className="shrink-0 rounded-md px-1 text-accent hover:bg-surface-2">
-                {subtitle.privacy}
-              </button>
-            ) : null}
-            {subtitle.privacy && !subtitle.typing && subtitle.line ? <span aria-hidden="true">·</span> : null}
-            {subtitle.line ? <span className="truncate">{subtitle.line}</span> : null}
-          </p>
-        ) : null}
+          {channel || subtitle.privacy || subtitle.line ? (
+            <p data-header-subtitle className={`flex min-w-0 items-center gap-1.5 text-xs ${subtitle.typing ? "text-accent" : "text-fg-muted"}`}>
+              {channel && !subtitle.typing ? (
+                <span data-header-channel="" className="inline-flex shrink-0 items-center gap-1 font-medium text-accent">
+                  <Megaphone aria-hidden="true" className="size-3.5" />
+                  {channel}
+                </span>
+              ) : null}
+              {channel && !subtitle.typing && (subtitle.privacy || subtitle.line) ? <span aria-hidden="true">·</span> : null}
+              {subtitle.privacy && !subtitle.typing ? (
+                <button type="button" data-privacy aria-label={ct("chatp.open_sheet")} onClick={() => setPrivacyOpen(true)} className="pointer-events-auto relative z-10 shrink-0 rounded-md px-1 text-accent hover:bg-surface-2">
+                  {subtitle.privacy}
+                </button>
+              ) : null}
+              {subtitle.privacy && !subtitle.typing && subtitle.line ? <span aria-hidden="true">·</span> : null}
+              {subtitle.line ? <span className="truncate">{subtitle.line}</span> : null}
+            </p>
+          ) : null}
+        </div>
       </div>
       <button type="button" data-header-search aria-label={ct("chatui.pane.menu.search")} aria-expanded={a.searchOpen} onClick={a.searchOpen ? a.closeSearch : a.openSearch} className={iconButton}>
         <Search aria-hidden="true" className="size-5" />

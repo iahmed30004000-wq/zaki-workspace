@@ -3,7 +3,7 @@ import { MENTION_ALL_ID } from "@/lib/chat/conversation/mentions";
 import { isAssistantChatKey } from "@/lib/chat/assistant-chat";
 import { isFeatureOn } from "@/server/services/features";
 import type { OrgAccessContext } from "@/server/auth";
-import { hasOversight, loadOrgFacts, isSpaceAdmin } from "@/server/policy/conversation";
+import { hasOversight, loadOrgFacts, isSpaceAdmin, type OrgFacts } from "@/server/policy/conversation";
 import { listDms } from "@/server/chat/dm";
 import type { DmSummaryDto, HomeDto, SpaceSummaryDto, TopicSummaryDto } from "@/server/chat/dto";
 import { previewOf } from "@/server/chat/redact";
@@ -16,6 +16,62 @@ import { applySavedOrder, dmScope, spaceScope } from "@/lib/chat/order";
  * the archive/oversight door is theirs. One query round per level, then one unread count per topic
  * and per DM — all computed from `lastReadAt`, never from a stored counter.
  */
+
+/**
+ * Who the viewer is inside ONE space, as far as its topics are concerned: the two rules below decide which topics of a space they LIST and which of those they may
+ * WRITE in. The chat home and the forward sheet's door (`forward-targets.ts`) both ask them, so a topic is never offered as a place to forward to that the list
+ * itself would hide.
+ */
+export interface SpaceViewer {
+  oversight: boolean;
+  /** the OWNER rank (a space ADMIN of every space; reading in silence is `oversight`) */
+  isOwner: boolean;
+  orgRole: string | undefined;
+  spaceRole: string | null;
+  /** muted in this space right now */
+  spaceMuted: boolean;
+  /** sees every «مقطع» and its topics (the owner, the space's admin, an org admin who is in it) */
+  manager: boolean;
+  /** the «مقاطع» the viewer sees */
+  teamIds: ReadonlySet<string>;
+}
+
+export function spaceViewerOf(
+  org: OrgFacts | null,
+  space: { role: string | null; mutedUntil: Date | null },
+  teams: readonly { id: string; members: readonly unknown[] }[],
+): SpaceViewer {
+  const isOwner = org?.role === "OWNER"; // oversight-ok: the rank manages every space; reading in silence is `oversight`
+  const spaceRole = space.role ?? (isOwner ? "ADMIN" : null);
+  const manager = isOwner || isSpaceAdmin(spaceRole) || (org?.role === "ADMIN" && spaceRole !== null);
+  return {
+    oversight: hasOversight(org),
+    isOwner,
+    orgRole: org?.role,
+    spaceRole,
+    spaceMuted: !!(space.mutedUntil && space.mutedUntil > new Date()),
+    manager,
+    teamIds: new Set(teams.filter((team) => manager || team.members.length > 0).map((team) => team.id)),
+  };
+}
+
+/** Is the topic on the viewer's list? (a restricted one only by its own rows, a «مقطع»'s only for its people, an archived one only for managers, somebody's assistant chat only for them) */
+export function topicListed(t: { restricted: boolean; teamId: string | null; archivedAt: Date | null; dmKey: string | null; memberCount: number }, v: SpaceViewer): boolean {
+  if (isAssistantChatKey(t.dmKey) && t.memberCount === 0) return false;
+  const passes = v.oversight || (!t.restricted && v.spaceRole !== null) || (t.restricted && t.memberCount > 0);
+  if (!passes) return false;
+  if (t.teamId && !v.teamIds.has(t.teamId)) return false;
+  if (t.archivedAt && !(v.isOwner || isSpaceAdmin(v.spaceRole))) return false;
+  return true;
+}
+
+/** May the viewer write in this (listed) topic? The list's hint: the server decides again with the policy on every send. */
+export function topicPostable(t: { closedAt: Date | null; postingPolicy: string; topicType: string; memberCount: number }, v: SpaceViewer): boolean {
+  if (t.closedAt) return false;
+  if (v.oversight) return t.memberCount > 0;
+  if (isSpaceAdmin(v.spaceRole)) return true;
+  return !v.spaceMuted && t.postingPolicy !== "ADMINS" && !(v.orgRole === "GUEST" && t.topicType === "ANNOUNCEMENTS");
+}
 
 export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string | null } = {}): Promise<HomeDto> {
   const org = await loadOrgFacts(ctx.userId, ctx.orgId);
@@ -83,28 +139,22 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
 
   const spaces: SpaceSummaryDto[] = [];
   for (const s of spacesRows) {
-    const spaceRole = mySpaceRows.find((r) => r.workspaceId === s.id)?.role ?? (isOwner ? ("ADMIN" as const) : null);
-    const spaceMuted = mySpaceRows.find((r) => r.workspaceId === s.id)?.mutedUntil ?? null;
+    const myRow = mySpaceRows.find((r) => r.workspaceId === s.id);
+    // the rules of what a topic lists and who may write in it are `topicListed` / `topicPostable` (the forward sheet's door asks the same two)
+    const viewer = spaceViewerOf(org, { role: myRow?.role ?? null, mutedUntil: myRow?.mutedUntil ?? null }, s.teams);
+    const spaceRole = viewer.spaceRole;
     const topics: TopicSummaryDto[] = [];
     let spaceUnread = 0;
     // the «مقاطع»: a manager of the space (the OWNER, its ADMIN, an org ADMIN who is in it) sees them all and
     // their topics; anybody else their own
-    const manager = isOwner || isSpaceAdmin(spaceRole) || (org?.role === "ADMIN" && spaceRole !== null);
-    const sections = s.teams.filter((team) => manager || team.members.length > 0).map((team) => ({ id: team.id, name: team.name }));
-    const seen = new Set(sections.map((team) => team.id));
+    const sections = s.teams.filter((team) => viewer.teamIds.has(team.id)).map((team) => ({ id: team.id, name: team.name }));
 
     for (const t of s.conversations) {
-      // somebody's conversation with the assistant is listed for that person only (the owner reads it by its link, his list is not filled with them)
-      if (isAssistantChatKey(t.dmKey) && t.members.length === 0) continue;
-      // a restricted topic is read by its own rows (and by whoever holds oversight); a guest sees what everyone sees
-      const passes =
-        oversight || (!t.restricted && spaceRole !== null) || (t.restricted && t.members.length > 0);
-      if (!passes) continue;
-      // a مقطع's topic is its people's (and the managers')
-      if (t.teamId && !seen.has(t.teamId)) continue;
+      // somebody's conversation with the assistant is listed for that person only (the owner reads it by its link, his list is not filled with them); a restricted
+      // topic is read by its own rows (and by whoever holds oversight); a guest sees what everyone sees; a مقطع's topic is its people's (and the managers');
       // an archived topic is out of the list: its space's managers find it under «المؤرشفة»
+      if (!topicListed({ restricted: t.restricted, teamId: t.teamId, archivedAt: t.archivedAt, dmKey: t.dmKey, memberCount: t.members.length }, viewer)) continue;
       const archived = !!t.archivedAt;
-      if (archived && !(isOwner || isSpaceAdmin(spaceRole))) continue;
 
       const lastRead = t.members[0]?.lastReadAt ?? null;
       // a system line («انضم»، «ثبّت») is not a message to read: it never counts
@@ -127,13 +177,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
           : 0,
       ]);
 
-      const canPost =
-        !t.closedAt &&
-        (oversight
-          ? t.members.length > 0
-          : isSpaceAdmin(spaceRole)
-            ? true
-            : !(spaceMuted && spaceMuted > new Date()) && t.postingPolicy !== "ADMINS" && !(org?.role === "GUEST" && t.topicType === "ANNOUNCEMENTS"));
+      const canPost = topicPostable({ closedAt: t.closedAt, postingPolicy: t.postingPolicy, topicType: t.topicType, memberCount: t.members.length }, viewer);
 
       topics.push({
         id: t.id,

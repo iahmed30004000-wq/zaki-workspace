@@ -3,7 +3,7 @@ import type { Prisma } from "@prisma/client";
 import * as route from "@/app/api/me/chat-prefs/route";
 import { CHAT_PREFS_MAX_BYTES } from "@/lib/chat/prefs";
 import { withFeature } from "@/lib/features";
-import { call, db, loginAs, logout, makeOrg, makeTeam } from "./helpers";
+import { call, db, loginAs, logout, makeOrg, makeTeam, makeWorkspace } from "./helpers";
 
 /**
  * C3a.2 — `GET/PUT /api/me/chat-prefs`: the person's own chat preferences on their account (`User.chatPrefs`, the additive migration
@@ -233,6 +233,20 @@ describe("what a save may carry", () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain("some-chat-i-cannot-read");
     expect(JSON.stringify(res.json)).not.toMatch(/title|name":"(?!عمل)/);
+  });
+});
+
+describe("S5.3 — a folder keeps the id of ONE topic", () => {
+  it("a real topic id sits in include.conversationIds like any chat id, comes back unchanged, and the answer carries no title of it", async () => {
+    const { member, org } = await makeTeam();
+    const space = await makeWorkspace(org.id, [{ userId: member.id }], "Alpha");
+    const topic = await db.conversation.create({ data: { orgId: org.id, kind: "TOPIC", spaceId: space.id, title: "TopicTitleNeverEchoed" } });
+    await loginAs(member.id);
+    const folder = { id: "f-topic", name: "طلبات", include: { conversationIds: [topic.id], spaceIds: [] }, exclude: { archived: true } };
+    const res = await put({ folders: { [org.id]: [folder] } });
+    expect(res.status).toBe(200);
+    expect((await get()).json?.["prefs"]).toEqual({ folders: { [org.id]: [folder] } });
+    expect(JSON.stringify(res.json)).not.toContain("TopicTitleNeverEchoed");
   });
 });
 

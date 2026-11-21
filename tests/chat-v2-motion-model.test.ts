@@ -111,6 +111,13 @@ describe("every motion is off under prefers-reduced-motion", () => {
     expect(read("src/lib/chat/v2/phone/motion.ts")).toMatch(/\(prefers-reduced-motion: reduce\)/);
   });
 
+  it("S5.6: the emoji animations (a big emoji's pop and wiggle, a chip's burst) live in their own CSS file and stop under reduced motion on their own too", () => {
+    const css = read("src/components/chat/v2/bubble/emoji-alive.css");
+    expect(css).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{[^}]*\.zk-emoji-pop[^}]*animation: none/);
+    expect(read("src/components/chat/v2/bubble/jumbo-emoji.tsx")).toContain('fresh ? "zk-emoji-pop"');
+    expect(read("src/app/globals.css")).not.toContain("zk-emoji");
+  });
+
   it("the global rule that stops every animation under reduced motion is still in globals.css", () => {
     expect(read("src/app/globals.css")).toMatch(/@media \(prefers-reduced-motion: reduce\)\s*\{\s*\*,/);
   });

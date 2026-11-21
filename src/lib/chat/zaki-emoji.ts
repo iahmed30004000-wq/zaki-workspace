@@ -88,6 +88,62 @@ export function splitZakiEmoji(text: string): ZakiPiece[] {
   return out;
 }
 
+const WHOLE_CODE = /^:zaki_([a-z_]{2,24}):$/;
+
+/** The id of a Zaki code that is the WHOLE string (`:zaki_clap:`, nothing around it) and a known one; null for anything else. The allow-list of a Zaki reaction (S5.6). */
+export function zakiIdOfCode(code: string): string | null {
+  const id = WHOLE_CODE.exec(code)?.[1];
+  return id !== undefined && IDS.has(id) ? id : null;
+}
+
+export const isZakiCode = (code: string): boolean => zakiIdOfCode(code) !== null;
+
+/** A text with every known Zaki code turned into its Arabic name in brackets («(احتفال)»): what a push, a list row and a quote say instead of the raw code. Every other letter stays. */
+export function zakiToWords(text: string): string {
+  if (!text.includes(":zaki_")) return text;
+  return splitZakiEmoji(text)
+    .map((p) => (p.emoji !== undefined ? `(${zakiNameOf(p.emoji)})` : (p.text ?? "")))
+    .join("");
+}
+
+/**
+ * One emoji of the unicode set: a flag, a keycap, a tag flag, or a pictograph with its variation selector / skin tone and the pieces joined by ZWJ (a family is one).
+ * The order matters: the flag and the keycap and the tag flag come before the plain pictograph that would match their first character alone.
+ */
+const PICTO = String.raw`(?:\p{Extended_Pictographic}|\p{Emoji_Presentation})(?:\u{FE0F}|\p{Emoji_Modifier})*`;
+const UNICODE_EMOJI = new RegExp(String.raw`[\u{1F1E6}-\u{1F1FF}]{2}|[0-9#*]\u{FE0F}?\u{20E3}|\u{1F3F4}[\u{E0020}-\u{E007E}]+\u{E007F}|${PICTO}(?:\u{200D}${PICTO})*`, "gu");
+/** Symbols that are pictographs in the standard but are words in a message (the copyright and trademark signs): only an emoji when they carry the emoji variation selector. */
+const PLAIN_SYMBOL = /^[\u{A9}\u{AE}\u{203C}\u{2049}\u{2122}\u{2139}]$/u;
+
+export type EmojiToken = { zaki: string; glyph?: undefined } | { glyph: string; zaki?: undefined };
+
+/** The emojis of a message that is ONLY emojis (unicode and Zaki codes, spaces between), one token each; null when there is any word, symbol or unknown code in it, or no emoji at all. */
+export function emojiTokens(text: string): EmojiToken[] | null {
+  const out: EmojiToken[] = [];
+  for (const piece of splitZakiEmoji(text.trim())) {
+    if (piece.emoji !== undefined) {
+      out.push({ zaki: piece.emoji });
+      continue;
+    }
+    const rest = (piece.text ?? "").replace(/\s+/g, "");
+    if (!rest) continue;
+    const units = rest.match(UNICODE_EMOJI);
+    if (!units || units.join("") !== rest) return null;
+    if (units.some((u) => PLAIN_SYMBOL.test(u))) return null;
+    for (const glyph of units) out.push({ glyph });
+  }
+  return out.length ? out : null;
+}
+
+/**
+ * How many emojis a message is made of when it is ONLY emojis — unicode, Zaki codes, or both, with spaces between — and there are one to three; 0 otherwise (words,
+ * four or more, an unknown code, a symbol, formatting markers). It decides the jumbo size (S5.6): never a character of the message changes.
+ */
+export function emojiOnlyCount(text: string): number {
+  const tokens = emojiTokens(text);
+  return tokens && tokens.length <= 3 ? tokens.length : 0;
+}
+
 /** A message that is only Zaki emojis (one to three, spaces between): drawn big like a sticker. */
 export function isStickerOnly(text: string): boolean {
   const pieces = splitZakiEmoji(text.trim());

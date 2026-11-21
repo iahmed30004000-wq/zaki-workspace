@@ -116,11 +116,11 @@ export function DbBackupCard() {
 
   return (
     <section className="space-y-4 rounded-[14px] bg-surface-1 p-5" aria-labelledby="backup-title">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <span className="grid size-9 place-items-center rounded-lg bg-cat-3/10 text-cat-3">
           <DatabaseBackup className="size-5" />
         </span>
-        <div className="min-w-0 flex-1">
+        <div className="min-w-[10rem] flex-1">
           <h2 id="backup-title" className="text-sm font-semibold">
             {t("backup.title")}
           </h2>

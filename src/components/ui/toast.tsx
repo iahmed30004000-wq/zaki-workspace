@@ -8,14 +8,21 @@ import { useI18n } from "@/lib/i18n";
 
 type ToastKind = "success" | "error" | "info";
 
+/** S5.2: an optional button inside the toast («افتح»): pressing it runs `onClick` and closes the toast. Nothing else about a toast changes. */
+export interface ToastAction {
+  label: string;
+  onClick: () => void;
+}
+
 export interface ToastItem {
   id: number;
   kind: ToastKind;
   message: string;
+  action?: ToastAction;
 }
 
 interface ToastApi {
-  toast: (message: string, kind?: ToastKind) => void;
+  toast: (message: string, kind?: ToastKind, action?: ToastAction) => void;
 }
 
 const ToastCtx = createContext<ToastApi | null>(null);
@@ -24,12 +31,14 @@ let seq = 0;
 
 /** How long a toast stays up when the pointer is nowhere near it. */
 export const TOAST_DISMISS_MS = 4000;
+/** A toast that carries a button («افتح») stays longer: there must be time to reach it. */
+export const TOAST_ACTION_DISMISS_MS = 8000;
 
 /**
  * App-wide toasts. All mutations should surface results through this.
  *
  * Where they appear: at the TOP of the screen on phones, below the notch (safe-area inset) and
- * below the 56px top bar, so a toast never covers the bottom bar or the bottom of a sheet; in the
+ * below the app bar's ONE 56px row (P2.1: the phone's bar is one row now — the search is an icon in it and the actions never wrap — so `top-14` plus the notch is exactly its height; before, the search line and a wrapped action row made the bar taller than that and a toast covered them), so a toast never covers the bottom bar or the bottom of a sheet; in the
  * bottom CENTRE from the `md` breakpoint (768px), as in the owner's mock-up. The toast itself is the mock-up's dark pill: the ink (`fg`) with
  * the page colour as its text on the light themes, `surface-2` with the normal text on the dark ones — never a white card. (`scrim` is the dimming layer
  * behind a dialog and nothing else: tests/ui-tokens.test.ts.) The stack is a polite
@@ -45,9 +54,9 @@ export const TOAST_DISMISS_MS = 4000;
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<ToastItem[]>([]);
 
-  const toast = useCallback((message: string, kind: ToastKind = "info") => {
+  const toast = useCallback((message: string, kind: ToastKind = "info", action?: ToastAction) => {
     const id = ++seq;
-    setItems((prev) => [...prev.slice(-4), { id, kind, message }]);
+    setItems((prev) => [...prev.slice(-4), { id, kind, message, ...(action ? { action } : {}) }]);
   }, []);
 
   const api = useMemo<ToastApi>(() => ({ toast }), [toast]);
@@ -73,9 +82,9 @@ export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () =
 
   React.useEffect(() => {
     if (paused) return; // hover/focus holds the clock still (WCAG 2.2.1)
-    const timer = window.setTimeout(onDismiss, TOAST_DISMISS_MS);
+    const timer = window.setTimeout(onDismiss, item.action ? TOAST_ACTION_DISMISS_MS : TOAST_DISMISS_MS);
     return () => window.clearTimeout(timer);
-  }, [paused, onDismiss]);
+  }, [paused, onDismiss, item.action]);
 
   const icons: Record<ToastKind, ReactNode> = {
     success: <CheckCircle2 className="size-4 shrink-0 text-ok" aria-hidden="true" />,
@@ -96,6 +105,19 @@ export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () =
     >
       {icons[item.kind]}
       <p className="min-w-0 flex-1 py-3 text-sm">{item.message}</p>
+      {item.action ? (
+        <button
+          type="button"
+          data-toast-action=""
+          onClick={() => {
+            item.action?.onClick();
+            onDismiss();
+          }}
+          className="flex min-h-11 shrink-0 items-center rounded-lg px-3 text-sm font-semibold underline underline-offset-4 hover:opacity-80"
+        >
+          {item.action.label}
+        </button>
+      ) : null}
       <button
         type="button"
         onClick={onDismiss}

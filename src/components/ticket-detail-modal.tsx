@@ -179,9 +179,9 @@ export function TicketDetailModal({
               const mine = c.author?.id === currentUserId;
               return (
                 <li key={c.id} className="rounded-lg border border-border bg-surface-1 p-2.5">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-xs font-medium text-fg">{c.author?.name ?? "—"}</p>
-                    <div className="flex items-center gap-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="min-w-0 break-words text-xs font-medium text-fg">{c.author?.name ?? "—"}</p>
+                    <div className="flex flex-wrap items-center gap-1">
                       <span className="text-xs text-muted">{fmtDateTime(c.createdAt)}</span>
                       {mine ? (
                         <>
@@ -259,8 +259,8 @@ export function TicketDetailModal({
           </h3>
           <ul className="max-h-44 space-y-1 overflow-y-auto rounded-lg border border-border bg-surface-1 p-2">
             {activities.map((a) => (
-              <li key={a.id} className="flex items-center justify-between gap-2 text-xs text-muted">
-                <span>
+              <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted">
+                <span className="min-w-0 break-words">
                   <b className="font-medium text-fg">{a.actor?.name ?? "—"}</b>{" "}
                   {t(EVENT_KEYS[a.event] ?? "tkAct.unknown")}
                   {a.event === "status_changed" && a.meta

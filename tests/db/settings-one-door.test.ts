@@ -159,7 +159,8 @@ describe("S3.1 · ON: the second group of the frame", () => {
     expect(groupHeadings(f.markup)).toBe(true);
     expect(f.markup).toContain(AR["settingsOneDoor.group.company"] as string);
     expect(rowsOf(f.markup)).toEqual(["company", "features", "integrations", "spaces"]);
-    expect(f.markup).toContain('href="/owner"');
+    // S3.3 (deliberate change): no second door to the panel in the settings, the owner's menu holds the place «لوحة التحكم» (S3.2)
+    expect(f.markup).not.toContain('href="/owner"');
     // «إعداداتي» keeps its eleven sections beside it (folders are off here: ten)
     const me = f.markup.slice(f.markup.indexOf('data-settings-group-list="me"'), f.markup.indexOf('data-settings-group-list="company"'));
     expect((me.match(/data-section="/g) ?? []).length).toBeGreaterThanOrEqual(10);
@@ -192,7 +193,8 @@ describe("S3.1 · ON: the second group of the frame", () => {
     const f = await frame();
     if (f.kind !== "rendered") throw new Error("no frame");
     expect(rowsOf(f.markup)).toEqual(["integrations", "spaces"]);
-    expect(f.markup).toContain('href="/owner"');
+    // S3.3 (deliberate change): no row «لوحة التحكم» here either, the admin's menu holds the place (S3.2)
+    expect(f.markup).not.toContain('href="/owner"');
     expect((await section("integrations")).kind).toBe("rendered");
     expect((await section("spaces")).kind).toBe("rendered");
     expect((await section("company")).kind).toBe("not-found");
@@ -268,20 +270,26 @@ describe("S3.1 · ON: the old addresses keep answering", () => {
     };
     for (const [address, page] of Object.entries(pages)) {
       expect(PANEL_REDIRECT_ADDRESSES, address).toContain(address);
-      expect(await open(page), address).toEqual({ kind: "redirect", to: panelRedirectHref(address) });
+      // S3.2: with the door on, «الحسابات» is a part of «الناس» (the answer of the one-door map)
+      expect(await open(page), address).toEqual({ kind: "redirect", to: panelRedirectHref(address, undefined, true) });
     }
   });
 });
 
 describe("S3.1 · ON: the place «الإدارة» leaves the map of an admin who holds the panel", () => {
   for (const navV2 of [false, true]) {
-    it(`navV2 ${navV2}: gone for the owner, a partner and an admin; a lead keeps it; a member keeps «الناس»; a guest is untouched`, async () => {
+    it(`navV2 ${navV2}: «لوحة التحكم» (one row, no tabs) in its slot for the owner, a partner and an admin; a lead keeps it; a member keeps «الناس»; a guest is untouched`, async () => {
       const w = await world({ door: true, navV2 });
       const places = async (who: Person) => {
         await as(w, who);
         return (await visibleNavFor(await requireActor())).places;
       };
-      for (const who of ["owner", "partner", "admin"] as const) expect((await places(who)).map((p) => p.key), who).not.toContain("admin");
+      // S3.2 (deliberate change): the slot of «الإدارة» is «لوحة التحكم», one row to /owner with no tab strip
+      for (const who of ["owner", "partner", "admin"] as const) {
+        const place = (await places(who)).find((p) => p.key === "admin");
+        expect(place?.labelKey, who).toBe("nav.place.controlPanel");
+        expect(place?.tabs, who).toEqual([]);
+      }
       expect((await places("lead")).map((p) => p.key)).toContain("admin");
       const member = (await places("member")).find((p) => p.key === "admin");
       expect(member).toBeTruthy();
@@ -301,6 +309,6 @@ describe("S3.1 · ON: the place «الإدارة» leaves the map of an admin wh
     const org = await db.organization.findUniqueOrThrow({ where: { id: w.org.id } });
     // «المساحات» is the rank rule (OWNER and ADMIN): the panel still serves this admin one section, so the place goes
     expect(await oneDoorPanelFor(actor, org.settings)).toBe(true);
-    expect((await visibleNavFor(actor)).places.map((p) => p.key)).not.toContain("admin");
+    expect((await visibleNavFor(actor)).places.find((p) => p.key === "admin")?.labelKey).toBe("nav.place.controlPanel");
   });
 });

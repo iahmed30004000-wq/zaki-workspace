@@ -86,12 +86,19 @@ import themeGallery from "./ar.theme-gallery.json";
 import navV2 from "./ar.nav-v2.json";
 import chatUi from "./ar.chat-ui.json";
 import chatFeatures from "./ar.chat-features.json";
+import chatForward from "./ar.chat-forward.json";
+import chatFolders from "./ar.chat-folders.json";
+import chatInfo from "./ar.chat-info.json";
 import workV2 from "./ar.work-v2.json";
 import permissionsV2 from "./ar.permissions-v2.json";
 import settingsCompanyChat from "./ar.settings-company-chat.json";
 import settingsMe from "./ar.settings-me.json";
 import controlPanelV2 from "./ar.control-panel-v2.json";
 import settingsOneDoor from "./ar.settings-one-door.json";
+import controlPanelPeople from "./ar.control-panel-people.json";
+import chatEmoji from "./ar.chat-emoji.json";
+import voiceStack from "./ar.voice-stack.json";
+import phoneChrome from "./ar.phone-chrome.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -189,10 +196,17 @@ export const AR: Record<string, string> = {
   ...navV2,
   ...chatUi,
   ...chatFeatures,
+  ...chatForward,
+  ...chatFolders,
+  ...chatInfo,
   ...workV2,
   ...permissionsV2,
   ...settingsCompanyChat,
   ...settingsMe,
   ...controlPanelV2,
   ...settingsOneDoor,
+  ...controlPanelPeople,
+  ...chatEmoji,
+  ...voiceStack,
+  ...phoneChrome,
 };

@@ -51,7 +51,7 @@ export function WorkTab({ spaceId, timeZone, columns, stagesOn, parts }: WorkTab
 
       {parts.customFields ? (
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-1 p-4">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[14rem] flex-1">
             <h2 className="text-sm font-semibold text-fg">{t("spset.work.fields")}</h2>
             <p className="text-xs leading-5 text-fg-muted">{t("spset.work.fields_hint")}</p>
           </div>
@@ -63,7 +63,7 @@ export function WorkTab({ spaceId, timeZone, columns, stagesOn, parts }: WorkTab
 
       {parts.approvals ? (
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-1 p-4">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[14rem] flex-1">
             <h2 className="text-sm font-semibold text-fg">{t("spset.work.approvals")}</h2>
             <p className="text-xs leading-5 text-fg-muted">{t("spset.work.approvals_hint")}</p>
           </div>
@@ -75,7 +75,7 @@ export function WorkTab({ spaceId, timeZone, columns, stagesOn, parts }: WorkTab
 
       {parts.checkins ? (
         <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-surface-1 p-4">
-          <div className="min-w-0 flex-1">
+          <div className="min-w-[14rem] flex-1">
             <h2 className="text-sm font-semibold text-fg">{t("spset.work.checkins")}</h2>
             <p className="text-xs leading-5 text-fg-muted">{t("spset.work.checkins_hint")}</p>
           </div>
