@@ -22,6 +22,7 @@
  */
 import type { MessageDto } from "@/server/chat/dto";
 import type { OutboxStorage } from "@/lib/chat/outbox/storage";
+import { QUOTE_MAX } from "@/lib/chat/v2/menu/gestures";
 
 /** At most this many items wait at once; the 201st is refused with a clear error. */
 export const OUTBOX_CAP = 200;
@@ -49,6 +50,8 @@ export interface OutboxItem {
   /** the ids of the people mentioned */
   mentions: string[];
   replyToId?: string;
+  /** S5.7 «رد بالاقتباس»: the piece of the original the person picked (at most 280 characters; only with `replyToId`) — a retry, even after a reload, still quotes */
+  replyQuote?: string;
   /** files already uploaded (their ids only; the bytes are on the server) */
   attachmentIds?: string[];
   mentionAll?: boolean;
@@ -66,7 +69,7 @@ export interface OutboxItem {
   rateLimited?: boolean;
 }
 
-export type OutboxInput = Pick<OutboxItem, "clientId" | "conversationId" | "body" | "mentions"> & Partial<Pick<OutboxItem, "replyToId" | "attachmentIds" | "mentionAll" | "noPreview" | "silent">>;
+export type OutboxInput = Pick<OutboxItem, "clientId" | "conversationId" | "body" | "mentions"> & Partial<Pick<OutboxItem, "replyToId" | "replyQuote" | "attachmentIds" | "mentionAll" | "noPreview" | "silent">>;
 
 /** What one attempt to send an item came to. */
 export type SendOutcome =
@@ -122,7 +125,11 @@ export function sanitizeItem(raw: unknown): OutboxItem | null {
   if (body.trim().length === 0 && !(attachmentIds && attachmentIds.length)) return null;
   const item: OutboxItem = { clientId, conversationId, body, mentions, createdAt, attempts };
   const replyToId = str(r["replyToId"], 64);
-  if (replyToId) item.replyToId = replyToId;
+  if (replyToId) {
+    item.replyToId = replyToId;
+    const replyQuote = str(r["replyQuote"], QUOTE_MAX);
+    if (replyQuote) item.replyQuote = replyQuote;
+  }
   if (attachmentIds && attachmentIds.length) item.attachmentIds = attachmentIds;
   if (r["mentionAll"] === true) item.mentionAll = true;
   if (r["noPreview"] === true) item.noPreview = true;
@@ -249,7 +256,7 @@ export class Outbox {
       mentions: [...input.mentions],
       createdAt: now,
       attempts: 1,
-      ...(input.replyToId ? { replyToId: input.replyToId } : {}),
+      ...(input.replyToId ? { replyToId: input.replyToId, ...(input.replyQuote ? { replyQuote: input.replyQuote } : {}) } : {}),
       ...(input.attachmentIds?.length ? { attachmentIds: [...input.attachmentIds] } : {}),
       ...(input.mentionAll ? { mentionAll: true } : {}),
       ...(input.noPreview ? { noPreview: true } : {}),

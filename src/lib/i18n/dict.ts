@@ -100,6 +100,7 @@ import chatEmoji from "./ar.chat-emoji.json";
 import voiceStack from "./ar.voice-stack.json";
 import phoneChrome from "./ar.phone-chrome.json";
 import verifiedBadge from "./ar.verified-badge.json";
+import chatParity from "./ar.chat-parity.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -211,4 +212,5 @@ export const AR: Record<string, string> = {
   ...voiceStack,
   ...phoneChrome,
   ...verifiedBadge,
+  ...chatParity,
 };

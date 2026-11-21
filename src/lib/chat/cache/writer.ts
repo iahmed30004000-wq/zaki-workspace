@@ -5,6 +5,7 @@ import {
   dropFromList,
   dropFromSpace,
   headerAgreesWithRow,
+  hideInData,
   lastMessageOf,
   mergeMessage,
   mergeRowsIntoList,
@@ -242,6 +243,17 @@ export function tombstone(qc: QueryClient, conversationId: string | null, messag
 }
 
 /**
+ * S5.7, «حذف عندي»: the message leaves the person's windows and the pinned bar of its header (the server's list row is asked for again by the caller: its last line and
+ * its numbers are the server's). Found from the windows when the conversation is not given.
+ */
+export function hideMessage(qc: QueryClient, conversationId: string | null, messageId: string): void {
+  const conv = conversationId ?? conversationOfMessage(qc, messageId);
+  if (!conv) return;
+  patch<MessagesData>(qc, chatKeys.messages(conv), (d) => hideInData(d, messageId));
+  patch<ConversationHeaderDto>(qc, chatKeys.header(conv), (h) => (h.pinnedMessages?.some((p) => p.id === messageId) ? { ...h, pinnedMessages: h.pinnedMessages.filter((p) => p.id !== messageId) } : h));
+}
+
+/**
  * A message deleted that no cached window holds (an old one, pinned or quoted by a message that is on screen): the answer does not say
  * which conversation it was in, so what still names it is scrubbed wherever it is — the quotes of it in every window, the pinned bar of
  * every header, and a row's last line.
@@ -388,6 +400,9 @@ export function applySync(qc: QueryClient, sync: SyncAnswer, opts: { meId?: stri
     if (!conv) scrubDeletedEverywhere(qc, m.id);
     else if (!removed.has(conv)) tombstone(qc, conv, m.id);
   }
+
+  // «حذف عندي»: what this person hid on another device leaves the windows here too
+  for (const id of sync.hidden ?? []) hideMessage(qc, index.get(id) ?? null, id);
 
   const catchUp = new Set<Conv>();
   if (unplaced.length) {

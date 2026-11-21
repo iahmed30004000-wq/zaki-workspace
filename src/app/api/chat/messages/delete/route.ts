@@ -4,10 +4,11 @@ import { parseJson } from "@/server/validation";
 import { activeOrgCtx } from "@/server/services/integrations";
 import { assertFeatureOn } from "@/server/services/features";
 import { deleteManySchema, deleteMessages } from "@/server/chat/messages";
+import { hideMessagesForMe } from "@/server/chat/hidden-messages";
 
 /**
  * POST (C3b.5, «حدّد» then «احذف»): delete a selection — `{ ids ≤ 100 }` — each id by the single rule (my own, or a moderator's). The company's switch `chatMultiSelect`
- * first (off: 404). The answer reports every id: `results: [{ id, ok, error? }]`; whoever only reads through silent oversight deletes nothing and leaves no trace.
+ * first (off: 404). `forMe: true` (S5.7, «حذف عندي») hides each id for the person ONLY, by the single rule «a message I can read» (nothing is deleted for anybody). The answer reports every id: `results: [{ id, ok, error? }]`; whoever only reads through silent oversight deletes nothing and leaves no trace.
  */
 /**
  * GET (C3b.5): «is the company's switch on?» — 200 `{ on: true }` while `chatMultiSelect` is on, 404 while it is off. It reads and writes nothing else; the new chat screen asks it
@@ -26,6 +27,7 @@ export async function POST(req: Request) {
     const ctx = await activeOrgCtx();
     await assertFeatureOn(ctx.orgId, "chatMultiSelect");
     const input = await parseJson(deleteManySchema, req);
+    if (input.forMe === true) return NextResponse.json(await hideMessagesForMe(ctx, input.ids));
     return NextResponse.json(await deleteMessages(ctx, input));
   });
 }

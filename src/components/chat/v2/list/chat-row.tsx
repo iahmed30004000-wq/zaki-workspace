@@ -1,11 +1,11 @@
 "use client";
 
-import React, { memo, useMemo, useState, type ReactNode } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { Archive, BellOff, Bookmark, Check, CheckCheck, Lock, Megaphone, Pin, Users, type LucideIcon } from "lucide-react";
+import { Archive, ArchiveRestore, Bell, BellOff, Bookmark, Check, CheckCheck, Lock, Megaphone, Pin, PinOff, Users, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
-import { RowActionsMenu, rowHasMenu, useRowMenuGestures, type RowMenuContext } from "@/components/chat/v2/row-menu";
+import { RowActionsMenu, rowHasMenu, useRowMenuGestures, usePersonalCall, type RowMenuContext } from "@/components/chat/v2/row-menu";
 import { useChatPersonalState, useChatRow } from "@/lib/chat/cache/selectors";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { ct } from "@/lib/chat/text";
@@ -15,6 +15,8 @@ import { isSavedRow } from "@/lib/chat/v2/menu/menu-context";
 import { useRowDraft } from "@/lib/chat/v2/use-draft";
 import { useTyping } from "@/lib/realtime/use-realtime";
 import { hasUnread } from "@/lib/chat/cache/unread";
+import { SLIDE_MS, prefersReducedMotion } from "@/lib/chat/v2/phone/motion";
+import { ROW_ACTION_PX, attachRowSwipe, claimOpenRow, releaseOpenRow, rowSwipeActionsOf, rowSwipeChange, type RowSwipeActionId } from "@/lib/chat/v2/phone/row-swipe";
 import { cn } from "@/lib/utils";
 
 /** The row heights of the spec (C2 §3): 72 px, and 76 px on the phone (a bigger thumb, a bigger avatar). */
@@ -245,6 +247,104 @@ export const ChatRowItem = memo(function ChatRowItem({ id, selected, tall, userI
   return <ConnectedRow row={row} selected={selected} tall={tall} userId={userId} menu={menu} />;
 });
 
+const SWIPE_ICON: Record<RowSwipeActionId, LucideIcon> = { pin: Pin, unpin: PinOff, mute: BellOff, unmute: Bell, archive: Archive, unarchive: ArchiveRestore };
+const SWIPE_TONE: Record<RowSwipeActionId, string> = {
+  pin: "bg-accent text-accent-fg",
+  unpin: "bg-accent text-accent-fg",
+  mute: "bg-fg-muted text-surface",
+  unmute: "bg-fg-muted text-surface",
+  archive: "bg-surface-2 text-fg",
+  unarchive: "bg-surface-2 text-fg",
+};
+
+/**
+ * S5.7 (e) — SWIPE A ROW (the phone's list): the row slides toward the start edge and uncovers «تثبيت · كتم · أرشفة» (the person's OWN items: the very same door as the row's menu,
+ * `usePersonalCall` → `PUT …/me`, behind the company's switch `chatPersonalState`). The rules are `src/lib/chat/v2/phone/row-swipe.ts` (a finger only, never the vertical scroll, never
+ * the swipe back's edge strip; one row open at a time; a tap on an open row closes it instead of opening the chat). Only drawn on the phone's tall rows, and only for a row that has
+ * personal items: everywhere else the row is exactly what it was.
+ */
+function SwipeShell({ row, personal, children }: { row: ChatRowDto; personal: boolean; children: ReactNode }) {
+  const actions = rowSwipeActionsOf(row, { personal });
+  const mine = usePersonalCall(row);
+  const boxRef = useRef<HTMLDivElement>(null);
+  const leadRef = useRef<HTMLDivElement>(null);
+  const control = useRef<{ close: () => void } | null>(null);
+  const [open, setOpen] = useState(false);
+  const reveal = actions.length * ROW_ACTION_PX;
+  const live = useRef({ reveal, setOpen });
+  live.current = { reveal, setOpen };
+  const rtl = () => (typeof document !== "undefined" ? (document.documentElement.dir || "rtl") === "rtl" : true);
+  useEffect(() => {
+    const box = boxRef.current;
+    const lead = leadRef.current;
+    if (!box || !lead || reveal <= 0) return;
+    const closeSelf = () => control.current?.close();
+    const swipe = attachRowSwipe(box as unknown as Parameters<typeof attachRowSwipe>[0], {
+      rtl,
+      width: () => window.innerWidth,
+      reveal: () => live.current.reveal,
+      enabled: () => true,
+      onOffset: (px, animate) => {
+        lead.style.transition = animate && !prefersReducedMotion() ? `transform ${SLIDE_MS}ms ease-out` : "none";
+        lead.style.transform = px > 0 ? `translateX(${(rtl() ? 1 : -1) * px}px)` : "";
+      },
+      onOpenChange: (next) => {
+        live.current.setOpen(next);
+        if (next) claimOpenRow(closeSelf);
+        else releaseOpenRow(closeSelf);
+      },
+    });
+    control.current = swipe;
+    return () => {
+      swipe.detach();
+      releaseOpenRow(closeSelf);
+      control.current = null;
+    };
+  }, [reveal]);
+  const close = useCallback(() => control.current?.close(), []);
+  if (actions.length === 0) return <>{children}</>;
+  return (
+    <div ref={boxRef} data-row-swipe="" data-row-swipe-open={open ? "true" : "false"} className="relative touch-pan-y overflow-hidden">
+      <div data-row-swipe-actions="" aria-label={ct("chatparity.row.actions")} {...(open ? {} : { "aria-hidden": true })} className="absolute inset-y-0 end-0 flex" style={{ width: reveal }}>
+        {actions.map((a) => {
+          const Icon = SWIPE_ICON[a.id];
+          return (
+            <button
+              key={a.id}
+              type="button"
+              data-row-swipe-action={a.id}
+              tabIndex={open ? 0 : -1}
+              disabled={mine.busy}
+              onClick={() => {
+                close();
+                void mine.call(rowSwipeChange(a.id));
+              }}
+              style={{ width: ROW_ACTION_PX }}
+              className={cn("flex shrink-0 flex-col items-center justify-center gap-1 text-xs font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent disabled:opacity-60", SWIPE_TONE[a.id])}
+            >
+              <Icon aria-hidden="true" className="size-5" />
+              {ct(a.labelKey)}
+            </button>
+          );
+        })}
+      </div>
+      {/* a tap on an OPEN row only closes it (the click never reaches the chat's link) */}
+      <div
+        ref={leadRef}
+        className="relative bg-surface"
+        onClickCapture={(event) => {
+          if (!open) return;
+          event.preventDefault();
+          event.stopPropagation();
+          close();
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
 function ConnectedRow({ row, selected, tall, userId, menu: given }: { row: ChatRowDto; selected: boolean; tall: boolean; userId: string; menu: RowMenuContext }) {
   const conversation = row.kind !== "SPACE";
   // C3a.1: the company's switch for the person's own items, from the cached list (the forum view hands the same context without it)
@@ -258,17 +358,27 @@ function ConnectedRow({ row, selected, tall, userId, menu: given }: { row: ChatR
   const [open, setOpen] = useState(false);
   const has = rowHasMenu(row, menu);
   const gestures = useRowMenuGestures(() => setOpen(true), has);
+  const view = (
+    <RowView
+      row={row}
+      selected={selected}
+      tall={tall}
+      typingNames={typing.typingNames}
+      draft={draft}
+      saved={saved}
+      menu={has ? <RowActionsMenu row={row} ctx={menu} open={open} onOpenChange={setOpen} openConversationId={selected ? row.id : null} className="ms-1" /> : null}
+    />
+  );
   return (
     <div {...gestures} className="contents">
-      <RowView
-        row={row}
-        selected={selected}
-        tall={tall}
-        typingNames={typing.typingNames}
-        draft={draft}
-        saved={saved}
-        menu={has ? <RowActionsMenu row={row} ctx={menu} open={open} onOpenChange={setOpen} openConversationId={selected ? row.id : null} className="ms-1" /> : null}
-      />
+      {/* S5.7 (e): the phone's rows swipe; a chat with myself or a company with the personal items off has nothing to swipe */}
+      {tall && menu.personal !== false && !saved ? (
+        <SwipeShell row={row} personal>
+          {view}
+        </SwipeShell>
+      ) : (
+        view
+      )}
     </div>
   );
 }

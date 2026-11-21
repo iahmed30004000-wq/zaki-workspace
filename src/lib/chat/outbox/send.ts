@@ -52,6 +52,8 @@ export interface ChatSendPayload {
   attachmentIds: string[];
   mentions: string[];
   replyToId?: string;
+  /** S5.7 «رد بالاقتباس»: the picked piece of the original (only with `replyToId`) */
+  replyQuote?: string;
   clientId: string;
   mentionAll?: boolean;
   voice?: boolean;
@@ -75,7 +77,7 @@ export async function postChatMessage(conversationId: string, payload: ChatSendP
       method: "POST",
       headers: { "content-type": "application/json" },
       // `silent` rides next to the shared payload builder (a file of the conversation screens): only a silent message carries it
-      body: JSON.stringify({ ...buildChatMessagePayload(payload), ...(payload.silent ? { silent: true } : {}) }),
+      body: JSON.stringify({ ...buildChatMessagePayload(payload), ...(payload.silent ? { silent: true } : {}), ...(payload.replyToId && payload.replyQuote ? { replyQuote: payload.replyQuote } : {}) }),
       ...(controller ? { signal: controller.signal } : {}),
     });
     if (response.ok) {
@@ -107,7 +109,7 @@ export function sendOutboxItem(item: OutboxItem): Promise<SendOutcome> {
     body: item.body,
     attachmentIds: item.attachmentIds ?? [],
     mentions: item.mentions,
-    ...(item.replyToId ? { replyToId: item.replyToId } : {}),
+    ...(item.replyToId ? { replyToId: item.replyToId, ...(item.replyQuote ? { replyQuote: item.replyQuote } : {}) } : {}),
     clientId: item.clientId,
     ...(item.mentionAll ? { mentionAll: true } : {}),
     ...(item.noPreview ? { noPreview: true } : {}),

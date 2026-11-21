@@ -41,6 +41,8 @@ type MessageRow = {
   clientId?: string | null;
   videoAtSec?: number | null;
   replyToId?: string | null;
+  /** «رد بالاقتباس» (S5.7): the piece of the parent the sender picked */
+  replyQuote?: string | null;
   replyTo?: { id: string; body: string; deletedAt: Date | null; author: { name: string } } | null;
   forwardedFromId?: string | null;
   forwardedFrom?: { author: { name: string } } | null;
@@ -218,6 +220,8 @@ export function presentMessage(
       preview: row.replyTo.deletedAt ? null : zakiToWords(viewer.formatting === true ? stripFormatting(row.replyTo.body, { math: true }) : row.replyTo.body), // S5.6: a Zaki emoji is its Arabic name here, never the raw code
       authorName: row.replyTo.author.name,
       deleted: !!row.replyTo.deletedAt,
+      // the quote is the PARENT's own words: it goes where the parent's preview goes — never for a deleted parent or a deleted reply
+      ...(row.replyQuote && !row.replyTo.deletedAt && !deleted ? { quote: zakiToWords(row.replyQuote) } : {}),
     };
   }
 

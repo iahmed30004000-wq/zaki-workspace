@@ -171,6 +171,19 @@ export function tombstoneInData(data: MessagesData, id: string): MessagesData {
 }
 
 /**
+ * S5.7, «حذف عندي»: a message the person hid for themselves leaves THEIR windows (nothing is left in its place: it is not a tombstone, it is as if it never came). What
+ * quotes it stays as it is; the unread landing never points at a message that is gone. The very same object when the message is not in the windows.
+ */
+export function hideInData(data: MessagesData, id: string): MessagesData {
+  if (!findInData(data, id)) return data;
+  const pages = data.pages.map((page) => {
+    if (!page.messages.some((m) => m.id === id)) return page;
+    return { ...page, messages: page.messages.filter((m) => m.id !== id), firstUnreadId: page.firstUnreadId === id ? null : page.firstUnreadId };
+  });
+  return { ...data, pages };
+}
+
+/**
  * Read marks and delivery marks of the OTHER people: the ticks of my own messages in a private chat (`status`), and the «who read»
  * avatars under the newest window of a topic. Never my own marks (they move the unread number, not the ticks). `meId` is told by
  * the caller or read from any message of mine in the windows; with neither, ticks are left alone — a wrong tick is worse than an old one.

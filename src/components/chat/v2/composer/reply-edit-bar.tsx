@@ -13,7 +13,7 @@ const BAR = "flex items-center gap-2 rounded-xl border-s-[3px] border-accent bg-
  * the old words, and the ✕ that ends it). Esc does the same from the box. An edit takes the place of a reply (the pane's `startEdit` clears it), so at most
  * one of the two is drawn.
  */
-export function ReplyEditBar({ reply, editing, onCancelReply, onCancelEdit }: { reply: MessageDto | null; editing: MessageDto | null; onCancelReply: () => void; onCancelEdit: () => void }) {
+export function ReplyEditBar({ reply, editing, quote = null, onCancelReply, onCancelEdit }: { reply: MessageDto | null; editing: MessageDto | null; /** S5.7 «رد بالاقتباس»: the piece of `reply` the person picked; shown in place of the whole message */ quote?: string | null; onCancelReply: () => void; onCancelEdit: () => void }) {
   if (editing) {
     return (
       <div data-edit-bar className={BAR}>
@@ -29,10 +29,20 @@ export function ReplyEditBar({ reply, editing, onCancelReply, onCancelEdit }: { 
     );
   }
   if (!reply) return null;
+  const quoted = quote && !reply.deleted ? quote : null;
   return (
     <div data-reply-bar className={BAR}>
       <Reply aria-hidden="true" className="size-5 shrink-0 text-accent rtl:-scale-x-100" />
-      <p className="min-w-0 flex-1 truncate">{ct("chatc.reply_to", { name: reply.authorName, body: reply.deleted ? ct("chatc.deleted") : (reply.body ?? "") })}</p>
+      {quoted ? (
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-xs font-semibold text-accent">{ct("chatparity.quote.reply_to", { name: reply.authorName })}</p>
+          <p data-reply-quote className="line-clamp-2 whitespace-pre-line text-fg-muted">
+            {quoted}
+          </p>
+        </div>
+      ) : (
+        <p className="min-w-0 flex-1 truncate">{ct("chatc.reply_to", { name: reply.authorName, body: reply.deleted ? ct("chatc.deleted") : (reply.body ?? "") })}</p>
+      )}
       <button type="button" className={CLOSE} aria-label={ct("chatc.cancel_reply")} onClick={onCancelReply}>
         <X aria-hidden="true" className="size-5" />
       </button>

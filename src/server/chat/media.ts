@@ -6,6 +6,7 @@ import { canRead, loadConversationFacts, loadOrgFacts, type ConversationFacts, t
 import { memberCan } from "@/server/policy/actor";
 import { attachmentView } from "@/server/chat/attachments";
 import { linkPreviewsOn } from "@/server/chat/link-preview";
+import { notHiddenFor } from "@/server/chat/hidden-messages";
 import { linkKeyOf, linksOfBody } from "@/lib/chat/v2/info/link-list";
 import type { AttachmentDto } from "@/server/chat/dto";
 import { loadWorkScope, taskVisibleWhere } from "@/server/services/team-scope";
@@ -96,19 +97,19 @@ async function readable(ctx: OrgAccessContext, conversationId: string): Promise<
   return { facts, org };
 }
 
-/** The messages whose attachments may be listed: of this conversation, not deleted, not a system line. */
-const listable = (orgId: string, conversationId: string): Prisma.ChatMessageWhereInput => ({ orgId, conversationId, deletedAt: null, kind: { not: "SYSTEM" } });
+/** The messages whose attachments may be listed: of this conversation, not deleted, not a system line, and not hidden by this person for themselves (S5.7, «حذف عندي»). */
+const listable = (orgId: string, conversationId: string, userId: string): Prisma.ChatMessageWhereInput => ({ orgId, conversationId, deletedAt: null, kind: { not: "SYSTEM" }, ...notHiddenFor(userId) });
 
 const KINDS_OF: Record<Exclude<MediaKind, "LINK">, string[]> = { IMAGE: ["IMAGE"], VIDEO: ["VIDEO"], FILE: ["FILE"], AUDIO: ["AUDIO"], MEDIA: ["IMAGE", "VIDEO"] };
 
 export async function listConversationMedia(ctx: OrgAccessContext, conversationId: string, query: MediaQuery): Promise<MediaPageDto | MediaCountsDto> {
   await readable(ctx, conversationId);
-  const messages = listable(ctx.orgId, conversationId);
+  const messages = listable(ctx.orgId, conversationId, ctx.userId);
 
   if (query.counts === "1" && query.kind === undefined) {
     const [groups, links] = await Promise.all([
       db.messageAttachment.groupBy({ by: ["kind"], where: { message: messages, file: { orgId: ctx.orgId, deletedAt: null } }, _count: { _all: true } }),
-      linkCount(ctx.orgId, conversationId),
+      linkCount(ctx.orgId, conversationId, ctx.userId),
     ]);
     const counts = { IMAGE: 0, VIDEO: 0, FILE: 0, AUDIO: 0, LINK: links };
     for (const g of groups) if (g.kind === "IMAGE" || g.kind === "VIDEO" || g.kind === "FILE" || g.kind === "AUDIO") counts[g.kind] = g._count._all;
@@ -121,7 +122,7 @@ export async function listConversationMedia(ctx: OrgAccessContext, conversationI
 }
 
 async function listAttachments(ctx: OrgAccessContext, conversationId: string, kinds: string[], before: string | undefined, limit: number): Promise<MediaPageDto> {
-  const messages = listable(ctx.orgId, conversationId);
+  const messages = listable(ctx.orgId, conversationId, ctx.userId);
   // the cursor is the attachment's `(message time, id)`: two pictures of the same instant (an album) are ordered by id, so a page can end between them
   let cursor: Prisma.MessageAttachmentWhereInput | null = null;
   if (before) {
@@ -173,8 +174,8 @@ const LINK_COUNT_SCAN = 1000;
  * The messages that may carry an address: an ordinary text message that is not deleted (a deleted message's words are secret even from this list, the owner too)
  * and whose words contain `http` or `www.`. The words are then read by the chat's one tokenizer, so a message that only says «http» as a word gives nothing.
  */
-const linkMessages = (orgId: string, conversationId: string): Prisma.ChatMessageWhereInput => ({
-  ...listable(orgId, conversationId),
+const linkMessages = (orgId: string, conversationId: string, userId: string): Prisma.ChatMessageWhereInput => ({
+  ...listable(orgId, conversationId, userId),
   kind: "TEXT",
   OR: [{ body: { contains: "http", mode: "insensitive" } }, { body: { contains: "www.", mode: "insensitive" } }],
 });
@@ -196,7 +197,7 @@ async function listLinks(ctx: OrgAccessContext, conversationId: string, before: 
   // a page is `limit` ADDRESSES (newest first), so the messages are read in batches until there are enough; the cursor is the last message looked at
   scan: for (let round = 0; round < LINK_ROUNDS; round++) {
     const rows = await db.chatMessage.findMany({
-      where: { ...linkMessages(ctx.orgId, conversationId), ...(cursor ? { AND: [cursor] } : {}) },
+      where: { ...linkMessages(ctx.orgId, conversationId, ctx.userId), ...(cursor ? { AND: [cursor] } : {}) },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       take: LINK_BATCH + 1,
       select: {
@@ -244,8 +245,8 @@ async function listLinks(ctx: OrgAccessContext, conversationId: string, before: 
   return { items: [], links, next };
 }
 
-async function linkCount(orgId: string, conversationId: string): Promise<number> {
-  const rows = await db.chatMessage.findMany({ where: linkMessages(orgId, conversationId), orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: LINK_COUNT_SCAN, select: { body: true } });
+async function linkCount(orgId: string, conversationId: string, userId: string): Promise<number> {
+  const rows = await db.chatMessage.findMany({ where: linkMessages(orgId, conversationId, userId), orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: LINK_COUNT_SCAN, select: { body: true } });
   const seen = new Set<string>();
   for (const row of rows) for (const found of linksOfBody(row.body)) seen.add(found.key);
   return seen.size;
