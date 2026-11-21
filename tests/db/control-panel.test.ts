@@ -246,12 +246,13 @@ describe("the panel's numbers and sentences", () => {
   it("an idea that waited more than 7 days for its first look is counted; a fresh one and a reviewed one are not", async () => {
     const w = await world();
     const idea = (title: string, status: "NEW" | "UNDER_REVIEW", createdAt: Date) =>
-      db.idea.create({ data: { orgId: w.org.id, creatorId: w.owner.id, title, status, createdAt } });
+      // B4: an idea lives in a space (its «الأفكار» page is that space's): the sentence counts per space, as the page its link opens does
+      db.idea.create({ data: { orgId: w.org.id, workspaceId: w.sales.id, creatorId: w.owner.id, title, status, createdAt } });
     await idea("قديمة", "NEW", ago(10));
     await idea("جديدة", "NEW", ago(1));
     await idea("انراجعت", "UNDER_REVIEW", ago(30));
     const home = await loadPanelHome(await accessAs(w.owner.id), NOW);
-    expect(home.insights.find((i) => i.id === "ideas_waiting")?.params).toEqual({ n: 1, days: 7 });
+    expect(home.insights.find((i) => i.id === "ideas_waiting")?.params).toEqual({ n: 1, days: 7, space: "المبيعات" });
   });
 
   it("a quiet company with nobody late: «ما في شي يستدعي الانتباه» and no warning", async () => {

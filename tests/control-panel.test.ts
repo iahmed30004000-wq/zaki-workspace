@@ -35,7 +35,7 @@ const base = (over: Partial<InsightInput> = {}): InsightInput => ({
   unassigned: 0,
   stale: 0,
   completedForecastWindow: 0,
-  ideasWaiting: 0,
+  ideasWaiting: null,
   overdueBySpace: [],
   ...over,
 });
@@ -92,9 +92,11 @@ describe("the insights", () => {
   });
 
   it("overdue work: the company's count and the space that holds most of it", () => {
-    const list = buildInsights(base({ overdue: 9, overdueBySpace: [{ name: "التسويق", n: 2 }, { name: "المبيعات", n: 7 }] }));
+    const list = buildInsights(base({ overdue: 9, overdueBySpace: [{ id: "s2", name: "التسويق", n: 2 }, { id: "s1", name: "المبيعات", n: 7 }] }));
     const first = list[0]!;
     expect(first).toMatchObject({ id: "overdue", tone: "warn", params: { n: 9, space: "المبيعات", spaceN: 7 } });
+    // B4: the link enters the space that holds most of it and opens its late tasks in «مهامي» (not the dead /list?filter=overdue)
+    expect(first.href).toBe("/go?space=s1&next=%2Fmy-work%3Fscope%3Dspace%26chip%3Doverdue");
     expect(list.map((i) => i.id)).not.toContain("all_clear");
   });
 
@@ -148,10 +150,10 @@ describe("the insights", () => {
 
   it("work nobody holds, work that stopped, ideas waiting: each only when there is some", () => {
     expect(ids(base())).not.toEqual(expect.arrayContaining(["unassigned", "stale", "ideas_waiting"]));
-    const list = buildInsights(base({ unassigned: 4, stale: 7, ideasWaiting: 2 }));
+    const list = buildInsights(base({ unassigned: 4, stale: 7, ideasWaiting: { id: "s1", name: "المبيعات", n: 2 } }));
     expect(list.find((i) => i.id === "unassigned")?.params).toEqual({ n: 4 });
     expect(list.find((i) => i.id === "stale")?.params).toEqual({ n: 7, days: 14 });
-    expect(list.find((i) => i.id === "ideas_waiting")).toMatchObject({ params: { n: 2, days: 7 }, href: "/ideas" });
+    expect(list.find((i) => i.id === "ideas_waiting")).toMatchObject({ params: { n: 2, days: 7, space: "المبيعات" }, href: "/go?space=s1&next=%2Fideas" });
   });
 
   it("the forecast: at the pace of the last 28 days; none without a pace", () => {
@@ -179,7 +181,7 @@ describe("the insights", () => {
   });
 
   it("the same numbers give the same sentences, and the function never changes what it was given", () => {
-    const input = base({ overdue: 3, overdueBySpace: [{ name: "أ", n: 3 }], week: [person("أحمد", { overdue: 3 })] });
+    const input = base({ overdue: 3, overdueBySpace: [{ id: "s1", name: "أ", n: 3 }], week: [person("أحمد", { overdue: 3 })] });
     const frozen = JSON.stringify(input);
     expect(buildInsights(input)).toEqual(buildInsights(input));
     expect(JSON.stringify(input)).toBe(frozen);
@@ -216,7 +218,7 @@ describe("every sentence has its words", () => {
   it("a sentence uses only the parameters its insight carries", () => {
     const input = base({
       overdue: 5,
-      overdueBySpace: [{ name: "المبيعات", n: 5 }],
+      overdueBySpace: [{ id: "s1", name: "المبيعات", n: 5 }],
       week: [person("أحمد", { overdue: 4, lastActiveDay: null, openTasks: 20, completed: 7 }), person("سارة", { openTasks: 2 }), person("خالد", { openTasks: 3 })],
       thisWeek: { completed: 4, onTime: 2, withDue: 10 },
       prevWeek: { completed: 8, onTime: 9, withDue: 10 },
@@ -224,7 +226,7 @@ describe("every sentence has its words", () => {
       stale: 3,
       open: 40,
       completedForecastWindow: 56,
-      ideasWaiting: 2,
+      ideasWaiting: { id: "s1", name: "المبيعات", n: 2 },
     });
     for (const insight of buildInsights(input)) {
       const template = AR[`cp.i.${insight.id}`] ?? "";

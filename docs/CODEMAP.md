@@ -51,7 +51,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 161 services — the business rules (§6) |
+| `src/server/services/` | 162 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -502,13 +502,13 @@ high count is a wide surface: changing its signature reaches all of them.
 |---|---|---|---|
 | `features` | 87 | 165 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 120 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `current-space` | 155 | 73 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
-| `team-scope` | 273 | 47 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
+| `current-space` | 155 | 74 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
+| `team-scope` | 273 | 48 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 34 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
 | `tasks` | 735 | 26 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 608 | 23 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
-| `control-panel` | 484 | 21 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
+| `control-panel` | 500 | 21 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
 | `access` | 76 | 18 | Workspace-level isolation — the company's master switch. |
 | `cards` | 631 | 18 | «اللوحات» — the cards of a space. |
 | `knowledge` | 562 | 17 | «المنتجات» — the company's product sheets (Q1.1): ONE door for the PRODUCT cards of the knowledge space. |
@@ -526,18 +526,18 @@ high count is a wide surface: changing its signature reaches all of them.
 | `tickets` | 530 | 12 | IT tickets live inside a department. |
 | `custom-fields` | 545 | 11 | «حقول مخصصة» — the custom fields of a project's tasks. |
 | `documents` | 465 | 11 | «المستندات» — the text documents of a space. |
+| `ideas` | 419 | 10 | Membership context resolved from the idea's own org (shared by API routes). |
 | `manufacturing` | 450 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
 | `production` | 525 | 10 | Daily production. |
 | `space-place` | 30 | 10 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
 | `active-people` | 71 | 9 | "Nobody who was suspended or removed still counts." A suspended or offboarded member keeps their OrganizationMember row (history, authorship), so a query that reads that table w… |
-| `ideas` | 419 | 9 | Membership context resolved from the idea's own org (shared by API routes). |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
 | `accounts` | 956 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `chat-assistant` | 499 | 8 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
-| `instant-work` | 204 | 8 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
+| `instant-work` | 213 | 8 | «مهمة فورية» (the owner's ask, 2026-10-27: «+ بالمهام ومهمة فورية لشخص محدد مع أولوية»): a task typed in one go — a title, the person, the priority, a day — with no project to p… |
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
 | `owner-assistant-proposals` | 400 | 8 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `owner-board-io` | 78 | 8 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
@@ -555,7 +555,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `api-door` | 452 | 6 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
 | `checkins-space` | 18 | 6 | The space a check-in request is about: the one the request names (`workspaceId`, which the guards in src/server/services/checkins.ts check against the person), or else the space… |
-| `spaces-overview` | 73 | 6 | «كل المساحات» — the owner's and the admins' one look over every space they can open (the owner's decision, 2026-10-25): each space stays a separate site, and this page only coun… |
+| `spaces-overview` | 71 | 6 | «كل المساحات» — the owner's and the admins' one look over every space they can open (the owner's decision, 2026-10-25): each space stays a separate site, and this page only coun… |
 | `task-steps` | 160 | 6 | «خطوات» — the short checklist inside a task. |
 | `api-tokens` | 204 | 5 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
@@ -565,7 +565,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-board-sections` | 85 | 5 | «لوحة المالك» — THE EXTENSION POINT. |
 | `reminders` | 169 | 5 | «ذكّرني» — a person's reminder for THEMSELVES (never for somebody else), on a task, on a chat message, or on its own. |
 | `search-embeddings` | 278 | 5 | «بحث بالمعنى» — the connector and the pure rules. |
-| `task-assign` | 267 | 5 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
+| `task-assign` | 272 | 5 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
 | `task-rules` | 306 | 5 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
 | `team-lines` | 156 | 5 | «الهيكل» — who answers to whom. |
 | `team-reviews` | 209 | 5 | «التقييمات» — what the owner and the supervisors write about a person for a period. |
@@ -578,7 +578,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `db-backup` | 460 | 4 | «نسخ احتياطي لقاعدة البيانات»: a daily, encrypted copy of the WHOLE database on the owner's own Google Drive. |
 | `digest` | 403 | 4 | «شو فاتني؟» — a short catch-up written by the owner's assistant for ONE person, on «اليوم», and «لخّصلي» inside a topic. |
 | `milestones` | 178 | 4 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
-| `nav-order` | 167 | 4 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
+| `nav-order` | 155 | 4 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
 | `okr` | 489 | 4 | «الأهداف والنتائج» — the key results of an objective (src/lib/okr.ts holds the arithmetic). |
 | `pinned` | 70 | 4 | «مثبّتة» — the pinned tasks a person may be shown, for the strip at the top of a project and the compact card of «اليوم». |
 | `problem-settings` | 136 | 4 | The kinds of problem, the rules and the working hours of «المشاكل تصير تذاكر» (Q1.5): who edits them is «ضبط التصعيد» (`escalation.configure`), a capability that was checked now… |
@@ -596,8 +596,9 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-assistant-names` | 85 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
 | `sessions` | 159 | 3 | C4.2 — the person's signed-in devices (`UserSession`), the one place that reads and writes them. |
+| `space-figures` | 50 | 3 | THE per-space task numbers — ONE function (B4): «كل المساحات» (`/spaces`), the control panel's report «حسب المساحة», the overview's insight about late work, the number beside ev… |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
-| `stale-tasks` | 366 | 3 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
+| `stale-tasks` | 369 | 3 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
 | `system-tokens` | 59 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
 | `team-score-io` | 28 | 3 | `?kind=` as a period kind (anything else: the month). |
 | `analytics` | 66 | 2 | Numbers behind the analytics page. |
@@ -654,7 +655,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `task-rules-run` | 298 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
 | `ticket-escalation` | 73 | 1 | Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). |
-| `today-dashboard` | 224 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
+| `today-dashboard` | 247 | 1 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
 | `approval-notify` | 128 | 0 | The bell of «طلبات الموافقة». |
 | `manufacturing-access` | 107 | 0 | «مخزون التصنيع» — WHO MAY DO WHAT, in one place. |
 | `manufacturing-costing` | 114 | 0 | «مخزون التصنيع» — reads the lots and movements of a material and turns them into its POSITION (balance, value of what has a price, the stock that has none, and the lots as first… |

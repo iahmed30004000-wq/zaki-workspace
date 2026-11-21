@@ -12,6 +12,9 @@
  * 🔧 Nothing here reads a customer, a price or the text of a message: only counts, dates and the names of the company's own staff.
  */
 
+import { goHref } from "@/lib/space-link";
+import { DEFAULT_MY_TASKS_PARAMS, myTasksHref } from "@/lib/work/my-tasks";
+
 export type InsightTone = "good" | "warn" | "info";
 
 /** One sentence for the owner: a key into the dictionary, its numbers and names, and where to look next. */
@@ -98,8 +101,9 @@ export interface InsightInput {
   stale: number;
   /** Tasks finished in the last `FORECAST_DAYS` days. */
   completedForecastWindow: number;
-  ideasWaiting: number;
-  overdueBySpace: { name: string; n: number }[];
+  /** B4: the space with the most ideas waiting for a first look, counted as that space's «الأفكار» page lists them; null: none waits. */
+  ideasWaiting: { id: string; name: string; n: number } | null;
+  overdueBySpace: { id: string; name: string; n: number }[];
 }
 
 // ───────────────────────────────────────── small arithmetic ─────────────────────────────────────────
@@ -160,7 +164,15 @@ export function buildInsights(input: InsightInput): Insight[] {
   // 1. the company's late work, and where most of it is
   if (input.overdue > 0) {
     const top = [...input.overdueBySpace].sort((a, b) => b.n - a.n || a.name.localeCompare(b.name, "ar"))[0];
-    add("overdue", "warn", { n: input.overdue, space: top?.name ?? "—", spaceN: top?.n ?? 0 }, [], "/list?filter=overdue");
+    // B4 — each space is its own account: the link enters the space with the most late work (`/go`) and opens «مهامي» on its late tasks (the old
+    // `/list?filter=overdue` was read by nothing). With no space to name there is nothing to open.
+    add(
+      "overdue",
+      "warn",
+      { n: input.overdue, space: top?.name ?? "—", spaceN: top?.n ?? 0 },
+      [],
+      top ? goHref(top.id, myTasksHref({ ...DEFAULT_MY_TASKS_PARAMS, scope: "space", chip: "overdue" })) : null,
+    );
   }
 
   // 2. the people holding the most late tasks
@@ -218,7 +230,10 @@ export function buildInsights(input: InsightInput): Insight[] {
   if (top) add("top", "good", { name: top.name, n: top.completed }, [top.userId]);
 
   // 10. ideas waiting for a first look
-  if (input.ideasWaiting > 0) add("ideas_waiting", "info", { n: input.ideasWaiting, days: IDEA_WAIT_DAYS }, [], "/ideas");
+  // B4: the number is that of ONE space and the link opens that space's «الأفكار», so the sentence counts exactly what the link shows
+  if (input.ideasWaiting && input.ideasWaiting.n > 0) {
+    add("ideas_waiting", "info", { n: input.ideasWaiting.n, days: IDEA_WAIT_DAYS, space: input.ideasWaiting.name }, [], goHref(input.ideasWaiting.id, "/ideas"));
+  }
 
   // nothing past a threshold at all: say so, once
   if (!out.some((i) => i.tone === "warn")) add("all_clear", "good");
