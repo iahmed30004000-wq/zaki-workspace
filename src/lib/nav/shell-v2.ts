@@ -124,6 +124,14 @@ export function holdsNoWork(spaces: readonly { holdsProjects?: boolean }[]): boo
   return !spaces.some((space) => space.holdsProjects !== false);
 }
 
+// ───────────────────────────────────────── the phone's chrome (P2.1) ─────────────────────────────────────────
+
+/**
+ * P2.1 — the drawer's row «المرشد» (the owner's guide) tells the guide to open its panel with this window event: on a phone the compass does not float over the
+ * page, so the drawer is where it lives. The guide (src/components/site-guide/site-guide.tsx) is its own lazy chunk and the drawer cannot import it, so the name is here.
+ */
+export const GUIDE_OPEN_EVENT = "zaki:guide-open";
+
 // ───────────────────────────────────────── ONE «الإعدادات» door (S3.1) ─────────────────────────────────────────
 
 /**

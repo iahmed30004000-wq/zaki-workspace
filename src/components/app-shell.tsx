@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import { useI18n } from "@/lib/i18n";
+import { cn } from "@/lib/utils";
 import type { Audience } from "@/lib/guide/audience";
 import { browserStore } from "@/lib/guide/storage";
 import { locate, type NavModel, type NavRole } from "@/lib/nav/places";
@@ -17,7 +18,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { AppBar } from "@/components/shell/app-bar";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { Drawer } from "@/components/shell/drawer";
-import { SettingsOneDoorContext } from "@/components/shell/nav-options";
+import { DrawerChromeContext, SettingsOneDoorContext } from "@/components/shell/nav-options";
 import { NavOrderControls } from "@/components/shell/nav-sort";
 import { PeopleDock } from "@/components/shell/people-dock";
 import { useWorkWaiting } from "@/components/shell/place-badge";
@@ -120,7 +121,10 @@ export function AppShell(props: AppShellProps) {
   return (
     <SwitchFxProvider initial={props.themeSwitch} enabled={props.themeSwitchFx ?? false} economy={props.economy ?? false}>
       <SettingsOneDoorContext.Provider value={props.settingsOneDoor === true}>
-        <AppShellFrame {...props} />
+        {/* P2.1: the new map has the phone's drawer, so the two floating helpers (lazy chunks, props pinned by tests/lazy-shell.test.ts) read this instead of a new prop */}
+        <DrawerChromeContext.Provider value={props.navV2 === true}>
+          <AppShellFrame {...props} />
+        </DrawerChromeContext.Provider>
       </SettingsOneDoorContext.Provider>
     </SwitchFxProvider>
   );
@@ -202,6 +206,9 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   const showNoWork = noWork && place?.key === "work";
   // the project list of a person with no project space is empty by construction: the notice takes its place; «مهامي» spans every space, so its page stays
   const noWorkInstead = showNoWork && here.tab === "projects";
+  // P2.1: something still floats over the page from `md` up (the quick chat's bubble, the owner's compass): the page keeps room under it. A phone has none (the bubble is not drawn there and the
+  // compass is in the drawer), the chat's own screens lay themselves out, and the old map is as it was.
+  const floatsOverPage = navV2 && !isGuest && place?.key !== "chat" && (quickChat || siteGuide);
   // the unread messages behind «الدردشة», on every page (only when the chat is one of this person's places)
   const chatUnread = useChatUnread(nav.places.some((p) => p.key === "chat"));
   // W1.4: the number on «الشغل» is what waits for the person in «الطلبات» (the spaces query already says it: no second request). «الطلبات» is a page of the new map only,
@@ -339,15 +346,17 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
         {navV2 ? <SpaceBanner /> : null}
         {/* on the old phone the content stops above the fixed bottom bar (its 56px, its border and the home-indicator inset); the drawer has no bar */}
         <div className={navV2 ? "flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] md:pb-0" : "flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:pb-0"}>
-          <main id="zk-main" tabIndex={-1} className="zk-safe-x min-w-0 flex-1 overflow-y-auto focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0">
+          <main id="zk-main" tabIndex={-1} className={cn("zk-safe-x min-w-0 flex-1 overflow-y-auto focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0", floatsOverPage && "md:pb-24")}>
             {showNoWork && !noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : null}
             {noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : children}
           </main>
-          {/* who is here and who is at their screen: its own 40px row above the phone's bar, so it covers no page (never for a guest) */}
-          <div className={chrome === "pending" ? "contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden md:hidden" : "contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden"}>
-            {/* the chat on a computer holds the roster in the rail instead (a second copy would ask the same question twice) */}
-            {chrome === "moved" ? null : <PeopleDock enabled={!isGuest && peopleDock} />}
-          </div>
+          {/* who is here and who is at their screen: its own 40px row above the phone's bar, so it covers no page (never for a guest). P2.1: with the new map a phone has NO such row (the drawer's header holds a dot and a count); the computer keeps it */}
+          {navV2 && chrome === "pending" ? null : (
+            <div className={chrome === "pending" ? "contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden md:hidden" : "contents group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden"}>
+              {/* the chat on a computer holds the roster in the rail instead (a second copy would ask the same question twice) */}
+              {chrome === "moved" ? null : <PeopleDock enabled={!isGuest && peopleDock} hideOnPhone={navV2} />}
+            </div>
+          )}
         </div>
       </div>
 
@@ -374,6 +383,8 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             orderLocked={orderLocked}
             settingsHref={settings?.href}
             listSlot={listSlot}
+            presence={<PeopleDock variant="drawer" enabled={!isGuest && peopleDock} />}
+            guide={!isGuest && siteGuide}
           />
           {/* «ترتيب»: «تم» / «رجّع» for the rail (the drawer, being modal, carries its own inside it); never while the company's order is set: the mode cannot start */}
           {editing && !orderLocked && !drawerOpen ? (
