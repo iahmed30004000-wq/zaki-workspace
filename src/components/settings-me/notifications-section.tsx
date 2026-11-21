@@ -13,6 +13,7 @@ import { useChatList } from "@/lib/chat/cache";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { usePersonalCall } from "@/components/chat/v2/row-menu";
 import { Group, WarnFix } from "@/components/settings-me/parts";
+import { ChatSoundBlock } from "@/components/settings-me/chat-sound-block";
 import { useSavePatch, usePersonPrefs } from "@/components/settings-me/use-person-prefs";
 
 /**
@@ -116,6 +117,9 @@ export function NotificationsSection() {
           hint={t("settingsMe.n.sounds.hint")}
         />
       </Group>
+
+      {/* S5.1: the message tone (five tones, a volume, «جرّب الصوت»), kept on this device */}
+      <ChatSoundBlock />
 
       <Group title={t("calls.tone.title")} hint={t("calls.tone.hint")} id="n-ringtone">
         <div role="radiogroup" aria-label={t("calls.tone.title")} className="flex flex-col gap-2">
