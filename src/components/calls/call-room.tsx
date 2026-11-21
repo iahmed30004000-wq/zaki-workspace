@@ -6,7 +6,8 @@ import { Track, type Participant } from "livekit-client";
 import { ct, ctCount } from "@/lib/chat/text";
 import { bestGrid } from "@/lib/calls/layout";
 import { ringbackFor, startRingback } from "@/lib/calls/ring-sound";
-import { micOnAtJoin } from "@/lib/calls/session";
+import { endKeyOf, micOnAtJoin } from "@/lib/calls/session";
+import { useRealtime } from "@/lib/realtime/use-realtime";
 import { Avatar } from "@/components/ui/avatar";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, type CallView } from "./call-api";
@@ -14,6 +15,9 @@ import { CallInvite } from "./call-invite";
 import { nameOf, PersonPicture, Quality } from "./call-media";
 import { useOptionalCall, type CallApi } from "./call-provider";
 import { RING_FOR_MS } from "./call-ring";
+
+/** When the caller's page asks again after the ring time: the server ends a private call nobody answered a few seconds later (src/server/calls/calls.ts `NO_ANSWER_MS`). */
+const NO_ANSWER_ASK_MS = 36_000;
 
 /**
  * The page of one call, as simple as a phone call (the owner's bar: «السلاسة وعدم التعقيد ولا الخطوات الزائدة»):
@@ -85,6 +89,16 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
   React.useEffect(() => {
     if (phase === "in") void load();
   }, [count, phase, load]);
+
+  // the call changed under this page (the other person declined it, it ended, somebody joined): read it again, at once.
+  // The caller's page hears «رفض المكالمة» this way, before the room closes.
+  useRealtime((event) => {
+    if (event.kind === "call.changed" && event.callId === callId) void load();
+  });
+  // the room closed under the person (declined, ended by a host, the other hung up): ask once more why, for the words
+  React.useEffect(() => {
+    if (phase === "ended") void load();
+  }, [phase, load]);
 
   async function removePerson(userId: string) {
     try {
@@ -161,6 +175,16 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
     };
   }, [aloneInCall, startedAt, ringKind, ringRang]);
 
+  // nobody answered a private call: the server ends it as a missed call a few seconds after the ring time; the caller's page asks then,
+  // so it closes by itself with «ما حدا ردّ» instead of waiting in an empty room
+  const waitingForAnswer = aloneInCall && ringKind === "DM" && ringRang > 0 && !view?.endedAt;
+  React.useEffect(() => {
+    if (!waitingForAnswer || !startedAt) return;
+    const wait = Math.max(0, Date.parse(startedAt) + NO_ANSWER_ASK_MS - Date.now());
+    const t = setTimeout(() => void load(), wait);
+    return () => clearTimeout(t);
+  }, [waitingForAnswer, startedAt, load]);
+
   function copyLink() {
     if (!view) return;
     void navigator.clipboard?.writeText(`${window.location.origin}${view.path}`).then(() => say(ct("calls.link_copied")), () => say(ct("calls.action_failed"), "error"));
@@ -173,11 +197,9 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
   if (loadError || ended || (phase !== "in" && phase !== "connecting" && phase !== "lost")) {
     const line = loadError
       ? loadError
-      : ended || phase === "ended"
-        ? ct("calls.ended")
-        : phase === "removed"
-          ? ct("calls.removed_me")
-          : phase === "left"
+      : ended || phase === "ended" || phase === "removed"
+        ? ct(endKeyOf(view, phase))
+        : phase === "left"
             ? ct("calls.left")
             : phase === "denied"
               ? call.state.error

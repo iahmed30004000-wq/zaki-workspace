@@ -32,6 +32,8 @@
   "calls.leave": "اطلع",
   "calls.left": "طلعت من المكالمة.",
   "calls.ended": "خلصت المكالمة.",
+  "calls.declined": "رفض المكالمة",
+  "calls.no_answer": "ما حدا ردّ",
   "calls.removed_me": "طلّعوك من هالمكالمة.",
   "calls.back": "رجوع",
   "calls.again": "ارجع على المكالمة",

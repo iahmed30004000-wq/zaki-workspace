@@ -344,6 +344,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       roomRef.current = room;
       rejoins.current = 0;
+      // really connected: the call counts as answered (a private call nobody connected to is a missed call; the person's other screens stop ringing)
+      void callApi(`/api/calls/${encodeURIComponent(callId)}/joined`, {}).catch(() => undefined);
       remember({ id: callId, video, mic });
       patch({ phase: "in", reconnecting: false, needsAudioTap: !room.canPlaybackAudio });
       try {
@@ -481,9 +483,10 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     const callId = state.callId;
     roomRef.current = null;
     remember(null);
+    // «اطلع» is ONE step: the call is «left» at once (the small window goes, the page goes back to the chat); the room and the server catch up behind it
+    patch({ phase: "left", reconnecting: false });
     if (room) await room.disconnect().catch(() => undefined);
     if (callId) await fetch(`/api/calls/${encodeURIComponent(callId)}/leave`, { method: "POST" }).catch(() => undefined);
-    patch({ phase: "left", reconnecting: false });
   }, [patch, state.callId]);
 
   const toggle = React.useCallback(async (what: "mic" | "cam" | "screen") => {
@@ -520,7 +523,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     // the library starts arriving at once, in step with the pass
     const loaded = loadCallLibs();
     loaded.catch(() => undefined);
-    void callApi<Pass>(`/api/calls/${encodeURIComponent(callId)}/token`, {}).then(
+    // `prefetch`: the phone is only ringing — fetching the pass is not answering (the call counts as answered when the browser connects)
+    void callApi<Pass>(`/api/calls/${encodeURIComponent(callId)}/token`, { prefetch: true }).then(
       async (pass) => {
         prefetched.current = { callId, pass, at: Date.now() };
         try {

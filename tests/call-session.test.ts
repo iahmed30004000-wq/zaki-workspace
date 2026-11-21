@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { insideCall, isDrop, isFresh, MAX_REJOINS, micOnAtJoin, miniVisible, PASS_FRESH_MS, REASON, rejoinDelayMs } from "@/lib/calls/session";
+import { endKeyOf, insideCall, isDrop, isFresh, MAX_REJOINS, micOnAtJoin, miniVisible, PASS_FRESH_MS, REASON, rejoinDelayMs, ringIsOver } from "@/lib/calls/session";
 
 describe("a call stays alive while the person moves around the app", () => {
   it("the small window shows on every page but the call's own", () => {
@@ -48,5 +48,29 @@ describe("joining a call: who enters with the microphone on, and who already is 
     expect(insideCall("c1", { callId: "c1", phase: "ended" })).toBe(false);
     expect(insideCall("c1", { callId: "c2", phase: "in" })).toBe(false);
     expect(insideCall("c1", { callId: null, phase: "idle" })).toBe(false);
+  });
+});
+
+describe("a ringing card closes when the call is over or was answered somewhere else", () => {
+  const live = { endedAt: null, answered: false };
+  it("keeps ringing while the call is on and unanswered; stops when it ended, when this person answered on another device, or when the call is gone", () => {
+    expect(ringIsOver(live)).toBe(false);
+    expect(ringIsOver({ ...live, endedAt: "2026-11-21T10:00:00Z" })).toBe(true);
+    expect(ringIsOver({ ...live, answered: true })).toBe(true);
+    expect(ringIsOver(null)).toBe(true);
+  });
+});
+
+describe("what the page says when a call ends under the person (not by their own «اطلع»)", () => {
+  it("a declined call says «رفض المكالمة» to the caller, an unanswered one says nobody answered, anything else just ended", () => {
+    expect(endKeyOf({ endedHow: "declined" }, "ended")).toBe("calls.declined");
+    expect(endKeyOf({ endedHow: "missed" }, "ended")).toBe("calls.no_answer");
+    expect(endKeyOf({ endedHow: "answered" }, "ended")).toBe("calls.ended");
+    expect(endKeyOf({ endedHow: null }, "ended")).toBe("calls.ended");
+    expect(endKeyOf(null, "ended")).toBe("calls.ended");
+  });
+
+  it("being taken out says so, whatever else", () => {
+    expect(endKeyOf({ endedHow: null }, "removed")).toBe("calls.removed_me");
   });
 });

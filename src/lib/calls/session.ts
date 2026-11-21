@@ -56,3 +56,19 @@ export function micOnAtJoin(call: { kind: string; startedByMe: boolean }): boole
 export function insideCall(callId: string, state: { callId: string | null; phase: string }): boolean {
   return state.callId === callId && (state.phase === "in" || state.phase === "connecting" || state.phase === "lost");
 }
+
+/**
+ * Should a ringing card close, given the call as the server tells it now? When it ended (the caller hung up, somebody declined), when the
+ * person answered it on another device or tab, or when the call can no longer be read (`null`: it ended and the person's seat is gone).
+ */
+export function ringIsOver(view: { endedAt: string | null; answered: boolean } | null): boolean {
+  return !view || !!view.endedAt || view.answered;
+}
+
+/** The dictionary key of the line a call page shows when the call ends under the person (the caller's «رفض المكالمة», nobody answered, taken out, or just over). */
+export function endKeyOf(view: { endedHow: "declined" | "missed" | "answered" | null } | null, phase: string): "calls.declined" | "calls.no_answer" | "calls.ended" | "calls.removed_me" {
+  if (phase === "removed") return "calls.removed_me";
+  if (view?.endedHow === "declined") return "calls.declined";
+  if (view?.endedHow === "missed") return "calls.no_answer";
+  return "calls.ended";
+}

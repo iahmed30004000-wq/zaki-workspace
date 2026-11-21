@@ -45,6 +45,8 @@ const VIEW: CallView = {
   kind: "TOPIC",
   rangCount: 0,
   startedByMe: false,
+  answered: false,
+  endedHow: null,
   startedAt: "2026-11-19T10:00:00.000Z",
   endedAt: null,
   startedBy: { id: "u2", name: "سلمى", avatarUrl: null },
@@ -110,6 +112,24 @@ describe("the ring (the incoming-call card)", () => {
     expect(tokens).not.toContain("shadow-lg");
   });
 
+  it("a PRIVATE call's card is a full-screen overlay on a phone with two big buttons, and the compact banner from `md` up", () => {
+    const html = draw(createElement(CallRingCard, { view: { ...VIEW, kind: "DM", conversationTitle: null }, onDecline: noop, onAnswer: noop }));
+    const tokens = classTokens(html);
+    expect(tokens).toEqual(expect.arrayContaining(["inset-0", "z-[70]", "bg-surface-1", "min-h-14", "md:inset-auto", "md:rounded-2xl", "md:shadow-card", "md:min-h-11", "md:top-[calc(0.75rem+env(safe-area-inset-top))]"]));
+    expect(html).toContain('role="alertdialog"');
+    expect(html.match(/<button/g)).toHaveLength(2);
+    expect(html).toContain(AR["calls.ring.decline"]!);
+    expect(html).toContain(AR["calls.ring.answer"]!);
+    // the notch and the home bar are respected
+    expect(html).toContain("env(safe-area-inset-bottom)");
+  });
+
+  it("a topic's or a meeting's ring stays the compact banner on every width", () => {
+    const tokens = classTokens(card());
+    expect(tokens).not.toContain("z-[70]");
+    expect(tokens).not.toContain("min-h-14");
+  });
+
   it("«رفض» is the button set's danger variant and «ردّ» is the green `ok` pair; a voice call says so", () => {
     const html = card();
     expect(html).toMatch(/<button[^>]*class="[^"]*bg-danger text-danger-fg[^"]*"[^>]*>[^]*?رفض/);
@@ -128,6 +148,13 @@ describe("the ring (the incoming-call card)", () => {
     expect(src).toContain("router.push(`/calls/${encodeURIComponent(id)}`);");
     expect(src).toContain("void ensurePush(true);");
     expect(src).toContain("call?.prefetch(view.id);");
+  });
+
+  it("«رفض» tells the server (the caller hears it); the card also closes when the call changes under it (answered elsewhere, ended)", () => {
+    const src = read("src/components/calls/call-ring.tsx");
+    expect(src).toContain("/decline");
+    expect(src).toContain('event.kind === "call.changed"');
+    expect(src).toContain("ringIsOver(");
   });
 });
 
