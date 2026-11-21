@@ -108,6 +108,13 @@ describe("what is inside", () => {
     expect(draw(makeMessage())).not.toContain("data-forwarded");
   });
 
+  it("S5.2: the «محوّلة من» header is a button (a tap asks the server where the original is), and the bubble still draws with no router around it", () => {
+    const html = draw(makeMessage({ forwardedFrom: { name: "أحمد" } }));
+    expect(html).toMatch(/<button[^>]*data-forwarded-open[^>]*>محوّلة من أحمد<\/button>/);
+    // a deleted message keeps no header at all
+    expect(draw(makeMessage({ forwardedFrom: { name: "أحمد" }, deleted: true, body: null }))).not.toContain("data-forwarded");
+  });
+
   it("the reactions are chips, mine outlined in the accent; they cannot be pressed while the owner only reads", () => {
     const message = makeMessage({ reactions: [{ emoji: "👍", count: 2, mine: true }, { emoji: "🔥", count: 1, mine: false }] });
     const html = draw(message);

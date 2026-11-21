@@ -19,7 +19,8 @@ import { log } from "@/server/log";
 import { claimUploads, MAX_ATTACHMENTS_PER_MESSAGE } from "@/server/chat/attachments";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "@/server/chat/poll-shared";
-import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, DELETED_PREVIEW } from "@/server/chat/notify";
+import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, forwardedPreview, DELETED_PREVIEW } from "@/server/chat/notify";
+import { FORWARD_COMMENT_MAX } from "@/lib/chat/forward";
 import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
 import { afterMessageSent } from "@/server/services/chat-assistant";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
@@ -332,15 +333,18 @@ function withSilent(dto: MessageDto, silent: boolean): MessageDto {
   return silent ? { ...dto, silent: true } : dto;
 }
 
-/** Notifications go out AFTER the send transaction commits (online people are skipped). */
-async function notifyAfterSend(
+/**
+ * Notifications go out AFTER the send transaction commits (online people are skipped). The ONE path every message that is written for people to read takes: a send, and
+ * (S5.2) a forward's copies and comment — the same audience, the same mutes and choices, the same privacy check (`readersAmong`).
+ */
+export async function notifyAfterSend(
   ctx: OrgAccessContext,
   facts: ConversationFacts,
   conversationId: string,
   mentionIds: string[],
   allIds: string[],
   replyToId: string | null,
-  dto: MessageDto,
+  dto: Pick<MessageDto, "id" | "authorName" | "body" | "silent">,
 ): Promise<void> {
   const parent = replyToId ? await db.chatMessage.findUnique({ where: { id: replyToId }, select: { authorId: true } }) : null;
   const audience = await readersAmong(conversationId, notifyCandidates(facts, ctx.userId, [...mentionIds, ...allIds], parent?.authorId ?? null));
@@ -558,13 +562,14 @@ type MessageLinks = { fileId: string; kind: string; width: number | null; height
 
 /**
  * ONE copy of a message in a conversation, written by the person who forwards (the ONE implementation: `forwardMessage` and the batch `forwardMessages` both call it).
- * The copy keeps the words, the kind and the card (a card is resolved again for its new readers) and links the same files again; `forwardedFromId` points at the original
- * unless `withoutAuthor` (C3b.5: «بدون اسم المرسل») leaves it out.
+ * The copy keeps the words, the kind and the card (a card is resolved again for its new readers) and links the same files again; `forwardedFromId` points at the ORIGINAL
+ * message — when the message being forwarded is itself a forward, the original it already points at (S5.2: the header names the first author, never the person who passed it
+ * on) — unless `withoutAuthor` (C3b.5: «بدون اسم المرسل») leaves it out.
  */
 async function copyForward(
   tx: Prisma.TransactionClient,
   ctx: OrgAccessContext,
-  msg: { id: string; body: string; kind: string; card: Prisma.JsonValue | null },
+  msg: { id: string; body: string; kind: string; card: Prisma.JsonValue | null; forwardedFromId?: string | null },
   links: MessageLinks,
   conversationId: string,
   opts: { createdAt?: Date; withoutAuthor?: boolean } = {},
@@ -577,7 +582,7 @@ async function copyForward(
       body: msg.body,
       kind: msg.kind,
       ...(msg.card ? { card: msg.card as Prisma.InputJsonValue } : {}),
-      ...(opts.withoutAuthor ? {} : { forwardedFromId: msg.id }),
+      ...(opts.withoutAuthor ? {} : { forwardedFromId: msg.forwardedFromId ?? msg.id }),
       ...(opts.createdAt ? { createdAt: opts.createdAt } : {}),
     },
     select: { id: true, createdAt: true },
@@ -600,6 +605,46 @@ async function copyForward(
   return copy;
 }
 
+/** Every target that refuses says the same words, whether it does not exist, may not be read or may not be written in: the report must not tell which. */
+const TARGET_REFUSED = "chat.e.post_denied";
+
+/**
+ * May the person forward INTO this conversation? The policy's `canPost` (which also reads it: a restricted topic they are not in, a closed topic, a muted space, a DM whose
+ * other person left) and, S5.2, never an ARCHIVED topic (read-only: the picker does not list it, and a hand-made request is refused the same way).
+ */
+async function assertTargetOpen(to: Awaited<ReturnType<typeof guard>>, conversationId: string): Promise<void> {
+  if (!canPost(to.facts, to.org, { ownerJoined: to.facts.viewerIsMember })) throw new ForbiddenError(TARGET_REFUSED);
+  const row = await db.conversation.findUnique({ where: { id: conversationId }, select: { archivedAt: true } });
+  if (row?.archivedAt) throw new ForbiddenError(TARGET_REFUSED);
+}
+
+/**
+ * S5.2: the receiver is TOLD. A forward used to emit the live event only; now, after the commit, the newest thing written in the target (the comment, else the last copy) goes
+ * through `notifyAfterSend`, the path a send takes: a private chat's other person gets the bell and the push (their mute and choices decide), and what a topic tells whom is
+ * the send's rule too. One notification per target, never one per copy. A failure is logged with its step and never fails the forward.
+ */
+function notifyForward(
+  ctx: OrgAccessContext,
+  to: Awaited<ReturnType<typeof guard>>,
+  targetId: string,
+  sent: { lastId: string; count: number; body: string; comment: string | null },
+  authorName: () => Promise<string>,
+): AfterSendStep {
+  return {
+    step: "notify_forward",
+    run: async () => {
+      const text = sent.comment ?? forwardedPreview(sent.count, sent.body);
+      await notifyAfterSend(ctx, to.facts, targetId, [], [], null, { id: sent.lastId, authorName: await authorName(), body: text });
+    },
+  };
+}
+
+/** The forwarder's name, read at most once however many targets there are. */
+function authorNameOnce(ctx: OrgAccessContext): () => Promise<string> {
+  let name: Promise<string> | null = null;
+  return () => (name ??= db.user.findUnique({ where: { id: ctx.userId }, select: { name: true } }).then((u) => u?.name ?? ""));
+}
+
 export async function forwardMessage(ctx: OrgAccessContext, messageId: string, input: z.infer<typeof forwardSchema>): Promise<{ id: string }> {
   const msg = await db.chatMessage.findUnique({ where: { id: messageId }, include: { conversation: { select: { id: true, orgId: true } } } });
   if (!msg || msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
@@ -610,7 +655,7 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
   // the target must be readable AND postable by the viewer; the source must be readable
   if (!canRead(from.facts, from.org)) throw new NotFoundError("chat.e.not_found");
   if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
-  if (!canPost(to.facts, to.org, { ownerJoined: to.facts.viewerIsMember })) throw new ForbiddenError("chat.e.post_denied");
+  await assertTargetOpen(to, input.conversationId);
 
   const created = await db.$transaction(async (tx) => {
     const links = await tx.messageAttachment.findMany({ where: { messageId: msg.id }, orderBy: { position: "asc" } });
@@ -625,7 +670,32 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
     });
     return copy;
   });
+  const job = runAfterSend([notifyForward(ctx, to, input.conversationId, { lastId: created.id, count: 1, body: msg.body, comment: null }, authorNameOnce(ctx))]);
+  if (afterSendMode() === "inline") await job;
   return { id: created.id };
+}
+
+/**
+ * S5.2: where a forwarded message came from, for the tap on its «محوّلة من» header: the original's conversation and message, ONLY when the viewer may read both the copy and
+ * the original (and the original is not deleted). Every other case is the same «not found»: a guest never learns the source (the header is not even drawn for them: redact.ts),
+ * and a conversation a person may not read is not named to them by a forward either. The name in the header is the original author's and is already in the message.
+ */
+export async function forwardSourceOf(ctx: OrgAccessContext, messageId: string): Promise<{ conversationId: string; messageId: string }> {
+  const notFound = () => new NotFoundError("chat.e.not_found");
+  const copy = await db.chatMessage.findUnique({ where: { id: messageId }, select: { orgId: true, conversationId: true, forwardedFromId: true, deletedAt: true } });
+  if (!copy || copy.orgId !== ctx.orgId || !copy.forwardedFromId || copy.deletedAt) throw notFound();
+  try {
+    const here = await guard(ctx, copy.conversationId);
+    if (here.org.role === "GUEST" || !canRead(here.facts, here.org)) throw notFound();
+    const origin = await db.chatMessage.findUnique({ where: { id: copy.forwardedFromId }, select: { id: true, orgId: true, conversationId: true, deletedAt: true } });
+    if (!origin || origin.orgId !== ctx.orgId || origin.deletedAt) throw notFound();
+    const from = await guard(ctx, origin.conversationId);
+    if (!canRead(from.facts, from.org)) throw notFound();
+    return { conversationId: origin.conversationId, messageId: origin.id };
+  } catch (err) {
+    if (err instanceof NotFoundError || err instanceof ForbiddenError) throw notFound();
+    throw err;
+  }
 }
 
 // ---------- many at once (C3b.5: «حدّد») ----------
@@ -650,14 +720,14 @@ export const forwardManySchema = z.object({
   targetIds: z.array(idShape).min(1).max(MULTI_MAX_TARGETS),
   /** «بدون اسم المرسل»: the copies carry no link to the original */
   withoutAuthor: z.boolean().optional(),
+  /** S5.2: a line sent with the forward, as its own message AFTER the copies in every target (empty: none) */
+  comment: z.string().max(FORWARD_COMMENT_MAX).optional(),
 });
 export const deleteManySchema = z.object({ ids: z.array(idShape).min(1).max(MULTI_MAX_MESSAGES) });
 
-export type ForwardManyResult = { targetId: string; ok: true; ids: string[] } | { targetId: string; ok: false; error: string };
+export type ForwardManyResult = { targetId: string; ok: true; ids: string[]; commentId?: string } | { targetId: string; ok: false; error: string };
 export type DeleteManyResult = { id: string; ok: true } | { id: string; ok: false; error: string };
 
-/** Every target that refuses says the same words, whether it does not exist, may not be read or may not be written in: the report must not tell which. */
-const TARGET_REFUSED = "chat.e.post_denied";
 const FORWARD_FAILED = "chatsel.fwd.failed";
 const DELETE_FAILED = "chatsel.del.failed";
 const NOT_FOUND = "chat.e.not_found";
@@ -683,6 +753,8 @@ async function sourceFacts(ctx: OrgAccessContext, cache: Map<string, Held>, conv
  * readable (404, the same words for both), a deleted message, a poll, a system line (403). Then, for each target in turn: the target's own rule (I may write there —
  * `canPost`, the same as forwarding one) and ONE transaction that writes every copy in the conversation's order, a millisecond apart in the clock so the order is kept;
  * a target that refuses or fails is reported alone and the others still get their copies. Up to 1000 copies in one request: it is bounded by the caps and the quota.
+ * S5.2: an optional `comment` is written in the same transaction as one more message AFTER the copies (a millisecond later than the last, so it can never sort before one),
+ * and once a target's transaction has committed its receiver is told (`notifyForward`: one notification per target).
  */
 export async function forwardMessages(ctx: OrgAccessContext, input: z.infer<typeof forwardManySchema>): Promise<{ results: ForwardManyResult[] }> {
   const ids = [...new Set(input.messageIds)];
@@ -705,11 +777,14 @@ export async function forwardMessages(ctx: OrgAccessContext, input: z.infer<type
   forwardLimiter.hit(`chat.bulk.${ctx.userId}`);
   const ordered = rows.slice().sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : 1));
 
+  const comment = (input.comment ?? "").trim();
   const results: ForwardManyResult[] = [];
+  const notify: AfterSendStep[] = [];
+  const authorName = authorNameOnce(ctx);
   for (const targetId of targetIds) {
     try {
       const to = await guard(ctx, targetId);
-      if (!canPost(to.facts, to.org, { ownerJoined: to.facts.viewerIsMember })) throw new ForbiddenError(TARGET_REFUSED);
+      await assertTargetOpen(to, targetId);
       const copies = await db.$transaction(
         async (tx) => {
           const base = Date.now();
@@ -717,17 +792,23 @@ export async function forwardMessages(ctx: OrgAccessContext, input: z.infer<type
           for (const [i, msg] of ordered.entries()) {
             made.push(await copyForward(tx, ctx, msg, msg.attachments, targetId, { createdAt: new Date(base + i), withoutAuthor: input.withoutAuthor === true }));
           }
+          // the comment is the NEWEST thing in the target: its own message, written by me, a millisecond after the last copy
+          const note = comment
+            ? await tx.chatMessage.create({ data: { orgId: ctx.orgId, conversationId: targetId, authorId: ctx.userId, body: comment, kind: "TEXT", createdAt: new Date(base + ordered.length) }, select: { id: true, createdAt: true } })
+            : null;
           await tx.conversation.update({ where: { id: targetId }, data: { updatedAt: new Date() } });
           // C1.8: the target's list time moves with the newest copy, in this transaction (it never goes backwards)
-          await moveLastMessageAt(tx, targetId, made[made.length - 1]!.createdAt);
-          for (const copy of made) {
+          await moveLastMessageAt(tx, targetId, (note ?? made[made.length - 1]!).createdAt);
+          for (const copy of note ? [...made, note] : made) {
             await emitRealtime(tx, ctx.orgId, "message.created", { conversationId: targetId, messageId: copy.id, spaceId: to.facts.spaceId ?? undefined });
           }
-          return made;
+          return { made, note };
         },
         { timeout: 30_000, maxWait: 5_000 },
       );
-      results.push({ targetId, ok: true, ids: copies.map((c) => c.id) });
+      results.push({ targetId, ok: true, ids: copies.made.map((c) => c.id), ...(copies.note ? { commentId: copies.note.id } : {}) });
+      const last = ordered[ordered.length - 1]!;
+      notify.push(notifyForward(ctx, to, targetId, { lastId: (copies.note ?? copies.made[copies.made.length - 1]!).id, count: ordered.length, body: last.body, comment: comment || null }, authorName));
     } catch (err) {
       if (err instanceof NotFoundError || err instanceof ForbiddenError) results.push({ targetId, ok: false, error: TARGET_REFUSED });
       else {
@@ -735,6 +816,11 @@ export async function forwardMessages(ctx: OrgAccessContext, input: z.infer<type
         results.push({ targetId, ok: false, error: FORWARD_FAILED });
       }
     }
+  }
+  // S5.2: after every transaction has committed, each receiver is told (never part of a transaction, never able to fail the forward)
+  if (notify.length) {
+    const job = runAfterSend(notify);
+    if (afterSendMode() === "inline") await job;
   }
   return { results };
 }

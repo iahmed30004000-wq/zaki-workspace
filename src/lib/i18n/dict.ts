@@ -86,6 +86,7 @@ import themeGallery from "./ar.theme-gallery.json";
 import navV2 from "./ar.nav-v2.json";
 import chatUi from "./ar.chat-ui.json";
 import chatFeatures from "./ar.chat-features.json";
+import chatForward from "./ar.chat-forward.json";
 import workV2 from "./ar.work-v2.json";
 import permissionsV2 from "./ar.permissions-v2.json";
 import settingsCompanyChat from "./ar.settings-company-chat.json";
@@ -189,6 +190,7 @@ export const AR: Record<string, string> = {
   ...navV2,
   ...chatUi,
   ...chatFeatures,
+  ...chatForward,
   ...workV2,
   ...permissionsV2,
   ...settingsCompanyChat,

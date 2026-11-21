@@ -55,7 +55,7 @@ describe("where it is wired", () => {
   });
 
   it("the space's list does not draw somebody else's assistant conversation", () => {
-    expect(read("src/server/chat/home.ts")).toContain("isAssistantChatKey(t.dmKey) && t.members.length === 0");
+    expect(read("src/server/chat/home.ts")).toContain("isAssistantChatKey(t.dmKey) && t.memberCount === 0");
   });
 });
 
