@@ -17,6 +17,7 @@ import { NotificationBell } from "@/components/notification-bell";
 import { AppBar } from "@/components/shell/app-bar";
 import { BottomNav } from "@/components/shell/bottom-nav";
 import { Drawer } from "@/components/shell/drawer";
+import { SettingsOneDoorContext } from "@/components/shell/nav-options";
 import { NavOrderControls } from "@/components/shell/nav-sort";
 import { PeopleDock } from "@/components/shell/people-dock";
 import { useWorkWaiting } from "@/components/shell/place-badge";
@@ -83,6 +84,8 @@ export interface AppShellProps {
    * side menu, top bar and bottom bar, exactly as before.
    */
   navV2?: boolean;
+  /** S3.1 — the company's switch `settingsOneDoor` (and the one control panel it needs) is ON: «الإعدادات» is ONE door in the drawer, the rail, the side menu and the avatar menu; «ترتيب» is a small icon button. */
+  settingsOneDoor?: boolean;
   /** D-N5: the company's order of the menu is set, so `navOrder` is THE COMPANY'S and the person's own «ترتيب» shows ⚠️ + 🔧 instead of reordering. */
   orderLocked?: boolean;
   /** D-N3: the person has no space that holds projects (only «الشركة»): «الشغل» says who to ask instead of showing empty lists. */
@@ -116,7 +119,9 @@ export interface AppShellProps {
 export function AppShell(props: AppShellProps) {
   return (
     <SwitchFxProvider initial={props.themeSwitch} enabled={props.themeSwitchFx ?? false} economy={props.economy ?? false}>
-      <AppShellFrame {...props} />
+      <SettingsOneDoorContext.Provider value={props.settingsOneDoor === true}>
+        <AppShellFrame {...props} />
+      </SettingsOneDoorContext.Provider>
     </SwitchFxProvider>
   );
 }

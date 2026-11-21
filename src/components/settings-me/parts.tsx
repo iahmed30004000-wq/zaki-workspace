@@ -21,6 +21,19 @@ export function SectionHead({ section }: { section: SectionKey }) {
   );
 }
 
+/** S3.1 — «رجوع لإعداداتي» above a section of «إعدادات الشركة» (the control panel's own body has its own title, so there is no second head): the phone's way back to the list. */
+export function BackLink() {
+  const { t } = useI18n();
+  return (
+    <div className="px-3 pt-3 md:hidden">
+      <Link href={SETTINGS_ME_HREF} data-settings-back="" className="inline-flex min-h-11 items-center gap-1 text-sm text-accent">
+        <ChevronRight aria-hidden="true" className="size-4" />
+        {t("settingsMe.back")}
+      </Link>
+    </div>
+  );
+}
+
 /**
  * A block of one setting, drawn as the owner's mockup draws a settings list: the title is a small accent heading above, its one line under it, then the
  * controls sit in a soft 14 px card. `rows` is for a block made of whole-row controls (switches, links): they touch the card's edges and a thin line

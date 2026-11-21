@@ -1,0 +1,23 @@
+{
+  "features.settingsOneDoor.name": "إعدادات بباب واحد",
+  "features.settingsOneDoor.hint": "لما تشغّلها: بالقائمة بيصير في سطر واحد اسمه «الإعدادات» (بدل «إعداداتي» و«دليل زاكي» و«ترتيب»)، وجواته قسمين: «إعداداتي» وفيه أقسامك، و«إعدادات الشركة» للمالك وللمدراء وفيه بيانات الشركة والميزات والتكاملات والمساحات وزر «لوحة التحكم». «ترتيب» بيصير زر صغير فوق القائمة، ومكان «الإدارة» بيختفي عن المدير اللي عنده لوحة التحكم. بتحتاج «لوحة تحكم واحدة» تكون شغّالة، وإذا انطفت ما بيتغير أي شي.",
+
+  "settingsOneDoor.door": "الإعدادات",
+  "settingsOneDoor.door_title": "الإعدادات: إعداداتي وإعدادات الشركة والدليل",
+  "settingsOneDoor.order_title": "ترتيب أماكن القائمة",
+  "settingsOneDoor.order_locked_title": "ترتيب القائمة بيد الشركة",
+  "settingsOneDoor.group.me": "إعداداتي",
+  "settingsOneDoor.group.company": "إعدادات الشركة",
+  "settingsOneDoor.groups": "مجموعات الإعدادات",
+
+  "settingsOneDoor.s.company": "بيانات الشركة",
+  "settingsOneDoor.s.company.hint": "الاسم والتوقيت وصفحة البداية وحالة السيرفر",
+  "settingsOneDoor.s.features": "الميزات",
+  "settingsOneDoor.s.features.hint": "شغّل وطفّي ميزات الشركة",
+  "settingsOneDoor.s.integrations": "التكاملات",
+  "settingsOneDoor.s.integrations.hint": "الأتمتة وتيليجرام ودرايف والذكاء الاصطناعي",
+  "settingsOneDoor.s.spaces": "المساحات",
+  "settingsOneDoor.s.spaces.hint": "كل المساحات وإعداداتها",
+  "settingsOneDoor.panel": "لوحة التحكم",
+  "settingsOneDoor.panel.hint": "نظرة عامة والناس والتقارير والأرشيف وباقي الإدارة"
+}

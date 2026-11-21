@@ -90,6 +90,17 @@ export interface NavSubject {
    * Only the new map reads it; a tool the person may not open is never drawn because it was pinned.
    */
   workTabs?: readonly string[];
+  /**
+   * S3.1 — the company's switch `settingsOneDoor` is ON and the one control panel it needs (`controlPanelV2`) is too: «الإعدادات» is ONE door (the menu draws one row for it, the
+   * shells draw «ترتيب» as a small icon button). Left out or false (the default, and what the switch OFF gives): the map and the menu are exactly as before.
+   * (`navSubjectOf` in src/server/services/nav-order.ts sets it from the settings, only when true.)
+   */
+  settingsOneDoor?: boolean;
+  /**
+   * S3.1 — with `settingsOneDoor`: the person may open at least one section of «لوحة التحكم» (read from the database by the caller, `oneDoorPanelFor`). Together with an ADMIN or
+   * OWNER rank it makes the place «الإدارة» leave their menu (`oneDoorHidesAdmin`): everything it held is behind «الإعدادات» › «إعدادات الشركة» › «لوحة التحكم». Left out: the place stays.
+   */
+  panel?: boolean;
 }
 
 export type PlaceKey = "today" | "chat" | "work" | "library" | "admin" | "watch" | "cards";
@@ -489,6 +500,13 @@ function placesFor(layout: SpaceLayout | undefined, v2 = false): readonly PlaceD
 const usesV2 = (subject: NavSubject): boolean => subject.navV2 === true;
 
 /**
+ * S3.1 — the place «الإدارة» is not on the map of an ADMIN or OWNER who holds the control panel while «الإعدادات» is ONE door: its tabs (the people, the reports, the archive, the
+ * integrations, the space, the assistant, the structure) are sections of «لوحة التحكم», and the panel is reached from «إعدادات الشركة». Staff keep the place (called «الناس» when they
+ * hold no administration: the directory and «لوحتي»). Both maps follow it; the pages and the routes of every tab still answer and still decide again on the server.
+ */
+export const oneDoorHidesAdmin = (subject: NavSubject): boolean => subject.settingsOneDoor === true && subject.panel === true && rankAtLeast(subject.role, "ADMIN");
+
+/**
  * Every address the app had before Phase 2. Each one is still a page (`src/app/(app)/<route>/page.tsx`,
  * `[id]` being the dynamic folder) and each one still has a place or, for the profile, deliberately none.
  */
@@ -625,6 +643,7 @@ export function buildNav(subject: NavSubject): NavModel {
   for (const def of placesFor(subject.spaceLayout, v2)) {
     if (!meets(def.requires, subject)) continue;
     if (def.feature && subject.off?.includes(def.feature)) continue;
+    if (def.key === "admin" && oneDoorHidesAdmin(subject)) continue;
     if (v2) {
       const drawn = buildPlaceV2(def, subject);
       if (drawn) places.push(drawn);
