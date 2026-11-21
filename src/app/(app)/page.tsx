@@ -34,7 +34,8 @@ import { TodayMentionsCard } from "@/components/today/mentions-card";
 import { TodayFollowUps } from "@/components/today/follow-ups";
 import { TodayTeamCard } from "@/components/today/team-card";
 import { TodayMore } from "@/components/today/more";
-import { getTodayFollowUps, getTodayMentions, getTodayWaiting } from "@/server/services/today-dashboard";
+import { TodayHqSummary } from "@/components/today/hq-summary";
+import { getTodayBySpace, getTodayFollowUps, getTodayMentions, getTodayWaiting } from "@/server/services/today-dashboard";
 import { teamCardOf, teamScopeOf, todayLayout, type TodayCardKey } from "@/lib/today";
 import type { Actor } from "@/server/policy/actor";
 import type { CurrentSpace } from "@/server/services/current-space";
@@ -81,10 +82,13 @@ export default async function TodayPage({ searchParams }: { searchParams?: Recor
   }
   // W1.7: with «التنقل الجديد» on, «اليوم» is up to six cards and one team card; with it off nothing below changes
   if (await actorFeatureOn(actor, "navV2")) return simpleToday(actor, space);
-  const [data, dashboard] = await Promise.all([
-    getToday(actor, { spaceId: space?.id ?? null }),
+  // B4: inside «الشركة» (the view over all the spaces) the team numbers are the person's people over every space, and the tasks card is the per-space summary
+  const inHq = space?.kind === "HQ";
+  const [data, dashboard, bySpace] = await Promise.all([
+    getToday(actor, { spaceId: space?.id ?? null, teamWide: inHq }),
     // the smart cards: numbers over the same space, from their own service call (a guest gets none)
-    getTodayDashboard(actor, { space: space ? { id: space.id, kind: space.kind } : null }),
+    getTodayDashboard(actor, { space: space ? { id: space.id, kind: space.kind } : null, teamWide: inHq }),
+    inHq ? getTodayBySpace(actor) : Promise.resolve(null),
   ]);
 
   // «تذكيراتي»: a compact card of the person's own reminders, only while the company's «ذكّرني» switch is on
@@ -116,7 +120,11 @@ export default async function TodayPage({ searchParams }: { searchParams?: Recor
           {digestOn ? <DigestCard /> : null}
           <FirstStepsCard actor={actor} />
           <TodayDashboard data={dashboard} />
-          <TodayTasksCard tasks={data.tasks} hasSpaces={data.hasSpaces} canCreateSpaces={data.canCreateSpaces} quickAdd={data.quickAdd} timeZone={data.timeZone} />
+          {bySpace ? (
+            <TodayHqSummary rows={bySpace} />
+          ) : (
+            <TodayTasksCard tasks={data.tasks} hasSpaces={data.hasSpaces} canCreateSpaces={data.canCreateSpaces} quickAdd={data.quickAdd} timeZone={data.timeZone} />
+          )}
           <InstallHint />
         </div>
         <div className="flex min-w-0 flex-col gap-4 lg:w-80 lg:shrink-0">
@@ -145,9 +153,12 @@ export default async function TodayPage({ searchParams }: { searchParams?: Recor
 async function simpleToday(actor: Actor, space: CurrentSpace | null) {
   const { t } = getServerT();
   const spaceRef = space ? { id: space.id, kind: space.kind } : null;
-  const [data, dashboard, waiting, mentions, followUps, remindersOn, timeOn, checkinsOn, digestOn, pinned, panelHref] = await Promise.all([
-    getToday(actor, { spaceId: space?.id ?? null }),
-    getTodayDashboard(actor, { space: spaceRef }),
+  // B4 — «الشركة» is the view over ALL the person's spaces (each space is its own account): the team numbers there are the company's / the person's
+  // people over every space (not the zeros of a space that holds no work), and the tasks card gives way to the per-space summary
+  const inHq = space?.kind === "HQ";
+  const [data, dashboard, waiting, mentions, followUps, remindersOn, timeOn, checkinsOn, digestOn, pinned, panelHref, bySpace] = await Promise.all([
+    getToday(actor, { spaceId: space?.id ?? null, teamWide: inHq }),
+    getTodayDashboard(actor, { space: spaceRef, teamWide: inHq }),
     getTodayWaiting(actor, { space: spaceRef }),
     getTodayMentions(actor, { space: spaceRef }),
     getTodayFollowUps(actor),
@@ -157,9 +168,10 @@ async function simpleToday(actor: Actor, space: CurrentSpace | null) {
     !actor.isExternal && digestOffered(actor.orgId),
     rewardLensFor(actor, space?.id ?? null).then((lens) => pinnedTasks(actor, { spaceId: space?.id ?? null }, lens)),
     panelHrefFor(actor),
+    inHq ? getTodayBySpace(actor) : Promise.resolve(null),
   ]);
 
-  const team = teamCardOf(dashboard?.team ?? null, data.pulse, teamScopeOf({ isOwner: actor.isOwner, spaceName: space?.name ?? null }));
+  const team = teamCardOf(dashboard?.team ?? null, data.pulse, teamScopeOf({ isOwner: actor.isOwner, spaceName: inHq ? null : (space?.name ?? null) }));
   const layout = todayLayout({
     external: actor.isExternal,
     waiting: waiting?.total ?? 0,
@@ -179,7 +191,11 @@ async function simpleToday(actor: Actor, space: CurrentSpace | null) {
   const greeting = data.greeting.period === "morning" ? t("today.greeting.morning", { name }) : t("today.greeting.evening", { name });
 
   const slots: Record<TodayCardKey, ReactNode> = {
-    tasks: <TodayTasksCard tasks={data.tasks} hasSpaces={data.hasSpaces} canCreateSpaces={data.canCreateSpaces} quickAdd={data.quickAdd} timeZone={data.timeZone} />,
+    tasks: bySpace ? (
+      <TodayHqSummary rows={bySpace} />
+    ) : (
+      <TodayTasksCard tasks={data.tasks} hasSpaces={data.hasSpaces} canCreateSpaces={data.canCreateSpaces} quickAdd={data.quickAdd} timeZone={data.timeZone} />
+    ),
     waiting: waiting ? <TodayWaitingCard waiting={waiting} /> : null,
     mentions: mentions ? <TodayMentionsCard mentions={mentions} /> : null,
     reminders: (
@@ -189,7 +205,8 @@ async function simpleToday(actor: Actor, space: CurrentSpace | null) {
       </>
     ),
     checkin: <MyCheckinCard />,
-    team: team ? <TodayTeamCard team={team} panelHref={panelHref} /> : null,
+    // the scope chip says what the SERVICE counted (the company / the people under the person, in the space they are in or in all of them)
+    team: team ? <TodayTeamCard team={team} panelHref={panelHref} scopeInfo={dashboard?.team?.scope ?? data.pulse?.scope ?? null} /> : null,
   };
   const moreParts: Record<(typeof layout.more)[number], ReactNode> = {
     glance: dashboard ? <TodayDashboard data={{ ...dashboard, team: null }} /> : null,

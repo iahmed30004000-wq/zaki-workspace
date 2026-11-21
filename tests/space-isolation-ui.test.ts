@@ -13,6 +13,11 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { QuickAddForm } from "@/components/today/quick-add";
+import { TodayHqSummary } from "@/components/today/hq-summary";
+import { mustChooseSpace, quickInboxBody, type TodayQuickAddData, type WorkInboxInfo } from "@/lib/today";
 import { TodayWaitingCard } from "@/components/today/waiting-card";
 import { I18nProvider } from "@/lib/i18n";
 import { ToastProvider } from "@/components/ui/toast";
@@ -72,5 +77,67 @@ describe("«مهام قديمة»: asking for the same answer again", () => {
     expect(staleParamsOf({ ...base, space: null, here: null }).space).toBeNull();
     expect(staleApiQuery(staleParamsOf({ ...base, space: null, here: "a" }))).toBe("space=all");
     expect(parseStaleParams(new URLSearchParams("space=all")).space).toBe(STALE_ALL_SPACES);
+  });
+});
+
+describe("B4.5 the quick add sheet inside «الشركة»", () => {
+  const QUICK: TodayQuickAddData = { assigneeId: "u1", dueToday: "2026-10-22T09:00:00.000Z", dueTomorrow: "2026-10-23T09:00:00.000Z", targets: [] };
+  const form = (inbox: WorkInboxInfo) => html(createElement(QuickAddForm, { quickAdd: QUICK, timeZone: "Asia/Damascus", onDone: () => {}, inbox }));
+  const two = [
+    { id: "w1", name: "ألفا" },
+    { id: "w2", name: "بيتا" },
+  ];
+
+  it("asks which space (a required choice, none picked for the person) when the person is in «الشركة» with several spaces", () => {
+    const markup = form({ space: two[0]!, projectId: null, choose: true, spaces: two });
+    expect(markup).toMatch(/<select[^>]*name="spaceId"[^>]*required/);
+    expect(markup).toContain("اختر المساحة");
+    expect(markup).toContain(">ألفا<");
+    expect(markup).toContain(">بيتا<");
+    expect(mustChooseSpace({ space: null, projectId: null, choose: true, spaces: two })).toBe(true);
+  });
+
+  it("does not ask inside a space, nor when there is only one space to choose from (that one is used, and named by the toast)", () => {
+    expect(form({ space: two[0]!, projectId: null, choose: false, spaces: two })).not.toContain('name="spaceId"');
+    expect(form({ space: two[0]!, projectId: null, choose: true, spaces: [two[0]!] })).not.toContain('name="spaceId"');
+    expect(mustChooseSpace({ space: two[0]!, projectId: null, choose: true, spaces: [two[0]!] })).toBe(false);
+    expect(mustChooseSpace(null)).toBe(false);
+  });
+
+  it("the body carries the space the person chose, and only then", () => {
+    const base = { title: "مهمة", due: "none" as const, timeZone: "UTC" };
+    expect(quickInboxBody(QUICK, { ...base, spaceId: "w2" })?.spaceId).toBe("w2");
+    expect(quickInboxBody(QUICK, base)).not.toHaveProperty("spaceId");
+    expect(quickInboxBody(QUICK, { ...base, spaceId: null })).not.toHaveProperty("spaceId");
+  });
+
+  it("the first-name chip shortens an assignee by whitespace (a person «سارة خالد» is «سارة»)", () => {
+    const source = readFileSync(path.resolve(__dirname, "../src/components/today/quick-add.tsx"), "utf8");
+    expect(source).toContain(`split(/${String.fromCharCode(92)}s+/)[0]`);
+    expect("سارة خالد".trim().split(/\s+/)[0]).toBe("سارة");
+  });
+});
+
+describe("B4.6 «اليوم» inside «الشركة»: the per-space summary", () => {
+  const rows = [
+    { id: "w1", name: "ألفا", emoji: "🅰️", open: 5, overdue: 2, unread: 0 },
+    { id: "w2", name: "بيتا", emoji: null, open: 0, overdue: 0, unread: 3 },
+  ];
+
+  it("a line per space with its name, its open and late numbers, the unread only when there is some, and «انتقل» through /go", () => {
+    const markup = html(createElement(TodayHqSummary, { rows }));
+    expect(markup).toContain("data-today-hq");
+    expect(textOf(markup)).toContain("ألفا");
+    expect(textOf(markup)).toContain("5 مفتوحة");
+    expect(textOf(markup)).toContain("2 متأخرة");
+    expect(textOf(markup)).toContain("3 رسالة جديدة");
+    expect(markup.match(/رسالة جديدة/g)).toHaveLength(1);
+    expect(markup).toContain('href="/go?space=w1"');
+    expect(markup).toContain('href="/go?space=w2"');
+    expect(markup).toMatch(/text-danger[^>]*>2 متأخرة/);
+  });
+
+  it("says so when the person has no space", () => {
+    expect(textOf(html(createElement(TodayHqSummary, { rows: [] })))).toContain("ما إلك مساحة شغل لسا");
   });
 });

@@ -27,7 +27,8 @@ export function TodayFollowUps({ items }: { items: TodayFollowUp[] }) {
       <ul role="list" className="divide-y divide-border px-2 pb-2 pt-1">
         {items.map((item) => (
           <li key={item.id}>
-            <Link href="/tickets" prefetch={false} className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg px-2 py-2 transition-colors hover:bg-surface-2">
+            {/* the ticket itself (the desk opens it), not the list of tickets */}
+            <Link href={`/tickets?ticket=${encodeURIComponent(item.id)}`} prefetch={false} className="flex min-h-12 flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg px-2 py-2 transition-colors hover:bg-surface-2">
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">
                 <bdi>{item.title}</bdi>
               </span>
