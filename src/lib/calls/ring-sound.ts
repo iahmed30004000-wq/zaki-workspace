@@ -8,7 +8,8 @@
  * moment and plays again. A browser may refuse to play before the person has touched the page; then the
  * built-in two-beat tone (the one the card always had) takes over, so a call never rings silent by accident.
  */
-import { playLoop, RINGBACK_NOTES, RINGBACK_PERIOD_MS } from "./tones";
+import { playLoop, RING_PATTERN_PERIOD_MS, RING_PATTERNS, RINGBACK_NOTES, RINGBACK_PERIOD_MS } from "./tones";
+import { loadRingTone, type RingTone } from "./ring-prefs";
 
 export const RING_SOUND_URL = "/sounds/ring.mp3";
 /** The pause between two rings. */
@@ -75,8 +76,13 @@ function startBeeps(): () => void {
   };
 }
 
-/** Starts the ring; returns its stop (safe to call twice). */
-export function startRing(): () => void {
+/**
+ * Starts the incoming ring in the tone chosen on this device (`opts.tone` overrides it: the settings' preview); returns its stop (safe to call twice).
+ * The recorded tone is the file below; the two others are drawn by the browser (src/lib/calls/tones.ts).
+ */
+export function startRing(opts: { tone?: RingTone } = {}): () => void {
+  const tone = opts.tone ?? loadRingTone();
+  if (tone === "soft" || tone === "bell") return playLoop(RING_PATTERNS[tone], RING_PATTERN_PERIOD_MS[tone]);
   if (typeof Audio === "undefined") return startBeeps();
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;

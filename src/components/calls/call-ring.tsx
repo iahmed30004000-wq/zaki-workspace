@@ -12,6 +12,8 @@ import { callApi, type CallView } from "./call-api";
 import { useOptionalCall } from "./call-provider";
 import { ensurePush } from "./push-client";
 import { startRing } from "@/lib/calls/ring-sound";
+import { announceRingDone, onRingDone, startSharedRing } from "@/lib/calls/ring-lock";
+import { startVibration } from "@/lib/calls/vibrate";
 
 /** A ring stops by itself after this long (an unanswered call). */
 export const RING_FOR_MS = 30_000;
@@ -103,15 +105,27 @@ export function CallRing() {
     );
   });
 
+  // another tab of this browser answered or declined this call: its card goes here too, at once
+  React.useEffect(() => onRingDone((id) => setRinging((r) => (r && r.id === id ? null : r))), []);
+
+  // ONE tab rings (the others stay silent and take over if it closes): the chosen ringtone and the vibration, for as long as the card is up
+  const ringingId = ringing?.id ?? null;
   React.useEffect(() => {
-    if (!ringing) return;
+    if (!ringingId) return;
     const stop = setTimeout(() => setRinging(null), RING_FOR_MS);
-    const tone = startRing();
+    const tone = startSharedRing(ringingId, () => {
+      const stopSound = startRing();
+      const stopShake = startVibration();
+      return () => {
+        stopSound();
+        stopShake();
+      };
+    });
     return () => {
       clearTimeout(stop);
       tone();
     };
-  }, [ringing]);
+  }, [ringingId]);
 
   if (!ringing) return null;
   return (
@@ -120,6 +134,7 @@ export function CallRing() {
       onDecline={() => {
         const id = ringing.id;
         setRinging(null);
+        announceRingDone(id);
         // a private call ends for both and the caller hears «رفض المكالمة»; in a topic it is only this card that goes
         void callApi(`/api/calls/${encodeURIComponent(id)}/decline`, {}).catch(() => undefined);
       }}
@@ -127,6 +142,7 @@ export function CallRing() {
         const id = ringing.id;
         void ensurePush(true);
         setRinging(null);
+        announceRingDone(id);
         router.push(`/calls/${encodeURIComponent(id)}`);
       }}
     />

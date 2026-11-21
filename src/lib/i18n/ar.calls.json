@@ -82,5 +82,11 @@
   "calls.mic_held": "الجهاز وقّف المايك",
   "calls.mic_revive": "رجّع المايك",
   "calls.away": "برّا التطبيق",
-  "calls.pip_card": "مكالمة شغّالة"
+  "calls.pip_card": "مكالمة شغّالة",
+  "calls.tone.title": "نغمة المكالمات الواردة",
+  "calls.tone.hint": "بتتحفظ على هالجهاز بس. لما يكون عندك أكتر من تبويب مفتوح، واحد بس بيرنّ.",
+  "calls.tone.file": "كلاسيك",
+  "calls.tone.soft": "هادية",
+  "calls.tone.bell": "جرس",
+  "calls.tone.try": "جرّبها"
 }

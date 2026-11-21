@@ -7,6 +7,7 @@ import type { DisconnectReason, LocalAudioTrack, LocalTrack, Participant, Room, 
 import { ct } from "@/lib/chat/text";
 import { AWAY_TOPIC, decodeAway, encodeAway, micHeld, type MicFacts } from "@/lib/calls/mic";
 import { isDrop, isFresh, MAX_REJOINS, miniVisible, rejoinDelayMs } from "@/lib/calls/session";
+import { playConnect, playEnd } from "@/lib/calls/tones";
 import { clampOffset, type Corner, DEFAULT_CORNER, isTap, loadCorner, nearestCorner, saveCorner } from "@/lib/calls/mini-window";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, callErrorText, type CallView } from "./call-api";
@@ -548,6 +549,19 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const actions = React.useRef({ toggle, leave, pip });
   actions.current = { toggle, leave, pip };
   const inCall = state.phase === "in";
+
+  // a short blip when the call connects and another when it ends (never again for a quiet rejoin after a drop of the network)
+  const connectedFor = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (state.phase === "in" && state.callId && connectedFor.current !== state.callId) {
+      connectedFor.current = state.callId;
+      playConnect();
+    } else if ((state.phase === "left" || state.phase === "ended" || state.phase === "removed") && connectedFor.current) {
+      connectedFor.current = null;
+      playEnd();
+    }
+  }, [state.phase, state.callId]);
+
   React.useEffect(() => {
     if (!inCall || typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
     setMediaAction("enterpictureinpicture", () => actions.current.pip());

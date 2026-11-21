@@ -144,7 +144,9 @@ describe("the ring (the incoming-call card)", () => {
     expect(src).toContain('event.kind !== "call.ring"');
     expect(src).toContain("`/api/calls/${encodeURIComponent(event.callId)}`");
     expect(src).toContain("export const RING_FOR_MS = 30_000;");
-    expect(src).toContain("const tone = startRing();");
+    // the ring tone still plays on the card (now through the one-tab lock, with the chosen tone and the vibration)
+    expect(src).toContain("const stopSound = startRing();");
+    expect(src).toContain("startSharedRing(ringingId");
     expect(src).toContain("router.push(`/calls/${encodeURIComponent(id)}`);");
     expect(src).toContain("void ensurePush(true);");
     expect(src).toContain("call?.prefetch(view.id);");
