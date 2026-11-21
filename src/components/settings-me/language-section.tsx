@@ -7,6 +7,7 @@ import { DIGIT_MODES, type DigitMode } from "@/lib/digits";
 import { Group } from "@/components/settings-me/parts";
 import { ThemeBlock } from "@/components/settings-me/chat-section";
 import { useSettingsOneDoor } from "@/components/shell/nav-options";
+import { TabWheelBlock } from "@/components/settings-me/tab-wheel-block";
 
 /**
  * C4.1 — «اللغة والأرقام»: Arabic (the only language, listed for completeness) and the digits «123 / ١٢٣» (`User.digits`, `POST /api/me/digits`, applied at once
@@ -35,6 +36,7 @@ export function LanguageSection() {
         </p>
       </Group>
       <DigitsBlock />
+      <TabWheelBlock />
     </div>
   );
 }

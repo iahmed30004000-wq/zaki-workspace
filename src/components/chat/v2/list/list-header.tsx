@@ -1,7 +1,8 @@
 "use client";
 
 import React from "react";
-import { Search, SquarePen, X } from "lucide-react";
+import { MessagesSquare, Search, SquarePen, Users, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { ListSearchPanel } from "@/components/chat/v2/info/list-search-results";
 import { ct } from "@/lib/chat/text";
 
@@ -17,12 +18,18 @@ export function ListHeader({
   query,
   onQuery,
   onNewMessage,
+  onNewGroup,
+  onNewTopic,
   searchId,
 }: {
   query: string;
   onQuery: (value: string) => void;
   /** undefined: no pencil (a guest has no private chats; the phone has its round button) */
   onNewMessage?: () => void;
+  /** «مجموعة جديدة» in the pencil's menu (given with `onNewMessage`) */
+  onNewGroup?: () => void;
+  /** «موضوع جديد», only for somebody who may open a topic in the space on screen */
+  onNewTopic?: () => void;
   searchId: string;
 }) {
   return (
@@ -60,7 +67,7 @@ export function ListHeader({
             </button>
           ) : null}
         </div>
-        {onNewMessage ? (
+        {onNewMessage && !onNewGroup && !onNewTopic ? (
           <button
             type="button"
             aria-label={ct("chath.new_dm")}
@@ -70,6 +77,36 @@ export function ListHeader({
           >
             <SquarePen className="size-5" aria-hidden="true" />
           </button>
+        ) : null}
+        {onNewMessage && (onNewGroup || onNewTopic) ? (
+          // the computer's pencil: a menu of everything new — a message, a group, a topic (the owner, 2026-11-21: «زر إنشاء المواضيع أو الجروب ما لقيته»)
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                aria-label={ct("chath.new_dm")}
+                title={ct("chath.new_dm")}
+                className="hidden size-10 shrink-0 place-items-center rounded-full text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent md:grid"
+              >
+                <SquarePen className="size-5" aria-hidden="true" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="z-[60]">
+              <DropdownMenuItem onSelect={onNewMessage}>
+                <SquarePen aria-hidden="true" className="size-4" /> {ct("chath.new_dm")}
+              </DropdownMenuItem>
+              {onNewGroup ? (
+                <DropdownMenuItem onSelect={onNewGroup}>
+                  <Users aria-hidden="true" className="size-4" /> {ct("chath.group.new")}
+                </DropdownMenuItem>
+              ) : null}
+              {onNewTopic ? (
+                <DropdownMenuItem onSelect={onNewTopic}>
+                  <MessagesSquare aria-hidden="true" className="size-4" /> {ct("chath.topic.new")}
+                </DropdownMenuItem>
+              ) : null}
+            </DropdownMenuContent>
+          </DropdownMenu>
         ) : null}
       </div>
       <ListSearchPanel query={query} onPick={() => onQuery("")} />

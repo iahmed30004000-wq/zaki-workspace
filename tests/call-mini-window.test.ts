@@ -57,11 +57,11 @@ describe("a tap is not a drag", () => {
 });
 
 describe("the small window in the call keeper", () => {
-  it("is dragged by pointer events (touch and mouse), remembers its corner, and is off the stale bottom-20 offset", () => {
+  it("is dragged by pointer events (touch and mouse), stays where it is dropped and remembers the place, and is off the stale bottom-20 offset", () => {
     expect(provider).toContain("onPointerDown");
     expect(provider).toContain("setPointerCapture");
-    expect(provider).toContain("saveCorner(");
-    expect(provider).toContain("loadCorner()");
+    expect(provider).toContain("saveSpot(");
+    expect(provider).toContain("loadSpot()");
     expect(provider).not.toContain("bottom-20");
     expect(provider).toContain("env(safe-area-inset-bottom)");
   });

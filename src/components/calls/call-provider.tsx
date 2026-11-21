@@ -8,7 +8,7 @@ import { ct } from "@/lib/chat/text";
 import { AWAY_TOPIC, decodeAway, encodeAway, micHeld, type MicFacts } from "@/lib/calls/mic";
 import { isDrop, isFresh, MAX_REJOINS, miniVisible, rejoinDelayMs } from "@/lib/calls/session";
 import { playConnect, playEnd } from "@/lib/calls/tones";
-import { clampOffset, type Corner, DEFAULT_CORNER, isTap, loadCorner, nearestCorner, saveCorner } from "@/lib/calls/mini-window";
+import { clampOffset, DEFAULT_CORNER, isTap, loadSpot, saveSpot, type Spot, spotOf, spotStyle } from "@/lib/calls/mini-window";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, callErrorText, type CallView } from "./call-api";
 import { ensurePush } from "./push-client";
@@ -614,18 +614,30 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
 }
 
 /** Where each corner of the small window sits at rest: under the app's top bar, or above the home bar of a phone, at the page's start or end edge. */
-const MINI_CORNER_CLASS: Record<Corner, string> = {
+const MINI_CORNER_CLASS = {
   "top-start": "top-[calc(4rem+env(safe-area-inset-top))] start-3",
   "top-end": "top-[calc(4rem+env(safe-area-inset-top))] end-3",
   "bottom-start": "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] start-3",
   "bottom-end": "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] end-3",
-};
+} as const;
+
+/** The notch and the home bar, in pixels (a hidden probe reads the `env()` values the page itself would use). */
+function safeInsets(): { top: number; bottom: number } {
+  const probe = document.createElement("div");
+  probe.style.cssText = "position:fixed;top:0;visibility:hidden;pointer-events:none;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom)";
+  document.body.appendChild(probe);
+  const cs = getComputedStyle(probe);
+  const out = { top: parseFloat(cs.paddingTop) || 0, bottom: parseFloat(cs.paddingBottom) || 0 };
+  probe.remove();
+  return out;
+}
 
 /**
  * The call while the person is on another page: a small window in a corner. It is MOVED by dragging its picture (or the strip under it) with a finger
- * or the mouse: it follows the pointer, never leaves the screen, and on release snaps to the nearest corner, which it remembers on this device. A tap
- * that does not move still returns to the call. Only the drag handles take the touch (`touch-none`), so scrolling the page elsewhere is untouched; the
- * rest positions of the corners respect the notch and the home bar.
+ * or the mouse: it follows the pointer, never leaves the screen, and on release STAYS where it was dropped (the owner, 2026-11-21: «أقدر أحرّكها»), which it
+ * remembers on this device as two fractions of the room there is. Until it is moved it sits in the bottom corner at the end of the line. A tap that does not
+ * move still returns to the call. Only the drag handles take the touch (`touch-none`), so scrolling the page elsewhere is untouched; the notch and the home
+ * bar stay clear.
  */
 function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
   const { state, room, everyone } = api;
@@ -635,10 +647,11 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
   const micOn = !!me?.isMicrophoneEnabled && !state.micHeld;
 
   const boxRef = React.useRef<HTMLElement>(null);
-  const [corner, setCorner] = React.useState<Corner>(DEFAULT_CORNER);
-  // the remembered corner is read once the window is on screen (the first draw is the same on the server and the browser)
-  React.useEffect(() => setCorner(loadCorner()), []);
-  const [offset, setOffset] = React.useState<{ dx: number; dy: number } | null>(null);
+  const [spot, setSpot] = React.useState<Spot | null>(null);
+  // the remembered place is read once the window is on screen (the first draw is the same on the server and the browser)
+  React.useEffect(() => setSpot(loadSpot()), []);
+  // while a finger or the mouse holds the window: where its top-left corner is, in pixels
+  const [held, setHeld] = React.useState<{ left: number; top: number } | null>(null);
   const offsetRef = React.useRef<{ dx: number; dy: number } | null>(null);
   const drag = React.useRef<{ id: number; from: { x: number; y: number }; rect: DOMRect; moved: boolean } | null>(null);
   const justDragged = React.useRef(false);
@@ -666,7 +679,7 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
     d.moved = true;
     const next = clampOffset({ dx: to.x - d.from.x, dy: to.y - d.from.y }, d.rect, { width: window.innerWidth, height: window.innerHeight });
     offsetRef.current = next;
-    setOffset(next);
+    setHeld({ left: d.rect.left + next.dx, top: d.rect.top + next.dy });
   }
   function onPointerEnd(e: React.PointerEvent<HTMLElement>) {
     const d = drag.current;
@@ -675,12 +688,11 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
     if (!d.moved) return; // a tap: the link back to the call does its work
     justDragged.current = true; // the click that follows a drag is not a tap
     const o = offsetRef.current ?? { dx: 0, dy: 0 };
-    const rtl = boxRef.current ? getComputedStyle(boxRef.current).direction === "rtl" : true;
-    const next = nearestCorner({ x: d.rect.left + o.dx, y: d.rect.top + o.dy, width: d.rect.width, height: d.rect.height }, { width: window.innerWidth, height: window.innerHeight }, rtl);
+    const next = spotOf({ left: d.rect.left + o.dx, top: d.rect.top + o.dy, width: d.rect.width, height: d.rect.height }, { width: window.innerWidth, height: window.innerHeight }, safeInsets());
     offsetRef.current = null;
-    setOffset(null);
-    setCorner(next);
-    saveCorner(next);
+    setHeld(null);
+    setSpot(next);
+    saveSpot(next);
   }
   const handle = { onPointerDown, onPointerMove, onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd };
 
@@ -696,8 +708,8 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
         e.preventDefault();
         e.stopPropagation();
       }}
-      style={offset ? { transform: `translate(${offset.dx}px, ${offset.dy}px)` } : undefined}
-      className={`fixed z-[55] w-44 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-lg ${MINI_CORNER_CLASS[corner]}`}
+      style={held ? { left: held.left, top: held.top, right: "auto", bottom: "auto", transform: "none" } : spot ? spotStyle(spot) : undefined}
+      className={`fixed z-[55] w-44 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-lg ${held || spot ? "" : MINI_CORNER_CLASS[DEFAULT_CORNER]}`}
     >
       <Link href={href} draggable={false} {...handle} className="relative block aspect-video touch-none select-none bg-surface-2" aria-label={ct("calls.back_to_call")}>
         {main && room && libs ? (
