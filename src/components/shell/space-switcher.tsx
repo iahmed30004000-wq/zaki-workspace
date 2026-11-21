@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, ChevronDown, Clock, LayoutGrid, Layers, Plus } from "lucide-react";
+import { Check, ChevronDown, Clock, Hourglass, LayoutGrid, Layers, Plus } from "lucide-react";
 import { apiGet } from "@/lib/api-client";
 import { goHref } from "@/lib/space-link";
 import { parseAddress, type ForeignSpace } from "@/lib/nav/shell-v2";
@@ -34,7 +34,11 @@ export interface OrgsResponse {
     /** The `spaces.create` capability in this organization (the server decides, the menu follows). */
     canCreateSpaces: boolean;
     /** `holdsProjects`: false for «الشركة» (HQ), where no project is opened. */
-    workspaces: { id: string; name: string; slug: string; holdsProjects?: boolean; emoji?: string | null; unread?: number; overdue?: number }[];
+    /**
+     * `waiting` (S5.8, the switch `spaceBadges`): what waits for THIS person's decision in that space (the number of «الطلبات» «بانتظاري», per space). The server leaves the key out
+     * while the switch is off, and for a guest; a space the person is not in is not here at all.
+     */
+    workspaces: { id: string; name: string; slug: string; holdsProjects?: boolean; emoji?: string | null; unread?: number; overdue?: number; waiting?: number }[];
   }[];
   /**
    * N1.3 — only while the company's switch `navV2` is on, and only when the page asked about is ONE thing (a task, a project, …) of another space of
@@ -107,10 +111,11 @@ export function useCurrentSpace(initial: ShellSpace | null): ShellSpace | null {
 }
 
 /**
- * N1.3 — what waits in a space, as two small pills: the unread messages and the overdue tasks (like the unread number beside each account of a
- * messaging app). A zero draws nothing. The pills are decoration; the words for a screen reader are the same numbers with the space's name.
+ * N1.3 — what waits in a space, as small pills: the unread messages and the overdue tasks (like the unread number beside each account of a
+ * messaging app), and (S5.8) the things waiting for THIS person's decision there. A zero draws nothing. The pills are decoration; the words for a screen
+ * reader are the same numbers with the space's name.
  */
-export function CountPills({ name, unread = 0, overdue = 0 }: { name: string; unread?: number; overdue?: number }) {
+export function CountPills({ name, unread = 0, overdue = 0, waiting = 0 }: { name: string; unread?: number; overdue?: number; waiting?: number }) {
   const { t } = useI18n();
   return (
     <>
@@ -129,6 +134,15 @@ export function CountPills({ name, unread = 0, overdue = 0 }: { name: string; un
             {fmtNumber(overdue)}
           </span>
           <span className="sr-only">{t("navv2.space.overdue", { name, n: fmtNumber(overdue) })}</span>
+        </>
+      ) : null}
+      {waiting > 0 ? (
+        <>
+          <span aria-hidden="true" data-count="waiting" className="inline-flex min-w-5 shrink-0 items-center justify-center gap-0.5 rounded-full bg-warn px-1.5 text-xs font-bold leading-5 text-warn-fg">
+            <Hourglass aria-hidden="true" className="size-3" />
+            {fmtNumber(waiting)}
+          </span>
+          <span className="sr-only">{t("navv2.space.waiting", { name, n: fmtNumber(waiting) })}</span>
         </>
       ) : null}
     </>
@@ -162,7 +176,8 @@ export function SpaceList({ current = null, canOverview = false, isGuest = false
                 <span className="min-w-0 flex-1 truncate">
                   <bdi>{space.name}</bdi>
                 </span>
-                <CountPills name={space.name} unread={space.unread ?? 0} overdue={space.overdue ?? 0} />
+                {/* S5.8: what waits for the person in ANOTHER space; the one they are in has its number on «الشغل» */}
+                <CountPills name={space.name} unread={space.unread ?? 0} overdue={space.overdue ?? 0} waiting={here ? 0 : (space.waiting ?? 0)} />
                 {here ? <Check aria-hidden="true" className="size-4 shrink-0 text-accent" /> : null}
               </a>
             </li>
@@ -204,6 +219,8 @@ export function SpaceDropdown({ current = null, canOverview = false, isGuest = f
   const others = spaces.filter((space) => space.id !== current?.id);
   const unread = others.reduce((sum, space) => sum + (space.unread ?? 0), 0);
   const overdue = others.reduce((sum, space) => sum + (space.overdue ?? 0), 0);
+  // S5.8: what waits for the person's decision in the OTHER spaces, as one small dot on the header (the numbers are on the rows)
+  const waiting = others.reduce((sum, space) => sum + (space.waiting ?? 0), 0);
   const label = t("navv2.drawer.spaces");
   return (
     <div data-shell="space-dropdown">
@@ -221,6 +238,12 @@ export function SpaceDropdown({ current = null, canOverview = false, isGuest = f
           <bdi>{current?.name ?? label}</bdi>
         </span>
         {open ? null : <CountPills name={label} unread={unread} overdue={overdue} />}
+        {!open && waiting > 0 ? (
+          <>
+            <span aria-hidden="true" data-shell="space-waiting-dot" className="size-2 shrink-0 rounded-full bg-warn" />
+            <span className="sr-only">{t("navv2.space.waiting_elsewhere", { n: fmtNumber(waiting) })}</span>
+          </>
+        ) : null}
         <ChevronDown aria-hidden="true" className={cn("size-4 shrink-0 text-muted transition-transform", open && "rotate-180")} />
       </button>
       <div id="drawer-space-list" hidden={!open} className="pt-1">

@@ -65,6 +65,8 @@
   "navv2.rail.options": "خيارات القائمة",
   "navv2.space.unread": "{name}: {n} رسالة غير مقروءة",
   "navv2.space.overdue": "{name}: {n} مهمة متأخرة",
+  "navv2.space.waiting": "{name}: {n} بانتظار قرارك",
+  "navv2.space.waiting_elsewhere": "{n} بانتظار قرارك بمساحات ثانية",
   "navv2.banner.foreign": "هاد من مساحة «{name}»",
   "navv2.banner.go": "انتقل لها",
   "navv2.nowork.title": "لسا ما إلك مساحة شغل",
