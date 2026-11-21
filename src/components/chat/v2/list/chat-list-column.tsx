@@ -6,6 +6,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Bookmark } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
 import { WorkspaceCreateModal } from "@/components/create-forms";
+import { ChatPwaHost } from "@/components/pwa/chat-pwa-host";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
 import { ForumView } from "@/components/chat/v2/forum/forum-view";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
@@ -249,6 +250,8 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
       {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} /> : null}
+      {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
+      <ChatPwaHost guest={guest} />
       {/* C3a.3: «المحفوظة» before it exists: one pinned entry on top of the list (the folder «الكل», no search) */}
       {savedOn && !hasSaved && !company && !words && folder === "all" && !list.isPending ? <SavedEntry tall={tall} /> : null}
       {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}

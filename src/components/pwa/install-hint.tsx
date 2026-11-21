@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Modal } from "@/components/ui/modal";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { registerServiceWorker } from "@/lib/pwa/register";
 import {
   detectIos,
   installMode,
@@ -157,6 +158,8 @@ export function InstallHintView({ mode, onInstall, onDismiss, className }: Insta
               <Step icon={<SquarePlus className="size-5" aria-hidden="true" />} text={t("pwa.ios_step_add")} icon_text={t("pwa.ios_step_add_icon")} />
               <Step icon={<Check className="size-5" aria-hidden="true" />} text={t("pwa.ios_step_confirm")} />
             </ol>
+            {/* M1a: on an iPhone, web push works only for the app added to the home screen (iOS 16.4+) */}
+            <p className="mt-3 text-xs leading-5 text-fg-muted">{t("mobile.pwa.ios_push_note")}</p>
           </>
         ) : null}
 
@@ -210,6 +213,11 @@ export function InstallAppButton({ collapsed = false }: { collapsed?: boolean })
       }),
       ios: detectIos({ userAgent: navigator.userAgent, platform: navigator.platform, maxTouchPoints: navigator.maxTouchPoints }),
     });
+  }, []);
+
+  // M1a: this button is in the menu of everybody who is signed in, so it is also where the service worker (offline page, cached shell, grouped notifications) is registered at sign-in
+  useEffect(() => {
+    void registerServiceWorker();
   }, []);
 
   if (!env.ready || env.standalone) return null;

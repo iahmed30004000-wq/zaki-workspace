@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { frameDrivenQuery, useFrameRefresh } from "@/lib/realtime/live-refresh";
 import type { RealtimeEventPayload } from "@/lib/realtime/use-realtime";
+import { useAppBadge, useCachedChatUnread } from "@/lib/pwa/badge";
 
 export const CHAT_UNREAD_KEY = ["chat-unread"] as const;
 
@@ -61,5 +62,11 @@ export function useChatUnread(enabled = true): number {
   });
   useFrameRefresh({ enabled, matches: movesUnread, delayMs: 400, onRefresh: () => void qc.invalidateQueries({ queryKey: CHAT_UNREAD_KEY }) });
   useEffect(() => onChatRead(() => void qc.invalidateQueries({ queryKey: CHAT_UNREAD_KEY })), [qc]);
-  return query.data?.total ?? 0;
+  const total = query.data?.total ?? 0;
+  // M1a: the number on the installed app's icon is the SAME number as this badge once it has come (the list's own numbers differ a little on purpose: a topic never
+  // opened counts its whole history there, `cache/unread.ts`; an icon that says 250 beside a menu that says 3 would be a bug). Until the server's count has come
+  // (a cold start, no network) the C1 cache's own number stands in: the list the device kept. Only where the chat is one of the person's places (`enabled`).
+  const cached = useCachedChatUnread();
+  useAppBadge(enabled ? (query.data?.total ?? cached ?? 0) : 0);
+  return total;
 }

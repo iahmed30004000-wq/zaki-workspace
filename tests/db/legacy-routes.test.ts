@@ -93,6 +93,7 @@ import RegisterPage from "@/app/register/page";
 import RegisterCheckEmailPage from "@/app/register/check-email/page";
 import RegisterConfirmPage from "@/app/register/confirm/page";
 import OnboardingPage from "@/app/onboarding/page";
+import SharePage from "@/app/share/page";
 import { ARTICLES } from "@/lib/guide/articles";
 import { SECTION_KEYS as SETTINGS_ME_SECTIONS } from "@/components/settings-me/sections";
 import { LEGACY_ROUTES, type NavRole } from "@/lib/nav/places";
@@ -136,9 +137,10 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
 const SHELL_PAGES_SINCE_PHASE_2 = ["/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/spaces/[id]/settings", "/tickets", "/campaigns", "/calls/[id]", "/calls/[id]/minutes", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
- * link's confirmation) and the one-time onboarding.
+ * link's confirmation), the one-time onboarding and «ابعت لـ…» (`/share`, M1a: where the phone's share sheet lands;
+ * signed-in people only, a signed-out visitor goes to the sign-in).
  */
-const DOOR_PAGES = ["/login", "/register", "/register/check-email", "/register/confirm", "/onboarding"] as const;
+const DOOR_PAGES = ["/login", "/register", "/register/check-email", "/register/confirm", "/onboarding", "/share"] as const;
 
 interface PageOnDisk {
   route: string;
@@ -257,6 +259,8 @@ const PAGES: Record<string, PageCall> = {
   "/register/check-email": () => RegisterCheckEmailPage(),
   "/register/confirm": ({ searchParams }) => RegisterConfirmPage({ searchParams }),
   "/onboarding": ({ searchParams }) => OnboardingPage({ searchParams }),
+  // M1a: where the phone's share sheet lands (outside the shell, signed-in people only); called with some words, as the share sheet does
+  "/share": () => SharePage({ searchParams: { text: "x" } }),
 };
 
 /** The page that serves a path (a static folder wins over a dynamic one), with the values of its [segments]. */
@@ -743,5 +747,19 @@ describe("C4.1: /profile is still an address: it redirects to «حسابي», th
     await db.organization.update({ where: { id: w.org.id }, data: { settings: { features: { ownerAssistant: true, knowledgeCards: true, workRequests: true, chatFolders: false } } } });
     await loginAs(w.member.id);
     expect((await land("/settings/me/folders")).end.kind).toBe("not-found");
+  });
+});
+
+// ───────────────────────────── 8. M1a: /share is a door page that only a signed-in person opens ─────────────────────────────
+
+describe("M1a: /share (where the phone's share sheet lands) is outside the shell, and a signed-out visitor goes to the sign-in", () => {
+  it("every rank sees the page draw; signed out, the visitor is sent to /login", async () => {
+    const w = await linkWorld();
+    for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
+      await loginAs(person.id);
+      expect((await open("/share?text=x")).kind, person.name).toBe("rendered");
+    }
+    logout();
+    expect(await open("/share?text=x")).toEqual({ kind: "redirect", to: "/login" });
   });
 });

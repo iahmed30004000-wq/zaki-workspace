@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 392 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 393 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 188 feature switches and every place that reads them (§8).
@@ -45,7 +45,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 392 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 393 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 175 · `activeOrgCtx` 109 · `(none)` 41 · `requireTeamWork` 14 · `requireUser` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 175 · `activeOrgCtx` 109 · `(none)` 42 · `requireTeamWork` 14 · `requireUser` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -483,10 +483,11 @@ Doors in use: `requireActor` 175 · `activeOrgCtx` 109 · `(none)` 41 · `requir
 | PUT | `/api/workspaces/order` | requireActor | `space-manage`: orderSchema, reorderSpaces |
 | GET | `/boards/[id]/trail` | requireActor | `features`: actorFeatureOn<br>`team-scope`: loadWorkScope, projectVisibleWhere |
 | GET | `/go` | requireActor | `current-space`: SPACE_COOKIE, spacesOf |
+| GET | `/offline` | **none** (public by design) † | — |
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 392. Each one is a door that cannot have a session, or one that is closed.
+Six of 393. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -818,7 +819,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watch` | 21 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
 | `sectionPermissions` | 3 — `components/members/capability-panel.tsx`, `server/policy/capabilities.ts`, `server/policy/section-grid.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
-| `pushEverything` | 2 — `app/api/device/stream/route.ts`, `server/notify.ts` |
+| `pushEverything` | 3 — `app/api/device/stream/route.ts`, `server/notify.ts`, `server/push-chat.ts` |
 | `appConnection` | 4 — `app/(app)/app-link/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/app-devices/route.ts`, `server/devices/devices.ts` |
 | `chatRowMenu` | 3 — `app/(app)/chat/layout.tsx`, `server/chat/home.ts`, `server/chat/purge.ts` |
 | `callNoiseFilter` | 1 — `server/calls/calls.ts` |
@@ -863,7 +864,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
 | `messageTranslate` | 3 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/message-translate.ts` |
 | `pdfPageCount` | 1 — `app/api/files/[id]/pages/route.ts` |
-| `search` | 31 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/home/new-group-dialog.tsx`, `components/chat/v2/feedback/conversation-picker.tsx`, `components/chat/v2/forward/forward-sheet.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-form.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/rail-tools.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/zaki-emoji.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `search` | 32 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/home/new-group-dialog.tsx`, `components/chat/v2/feedback/conversation-picker.tsx`, `components/chat/v2/forward/forward-sheet.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-form.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/pwa/share-picker.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/rail-tools.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/zaki-emoji.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `economyMode` | 4 — `components/feature-switches.tsx`, `components/members/capability-panel.tsx`, `lib/feature-groups.ts`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
@@ -982,9 +983,9 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `assistantInMeetings` | 2 — `server/calls/assistant-agent.ts`, `server/calls/transcripts.ts` |
 | `siteGuide` | 2 — `server/chat/topics.ts`, `server/services/site-guide.ts` |
 | `morningDigest` | 2 — `server/chat/topics.ts`, `server/services/digest.ts` |
-| `pushEverything` | 2 — `app/api/device/stream/route.ts`, `server/notify.ts` |
+| `pushEverything` | 3 — `app/api/device/stream/route.ts`, `server/notify.ts`, `server/push-chat.ts` |
 | `appConnection` | 4 — `app/(app)/app-link/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/app-devices/route.ts`, `server/devices/devices.ts` |
-| `search` | 31 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/home/new-group-dialog.tsx`, `components/chat/v2/feedback/conversation-picker.tsx`, `components/chat/v2/forward/forward-sheet.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-form.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/rail-tools.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/zaki-emoji.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
+| `search` | 32 — `app/api/search/route.ts`, `components/cards/cards-view.tsx`, `components/chat/conversation/conversation-search.tsx`, `components/chat/home/new-dm-dialog.tsx`, `components/chat/home/new-group-dialog.tsx`, `components/chat/v2/feedback/conversation-picker.tsx`, `components/chat/v2/forward/forward-sheet.tsx`, `components/chat/v2/info/info-panel.tsx`, `components/chat/v2/list/folder-form.tsx`, `components/chat/v2/list/list-header.tsx`, `components/chat/v2/pane/pane-header.tsx`, `components/chat/v2/phone/list-bar.tsx`, `components/feature-switches.tsx`, `components/files-view.tsx`, `components/guide/guide-search.tsx`, `components/list-filters.tsx`, `components/members/members-list.tsx`, `components/pwa/share-picker.tsx`, `components/shell/app-bar.tsx`, `components/shell/quick-chat.tsx`, `components/shell/rail-tools.tsx`, `components/shell/top-bar.tsx`, `components/theme/gallery/lumen-scenes.tsx`, `components/work/my-tasks/toolbar.tsx`, `components/work/project/project-tasks-view.tsx`, `lib/chat/shortcuts.ts`, `lib/chat/v2/info/info-model.ts`, `lib/chat/v2/info/use-list-search.ts`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/zaki-emoji.ts`, `lib/guide/tours.ts`, `server/chat/search.ts` |
 | `semanticSearch` | 6 — `app/(app)/settings/page.tsx`, `components/control-panel/sections/features-section.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
 | `economyMode` | 4 — `components/feature-switches.tsx`, `components/members/capability-panel.tsx`, `lib/feature-groups.ts`, `server/features-sql.ts` |
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
@@ -1008,7 +1009,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 386 of 392 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Every guarded route asks a guard — none compares a role name.** 387 of 393 routes open with a function from §3; the other 6 are the doors listed in §5.
 - **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 284 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **18 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 5 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
