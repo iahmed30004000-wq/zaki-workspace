@@ -65,6 +65,11 @@ export function ringIsOver(view: { endedAt: string | null; answered: boolean } |
   return !view || !!view.endedAt || view.answered;
 }
 
+/** Where «اطلع» goes straight back to: the call's conversation, or home for a meeting (which has none). */
+export function leaveTarget(view: { conversationId: string | null } | null): string {
+  return view?.conversationId ? `/chat/${view.conversationId}` : "/";
+}
+
 /** The dictionary key of the line a call page shows when the call ends under the person (the caller's «رفض المكالمة», nobody answered, taken out, or just over). */
 export function endKeyOf(view: { endedHow: "declined" | "missed" | "answered" | null } | null, phase: string): "calls.declined" | "calls.no_answer" | "calls.ended" | "calls.removed_me" {
   if (phase === "removed") return "calls.removed_me";
