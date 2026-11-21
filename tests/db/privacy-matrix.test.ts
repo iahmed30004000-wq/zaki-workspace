@@ -39,6 +39,8 @@ import * as previewRemoveRoute from "@/app/api/chat/messages/[id]/preview/route"
 import * as scheduleRoute from "@/app/api/chat/conversations/[id]/scheduled/route";
 import * as oneRoute from "@/app/api/chat/scheduled/[id]/route";
 import * as sendNowRoute from "@/app/api/chat/scheduled/[id]/send/route";
+import * as checklistItemsRoute from "@/app/api/chat/messages/[id]/checklist/items/route";
+import * as checklistItemRoute from "@/app/api/chat/messages/[id]/checklist/items/[itemId]/route";
 import * as mediaRoute from "@/app/api/chat/conversations/[id]/media/route";
 import * as workRoute from "@/app/api/chat/conversations/[id]/media/work/route";
 import * as searchRoute from "@/app/api/search/route";
@@ -1468,6 +1470,109 @@ describe("privacy matrix — the C3b.5 batch doors", () => {
       }
     }
     expect(wrong).toEqual([]);
+  });
+});
+
+// ───────────────────────────── C3c.1: the checklist («قائمة مهام») ─────────────────────────────
+// The same personas on the same four conversations. WHO may send a list, tick it and add to it is who may POST there and is not a guest (the owner's eyes cannot post unjoined,
+// so they tick and add nothing: no trace); WHO reads it is the conversation table. The ITEMS' words (a list's second text) reach nobody through the chat list, the search or the
+// oversight list: only the message window and the sync feed carry them, and only to a person who reads the conversation.
+const CHECKLIST_TITLE_WORD = "عنوانقائمةمصفوفة";
+const CHECKLIST_ITEM_WORD = "بندقائمةمصفوفةسري";
+//                                     owner pW pWo oAO sA mIn mOut tM guest
+const CHECKLIST_WRITE: Record<string, string> = {
+  open: "0 0 1 0 1 1 1 1 0", //       an open topic: who may post (not the eyes, not an admin outside the space) and is not a guest
+  restricted: "0 0 0 0 0 1 0 0 0", // only its own people
+  team: "0 0 1 0 1 0 0 1 0", //       the team's people and the space's managers
+  dm: "0 0 0 0 0 1 0 0 0", //         the private chat's own person
+};
+
+describe("privacy matrix — the C3c.1 checklist", () => {
+  for (const kind of Object.keys(CHECKLIST_WRITE)) {
+    it(`${kind}: who may send, tick and add; who reads; the silent eye and the guest change nothing and leave nothing; no item word outside the message window`, async () => {
+      const w = await getWorld();
+      await setFeature(w.orgId, "chatChecklists", true); // OFF by default
+      const id = w.ids[kind]!;
+      const wrong: string[] = [];
+      const wants = (who: Persona) => cells(CHECKLIST_WRITE[kind]!)[PERSONAS.indexOf(who)]!;
+
+      // the author is a person who may post there (the team's own member in the team's topic, the matrix's member elsewhere); he allows everybody to add
+      const author = kind === "team" ? w.people.teamMember : w.people.memberIn;
+      await loginAs(author.id);
+      const made = await call(messagesRoute.POST, { method: "POST", params: { id }, body: { body: `${CHECKLIST_TITLE_WORD} ${kind}`, checklist: { items: [`${CHECKLIST_ITEM_WORD} 1`, `${CHECKLIST_ITEM_WORD} 2`], othersCanAdd: true } } });
+      expect(made.status, made.text).toBe(201);
+      const messageId = made.json?.["id"] as string;
+      const itemId = (made.json?.["checklist"] as { items: { id: string }[] }).items[0]!.id;
+      const membersBefore = await db.conversationMember.count({ where: { conversationId: id } });
+
+      const traceIds = [w.people.owner.id, w.people.partnerWith.id, w.people.guest.id];
+      for (const who of PERSONAS) {
+        const person = w.people[who];
+        await loginAs(person.id);
+        const reads = expected(CONVERSATIONS, kind, who);
+        const may = wants(who);
+
+        // the window: the list is in it exactly for the people who read the conversation
+        const window = await call(messagesRoute.GET, { url: `http://localhost/api/chat/conversations/${id}/messages`, params: { id } });
+        const sees = window.status === 200 && window.text.includes(CHECKLIST_ITEM_WORD);
+        if (sees !== reads) wrong.push(`${who} · window: expected ${reads ? "reads the list" : "reads nothing"} (status ${window.status})`);
+        if (!reads && (window.text.includes(CHECKLIST_ITEM_WORD) || window.text.includes(CHECKLIST_TITLE_WORD))) wrong.push(`${who} · a refused window carried the list`);
+
+        // send
+        const sent = await call(messagesRoute.POST, { method: "POST", params: { id }, body: { body: `${CHECKLIST_TITLE_WORD} من ${who}`, checklist: { items: [`${CHECKLIST_ITEM_WORD} من ${who}`] } } });
+        if ((sent.status === 201) !== may) wrong.push(`${who} · send: expected ${may} (status ${sent.status})`);
+        if (!may && ![403, 404].includes(sent.status)) wrong.push(`${who} · a refused send must be 403 or 404 (got ${sent.status})`);
+        if (!may && (sent.text.includes(CHECKLIST_ITEM_WORD) || sent.text.includes(CHECKLIST_TITLE_WORD))) wrong.push(`${who} · a refused send carried a text`);
+
+        // add (the author allowed everybody who may post)
+        const added = await call(checklistItemsRoute.POST, { method: "POST", params: { id: messageId }, body: { text: `${CHECKLIST_ITEM_WORD} زيادة ${who}` } });
+        if ((added.status === 201) !== may) wrong.push(`${who} · add: expected ${may} (status ${added.status})`);
+
+        // tick: by default everybody who may post; the eyes and the guest are refused (403: they read it), a person who cannot read finds nothing (404)
+        const ticked = await call(checklistItemRoute.PUT, { method: "PUT", params: { id: messageId, itemId }, body: { done: true } });
+        if ((ticked.status === 200) !== may) wrong.push(`${who} · tick: expected ${may} (status ${ticked.status})`);
+        if (!may) {
+          // a guest in a private chat is refused by the door itself (403 «guest_forbidden», the same for every private chat: it names nothing)
+          const refused = reads || (who === "guest" && kind === "dm") ? 403 : 404;
+          if (ticked.status !== refused) wrong.push(`${who} · a refused tick must be ${refused} (got ${ticked.status})`);
+          if (ticked.text.includes(CHECKLIST_ITEM_WORD)) wrong.push(`${who} · a refused tick carried an item`);
+          if (reads && (who === "owner" || who === "partnerWith") && !ticked.text.includes("chat.e.join_first")) wrong.push(`${who} · the silent eye must be told to join first`);
+        }
+        // put it back for the next person, as the author
+        if (ticked.status === 200) {
+          await loginAs(author.id);
+          await call(checklistItemRoute.PUT, { method: "PUT", params: { id: messageId, itemId }, body: { done: false } });
+        }
+      }
+
+      // the eyes and the guest left nothing: no row of theirs in the conversation, no tick and no item of theirs on the list
+      const traces = await db.chatChecklistItem.count({ where: { checklist: { messageId }, OR: [{ doneById: { in: traceIds } }, { addedById: { in: traceIds } }] } });
+      if (traces !== 0) wrong.push(`the eyes or the guest left ${traces} trace(s) on the list`);
+      if ((await db.conversationMember.count({ where: { conversationId: id } })) !== membersBefore) wrong.push("somebody became a member of the conversation by ticking");
+      // nobody's refused attempt wrote a word: every item on the list belongs to a person who was allowed to add
+      const authors = (await db.chatChecklistItem.findMany({ where: { checklist: { messageId } }, select: { addedById: true } })).map((r) => r.addedById);
+      const allowedIds = PERSONAS.filter((p) => wants(p)).map((p) => w.people[p].id);
+      if (authors.some((a) => !allowedIds.includes(a))) wrong.push("an item was added by somebody who may not post");
+
+      // the items' words are in no other reader of a message: the chat list, the space's list, the search and the oversight list, for every persona
+      const roleOf = async (userId: string) => (await db.organizationMember.findFirstOrThrow({ where: { organizationId: w.orgId, userId } })).role;
+      for (const who of PERSONAS) {
+        await loginAs(w.people[who].id);
+        const c = { orgId: w.orgId, userId: w.people[who].id, orgRole: await roleOf(w.people[who].id) };
+        const surfaces: Record<string, string> = {
+          list: JSON.stringify(await chatList(c)),
+          space: JSON.stringify(await chatList(c, { spaceId: w.space.id })),
+          search: JSON.stringify(await searchChat(c, { id: w.space.id, isHq: false }, CHECKLIST_ITEM_WORD)),
+          oversight: JSON.stringify(await listOversight(c, { limit: 100 }).catch(() => null)),
+        };
+        for (const [surface, text] of Object.entries(surfaces)) if (text.includes(CHECKLIST_ITEM_WORD)) wrong.push(`${who} · ${surface}: carried an item's words`);
+      }
+      expect(wrong, kind).toEqual([]);
+    });
+  }
+
+  it("the table has one cell per persona in every row", () => {
+    for (const row of Object.values(CHECKLIST_WRITE)) expect(cells(row)).toHaveLength(PERSONAS.length);
   });
 });
 

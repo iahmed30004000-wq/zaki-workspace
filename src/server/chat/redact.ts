@@ -3,6 +3,7 @@ import type { AttachmentDto, MessageDto, ReactionDto, ReactorDto, SystemMeta } f
 import { attachmentView } from "./attachments";
 import { presentPoll, type PollRow } from "./poll-shared";
 import { stripFormatting } from "@/lib/chat/format/parse";
+import { presentChecklist, type ChecklistRow } from "@/lib/chat/checklist";
 import { zakiToWords } from "@/lib/chat/zaki-emoji";
 import { featureOn } from "@/lib/features";
 
@@ -29,6 +30,10 @@ export type Viewer = {
   isMember?: boolean;
   /** the company's switch `linkPreviews` (C3b.2); a card is presented ONLY when it is `true` (the data stays when it is off). Absent reads as off: a caller that forgets to ask the switch hides the cards instead of showing them while the company turned them off. */
   linkPreviews?: boolean;
+  /** the viewer may post in this conversation (the policy's `canPost`): a checklist offers «+ أضف بند» and the boxes only with it (C3c.1). Absent reads as «no». */
+  canPost?: boolean;
+  /** the company's switch `chatChecklists` (C3c.1): `false` shows a list with no working box or button; absent reads as on (the routes check the switch themselves) */
+  checklists?: boolean;
   /** the company's switch `chatFormatting` (C3b.1): present and `true` means the quote of a reply shows the words without the markers (a spoiler is masked). Absent reads as off: the old detail and the Android app get the quote as it always was. */
   formatting?: boolean;
 };
@@ -71,6 +76,8 @@ type MessageRow = {
   tasks?: { id: string; visibility?: string; creatorId?: string; assigneeId?: string | null }[];
   tickets?: { id: string; number?: number; status?: string; assignee?: { name: string } | null }[];
   poll?: PollRow | null;
+  /** «قائمة مهام» (C3c.1): the list of a CHECKLIST message, as stored */
+  checklist?: ChecklistRow | null;
   /** «معاينة الرابط» (C3b.2): the card of the first link, as stored */
   preview?: { url: string; title: string | null; description: string | null; siteName: string | null; imageFileId: string | null; status: string } | null;
 };
@@ -190,6 +197,11 @@ export function presentMessage(
   // a poll: a deleted message hides it like any message (the owner reads the question in `original`)
   if (row.kind === "POLL" && row.poll && !deleted) {
     dto.poll = presentPoll(row.poll, { userId: viewer.userId, role: viewer.role, oversight: viewer.oversight, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere }, row.authorId, deleted);
+  }
+
+  // a checklist: a deleted message hides it like any message (the owner reads the title in `original`; the items are never part of an original)
+  if (row.kind === "CHECKLIST" && row.checklist && !deleted) {
+    dto.checklist = presentChecklist(row.checklist, { userId: viewer.userId, role: viewer.role, oversight: viewer.oversight, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere, canPost: viewer.canPost, checklists: viewer.checklists }, row.authorId, deleted);
   }
 
   // a card message points at a product sheet: only its address travels, whatever the reader may see of the sheet is decided when it is opened

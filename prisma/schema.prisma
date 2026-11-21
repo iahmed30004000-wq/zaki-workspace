@@ -86,6 +86,8 @@ model User {
   // S5.7 «حذف عندي»: the messages this person hid for themselves only
   hiddenMessages  ChatMessageHidden[]
   pollVotes       PollVote[]
+  checklistItemsAdded ChatChecklistItem[] @relation("ChecklistItemAdder")
+  checklistItemsDone  ChatChecklistItem[] @relation("ChecklistItemDoer")
   chatOrders      UserChatOrder[]
   messageRevisions MessageRevision[]   @relation("RevisionEditor")
   messageNotes    MessageNote[]        @relation("NoteAuthor")
@@ -546,7 +548,7 @@ model ChatMessage {
   // Deleting a message KEEPS its text from Phase 3 on (the owner reads the original in the archive);
   // what people see is decided in one place: src/server/chat/redact.ts.
   body            String
-  kind            String    @default("TEXT") // TEXT | VOICE | SYSTEM | POLL | CARD
+  kind            String    @default("TEXT") // TEXT | VOICE | SYSTEM | POLL | CARD | CHECKLIST
   replyToId       String?
   pinned          Boolean   @default(false)
   editedAt        DateTime?
@@ -587,6 +589,8 @@ model ChatMessage {
   hiddenFor     ChatMessageHidden[]
   // «استطلاع»: the poll a POLL message carries (its question is the message body)
   poll          Poll?
+  // «قائمة مهام» (C3c.1): the checklist a CHECKLIST message carries (its title is the message body)
+  checklist     ChatChecklist?
   revisions     MessageRevision[]
   notes         MessageNote[]
   attachments   MessageAttachment[]
@@ -747,6 +751,37 @@ model PollVote {
   @@unique([pollId, optionId, userId])
   @@index([pollId, userId])
   @@index([optionId])
+}
+
+// «قائمة مهام» (C3c.1): a checklist inside a conversation. The message (kind CHECKLIST) carries the title in its body; the list and its items hang off it, so
+// deleting the message hides the list like any message. Why not `PollVote` (one CHOICE per person among options; a checklist item has ONE shared done-state) and
+// why not `TaskStep` (needs a `Task`, which needs a project, a board and a column: the heavy path a quick list in a chat must avoid).
+model ChatChecklist {
+  id            String   @id @default(cuid())
+  messageId     String   @unique
+  othersCanAdd  Boolean  @default(false) // anyone who may post here may add an item (otherwise only the author)
+  othersCanTick Boolean  @default(true) // anyone who may post here may tick an item (otherwise only the author)
+  createdAt     DateTime @default(now())
+
+  message ChatMessage         @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  items   ChatChecklistItem[]
+}
+
+model ChatChecklistItem {
+  id          String    @id @default(cuid())
+  checklistId String
+  text        String    @db.VarChar(200)
+  position    Int
+  addedById   String
+  doneById    String?
+  doneAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  checklist ChatChecklist @relation(fields: [checklistId], references: [id], onDelete: Cascade)
+  addedBy   User          @relation("ChecklistItemAdder", fields: [addedById], references: [id], onDelete: Cascade)
+  doneBy    User?         @relation("ChecklistItemDoer", fields: [doneById], references: [id], onDelete: SetNull)
+
+  @@index([checklistId, position])
 }
 
 // A person's OWN order of the chat list (drag and drop, «ترتيب»). One row per person per list: `scope` is

@@ -5,6 +5,7 @@ import type { MessageDto } from "@/server/chat/dto";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { ct } from "@/lib/chat/text";
 import { WORK_INBOX_REF } from "@/lib/today";
+import { checklistStepsRequest, isChecklistMessage } from "@/lib/chat/checklist-client";
 
 type Option = { id: string; name: string };
 type Space = Option & { holdsProjects: boolean };
@@ -38,10 +39,12 @@ export function MakeWorkDialog({
   titleMax = 120,
   privateSource = false,
 }: {
-  message: Pick<MessageDto, "id" | "body"> | null;
+  /** `kind`: a task made from a CHECKLIST message (C3c.1) gets the list's items as its steps, whichever door opened this dialog (the menu, the list's own button) */
+  message: (Pick<MessageDto, "id" | "body"> & { kind?: string }) | null;
   kind: WorkKind;
   onClose: () => void;
-  onDone: (made: { kind: WorkKind; id: string }) => void;
+  /** `stepsCopied`: only for a task made from a list: were its items written as steps (false: the task is there without them) */
+  onDone: (made: { kind: WorkKind; id: string; stepsCopied?: boolean }) => void;
   /** how long the first line may be as a title (a comment of «نتفرّج سوا»: 200) */
   titleMax?: number;
   /** The message is somebody's private talk (a DM, a group, a restricted or a team's topic): see `taskpriv.*` (P0.3). */
@@ -168,7 +171,14 @@ export function MakeWorkDialog({
       const r = await fetch(at, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       if (!r.ok) throw new Error("work");
       const data = (await r.json()) as { taskId?: string; ticketId?: string };
-      onDone({ kind, id: (kind === "task" ? data.taskId : data.ticketId) ?? "" });
+      const id = (kind === "task" ? data.taskId : data.ticketId) ?? "";
+      if (kind === "task" && id && message && isChecklistMessage(message)) {
+        const request = checklistStepsRequest(message.id, id);
+        const steps = await fetch(request.url, { method: request.method, headers: { "content-type": "application/json" }, body: JSON.stringify(request.body) }).catch(() => null);
+        onDone({ kind, id, stepsCopied: !!steps?.ok });
+        return;
+      }
+      onDone({ kind, id });
     } catch {
       setError(ct("chatc.work.failed"));
       setBusy(false);

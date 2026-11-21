@@ -6,7 +6,12 @@
 export type TopicType = "DISCUSSION" | "ANNOUNCEMENTS" | "TASKS" | "IDEAS" | "FOLLOWUP";
 export type PostingPolicy = "ALL" | "ADMINS";
 export type ConversationKind = "DM" | "GROUP" | "TOPIC";
-export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD";
+/**
+ * What the screens' existing switches (the message menu's `MessageMenuContext.kind`) know. A CHECKLIST message (C3c.1) travels with `kind: "CHECKLIST"` (`CHECKLIST_KIND`,
+ * src/lib/chat/checklist.ts) and carries its list in `message.checklist` (present exactly on a live one); the union is widened here and in the menu registry so that a screen
+ * that switches over it sees the kind.
+ */
+export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD" | "CHECKLIST";
 
 /** What a CARD message points at (Q1.3): never a price, never a name — each reader's screen asks for the card. */
 export type CardRefDto = { type: "product"; cardId: string } | { type: "order"; number: string };
@@ -87,6 +92,35 @@ export interface PollDto {
   canClose: boolean;
 }
 
+/** «قائمة مهام» (C3c.1): one item of a checklist, for ONE viewer. */
+export interface ChecklistItemDto {
+  id: string;
+  text: string;
+  done: boolean;
+  /** who ticked it: never sent to a GUEST (the staff directory is not his) */
+  doneByName?: string | null;
+  doneAt?: string | null;
+  /** the item's own author, the list's author or a moderator may reword or remove it (the server decides again) */
+  canEdit: boolean;
+}
+
+/** «قائمة مهام»: the checklist a CHECKLIST message carries (the title is the message body), for ONE viewer (src/lib/chat/checklist.ts). Absent on a deleted message. */
+export interface ChecklistDto {
+  id: string;
+  othersCanAdd: boolean;
+  othersCanTick: boolean;
+  items: ChecklistItemDto[];
+  /** the progress «3 من 5» */
+  done: number;
+  total: number;
+  /** the server decides again: not a guest, not the owner in silent oversight, may post here, and the author or `othersCanAdd` */
+  canAdd: boolean;
+  /** the same, with `othersCanTick` */
+  canTick: boolean;
+  /** the most items a list holds */
+  max: number;
+}
+
 /**
  * «معاينة الرابط» (C3b.2): the card under a message's first link, as ONE viewer receives it. Never on a deleted message. The words are the page's, cleaned by the server
  * (plain text: the screen draws them as text, never as markup). `image` is the app's own address (`/api/chat/messages/<id>/preview/image`), never the site's.
@@ -134,6 +168,8 @@ export interface MessageDto {
   system?: SystemMeta | null;
   /** a POLL message's poll (absent on any other message and on a deleted one). */
   poll?: PollDto;
+  /** a CHECKLIST message's list (absent on any other message and on a deleted one). */
+  checklist?: ChecklistDto;
   /** A CARD message: the card it points at. */
   card?: CardRefDto;
   /** «معاينة الرابط» (C3b.2): the card of the first link; absent when there is none, on a deleted message, and while the company's switch `linkPreviews` is off. */
@@ -278,6 +314,8 @@ export interface ConversationDto {
     canMentionAll?: boolean;
     /** may start a poll here: a topic, not a guest, and may post */
     canPoll?: boolean;
+    /** may send a checklist here (C3c.1): not a guest, may post, not the silent eye, and the company's `chatChecklists` switch is on */
+    canChecklist?: boolean;
     /** may open the «/» menu here (Q1.3): staff who may post, with `quickRecall` and `knowledgeCards` on */
     canRecall?: boolean;
     /** what the «/» menu offers here (Q1.3, Q1.4): «منتج» and «رد» need `knowledgeCards`, «طلب» needs `orderStatus` and `omsLink` */
@@ -353,6 +391,8 @@ export interface ChatRowLastMessageDto {
   mine: boolean;
   /** a private chat, on my own last message: sent | delivered | read (the owner's silent reading never shows) */
   status?: "sent" | "delivered" | "read";
+  /** a CHECKLIST message (C3c.1): how many items are done, of how many — «☑️ العنوان (3/5)». The row has the title only (`preview`); absent, the row says «☑️ العنوان» with no count. */
+  checklist?: { done: number; total: number };
 }
 
 export interface ChatRowDto {
