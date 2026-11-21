@@ -160,7 +160,8 @@ class Meeting:
         self.source = None
         self.tasks = set()
         self.history = []
-        self.last_spoke_at = None
+        # who the assistant answered last and when it finished speaking: only that person's next SHORT sentence is a follow-up (logic.FOLLOW_UP_SECONDS)
+        self.follow = logic.FollowUp()
         self.speaking = False
         self.busy = asyncio.Lock()
         self.closed = asyncio.Event()
@@ -169,7 +170,7 @@ class Meeting:
         @self.room.on("track_subscribed")
         def on_track(track, _publication, participant):
             if track.kind == rtc.TrackKind.KIND_AUDIO and participant.identity != "assistant":
-                self._spawn(self.listen(track, participant.name or "مشارك"))
+                self._spawn(self.listen(track, participant.name or "مشارك", participant.identity))
 
         @self.room.on("disconnected")
         def on_disconnected(*_):
@@ -207,7 +208,7 @@ class Meeting:
         await self.room.disconnect()
         log.info("left %s", self.room_name)
 
-    async def listen(self, track, speaker: str) -> None:
+    async def listen(self, track, speaker: str, speaker_id: str) -> None:
         """One person's microphone: cut it into sentences by voice activity, and hand each sentence on."""
         vad = webrtcvad.Vad(2)
         stream = rtc.AudioStream(track, sample_rate=RATE, num_channels=1)
@@ -229,16 +230,17 @@ class Meeting:
                     pcm = np.concatenate(frames)
                     frames, quiet = [], 0
                     if len(pcm) / RATE >= MIN_UTTERANCE_SECONDS:
-                        self._spawn(self.heard(pcm, speaker))
+                        self._spawn(self.heard(pcm, speaker, speaker_id))
 
-    async def heard(self, pcm, speaker: str) -> None:
+    async def heard(self, pcm, speaker: str, speaker_id: str) -> None:
         began = time.time()  # the speaker has just finished: everything from here is the wait they feel
         text = await recognise(pcm)
         stt_ms = int((time.time() - began) * 1000)
         if logic.is_noise(text, STT_PROMPT):
             log.info("heard noise (%.1fs of audio, listened %d ms)", len(pcm) / RATE, stt_ms)
             return
-        addressed = logic.is_addressed(text, self.last_spoke_at, time.time())
+        # the follow-up window is measured to the moment the person STOPPED talking (`began`), not to the end of the slow recognition
+        addressed = logic.is_addressed(text, self.follow.at, began, same_speaker=self.follow.is_follow_up(speaker_id, began))
         log.info("heard %.1fs of audio, listened %d ms, addressed=%s%s", len(pcm) / RATE, stt_ms, addressed, f", text: {text}" if DEBUG else "")
         self.history.append({"role": "user", "text": f"{speaker}: {text}"})
         self.history = self.history[-12:]
@@ -258,6 +260,7 @@ class Meeting:
                 self.history.append({"role": "assistant", "text": answer})
                 spoke = time.time()
                 await self.say(answer)
+                self.follow.answered(speaker_id, time.time())  # the follow-up window of this person starts when the answer ends
                 log.info(
                     "answered: listened %d ms + thought %d ms + voice %d ms to the end of the answer, %d ms after they stopped%s",
                     stt_ms, think_ms, int((time.time() - spoke) * 1000), int((time.time() - began) * 1000), f", said: {answer}" if DEBUG else "",
@@ -278,7 +281,9 @@ class Meeting:
                     if res.status != 200:
                         log.warning("turn refused: %s", res.status)
                         return ""
-                    return (await res.json()).get("reply", "")
+                    answer = await res.json()
+                    # «[صمت]» or nothing: the assistant stays quiet, even when it was named (it never invents a sentence instead)
+                    return answer.get("reply", "") if logic.should_speak(answer) else ""
         except Exception as err:  # the meeting goes on without an answer
             log.warning("turn failed: %s", err)
             return ""
@@ -323,7 +328,6 @@ class Meeting:
             await self.source.wait_for_playout()
         finally:
             self.speaking = False
-            self.last_spoke_at = time.time()
 
 
 meetings = {}

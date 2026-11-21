@@ -53,12 +53,75 @@ describe("the switch and the words", () => {
   it("the prompt asks for a short spoken answer with no formatting and gives the silence word", () => {
     expect(MEETING_SYSTEM_PROMPT).toContain("[صمت]");
     expect(MEETING_SYSTEM_PROMPT).toContain("ما بتنفّذ");
-    // spoken in Standard Arabic, not a dialect (the owner asked for it)
-    expect(MEETING_SYSTEM_PROMPT).toContain("الفصحى");
+  });
+
+  it("the prompt asks for the Levantine the owner speaks, not a forced Modern Standard (S6.1; the old order said «الفصحى» and «بدون لهجة عامية»)", () => {
+    expect(MEETING_SYSTEM_PROMPT).toContain("اللهجة الشامية");
+    expect(MEETING_SYSTEM_PROMPT).not.toContain("الفصحى");
+    expect(MEETING_SYSTEM_PROMPT).not.toContain("بدون لهجة");
+    // still read aloud: no symbols, no lists, the numbers in words, short
+    expect(MEETING_SYSTEM_PROMPT).toContain("بالحروف");
+    expect(MEETING_SYSTEM_PROMPT).toContain("جملة إلى ثلاث جمل");
+  });
+
+  it("the prompt tells it to stay silent when it did not understand, so an addressed silence is a silence", () => {
+    expect(MEETING_SYSTEM_PROMPT).toMatch(/ما فهمت/);
+  });
+
+  it("the old «please repeat» sentence is gone from the server: an addressed silence is not answered", () => {
+    const source = readFileSync("src/server/calls/assistant-agent.ts", "utf8");
+    expect(source).not.toContain("REPEAT_REQUEST");
+    expect(source).not.toContain("لم أفهم جيدًا");
   });
 
   it("the agent's route is a machine path (no session), and the program is kept out of the site's image", () => {
     expect(readFileSync("src/middleware.ts", "utf8")).toContain('"/api/voice-agent/turn"');
     expect(readFileSync(".dockerignore", "utf8")).toContain("voice-agent");
+  });
+});
+
+describe("the voice agent's side (voice-agent/, a Python program: its own tests are voice-agent/test_logic.py)", () => {
+  const logic = readFileSync("voice-agent/logic.py", "utf8");
+  const agent = readFileSync("voice-agent/agent.py", "utf8");
+
+  it("a follow-up is eight seconds from the SAME speaker, not twenty-five seconds from anybody", () => {
+    expect(logic).toContain("FOLLOW_UP_SECONDS = 8.0");
+    expect(logic).not.toContain("FOLLOW_UP_SECONDS = 25");
+    expect(logic).toContain("same_speaker");
+    expect(agent).toContain("logic.FollowUp()");
+    expect(agent).not.toContain("last_spoke_at");
+  });
+
+  it("the names are matched as whole words (token by token), never as a piece of another word", () => {
+    expect(logic).toContain("def is_named");
+    expect(logic).toContain("def _tokens");
+    expect(logic).not.toMatch(/normalize\(w\) in words/);
+  });
+
+  it("a silence is not answered: the agent speaks only what logic.should_speak lets through", () => {
+    expect(logic).toContain("def should_speak");
+    expect(agent).toContain("logic.should_speak(answer)");
+  });
+});
+
+describe("the knobs of the voice agent are passed through its compose file, and the site's are documented", () => {
+  const compose = readFileSync("voice-agent/docker-compose.yml", "utf8");
+  const example = readFileSync(".env.example", "utf8");
+
+  it("every knob the README documents reaches the container (EDGE_*, PIPER_*, STT_PROMPT, the Gemini model, the filler)", () => {
+    for (const name of ["EDGE_VOICE", "EDGE_RATE", "PIPER_LENGTH_SCALE", "PIPER_NOISE_SCALE", "PIPER_NOISE_W", "PIPER_SENTENCE_SILENCE", "STT_PROMPT", "GEMINI_TTS_MODEL", "VOICE_FILLER_TEXT"]) {
+      expect(compose, name).toContain(`- ${name}=\${${name}:-`);
+    }
+  });
+
+  it("the Piper knobs default to empty (the voice's own settings) and the hint to the agent's own text", () => {
+    expect(compose).toContain("- PIPER_LENGTH_SCALE=${PIPER_LENGTH_SCALE:-}");
+    expect(compose).toContain("STT_PROMPT=${STT_PROMPT:-اجتماع عمل. المساعد زاكي يشارك فيه.}");
+  });
+
+  it(".env.example names the site's variables of the meeting assistant (VOICE_AGENT_* and MEETING_LLM_*), commented, with no value", () => {
+    for (const name of ["VOICE_AGENT_URL", "VOICE_AGENT_SECRET", "MEETING_LLM_URL", "MEETING_LLM_MODEL", "MEETING_LLM_API_KEY"]) {
+      expect(example, name).toMatch(new RegExp(`^# ${name}=\r?$`, "m"));
+    }
   });
 });

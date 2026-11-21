@@ -10,7 +10,8 @@ import type { AiRequest } from "@/server/ai/provider";
 import { setProviderFactoryForTests } from "@/server/ai/registry";
 import { saveKey } from "@/server/services/owner-assistant-settings";
 import { setCallsFetchForTests } from "@/server/calls/livekit";
-import { REPEAT_REQUEST, setAgentFetchForTests, signBody } from "@/server/calls/assistant-agent";
+import { setAgentFetchForTests, signBody } from "@/server/calls/assistant-agent";
+import { assistantTextOf } from "@/server/services/chat-assistant";
 import { call, db, loginAs, makeTeam, makeWorkspace } from "./helpers";
 
 /**
@@ -89,7 +90,7 @@ async function world() {
   await loginAs(t.member.id);
   const started = await call(convCallRoute.POST, { params: { id: topic.id }, body: { video: false, ring: true } });
   expect(started.status, started.text).toBe(201);
-  return { ...t, callId: started.json?.["id"] as string };
+  return { ...t, ws, topic, callId: started.json?.["id"] as string };
 }
 
 const invite = (callId: string, on = true) => call(assistantRoute.POST, { params: { id: callId }, body: { on } });
@@ -199,14 +200,14 @@ describe("what the assistant says", () => {
     expect((await ask(w.callId)).json?.["reply"]).toBe("تمام ماشي");
   });
 
-  it("somebody spoke TO the assistant: the model's «[صمت]» or an empty answer becomes «please repeat», never silence", async () => {
+  it("an addressed silence is NOT answered: the model's «[صمت]» or an empty answer stays silent, even when somebody spoke TO the assistant (S6.1)", async () => {
     const w = await world();
     for (const answer of ["[صمت]", ""]) {
       said = answer;
-      expect((await ask(w.callId)).json, JSON.stringify(answer)).toEqual({ reply: REPEAT_REQUEST, silent: false });
+      expect((await ask(w.callId)).json, JSON.stringify(answer)).toEqual({ reply: "", silent: true });
+      expect((await ask(w.callId, { addressed: false })).json, JSON.stringify(answer)).toEqual({ reply: "", silent: true });
     }
-    said = "[صمت]";
-    expect((await ask(w.callId, { addressed: false })).json).toEqual({ reply: "", silent: true });
+    expect(await assistantLines(w.topic.id)).toHaveLength(0);
   });
 
   it("a wrong secret, an old signature or a missing agent setting is «not found»; the model is never called", async () => {
@@ -235,5 +236,97 @@ describe("what the assistant says", () => {
     for (let i = 0; i < 22; i += 1) last = (await ask(w.callId)).status;
     expect(last).toBe(429);
     expect(seen.length).toBe(20);
+  });
+});
+
+// ---------- S6.1: the answer is ALSO a text line of the call's conversation ----------
+
+/** The assistant's lines of a conversation (the same rows «@المساعد» writes: kind SYSTEM, `{k:"assistant", p:{text}}`), oldest first. */
+async function assistantLines(conversationId: string) {
+  const rows = await db.chatMessage.findMany({ where: { conversationId, kind: "SYSTEM", body: { startsWith: '{"k":"assistant"' } }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] });
+  return rows.map((r) => ({ ...r, meta: JSON.parse(r.body) as { k: string; p: Record<string, string | number> } }));
+}
+
+describe("the text answer (S6.1)", () => {
+  it("an answer the assistant speaks in a call is also posted as a line of the call's conversation, in the existing assistant-line shape", async () => {
+    const w = await world();
+    said = "أنا معكم، خلينا نبدأ.";
+    expect((await ask(w.callId)).json).toEqual({ reply: "أنا معكم، خلينا نبدأ.", silent: false });
+    const lines = await assistantLines(w.topic.id);
+    expect(lines).toHaveLength(1);
+    expect(assistantTextOf(lines[0]!.body)).toBe("أنا معكم، خلينا نبدأ.");
+    expect(lines[0]!.orgId).toBe(w.org.id);
+    // the owner's assistant, the owner's cost: the line carries his row (the screen draws it as «المساعد»)
+    expect(lines[0]!.authorId).toBe(w.owner.id);
+    // the first assistant line of a conversation carries the note about the model; the next one does not
+    expect(lines[0]!.meta.p["first"]).toBe(1);
+    expect(lines[0]!.meta.p["err"]).toBeUndefined();
+    await ask(w.callId);
+    const again = await assistantLines(w.topic.id);
+    expect(again).toHaveLength(2);
+    expect(again[1]!.meta.p["first"]).toBeUndefined();
+    // the conversation's list time moved with the line
+    const conv = await db.conversation.findUniqueOrThrow({ where: { id: w.topic.id } });
+    expect(conv.lastMessageAt?.getTime()).toBe(again[1]!.createdAt.getTime());
+  });
+
+  it("the line is the spoken text (markdown already stripped), the audit row counts it and never holds the words", async () => {
+    const w = await world();
+    said = "**تمام** # ماشي";
+    await ask(w.callId);
+    const lines = await assistantLines(w.topic.id);
+    expect(assistantTextOf(lines[0]!.body)).toBe("تمام ماشي");
+    const audit = await db.auditLog.findFirst({ where: { action: "assistant.meeting_turn", target: w.callId } });
+    expect(audit?.meta).toMatchObject({ posted: true });
+    expect(JSON.stringify(audit?.meta)).not.toContain("تمام");
+  });
+
+  it("a silence writes no line, and a question that was not for the assistant writes none", async () => {
+    const w = await world();
+    said = "[صمت]";
+    await ask(w.callId);
+    await ask(w.callId, { addressed: false });
+    expect(await assistantLines(w.topic.id)).toHaveLength(0);
+  });
+
+  it("a meeting by link has no conversation: the answer is spoken only, nothing breaks", async () => {
+    const w = await world();
+    const byLink = await db.call.create({ data: { orgId: w.org.id, startedById: w.owner.id, title: "اجتماع برابط" } });
+    said = "حاضر يا شباب.";
+    const r = await ask(byLink.id);
+    expect(r.status, r.text).toBe(200);
+    expect(r.json).toEqual({ reply: "حاضر يا شباب.", silent: false });
+    expect(await db.chatMessage.count({ where: { orgId: w.org.id, kind: "SYSTEM", body: { startsWith: '{"k":"assistant"' } } })).toBe(0);
+    expect((await db.auditLog.findFirst({ where: { action: "assistant.meeting_turn", target: byLink.id } }))?.meta).toMatchObject({ posted: false });
+  });
+
+  it("a conversation with a guest among its people gets no line (the voice stays in the room, the text would stay in the history)", async () => {
+    const w = await world();
+    await db.workspaceMember.create({ data: { workspaceId: w.ws.id, userId: w.guest.id, role: "GUEST" } });
+    said = "تمام.";
+    expect((await ask(w.callId)).json).toEqual({ reply: "تمام.", silent: false });
+    expect(await assistantLines(w.topic.id)).toHaveLength(0);
+  });
+
+  it("a closed or archived conversation takes no line", async () => {
+    const w = await world();
+    await db.conversation.update({ where: { id: w.topic.id }, data: { closedAt: new Date() } });
+    expect((await ask(w.callId)).status).toBe(200);
+    expect(await assistantLines(w.topic.id)).toHaveLength(0);
+    await db.conversation.update({ where: { id: w.topic.id }, data: { closedAt: null, archivedAt: new Date() } });
+    await ask(w.callId);
+    expect(await assistantLines(w.topic.id)).toHaveLength(0);
+  });
+
+  it("the line is written in the conversation of THAT call only, and the words that reached the model were filtered as before", async () => {
+    const w = await world();
+    const other = await db.conversation.create({ data: { orgId: w.org.id, kind: "TOPIC", spaceId: w.ws.id, title: "موضوع ثاني" } });
+    said = "جواب.";
+    await ask(w.callId, { text: "يا مساعد اتصلوا على 0791234567" });
+    expect(await assistantLines(other.id)).toHaveLength(0);
+    expect(await assistantLines(w.topic.id)).toHaveLength(1);
+    expect(JSON.stringify(seen[0])).not.toContain("0791234567");
+    // the question is never written: only the answer
+    expect(await db.chatMessage.count({ where: { conversationId: w.topic.id, body: { contains: "0791234567" } } })).toBe(0);
   });
 });
