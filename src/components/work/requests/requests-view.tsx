@@ -8,7 +8,8 @@ import { apiGet } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { fmtNumber } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
-import { REQUEST_TABS, type RequestSection, type RequestTab, type WorkRequestsView } from "./types";
+import { goHref } from "@/lib/space-link";
+import { REQUEST_TABS, type RequestGroup, type RequestSection, type RequestTab, type WorkRequestsView } from "./types";
 import { RequestRowView, WORK_REQUESTS_KEY } from "./request-rows";
 
 /**
@@ -32,7 +33,8 @@ export function RequestsView({ initial }: { initial: WorkRequestsView }) {
     <div dir="rtl" className="mx-auto max-w-4xl space-y-3 p-4 md:p-5" data-work-requests={tab}>
       <header className="space-y-0.5">
         <h1 className="text-[19px] font-bold leading-tight text-fg">{t("workreq.title")}</h1>
-        <p className="text-[13px] text-fg-muted">{t("workreq.subtitle")}</p>
+        {/* each space is its own account: the line says whose these requests are */}
+        <p className="text-[13px] text-fg-muted">{view.space ? t("workreq.subtitle.space", { name: view.space.name }) : view.groups ? t("workreq.subtitle.all") : t("workreq.subtitle")}</p>
       </header>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <nav aria-label={t("workreq.tabs")} className="inline-flex shrink-0 rounded-[10px] bg-surface-2 p-[3px]">
@@ -63,6 +65,8 @@ export function RequestsView({ initial }: { initial: WorkRequestsView }) {
       ) : null}
       {visible.length === 0 ? (
         <QuietEmpty title={t(`workreq.empty.${tab}.title`)} hint={t(`workreq.empty.${tab}.hint`)} />
+      ) : view.groups ? (
+        view.groups.map((group) => <GroupBlock key={group.spaceId ?? "company"} group={group} tab={tab} viewerId={view.viewerId} />)
       ) : (
         visible.map((section) => <SectionBlock key={section.key} section={section} tab={tab} viewerId={view.viewerId} />)
       )}
@@ -85,9 +89,38 @@ function TabLink({ tab, current, count }: { tab: RequestTab; current: RequestTab
   );
 }
 
-function SectionBlock({ section, tab, viewerId }: { section: RequestSection; tab: RequestTab; viewerId: string }) {
+/**
+ * B4 — inside «الشركة»: one block per space that has something waiting (its name, its count and «انتقل», the `/go` link that enters that space on its own
+ * «الطلبات»), then the company-wide one. The rows inside are the very same sections of a space's own screen.
+ */
+function GroupBlock({ group, tab, viewerId }: { group: RequestGroup; tab: RequestTab; viewerId: string }) {
   const { t } = useI18n();
-  const id = `workreq-${section.key}`;
+  const key = group.spaceId ?? "company";
+  return (
+    <section aria-labelledby={`workreq-group-${key}`} data-request-group={key} className="space-y-3">
+      <div className="flex items-center gap-2 border-b border-border pb-1.5">
+        <h2 id={`workreq-group-${key}`} className="min-w-0 flex-1 truncate text-[15px] font-bold text-fg">
+          {group.name ?? t("workreq.group.company")}
+          <span className="ms-2 text-[13px] font-semibold text-fg-muted">{t("workreq.count", { n: fmtNumber(group.total) })}</span>
+        </h2>
+        {group.spaceId ? (
+          <a href={goHref(group.spaceId, `/requests?tab=${tab}`)} className="inline-flex min-h-11 shrink-0 items-center rounded-lg px-3 text-[13.5px] font-semibold text-accent transition-colors hover:bg-surface-2 md:min-h-9">
+            {t("workreq.group.go")}
+          </a>
+        ) : null}
+      </div>
+      {group.sections
+        .filter((section) => section.total > 0)
+        .map((section) => (
+          <SectionBlock key={section.key} section={section} tab={tab} viewerId={viewerId} idPrefix={key} />
+        ))}
+    </section>
+  );
+}
+
+function SectionBlock({ section, tab, viewerId, idPrefix = "" }: { section: RequestSection; tab: RequestTab; viewerId: string; idPrefix?: string }) {
+  const { t } = useI18n();
+  const id = `workreq-${idPrefix ? `${idPrefix}-` : ""}${section.key}`;
   const hidden = section.total - section.rows.length;
   return (
     <section aria-labelledby={id} data-request-section={section.key}>

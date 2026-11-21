@@ -60,6 +60,10 @@
   "today.quick.inline_aria": "مهمّة جديدة لليوم",
   "today.quick.more": "المشروع والموعد",
   "today.quick.inline_added": "انضافت المهمّة",
+  "today.quick.added_in": "انضافت المهمّة لمساحة «{name}»",
+  "today.quick.space": "بأي مساحة؟",
+  "today.quick.choose_space": "اختر المساحة",
+  "today.quick.choose_hint": "إنت بـ«الشركة»، فاختر المساحة اللي بدك تنضاف فيها المهمّة.",
 
   "today.dash.title": "لمحة سريعة عن شغلك",
   "today.dash.week": "إنجازي هالأسبوع",

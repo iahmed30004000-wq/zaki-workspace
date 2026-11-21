@@ -15,6 +15,7 @@ import { bannerInsteadOfSwitch, currentSpace, spacesOf } from "./current-space";
 import { panelFactsOf } from "./control-panel";
 import { spaceOfApproval } from "./approvals";
 import { orgDayStart } from "./org-day";
+import { spaceFigures } from "./space-figures";
 import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "./team-scope";
 
 /**
@@ -75,25 +76,12 @@ export async function overdueBySpace(userId: string, orgIds: readonly string[], 
   const scope = await loadWorkScope(userId);
   const spaceIds = scopeSpaceIds(scope);
   if (spaceIds.length === 0) return {};
-  const visible = taskVisibleWhere(scope);
   const out: Record<string, number> = {};
   await Promise.all(
     orgIds.map(async (orgId) => {
-      const before = await orgDayStart(orgId, now);
-      const rows = await db.task.groupBy({
-        by: ["workspaceId"],
-        where: {
-          orgId,
-          archived: false,
-          completedAt: null,
-          dueDate: { lt: before },
-          workspaceId: { in: spaceIds },
-          OR: [{ assigneeId: userId }, { coAssignees: { some: { userId } } }],
-          AND: [visible],
-        },
-        _count: { _all: true },
-      });
-      for (const row of rows) out[row.workspaceId] = row._count._all;
+      // B4: the per-space numbers come from `spaceFigures`, the one source (the same query «كل المساحات», the report and the overview use)
+      const figures = await spaceFigures({ orgId, spaceIds, todayStart: await orgDayStart(orgId, now), scope, assigneeId: userId });
+      for (const [spaceId, figure] of figures) if (figure.overdue > 0) out[spaceId] = figure.overdue;
     }),
   );
   return out;

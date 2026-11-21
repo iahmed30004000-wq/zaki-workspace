@@ -66,7 +66,7 @@ const TOOLS: { tab: TabKey; page: PageCall; box: string; needsDirectory: boolean
   { tab: "crm", page: () => CrmPage(), box: "crm.view", needsDirectory: false },
   // the three department pages: the directory AND (for the last two) the section's own box — D-W3 pending, nothing relaxed
   { tab: "departments", page: () => DepartmentsPage(), box: "directory.view", needsDirectory: true },
-  { tab: "tickets", page: () => TicketsPage(), box: "tickets.view", needsDirectory: true },
+  { tab: "tickets", page: () => TicketsPage({}), box: "tickets.view", needsDirectory: true },
   { tab: "campaigns", page: () => CampaignsPage(), box: "campaigns.view", needsDirectory: true },
 ];
 

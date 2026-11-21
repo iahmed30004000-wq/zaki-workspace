@@ -8,11 +8,17 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTit
 import { useToast } from "@/components/ui/toast";
 import { ApiError, apiGet, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
-import { quickInboxBody, quickTaskBody, QUICK_DESCRIPTION_MAX, TASK_TITLE_MAX, WORK_INBOX_REF, type QuickDue, type TodayQuickAddData, type WorkInboxInfo } from "@/lib/today";
+import { mustChooseSpace, quickInboxBody, quickTaskBody, QUICK_DESCRIPTION_MAX, TASK_TITLE_MAX, WORK_INBOX_REF, type QuickDue, type TodayQuickAddData, type WorkInboxInfo } from "@/lib/today";
 import { cn } from "@/lib/utils";
 import { useNewIntent } from "@/lib/nav/use-new-intent";
 
 type Post = (path: string, body?: unknown) => Promise<unknown>;
+
+/** The name of the space that received the task, from the door's answer (`{ task, space }`); null when the answer does not say. */
+function spaceNameIn(answer: unknown): string | null {
+  const name = (answer as { space?: { name?: unknown } } | null | undefined)?.space?.name;
+  return typeof name === "string" && name !== "" ? name : null;
+}
 
 /** The words for a refusal: the server's own reason when it is one of the instant-work ones («لسا ما إلك مساحة شغل»), else the usual ones. */
 function quickError(err: unknown, t: (key: string) => string): string {
@@ -82,7 +88,8 @@ export function TodayQuickAdd({
   const target = quickAdd.targets[0];
   const noSpace = inbox !== null && inbox.space === null;
   // the inbox takes the typing with no project at all; the old way needs a project with a board
-  const canType = inbox !== null ? !noSpace : Boolean(target);
+  // B4: inside «الشركة» with several spaces the line cannot know where the task goes: only the sheet is offered, and it asks
+  const canType = inbox !== null ? !noSpace && !mustChooseSpace(inbox) : Boolean(target);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -98,9 +105,10 @@ export function TodayQuickAdd({
     if (!send) return;
     setPending(true);
     try {
-      await send();
+      const name = spaceNameIn(await send());
       setTitle("");
-      toast(t("today.quick.inline_added"), "success");
+      // B4: the toast names the space that received it
+      toast(name ? t("today.quick.added_in", { name }) : t("today.quick.inline_added"), "success");
       router.refresh();
     } catch (err) {
       toast(quickError(err, t), "error");
@@ -254,7 +262,11 @@ export function QuickAddForm({
   const [assigneeId, setAssigneeId] = useState(quickAdd.assigneeId);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const spaceId = inbox && projectId === WORK_INBOX_REF ? (inbox.space?.id ?? null) : (quickAdd.targets.find((x) => x.projectId === projectId)?.workspaceId ?? null);
+  // B4 — inside «الشركة» the person CHOOSES the space of an inbox task (no silent first space); with one space to choose from it is that one
+  const asking = mustChooseSpace(inbox) && projectId === WORK_INBOX_REF;
+  const [chosen, setChosen] = useState("");
+  const soleChoice = inbox?.choose && inbox.spaces?.length === 1 ? (inbox.spaces[0]?.id ?? null) : null;
+  const spaceId = inbox && projectId === WORK_INBOX_REF ? (asking ? chosen || null : (soleChoice ?? inbox.space?.id ?? null)) : (quickAdd.targets.find((x) => x.projectId === projectId)?.workspaceId ?? null);
   const people = usePeople(spaceId);
   // the people of another space are not the people of this one: the choice goes back to the person themself
   useEffect(() => {
@@ -281,13 +293,18 @@ export function QuickAddForm({
     event.preventDefault();
     if (pending) return;
     const toInbox = inbox !== null && projectId === WORK_INBOX_REF;
-    const body = toInbox ? quickInboxBody(quickAdd, { title, due, timeZone, assigneeId, description }) : quickTaskBody(quickAdd, { projectId, title, due, timeZone, assigneeId, description });
+    // B4: inside «الشركة» the space is the person's choice and is sent; no space chosen, nothing is sent
+    if (toInbox && asking && !chosen) return;
+    const body = toInbox
+      ? quickInboxBody(quickAdd, { title, due, timeZone, assigneeId, description, spaceId: inbox?.choose ? spaceId : null })
+      : quickTaskBody(quickAdd, { projectId, title, due, timeZone, assigneeId, description });
     if (!body) return;
     setPending(true);
     setError(null);
     try {
-      await post(toInbox ? "/api/instant/inbox" : "/api/tasks", body);
-      toast(t("common.created"), "success");
+      const name = spaceNameIn(await post(toInbox ? "/api/instant/inbox" : "/api/tasks", body));
+      // B4: the toast names the space that received the task
+      toast(name ? t("today.quick.added_in", { name }) : t("common.created"), "success");
       router.refresh();
       onDone();
     } catch (err) {
@@ -327,6 +344,21 @@ export function QuickAddForm({
         </select>
         {inbox && projectId === WORK_INBOX_REF ? <span className="mt-1 block text-xs text-fg-muted">{t("work.inbox.sheet_hint")}</span> : null}
       </label>
+
+      {asking ? (
+        <label className="block">
+          <span className="mb-1 block text-xs font-medium text-fg-muted">{t("today.quick.space")}</span>
+          <select name="spaceId" value={chosen} onChange={(event) => setChosen(event.target.value)} required className={FIELD}>
+            <option value="">{t("today.quick.choose_space")}</option>
+            {(inbox?.spaces ?? []).map((space) => (
+              <option key={space.id} value={space.id}>
+                {space.name}
+              </option>
+            ))}
+          </select>
+          <span className="mt-1 block text-xs text-fg-muted">{t("today.quick.choose_hint")}</span>
+        </label>
+      ) : null}
 
       {others.length > 0 ? (
         <fieldset>

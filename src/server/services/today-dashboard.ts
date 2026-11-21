@@ -1,7 +1,9 @@
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { chatList } from "@/server/chat/list";
-import { unreadTotal } from "@/server/chat/unread";
+import { unreadBySpace, unreadTotal } from "@/server/chat/unread";
+import { spacesOf } from "@/server/services/current-space";
+import { spaceFigures } from "@/server/services/space-figures";
 import { actorCan, actorCanWork, type Actor } from "@/server/policy/actor";
 import { hasTeam, inTeam, loadPeopleScope, teamScopeInfoOf, teamTaskWhere, type TeamScopeInfo } from "@/server/policy/people-scope";
 import { actorFeatureOn } from "@/server/services/features";
@@ -14,6 +16,7 @@ import {
   type TodayDashboard,
   type TodayFollowUp,
   type TodayMentions,
+  type TodayBySpaceRow,
   type TodayWaiting,
   mentionRowsOf,
   topWaiting,
@@ -170,11 +173,16 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
  * count come from `workRequestsOf(actor, "waiting")` (P0.2 `taskVisibleWhere` for a request on a task, the approver's turn, the departments,
  * the spaces the person moderates). `null` while `workRequests` is off, for a guest, and when nothing waits.
  */
-export async function getTodayWaiting(actor: Actor): Promise<TodayWaiting | null> {
+export async function getTodayWaiting(actor: Actor, opts: { space?: { id: string; kind: string } | null } = {}): Promise<TodayWaiting | null> {
   if (actor.isExternal) return null;
   if (!(await actorFeatureOn(actor, "workRequests"))) return null;
-  const view = await workRequestsOf(actor, "waiting");
-  return topWaiting(view.sections);
+  // B4 — each space is its own account: the space the person is in (inside «الشركة», or with none, all of them, grouped by space with the way there).
+  // Without `space` nothing narrows it (the service's old shape).
+  const scope = opts.space === undefined ? {} : opts.space && opts.space.kind !== "HQ" ? { spaceId: opts.space.id } : { groups: true };
+  const view = await workRequestsOf(actor, "waiting", scope);
+  const top = topWaiting(view.sections);
+  if (top && view.groups) top.groups = view.groups.map((g) => ({ spaceId: g.spaceId, name: g.name, total: g.total }));
+  return top;
 }
 
 /**
@@ -215,4 +223,24 @@ export async function getTodayFollowUps(actor: Actor, opts: { now?: Date } = {})
     const late = day.getTime() < Date.UTC(clock.year, clock.month - 1, clock.day);
     return { id: r.id, title: r.title, late, dueLabel: fmtRelative(new Date(day.getUTCFullYear(), day.getUTCMonth(), day.getUTCDate(), 12), todayStandIn) };
   });
+}
+
+/**
+ * «اليوم» inside «الشركة» (B4: the view over all the person's spaces): one row per space of theirs (never «الشركة» itself) with THEIR open and late tasks there
+ * and the messages waiting for them in its topics — `spaceFigures`, the one per-space source, through the same visibility rule as every task list.
+ * A partner gets none.
+ */
+export async function getTodayBySpace(actor: Actor, now: Date = new Date()): Promise<TodayBySpaceRow[]> {
+  if (actor.isExternal) return [];
+  const spaces = (await spacesOf(actor)).filter((s) => s.kind !== "HQ");
+  if (spaces.length === 0) return [];
+  const [org, scope, unread] = await Promise.all([
+    db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true } }),
+    loadWorkScope(actor.userId),
+    unreadBySpace({ userId: actor.userId, orgId: actor.orgId, orgRole: actor.role }),
+  ]);
+  const figures = actorCanWork(actor, "tasks.view")
+    ? await spaceFigures({ orgId: actor.orgId, spaceIds: spaces.map((s) => s.id), todayStart: zonedDayStart(now, resolveTimeZone(org?.timezone)), scope, assigneeId: actor.userId })
+    : null;
+  return spaces.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, open: figures?.get(s.id)?.open ?? 0, overdue: figures?.get(s.id)?.overdue ?? 0, unread: unread[s.id] ?? 0 }));
 }

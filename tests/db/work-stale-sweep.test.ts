@@ -206,15 +206,56 @@ describe("what is «قديمة»", () => {
     const foreign = await makeProject(w.foreignWs.id);
     const foreignTask = await makeTask({ orgId: w.foreign.org.id, workspaceId: w.foreignWs.id, projectId: foreign.project.id, boardId: foreign.board.id, columnId: foreign.todo.id, creatorId: w.foreign.member.id });
     await w.age(foreignTask.id, 30);
-    const owner = (await list(w.owner)).view;
+    // B4 (each space is its own account): the owner's list opens on the space he is in; «كل المساحات» is his explicit choice
+    const owner = (await list(w.owner, "space=all")).view;
     expect(ids(owner).sort()).toEqual([inWs.id, inOther.id].sort());
     expect(owner.spaces.map((s) => s.id).sort()).toEqual([w.ws.id, w.other.id].sort());
+    expect(ids((await list(w.owner)).view)).toEqual([inWs.id]);
     const admin = (await list(w.admin)).view;
     expect(ids(admin)).toEqual([inWs.id]);
     expect(admin.spaces.map((s) => s.id)).toEqual([w.ws.id]);
     // the owner may narrow to one space; a space that is not his to manage is ignored
     expect(ids((await list(w.owner, `space=${w.other.id}`)).view)).toEqual([inOther.id]);
     expect(ids((await list(w.admin, `space=${w.other.id}`)).view)).toEqual([inWs.id]);
+  });
+});
+
+describe("B4 — each space is its own account: «مهام قديمة» opens on the space I am in", () => {
+  async function twoSpaces() {
+    const w = await world();
+    const inWs = await w.task();
+    const elsewhere = await makeProject(w.other.id);
+    const inOther = await makeTask({ orgId: w.orgId, workspaceId: w.other.id, projectId: elsewhere.project.id, boardId: elsewhere.board.id, columnId: elsewhere.todo.id, creatorId: w.outsider.id, assigneeId: w.outsider.id });
+    await w.age(inOther.id, 30);
+    return { ...w, inWs, inOther };
+  }
+
+  it("the default is the current space; «كل المساحات» (space=all) is explicit; another managed space is a choice; the answer says which", async () => {
+    const w = await twoSpaces();
+    jar().set(SPACE_COOKIE, w.other.id);
+    const inOther = (await list(w.owner)).view;
+    expect(ids(inOther)).toEqual([w.inOther.id]);
+    expect(inOther.space).toBe(w.other.id);
+    expect(inOther.here).toBe(w.other.id);
+    jar().set(SPACE_COOKIE, w.ws.id);
+    expect(ids((await list(w.owner)).view)).toEqual([w.inWs.id]);
+    const all = (await list(w.owner, "space=all")).view;
+    expect(ids(all).sort()).toEqual([w.inWs.id, w.inOther.id].sort());
+    expect(all.space).toBeNull();
+    expect(all.here).toBe(w.ws.id);
+    expect(ids((await list(w.owner, `space=${w.other.id}`)).view)).toEqual([w.inOther.id]);
+  });
+
+  it("inside «الشركة», or in a space the person does not manage, the default is all the spaces they manage", async () => {
+    const w = await twoSpaces();
+    const hq = await db.workspace.create({ data: { organizationId: w.orgId, name: "الشركة", slug: `hq-${uid()}`, systemKey: "hq", kind: "HQ", members: { create: [{ userId: w.owner.id }] } } });
+    jar().set(SPACE_COOKIE, hq.id);
+    const view = (await list(w.owner)).view;
+    expect(ids(view).sort()).toEqual([w.inWs.id, w.inOther.id].sort());
+    expect(view.here).toBeNull();
+    // the admin manages `ws` only: inside a space he does not manage, the default is what he does manage
+    jar().set(SPACE_COOKIE, w.other.id);
+    expect(ids((await list(w.admin)).view)).toEqual([w.inWs.id]);
   });
 });
 

@@ -12,6 +12,8 @@ import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 
 const schema = z.object({
   title: z.string().trim().min(1, "title.required").max(280),
+  /** B4: the space it goes to (one of the person's): inside «الشركة» the quick add asks which. Left out: the space the person is in. */
+  spaceId: z.string().min(1).max(64).optional(),
   /** The person it is for; nobody named: the person's own. */
   assigneeId: z.string().min(1).optional(),
   assigneeIds: z.array(z.string().min(1)).max(50).optional(),
@@ -34,7 +36,8 @@ export async function POST(req: Request) {
     await assertFeatureOn(who.orgId, "workInbox");
     const subject = { userId: who.userId, orgId: who.orgId, role: who.orgRole };
     const current = await currentSpace(subject);
-    const space = await inboxSpaceFor(subject, current?.id);
+    // B4: the space the person named (a space that is not theirs: «instant.no_space»), else the one they are in
+    const space = await inboxSpaceFor(subject, input.spaceId ?? current?.id);
     if (!space) throw new ForbiddenError("instant.no_space");
     const ctx = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
     const dueDate = !input.dueDate

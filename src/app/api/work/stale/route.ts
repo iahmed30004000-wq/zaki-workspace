@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { withApi } from "@/server/api";
 import { requireActor } from "@/server/policy/actor";
+import { currentSpace } from "@/server/services/current-space";
 import { assertFeatureOn } from "@/server/services/features";
 import { parseJson } from "@/server/validation";
 import { staleListFor, sweepStale } from "@/server/services/stale-tasks";
@@ -16,7 +17,11 @@ export async function GET(req: Request) {
   return withApi(async () => {
     const actor = await requireActor();
     await assertFeatureOn(actor.orgId, "workStaleSweep");
-    return NextResponse.json(await staleListFor(actor, parseStaleParams(new URL(req.url).searchParams)), { headers: { "Cache-Control": "no-store" } });
+    // B4: each space is its own account: the list opens on the space the caller is in (`space=all` is «كل المساحات»)
+    const space = await currentSpace(actor);
+    return NextResponse.json(await staleListFor(actor, parseStaleParams(new URL(req.url).searchParams), new Date(), { current: space ? { id: space.id, kind: space.kind } : null }), {
+      headers: { "Cache-Control": "no-store" },
+    });
   });
 }
 

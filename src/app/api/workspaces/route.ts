@@ -16,7 +16,7 @@ import { unreadBySpace } from "@/server/chat/unread";
 import { currentSpace } from "@/server/services/current-space";
 import { foreignSpaceOf, overdueBySpace } from "@/server/services/nav-order";
 import { orgSummaryOf } from "@/server/services/features";
-import { waitingRequestCount } from "@/server/services/work-requests";
+import { requestsScopeHere, waitingRequestCount } from "@/server/services/work-requests";
 import { log } from "@/server/log";
 import { featureOn } from "@/lib/features";
 import { SPACE_LAYOUTS } from "@/lib/cards/shared";
@@ -102,7 +102,8 @@ export async function GET(req: Request) {
       ? await (async () => {
           const actor = await requireActor();
           if (actor.isExternal || !featureOn((await orgSummaryOf(actor.orgId))?.settings, "workRequests")) return 0;
-          return waitingRequestCount(actor);
+          // B4: the space the person is in (inside «الشركة» or with none: all of them), the same number the page's «بانتظاري» heads
+          return waitingRequestCount(actor, await requestsScopeHere(actor));
         })().catch((err: unknown) => {
           // a number that cannot be counted is no number: it never takes the spaces, the unread counts and the banner down with it
           log.warn("work_requests.count_failed", { message: err instanceof Error ? err.message : String(err) });

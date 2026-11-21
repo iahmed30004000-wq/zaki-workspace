@@ -181,7 +181,7 @@ describe("«الشركة» holds none (D-N3)", () => {
     const company = await db.workspace.create({ data: { organizationId: t0.org.id, name: "الشركة", slug: `hq-${t0.org.id}`, systemKey: "hq", kind: "HQ", members: { create: [{ userId: t0.member.id }] } } });
     jar().set(SPACE_COOKIE, company.id);
     await loginAs(t0.member.id);
-    expect((await call(instantRoute.GET)).json?.["inbox"]).toEqual({ space: null, projectId: null });
+    expect((await call(instantRoute.GET)).json?.["inbox"]).toEqual({ space: null, projectId: null, choose: false, spaces: [] });
     const res = await quick({ title: "ما في مكان" });
     expect(res.status).toBe(403);
     expect(res.json?.["message"]).toBe("instant.no_space");

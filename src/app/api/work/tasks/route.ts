@@ -30,6 +30,8 @@ export async function GET(req: Request) {
 
 const quickSchema = z.object({
   title: z.string().trim().min(1, "title.required").max(280),
+  /** B4: the space the screen is showing (one of the person's); left out, the space they are in. */
+  spaceId: z.string().min(1).max(64).optional(),
   /** A day ("2026-11-05") or a full instant: a day is noon in the COMPANY's zone, never the browser's. */
   dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
 });
@@ -44,7 +46,7 @@ export async function POST(req: Request) {
     const who = await activeOrgCtx();
     await assertFeatureOn(who.orgId, "workMyTasks");
     const subject = { userId: who.userId, orgId: who.orgId, role: who.orgRole };
-    const space = await inboxSpaceFor(subject, (await currentSpace(subject))?.id);
+    const space = await inboxSpaceFor(subject, input.spaceId ?? (await currentSpace(subject))?.id);
     if (!space) throw new ForbiddenError("instant.no_space");
     const ctx = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
     const dueDate = !input.dueDate ? null : parseDayText(input.dueDate) ? dueInstantForDay(input.dueDate, await orgTimeZone(ctx.orgId)) : new Date(input.dueDate);

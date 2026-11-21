@@ -82,7 +82,8 @@ const allowedLinks = /^(\/|\/\?view=today|\/tasks\/[\w-]+|\/projects(\/[\w-]+)?|
  * checked on its own (its links go to the panel's own page, the list of late work and the ideas, nowhere else) and taken out for the checks that
  * are about the rest of the page.
  */
-const panelLinks = /^(\/owner(\/people\/[\w-]+|\?v=\w+)?|\/list\?filter=overdue|\/ideas)$/;
+// B4: the late-work and ideas sentences enter the space they name (`/go?space=…&next=…`: «مهامي» on its late tasks, its «الأفكار»), not `/list?filter=overdue`
+const panelLinks = /^(\/owner(\/people\/[\w-]+|\?v=\w+)?|\/go\?space=[\w-]+(&amp;|&)next=[\w%.-]+)$/;
 function splitPanel(markup: string): { rest: string; panel: string } {
   const marker = markup.indexOf('data-testid="control-panel"');
   if (marker < 0) return { rest: markup, panel: "" };

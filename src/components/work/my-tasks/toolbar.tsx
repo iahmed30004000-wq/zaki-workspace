@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { Pill, WORK_SEARCH, WORK_SELECT } from "@/components/work/look";
 import { WORK_STAGES } from "@/lib/work/stage";
 import {
+  ALL_SPACES,
   MY_TASK_CHIPS,
   MY_TASK_GROUPS,
   MY_TASK_SORTS,
@@ -16,10 +17,29 @@ import {
   type MyTaskScope,
   type MyTaskView,
   type MyTasksParams,
+  type WorkSpaceOption,
   type WorkTasksResult,
 } from "@/lib/work/my-tasks";
 
 const SELECT = WORK_SELECT;
+
+/** What a pick of the space select means for the address: "all" is «كل مساحاتي» (inside «الشركة» that is the default, so nothing is written), "" the default. */
+function pickedSpaceId(value: string, hq: boolean): string | null {
+  if (value === "all") return hq ? null : ALL_SPACES;
+  return value || null;
+}
+
+/**
+ * The space select's options and its value. The space the person is in is the first option (value "": the default); «كل مساحاتي» (value "all") is the
+ * second, an explicit choice; the other spaces follow. Inside «الشركة» there is no space «here»: «كل مساحاتي» is the default (value "") and the spaces follow.
+ */
+export function spaceChoiceOf(params: Pick<MyTasksParams, "spaceId">, data: Pick<WorkTasksResult, "spaces" | "current">): { here: WorkSpaceOption | null; others: WorkSpaceOption[]; value: string } {
+  const here = data.current.hq ? null : (data.spaces.find((s) => s.id === data.current.id) ?? null);
+  const others = data.spaces.filter((s) => s.id !== here?.id);
+  const asked = params.spaceId;
+  const value = asked === ALL_SPACES ? (here ? "all" : "") : asked && others.some((s) => s.id === asked) ? asked : "";
+  return { here, others, value };
+}
 
 /**
  * The bar of «مهامي»: the view (قائمة · لوحة · تقويم), the scope (أنا · المساحة · مشروع) with its second line (my spaces, or the project picker), the quick
@@ -42,6 +62,7 @@ export function Toolbar({
   const scope: MyTaskScope = data.scopeFellBack ? "me" : params.scope;
   const showChips = params.view !== "calendar";
   const scopes: MyTaskScope[] = data.current.hq ? ["me", "project"] : ["me", "space", "project"];
+  const spaceChoice = spaceChoiceOf(params, data);
 
   return (
     <div className="space-y-2.5 pb-1">
@@ -88,9 +109,11 @@ export function Toolbar({
       {data.scopeFellBack ? <p className="text-xs text-fg-muted">{t("mytasks.scope.hq_note")}</p> : null}
 
       {scope === "me" && data.spaces.length > 1 ? (
-        <select aria-label={t("mytasks.space.label")} className={cn(SELECT, "w-full")} value={params.spaceId ?? ""} onChange={(e) => onChange({ spaceId: e.target.value || null }, "replace")}>
-          <option value="">{t("mytasks.space.all")}</option>
-          {data.spaces.map((space) => (
+        <select aria-label={t("mytasks.space.label")} className={cn(SELECT, "w-full")} value={spaceChoice.value} onChange={(e) => onChange({ spaceId: pickedSpaceId(e.target.value, data.current.hq) }, "replace")}>
+          {/* each space is its own account: the space I am in comes first and is the default; «كل مساحاتي» is a choice (inside «الشركة» it IS the default) */}
+          {spaceChoice.here ? <option value="">{spaceChoice.here.name}</option> : <option value="">{t("mytasks.space.all")}</option>}
+          {spaceChoice.here ? <option value="all">{t("mytasks.space.all")}</option> : null}
+          {spaceChoice.others.map((space) => (
             <option key={space.id} value={space.id}>
               {space.name}
             </option>

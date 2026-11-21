@@ -23,9 +23,11 @@ import { recurringTaskIds } from "@/server/services/task-recurrence";
 import { myRunningTaskId } from "@/server/services/time-tracking";
 import { stageOrDefault } from "@/lib/work/stage";
 import {
+  ALL_SPACES,
   MY_TASK_CHIPS,
   MY_TASKS_LIMIT,
   sortWorkTasks,
+  type WorkTaskPanel,
   type MyTaskChip,
   type MyTasksParams,
   type WorkProjectOption,
@@ -231,8 +233,9 @@ export interface WorkTasksOptions {
 const emptyCounts = (): Record<MyTaskChip, number> => Object.fromEntries(MY_TASK_CHIPS.map((c) => [c, 0])) as Record<MyTaskChip, number>;
 
 /**
- * W1.1 — everything the unified «مهامي» screen draws: the person's tasks across ALL their ACTIVE spaces (scope «أنا»: assigned to them or shared
- * with them), or the current space (scope «المساحة»), or one project (scope «مشروع»), narrowed by a chip, a stage and a text, ordered, plus the
+ * W1.1 — everything the unified «مهامي» screen draws: the person's tasks (scope «أنا»: assigned to them or shared with them) in the space they are in —
+ * B4, each space is its own account: inside «الشركة» in all of their ACTIVE spaces, and «كل مساحاتي» (`space=all`) is an explicit choice, as is any
+ * other space of theirs — or the current space (scope «المساحة»), or one project (scope «مشروع»), narrowed by a chip, a stage and a text, ordered, plus the
  * chip counts and the pickers. EVERY read goes through `taskVisibleWhere`: a private task the person is no part of is not listed, not counted,
  * not found by the search.
  *
@@ -249,6 +252,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
     spaces: [],
     projects: [],
     current: { id: opts.current?.id ?? null, hq },
+    space: { id: null, name: null },
     scopeFellBack: false,
     timeZone: resolveTimeZone(null),
     todayIso: dayOfInstant(now, resolveTimeZone(null)),
@@ -281,10 +285,14 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
   const roleOfOrg = new Map(memberships.map((m) => [m.organizationId, m.role] as const));
   const workSpaces = workspaces.filter((w) => w.kind !== "HQ");
   const spaces: WorkSpaceOption[] = workSpaces.map((w) => ({ id: w.id, name: w.name, kind: w.kind }));
+  const cur = opts.current && wsById.has(opts.current.id) ? opts.current : null;
+  // B4 — each space is its own account: the space the person is in, when it is a work space («الشركة» is the view over all of them)
+  const curWork = cur && wsById.get(cur.id)!.kind !== "HQ" ? cur.id : null;
 
-  // the project picker: the projects the person may see (the team rule), in their active spaces
+  // the project picker: the projects the person may see (the team rule) in the space they are in (in «الشركة»: in all of their spaces)
+  const visibleProjects = { AND: [projectVisibleWhere(scope), { workspaceId: { in: workSpaces.map((w) => w.id) } }] };
   const projectRows = await db.project.findMany({
-    where: { AND: [projectVisibleWhere(scope), { workspaceId: { in: workSpaces.map((w) => w.id) } }] },
+    where: { AND: [visibleProjects, { workspaceId: { in: curWork ? [curWork] : workSpaces.map((w) => w.id) } }] },
     select: { id: true, name: true, workspaceId: true },
     orderBy: [{ name: "asc" }, { id: "asc" }],
     take: 500,
@@ -292,7 +300,6 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
   const projects: WorkProjectOption[] = projectRows.map((p) => ({ id: p.id, name: p.name, workspaceId: p.workspaceId, spaceName: wsById.get(p.workspaceId)?.name ?? "" }));
 
   // the scope after the fallbacks
-  const cur = opts.current && wsById.has(opts.current.id) ? opts.current : null;
   let scopeKind = params.scope;
   let scopeFellBack = false;
   if (scopeKind === "space" && (!cur || cur.kind === "HQ")) {
@@ -300,8 +307,15 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
     scopeFellBack = true;
   }
   const effective: MyTasksParams = { ...params, scope: scopeKind };
-  const pickedSpace = params.spaceId && wsById.has(params.spaceId) && wsById.get(params.spaceId)!.kind !== "HQ" ? params.spaceId : null;
-  const project = scopeKind === "project" && params.projectId ? (projectRows.find((p) => p.id === params.projectId) ?? null) : null;
+  // scope «أنا»: «كل مساحاتي» when asked for; a space of the person's when named; else the space they are in (inside «الشركة»: all of them)
+  const named = params.spaceId && params.spaceId !== ALL_SPACES && wsById.has(params.spaceId) && wsById.get(params.spaceId)!.kind !== "HQ" ? params.spaceId : null;
+  const pickedSpace = params.spaceId === ALL_SPACES ? null : (named ?? curWork);
+  // a project asked for by its own address (the project's page, whose banner offers «انتقل لها» when it is another space's) still opens; only the picker is the space's
+  const project =
+    scopeKind === "project" && params.projectId
+      ? (projectRows.find((p) => p.id === params.projectId) ??
+        (await db.project.findFirst({ where: { AND: [visibleProjects, { id: params.projectId }] }, select: { id: true, name: true, workspaceId: true } })))
+      : null;
 
   // which (company, spaces, scope) batches to read
   type Batch = { orgId: string; workspaceIds: string[]; scope: NonNullable<ViewQuery["scope"]> };
@@ -414,6 +428,9 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
     );
   }
 
+  // the space this list is cut for (for the heading and the select): «المساحة» is the current one, «مشروع» that project's, «أنا» the picked one or all
+  const cutSpaceId = scopeKind === "space" ? (cur?.id ?? null) : scopeKind === "project" ? (project?.workspaceId ?? null) : pickedSpace;
+
   return result({
     params: effective,
     tasks: listed,
@@ -421,6 +438,8 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
     counts,
     spaces,
     projects,
+    space: { id: cutSpaceId, name: cutSpaceId ? (wsById.get(cutSpaceId)?.name ?? null) : null },
+    current: { id: cur?.id ?? null, hq, name: cur ? (wsById.get(cur.id)?.name ?? null) : null },
     scopeFellBack,
     timeZone,
     todayIso: cal.todayIso,
@@ -507,4 +526,18 @@ export async function getWorkTaskDetail(userId: string, taskId: string): Promise
     createdAt: row.createdAt.toISOString(),
     commentCount: row._count.comments,
   };
+}
+
+/**
+ * B4 — what the side panel opens for a task: the task itself when it lives in the space the person is in (inside «الشركة», the view over all of them,
+ * every task of theirs opens), and for a task of ANOTHER space only where it lives (`foreign`, no title, no people), so the panel says «هاد من مساحة «X»»
+ * with «انتقل لها» — each space is its own account, nothing opens silently across them. A task the person may not see is `null` (404), as before.
+ */
+export async function workTaskPanelFor(userId: string, taskId: string, current: { id: string; kind: string } | null): Promise<WorkTaskPanel | null> {
+  const detail = await getWorkTaskDetail(userId, taskId);
+  if (!detail) return null;
+  if (current && current.kind !== "HQ" && detail.task.workspaceId !== current.id) {
+    return { foreign: { taskId, spaceId: detail.task.workspaceId, spaceName: detail.task.spaceName } };
+  }
+  return detail;
 }
