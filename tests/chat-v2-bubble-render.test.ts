@@ -115,14 +115,16 @@ describe("what is inside", () => {
     expect(draw(makeMessage({ forwardedFrom: { name: "أحمد" }, deleted: true, body: null }))).not.toContain("data-forwarded");
   });
 
-  it("the reactions are chips, mine outlined in the accent; they cannot be pressed while the owner only reads", () => {
+  it("the reactions are chips, mine outlined in the accent; they do not toggle while the owner only reads (S5.6: a press there says who reacted instead, so they are aria-disabled, not disabled)", () => {
     const message = makeMessage({ reactions: [{ emoji: "👍", count: 2, mine: true }, { emoji: "🔥", count: 1, mine: false }] });
     const html = draw(message);
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain('aria-pressed="false"');
     expect(html).toContain("ring-accent");
     expect(html).toContain("تفاعل 👍، 2");
-    expect(draw(message, { facts: { ...facts, oversight: true } })).toMatch(/<button[^>]*disabled=""[^>]*aria-pressed="true"/);
+    const reading = draw(message, { facts: { ...facts, oversight: true } });
+    expect(reading).toMatch(/<button[^>]*aria-disabled="true"[^>]*aria-pressed="true"/);
+    expect(reading).not.toMatch(/<button[^>]*\sdisabled=""/);
   });
 
   it("a message that mentions me keeps the warn tint and says so; the names it points at are highlighted", () => {

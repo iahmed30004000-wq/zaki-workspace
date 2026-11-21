@@ -8,7 +8,7 @@ import { ct } from "@/lib/chat/text";
 import { resolveBundledEmojiData, toEmojiData } from "@/lib/chat/v2/composer/emoji-data";
 import { emojiGroupOf, type EmojiGroup } from "@/lib/chat/v2/composer/emoji-groups";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
-import { ZAKI_EMOJIS, ZAKI_EMOJI_CATEGORIES, zakiCode, zakiSrc } from "@/lib/chat/zaki-emoji";
+import { ZAKI_EMOJIS, ZAKI_EMOJI_CATEGORIES, ZAKI_TASK_STICKERS, zakiCode, zakiSrc } from "@/lib/chat/zaki-emoji";
 
 /**
  * C2.5 — the emoji picker (`frimousse`, already a dependency), drawn like Telegram's: a rounded search field, a row of round category tabs with outline
@@ -19,6 +19,8 @@ import { ZAKI_EMOJIS, ZAKI_EMOJI_CATEGORIES, zakiCode, zakiSrc } from "@/lib/cha
  *
  * The owner's Zaki pack (the dolphin stickers, `zaki-emoji.ts`) is the FIRST tab «ذكي» while the company's switch `zakiEmojis` is on (the `zaki` prop): it swaps the
  * grid for the stickers (56 px, under «مشاعر» and «حركات»), and a press hands the picker the sticker's short text code (`:zaki_smile:`), exactly as an emoji is handed.
+ * S5.6: the 16 task-status stickers are the tab beside it (`data-emoji-tab="task"`, «حالات المهام»), under the same switch; they are picked like any sticker (only the picker: the work
+ * pages do not use them as status marks).
  */
 function groupLabels(): Record<EmojiGroup, string> {
   return {
@@ -69,15 +71,22 @@ const LIST_PARTS = {
   ),
 };
 
-/** The Zaki stickers: the two headings and a grid of 56 px picture buttons; a press hands over the sticker's text code (the bubble draws it as the picture). */
-export function ZakiStickerGrid({ onPick }: { onPick: (code: string) => void }) {
+/**
+ * The Zaki stickers: the two headings and a grid of 56 px picture buttons; a press hands over the sticker's text code (the bubble draws it as the picture). `section="task"`
+ * (S5.6) is the 16 task-status stickers alone, under their own heading.
+ */
+export function ZakiStickerGrid({ onPick, section = "chat" }: { onPick: (code: string) => void; section?: "chat" | "task" }) {
+  const groups: { heading: string; items: { id: string; name: string }[] }[] =
+    section === "task"
+      ? [{ heading: ct("chatemoji.tab_task"), items: ZAKI_TASK_STICKERS.map((t) => ({ id: t.emoji, name: t.name })) }]
+      : ZAKI_EMOJI_CATEGORIES.map((category) => ({ heading: category, items: ZAKI_EMOJIS.filter((e) => e.category === category).map((e) => ({ id: e.id, name: e.name })) }));
   return (
-    <div data-zaki-grid className="min-h-0 flex-1 overflow-y-auto pb-1">
-      {ZAKI_EMOJI_CATEGORIES.map((category) => (
+    <div data-zaki-grid data-zaki-section={section} className="min-h-0 flex-1 overflow-y-auto pb-1">
+      {groups.map(({ heading: category, items }) => (
         <section key={category}>
           <h3 className="px-3 pb-1 pt-2 text-xs font-semibold text-fg-muted">{category}</h3>
           <ul className="grid grid-cols-5 gap-0.5 px-1.5">
-            {ZAKI_EMOJIS.filter((e) => e.category === category).map((e) => (
+            {items.map((e) => (
               <li key={e.id} className="flex justify-center">
                 <button type="button" data-zaki-pick={e.id} title={e.name} aria-label={e.name} onClick={() => onPick(zakiCode(e.id))} className="flex size-14 items-center justify-center rounded-lg transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
                   {/* eslint-disable-next-line @next/next/no-img-element -- a small local picture of the owner's pack */}
@@ -109,7 +118,9 @@ export function EmojiPanel({ recents, onPick, zaki = false }: { recents: string[
   const viewport = React.useRef<HTMLDivElement | null>(null);
   const [counts, setCounts] = React.useState<number[]>([]);
   const [tab, setTab] = React.useState(0);
-  const [stickers, setStickers] = React.useState(false);
+  // the sticker tab shown instead of the grid: the 32 chat stickers, the 16 task stickers, or none
+  const [sticker, setSticker] = React.useState<"chat" | "task" | null>(null);
+  const stickers = sticker !== null;
   const pending = React.useRef<number | null>(null);
   const goToRef = React.useRef<(index: number) => void>(() => undefined);
   // a tab pressed while the stickers are shown: the grid comes back first, then it scrolls to the group
@@ -143,7 +154,7 @@ export function EmojiPanel({ recents, onPick, zaki = false }: { recents: string[
     if (stickers) {
       pending.current = index;
       setTab(index);
-      setStickers(false);
+      setSticker(null);
       return;
     }
     const h = heights();
@@ -177,20 +188,35 @@ export function EmojiPanel({ recents, onPick, zaki = false }: { recents: string[
             />
           </div>
         )}
-        <div role="tablist" aria-label={ct("chatui.composer.emoji")} data-emoji-tabs className="flex items-center justify-between gap-0.5 border-b border-border pb-1.5">
+        <div role="tablist" aria-label={ct("chatui.composer.emoji")} data-emoji-tabs className="flex items-center justify-between gap-0.5 overflow-x-auto border-b border-border pb-1.5">
           {zaki ? (
             <button
               type="button"
               role="tab"
-              aria-selected={stickers}
+              aria-selected={sticker === "chat"}
               aria-label={ct("chatui.composer.emoji_zaki")}
               title={ct("chatui.composer.emoji_zaki")}
               data-emoji-tab="zaki"
-              onClick={() => setStickers(true)}
-              className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${stickers ? "bg-accent/10" : "hover:bg-surface-2"}`}
+              onClick={() => setSticker("chat")}
+              className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${sticker === "chat" ? "bg-accent/10" : "hover:bg-surface-2"}`}
             >
               {/* eslint-disable-next-line @next/next/no-img-element -- the dolphin of the owner's pack, a small local picture */}
               <img src={zakiSrc("smile")} alt="" draggable={false} className="size-6 object-contain" />
+            </button>
+          ) : null}
+          {zaki ? (
+            <button
+              type="button"
+              role="tab"
+              aria-selected={sticker === "task"}
+              aria-label={ct("chatemoji.tab_task")}
+              title={ct("chatemoji.tab_task")}
+              data-emoji-tab="task"
+              onClick={() => setSticker("task")}
+              className={`flex size-9 shrink-0 items-center justify-center rounded-full transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${sticker === "task" ? "bg-accent/10" : "hover:bg-surface-2"}`}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element -- a task sticker of the owner's pack, a small local picture */}
+              <img src={zakiSrc("task_done")} alt="" draggable={false} className="size-6 object-contain" />
             </button>
           ) : null}
           {EMOJI_TABS.map(({ group, icon: Icon }, i) => (
@@ -209,7 +235,7 @@ export function EmojiPanel({ recents, onPick, zaki = false }: { recents: string[
             </button>
           ))}
         </div>
-        {stickers ? <ZakiStickerGrid onPick={onPick} /> : null}
+        {sticker !== null ? <ZakiStickerGrid onPick={onPick} section={sticker} /> : null}
         {!stickers && recents.length > 0 ? (
           <div data-emoji-recents>
             <p className="px-3 pb-0.5 text-xs font-semibold text-fg-muted">{ct("chatui.composer.emoji_recent")}</p>

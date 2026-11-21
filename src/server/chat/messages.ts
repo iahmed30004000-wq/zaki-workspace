@@ -18,6 +18,7 @@ import { markDeliveredForUser } from "@/server/chat/read-state";
 import { log } from "@/server/log";
 import { claimUploads, MAX_ATTACHMENTS_PER_MESSAGE } from "@/server/chat/attachments";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
+import { emojiOnlyCount, isZakiCode } from "@/lib/chat/zaki-emoji";
 import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "@/server/chat/poll-shared";
 import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, forwardedPreview, DELETED_PREVIEW } from "@/server/chat/notify";
 import { FORWARD_COMMENT_MAX } from "@/lib/chat/forward";
@@ -42,12 +43,16 @@ const retryLimiter = new FixedWindowLimiter({ limit: 300, windowMs: 60_000 });
 
 const MAX_BODY = 4000;
 
-/** Any single emoji up to 16 characters (the grapheme count decides, not the code units). */
+/**
+ * What a reaction may be (S5.6): ONE real emoji (a pictograph with its variation selector or skin tone, a flag, a keycap, a joined family: up to 16 characters, no
+ * spaces) or ONE known Zaki code from the allow-list of the pack (`:zaki_clap:`, a task sticker too). Any other text — a word, markup, an unknown or a doubled code —
+ * is not a reaction: what the chip draws is only ever an emoji or a picture of the pack.
+ */
 export function isSingleEmoji(emoji: string): boolean {
   if (!emoji) return false;
-  const chars = [...emoji];
-  if (chars.length > 16) return false;
-  return true;
+  if (isZakiCode(emoji)) return true;
+  if (/\s/.test(emoji) || [...emoji].length > 16) return false;
+  return emojiOnlyCount(emoji) === 1;
 }
 
 export const sendSchema = z
@@ -479,7 +484,8 @@ async function recomputeLastMessageAt(tx: Prisma.TransactionClient, conversation
 
 // ---------- reactions ----------
 
-export const reactSchema = z.object({ emoji: z.string().min(1).max(16) });
+// 32: a Zaki code is longer than an emoji (`:zaki_task_in_progress:`); what it may hold is decided by `isSingleEmoji`
+export const reactSchema = z.object({ emoji: z.string().min(1).max(32) });
 
 export async function toggleReact(ctx: OrgAccessContext, messageId: string, input: z.infer<typeof reactSchema>): Promise<{ mine: boolean }> {
   const msg = await db.chatMessage.findUnique({ where: { id: messageId }, include: { conversation: { select: { id: true, orgId: true, spaceId: true } } } });
@@ -490,6 +496,8 @@ export async function toggleReact(ctx: OrgAccessContext, messageId: string, inpu
   if (hasOversight(org) && !facts.viewerIsMember) throw new ForbiddenError("chat.e.join_first");
   if (msg.deletedAt) throw new ForbiddenError("chat.e.deleted");
   if (!isSingleEmoji(input.emoji)) throw new ValidationError([{ path: "emoji", message: "chat.e.bad_reaction" }]);
+  // the Zaki pack follows the company's switch `zakiEmojis` (on by default): off, a code is not offered as a reaction (a unicode emoji still is)
+  if (isZakiCode(input.emoji) && !(await isFeatureOn(ctx.orgId, "zakiEmojis"))) throw new ValidationError([{ path: "emoji", message: "chat.e.zaki_reaction_off" }]);
   // the ✅ is «قرأت ✓» (Q1.6, written only by its own door): the reaction bar never writes it, so it counts for nobody by accident
   if (input.emoji === "✅") throw new ValidationError([{ path: "emoji", message: "chat.e.reserved_reaction" }]);
 
@@ -953,7 +961,8 @@ export function messageInclude() {
     deletedBy: { select: { name: true } },
     replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: { name: true } } } },
     forwardedFrom: { select: { author: { select: { name: true } } } },
-    reactions: { select: { emoji: true, userId: true } },
+    // «مين تفاعل» (S5.6): the names come with the rows (one join, oldest reaction first); redact.ts decides who may be named to whom
+    reactions: { select: { emoji: true, userId: true, user: { select: { name: true, avatarUrl: true } } }, orderBy: { id: "asc" as const } },
     attachments: {
       orderBy: { position: "asc" as const },
       include: { file: { select: { id: true, name: true, mimeType: true, size: true } } },
