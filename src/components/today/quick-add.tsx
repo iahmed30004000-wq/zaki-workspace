@@ -8,7 +8,7 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTit
 import { useToast } from "@/components/ui/toast";
 import { ApiError, apiGet, apiPost } from "@/lib/api-client";
 import { useI18n } from "@/lib/i18n";
-import { quickInboxBody, quickTaskBody, TASK_TITLE_MAX, WORK_INBOX_REF, type QuickDue, type TodayQuickAddData, type WorkInboxInfo } from "@/lib/today";
+import { quickInboxBody, quickTaskBody, QUICK_DESCRIPTION_MAX, TASK_TITLE_MAX, WORK_INBOX_REF, type QuickDue, type TodayQuickAddData, type WorkInboxInfo } from "@/lib/today";
 import { cn } from "@/lib/utils";
 import { useNewIntent } from "@/lib/nav/use-new-intent";
 
@@ -199,6 +199,29 @@ export function QuickAddSheet({
   );
 }
 
+/** The people a task can be given to in one space: «GET /api/workspaces/[id]/members» (the people of that space, nobody else). */
+interface Person {
+  id: string;
+  name: string;
+}
+
+function usePeople(workspaceId: string | null): Person[] {
+  const [people, setPeople] = useState<{ workspaceId: string; list: Person[] } | null>(null);
+  useEffect(() => {
+    if (!workspaceId) return;
+    let live = true;
+    // a failed answer is «nobody to pick»: the task stays the person's own, as before
+    apiGet<{ members?: Person[] }>(`/api/workspaces/${workspaceId}/members`).then(
+      (data) => live && setPeople({ workspaceId, list: (data.members ?? []).map((m) => ({ id: m.id, name: m.name })) }),
+      () => live && setPeople({ workspaceId, list: [] }),
+    );
+    return () => {
+      live = false;
+    };
+  }, [workspaceId]);
+  return people && people.workspaceId === workspaceId ? people.list : [];
+}
+
 const FIELD = "min-h-11 w-full rounded-lg border-muted bg-surface px-3 text-base text-fg placeholder:text-muted transition-colors focus:border-accent/60";
 
 /**
@@ -226,8 +249,18 @@ export function QuickAddForm({
   const targets = inbox ? quickAdd.targets.filter((x) => x.projectId !== inbox.projectId) : quickAdd.targets;
   const [projectId, setProjectId] = useState(inbox ? WORK_INBOX_REF : (quickAdd.targets[0]?.projectId ?? ""));
   const [due, setDue] = useState<QuickDue>("today");
+  const [description, setDescription] = useState("");
+  // «لمين»: one tap on a person; the person themself until they tap another (their own task, as before)
+  const [assigneeId, setAssigneeId] = useState(quickAdd.assigneeId);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const spaceId = inbox && projectId === WORK_INBOX_REF ? (inbox.space?.id ?? null) : (quickAdd.targets.find((x) => x.projectId === projectId)?.workspaceId ?? null);
+  const people = usePeople(spaceId);
+  // the people of another space are not the people of this one: the choice goes back to the person themself
+  useEffect(() => {
+    setAssigneeId(quickAdd.assigneeId);
+  }, [spaceId, quickAdd.assigneeId]);
+  const others = people.filter((p) => p.id !== quickAdd.assigneeId);
 
   // On a desktop the sheet takes the keyboard the moment it opens. On a phone it must not: the
   // keyboard rising fights the drag-to-dismiss gesture, so focus waits for a tap (item 10).
@@ -248,7 +281,7 @@ export function QuickAddForm({
     event.preventDefault();
     if (pending) return;
     const toInbox = inbox !== null && projectId === WORK_INBOX_REF;
-    const body = toInbox ? quickInboxBody(quickAdd, { title, due, timeZone }) : quickTaskBody(quickAdd, { projectId, title, due, timeZone });
+    const body = toInbox ? quickInboxBody(quickAdd, { title, due, timeZone, assigneeId, description }) : quickTaskBody(quickAdd, { projectId, title, due, timeZone, assigneeId, description });
     if (!body) return;
     setPending(true);
     setError(null);
@@ -293,6 +326,42 @@ export function QuickAddForm({
           ))}
         </select>
         {inbox && projectId === WORK_INBOX_REF ? <span className="mt-1 block text-xs text-fg-muted">{t("work.inbox.sheet_hint")}</span> : null}
+      </label>
+
+      {others.length > 0 ? (
+        <fieldset>
+          <legend className="mb-1 text-xs font-medium text-fg-muted">{t("today.quick.assignee")}</legend>
+          <div data-quick="assignees" className="flex gap-2 overflow-x-auto pb-1 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden md:flex-wrap">
+            {[{ id: quickAdd.assigneeId, name: t("today.quick.me") }, ...others].map((person) => (
+              <label
+                key={person.id}
+                className={cn(
+                  "inline-flex min-h-11 shrink-0 cursor-pointer items-center gap-2 rounded-full border ps-1.5 pe-4 text-sm font-medium transition-colors has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent",
+                  assigneeId === person.id ? "border-accent bg-accent/10 text-fg" : "border-border text-fg-muted hover:bg-surface-2",
+                )}
+              >
+                <input type="radio" name="assigneeId" value={person.id} checked={assigneeId === person.id} onChange={() => setAssigneeId(person.id)} className="sr-only" />
+                <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-accent/15 text-sm font-semibold text-accent">
+                  {Array.from(person.name.trim())[0] ?? ""}
+                </span>
+                <bdi className="max-w-28 truncate">{person.id === quickAdd.assigneeId ? person.name : person.name.trim().split(/s+/)[0]}</bdi>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      ) : null}
+
+      <label className="block">
+        <span className="mb-1 block text-xs font-medium text-fg-muted">{t("today.quick.description")}</span>
+        <textarea
+          name="description"
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          maxLength={QUICK_DESCRIPTION_MAX}
+          rows={3}
+          placeholder={t("today.quick.description_placeholder")}
+          className={cn(FIELD, "min-h-24 resize-y py-2 leading-relaxed")}
+        />
       </label>
 
       <fieldset>

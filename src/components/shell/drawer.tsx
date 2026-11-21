@@ -16,7 +16,7 @@ import { NavIcon } from "./nav-icons";
 import { NavOptions } from "./nav-options";
 import { NavOrderControls, SortableItem, SortableList } from "./nav-sort";
 import { PlaceBadge } from "./place-badge";
-import { SpaceList, type ShellSpace } from "./space-switcher";
+import { SpaceDropdown, type ShellSpace } from "./space-switcher";
 
 /**
  * THE DRAWER — the phone's menu on the new map (switch `navV2`, below `md`), opened by «☰» in the app bar and sliding in from the START edge. Its header
@@ -130,7 +130,7 @@ export function Drawer({
           {/* …and the spaces, each with what waits in it */}
           <section aria-label={t("navv2.drawer.spaces")} className="border-b border-border px-2 py-2">
             <h2 className="px-2 pb-1 text-xs font-semibold text-fg-muted">{t("navv2.drawer.spaces")}</h2>
-            <SpaceList current={space} canOverview={canOverview} isGuest={isGuest} onNavigate={close} />
+            <SpaceDropdown current={space} canOverview={canOverview} isGuest={isGuest} onNavigate={close} />
           </section>
 
           <nav aria-label={t("shell.places")} data-tour="places" className="px-2 py-2">

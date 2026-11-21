@@ -88,16 +88,14 @@ export function Toolbar({
       {data.scopeFellBack ? <p className="text-xs text-fg-muted">{t("mytasks.scope.hq_note")}</p> : null}
 
       {scope === "me" && data.spaces.length > 1 ? (
-        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("mytasks.space.label")}>
-          <Pill pressed={params.spaceId === null} onClick={() => onChange({ spaceId: null }, "replace")}>
-            {t("mytasks.space.all")}
-          </Pill>
+        <select aria-label={t("mytasks.space.label")} className={cn(SELECT, "w-full")} value={params.spaceId ?? ""} onChange={(e) => onChange({ spaceId: e.target.value || null }, "replace")}>
+          <option value="">{t("mytasks.space.all")}</option>
           {data.spaces.map((space) => (
-            <Pill key={space.id} pressed={params.spaceId === space.id} onClick={() => onChange({ spaceId: space.id }, "replace")}>
+            <option key={space.id} value={space.id}>
               {space.name}
-            </Pill>
+            </option>
           ))}
-        </div>
+        </select>
       ) : null}
 
       {scope === "project" ? (
@@ -114,9 +112,9 @@ export function Toolbar({
         </label>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
         {showChips ? (
-          <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t("mytasks.chips.label")}>
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden md:flex-wrap [&>button]:shrink-0" role="group" aria-label={t("mytasks.chips.label")}>
             <Pill pressed={params.chip === null} onClick={() => onChange({ chip: null }, "replace")}>
               {t("mytasks.chip.all")}
             </Pill>
@@ -129,7 +127,7 @@ export function Toolbar({
           </div>
         ) : null}
 
-        <div className="ms-auto flex flex-wrap items-center gap-2">
+        <div className="flex items-center gap-2 overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden md:ms-auto md:flex-wrap [&>select]:shrink-0">
           {params.view !== "calendar" ? (
             <>
               <select aria-label={t("work.stage.label")} className={SELECT} value={params.stage ?? ""} onChange={(e) => onChange({ stage: (e.target.value || null) as MyTasksParams["stage"] }, "replace")}>

@@ -226,7 +226,17 @@ export interface QuickTaskBody {
   boardId: string;
   title: string;
   assigneeId: string;
+  description?: string;
   dueDate?: string;
+}
+
+/** The longest specification the quick add sends (the server accepts 10 000; a quick task is not a document). */
+export const QUICK_DESCRIPTION_MAX = 2000;
+
+/** The specification as it is sent: trimmed, cut, and absent when empty. */
+function quickDescription(text: string | undefined): { description?: string } {
+  const description = cutAt((text ?? "").trim(), QUICK_DESCRIPTION_MAX).trimEnd();
+  return description === "" ? {} : { description };
 }
 
 /** At most `max` characters, never leaving the first half of an emoji at the end. */
@@ -256,7 +266,7 @@ function quickDueAt(due: QuickDue, timeZone: string, now?: Date): string | undef
  */
 export function quickTaskBody(
   quickAdd: TodayQuickAddData,
-  input: { projectId: string; title: string; due: QuickDue; timeZone: string; now?: Date },
+  input: { projectId: string; title: string; due: QuickDue; timeZone: string; now?: Date; assigneeId?: string; description?: string },
 ): QuickTaskBody | null {
   const title = cutAt(input.title.trim(), TASK_TITLE_MAX).trimEnd();
   if (title === "") return null;
@@ -268,7 +278,8 @@ export function quickTaskBody(
     projectId: target.projectId,
     boardId: target.boardId,
     title,
-    assigneeId: quickAdd.assigneeId,
+    assigneeId: input.assigneeId || quickAdd.assigneeId,
+    ...quickDescription(input.description),
     ...(dueDate ? { dueDate } : {}),
   };
 }
@@ -294,14 +305,19 @@ export interface WorkInboxInfo {
 export interface QuickInboxBody {
   title: string;
   assigneeId: string;
+  /** What the task needs (its specification), when the person wrote it. */
+  description?: string;
   dueDate?: string;
 }
 
-export function quickInboxBody(quickAdd: TodayQuickAddData, input: { title: string; due: QuickDue; timeZone: string; now?: Date }): QuickInboxBody | null {
+export function quickInboxBody(
+  quickAdd: TodayQuickAddData,
+  input: { title: string; due: QuickDue; timeZone: string; now?: Date; assigneeId?: string; description?: string },
+): QuickInboxBody | null {
   const title = cutAt(input.title.trim(), TASK_TITLE_MAX).trimEnd();
   if (title === "") return null;
   const dueDate = quickDueAt(input.due, input.timeZone, input.now);
-  return { title, assigneeId: quickAdd.assigneeId, ...(dueDate ? { dueDate } : {}) };
+  return { title, assigneeId: input.assigneeId || quickAdd.assigneeId, ...quickDescription(input.description), ...(dueDate ? { dueDate } : {}) };
 }
 
 // ───────────────────────────────────────── «اليوم» simplified (W1.7) ─────────────────────────────────────────
