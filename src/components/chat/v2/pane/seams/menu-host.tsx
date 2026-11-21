@@ -130,7 +130,8 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         onClose={() => setMaking(null)}
         onDone={(made) => {
           setMaking(null);
-          commands.say(made.kind === "task" ? "chatc.work.task_made" : "chatc.work.ticket_made", "success");
+          if (made.kind === "task" && made.stepsCopied === false) commands.say("chatcl.to_task_steps_failed", "error");
+          else commands.say(made.kind === "task" ? (made.stepsCopied ? "chatcl.to_task_done" : "chatc.work.task_made") : "chatc.work.ticket_made", "success");
           commands.refresh();
         }}
       />

@@ -28,6 +28,8 @@ export const REALTIME_KINDS = [
   "ticket.changed",
   // a message got its link card, or its sender took the card off (C3b.2; ids only: the cards are fetched by the sync feed, never carried here)
   "message.enriched",
+  // somebody added, ticked, reworded or removed an item of a checklist (C3c.1; ids only: never WHO ticked or WHAT an item says: the sync feed returns the presented message)
+  "checklist.changed",
 ] as const;
 
 export type RealtimeKind = (typeof REALTIME_KINDS)[number];

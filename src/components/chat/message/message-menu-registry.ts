@@ -6,7 +6,7 @@
  * - reply: wherever I may post (`me.canPost`);
  * - react: any message I may read, except while the OWNER reads in silent oversight (toggleReact);
  * - pin: a DM's two people; in a topic or group, its moderators (togglePin);
- * - forward: any message I may read except a poll (forwardMessage checks the target when it is picked);
+ * - forward: any message I may read except a poll and a checklist (a copy would carry no votes and no items: forwardMessage refuses both; it checks the target when it is picked);
  * - edit: my own message only, never a voice note (editMessage: author only; a voice note has no text);
  * - delete: my own message, or a moderator's (deleteMessage), after a confirmation;
  * - note: the moderators (addNote);
@@ -41,7 +41,7 @@ export type MessageMenuId = "reply" | "pin" | "forward" | "saved" | "select" | "
 export interface MessageMenuContext {
   mine: boolean;
   deleted: boolean;
-  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD";
+  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD" | "CHECKLIST";
   hasText: boolean;
   pinned: boolean;
   conversationKind: "DM" | "GROUP" | "TOPIC";
@@ -94,8 +94,8 @@ const v2 = (c: MessageMenuContext) => c.surface === "v2";
 export const messageMenuItems: MessageMenuAction[] = [
   { id: "reply", labelKey: () => "chatc.menu.reply", available: (c) => c.canPost },
   { id: "pin", labelKey: (c) => (v2(c) ? (c.pinned ? "chatui.menu.unpin" : "chatui.menu.pin") : c.pinned ? "chatc.menu.unpin" : "chatc.menu.pin"), available: (c) => (c.conversationKind === "DM" ? true : c.canModerate) },
-  { id: "forward", labelKey: (c) => (v2(c) ? "chatui.menu.forward" : "chatc.menu.forward"), available: (c) => c.kind !== "POLL" },
-  { id: "saved", labelKey: () => "chatsaved.menu.save", available: (c) => v2(c) && !!c.canSaved && !c.inSaved && c.kind !== "POLL" },
+  { id: "forward", labelKey: (c) => (v2(c) ? "chatui.menu.forward" : "chatc.menu.forward"), available: (c) => c.kind !== "POLL" && c.kind !== "CHECKLIST" },
+  { id: "saved", labelKey: () => "chatsaved.menu.save", available: (c) => v2(c) && !!c.canSaved && !c.inSaved && c.kind !== "POLL" && c.kind !== "CHECKLIST" },
   { id: "select", labelKey: () => "chatsel.menu.select", available: (c) => v2(c) && !!c.canSelect },
   { id: "edit", labelKey: (c) => (v2(c) ? "chatui.menu.edit" : "chatc.menu.edit"), available: (c) => c.mine && c.kind === "TEXT" && c.hasText },
   { id: "note", labelKey: (c) => (v2(c) ? "chatui.menu.note" : "chatc.menu.note"), available: (c) => c.canModerate },

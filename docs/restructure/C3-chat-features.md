@@ -171,7 +171,7 @@ ONE shared done-state each.
 | C3b.2 | `linkPreviews` | on |
 | C3b.3 | `chatAlbums` (albums + media viewer) | on |
 | C3b.5 | `chatMultiSelect` | on |
-| C3c.1 | `chatChecklists` | on |
+| C3c.1 | `chatChecklists` | off |
 | C3c.2 | `chatSilentSend` | on |
 | C3c.3 | `chatScheduled` | on |
 
