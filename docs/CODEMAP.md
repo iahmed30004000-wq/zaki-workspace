@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 393 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 190 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 192 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -903,6 +903,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `verifiedBadge` | 5 — `server/chat/list.ts`, `server/chat/redact.ts`, `server/chat/space-people.ts`, `server/chat/topics.ts`, `server/services/org-members.ts` |
 | `meetingMinutes` | 3 — `server/calls/assistant-agent.ts`, `server/calls/minutes.ts`, `server/calls/transcripts.ts` |
+| `chatSounds` | 0 —  |
 | `spaceBadges` | 1 — `app/api/workspaces/route.ts` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
@@ -1005,6 +1006,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `verifiedBadge` | 5 — `server/chat/list.ts`, `server/chat/redact.ts`, `server/chat/space-people.ts`, `server/chat/topics.ts`, `server/services/org-members.ts` |
 | `meetingMinutes` | 3 — `server/calls/assistant-agent.ts`, `server/calls/minutes.ts`, `server/calls/transcripts.ts` |
+| `chatSounds` | 0 —  |
 | `spaceBadges` | 1 — `app/api/workspaces/route.ts` |
 
 ## 9. What this map noticed
