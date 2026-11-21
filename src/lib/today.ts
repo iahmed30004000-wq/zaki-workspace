@@ -299,11 +299,22 @@ export interface WorkInboxInfo {
   space: { id: string; name: string } | null;
   /** The inbox project of that space once it exists (so the list of projects does not show it twice). */
   projectId: string | null;
+  /**
+   * B4 — inside «الشركة» (or with no space) the person CHOOSES the space instead of the first one being used silently: `choose` says so, `spaces` are the spaces a
+   * task can go to. Inside a space `choose` is false: the task goes to that space.
+   */
+  choose?: boolean;
+  spaces?: { id: string; name: string }[];
 }
+
+/** The quick add must ask which space: the person is in «الشركة» and has more than one space to put the task in (with one, it is that one). */
+export const mustChooseSpace = (inbox: WorkInboxInfo | null | undefined): boolean => Boolean(inbox?.choose && (inbox.spaces?.length ?? 0) > 1);
 
 /** The body of POST /api/instant/inbox: the person's own task, due today unless they say otherwise. No project: the server knows where. */
 export interface QuickInboxBody {
   title: string;
+  /** The space it goes to, when the person chose one (inside «الشركة»). */
+  spaceId?: string;
   assigneeId: string;
   /** What the task needs (its specification), when the person wrote it. */
   description?: string;
@@ -312,12 +323,25 @@ export interface QuickInboxBody {
 
 export function quickInboxBody(
   quickAdd: TodayQuickAddData,
-  input: { title: string; due: QuickDue; timeZone: string; now?: Date; assigneeId?: string; description?: string },
+  input: { title: string; due: QuickDue; timeZone: string; now?: Date; assigneeId?: string; description?: string; spaceId?: string | null },
 ): QuickInboxBody | null {
   const title = cutAt(input.title.trim(), TASK_TITLE_MAX).trimEnd();
   if (title === "") return null;
   const dueDate = quickDueAt(input.due, input.timeZone, input.now);
-  return { title, assigneeId: input.assigneeId || quickAdd.assigneeId, ...quickDescription(input.description), ...(dueDate ? { dueDate } : {}) };
+  return { title, ...(input.spaceId ? { spaceId: input.spaceId } : {}), assigneeId: input.assigneeId || quickAdd.assigneeId, ...quickDescription(input.description), ...(dueDate ? { dueDate } : {}) };
+}
+
+/** One line of «اليوم» inside «الشركة»: the person's own numbers in one space (`getTodayBySpace`). */
+export interface TodayBySpaceRow {
+  id: string;
+  name: string;
+  emoji: string | null;
+  /** Open tasks the person holds there. */
+  open: number;
+  /** …of which late. */
+  overdue: number;
+  /** Messages waiting for them in its topics. */
+  unread: number;
 }
 
 // ───────────────────────────────────────── «اليوم» simplified (W1.7) ─────────────────────────────────────────

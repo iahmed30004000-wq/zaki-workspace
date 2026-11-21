@@ -154,8 +154,13 @@ export function useWorkActions(timeZone: string) {
   const due = useMutation(options.due);
 
   const add = useMutation({
-    mutationFn: (title: string) => apiPost(`/api/work/tasks`, { title }),
-    onSuccess: () => toast(t("mytasks.quick.added"), "success"),
+    // B4: the line files into the space the screen is showing (null: all of them, so the space the person is in) and the toast names the one that took it
+    mutationFn: (input: { title: string; spaceId?: string | null }) =>
+      apiPost<{ space?: { name?: string } }>(`/api/work/tasks`, { title: input.title, ...(input.spaceId ? { spaceId: input.spaceId } : {}) }),
+    onSuccess: (answer) => {
+      const name = answer?.space?.name;
+      toast(name ? t("mytasks.quick.added_in", { name }) : t("mytasks.quick.added"), "success");
+    },
     onError: (err) => {
       const text = err instanceof ApiError && err.messageKey?.startsWith("instant.") && t(err.messageKey) !== err.messageKey ? t(err.messageKey) : t("mytasks.quick.failed");
       toast(text, "error");

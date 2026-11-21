@@ -92,7 +92,7 @@ export function MyTasksView({
       <Header count={data.tasks.length} spaceName={data.space.name} />
       <div className="mx-auto w-full max-w-6xl px-4 md:px-5">
         <Toolbar params={params} data={data} onChange={go} staleHref={staleHref} />
-        {data.canAdd ? <QuickAdd onAdd={(title) => actions.add.mutateAsync(title)} pending={actions.add.isPending} /> : null}
+        {data.canAdd ? <QuickAdd onAdd={(title) => actions.add.mutateAsync({ title, spaceId: data.space.id })} pending={actions.add.isPending} /> : null}
       </div>
 
       <div className={cn("mx-auto w-full max-w-6xl flex-1 px-4 pb-7 pt-1 transition-opacity md:px-5", stale && "opacity-60")} aria-busy={stale}>
