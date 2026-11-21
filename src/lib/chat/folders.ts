@@ -192,3 +192,76 @@ export function pruneUnknown(list: ChatFolderDef[], id: string, known: { chats: 
 export function unknownCount(folder: ChatFolderDef, known: { chats: ReadonlySet<string>; spaces: ReadonlySet<string> }): number {
   return folder.include.conversationIds.filter((c) => !known.chats.has(c)).length + folder.include.spaceIds.filter((s) => !known.spaces.has(s)).length;
 }
+
+// ───────────────────────────────────────── S5.3: folders from inside the chat ─────────────────────────────────────────
+
+/**
+ * The chats the picker offers: the rows of the list that are conversations (a space's own row is not one), then the topics of the person's CURRENT space that the
+ * list does not hold (the one-list shape has one row per space and no topic row). `topics` comes from the space's own view, which holds only what the person
+ * may read; only TOPIC rows are taken from it, and a row the list already has is never doubled.
+ */
+export function pickableChats(rows: readonly ChatRowDto[], topics: readonly ChatRowDto[]): ChatRowDto[] {
+  const own = rows.filter((row) => row.kind !== "SPACE");
+  const seen = new Set(own.map((row) => row.id));
+  const extra = topics.filter((row) => row.kind === "TOPIC" && !seen.has(row.id));
+  return extra.length === 0 ? own : [...own, ...extra];
+}
+
+/**
+ * The rows a folder is drawn from: the list's rows plus the topics of the current space that SOME folder lists by hand (`include.conversationIds`). Only picked
+ * ones are added (a folder that takes «المساحات» must not suddenly fill with every topic) and only from `topics`, the rows the person may read: a picked topic they
+ * can no longer read is not there, so nothing is drawn for it and nothing names it. The same array comes back when nothing is added.
+ */
+export function withPickedTopics(rows: readonly ChatRowDto[], topics: readonly ChatRowDto[], folders: readonly ChatFolderDef[]): readonly ChatRowDto[] {
+  if (topics.length === 0) return rows;
+  const picked = new Set(folders.flatMap((f) => f.include.conversationIds));
+  if (picked.size === 0) return rows;
+  const seen = new Set(rows.map((row) => row.id));
+  const extra = topics.filter((row) => row.kind === "TOPIC" && picked.has(row.id) && !seen.has(row.id));
+  return extra.length === 0 ? rows : [...rows, ...extra];
+}
+
+/**
+ * Saves one folder from the sheet: a new one goes at the end, an old one is replaced where it stands (its other rules and the picks the sheet does not show are
+ * kept because the draft carries them). The name is cleaned (trimmed, at most 12), the picks are de-duplicated and cut to the schema's 100. The same list comes
+ * back (nothing to save) for an empty name, or for a NEW folder when there are already ten.
+ */
+export function upsertFolder(list: ChatFolderDef[], draft: ChatFolderDef): ChatFolderDef[] {
+  const name = cleanFolderName(draft.name);
+  if (!name) return list;
+  const exists = list.some((f) => f.id === draft.id);
+  if (!exists && list.length >= MAX_FOLDERS) return list;
+  const conversationIds = [...new Set(draft.include.conversationIds)].slice(0, MAX_FOLDER_CHATS);
+  const spaceIds = [...new Set(draft.include.spaceIds)].slice(0, MAX_FOLDER_SPACES);
+  const next: ChatFolderDef = { ...draft, name, include: { ...draft.include, conversationIds, spaceIds } };
+  if (!draft.emoji) delete next.emoji;
+  return exists ? list.map((f) => (f.id === draft.id ? next : f)) : [...list, next];
+}
+
+/** The ids of the folders that hold this chat by hand. */
+export const foldersHolding = (list: readonly ChatFolderDef[], chatId: string): string[] => list.filter((f) => f.include.conversationIds.includes(chatId)).map((f) => f.id);
+
+/** Puts a chat in a folder or takes it out (one move for the row menu). The same list when the folder is unknown or full and the chat is new. */
+export const setChatInFolder = (list: ChatFolderDef[], id: string, chatId: string, on: boolean): ChatFolderDef[] => {
+  const folder = list.find((f) => f.id === id);
+  if (!folder || folder.include.conversationIds.includes(chatId) === on) return list;
+  return toggleChat(list, id, chatId);
+};
+
+export interface FolderMenuOffers {
+  items: { id: string; name: string; emoji: string | null; has: boolean; full: boolean }[];
+  /** «مجلد جديد» is offered while the company's ten are not used up */
+  canCreate: boolean;
+}
+
+/** What «أضف لمجلد» offers for a row: every folder (ticked where the chat already is), none for a space's own row. */
+export function folderMenuOffers(row: ChatRowDto, list: readonly ChatFolderDef[]): FolderMenuOffers | null {
+  if (row.kind === "SPACE") return null;
+  return {
+    items: list.map((f) => {
+      const has = f.include.conversationIds.includes(row.id);
+      return { id: f.id, name: f.name, emoji: f.emoji ?? null, has, full: !has && f.include.conversationIds.length >= MAX_FOLDER_CHATS };
+    }),
+    canCreate: list.length < MAX_FOLDERS,
+  };
+}

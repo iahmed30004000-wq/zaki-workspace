@@ -324,8 +324,8 @@ describe("the person's folders are drawn on the list (C3a.2)", () => {
     expect(src).toContain("const prefs = useChatPrefs()");
     // the tab of the space's topics is called «المواضيع» when the list is of ONE space (batch 0), so the call also says so
     expect(src).toContain('tabsOf({ canOversee: list.canOversee, guest, archived, folders: prefs.folders, hidden: prefs.hidden, oneSpace: list.scope === "space" })');
-    expect(src).toContain("folderRows(list.rows, custom,");
-    expect(src).toContain("customFolderBadge(list.rows, def)");
+    expect(src).toContain("folderRows(folderSource, custom,");
+    expect(src).toContain("customFolderBadge(folderSource, def)");
     expect(src).toContain("tabKeyOf(folderKey, folders)");
   });
 });
