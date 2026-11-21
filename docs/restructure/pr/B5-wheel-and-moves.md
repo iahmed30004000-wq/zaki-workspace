@@ -21,3 +21,9 @@ Branch `feat/wheel-tabs-and-moves`. No schema, no migration, no company feature 
 - Not checked on a real phone from here: the feel of the snap and the glide, the tick and the buzz (a browser wakes audio only after a touch; the first touch on the strip does that), and the drag of the call window under a thumb.
 - «موضوع جديد» is not offered in the company-wide list (no space on screen to put it in), and a guest sees neither the group nor the topic entry.
 - Android's own app keeps its own call window; this is the web app.
+
+## Follow-up (2026-11-21, the owner: «صوت التقليب بين القوائم والثيم الزجاجي كما منبه آبل»; «دولاب أقصد»)
+- The tick is now ON from the start (a click with a body, two notes, louder than before) and a fourth choice «زجاج» (ON from the start): a frosted capsule behind the strip and a clear glass band behind the tab in the middle, drawn behind the words. All four choices are switched off in «الإعدادات ← المظهر واللغة ← شريط التبويبات». The screen says «دولاب», the owner's word.
+- A person who already saved a choice keeps it (a saved `sound:false` stays); a missing key takes the new default.
+- جرّب: على الموبايل اسحب الشريط: لازم تشوف شريط زجاج ورا التبويب اللي بالنص وتسمع طقّة كل تبويب (أول لمسة بتصحّي الصوت). طفّي «زجاج» أو «صوت» من الإعدادات.
+- Not checked on a real phone: how the glass looks over each theme, the sound level, and the buzz.
