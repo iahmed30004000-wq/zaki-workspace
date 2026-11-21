@@ -55,6 +55,14 @@ describe("the phone is brief and in order", () => {
     expect(menu).toContain("settingsMe.m.up");
   });
 
+  it("P2.1: the phone's chrome is brief too — no presence row under the page, no round bubbles, the compass in the drawer (details: tests/phone-chrome.test.ts)", () => {
+    const shellSrc = read("src/components/app-shell.tsx");
+    expect(shellSrc).toContain("hideOnPhone={navV2}");
+    expect(read("src/components/shell/quick-chat.tsx")).toContain("max-md:hidden");
+    expect(read("src/components/site-guide/site-guide.tsx")).toContain("max-md:hidden");
+    expect(read("src/components/shell/drawer.tsx")).toContain('data-shell="drawer-guide"');
+  });
+
   it("the card under «المساحة» keeps its words wide enough to read next to its button", () => {
     const page = read("src/app/(app)/spaces/current/page.tsx");
     expect(page).not.toContain("min-w-0 flex-1 text-sm");

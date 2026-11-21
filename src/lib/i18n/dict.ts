@@ -98,6 +98,7 @@ import settingsOneDoor from "./ar.settings-one-door.json";
 import controlPanelPeople from "./ar.control-panel-people.json";
 import chatEmoji from "./ar.chat-emoji.json";
 import voiceStack from "./ar.voice-stack.json";
+import phoneChrome from "./ar.phone-chrome.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -207,4 +208,5 @@ export const AR: Record<string, string> = {
   ...controlPanelPeople,
   ...chatEmoji,
   ...voiceStack,
+  ...phoneChrome,
 };

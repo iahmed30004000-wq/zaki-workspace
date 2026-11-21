@@ -3,12 +3,14 @@
 import { useEffect, type ReactNode } from "react";
 import Link from "next/link";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { Settings, X } from "lucide-react";
+import { Compass, Settings, X } from "lucide-react";
 import { InstallAppButton } from "@/components/pwa/install-hint";
 import { Dialog, DialogOverlay, DialogTitle } from "@/components/ui/dialog";
 import { enumLabel } from "@/lib/i18n/enums";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { GUIDE_OPEN_EVENT } from "@/lib/nav/shell-v2";
+import { ThemeIconButton } from "@/components/theme/theme-switch";
 import type { NavModel, NavRole, PlaceKey } from "@/lib/nav/places";
 import { AvatarMenu, Initial, type AvatarUser } from "./avatar-menu";
 import { ariaCurrent } from "./current";
@@ -22,6 +24,8 @@ import { SpaceDropdown, type ShellSpace } from "./space-switcher";
  * THE DRAWER — the phone's menu on the new map (switch `navV2`, below `md`), opened by «☰» in the app bar and sliding in from the START edge. Its header
  * is the person (picture, name, rank) and the spaces: every space a row with its unread number and its overdue number, the one the person is in marked
  * (like the accounts of a messaging app). Under it the places in the map's order, then «الإعدادات» and «دليل زاكي», «ترتيب» and the avatar menu.
+ * P2.1: the header also holds what the phone's page no longer draws: who is online (`presence`, a green dot and a count) and the light/dark icon; the foot holds «المرشد» (`guide`, the owner's
+ * compass: it does not float over a phone's page, it opens from here).
  * The old bottom bar stays for `navV2` OFF (src/components/shell/bottom-nav.tsx).
  *
  * C2's chat shell reuses THIS drawer as it is (it must not make a second one): `listSlot` is drawn under the places, the chat's folders or list.
@@ -48,6 +52,8 @@ export function Drawer({
   orderLocked = false,
   settingsHref,
   listSlot,
+  presence,
+  guide = false,
   portal = true,
 }: {
   open: boolean;
@@ -73,6 +79,10 @@ export function Drawer({
   settingsHref?: string;
   /** What the chat draws under the places (C2). Left out: nothing. */
   listSlot?: ReactNode;
+  /** P2.1: who is online, a dot and a count (the frame hands in `PeopleDock variant="drawer"`). Left out: nothing. */
+  presence?: ReactNode;
+  /** P2.1: the owner's guide is on: the foot gets «المرشد», which opens the guide's panel. */
+  guide?: boolean;
   portal?: boolean;
 }) {
   const { t } = useI18n();
@@ -107,18 +117,25 @@ export function Drawer({
         <DialogTitle className="sr-only">{t("navv2.drawer.title")}</DialogTitle>
         {/* the header: me */}
         {/* the owner's mock-up (`.dh`): the person on the accent, in the accent's own text colour; it runs up under the notch */}
-        <div data-shell="drawer-head" className={cn("flex shrink-0 items-center gap-3 bg-accent px-4 pb-3 pt-[calc(1.125rem+env(safe-area-inset-top))] text-accent-fg", oneDoor ? "pe-24" : "pe-14")}>
-          <Initial name={user.name} src={user.avatarUrl} large onAccent />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-base font-bold">
-              <bdi>{user.name}</bdi>
-            </p>
-            {handle ? (
-              <p dir="ltr" className="truncate text-end text-xs opacity-85">
-                {handle}
+        <div data-shell="drawer-head" className="shrink-0 bg-accent px-4 pb-2 pt-[calc(1.125rem+env(safe-area-inset-top))] text-accent-fg">
+          <div className={cn("flex items-center gap-3", oneDoor ? "pe-24" : "pe-14")}>
+            <Initial name={user.name} src={user.avatarUrl} large onAccent />
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-base font-bold">
+                <bdi>{user.name}</bdi>
               </p>
-            ) : null}
-            <p className="mt-1 inline-flex rounded-full bg-accent-fg/15 px-2 py-0.5 text-xs font-medium text-accent-fg">{enumLabel("OrgRole", rank)}</p>
+              {handle ? (
+                <p dir="ltr" className="truncate text-end text-xs opacity-85">
+                  {handle}
+                </p>
+              ) : null}
+              <p className="mt-1 inline-flex rounded-full bg-accent-fg/15 px-2 py-0.5 text-xs font-medium text-accent-fg">{enumLabel("OrgRole", rank)}</p>
+            </div>
+          </div>
+          {/* P2.1: what a phone's page no longer draws: who is online (a dot and a count) and «ليل / نهار» as an icon */}
+          <div role="group" aria-label={t("phoneChrome.tools")} data-shell="drawer-head-tools" className="mt-1 flex items-center gap-2">
+            {presence}
+            <ThemeIconButton data-shell="drawer-theme" className="ms-auto" />
           </div>
         </div>
         <DialogPrimitive.Close
@@ -201,6 +218,24 @@ export function Drawer({
 
         <div data-shell="drawer-foot" className="shrink-0 space-y-0.5 border-t border-border px-2 py-2">
           {editing && onEditDone && onReset ? <NavOrderControls onDone={onEditDone} onReset={onReset} canReset={canReset} className="pb-1" /> : null}
+          {guide ? (
+            <button
+              type="button"
+              data-shell="drawer-guide"
+              onClick={() => {
+                close();
+                // the guide is its own lazy chunk: it opens its panel on this event once the drawer has finished closing
+                window.setTimeout(() => window.dispatchEvent(new Event(GUIDE_OPEN_EVENT)), 180);
+              }}
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-1.5 text-start text-sm text-fg transition-colors hover:bg-surface-2"
+            >
+              <Compass aria-hidden="true" className="size-5 shrink-0 text-info" />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-semibold">{t("siteGuide.open")}</span>
+                <span className="block truncate text-xs text-fg-muted">{t("phoneChrome.guide_hint")}</span>
+              </span>
+            </button>
+          ) : null}
           {oneDoor ? (
             <SettingsDoor variant="drawer" pathname={pathname} onNavigate={close} />
           ) : (

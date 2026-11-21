@@ -11,6 +11,7 @@ import type { NavIconKey, NavModel } from "@/lib/nav/places";
 import { cn } from "@/lib/utils";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { NavIcon } from "@/components/shell/nav-icons";
+import { useSettingsOneDoor } from "@/components/shell/nav-options";
 import { railCellClass } from "@/components/shell/rail-style";
 
 interface SearchResponse {
@@ -46,12 +47,15 @@ const ALWAYS: readonly PaletteCommand[] = [
   { id: "account", labelKey: "shell.avatar.account", href: "/profile", icon: "account" },
 ];
 
+/** P2.1: with the one settings door (`settingsOneDoor`, S3.1) the guide lives inside «الإعدادات» «المساعدة», so that is where the palette's guide entry goes. */
+export const GUIDE_IN_SETTINGS_HREF = "/settings/me/help";
+
 /**
  * The palette's places and tabs, from the person's own map (src/lib/nav/places.ts): nothing they are
  * not offered in the menus, in the order of the menus. A place that is one page is one entry; a
  * place with tabs is its tabs, each with the place underneath (unless the place is called by its tab).
  */
-export function paletteCommands(nav: NavModel): PaletteCommand[] {
+export function paletteCommands(nav: NavModel, opts: { oneDoor?: boolean } = {}): PaletteCommand[] {
   const out: PaletteCommand[] = [];
   const seen = new Set<string>();
   const add = (command: PaletteCommand) => {
@@ -71,7 +75,7 @@ export function paletteCommands(nav: NavModel): PaletteCommand[] {
       });
     }
   }
-  for (const command of ALWAYS) add(command);
+  for (const command of ALWAYS) add(command.id === "guide" && opts.oneDoor === true ? { ...command, href: GUIDE_IN_SETTINGS_HREF } : command);
   return out;
 }
 
@@ -120,13 +124,14 @@ interface Row {
  *
  * `defaultOpen` and `portal={false}` are for server-render tests (a portal draws nothing on the server).
  */
-export function CommandPalette({ nav, defaultOpen = false, portal = true, variant = "bar" }: { nav: NavModel; defaultOpen?: boolean; portal?: boolean; /** `rail`: the trigger is a cell of the chat's rail (an icon over «بحث»); the palette itself is the same. */ variant?: "bar" | "rail" }) {
+export function CommandPalette({ nav, defaultOpen = false, portal = true, variant = "bar" }: { nav: NavModel; defaultOpen?: boolean; portal?: boolean; /** `rail`: the trigger is a cell of the chat's rail (an icon over «بحث»); the palette itself is the same. `compact` (P2.1): ONE palette whose trigger is an icon on a phone and the wide bar from `md` up (the app bar's: two palettes would both answer Ctrl+K). */ variant?: "bar" | "rail" | "compact" }) {
   const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
   const [q, setQ] = useState("");
   const [cursor, setCursor] = useState(0);
   const listId = useId();
+  const oneDoor = useSettingsOneDoor();
   const optionId = (index: number) => `${listId}-${index}`;
 
   useEffect(() => {
@@ -145,8 +150,8 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true, varian
 
   // spelling-tolerant, like the guide's search: «مشاريع» finds «المشاريع», a hamza or not
   const commands = useMemo(
-    () => paletteCommands(nav).map((c) => ({ ...c, title: t(c.labelKey), keywords: c.subKey ? [t(c.subKey)] : [] })),
-    [nav, t],
+    () => paletteCommands(nav, { oneDoor }).map((c) => ({ ...c, title: t(c.labelKey), keywords: c.subKey ? [t(c.subKey)] : [] })),
+    [nav, oneDoor, t],
   );
   const shown = useMemo(() => rankEntries(commands, query), [commands, query]);
 
@@ -279,12 +284,29 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true, varian
           <span className="max-w-full break-words">{t("shell.rail.search")}</span>
         </button>
       ) : (
+        <>
+          {variant === "compact" ? (
+            <button
+              type="button"
+              data-palette-trigger="icon"
+              onClick={() => setOpen(true)}
+              aria-haspopup="dialog"
+              aria-label={t("pal.open")}
+              className="grid size-11 shrink-0 place-items-center rounded-xl text-fg transition-colors hover:bg-surface-2 md:hidden"
+            >
+              <Search aria-hidden="true" className="size-5" />
+            </button>
+          ) : null}
         <button
           type="button"
+          data-palette-trigger="bar"
           onClick={() => setOpen(true)}
           aria-haspopup="dialog"
           aria-label={t("pal.open")}
-          className="flex h-11 w-full min-w-0 items-center gap-2 rounded-xl border-muted bg-surface-1 px-3 text-sm text-muted transition-colors hover:border-accent/50 hover:text-fg-muted"
+          className={cn(
+            "h-11 w-full min-w-0 items-center gap-2 rounded-xl border-muted bg-surface-1 px-3 text-sm text-muted transition-colors hover:border-accent/50 hover:text-fg-muted",
+            variant === "compact" ? "max-md:hidden md:flex" : "flex",
+          )}
         >
           <Search aria-hidden="true" className="size-4 shrink-0" />
           <span className="min-w-0 flex-1 truncate text-start">{t("pal.open")}</span>
@@ -292,6 +314,7 @@ export function CommandPalette({ nav, defaultOpen = false, portal = true, varian
             Ctrl K
           </kbd>
         </button>
+        </>
       )}
 
       <Dialog open={open} onOpenChange={changeOpen}>

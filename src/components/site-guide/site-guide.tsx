@@ -4,7 +4,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Compass, Mic, PhoneCall, PhoneOff, Send, SlidersHorizontal, Square, X } from "lucide-react";
 import { ApiError, apiPost } from "@/lib/api-client";
+import { cn } from "@/lib/utils";
 import { useI18n } from "@/lib/i18n";
+import { GUIDE_OPEN_EVENT } from "@/lib/nav/shell-v2";
+import { useDrawerChrome } from "@/components/shell/nav-options";
 import { GUIDE_CALL_EVENT, MAX_HISTORY_TURNS, MAX_STEPS_PER_ASK, type GuideAction } from "@/lib/site-guide/rules";
 import { GUIDE_ATTR, readPage } from "@/components/site-guide/page-reader";
 import { clearHighlight, highlight, judge, nameOfControl, typeInto, type Verdict } from "@/components/site-guide/executor";
@@ -18,6 +21,9 @@ import { VoiceSettings } from "@/components/site-guide/voice-settings";
  * page and pointing at something happen by themselves; a CLICK or a TYPING waits for the owner's «نفّذ» (and a sensitive control is refused
  * outright). «وقّف» ends the loop and the voice at once. The call button turns the microphone on and speaks the answers (the browser's own
  * voice): it listens, answers aloud, listens again, until «أنهِ المكالمة».
+ *
+ * P2.1 — ONE assistant button that does not float over a phone's page: with the new map (`useDrawerChrome`) the compass is drawn from `md` up only (in the corner, clear of the 72px rail) and on a
+ * phone the drawer's row «المرشد» opens this panel through `GUIDE_OPEN_EVENT`. The panel's own offset has no bottom bar to clear there; the old map keeps its bar's `3.5rem`.
  */
 
 type Line = { role: "user" | "assistant" | "note"; text: string };
@@ -38,6 +44,7 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
   const { t } = useI18n();
   const router = useRouter();
   const pathname = usePathname();
+  const drawerChrome = useDrawerChrome();
   const [open, setOpen] = useState(false);
   const [lines, setLines] = useState<Line[]>([]);
   const [text, setText] = useState("");
@@ -262,6 +269,13 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
     stopSpeaking();
   }, []);
 
+  // the phone's drawer row «المرشد» (P2.1): the compass does not float over a phone's page, so the drawer asks for the panel
+  useEffect(() => {
+    const onOpen = () => setOpen(true);
+    window.addEventListener(GUIDE_OPEN_EVENT, onOpen);
+    return () => window.removeEventListener(GUIDE_OPEN_EVENT, onOpen);
+  }, []);
+
   const startCallRef = useRef<() => void>(() => undefined);
   // «اتصل بالمساعد» in the assistant's own conversation: open the panel and start the voice call
   useEffect(() => {
@@ -315,7 +329,11 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
           type="button"
           onClick={() => setOpen(true)}
           aria-label={t("siteGuide.open")}
-          className="fixed bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] start-3 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface text-fg shadow-card hover:bg-surface-2 md:bottom-[18px] md:start-[calc(72px+18px)]"
+          className={cn(
+            "fixed z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface text-fg shadow-card hover:bg-surface-2 md:bottom-[18px] md:start-[calc(72px+18px)]",
+            // the new map: not over a phone's page at all (the drawer opens it); the old map: above its bottom bar
+            drawerChrome ? "bottom-[18px] max-md:hidden" : "bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] start-3",
+          )}
         >
           <Compass className="h-6 w-6 text-info" aria-hidden="true" />
         </button>
@@ -324,7 +342,10 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
         <section
           role="dialog"
           aria-label={t("siteGuide.title")}
-          className="fixed bottom-[calc(3.5rem+0.5rem+env(safe-area-inset-bottom))] start-2 z-50 flex max-h-[70vh] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card md:bottom-4 md:start-[calc(72px+18px)]"
+          className={cn(
+            "fixed start-2 z-50 flex max-h-[70vh] w-[min(24rem,calc(100vw-1rem))] flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card md:bottom-4 md:start-[calc(72px+18px)]",
+            drawerChrome ? "bottom-[calc(0.5rem+env(safe-area-inset-bottom))]" : "bottom-[calc(3.5rem+0.5rem+env(safe-area-inset-bottom))]",
+          )}
         >
           <header className="flex items-center gap-2 border-b border-border px-3 py-2">
             <Compass className="h-5 w-5 text-info" aria-hidden="true" />

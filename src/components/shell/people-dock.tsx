@@ -55,9 +55,24 @@ export interface PresenceRosterDto {
  * for a guest (the roster is the staff directory, and a guest never sees it), and the dock draws
  * nothing at all when the answer is empty.
  *
+ * P2.1 — on a phone with the new map the 40px row is not drawn (`hideOnPhone`: it ate a line of every page): the same roster is the `drawer` variant, a green dot and the number
+ * in the drawer's header, and a tap opens the same list under it. One query serves all of them (the same key), so it asks the server once.
+ *
  * `defaultOpen` is for server-render tests.
  */
-export function PeopleDock({ enabled = true, defaultOpen = false, variant = "strip" }: { enabled?: boolean; defaultOpen?: boolean; /** `rail`: the chat on a computer has no bottom strip, so the same roster is a cell of the rail (the people over «N متصل») and opens beside it. */ variant?: "strip" | "rail" }) {
+export function PeopleDock({
+  enabled = true,
+  defaultOpen = false,
+  variant = "strip",
+  hideOnPhone = false,
+}: {
+  enabled?: boolean;
+  defaultOpen?: boolean;
+  /** `rail`: the chat on a computer has no bottom strip, so the same roster is a cell of the rail (the people over «N متصل») and opens beside it. `drawer`: a dot and a count in the phone drawer's header. */
+  variant?: "strip" | "rail" | "drawer";
+  /** The strip is not drawn below `md` (the new map: the drawer's header holds the count instead). */
+  hideOnPhone?: boolean;
+}) {
   const { t } = useI18n();
   const router = useRouter();
   const [open, setOpen] = useState(defaultOpen);
@@ -123,16 +138,21 @@ export function PeopleDock({ enabled = true, defaultOpen = false, variant = "str
   const extra = online.length - faces.length;
   const onlineText = t(`shell.dock.online.${arabicPlural(online.length)}`, { n: online.length });
   const rail = variant === "rail";
+  const drawer = variant === "drawer";
 
   return (
-    <div ref={rootRef} {...(rail ? { "data-shell": "rail-dock" } : {})} className={rail ? "relative flex w-full justify-center" : "relative flex h-10 shrink-0 items-center gap-2 border-t border-border bg-surface-1/60 px-2"}>
+    <div
+      ref={rootRef}
+      {...(rail ? { "data-shell": "rail-dock" } : {})}
+      className={rail ? "relative flex w-full justify-center" : drawer ? "relative flex" : cn("relative flex h-10 shrink-0 items-center gap-2 border-t border-border bg-surface-1/60 px-2", hideOnPhone && "max-md:hidden")}
+    >
       {open ? (
         <section
           id={panelId}
           aria-labelledby={headingId}
           className={cn(
             "absolute z-40 w-72 max-w-[calc(100vw-1rem)] overflow-hidden rounded-xl border border-border bg-surface-1 shadow-lg animate-fade-in motion-reduce:animate-none",
-            rail ? "bottom-0 start-full ms-3" : "bottom-full start-2 mb-1",
+            rail ? "bottom-0 start-full ms-3" : drawer ? "start-0 top-full mt-1" : "bottom-full start-2 mb-1",
           )}
         >
           <div className="flex min-h-11 items-center justify-between gap-2 border-b border-border pe-3 ps-4">
@@ -195,13 +215,19 @@ export function PeopleDock({ enabled = true, defaultOpen = false, variant = "str
       <button
         ref={buttonRef}
         type="button"
+        {...(drawer ? { "data-shell": "drawer-presence" } : {})}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        aria-label={online.length > 0 ? onlineText : t("shell.dock.title")}
+        aria-label={drawer ? t("phoneChrome.online_label", { text: online.length > 0 ? onlineText : t("shell.dock.title") }) : online.length > 0 ? onlineText : t("shell.dock.title")}
         onClick={() => setOpen((v) => !v)}
-        className={rail ? railCellClass(open) : "flex h-8 min-w-0 items-center gap-2 rounded-full px-1 text-xs font-semibold text-fg transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"}
+        className={drawer ? "flex h-9 items-center gap-1.5 rounded-full bg-accent-fg/15 px-3 text-xs font-semibold text-accent-fg transition-colors hover:bg-accent-fg/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-fg" : rail ? railCellClass(open) : "flex h-8 min-w-0 items-center gap-2 rounded-full px-1 text-xs font-semibold text-fg transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"}
       >
-        {rail ? (
+        {drawer ? (
+          <>
+            <span aria-hidden="true" className={cn("size-2.5 shrink-0 rounded-full ring-2 ring-accent-fg/40", online.length > 0 ? "bg-ok" : "bg-accent-fg/40")} />
+            <span aria-hidden="true" className="tabular-nums">{online.length}</span>
+          </>
+        ) : rail ? (
           <>
             <span aria-hidden="true" className="relative shrink-0">
               <Users className="size-6" />
@@ -228,7 +254,7 @@ export function PeopleDock({ enabled = true, defaultOpen = false, variant = "str
             <Users className="size-3.5" />
           </span>
         )}
-        {rail ? null : <span className="truncate pe-1">{online.length > 0 ? onlineText : t("shell.dock.title")}</span>}
+        {rail || drawer ? null : <span className="truncate pe-1">{online.length > 0 ? onlineText : t("shell.dock.title")}</span>}
       </button>
     </div>
   );

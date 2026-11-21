@@ -38,7 +38,7 @@ export const TOAST_ACTION_DISMISS_MS = 8000;
  * App-wide toasts. All mutations should surface results through this.
  *
  * Where they appear: at the TOP of the screen on phones, below the notch (safe-area inset) and
- * below the 56px top bar, so a toast never covers the bottom bar or the bottom of a sheet; in the
+ * below the app bar's ONE 56px row (P2.1: the phone's bar is one row now — the search is an icon in it and the actions never wrap — so `top-14` plus the notch is exactly its height; before, the search line and a wrapped action row made the bar taller than that and a toast covered them), so a toast never covers the bottom bar or the bottom of a sheet; in the
  * bottom CENTRE from the `md` breakpoint (768px), as in the owner's mock-up. The toast itself is the mock-up's dark pill: the ink (`fg`) with
  * the page colour as its text on the light themes, `surface-2` with the normal text on the dark ones — never a white card. (`scrim` is the dimming layer
  * behind a dialog and nothing else: tests/ui-tokens.test.ts.) The stack is a polite

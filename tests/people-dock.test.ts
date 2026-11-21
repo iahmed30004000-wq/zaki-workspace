@@ -109,7 +109,8 @@ describe("the people dock", () => {
     expect(column, "the padded column is gone: the dock would land under the phone's bar").not.toBeNull();
     const inside = column![1]!;
     // the page scrolls first, the dock is its own row under it (and the company's switch can leave it out)
-    expect(inside).toMatch(/<main[\s\S]*<\/main>[\s\S]*<PeopleDock enabled=\{!isGuest && peopleDock\} \/>/);
+    // (P2.1: with the new map the row is hidden below md, `hideOnPhone`, and the drawer's header holds the count instead: tests/phone-chrome.test.ts)
+    expect(inside).toMatch(/<main[\s\S]*<\/main>[\s\S]*<PeopleDock enabled=\{!isGuest && peopleDock\} hideOnPhone=\{navV2\} \/>/);
     // and it is never a floating layer over the content
     const dock = readFileSync(path.resolve(__dirname, "..", "src/components/shell/people-dock.tsx"), "utf8");
     expect(dock).not.toMatch(/className="[^"]*\bfixed\b/);
