@@ -6,7 +6,7 @@
  * always was, and with it ON it redirects to its section ONLY for a person who may open that section (anybody else keeps the page exactly as it was, so no address ever
  * becomes a dead end). `/files` is the library, a page of its own: it stays, and the Google Drive link of «التكاملات» opens the same Drive card as before.
  */
-import { panelHref, type PanelSectionKey } from "@/lib/control-panel";
+import { isOneDoorSettingsSection, panelHref, type PanelSectionKey } from "@/lib/control-panel";
 
 export interface PanelTarget {
   section: PanelSectionKey;
@@ -54,8 +54,29 @@ export function carriedQuery(searchParams: Readonly<Record<string, string | stri
 /** The old addresses, in a fixed order (the walk test opens each of them). */
 export const PANEL_REDIRECT_ADDRESSES: readonly string[] = Object.keys(PANEL_REDIRECTS);
 
-/** Where an old address leads inside the panel, or null when it is not one of the moved ones. `extra` carries a query the old page understood. */
-export function panelRedirectHref(address: string, extra?: Readonly<Record<string, string | undefined>>): string | null {
+/**
+ * S3.2 — where a panel section lives while «الإعدادات» is ONE door (`settingsOneDoor`): «الحسابات والصلاحيات» is the part `accounts` of «الناس», the four sections that are settings (the
+ * spaces, the switches, the integrations, the company's data) are «إعدادات الشركة» of the settings frame (`/settings/me/<key>`, the part and the query ride along), and every
+ * other section keeps its address. Pure.
+ */
+export function oneDoorHref(target: PanelTarget, extra?: Readonly<Record<string, string | undefined>>): string {
+  if (target.section === "accounts") return panelHref("people", "accounts", extra);
+  if (isOneDoorSettingsSection(target.section)) {
+    const query = new URLSearchParams();
+    if (target.part) query.set("part", target.part);
+    for (const [key, value] of Object.entries(extra ?? {})) if (value !== undefined && value !== "") query.set(key, value);
+    const text = query.toString();
+    return `${SETTINGS_ME_ROOT}/${target.section}${text ? `?${text}` : ""}`;
+  }
+  return panelHref(target.section, target.part, extra);
+}
+
+/**
+ * Where an old address leads inside the panel, or null when it is not one of the moved ones. `extra` carries a query the old page understood. With `oneDoor` (S3.2, the switch
+ * `settingsOneDoor` is on) the address leads to its place in the one navigation or in «إعدادات الشركة» (`oneDoorHref`); left out, the answer is today's.
+ */
+export function panelRedirectHref(address: string, extra?: Readonly<Record<string, string | undefined>>, oneDoor = false): string | null {
   const target = PANEL_REDIRECTS[address];
-  return target ? panelHref(target.section, target.part, extra) : null;
+  if (!target) return null;
+  return oneDoor ? oneDoorHref(target, extra) : panelHref(target.section, target.part, extra);
 }

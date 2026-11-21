@@ -140,14 +140,18 @@ describe("S3.1 · navSubjectOf hands the door to the map only when it is on", ()
 describe("S3.1 · the place «الإدارة» leaves the map of an admin who holds the panel", () => {
   const door = { settingsOneDoor: true, panel: true } as const;
 
-  it("OWNER and ADMIN: no «الإدارة» on either map; every other place is still there, in the same order", () => {
+  // S3.2 (deliberate change of this pinned test): the slot is not left empty, «لوحة التحكم» takes it as a place of its own (one row to /owner, no tab strip): tests/control-panel-people.test.ts
+  it("OWNER and ADMIN: «الإدارة» with its tabs is gone on either map (S3.2: «لوحة التحكم» is in its slot); every other place is still there, in the same order", () => {
     for (const role of ["OWNER", "ADMIN"] as const) {
       for (const navV2 of [false, true]) {
         const before = placeKeys(who(role, { navV2 }));
-        const after = placeKeys(who(role, { navV2, ...door }));
+        const after = buildNav(who(role, { navV2, ...door })).places;
         expect(before, `${role} ${navV2}`).toContain("admin");
-        expect(after, `${role} ${navV2}`).not.toContain("admin");
-        expect(after, `${role} ${navV2}`).toEqual(before.filter((key) => key !== "admin"));
+        expect(after.map((p) => p.key), `${role} ${navV2}`).toEqual(before);
+        const panel = after.find((p) => p.key === "admin");
+        expect(panel?.labelKey, `${role} ${navV2}`).toBe("nav.place.controlPanel");
+        expect(panel?.tabs, `${role} ${navV2}`).toEqual([]);
+        expect(buildNav(who(role, { navV2 })).places.find((p) => p.key === "admin")?.labelKey, `${role} ${navV2}`).not.toBe("nav.place.controlPanel");
       }
     }
   });
@@ -182,9 +186,9 @@ describe("S3.1 · the place «الإدارة» leaves the map of an admin who ho
     expect(oneDoorHidesAdmin(who("OWNER"))).toBe(false);
   });
 
-  it("a saved order that names «الإدارة» still reads fine once the place is gone (an unknown place is skipped)", () => {
+  it("a saved order that names «الإدارة» still reads fine: the panel's place keeps that key (S3.2), so the slot the person chose is kept", () => {
     const nav = buildNav(who("OWNER", { navV2: true, ...door }));
-    expect(nav.places.map((p) => p.key)).not.toContain("admin");
+    expect(nav.places.map((p) => p.key)).toContain("admin");
   });
 });
 
