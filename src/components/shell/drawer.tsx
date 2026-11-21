@@ -13,7 +13,7 @@ import type { NavModel, NavRole, PlaceKey } from "@/lib/nav/places";
 import { AvatarMenu, Initial, type AvatarUser } from "./avatar-menu";
 import { ariaCurrent } from "./current";
 import { NavIcon } from "./nav-icons";
-import { NavOptions } from "./nav-options";
+import { NavOptions, NavOrderButton, SettingsDoor, useSettingsOneDoor } from "./nav-options";
 import { NavOrderControls, SortableItem, SortableList } from "./nav-sort";
 import { PlaceBadge } from "./place-badge";
 import { SpaceDropdown, type ShellSpace } from "./space-switcher";
@@ -76,6 +76,8 @@ export function Drawer({
   portal?: boolean;
 }) {
   const { t } = useI18n();
+  // S3.1: «الإعدادات» is ONE door: one row in the foot, and «ترتيب» is a small icon button in the header (no «إعداداتي», «دليل زاكي» or «ترتيب» rows)
+  const oneDoor = useSettingsOneDoor();
   const close = () => onOpenChange(false);
   // the drawer is hidden from `md` up by CSS; a Radix dialog that stays open would still make the page behind it inert, so it closes when the screen grows
   useEffect(() => {
@@ -105,7 +107,7 @@ export function Drawer({
         <DialogTitle className="sr-only">{t("navv2.drawer.title")}</DialogTitle>
         {/* the header: me */}
         {/* the owner's mock-up (`.dh`): the person on the accent, in the accent's own text colour; it runs up under the notch */}
-        <div data-shell="drawer-head" className="flex shrink-0 items-center gap-3 bg-accent px-4 pb-3 pe-14 pt-[calc(1.125rem+env(safe-area-inset-top))] text-accent-fg">
+        <div data-shell="drawer-head" className={cn("flex shrink-0 items-center gap-3 bg-accent px-4 pb-3 pt-[calc(1.125rem+env(safe-area-inset-top))] text-accent-fg", oneDoor ? "pe-24" : "pe-14")}>
           <Initial name={user.name} src={user.avatarUrl} large onAccent />
           <div className="min-w-0 flex-1">
             <p className="truncate text-base font-bold">
@@ -125,6 +127,14 @@ export function Drawer({
         >
           <X aria-hidden="true" className="size-4" />
         </DialogPrimitive.Close>
+        {oneDoor ? (
+          // S3.1: «ترتيب» - one small button beside «إغلاق» (the drawer stays open: the places to drag are in it, and so are «تم» and «رجّع»)
+          <NavOrderButton
+            orderLocked={orderLocked}
+            onEditStart={editing ? undefined : onEditStart}
+            className="absolute end-[3.25rem] top-[calc(0.5rem+env(safe-area-inset-top))] size-11 text-accent-fg hover:bg-accent-fg/15 hover:text-accent-fg"
+          />
+        ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {/* …and the spaces, each with what waits in it */}
@@ -191,12 +201,18 @@ export function Drawer({
 
         <div data-shell="drawer-foot" className="shrink-0 space-y-0.5 border-t border-border px-2 py-2">
           {editing && onEditDone && onReset ? <NavOrderControls onDone={onEditDone} onReset={onReset} canReset={canReset} className="pb-1" /> : null}
-          {/* C4.1: «إعداداتي» for everybody (the person's own settings); the company's «الإعدادات», where the person has it, stays in the list below */}
-          <Link href="/settings/me" onClick={close} data-settings-me-link className="flex h-11 items-center gap-3 rounded-xl px-3 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg">
-            <Settings aria-hidden="true" className="size-5 shrink-0" />
-            {t("settingsMe.drawer")}
-          </Link>
-          <NavOptions variant="drawer" orderLocked={orderLocked} onEditStart={editing ? undefined : onEditStart} settingsHref={settingsHref} onNavigate={close} />
+          {oneDoor ? (
+            <SettingsDoor variant="drawer" pathname={pathname} onNavigate={close} />
+          ) : (
+            <>
+              {/* C4.1: «إعداداتي» for everybody (the person's own settings); the company's «الإعدادات», where the person has it, stays in the list below */}
+              <Link href="/settings/me" onClick={close} data-settings-me-link className="flex h-11 items-center gap-3 rounded-xl px-3 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg">
+                <Settings aria-hidden="true" className="size-5 shrink-0" />
+                {t("settingsMe.drawer")}
+              </Link>
+              <NavOptions variant="drawer" orderLocked={orderLocked} onEditStart={editing ? undefined : onEditStart} settingsHref={settingsHref} onNavigate={close} />
+            </>
+          )}
           <InstallAppButton />
           <AvatarMenu user={user} rank={rank} variant="sidebar" />
         </div>

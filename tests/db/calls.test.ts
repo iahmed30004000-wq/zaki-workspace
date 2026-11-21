@@ -8,12 +8,14 @@ import * as inviteRoute from "@/app/api/calls/[id]/invite/route";
 import * as removeRoute from "@/app/api/calls/[id]/remove/route";
 import * as leaveRoute from "@/app/api/calls/[id]/leave/route";
 import * as endRoute from "@/app/api/calls/[id]/end/route";
+import * as declineRoute from "@/app/api/calls/[id]/decline/route";
+import * as joinedRoute from "@/app/api/calls/[id]/joined/route";
 import * as muteRoute from "@/app/api/calls/[id]/mute/route";
 import * as dmRoute from "@/app/api/chat/dm/route";
 import type { Prisma } from "@prisma/client";
 import { setCallsFetchForTests, roomOf } from "@/server/calls/livekit";
 import { withFeature } from "@/lib/features";
-import { EMPTY_GRACE_MS } from "@/server/calls/calls";
+import { EMPTY_GRACE_MS, NO_ANSWER_MS, STALE_EMPTY_MS } from "@/server/calls/calls";
 import { SPACE_COOKIE } from "@/server/services/current-space";
 import { call, db, loginAs, makeTeam, makeUser, makeWorkspace } from "./helpers";
 
@@ -230,6 +232,25 @@ describe("calls: the ring", () => {
     expect(await db.realtimeEvent.count({ where: { kind: "call.changed", ids: { path: ["callId"], equals: id } } })).toBe(1);
   });
 
+  it("a person who muted the topic for themselves is not rung; the others are; the caller never is", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await db.conversationMember.create({ data: { conversationId: topic.id, userId: t.admin.id, mutedUntil: new Date(Date.now() + 3_600_000) } });
+    await db.conversationMember.create({ data: { conversationId: topic.id, userId: t.guest.id, mutedUntil: new Date(Date.now() - 1000) } }); // an old mute is over
+    await loginAs(t.member.id);
+    const id = (await start(topic.id)).json?.["id"] as string;
+    expect(await ringsOf(id)).toEqual([t.guest.id]);
+  });
+
+  it("a person who muted their private chat is still rung by it (a call there is deliberate)", async () => {
+    const t = await space();
+    await loginAs(t.member.id);
+    const dm = (await call(dmRoute.POST, { body: { userId: t.admin.id } })).json?.["id"] as string;
+    await db.conversationMember.update({ where: { conversationId_userId: { conversationId: dm, userId: t.admin.id } }, data: { mutedUntil: new Date(Date.now() + 3_600_000) } });
+    const id = (await start(dm)).json?.["id"] as string;
+    expect(await ringsOf(id)).toEqual([t.admin.id]);
+  });
+
   it("a DM always rings its other person, and only them", async () => {
     const t = await space();
     await loginAs(t.member.id);
@@ -244,6 +265,70 @@ describe("calls: the ring", () => {
     await loginAs(t.member.id);
     const id = (await start(topic.id)).json?.["id"] as string;
     expect(await ringsOf(id)).toEqual([t.admin.id]);
+  });
+});
+
+describe("calls: what the call's page says about the ring (the caller's ringback is for a private call only)", () => {
+  it("a private call says it is one, and tells its STARTER that somebody was rung; the other person is told nothing of the ringing", async () => {
+    const t = await space();
+    await loginAs(t.member.id);
+    const dm = (await call(dmRoute.POST, { body: { userId: t.admin.id } })).json?.["id"] as string;
+    const id = (await start(dm)).json?.["id"] as string;
+    const mine = (await call(callRoute.GET, { params: { id } })).json as { kind: string; rangCount: number };
+    expect(mine).toMatchObject({ kind: "DM", rangCount: 1 });
+    await loginAs(t.admin.id);
+    expect(((await call(callRoute.GET, { params: { id } })).json as { rangCount: number }).rangCount).toBe(0);
+  });
+
+  it("a topic call says «topic»: how many it rang when started with the ring, none without it", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const rung = (await start(topic.id, { ring: true })).json?.["id"] as string;
+    const view = (await call(callRoute.GET, { params: { id: rung } })).json as { kind: string; rangCount: number };
+    expect(view.kind).toBe("TOPIC");
+    expect(view.rangCount).toBe((await ringsOf(rung)).length);
+    await db.call.update({ where: { id: rung }, data: { endedAt: new Date() } });
+    const quiet = (await start(topic.id, { ring: false })).json?.["id"] as string;
+    expect(((await call(callRoute.GET, { params: { id: quiet } })).json as { rangCount: number }).rangCount).toBe(0);
+  });
+
+  it("a meeting is a meeting, and rang nobody", async () => {
+    const t = await space();
+    jar().set(SPACE_COOKIE, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await call(meetingsRoute.POST, { body: { title: "الصباح", video: true } })).json?.["id"] as string;
+    jar().delete(SPACE_COOKIE);
+    const view = (await call(callRoute.GET, { params: { id } })).json as { kind: string; rangCount: number };
+    expect(view).toMatchObject({ kind: "MEETING", rangCount: 0 });
+  });
+});
+
+describe("calls: the join bar (who is in, and who started it)", () => {
+  it("the call going on lists up to three of the people in the room and their count, for the bar under the header", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await start(topic.id, { ring: false })).json?.["id"] as string;
+    expect(((await call(convCallRoute.GET, { params: { id: topic.id } })).json as { call: { count: number; people: unknown[] } }).call).toMatchObject({ count: 0, people: [] });
+    const extra = await makeUser({ orgId: t.org.id, role: "MEMBER", name: "Extra" });
+    const more = await makeUser({ orgId: t.org.id, role: "MEMBER", name: "More" });
+    rooms.set(roomOf(id), [t.member.id, t.admin.id, extra.id, more.id]);
+    const live = (await call(convCallRoute.GET, { params: { id: topic.id } })).json as { call: { id: string; count: number; people: { userId: string; name: string }[] } };
+    expect(live.call.id).toBe(id);
+    expect(live.call.count).toBe(4);
+    expect(live.call.people).toHaveLength(3);
+    expect(live.call.people[0]).toMatchObject({ userId: t.member.id, name: "Member" });
+  });
+
+  it("the call's page says whether the viewer started it (a topic's joiners enter with the microphone off)", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await start(topic.id, { ring: false })).json?.["id"] as string;
+    expect(((await call(callRoute.GET, { params: { id } })).json as { startedByMe: boolean }).startedByMe).toBe(true);
+    await loginAs(t.admin.id);
+    expect(((await call(callRoute.GET, { params: { id } })).json as { startedByMe: boolean }).startedByMe).toBe(false);
   });
 });
 
@@ -335,16 +420,14 @@ describe("calls: meetings by link, and the end", () => {
     const topic = await topicOf(t.org.id, t.ws.id);
     await loginAs(t.member.id);
     const id = (await start(topic.id)).json?.["id"] as string;
-    // still inside the first minute: the first person may still be connecting
+    // somebody else is still in the room when the caller leaves: the call goes on
+    rooms.set(roomOf(id), [t.member.id, t.admin.id]);
     await call(leaveRoute.POST, { method: "POST", params: { id } });
     expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).toBeNull();
 
-    await db.call.update({ where: { id }, data: { startedAt: new Date(Date.now() - EMPTY_GRACE_MS - 1000) } });
-    rooms.set(roomOf(id), [t.member.id]);
-    await call(leaveRoute.POST, { method: "POST", params: { id } });
-    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).toBeNull(); // somebody is still in
-
-    rooms.set(roomOf(id), []);
+    // the last person leaves: it ends AT ONCE, not after a minute of waiting for somebody to ask (the owner: «الخروج غبي»)
+    rooms.set(roomOf(id), [t.admin.id]);
+    await loginAs(t.admin.id);
     await call(leaveRoute.POST, { method: "POST", params: { id } });
     expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).not.toBeNull();
     const lines = await db.chatMessage.findMany({ where: { conversationId: topic.id, kind: "SYSTEM" }, orderBy: { createdAt: "asc" } });
@@ -387,6 +470,162 @@ describe("calls: meetings by link, and the end", () => {
     expect(res.status).toBe(200);
     const people = res.json?.["people"] as { userId: string; canRemove: boolean }[];
     expect(Object.fromEntries(people.map((p) => [p.userId, p.canRemove]))).toEqual({ [t.member.id]: false, [t.admin.id]: true, [t.owner.id]: false });
+  });
+});
+
+/** A private call from the member to the admin, and the rings it left. */
+async function dmCall(t: Awaited<ReturnType<typeof space>>) {
+  await loginAs(t.member.id);
+  const dm = (await call(dmRoute.POST, { body: { userId: t.admin.id } })).json?.["id"] as string;
+  const id = (await start(dm)).json?.["id"] as string;
+  return { dm, id };
+}
+const linesOf = async (conversationId: string) => (await db.chatMessage.findMany({ where: { conversationId, kind: "SYSTEM" }, orderBy: { createdAt: "asc" } })).map((l) => (JSON.parse(l.body) as { k: string }).k);
+const changes = (callId: string) => db.realtimeEvent.count({ where: { kind: "call.changed", ids: { path: ["callId"], equals: callId } } });
+
+describe("calls: a private call behaves like Telegram", () => {
+  it("the pass fetched while the phone rings does not count as answering; connecting for real does (and tells the other screens)", async () => {
+    const t = await space();
+    const { id } = await dmCall(t);
+    await loginAs(t.admin.id);
+    expect((await call(tokenRoute.POST, { method: "POST", params: { id }, body: { prefetch: true } })).status).toBe(200);
+    expect((await db.callPerson.findUnique({ where: { callId_userId: { callId: id, userId: t.admin.id } } }))?.joinedAt ?? null).toBeNull();
+    const before = await changes(id);
+    expect((await call(joinedRoute.POST, { method: "POST", params: { id } })).status).toBe(200);
+    expect((await db.callPerson.findUniqueOrThrow({ where: { callId_userId: { callId: id, userId: t.admin.id } } })).joinedAt).not.toBeNull();
+    expect(await changes(id)).toBe(before + 1);
+    await call(joinedRoute.POST, { method: "POST", params: { id } }); // again: nothing new to say
+    expect(await changes(id)).toBe(before + 1);
+    expect(((await call(callRoute.GET, { params: { id } })).json as { answered: boolean }).answered).toBe(true);
+  });
+
+  it("a pass without the prefetch flag (the phone app's) still counts as joining, as before", async () => {
+    const t = await space();
+    const { id } = await dmCall(t);
+    await loginAs(t.admin.id);
+    expect((await pass(id)).status).toBe(200);
+    expect((await db.callPerson.findUniqueOrThrow({ where: { callId_userId: { callId: id, userId: t.admin.id } } })).joinedAt).not.toBeNull();
+  });
+
+  it("«رفض»: the call ends for both, the chat says it was missed, the caller's page says it was declined, and the room is closed", async () => {
+    const t = await space();
+    const { dm, id } = await dmCall(t);
+    rooms.set(roomOf(id), [t.member.id]); // the caller is waiting in the room
+    await loginAs(t.admin.id);
+    const before = await changes(id);
+    expect((await call(declineRoute.POST, { method: "POST", params: { id } })).status).toBe(200);
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).not.toBeNull();
+    expect(await linesOf(dm)).toEqual(["call_started", "call_missed"]);
+    expect(await changes(id)).toBe(before + 1);
+    expect(closed).toContain(roomOf(id));
+    await loginAs(t.member.id);
+    const seen = (await call(callRoute.GET, { params: { id } })).json as { endedAt: string | null; endedHow: string };
+    expect(seen.endedAt).not.toBeNull();
+    expect(seen.endedHow).toBe("declined");
+    await loginAs(t.admin.id);
+    expect((await pass(id)).status).toBe(403); // ended: no pass
+  });
+
+  it("declining twice, or declining a call that already ended, is harmless; the caller cannot «decline» their own call", async () => {
+    const t = await space();
+    const { id } = await dmCall(t);
+    expect((await call(declineRoute.POST, { method: "POST", params: { id } })).status).toBe(200); // the caller: nothing happens
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).toBeNull();
+    await loginAs(t.admin.id);
+    expect((await call(declineRoute.POST, { method: "POST", params: { id } })).status).toBe(200);
+    expect((await call(declineRoute.POST, { method: "POST", params: { id } })).status).toBe(200);
+  });
+
+  it("«رفض» on a topic's ring is only this person's: the call goes on for the others", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await start(topic.id, { ring: true })).json?.["id"] as string;
+    await loginAs(t.admin.id);
+    expect((await call(declineRoute.POST, { method: "POST", params: { id } })).status).toBe(200);
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).toBeNull();
+  });
+
+  it("somebody who cannot see the call cannot decline it", async () => {
+    const t = await space();
+    const { id } = await dmCall(t);
+    await loginAs(t.guest.id);
+    expect((await call(declineRoute.POST, { method: "POST", params: { id } })).status).toBe(404);
+  });
+
+  it("nobody answers within the ring time: the call ends by itself as a missed call, the room is closed, the other side is told", async () => {
+    const t = await space();
+    const { dm, id } = await dmCall(t);
+    rooms.set(roomOf(id), [t.member.id]); // the caller is still waiting
+    // inside the ring time nothing happens
+    await call(callRoute.GET, { params: { id } });
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).toBeNull();
+    await db.call.update({ where: { id }, data: { startedAt: new Date(Date.now() - NO_ANSWER_MS - 1000) } });
+    const seen = (await call(callRoute.GET, { params: { id } })).json as { endedAt: string | null; endedHow: string };
+    expect(seen.endedAt).not.toBeNull();
+    expect(seen.endedHow).toBe("missed");
+    expect(await linesOf(dm)).toEqual(["call_started", "call_missed"]);
+    expect(closed).toContain(roomOf(id));
+  });
+
+  it("a private call somebody DID answer is not ended for lack of answer, however old", async () => {
+    const t = await space();
+    const { id } = await dmCall(t);
+    rooms.set(roomOf(id), [t.member.id, t.admin.id]);
+    await loginAs(t.admin.id);
+    await call(joinedRoute.POST, { method: "POST", params: { id } });
+    await db.call.update({ where: { id }, data: { startedAt: new Date(Date.now() - NO_ANSWER_MS * 10) } });
+    await call(callRoute.GET, { params: { id } });
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).toBeNull();
+  });
+
+  it("a topic call nobody answered is NOT ended for lack of answer (people join it when they like)", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await start(topic.id)).json?.["id"] as string;
+    rooms.set(roomOf(id), [t.member.id]);
+    await db.call.update({ where: { id }, data: { startedAt: new Date(Date.now() - NO_ANSWER_MS * 10) } });
+    await call(callRoute.GET, { params: { id } });
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).toBeNull();
+  });
+
+  it("either person leaving a private call ends it for both (the other one is closed out of the room)", async () => {
+    const t = await space();
+    const { dm, id } = await dmCall(t);
+    await loginAs(t.admin.id);
+    await call(joinedRoute.POST, { method: "POST", params: { id } });
+    rooms.set(roomOf(id), [t.member.id, t.admin.id]);
+    await call(leaveRoute.POST, { method: "POST", params: { id } }); // the one who answered hangs up
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).not.toBeNull();
+    expect(closed).toContain(roomOf(id));
+    expect(await linesOf(dm)).toEqual(["call_started", "call_ended"]);
+  });
+
+  it("the caller hanging up before anybody answered leaves a missed call", async () => {
+    const t = await space();
+    const { dm, id } = await dmCall(t);
+    await call(leaveRoute.POST, { method: "POST", params: { id } });
+    expect(await linesOf(dm)).toEqual(["call_started", "call_missed"]);
+  });
+
+  it("calling again while a stale call with nobody in it exists rings again, with a new call", async () => {
+    const t = await space();
+    const { dm, id } = await dmCall(t);
+    await db.call.update({ where: { id }, data: { startedAt: new Date(Date.now() - STALE_EMPTY_MS - 1000) } });
+    rooms.set(roomOf(id), []); // abandoned: nobody in the room
+    const again = (await start(dm)).json as { id: string };
+    expect(again.id).not.toBe(id);
+    expect((await db.call.findUniqueOrThrow({ where: { id } })).endedAt).not.toBeNull();
+    expect(await ringsOf(again.id)).toEqual([t.admin.id]);
+  });
+
+  it("calling again while the call has somebody in it hands back that call (no second ring)", async () => {
+    const t = await space();
+    const { dm, id } = await dmCall(t);
+    await db.call.update({ where: { id }, data: { startedAt: new Date(Date.now() - STALE_EMPTY_MS - 1000) } });
+    rooms.set(roomOf(id), [t.member.id]);
+    expect(((await start(dm)).json as { id: string }).id).toBe(id);
   });
 });
 

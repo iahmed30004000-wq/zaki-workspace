@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { startRing } from "@/lib/calls/ring-sound";
+import { DEFAULT_RING_TONE, loadRingTone, RING_TONE_LABEL, RING_TONES, saveRingTone, type RingTone } from "@/lib/calls/ring-prefs";
 import { Button } from "@/components/ui/button";
 import { SwitchRow } from "@/components/members/switch-row";
 import { useToast } from "@/components/ui/toast";
@@ -32,6 +34,13 @@ export function withRule(prefs: ChatPrefs, type: NotifyType, rule: NotifyRule): 
 
 const WARNED: Partial<Record<NotifyType, true>> = { mentions: true, calls: true };
 
+function stopPreview(preview: { current: { stop: () => void; timer: ReturnType<typeof setTimeout> } | null }): void {
+  if (!preview.current) return;
+  clearTimeout(preview.current.timer);
+  preview.current.stop();
+  preview.current = null;
+}
+
 export function NotificationsSection() {
   const { t } = useI18n();
   const { toast } = useToast();
@@ -39,6 +48,20 @@ export function NotificationsSection() {
   const save = useSavePatch();
   const [sounds, setSounds] = useState(true);
   useEffect(() => setSounds(soundsEnabled()), []);
+  // the incoming-call ringtone of THIS device (three to choose from; «جرّبها» plays it for a few seconds)
+  const [ringTone, setRingTone] = useState<RingTone>(DEFAULT_RING_TONE);
+  useEffect(() => setRingTone(loadRingTone()), []);
+  const preview = useRef<{ stop: () => void; timer: ReturnType<typeof setTimeout> } | null>(null);
+  useEffect(() => () => stopPreview(preview), []);
+  function chooseTone(tone: RingTone) {
+    setRingTone(tone);
+    saveRingTone(tone);
+    tryTone(tone);
+  }
+  function tryTone(tone: RingTone) {
+    stopPreview(preview);
+    preview.current = { stop: startRing({ tone }), timer: setTimeout(() => stopPreview(preview), 3500) };
+  }
 
   async function change(type: NotifyType, rule: NotifyRule) {
     const ok = await save((current) => {
@@ -92,6 +115,28 @@ export function NotificationsSection() {
           title={t("settingsMe.n.sounds")}
           hint={t("settingsMe.n.sounds.hint")}
         />
+      </Group>
+
+      <Group title={t("calls.tone.title")} hint={t("calls.tone.hint")} id="n-ringtone">
+        <div role="radiogroup" aria-label={t("calls.tone.title")} className="flex flex-col gap-2">
+          {RING_TONES.map((tone) => (
+            <div key={tone} className="flex items-center gap-2">
+              <button
+                type="button"
+                role="radio"
+                aria-checked={ringTone === tone}
+                onClick={() => chooseTone(tone)}
+                className={`flex min-h-11 flex-1 items-center gap-2 rounded-lg border px-3 text-start text-sm ${ringTone === tone ? "border-accent bg-accent/10 font-semibold text-fg" : "border-border text-fg hover:bg-surface-2"}`}
+              >
+                <span aria-hidden="true" className={`size-4 shrink-0 rounded-full border-2 ${ringTone === tone ? "border-accent bg-accent" : "border-border"}`} />
+                {t(RING_TONE_LABEL[tone])}
+              </button>
+              <Button type="button" size="sm" variant="ghost" onClick={() => tryTone(tone)}>
+                {t("calls.tone.try")}
+              </Button>
+            </div>
+          ))}
+        </div>
       </Group>
 
       <Group title={t("settingsMe.n.exceptions")} hint={t("settingsMe.n.exceptions.hint")} id="n-exceptions">

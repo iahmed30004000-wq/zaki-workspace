@@ -18,6 +18,7 @@ import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/compo
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { useToast } from "@/components/ui/toast";
 import { MeEffects } from "@/components/settings-me/me-effects";
+import { SETTINGS_DOOR_HREF, useSettingsOneDoor } from "./nav-options";
 import { clearMirror } from "@/lib/device-prefs";
 
 /** What the menu shows of the signed-in person (CurrentUser fits as it is). */
@@ -79,6 +80,8 @@ export function AvatarMenu({
 }) {
   const { t } = useI18n();
   const { toast } = useToast();
+  // S3.1: «الإعدادات» is ONE door: the menu keeps the theme, ONE row «الإعدادات» (it replaces «إعداداتي», «الدليل» and «حسابي»: «حسابي» is the first section inside) and the sign-out
+  const oneDoor = useSettingsOneDoor();
   const [themeOpen, setThemeOpen] = useState(false);
   const themeAfterClose = useRef(false);
   const handle = user.username ? `@${user.username}` : (user.email ?? "");
@@ -140,15 +143,17 @@ export function AvatarMenu({
           }}
         >
           <div className="relative flex items-center gap-3 px-3 pb-3 pt-2">
-            <Link
-              href="/settings/me"
-              data-settings-me-link
-              aria-label={t("settingsMe.avatar")}
-              title={t("settingsMe.avatar")}
-              className="absolute end-1 top-0 grid size-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
-            >
-              <Settings aria-hidden="true" className="size-4" />
-            </Link>
+            {oneDoor ? null : (
+              <Link
+                href="/settings/me"
+                data-settings-me-link
+                aria-label={t("settingsMe.avatar")}
+                title={t("settingsMe.avatar")}
+                className="absolute end-1 top-0 grid size-11 place-items-center rounded-lg text-muted transition-colors hover:bg-surface-2 hover:text-fg"
+              >
+                <Settings aria-hidden="true" className="size-4" />
+              </Link>
+            )}
             <Initial name={user.name} src={user.avatarUrl} large />
             <div className="min-w-0 flex-1 pe-9">
               <p className="truncate text-sm font-semibold text-fg"><bdi>{user.name}</bdi></p>
@@ -169,18 +174,29 @@ export function AvatarMenu({
             <Palette aria-hidden="true" className="size-4 text-muted" />
             {t("theme.picker")}
           </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/guide">
-              <BookOpen aria-hidden="true" className="size-4 text-muted" />
-              {t("guide.title")}
-            </Link>
-          </DropdownMenuItem>
-          <DropdownMenuItem asChild>
-            <Link href="/profile">
-              <UserRound aria-hidden="true" className="size-4 text-muted" />
-              {t("shell.avatar.account")}
-            </Link>
-          </DropdownMenuItem>
+          {oneDoor ? (
+            <DropdownMenuItem asChild>
+              <Link href={SETTINGS_DOOR_HREF} data-settings-me-link data-settings-door="">
+                <Settings aria-hidden="true" className="size-4 text-muted" />
+                {t("settingsOneDoor.door")}
+              </Link>
+            </DropdownMenuItem>
+          ) : (
+            <>
+              <DropdownMenuItem asChild>
+                <Link href="/guide">
+                  <BookOpen aria-hidden="true" className="size-4 text-muted" />
+                  {t("guide.title")}
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/profile">
+                  <UserRound aria-hidden="true" className="size-4 text-muted" />
+                  {t("shell.avatar.account")}
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem tone="danger" disabled={logout.isPending} onSelect={() => logout.mutate()}>
             <LogOut aria-hidden="true" className="size-4" />

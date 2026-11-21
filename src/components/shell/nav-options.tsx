@@ -1,5 +1,6 @@
 "use client";
 
+import { createContext, useContext } from "react";
 import Link from "next/link";
 import { ArrowUpDown, BookOpen, MoreHorizontal, Settings } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
@@ -24,6 +25,84 @@ export function OrderLockedNote({ className }: { className?: string }) {
         <span>{t("navv2.order.company_fix")}</span>
       </p>
     </div>
+  );
+}
+
+/**
+ * S3.1 — is «الإعدادات» ONE door for this company (`settingsOneDoor`, see `settingsOneDoorOf` in src/lib/nav/shell-v2.ts)? The frame provides it once; the drawer, the rail, the side menu and the
+ * avatar menu read it, so none of the four takes a new prop and nothing of the old menu changes while it is false (the default).
+ */
+export const SettingsOneDoorContext = createContext(false);
+export const useSettingsOneDoor = (): boolean => useContext(SettingsOneDoorContext);
+
+/** The address the ONE row opens: the frame of «إعداداتي» (it also holds «إعدادات الشركة» for whoever manages the company). */
+export const SETTINGS_DOOR_HREF = "/settings/me";
+
+const ICON_BUTTON = "relative grid shrink-0 place-items-center rounded-lg text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent";
+
+/**
+ * S3.1 — «ترتيب» as ONE small icon button (the drawer's header, the top of the rail, the side menu's header) instead of a row in the foot. It starts the reorder mode (`onEditStart`: the same
+ * function the old row called), and carries `data-nav-order-toggle` as the old row did. While the company's order of the menu is set (D-N5) it opens the ⚠️ + 🔧 note instead
+ * (`OrderLockedNote`, `data-nav-order-locked`): the mode cannot start, and the person is told why and what to do. Drawn nothing while the mode is on (the shell draws «تم» and «رجّع»).
+ * `defaultOpen` and `portal={false}` are for server-render tests.
+ */
+export function NavOrderButton({ orderLocked = false, onEditStart, className, defaultOpen, portal = true }: { orderLocked?: boolean; onEditStart?: () => void; className?: string; defaultOpen?: boolean; portal?: boolean }) {
+  const { t } = useI18n();
+  if (orderLocked) {
+    return (
+      <DropdownMenu defaultOpen={defaultOpen}>
+        <DropdownMenuTrigger asChild>
+          <button type="button" data-nav-order-locked="" aria-label={t("navorder.toggle")} title={t("settingsOneDoor.order_locked_title")} className={cn(ICON_BUTTON, "size-9", className)}>
+            <ArrowUpDown aria-hidden="true" className="size-4" />
+          </button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent portal={portal} side="bottom" align="end" className="w-64">
+          <OrderLockedNote className="m-1" />
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
+  if (!onEditStart) return null;
+  return (
+    <button type="button" data-nav-order-toggle="" onClick={onEditStart} aria-label={t("navorder.toggle")} title={t("settingsOneDoor.order_title")} className={cn(ICON_BUTTON, "size-9", className)}>
+      <ArrowUpDown aria-hidden="true" className="size-4" />
+    </button>
+  );
+}
+
+/**
+ * S3.1 — the ONE row «الإعدادات» that replaces «إعداداتي», «دليل زاكي» and «ترتيب»: it opens the frame of «إعداداتي» (`/settings/me`), where the guide is inside «المساعدة» and, for whoever manages the company,
+ * «إعدادات الشركة» is the second group. `drawer` and `sidebar` are rows (the folded side menu keeps the icon and hides the word); `rail` is an icon cell like the «⋯» it replaces.
+ */
+export function SettingsDoor({ variant, collapsed = false, pathname, onNavigate }: { variant: "drawer" | "sidebar" | "rail"; collapsed?: boolean; pathname?: string; onNavigate?: () => void }) {
+  const { t } = useI18n();
+  const label = t("settingsOneDoor.door");
+  const inside = pathname !== undefined && (pathname === "/settings" || pathname.startsWith("/settings/"));
+  const current = inside ? ("page" as const) : undefined;
+  if (variant === "rail") {
+    return (
+      <Link href={SETTINGS_DOOR_HREF} data-settings-me-link="" data-settings-door="" aria-label={label} title={t("settingsOneDoor.door_title")} aria-current={current} className="grid size-11 place-items-center rounded-xl text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg">
+        <Settings aria-hidden="true" className="size-5" />
+      </Link>
+    );
+  }
+  return (
+    <Link
+      href={SETTINGS_DOOR_HREF}
+      onClick={onNavigate}
+      data-settings-me-link=""
+      data-settings-door=""
+      aria-current={current}
+      title={collapsed ? label : undefined}
+      className={cn(
+        "flex h-11 items-center gap-3 rounded-xl text-sm transition-colors hover:bg-surface-2 hover:text-fg [@media(max-height:760px)]:h-9",
+        collapsed ? "justify-center px-0" : "px-3",
+        inside ? "bg-accent/[0.12] font-semibold text-accent" : "text-fg-muted",
+      )}
+    >
+      <Settings aria-hidden="true" className="size-5 shrink-0" />
+      <span className={cn("truncate", collapsed && "sr-only")}>{label}</span>
+    </Link>
   );
 }
 
