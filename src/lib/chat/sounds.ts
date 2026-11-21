@@ -7,6 +7,10 @@
  * Each person can switch them off (a button in the conversation's head); the choice stays in this browser. A
  * browser may refuse to play before the person has touched the page: then nothing plays and nothing breaks.
  */
+import { chatSoundsActive } from "@/lib/chat/chime/active";
+import { loadChatSoundPrefs } from "@/lib/chat/chime/prefs";
+import { playChime } from "@/lib/chat/chime/player";
+
 export type ChatSound = "sent" | "received" | "mention";
 
 export const CHAT_SOUND_URLS = { sent: "/sounds/sent.mp3", received: "/sounds/received.mp3" } as const;
@@ -66,6 +70,12 @@ function pop(url: string): void {
 export function playChatSound(kind: ChatSound, storage: SoundStorage | null = defaultStorage()): void {
   if (!soundsEnabled(storage)) return;
   if (kind === "sent") return pop(CHAT_SOUND_URLS.sent);
+  // S5.1: with the company's switch `chatSounds` on, an arrival plays the tone the person chose (drawn by the browser, one voice for every chat) instead of the sound file
+  if (chatSoundsActive()) {
+    const prefs = loadChatSoundPrefs();
+    playChime({ tone: prefs.tone, volume: prefs.volume, mention: kind === "mention" });
+    return;
+  }
   pop(CHAT_SOUND_URLS.received);
   if (kind === "mention") setTimeout(() => pop(CHAT_SOUND_URLS.received), MENTION_REPEAT_GAP_MS);
 }

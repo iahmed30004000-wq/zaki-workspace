@@ -13,6 +13,7 @@ import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/components/shell/sidebar-c
 import { currentSpace, spacesOf } from "@/server/services/current-space";
 import { hasActiveReports, navSubjectOf, oneDoorPanelFor } from "@/server/services/nav-order";
 import { CallRing } from "@/components/calls/call-ring";
+import { ChatSoundsHost } from "@/components/chat/chime/chat-sounds-host";
 import { CallProvider } from "@/components/calls/call-provider";
 import { SWITCH_COOKIE } from "@/lib/themes/switch-fx";
 
@@ -94,6 +95,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       <CallProvider>
         {children}
         <CallRing />
+        {/* S5.1: a tone for a message in any conversation the person reads (the company's switch `chatSounds`, off: nothing is mounted) */}
+        <ChatSoundsHost enabled={on.chatSounds} />
       </CallProvider>
     </AppShell>
   );
