@@ -83,9 +83,11 @@ const isBuiltin = (key: string): key is BuiltinTab => (BUILTIN_TABS as readonly 
  * The tabs this person is offered, in order. `hidden` takes built-in tabs away (nothing is deleted); with everything hidden and no folder of their own
  * «الكل» stays, so the strip is never empty. «الأرشيف» and «كل الشركة» always come last.
  */
-export function tabsOf(opts: { canOversee: boolean; guest?: boolean; archived?: boolean; folders?: readonly ChatFolderDef[]; hidden?: readonly BuiltinTab[] }): Tab[] {
-  const offered = foldersOf({ canOversee: opts.canOversee, ...(opts.guest !== undefined ? { guest: opts.guest } : {}), ...(opts.archived !== undefined ? { archived: opts.archived } : {}) });
+export function tabsOf(opts: { canOversee: boolean; guest?: boolean; archived?: boolean; folders?: readonly ChatFolderDef[]; hidden?: readonly BuiltinTab[]; oneSpace?: boolean }): Tab[] {
+  // the list of ONE space holds that space's topics, not spaces: its tab says so («المواضيع», not «المساحات»)
+  const base = foldersOf({ canOversee: opts.canOversee, ...(opts.guest !== undefined ? { guest: opts.guest } : {}), ...(opts.archived !== undefined ? { archived: opts.archived } : {}) });
   const hidden = new Set<string>(opts.hidden ?? []);
+  const offered = base.map((f) => (opts.oneSpace && f.key === "spaces" ? { ...f, labelKey: "chatui.folder.topics" } : f));
   const tail: Tab[] = offered.filter((f) => !isBuiltin(f.key)).map((f) => ({ key: f.key, labelKey: f.labelKey }));
   let movable: Tab[] = offered.filter((f) => isBuiltin(f.key) && !hidden.has(f.key)).map((f) => ({ key: f.key, labelKey: f.labelKey }));
   for (const folder of opts.folders ?? []) movable.push({ key: customTabKey(folder.id), label: folder.name, ...(folder.emoji ? { emoji: folder.emoji } : {}) });
