@@ -113,14 +113,17 @@ async function openCounts(actor: Actor, ids: string[], scope: WorkScope): Promis
   return out;
 }
 
-/** The people a task of the managed spaces may be given to: ACTIVE members of those spaces who are not partners, plus the viewer. */
+/**
+ * The people a task of the managed spaces may be given to: ACTIVE members of those spaces who are not partners (B4: a task is given only to a person of its
+ * space, `task-assign.ts`), and the OWNER rank, who needs no row in a space.
+ */
 async function assignableIn(actor: Actor, spaceIds: string[]): Promise<StaleOption[]> {
   const rows = await db.organizationMember.findMany({
     where: {
       organizationId: actor.orgId,
       status: "ACTIVE",
       role: { not: "GUEST" },
-      OR: [{ userId: actor.userId }, { user: { workspaceLinks: { some: { workspaceId: { in: spaceIds } } } } }],
+      OR: [{ role: "OWNER" }, { user: { workspaceLinks: { some: { workspaceId: { in: spaceIds } } } } }],
     },
     select: { user: { select: { id: true, name: true } } },
   });

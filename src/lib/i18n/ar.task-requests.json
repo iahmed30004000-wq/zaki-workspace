@@ -20,6 +20,7 @@
   "assign.guest_outside_space": "لا تُسند مهمة إلى زائر إلا داخل مساحة تضمّكما معًا",
   "assign.guest_no_request": "لا يستطيع الزائر إسناد مهمة إلى شخص أعلى منه رتبة",
   "assign.request_not_in_space": "هذا الشخص ليس في مساحة المهمة، فلا يمكن إرسال الطلب إليه",
+  "assign.target_not_in_space": "لا تُسند المهمة إلا إلى شخص من مساحتها، وهذا الشخص ليس فيها",
   "taskreq.already_pending": "هناك طلب إسناد لهذه المهمة بانتظار الرد",
   "taskreq.not_found": "لا يوجد طلب إسناد لهذه المهمة",
   "taskreq.already_answered": "سبق الرد على هذا الطلب",

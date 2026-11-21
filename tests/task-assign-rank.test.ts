@@ -95,7 +95,7 @@ describe("the words", () => {
       expect(AR[key], key).toMatch(/[؀-ۿ]/);
     }
     const errors = [
-      "assign.not_allowed", "assign.guest_cannot_give", "assign.guest_outside_space", "assign.guest_no_request", "assign.request_not_in_space",
+      "assign.not_allowed", "assign.guest_cannot_give", "assign.guest_outside_space", "assign.guest_no_request", "assign.request_not_in_space", "assign.target_not_in_space",
       "taskreq.already_pending", "taskreq.not_found", "taskreq.already_answered", "taskreq.not_addressee", "taskreq.reason_required",
     ];
     for (const key of errors) expect(AR[key], key).toMatch(/[؀-ۿ]/);
