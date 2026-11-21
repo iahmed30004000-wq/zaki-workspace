@@ -3,7 +3,7 @@ import { db } from "@/server/db";
 import type { Actor } from "@/server/policy/actor";
 import { actorCan } from "@/server/policy/actor";
 import { approvalsOn } from "@/server/services/approval-access";
-import { listApprovals, waitingCount, workSpacesOf } from "@/server/services/approvals";
+import { listApprovals, waitingCount, waitingCountBySpace, workSpacesOf } from "@/server/services/approvals";
 import { orgSummaryOf } from "@/server/services/features";
 import { currentSpace, spacesOf } from "@/server/services/current-space";
 import { knowledgeAccess } from "@/server/services/knowledge";
@@ -149,15 +149,20 @@ async function approvalsSection(c: Ctx): Promise<RequestSection | null> {
 
 // ───────────────────────────────────────────────────── assignment requests ─────────────────────────────────────────────────────
 
-async function assignmentsSection(c: Ctx): Promise<RequestSection> {
-  const scope = await c.scope();
-  const where: Prisma.TaskAssignRequestWhereInput = {
+/** The assignment requests of a tab: ONE filter for the list, the number on «الشغل» and the per-space numbers (S5.8 `waitingBySpace`). `spaceIds`: only the tasks of those spaces (null: every space). */
+function assignmentsWhere(c: Ctx, scope: Awaited<ReturnType<typeof loadWorkScope>>, spaceIds: readonly string[] | null): Prisma.TaskAssignRequestWhereInput {
+  return {
     orgId: c.actor.orgId,
     status: "PENDING",
     ...(c.tab === "waiting" ? { toUserId: c.actor.userId } : { fromUserId: c.actor.userId }),
     // only on tasks the person may open: a private task they are no part of is neither listed nor counted; B4: and of the space the pass is for
-    task: c.spaceId ? { AND: [taskVisibleWhere(scope), { workspaceId: c.spaceId }] } : taskVisibleWhere(scope),
+    task: spaceIds ? { AND: [taskVisibleWhere(scope), { workspaceId: { in: [...spaceIds] } }] } : taskVisibleWhere(scope),
   };
+}
+
+async function assignmentsSection(c: Ctx): Promise<RequestSection> {
+  const scope = await c.scope();
+  const where = assignmentsWhere(c, scope, c.spaceId ? [c.spaceId] : null);
   const total = await db.taskAssignRequest.count({ where });
   if (!c.withRows || total === 0) return { key: "assignments", total, rows: [], allHref: null };
   const found = await db.taskAssignRequest.findMany({
@@ -260,14 +265,18 @@ async function ticketsSection(c: Ctx): Promise<RequestSection | null> {
 
 // ───────────────────────────────────────────────────── cards and sheets ─────────────────────────────────────────────────────
 
-async function cardsSection(c: Ctx): Promise<RequestSection | null> {
-  const spaces = await c.spaces();
+/**
+ * The cards of a tab: ONE filter for the list, the number on «الشغل» and the per-space numbers (S5.8). `only`: the spaces the pass is for (null: all the person works in).
+ * «بانتظاري» with no space the person moderates has no filter at all (null): nothing can wait for them there.
+ */
+function cardsWhere(c: Ctx, spaces: Awaited<ReturnType<typeof workSpacesOf>>, only: readonly string[] | null): Prisma.CardWhereInput | null {
   const seesFiles = !c.actor.isExternal && actorCan(c.actor, "files.view");
   const cardKindsHidden = seesFiles ? [...KNOWLEDGE_KINDS] : ["FILE", ...KNOWLEDGE_KINDS];
+  const inScope = (id: string) => !only || only.includes(id);
   let where: Prisma.CardWhereInput;
   if (c.tab === "waiting") {
     // the people who may move the status: those who moderate the card's space (the owner everywhere)
-    const managed = spaces.filter((s) => s.manager && (!c.spaceId || s.id === c.spaceId)).map((s) => s.id);
+    const managed = spaces.filter((s) => s.manager && inScope(s.id)).map((s) => s.id);
     if (managed.length === 0) return null;
     where = {
       orgId: c.actor.orgId,
@@ -283,13 +292,19 @@ async function cardsSection(c: Ctx): Promise<RequestSection | null> {
     where = {
       orgId: c.actor.orgId,
       createdById: c.actor.userId,
-      workspaceId: { in: spaces.filter((s) => !c.spaceId || s.id === c.spaceId).map((s) => s.id) },
+      workspaceId: { in: spaces.filter((s) => inScope(s.id)).map((s) => s.id) },
       status: "REVIEW",
       archivedAt: null,
       workspace: { archivedAt: null },
       kind: { notIn: cardKindsHidden },
     };
   }
+  return where;
+}
+
+async function cardsSection(c: Ctx): Promise<RequestSection | null> {
+  const where = cardsWhere(c, await c.spaces(), c.spaceId ? [c.spaceId] : null);
+  if (!where) return null;
   const total = await db.card.count({ where });
   if (!c.withRows || total === 0) return { key: "cards", total, rows: [], allHref: null };
   const found = await db.card.findMany({
@@ -312,21 +327,26 @@ async function cardsSection(c: Ctx): Promise<RequestSection | null> {
   return { key: "cards", total, rows, allHref: null };
 }
 
-async function sheetsSection(c: Ctx): Promise<RequestSection | null> {
-  // «بانتظاري»: only for the owner and the approvers he named; «طلباتي»: the sheets I sent to review, for anybody who works in the knowledge space
-  const knowledge = await c.knowledge();
-  if (!knowledge.spaceId || !(c.tab === "waiting" ? knowledge.approver : knowledge.member)) return null;
-  // B4: the sheets are the knowledge space's own: they wait in that space, not in the others
-  if (c.spaceId && c.spaceId !== knowledge.spaceId) return null;
-  const where: Prisma.CardWhereInput = {
+/** The product sheets in review of a tab, in the knowledge space: ONE filter for the list, the number on «الشغل» and the per-space numbers (S5.8). */
+function sheetsWhere(c: Ctx, knowledgeSpaceId: string): Prisma.CardWhereInput {
+  return {
     orgId: c.actor.orgId,
-    workspaceId: knowledge.spaceId,
+    workspaceId: knowledgeSpaceId,
     workspace: { archivedAt: null },
     kind: { in: [...KNOWLEDGE_KINDS] },
     status: "REVIEW",
     archivedAt: null,
     ...(c.tab === "mine" ? { createdById: c.actor.userId } : {}),
   };
+}
+
+async function sheetsSection(c: Ctx): Promise<RequestSection | null> {
+  // «بانتظاري»: only for the owner and the approvers he named; «طلباتي»: the sheets I sent to review, for anybody who works in the knowledge space
+  const knowledge = await c.knowledge();
+  if (!knowledge.spaceId || !(c.tab === "waiting" ? knowledge.approver : knowledge.member)) return null;
+  // B4: the sheets are the knowledge space's own: they wait in that space, not in the others
+  if (c.spaceId && c.spaceId !== knowledge.spaceId) return null;
+  const where = sheetsWhere(c, knowledge.spaceId);
   const total = await db.card.count({ where });
   if (!c.withRows || total === 0) return { key: "sheets", total, rows: [], allHref: "/knowledge" };
   const found = await db.card.findMany({
@@ -429,6 +449,44 @@ export async function waitingRequestCount(actor: Who, scope: RequestsScope = {})
   if (scope.groups) return (await groupedSections(actor, "waiting", false)).sections.reduce((sum, s) => sum + s.total, 0);
   const sections = await sectionsOf(actor, "waiting", false, { spaceId: scope.spaceId ?? null, tickets: "include" });
   return sections.reduce((sum, s) => sum + s.total, 0);
+}
+
+/**
+ * S5.8 — «بانتظاري» PER SPACE, for the number beside each other space on the phone's drawer: how many things wait for THIS person in each of `spaceIds`.
+ * It is the lists' own count, not a second one: the kinds are the ones of «بانتظاري» (approvals whose turn is mine, assignment requests addressed to me on tasks I may
+ * open, cards I moderate, product sheets I approve) read with the SAME filters (`assignmentsWhere`, `cardsWhere`, `sheetsWhere`, `waitingCountBySpace`), each kind in ONE
+ * grouped read for every space at once (never a pass per space). Tickets are left out: departments have no space, so a ticket waits in none (they stay in the number of
+ * «الشغل» of the space the person is in, and in «الشركة»'s company group). Only the spaces the person works in are answered (the inbox's own `workSpacesOf`: never a
+ * space they are not in); an external partner and a guest get nothing. A space with nothing waiting has no entry: the caller reads a missing one as 0.
+ */
+export async function waitingBySpace(actor: Who, spaceIds: readonly string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  if (actor.isExternal || actor.role === "GUEST" || spaceIds.length === 0) return out;
+  const c = contextOf(actor, "waiting", false, null);
+  const spaces = await c.spaces();
+  const ids = [...new Set(spaceIds)].filter((id) => spaces.some((s) => s.id === id));
+  if (ids.length === 0) return out;
+  const add = (id: string, n: number) => {
+    if (n > 0) out.set(id, (out.get(id) ?? 0) + n);
+  };
+  const [approvals, assigns, cards, sheets] = await Promise.all([
+    approvalsOn(actor.orgId).then((on) => (on ? waitingCountBySpace(actor, ids) : new Map<string, number>())),
+    // addressed to me and pending: a handful of rows at most, read once for every space
+    c.scope().then((scope) => db.taskAssignRequest.findMany({ where: assignmentsWhere(c, scope, ids), select: { task: { select: { workspaceId: true } } } })),
+    (async () => {
+      const where = cardsWhere(c, spaces, ids);
+      return where ? db.card.groupBy({ by: ["workspaceId"], where, _count: { _all: true } }) : [];
+    })(),
+    c.knowledge().then(async (knowledge) => {
+      if (!knowledge.spaceId || !knowledge.approver || !ids.includes(knowledge.spaceId)) return null;
+      return { spaceId: knowledge.spaceId, n: await db.card.count({ where: sheetsWhere(c, knowledge.spaceId) }) };
+    }),
+  ]);
+  for (const [id, n] of approvals) add(id, n);
+  for (const row of assigns) add(row.task.workspaceId, 1);
+  for (const row of cards) add(row.workspaceId, row._count._all);
+  if (sheets) add(sheets.spaceId, sheets.n);
+  return out;
 }
 
 export type { RequestRow };

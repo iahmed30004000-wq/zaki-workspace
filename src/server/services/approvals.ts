@@ -753,15 +753,31 @@ export async function spaceOfApproval(actor: Who, id: string): Promise<string | 
  * B4: `workspaceId` narrows it to ONE space (each space is its own account), exactly as `listApprovals`' own `workspaceId` does.
  */
 export async function waitingCount(actor: Who, opts: { workspaceId?: string | null } = {}): Promise<number> {
+  const bySpace = await waitingCountBySpace(actor, opts.workspaceId ? [opts.workspaceId] : undefined);
+  let total = 0;
+  for (const n of bySpace.values()) total += n;
+  return total;
+}
+
+/**
+ * S5.8 — «بانتظاري» per space: the SAME count as {@link waitingCount} (which is the sum of this), in ONE grouped read: the requests whose turn is this person's,
+ * by the space they were asked in. `spaceIds` narrows it (left out: every space the person works in); a space the person does not work in is never in the answer, and a
+ * space with nothing waiting has no entry (the caller reads a missing one as 0).
+ */
+export async function waitingCountBySpace(actor: Who, spaceIds?: readonly string[]): Promise<Map<string, number>> {
   await approvalsGate(actor);
-  const allowed = (await workSpacesOf(actor)).map((s) => s.id).filter((id) => !opts.workspaceId || id === opts.workspaceId);
-  if (allowed.length === 0) return 0;
-  const rows = await db.$queryRaw<{ n: bigint }[]>`
-    SELECT COUNT(*)::bigint AS n FROM "ApprovalRequest" r
+  const wanted = spaceIds ? new Set(spaceIds) : null;
+  const allowed = (await workSpacesOf(actor)).map((s) => s.id).filter((id) => !wanted || wanted.has(id));
+  const out = new Map<string, number>();
+  if (allowed.length === 0) return out;
+  const rows = await db.$queryRaw<{ id: string; n: bigint }[]>`
+    SELECT r."workspaceId" AS id, COUNT(*)::bigint AS n FROM "ApprovalRequest" r
     JOIN "ApprovalStep" s ON s."requestId" = r."id" AND s."version" = r."version" AND s."position" = r."currentStep"
     WHERE r."orgId" = ${actor.orgId} AND r."status" = 'PENDING' AND s."approverId" = ${actor.userId} AND s."status" = 'PENDING'
-      AND r."workspaceId" IN (${Prisma.join(allowed)})`;
-  return Number(rows[0]?.n ?? 0);
+      AND r."workspaceId" IN (${Prisma.join(allowed)})
+    GROUP BY r."workspaceId"`;
+  for (const row of rows) out.set(row.id, Number(row.n));
+  return out;
 }
 
 // ───────────────────────────────────────────────────── on a task or a card ─────────────────────────────────────────────────────

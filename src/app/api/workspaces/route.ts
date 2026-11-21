@@ -16,7 +16,7 @@ import { unreadBySpace } from "@/server/chat/unread";
 import { currentSpace } from "@/server/services/current-space";
 import { foreignSpaceOf, overdueBySpace } from "@/server/services/nav-order";
 import { orgSummaryOf } from "@/server/services/features";
-import { requestsScopeHere, waitingRequestCount } from "@/server/services/work-requests";
+import { requestsScopeHere, waitingBySpace, waitingRequestCount } from "@/server/services/work-requests";
 import { log } from "@/server/log";
 import { featureOn } from "@/lib/features";
 import { SPACE_LAYOUTS } from "@/lib/cards/shared";
@@ -37,6 +37,10 @@ import { SPACE_LAYOUTS } from "@/lib/cards/shared";
  * tickets of their departments, cards and sheets they decide), the number on «الشغل». It is the caller's own count, only while the company's
  * switch `workRequests` is on (else 0), and 0 for an external partner. It is counted with the rows' own filters, so it never includes
  * what the person may not open.
+ *
+ * S5.8 — and, while the company's switches `spaceBadges` and `workRequests` are on, `waiting` on each space of the company they work in: what waits for THEM there (the
+ * number beside the other spaces on the phone's drawer). It is `waitingBySpace`, the inbox's own count in one grouped read for every space: only for spaces the person
+ * works in (the list above), nothing for a guest or an external partner, 0 where nothing waits. Left out (no key) while the switches are off or when the count fails.
  */
 export async function GET(req: Request) {
   return withApi(async () => {
@@ -82,17 +86,41 @@ export async function GET(req: Request) {
     // (only for the companies whose switch `navV2` is on: the old shell never draws it, so it costs the old shell nothing)
     const newShell = await Promise.all(orgs.map(async (m) => (featureOn((await orgSummaryOf(m.organization.id))?.settings, "navV2") ? m.organization.id : null)));
     const overdue = await overdueBySpace(user.id, newShell.filter((id): id is string => id !== null));
-    type Entry = { id: string; name: string; slug: string; emoji: string | null; holdsProjects: boolean; unread: number; overdue: number };
+    // the company they work in is the oldest ACTIVE membership (`requireActor`)
+    const first = orgs[0];
+    // S5.8: what waits for the person in each space (null: the numbers are not sent)
+    const badges = first
+      ? await (async () => {
+          const actor = await requireActor();
+          if (actor.isExternal || actor.role === "GUEST") return null;
+          const settings = (await orgSummaryOf(actor.orgId))?.settings;
+          if (!featureOn(settings, "spaceBadges") || !featureOn(settings, "workRequests")) return null;
+          return waitingBySpace(actor, workspaces.filter((w) => w.organizationId === actor.orgId).map((w) => w.id));
+        })().catch((err: unknown) => {
+          // a number that cannot be counted is no number: it never takes the spaces, the unread counts and the banner down with it
+          log.warn("space_badges.count_failed", { message: err instanceof Error ? err.message : String(err) });
+          return null;
+        })
+      : null;
+    type Entry = { id: string; name: string; slug: string; emoji: string | null; holdsProjects: boolean; unread: number; overdue: number; waiting?: number };
     const byOrg = new Map<string, Entry[]>();
     const hqFirst = [...workspaces.filter((w) => w.kind === "HQ"), ...workspaces.filter((w) => w.kind !== "HQ")];
     for (const w of hqFirst) {
       const list = byOrg.get(w.organizationId) ?? [];
       // «الشركة» (HQ) is for announcements and the company's talk: no project is opened there
-      list.push({ id: w.id, name: w.name, slug: w.slug, emoji: w.emoji, holdsProjects: w.kind !== "HQ", unread: unread[w.id] ?? 0, overdue: overdue[w.id] ?? 0 });
+      list.push({
+        id: w.id,
+        name: w.name,
+        slug: w.slug,
+        emoji: w.emoji,
+        holdsProjects: w.kind !== "HQ",
+        unread: unread[w.id] ?? 0,
+        overdue: overdue[w.id] ?? 0,
+        ...(badges && first && w.organizationId === first.organization.id ? { waiting: badges.get(w.id) ?? 0 } : {}),
+      });
       byOrg.set(w.organizationId, list);
     }
-    // the company they work in is the oldest ACTIVE membership (`requireActor`): its current space
-    const first = orgs[0];
+    // the space they are in now, in the company they work in
     const here = first ? await currentSpace({ userId: user.id, orgId: first.organization.id, role: first.role }) : null;
     // the banner: only for a page that is ONE thing of another space (`?path=`), and only while `navV2` is on
     const asked = new URL(req.url).searchParams.get("path");

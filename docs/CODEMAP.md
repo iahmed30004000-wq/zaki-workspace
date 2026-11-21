@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 393 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 188 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 190 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -471,7 +471,7 @@ Doors in use: `requireActor` 175 · `activeOrgCtx` 109 · `(none)` 42 · `requir
 | GET, POST | `/api/work/tasks` | requireActor | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn, isFeatureOn<br>`instant-work`: createInboxTask, createInstantTask, inboxSpaceFor<br>`my-work`: workScreenFor<br>`org-day`: orgTimeZone |
 | GET | `/api/work/tasks/[id]` | requireActor | `features`: assertFeatureOn<br>`current-space`: currentSpace<br>`my-work`: workTaskPanelFor |
 | POST | `/api/work/tasks/[id]/stage` | requireTeamWork | `features`: assertFeatureOn<br>`tasks`: moveTask<br>`n8n`: dispatchEvent |
-| GET, POST | `/api/workspaces` | requireUser | `workspaces`: createWorkspace<br>`features`: assertFeatureOn<br>`access`: accessibleWorkspaceIds<br>`current-space`: currentSpace<br>`nav-order`: foreignSpaceOf, overdueBySpace<br>`features`: orgSummaryOf<br>`work-requests`: requestsScopeHere, waitingRequestCount |
+| GET, POST | `/api/workspaces` | requireUser | `workspaces`: createWorkspace<br>`features`: assertFeatureOn<br>`access`: accessibleWorkspaceIds<br>`current-space`: currentSpace<br>`nav-order`: foreignSpaceOf, overdueBySpace<br>`features`: orgSummaryOf<br>`work-requests`: requestsScopeHere, waitingBySpace, waitingRequestCount |
 | GET, PATCH, DELETE | `/api/workspaces/[id]` | requireWorkspace ‡ | `workspaces`: SpaceConflictError, deleteEmptyWorkspace, readWorkspace |
 | POST | `/api/workspaces/[id]/archive` | requireActor | `workspaces`: SpaceConflictError<br>`space-manage`: archiveSchema, setSpaceArchived |
 | GET, POST | `/api/workspaces/[id]/delete-all` | requireActor | `workspaces`: SpaceConflictError<br>`space-delete`: deleteAllSchema, deleteSpaceWithWork, spaceContents |
@@ -529,7 +529,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `n8n` | 295 | 13 | Events we allow orgs to forward to n8n — the UI shows exactly this list. |
 | `owner-board` | 801 | 13 | «لوحة المالك» — THE NUMBERS. |
 | `team-skills` | 302 | 13 | «المهارات» — the company's skills checklist and each person's level in it. |
-| `approvals` | 815 | 12 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
+| `approvals` | 831 | 12 | «طلبات الموافقة» — ask, decide, send back, resubmit, cancel, read. |
 | `manufacturing-production` | 791 | 12 | «مخزون التصنيع», slice 2 — recipes and production orders. |
 | `tickets` | 530 | 12 | IT tickets live inside a department. |
 | `custom-fields` | 545 | 11 | «حقول مخصصة» — the custom fields of a project's tasks. |
@@ -594,7 +594,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `reward-guard` | 39 | 4 | «مهمة بمكافأة» — the guard every writer of a task goes through (tasks.ts `updateTask` / `deleteTask` / `createTask`, the reward routes). |
 | `reward-input` | 30 | 4 | What a request body says about a reward: the amount as the person typed it (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency (optiona… |
 | `search-embed-index` | 314 | 4 | «بحث بالمعنى» — WHAT GETS A VECTOR, and when. |
-| `work-requests` | 435 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
+| `work-requests` | 493 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `gateway-address` | 24 | 3 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
@@ -903,6 +903,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `verifiedBadge` | 5 — `server/chat/list.ts`, `server/chat/redact.ts`, `server/chat/space-people.ts`, `server/chat/topics.ts`, `server/services/org-members.ts` |
 | `meetingMinutes` | 3 — `server/calls/assistant-agent.ts`, `server/calls/minutes.ts`, `server/calls/transcripts.ts` |
+| `spaceBadges` | 1 — `app/api/workspaces/route.ts` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
 | `semanticSearch` | 6 — `app/(app)/settings/page.tsx`, `components/control-panel/sections/features-section.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
@@ -1004,6 +1005,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `verifiedBadge` | 5 — `server/chat/list.ts`, `server/chat/redact.ts`, `server/chat/space-people.ts`, `server/chat/topics.ts`, `server/services/org-members.ts` |
 | `meetingMinutes` | 3 — `server/calls/assistant-agent.ts`, `server/calls/minutes.ts`, `server/calls/transcripts.ts` |
+| `spaceBadges` | 1 — `app/api/workspaces/route.ts` |
 
 ## 9. What this map noticed
 
