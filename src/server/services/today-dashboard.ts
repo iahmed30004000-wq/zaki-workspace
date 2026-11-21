@@ -170,11 +170,16 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
  * count come from `workRequestsOf(actor, "waiting")` (P0.2 `taskVisibleWhere` for a request on a task, the approver's turn, the departments,
  * the spaces the person moderates). `null` while `workRequests` is off, for a guest, and when nothing waits.
  */
-export async function getTodayWaiting(actor: Actor): Promise<TodayWaiting | null> {
+export async function getTodayWaiting(actor: Actor, opts: { space?: { id: string; kind: string } | null } = {}): Promise<TodayWaiting | null> {
   if (actor.isExternal) return null;
   if (!(await actorFeatureOn(actor, "workRequests"))) return null;
-  const view = await workRequestsOf(actor, "waiting");
-  return topWaiting(view.sections);
+  // B4 — each space is its own account: the space the person is in (inside «الشركة», or with none, all of them, grouped by space with the way there).
+  // Without `space` nothing narrows it (the service's old shape).
+  const scope = opts.space === undefined ? {} : opts.space && opts.space.kind !== "HQ" ? { spaceId: opts.space.id } : { groups: true };
+  const view = await workRequestsOf(actor, "waiting", scope);
+  const top = topWaiting(view.sections);
+  if (top && view.groups) top.groups = view.groups.map((g) => ({ spaceId: g.spaceId, name: g.name, total: g.total }));
+  return top;
 }
 
 /**

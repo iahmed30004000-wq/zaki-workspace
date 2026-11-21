@@ -750,10 +750,11 @@ export async function spaceOfApproval(actor: Who, id: string): Promise<string | 
 /**
  * «بانتظاري»: how many requests wait for this person now (for a badge); 0 while the feature is off for them. It counts exactly the rows
  * `listApprovals({ view: "waiting" })` draws — only the spaces the person still works in (W1.4: the number on «الشغل» must equal the list).
+ * B4: `workspaceId` narrows it to ONE space (each space is its own account), exactly as `listApprovals`' own `workspaceId` does.
  */
-export async function waitingCount(actor: Who): Promise<number> {
+export async function waitingCount(actor: Who, opts: { workspaceId?: string | null } = {}): Promise<number> {
   await approvalsGate(actor);
-  const allowed = (await workSpacesOf(actor)).map((s) => s.id);
+  const allowed = (await workSpacesOf(actor)).map((s) => s.id).filter((id) => !opts.workspaceId || id === opts.workspaceId);
   if (allowed.length === 0) return 0;
   const rows = await db.$queryRaw<{ n: bigint }[]>`
     SELECT COUNT(*)::bigint AS n FROM "ApprovalRequest" r

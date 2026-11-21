@@ -148,7 +148,7 @@ async function simpleToday(actor: Actor, space: CurrentSpace | null) {
   const [data, dashboard, waiting, mentions, followUps, remindersOn, timeOn, checkinsOn, digestOn, pinned, panelHref] = await Promise.all([
     getToday(actor, { spaceId: space?.id ?? null }),
     getTodayDashboard(actor, { space: spaceRef }),
-    getTodayWaiting(actor),
+    getTodayWaiting(actor, { space: spaceRef }),
     getTodayMentions(actor, { space: spaceRef }),
     getTodayFollowUps(actor),
     actorFeatureOn(actor, "reminders"),

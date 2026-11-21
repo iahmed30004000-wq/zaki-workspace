@@ -15,6 +15,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import RequestsPage from "@/app/(app)/requests/page";
+import ApprovalsPage from "@/app/(app)/approvals/page";
 import * as requestsRoute from "@/app/api/work/requests/route";
 import * as workspacesRoute from "@/app/api/workspaces/route";
 import * as acceptRoute from "@/app/api/tasks/[id]/request/accept/route";
@@ -28,6 +29,7 @@ import { createTask } from "@/server/services/tasks";
 import { waitingCount } from "@/server/services/approvals";
 import * as workRequestsService from "@/server/services/work-requests";
 import { waitingRequestCount, workRequestsOf } from "@/server/services/work-requests";
+import { getTodayWaiting } from "@/server/services/today-dashboard";
 import type { RequestSection, SectionKey, WorkRequestsView } from "@/components/work/requests/types";
 import { withFeature } from "@/lib/features";
 import { AR } from "@/lib/i18n/dict";
@@ -241,7 +243,11 @@ describe("cards in review: only where I decide", () => {
     await w.card(w.member.id, { status: "DRAFT", title: "مسودة" });
     await w.card(w.member.id, { workspaceId: w.other.id, title: "بمساحة ثانية" });
     expect(titles((await inbox(w.admin)).view, "cards")).toEqual(["بطاقة للمراجعة"]);
-    expect(titles((await inbox(w.owner)).view, "cards").sort()).toEqual(["بطاقة للمراجعة", "بمساحة ثانية"].sort());
+    // B4 (each space is its own account): the owner sees the card of the space he is in; the other space's card waits in THAT space
+    expect(titles((await inbox(w.owner)).view, "cards")).toEqual(["بطاقة للمراجعة"]);
+    jar().set(SPACE_COOKIE, w.other.id);
+    expect(titles((await inbox(w.owner)).view, "cards")).toEqual(["بمساحة ثانية"]);
+    jar().set(SPACE_COOKIE, w.ws.id);
     expect(titles((await inbox(w.member)).view, "cards")).toEqual([]);
     expect(section((await inbox(w.member)).view, "cards")).toBeUndefined();
     expect(titles((await inbox(w.lead)).view, "cards")).toEqual([]);
@@ -272,6 +278,8 @@ describe("product sheets waiting for approval (Q1.1)", () => {
     const space = await makeWorkspace(w.orgId, [{ userId: w.admin.id, role: "ADMIN" }, { userId: w.lead.id }, { userId: w.member.id }], "المعرفة");
     await setSettings(w.orgId, { knowledgeSpaceId: space.id, knowledgeEditorIds: [w.member.id], knowledgeApproverIds: [w.lead.id] }, { knowledgeCards: true });
     const sheet = await db.card.create({ data: { orgId: w.orgId, workspaceId: space.id, createdById: w.member.id, kind: "PRODUCT", title: "كريم مرطّب", status: "REVIEW", version: 3 } });
+    // B4 (each space is its own account): a product sheet waits in the knowledge space, so these people are in it (the others fall back to the first space they have)
+    jar().set(SPACE_COOKIE, space.id);
     return { ...w, space, sheet };
   }
 
@@ -379,6 +387,160 @@ describe("the number on «الشغل»", () => {
     const answer = (await call(workspacesRoute.GET, { url: "http://localhost/api/workspaces" })).json as Record<string, unknown>;
     expect(Object.keys(answer).sort()).toEqual(["currentSpaceId", "foreign", "organizations", "waiting"]);
     expect(Object.keys((answer["organizations"] as Record<string, unknown>[])[0] as object).sort()).toEqual(["canCreateSpaces", "id", "keyPrefix", "name", "role", "workspaces"]);
+  });
+});
+
+describe("B4 — each space is its own account: «الطلبات» of the space I am in; «الشركة» groups them by space", () => {
+  /** The member works in BOTH spaces: one approval waits for him in `ws`, one in `other` (asked by the outsider); a card in review waits in each space for the owner. */
+  async function twoSpaces() {
+    const w = await world();
+    await ask(w, w.admin, [w.member.id], { title: "في المساحة الأولى" });
+    await ask(w, w.outsider, [w.member.id], { title: "في المساحة الثانية", workspaceId: w.other.id });
+    await w.card(w.member.id, { title: "بطاقة أولى" });
+    await w.card(w.member.id, { workspaceId: w.other.id, title: "بطاقة ثانية" });
+    await makeTicket({ orgId: w.orgId, departmentId: w.dept.id, creatorId: w.owner.id });
+    return w;
+  }
+  const hqFor = async (w: { orgId: string }, people: { id: string }[]) =>
+    db.workspace.create({ data: { organizationId: w.orgId, name: "الشركة", slug: `hq-${uid()}`, systemKey: "hq", kind: "HQ", members: { create: people.map((p) => ({ userId: p.id })) } } });
+
+  it("inside a space only that space's approvals, assignment requests and cards are listed and counted; tickets stay the company's (departments have no space)", async () => {
+    const w = await twoSpaces();
+    await w.askFor(w.member, w.admin, "طلب إسناد");
+    await loginAs(w.member.id);
+    const actor = await requireActor();
+    const inWs = await workRequestsOf(actor, "waiting", { spaceId: w.ws.id });
+    expect(titles(inWs, "approvals")).toEqual(["في المساحة الأولى"]);
+    expect(inWs.space).toEqual({ id: w.ws.id, name: w.ws.name });
+    const inOther = await workRequestsOf(actor, "waiting", { spaceId: w.other.id });
+    expect(titles(inOther, "approvals")).toEqual(["في المساحة الثانية"]);
+    // the two approvals still add up when nothing narrows it (the old behaviour of the service)
+    expect((await workRequestsOf(actor, "waiting")).sections.find((s) => s.key === "approvals")?.total).toBe(2);
+    // the ticket of the member's department is in each space's list: it belongs to no space
+    expect(section(inWs, "tickets")?.total).toBe(1);
+    expect(section(inOther, "tickets")?.total).toBe(1);
+    // the number is the length of that space's list
+    expect(await waitingRequestCount(actor, { spaceId: w.ws.id })).toBe(inWs.total);
+    expect(await waitingRequestCount(actor, { spaceId: w.other.id })).toBe(inOther.total);
+    // the assignment request on the admin's side, and the cards of the owner
+    await loginAs(w.admin.id);
+    const admin = await requireActor();
+    expect(titles(await workRequestsOf(admin, "waiting", { spaceId: w.ws.id }), "assignments")).toEqual(["طلب إسناد"]);
+    expect(section(await workRequestsOf(admin, "waiting", { spaceId: w.other.id }), "assignments")?.total ?? 0).toBe(0);
+    await loginAs(w.owner.id);
+    const owner = await requireActor();
+    expect(titles(await workRequestsOf(owner, "waiting", { spaceId: w.ws.id }), "cards")).toEqual(["بطاقة أولى"]);
+    expect(titles(await workRequestsOf(owner, "waiting", { spaceId: w.other.id }), "cards")).toEqual(["بطاقة ثانية"]);
+  });
+
+  it("«طلباتي» is cut the same way: what I asked in the space I am in", async () => {
+    const w = await twoSpaces();
+    await ask(w, w.member, [w.admin.id], { title: "طلبي هنا" });
+    await ask(w, w.member, [w.outsider.id], { title: "طلبي هناك", workspaceId: w.other.id });
+    await loginAs(w.member.id);
+    const actor = await requireActor();
+    expect(titles(await workRequestsOf(actor, "mine", { spaceId: w.ws.id }), "approvals")).toEqual(["طلبي هنا"]);
+    expect(titles(await workRequestsOf(actor, "mine", { spaceId: w.other.id }), "approvals")).toEqual(["طلبي هناك"]);
+  });
+
+  it("the route and the page follow the space I am in (the cookie): each space shows its own", async () => {
+    const w = await twoSpaces();
+    jar().set(SPACE_COOKIE, w.ws.id);
+    expect(titles((await inbox(w.member)).view, "approvals")).toEqual(["في المساحة الأولى"]);
+    jar().set(SPACE_COOKIE, w.other.id);
+    expect(titles((await inbox(w.member)).view, "approvals")).toEqual(["في المساحة الثانية"]);
+    expect((await inbox(w.member)).view.groups).toBeUndefined();
+    await loginAs(w.member.id);
+    const page = await html(RequestsPage({ searchParams: {} }));
+    expect(page).toContain("في المساحة الثانية");
+    expect(page).not.toContain("في المساحة الأولى");
+  });
+
+  it("the number on «الشغل» counts the space I am in; inside «الشركة» it counts all of them", async () => {
+    const w = await twoSpaces();
+    const hq = await hqFor(w, [w.member]);
+    const waiting = async (spaceId: string) => {
+      jar().set(SPACE_COOKIE, spaceId);
+      return (await spaces(w.member)).waiting;
+    };
+    const spaces = async (person: { id: string }) => {
+      await loginAs(person.id);
+      return (await call(workspacesRoute.GET, { url: "http://localhost/api/workspaces" })).json as unknown as { waiting: number };
+    };
+    expect(await waiting(w.ws.id)).toBe(2); // the approval + the department's ticket
+    expect(await waiting(w.other.id)).toBe(2);
+    expect(await waiting(hq.id)).toBe(3); // both approvals + the ticket, once
+  });
+
+  it("inside «الشركة»: all spaces grouped by space, each group with its own count, the tickets as a company-wide group; empty spaces are not drawn", async () => {
+    const w = await twoSpaces();
+    const hq = await hqFor(w, [w.member, w.outsider]);
+    jar().set(SPACE_COOKIE, hq.id);
+    const view = (await inbox(w.member)).view;
+    // the spaces in the order of the spaces (by name), the company-wide group last
+    const named = view.groups?.slice(0, -1).map((g) => [g.spaceId, g.name, g.total]) ?? [];
+    expect(named).toHaveLength(2);
+    expect(named).toEqual(expect.arrayContaining([[w.ws.id, w.ws.name, 1], [w.other.id, w.other.name, 1]]));
+    expect(view.groups?.at(-1)).toMatchObject({ spaceId: null, name: null, total: 1 });
+    expect(view.total).toBe(3);
+    // the flat sections still hold everything (Today reads them)
+    expect(view.sections.find((s) => s.key === "approvals")?.total).toBe(2);
+    expect(titles(view, "approvals").sort()).toEqual(["في المساحة الأولى", "في المساحة الثانية"]);
+    // the page draws a group per space with «انتقل» through /go
+    await loginAs(w.member.id);
+    const page = await html(RequestsPage({ searchParams: {} }));
+    expect(page).toContain(w.ws.name);
+    expect(page).toContain(w.other.name);
+    expect(page).toContain(`/go?space=${w.other.id}`);
+    expect(page).toContain(AR["workreq.group.go"]);
+    // a person with nothing waiting in any space gets no groups
+    expect((await inbox(w.outsider)).view.groups).toEqual([]);
+  });
+
+  it("Today's «بانتظار قرارك»: the space I am in; inside «الشركة» the per-space groups with the way there", async () => {
+    const w = await twoSpaces();
+    const hq = await hqFor(w, [w.member]);
+    await loginAs(w.member.id);
+    const actor = await requireActor();
+    const here = await getTodayWaiting(actor, { space: { id: w.other.id, kind: "STANDARD" } });
+    const titlesHere = here?.rows.map((r) => r.title) ?? [];
+    expect(titlesHere).toContain("في المساحة الثانية");
+    expect(titlesHere).not.toContain("في المساحة الأولى");
+    expect(here?.groups).toBeUndefined();
+    const all = await getTodayWaiting(actor, { space: { id: hq.id, kind: "HQ" } });
+    expect(all?.total).toBe(3);
+    expect(all?.groups?.map((g) => [g.spaceId, g.total])).toEqual(expect.arrayContaining([[w.ws.id, 1], [w.other.id, 1], [null, 1]]));
+    expect(all?.groups).toHaveLength(3);
+  });
+
+  it("the old approvals page follows the same rule: the space I am in; inside «الشركة» every space, and the number on its tab counts what it lists", async () => {
+    const w = await twoSpaces();
+    const hq = await hqFor(w, [w.member]);
+    const open = async (spaceId: string) => {
+      jar().set(SPACE_COOKIE, spaceId);
+      await loginAs(w.member.id);
+      return html(ApprovalsPage({ searchParams: { v: "waiting" } }));
+    };
+    const here = await open(w.other.id);
+    expect(here).toContain("في المساحة الثانية");
+    expect(here).not.toContain("في المساحة الأولى");
+    expect(here).toContain(`${AR["approvals.view.waiting"]} (1)`);
+    const all = await open(hq.id);
+    expect(all).toContain("في المساحة الثانية");
+    expect(all).toContain("في المساحة الأولى");
+    expect(all).toContain(`${AR["approvals.view.waiting"]} (2)`);
+  });
+
+  it("a product sheet waits in the knowledge space: it is in that space's list and in «الشركة», not in the other spaces", async () => {
+    const w = await world();
+    const space = await makeWorkspace(w.orgId, [{ userId: w.lead.id }], "المعرفة");
+    await setSettings(w.orgId, { knowledgeSpaceId: space.id, knowledgeApproverIds: [w.lead.id] }, { knowledgeCards: true });
+    await db.card.create({ data: { orgId: w.orgId, workspaceId: space.id, createdById: w.member.id, kind: "PRODUCT", title: "كريم", status: "REVIEW", version: 1 } });
+    await loginAs(w.lead.id);
+    const actor = await requireActor();
+    expect(titles(await workRequestsOf(actor, "waiting", { spaceId: space.id }), "sheets")).toEqual(["كريم"]);
+    expect(section(await workRequestsOf(actor, "waiting", { spaceId: w.ws.id }), "sheets")).toBeUndefined();
+    expect(titles(await workRequestsOf(actor, "waiting", { groups: true }), "sheets")).toEqual(["كريم"]);
   });
 });
 

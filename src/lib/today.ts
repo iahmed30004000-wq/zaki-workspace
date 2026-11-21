@@ -466,6 +466,8 @@ export interface TodayWaiting {
   /** The real count: the length of W1.4's «بانتظاري». */
   total: number;
   rows: WaitingRowView[];
+  /** B4: only inside «الشركة»: what waits, space by space (`spaceId: null`: the company-wide tickets). The card draws these, each with «انتقل». */
+  groups?: { spaceId: string | null; name: string | null; total: number }[];
 }
 
 /** The newest `WAITING_TOP` rows across the inbox's sections (each section is already filtered by what the person may see); null when nothing waits. */
