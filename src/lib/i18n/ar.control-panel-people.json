@@ -1,0 +1,20 @@
+{
+  "nav.place.controlPanel": "لوحة التحكم",
+
+  "cpone.subtitle": "قائمة وحدة بس: كل شخص بيشوف الأقسام اللي بيقدر يفتحها، والباقي بالإعدادات.",
+  "cpone.nav.label": "أقسام لوحة التحكم",
+  "cpone.nav.overview": "نظرة عامة",
+  "cpone.nav.people": "الناس",
+  "cpone.nav.reports": "التقارير",
+  "cpone.nav.structure": "الهيكل والأداء",
+  "cpone.nav.archive": "الأرشيف والرقابة",
+  "cpone.nav.assistant": "مساعد المالك",
+
+  "cpone.structure.nav": "أجزاء الهيكل والأداء",
+
+  "cpone.people.hint": "كل شي عن الناس بقسم واحد: الحسابات وصلاحياتهم، وقوالب الصلاحيات، وجدول نشاطهم.",
+  "cpone.people.nav": "أجزاء قسم الناس",
+  "cpone.people.part.accounts": "الحسابات والصلاحيات",
+  "cpone.people.part.templates": "قوالب الصلاحيات",
+  "cpone.people.part.activity": "النشاط"
+}

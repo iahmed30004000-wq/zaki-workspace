@@ -24,15 +24,20 @@ export const scopeText = (t: ServerT, scope: PanelScope): string => {
   return t(chip.key, chip.params);
 };
 
-export function PanelFrame({ t, sections, current, notice, children }: { t: ServerT; sections: readonly PanelSectionKey[]; current: PanelSectionKey; notice?: string; children: React.ReactNode }) {
+/**
+ * `oneNav` (S3.2, the switch `settingsOneDoor`): the panel is its own place and this list is its ONE navigation (the six entries `PANEL_ONE_NAV`, named by `cpone.nav.<key>`). Left out, the list is
+ * the eleven-section list of the panel inside the administration, exactly as it was.
+ */
+export function PanelFrame({ t, sections, current, notice, oneNav = false, children }: { t: ServerT; sections: readonly PanelSectionKey[]; current: PanelSectionKey; notice?: string; oneNav?: boolean; children: React.ReactNode }) {
+  const nameOf = (key: PanelSectionKey) => t(oneNav ? `cpone.nav.${key}` : `cpv2.section.${key}`);
   return (
-    <div dir="rtl" className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6" data-panel-v2 data-section={current}>
+    <div dir="rtl" className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6" data-panel-v2 {...(oneNav ? { "data-panel-one": "" } : {})} data-section={current}>
       <header>
         <h1 className="text-xl font-semibold tracking-tight">{t("cp.title")}</h1>
-        <p className="mt-1 text-sm text-muted">{t("cpv2.subtitle")}</p>
+        <p className="mt-1 text-sm text-muted">{t(oneNav ? "cpone.subtitle" : "cpv2.subtitle")}</p>
       </header>
       <div className="flex flex-col gap-4 md:flex-row md:items-start md:gap-6">
-        <nav aria-label={t("cpv2.nav.label")} className="md:sticky md:top-4 md:w-56 md:shrink-0" data-testid="cp-side-list">
+        <nav aria-label={t(oneNav ? "cpone.nav.label" : "cpv2.nav.label")} className="md:sticky md:top-4 md:w-56 md:shrink-0" data-testid="cp-side-list">
           <ul className="flex gap-2 overflow-x-auto pb-1 md:flex-col md:overflow-visible md:pb-0">
             {sections.map((key) => (
               <li key={key} className="shrink-0 md:shrink">
@@ -45,7 +50,7 @@ export function PanelFrame({ t, sections, current, notice, children }: { t: Serv
                     key === current ? "border-accent bg-accent/10 font-medium text-fg" : "border-border bg-surface-1 text-fg-muted hover:bg-surface-2",
                   )}
                 >
-                  {t(`cpv2.section.${key}`)}
+                  {nameOf(key)}
                 </Link>
               </li>
             ))}
@@ -65,11 +70,11 @@ export function PanelFrame({ t, sections, current, notice, children }: { t: Serv
 }
 
 /** The title of a section: its name (the same for everybody), an optional line under it and the scope chip when the section shows numbers. */
-export function SectionHeader({ t, section, hint, scope }: { t: ServerT; section: PanelSectionKey; hint?: string; scope?: PanelScope }) {
+export function SectionHeader({ t, section, hint, scope, title }: { t: ServerT; section: PanelSectionKey; hint?: string; scope?: PanelScope; title?: string }) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-2" data-section-header={section}>
       <div className="min-w-0">
-        <h2 className="text-lg font-semibold tracking-tight">{t(`cpv2.section.${section}`)}</h2>
+        <h2 className="text-lg font-semibold tracking-tight">{title ?? t(`cpv2.section.${section}`)}</h2>
         {hint ? <p className="mt-0.5 text-xs leading-5 text-fg-muted">{hint}</p> : null}
       </div>
       {scope ? <ScopeChip t={t} scope={scope} /> : null}

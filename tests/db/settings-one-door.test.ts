@@ -268,20 +268,26 @@ describe("S3.1 · ON: the old addresses keep answering", () => {
     };
     for (const [address, page] of Object.entries(pages)) {
       expect(PANEL_REDIRECT_ADDRESSES, address).toContain(address);
-      expect(await open(page), address).toEqual({ kind: "redirect", to: panelRedirectHref(address) });
+      // S3.2: with the door on, «الحسابات» is a part of «الناس» (the answer of the one-door map)
+      expect(await open(page), address).toEqual({ kind: "redirect", to: panelRedirectHref(address, undefined, true) });
     }
   });
 });
 
 describe("S3.1 · ON: the place «الإدارة» leaves the map of an admin who holds the panel", () => {
   for (const navV2 of [false, true]) {
-    it(`navV2 ${navV2}: gone for the owner, a partner and an admin; a lead keeps it; a member keeps «الناس»; a guest is untouched`, async () => {
+    it(`navV2 ${navV2}: «لوحة التحكم» (one row, no tabs) in its slot for the owner, a partner and an admin; a lead keeps it; a member keeps «الناس»; a guest is untouched`, async () => {
       const w = await world({ door: true, navV2 });
       const places = async (who: Person) => {
         await as(w, who);
         return (await visibleNavFor(await requireActor())).places;
       };
-      for (const who of ["owner", "partner", "admin"] as const) expect((await places(who)).map((p) => p.key), who).not.toContain("admin");
+      // S3.2 (deliberate change): the slot of «الإدارة» is «لوحة التحكم», one row to /owner with no tab strip
+      for (const who of ["owner", "partner", "admin"] as const) {
+        const place = (await places(who)).find((p) => p.key === "admin");
+        expect(place?.labelKey, who).toBe("nav.place.controlPanel");
+        expect(place?.tabs, who).toEqual([]);
+      }
       expect((await places("lead")).map((p) => p.key)).toContain("admin");
       const member = (await places("member")).find((p) => p.key === "admin");
       expect(member).toBeTruthy();
@@ -301,6 +307,6 @@ describe("S3.1 · ON: the place «الإدارة» leaves the map of an admin wh
     const org = await db.organization.findUniqueOrThrow({ where: { id: w.org.id } });
     // «المساحات» is the rank rule (OWNER and ADMIN): the panel still serves this admin one section, so the place goes
     expect(await oneDoorPanelFor(actor, org.settings)).toBe(true);
-    expect((await visibleNavFor(actor)).places.map((p) => p.key)).not.toContain("admin");
+    expect((await visibleNavFor(actor)).places.find((p) => p.key === "admin")?.labelKey).toBe("nav.place.controlPanel");
   });
 });

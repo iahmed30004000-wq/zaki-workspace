@@ -4,9 +4,10 @@ import { carriedQuery } from "@/lib/legacy-routes";
 import { legacyPanelTarget, myBoardHref, panelHref, type PanelSectionKey } from "@/lib/control-panel";
 import { NotFoundError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
-import { assertPanelSection, integrationPartsOf, panelAccess, type PanelAccess } from "@/server/services/control-panel";
+import { assertPanelSection, integrationPartsOf, panelAccess, panelOneDoorOn, type PanelAccess } from "@/server/services/control-panel";
 import type { IntegrationPart } from "@/lib/control-panel";
 import { PanelFrame } from "./frame";
+import { ControlPanelOneDoor } from "./panel-one";
 import { OverviewSection, PeopleSection, type SectionCtx } from "./sections/board-sections";
 import { ReportsSection } from "./sections/reports-section";
 import { AccountsSection } from "./sections/accounts-section";
@@ -64,6 +65,9 @@ export async function ControlPanelV2({ actor, searchParams }: { actor: Actor; se
     if (!actor.isExternal && actor.caps.has("board.self") && err.message === "cpv2.not_found") redirect(myBoardHref(actor.userId));
     notFound();
   }
+
+  // S3.2: with «الإعدادات» as ONE door (`settingsOneDoor`) the panel is its own place with ONE navigation (the eleven-section code path below is today's, untouched while the switch is off)
+  if (await panelOneDoorOn(actor)) return ControlPanelOneDoor({ actor, access, searchParams });
 
   // the first panel's `?v=` (people, reports, the AI part): its section, with the filters it carried
   const legacy = legacyPanelTarget(first(searchParams["v"]));

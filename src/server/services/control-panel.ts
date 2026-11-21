@@ -379,7 +379,16 @@ export async function panelRedirectFor(actor: Actor, address: string, extra?: Re
   if (!panelSectionsFor(facts).includes(target.section)) return null;
   // a part of «التكاملات» that is not offered to this person (the AI connection is the owner's) keeps the old page, which answers as it always did
   if (target.section === "integrations" && target.part && !(await integrationPartsOf(actor)).includes(target.part as IntegrationPart)) return null;
-  return panelRedirectHref(address, extra);
+  return panelRedirectHref(address, extra, await panelOneDoorOn(actor));
+}
+
+/**
+ * S3.2 — is «الإعدادات» ONE door for this company (`settingsOneDoor`) AND the one control panel it needs (`controlPanelV2`) on? Then the panel is its own place with ONE navigation,
+ * «الناس» is one section, and the settings sections are «إعدادات الشركة». The same rule as `oneDoorOnFor` (src/components/settings-me/server-data.ts) and `settingsOneDoorOf` (src/lib/nav/shell-v2.ts).
+ */
+export async function panelOneDoorOn(actor: Pick<Actor, "orgId">): Promise<boolean> {
+  const [door, panel] = await Promise.all([isFeatureOn(actor.orgId, "settingsOneDoor"), isFeatureOn(actor.orgId, "controlPanelV2")]);
+  return door && panel;
 }
 
 /**

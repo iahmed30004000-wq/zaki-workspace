@@ -7,7 +7,7 @@ import { parseBoardQuery } from "@/server/services/owner-board-io";
 import { loadPanelHome, panelScopeOf, companyPanelAccess, type PanelAccess } from "@/server/services/control-panel";
 import { BoardCards, DefinitionNote, FilterBar, PeopleTable, TodayStrip, boardHref, paramsOf } from "@/components/owner-board/board";
 import { InsightList, KpiGrid } from "@/components/control-panel/panel";
-import { SectionHeader, scopeText } from "@/components/control-panel/frame";
+import { ScopeChip, SectionHeader, scopeText } from "@/components/control-panel/frame";
 import { fmtMoment } from "@/components/owner-board/format";
 
 /**
@@ -22,6 +22,8 @@ export interface SectionCtx {
   access: PanelAccess;
   searchParams: Record<string, string | string[] | undefined>;
   t: ServerT;
+  /** S3.2: the panel is drawn with ONE navigation (`settingsOneDoor`): a section wears the navigation's name. Left out: today's names. */
+  oneDoor?: boolean;
 }
 
 const miss = (err: unknown): never => {
@@ -51,7 +53,11 @@ export async function OverviewSection({ ctx }: { ctx: SectionCtx }) {
   );
 }
 
-export async function PeopleSection({ ctx }: { ctx: SectionCtx }) {
+/**
+ * `part` (S3.2, the switch `settingsOneDoor`): the table is the part «النشاط» of the ONE section «الناس», which draws its own title and parts; here only the scope chip stays, and the
+ * filters, the sort and the CSV link carry the part so they come back to it. Left out, the section is drawn as it was.
+ */
+export async function PeopleSection({ ctx, part }: { ctx: SectionCtx; part?: string }) {
   const { access, searchParams, t } = ctx;
   const board = access.board;
   if (!board) return notFound();
@@ -67,19 +73,27 @@ export async function PeopleSection({ ctx }: { ctx: SectionCtx }) {
     return miss(err);
   });
   const scope = await panelScopeOf(board);
-  const carry = { ...paramsOf(o), person: o.filters.person, s: "people" };
+  const where: Record<string, string> = part ? { s: "people", part } : { s: "people" };
+  const carry = { ...paramsOf(o), person: o.filters.person, ...where };
   const personHref = (id: string) => boardHref(`/owner/people/${id}`, paramsOf(o));
   const sortHref = (sort: string, dir: string) => boardHref("/owner", { ...carry, sort, dir });
   return (
     <div className="space-y-4" data-testid="cp-people">
-      <SectionHeader t={t} section="people" hint={t("cp.people.hint")} scope={scope} />
+      {part ? (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="min-w-0 text-xs leading-5 text-fg-muted">{t("cp.people.hint")}</p>
+          <ScopeChip t={t} scope={scope} />
+        </div>
+      ) : (
+        <SectionHeader t={t} section="people" hint={t("cp.people.hint")} scope={scope} />
+      )}
       {notice ? (
         <p className="rounded-xl border border-warn/40 bg-warn/10 px-3 py-2 text-sm text-warn" role="status">
           {notice}
         </p>
       ) : null}
       <DefinitionNote t={t} />
-      <FilterBar t={t} action="/owner" hidden={{ s: "people" }} resetHref="/owner?s=people" o={o} people={o.people} csvHref={boardHref("/api/owner-board/csv", { ...carry, sort: o.filters.sort, dir: o.filters.dir })} />
+      <FilterBar t={t} action="/owner" hidden={where} resetHref={part ? `/owner?s=people&part=${part}` : "/owner?s=people"} o={o} people={o.people} csvHref={boardHref("/api/owner-board/csv", { ...carry, sort: o.filters.sort, dir: o.filters.dir })} />
       <PeopleTable t={t} o={o} personHref={personHref} sortHref={sortHref} />
     </div>
   );
