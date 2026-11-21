@@ -889,7 +889,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workStages` | 2 — `app/(app)/spaces/[id]/settings/page.tsx`, `app/api/boards/[id]/columns/route.ts` |
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
-| `zakiEmojis` | 1 — `server/chat/topics.ts` |
+| `zakiEmojis` | 2 — `server/chat/messages.ts`, `server/chat/topics.ts` |
 | `controlPanelV2` | 10 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `spaceTemplates` | 2 — `app/api/workspaces/route.ts`, `components/space-templates/new-space-from-template.tsx` |
 | `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
@@ -921,7 +921,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workStages` | 2 — `app/(app)/spaces/[id]/settings/page.tsx`, `app/api/boards/[id]/columns/route.ts` |
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
-| `zakiEmojis` | 1 — `server/chat/topics.ts` |
+| `zakiEmojis` | 2 — `server/chat/messages.ts`, `server/chat/topics.ts` |
 | `backgroundNudges` | 2 — `server/jobs/checkins.ts`, `server/services/task-rules-run.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
 | `spaceDocs` | 3 — `app/(app)/documents/page.tsx`, `lib/nav/places.ts`, `server/services/documents.ts` |
