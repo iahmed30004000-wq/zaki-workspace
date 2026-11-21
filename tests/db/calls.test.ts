@@ -230,6 +230,25 @@ describe("calls: the ring", () => {
     expect(await db.realtimeEvent.count({ where: { kind: "call.changed", ids: { path: ["callId"], equals: id } } })).toBe(1);
   });
 
+  it("a person who muted the topic for themselves is not rung; the others are; the caller never is", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await db.conversationMember.create({ data: { conversationId: topic.id, userId: t.admin.id, mutedUntil: new Date(Date.now() + 3_600_000) } });
+    await db.conversationMember.create({ data: { conversationId: topic.id, userId: t.guest.id, mutedUntil: new Date(Date.now() - 1000) } }); // an old mute is over
+    await loginAs(t.member.id);
+    const id = (await start(topic.id)).json?.["id"] as string;
+    expect(await ringsOf(id)).toEqual([t.guest.id]);
+  });
+
+  it("a person who muted their private chat is still rung by it (a call there is deliberate)", async () => {
+    const t = await space();
+    await loginAs(t.member.id);
+    const dm = (await call(dmRoute.POST, { body: { userId: t.admin.id } })).json?.["id"] as string;
+    await db.conversationMember.update({ where: { conversationId_userId: { conversationId: dm, userId: t.admin.id } }, data: { mutedUntil: new Date(Date.now() + 3_600_000) } });
+    const id = (await start(dm)).json?.["id"] as string;
+    expect(await ringsOf(id)).toEqual([t.admin.id]);
+  });
+
   it("a DM always rings its other person, and only them", async () => {
     const t = await space();
     await loginAs(t.member.id);

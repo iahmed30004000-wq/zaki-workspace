@@ -23,7 +23,8 @@ export function CallButton({ conversationId, isDm, canStart, compact = false, ou
   const router = useRouter();
   const toast = useOptionalToast();
   const [going, setGoing] = React.useState<{ id: string } | null>(null);
-  const [ring, setRing] = React.useState(true);
+  // a topic or a group does not ring everybody unless the person asks for it (a private call always rings)
+  const [ring, setRing] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const base = `/api/chat/conversations/${encodeURIComponent(conversationId)}/call`;
 

@@ -140,6 +140,13 @@ describe("«مكالمة» in a header and in the info panel", () => {
     expect(src).toContain("void ensurePush(true);");
   });
 
+  it("«رنّ على الكل» is OFF by default for a topic or a group (a private call always rings): a call there does not wake the whole space", () => {
+    const src = read("src/components/calls/call-button.tsx");
+    expect(src).toContain("const [ring, setRing] = React.useState(false);");
+    expect(src).not.toContain("React.useState(true)");
+    expect(src).toContain("ring: isDm || ring");
+  });
+
   it("the header mounts the same button (and the assistant's call for the owner's own chat): no second call button", () => {
     const header = read("src/components/chat/v2/pane/pane-header.tsx");
     expect(header).toContain("<CallButton conversationId={header.id}");

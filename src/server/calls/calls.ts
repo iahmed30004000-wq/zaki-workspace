@@ -187,7 +187,7 @@ export async function ringAudience(conversationId: string, callerId: string): Pr
       orderBy: { userId: "asc" },
       take: RING_CAP,
     });
-    return keepCallable(conv.orgId, rows.map((r) => r.userId));
+    return keepCallable(conv.orgId, await dropMuted(conversationId, rows.map((r) => r.userId)));
   }
   let candidates: string[];
   if (conv.kind === "TOPIC" && !conv.restricted && conv.spaceId) {
@@ -202,7 +202,17 @@ export async function ringAudience(conversationId: string, callerId: string): Pr
     const facts = await loadConversationFacts(userId, conversationId);
     if (facts && canRead(facts, await loadOrgFacts(userId, facts.orgId))) out.push(userId);
   }
-  return keepCallable(conv.orgId, out);
+  // a private chat rings its person whatever they muted (somebody called them on purpose); a topic or a group does not ring who muted it
+  return keepCallable(conv.orgId, conv.kind === "DM" ? out : await dropMuted(conversationId, out));
+}
+
+/** Takes out who muted this conversation for themselves (`ConversationMember.mutedUntil` in the future): a mute is never rung. */
+async function dropMuted(conversationId: string, userIds: string[]): Promise<string[]> {
+  if (userIds.length === 0) return userIds;
+  const muted = await db.conversationMember.findMany({ where: { conversationId, userId: { in: userIds }, mutedUntil: { gt: new Date() } }, select: { userId: true } });
+  if (muted.length === 0) return userIds;
+  const skip = new Set(muted.map((m) => m.userId));
+  return userIds.filter((id) => !skip.has(id));
 }
 
 /** Only who may join a call is rung: the calls «يشوف» box of the section grid (an external partner by the space's rules). */
