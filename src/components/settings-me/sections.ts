@@ -23,8 +23,12 @@ export function visibleSections(facts: SectionFacts): SectionKey[] {
 
 export const SETTINGS_ME_HREF = "/settings/me";
 export const sectionHref = (key: SectionKey): string => `${SETTINGS_ME_HREF}/${key}`;
-export const sectionLabelKey = (key: SectionKey): string => `settingsMe.s.${key}`;
-export const sectionHintKey = (key: SectionKey): string => `settingsMe.s.${key}.hint`;
+/**
+ * The name and the line of a section. `oneDoor` (S3.3, the switch `settingsOneDoor`): the theme has ONE home, «المظهر واللغة» (the section `language`), so that section wears its new name and the
+ * chat section's line stops naming the theme. Left out, today's words.
+ */
+export const sectionLabelKey = (key: SectionKey, oneDoor = false): string => (oneDoor && key === "language" ? "settingsMe.s.language.one" : `settingsMe.s.${key}`);
+export const sectionHintKey = (key: SectionKey, oneDoor = false): string => (oneDoor && (key === "language" || key === "chat") ? `settingsMe.s.${key}.one.hint` : `settingsMe.s.${key}.hint`);
 
 /**
  * S3.1 — «إعدادات الشركة»: the second group of the frame while «الإعدادات» is ONE door (switch `settingsOneDoor`). Each one shows the control panel's own section body (MOVED, not rebuilt:
@@ -51,15 +55,16 @@ export interface CompanyGroup {
 
 /**
  * The group of «إعدادات الشركة» for a person, from the panel sections they may open (`panelSectionsFor`, the capability checks of the panel itself: never a rank check of this file's own),
- * or null when there is none. A section is drawn only when the panel offers its twin to this person. The row «لوحة التحكم» is the way to everything else of the administration
- * (the people, the reports, the archive, the structure, the assistant): it is drawn for whoever holds a section of the group and for an ADMIN or OWNER who holds any section of the panel (their
- * place «الإدارة» is not in the menu, `oneDoorHidesAdmin`).
+ * or null when there is none. A section is drawn only when the panel offers its twin to this person.
+ *
+ * The row «لوحة التحكم» (S3.1) is drawn only for somebody whose menu has no place of that name: an OWNER or an ADMIN holds the place «لوحة التحكم» (S3.2, `oneDoorPanelPlace`), so a second door to the
+ * same page inside the settings is a duplicate (S3.3), and an admin who holds nothing of the group has no group at all.
  */
 export function companyGroupOf(panelSections: readonly string[], role: string): CompanyGroup | null {
   const sections = COMPANY_SECTION_KEYS.filter((key) => panelSections.includes(PANEL_SECTION_OF[key]));
   const admin = role === "OWNER" || role === "ADMIN";
-  const panelLink = panelSections.length > 0 && (sections.length > 0 || admin);
-  return sections.length > 0 || panelLink ? { sections: [...sections], panelLink } : null;
+  const panelLink = !admin && panelSections.length > 0 && sections.length > 0;
+  return sections.length > 0 ? { sections: [...sections], panelLink } : null;
 }
 
 export const companySectionHref = (key: CompanySectionKey): string => `${SETTINGS_ME_HREF}/${key}`;

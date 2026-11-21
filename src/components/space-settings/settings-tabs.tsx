@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
+import { useSettingsOneDoor } from "@/components/shell/nav-options";
 import { settingsHref, settingsTabLabelKey, type SpaceSettingsTab } from "./tabs";
 
 /**
@@ -12,6 +13,7 @@ import { settingsHref, settingsTabLabelKey, type SpaceSettingsTab } from "./tabs
  */
 export function SettingsTabs({ spaceId, tabs, current }: { spaceId: string; tabs: readonly SpaceSettingsTab[]; current: SpaceSettingsTab }) {
   const { t } = useI18n();
+  const oneDoor = useSettingsOneDoor();
   return (
     <nav aria-label={t("spset.tabs")} data-space-settings-tabs>
       <ul className="flex gap-0.5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
@@ -28,7 +30,7 @@ export function SettingsTabs({ spaceId, tabs, current }: { spaceId: string; tabs
                   active ? "bg-accent/10 text-accent" : tab === "danger" ? "text-danger hover:bg-danger/10" : "text-fg-muted hover:bg-surface-2 hover:text-fg",
                 )}
               >
-                {t(settingsTabLabelKey(tab))}
+                {t(settingsTabLabelKey(tab, oneDoor))}
               </Link>
             </li>
           );

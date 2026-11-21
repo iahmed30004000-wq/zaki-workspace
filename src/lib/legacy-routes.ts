@@ -72,6 +72,14 @@ export function oneDoorHref(target: PanelTarget, extra?: Readonly<Record<string,
 }
 
 /**
+ * S3.3 — the address of a panel section (and its part) that a link INSIDE a moved body points at. While «الإعدادات» is ONE door (`oneDoor`) the sections that are settings are addresses of the settings
+ * frame, so a link in «التكاملات» or «بيانات الشركة» never leaves the frame through a redirect; every other section keeps the panel's address. Pure.
+ */
+export function panelSectionHref(section: PanelSectionKey, part: string | undefined, oneDoor: boolean, extra?: Readonly<Record<string, string | undefined>>): string {
+  return oneDoor ? oneDoorHref({ section, part }, extra) : panelHref(section, part, extra);
+}
+
+/**
  * Where an old address leads inside the panel, or null when it is not one of the moved ones. `extra` carries a query the old page understood. With `oneDoor` (S3.2, the switch
  * `settingsOneDoor` is on) the address leads to its place in the one navigation or in «إعدادات الشركة» (`oneDoorHref`); left out, the answer is today's.
  */

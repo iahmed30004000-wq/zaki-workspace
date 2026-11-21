@@ -270,7 +270,8 @@ describe("the frame: one navigation and no second list", () => {
     expect(html.match(/<h1/g)?.length).toBe(1);
     expect(html.match(/aria-current="page"/g)?.length).toBe(1);
     expect(html).toMatch(/href="\/owner\?s=people"[^>]*aria-current="page"|aria-current="page"[^>]*href="\/owner\?s=people"/);
-    for (const key of nav) expect(html).toContain(AR[`cpone.nav.${key}`] as string);
+    // S3.3 (deliberate change): the archive is called «الأرشيف» in the navigation, the same word as the menu's tab (`cpv2.dd.nav.archive`); the other five keep S3.2's names
+    for (const key of nav) expect(html).toContain((key === "archive" ? AR["cpv2.dd.nav.archive"] : AR[`cpone.nav.${key}`]) as string);
     expect(html).toContain("data-panel-one");
     expect(html).toContain("جسم");
   });

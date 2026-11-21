@@ -123,7 +123,8 @@ async function CompanySectionPage({ actor, section, searchParams }: { actor: Awa
   const found = await companyAccessFor(actor);
   if (!found || !found.group.sections.includes(section) || !found.access.sections.includes(PANEL_SECTION_OF[section])) notFound();
   const { t } = getServerT();
-  const ctx: SectionCtx = { actor, userId: actor.userId, access: found.access, searchParams, t };
+  // `oneDoor`: the body is drawn inside the settings frame, so its own links point at the frame (S3.3)
+  const ctx: SectionCtx = { actor, userId: actor.userId, access: found.access, searchParams, t, oneDoor: true };
   return (
     <div data-settings-section={section} data-settings-company="" className="pb-8">
       <BackLink />

@@ -503,7 +503,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 87 | 167 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 87 | 168 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 123 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 69 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 273 | 47 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -641,7 +641,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `credentials` | 64 | 1 | Account credentials as pure functions (no database): what a username may look like, the password policy, and the temporary passwords the owner hands to a new or reset account. |
 | `custom-fields-export` | 74 | 1 | «حقول مخصصة» — the project's values as a CSV file. |
 | `department-space` | 93 | 1 | EVERY DEPARTMENT HAS ITS SPACE (the owner's decision, 2026-10-25: each space is like a separate site). |
-| `first-steps` | 102 | 1 | The first-steps card («خطواتك الأولى») computed from REAL data for the signed-in actor: nothing is stored about "progress" - a step is done because the rows say so (a theme chos… |
+| `first-steps` | 106 | 1 | The first-steps card («خطواتك الأولى») computed from REAL data for the signed-in actor: nothing is stored about "progress" - a step is done because the rows say so (a theme chos… |
 | `landing` | 13 | 1 | N1.8 — does «/» alone send this person to the chat? |
 | `local-model` | 65 | 1 | «اختبر الاتصال» — the button of the local model's settings. |
 | `manufacturing-proof` | 36 | 1 | The gate of the file routes for a proof photo of a receipt: it opens ONLY for the people who may read the receipt, that is to say the ledger's own rule and nothing looser than i… |
@@ -890,9 +890,9 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
 | `zakiEmojis` | 1 — `server/chat/topics.ts` |
-| `controlPanelV2` | 9 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts` |
+| `controlPanelV2` | 10 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `spaceTemplates` | 2 — `app/api/workspaces/route.ts`, `components/space-templates/new-space-from-template.tsx` |
-| `settingsOneDoor` | 3 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts` |
+| `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
 | `semanticSearch` | 6 — `app/(app)/settings/page.tsx`, `components/control-panel/sections/features-section.tsx`, `lib/chat/customer-data-hint.ts`, `server/services/search-embed-index.ts`, `server/services/search-embeddings.ts`, `server/services/search-semantic.ts` |
@@ -989,9 +989,9 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `themeSwitchFx` | 1 — `app/(app)/theme-gallery/page.tsx` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
-| `controlPanelV2` | 9 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts` |
+| `controlPanelV2` | 10 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `spaceTemplates` | 2 — `app/api/workspaces/route.ts`, `components/space-templates/new-space-from-template.tsx` |
-| `settingsOneDoor` | 3 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts` |
+| `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 
 ## 9. What this map noticed
 

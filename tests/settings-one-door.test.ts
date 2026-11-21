@@ -220,13 +220,14 @@ describe("S3.1 · the sections of «إعدادات الشركة»", () => {
     expect(PANEL_LINK_HREF).toBe(panelHref("overview"));
   });
 
-  it("the OWNER holds all four and the row «لوحة التحكم»; an ADMIN holds what the panel offers them; nobody else gets a group", () => {
+  it("the OWNER holds all four; an ADMIN holds what the panel offers them; nobody else gets a group", () => {
     const all = PANEL_V2_SECTIONS;
-    expect(companyGroupOf(all, "OWNER")).toEqual({ sections: ["company", "features", "integrations", "spaces"], panelLink: true });
+    // S3.3 (deliberate change): no row «لوحة التحكم» for an OWNER or an ADMIN any more: their menu holds the place «لوحة التحكم» (S3.2), a second door to it is a duplicate
+    expect(companyGroupOf(all, "OWNER")).toEqual({ sections: ["company", "features", "integrations", "spaces"], panelLink: false });
     // an ADMIN: the panel does not offer «الميزات» and «إعدادات الشركة» (the owner rank's alone)
-    expect(companyGroupOf(["overview", "people", "reports", "accounts", "spaces", "integrations"], "ADMIN")).toEqual({ sections: ["integrations", "spaces"], panelLink: true });
-    // an ADMIN who holds only the reports: no section of the group, but the row that opens the panel (their place «الإدارة» is not in the menu)
-    expect(companyGroupOf(["reports"], "ADMIN")).toEqual({ sections: [], panelLink: true });
+    expect(companyGroupOf(["overview", "people", "reports", "accounts", "spaces", "integrations"], "ADMIN")).toEqual({ sections: ["integrations", "spaces"], panelLink: false });
+    // an ADMIN who holds only the reports: no section of the group, so no group (S3.3: S3.1 drew the row «لوحة التحكم» for them, now the place is theirs)
+    expect(companyGroupOf(["reports"], "ADMIN")).toBeNull();
     // a lead holding only the integrations box: the section and the row; one holding only the reports: no group at all (their place stays)
     expect(companyGroupOf(["integrations"], "LEAD")).toEqual({ sections: ["integrations"], panelLink: true });
     expect(companyGroupOf(["reports"], "LEAD")).toBeNull();
@@ -469,9 +470,9 @@ describe("S3.1 · the avatar menu", () => {
     expect(hrefs(html)).toEqual(expect.arrayContaining(["/settings/me", "/guide", "/profile"]));
   });
 
-  it("ON: the theme, ONE row «الإعدادات» to /settings/me, and sign out; no guide, no «حسابي», no second gear", () => {
+  it("ON: ONE row «الإعدادات» to /settings/me, and sign out; no theme (S3.3: its home is settings › «المظهر واللغة»), no guide, no «حسابي», no second gear", () => {
     const html = open(true);
-    expect(items(html)).toEqual([AR["theme.picker"], AR["settingsOneDoor.door"], AR["shell.avatar.logout"]]);
+    expect(items(html)).toEqual([AR["settingsOneDoor.door"], AR["shell.avatar.logout"]]);
     expect(count(html, 'href="/settings/me"')).toBe(1);
     expect(hrefs(html)).not.toContain("/guide");
     expect(hrefs(html)).not.toContain("/profile");

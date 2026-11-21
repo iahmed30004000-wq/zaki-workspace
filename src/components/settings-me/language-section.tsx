@@ -5,6 +5,8 @@ import { useDigits } from "@/components/theme/digits-provider";
 import { useI18n } from "@/lib/i18n";
 import { DIGIT_MODES, type DigitMode } from "@/lib/digits";
 import { Group } from "@/components/settings-me/parts";
+import { ThemeBlock } from "@/components/settings-me/chat-section";
+import { useSettingsOneDoor } from "@/components/shell/nav-options";
 
 /**
  * C4.1 — «اللغة والأرقام»: Arabic (the only language, listed for completeness) and the digits «123 / ١٢٣» (`User.digits`, `POST /api/me/digits`, applied at once
@@ -22,8 +24,11 @@ export function DigitsBlock() {
 
 export function LanguageSection() {
   const { t } = useI18n();
+  // S3.3: while «الإعدادات» is ONE door this section is «المظهر واللغة»: the theme (and «تلقائي حسب الجهاز») lives here and nowhere else
+  const oneDoor = useSettingsOneDoor();
   return (
     <div data-section-body="language">
+      {oneDoor ? <ThemeBlock /> : null}
       <Group title={t("settingsMe.l.arabic")} hint={t("settingsMe.l.arabic.hint")} id="l-arabic">
         <p aria-current="true" className="inline-flex min-h-11 items-center rounded-xl bg-selected-row px-4 text-sm font-medium text-selected-row-fg">
           {t("settingsMe.l.arabic")}

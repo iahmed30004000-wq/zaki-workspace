@@ -159,7 +159,8 @@ describe("S3.1 · ON: the second group of the frame", () => {
     expect(groupHeadings(f.markup)).toBe(true);
     expect(f.markup).toContain(AR["settingsOneDoor.group.company"] as string);
     expect(rowsOf(f.markup)).toEqual(["company", "features", "integrations", "spaces"]);
-    expect(f.markup).toContain('href="/owner"');
+    // S3.3 (deliberate change): no second door to the panel in the settings, the owner's menu holds the place «لوحة التحكم» (S3.2)
+    expect(f.markup).not.toContain('href="/owner"');
     // «إعداداتي» keeps its eleven sections beside it (folders are off here: ten)
     const me = f.markup.slice(f.markup.indexOf('data-settings-group-list="me"'), f.markup.indexOf('data-settings-group-list="company"'));
     expect((me.match(/data-section="/g) ?? []).length).toBeGreaterThanOrEqual(10);
@@ -192,7 +193,8 @@ describe("S3.1 · ON: the second group of the frame", () => {
     const f = await frame();
     if (f.kind !== "rendered") throw new Error("no frame");
     expect(rowsOf(f.markup)).toEqual(["integrations", "spaces"]);
-    expect(f.markup).toContain('href="/owner"');
+    // S3.3 (deliberate change): no row «لوحة التحكم» here either, the admin's menu holds the place (S3.2)
+    expect(f.markup).not.toContain('href="/owner"');
     expect((await section("integrations")).kind).toBe("rendered");
     expect((await section("spaces")).kind).toBe("rendered");
     expect((await section("company")).kind).toBe("not-found");

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { DndContext, KeyboardSensor, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { SortableContext, arrayMove, rectSortingStrategy, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, MoreVertical } from "lucide-react";
+import { GripVertical, MoreVertical, Settings } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
 import { Card, CardBody } from "@/components/ui/card";
@@ -107,7 +107,7 @@ function SortableCard({ card, here, owner, settingsLinks }: { card: BoardCard; h
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={isDragging ? "relative z-20 opacity-80" : "relative"}>
       <div className="absolute end-2 top-2 z-10 flex items-center gap-1">
-        <CardActions card={card} owner={owner} settingsLinks={settingsLinks} />
+        {settingsLinks ? <SettingsGear card={card} /> : <CardActions card={card} owner={owner} settingsLinks={settingsLinks} />}
         <button
           type="button"
           aria-label={`${t("spaces.card.drag")}: ${card.name}`}
@@ -120,6 +120,19 @@ function SortableCard({ card, here, owner, settingsLinks }: { card: BoardCard; h
       </div>
       <SpaceCardView card={card} here={here} />
     </li>
+  );
+}
+
+/**
+ * S3.3 — with `settingsLinks` (the board of «إعدادات الشركة», «الإعدادات» is ONE door) the card has ONE action, a gear to the space's own settings page: its name, its people, its archive and its
+ * delete are there, once, instead of a second copy in a menu on the card.
+ */
+function SettingsGear({ card }: { card: BoardCard }) {
+  const { t } = useI18n();
+  return (
+    <Link href={settingsHref(card.id)} data-space-gear="" aria-label={`${t("spset.open")}: ${card.name}`} title={t("spset.open")} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-muted hover:bg-surface-2 hover:text-fg">
+      <Settings aria-hidden="true" className="size-4" />
+    </Link>
   );
 }
 

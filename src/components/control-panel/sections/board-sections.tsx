@@ -94,7 +94,7 @@ export async function PeopleSection({ ctx, part }: { ctx: SectionCtx; part?: str
       ) : null}
       <DefinitionNote t={t} />
       <FilterBar t={t} action="/owner" hidden={where} resetHref={part ? `/owner?s=people&part=${part}` : "/owner?s=people"} o={o} people={o.people} csvHref={boardHref("/api/owner-board/csv", { ...carry, sort: o.filters.sort, dir: o.filters.dir })} />
-      <PeopleTable t={t} o={o} personHref={personHref} sortHref={sortHref} />
+      <PeopleTable t={t} o={o} personHref={personHref} sortHref={sortHref} title={part ? t("cpv2.dd.people.activity_title") : undefined} />
     </div>
   );
 }

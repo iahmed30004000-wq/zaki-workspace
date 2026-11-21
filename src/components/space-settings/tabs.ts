@@ -25,8 +25,10 @@ export interface SettingsFacts {
   canDelete: boolean;
 }
 
-/** The string key of a tab's name (`ar.spaces.json`). */
-export const settingsTabLabelKey = (tab: SpaceSettingsTab): string => `spset.tab.${tab}`;
+/**
+ * The string key of a tab's name (`ar.spaces.json`). `oneDoor` (S3.3, the switch `settingsOneDoor`): «الناس» means the company's people, so the space's own list is «أعضاء المساحة». Left out, today's word.
+ */
+export const settingsTabLabelKey = (tab: SpaceSettingsTab, oneDoor = false): string => (oneDoor && tab === "people" ? "spset.tab.people.one" : `spset.tab.${tab}`);
 
 /** The tabs a person is offered, in the order of the strip. */
 export function settingsTabsFor(facts: SettingsFacts): SpaceSettingsTab[] {

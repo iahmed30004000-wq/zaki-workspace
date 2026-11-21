@@ -22,6 +22,7 @@ import {
   type SectionKey,
 } from "@/components/settings-me/sections";
 import { MeEffects } from "@/components/settings-me/me-effects";
+import { useSettingsOneDoor } from "@/components/shell/nav-options";
 
 /**
  * C4.1 — the frame of «إعداداتي». On the computer two columns: the sections on the start side, the open section on the end side. On the phone ONE list that
@@ -115,7 +116,9 @@ function Row({ href, name, hint, icon: Icon, tile, active, dataKey, extra }: { h
  */
 export function SectionList({ sections, current, company = null, currentCompany = null }: { sections: readonly SectionKey[]; current: SectionKey | null; company?: CompanyGroup | null; currentCompany?: CompanySectionKey | null }) {
   const { t } = useI18n();
-  const own = sections.map((key, at) => <Row key={key} href={sectionHref(key)} name={t(sectionLabelKey(key))} hint={t(sectionHintKey(key))} icon={ICONS[key]} tile={TILES[at % TILES.length] as string} active={key === current} dataKey={key} />);
+  // S3.3: the theme has ONE home (the section `language`), which wears its new name while «الإعدادات» is ONE door
+  const oneDoor = useSettingsOneDoor();
+  const own = sections.map((key, at) => <Row key={key} href={sectionHref(key)} name={t(sectionLabelKey(key, oneDoor))} hint={t(sectionHintKey(key, oneDoor))} icon={ICONS[key]} tile={TILES[at % TILES.length] as string} active={key === current} dataKey={key} />);
   if (!company) {
     return (
       <nav aria-label={t("settingsMe.sections")} data-settings-sections>
