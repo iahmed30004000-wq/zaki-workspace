@@ -23,6 +23,12 @@ import {
 
 const SELECT = WORK_SELECT;
 
+/** What a pick of the space select means for the address: "all" is «كل مساحاتي» (inside «الشركة» that is the default, so nothing is written), "" the default. */
+function pickedSpaceId(value: string, hq: boolean): string | null {
+  if (value === "all") return hq ? null : ALL_SPACES;
+  return value || null;
+}
+
 /**
  * The space select's options and its value. The space the person is in is the first option (value "": the default); «كل مساحاتي» (value "all") is the
  * second, an explicit choice; the other spaces follow. Inside «الشركة» there is no space «here»: «كل مساحاتي» is the default (value "") and the spaces follow.
@@ -103,12 +109,7 @@ export function Toolbar({
       {data.scopeFellBack ? <p className="text-xs text-fg-muted">{t("mytasks.scope.hq_note")}</p> : null}
 
       {scope === "me" && data.spaces.length > 1 ? (
-        <select
-          aria-label={t("mytasks.space.label")}
-          className={cn(SELECT, "w-full")}
-          value={spaceChoice.value}
-          onChange={(e) => onChange({ spaceId: e.target.value === "all" ? (data.current.hq ? null : ALL_SPACES) : e.target.value || null }, "replace")}
-        >
+        <select aria-label={t("mytasks.space.label")} className={cn(SELECT, "w-full")} value={spaceChoice.value} onChange={(e) => onChange({ spaceId: pickedSpaceId(e.target.value, data.current.hq) }, "replace")}>
           {/* each space is its own account: the space I am in comes first and is the default; «كل مساحاتي» is a choice (inside «الشركة» it IS the default) */}
           {spaceChoice.here ? <option value="">{spaceChoice.here.name}</option> : <option value="">{t("mytasks.space.all")}</option>}
           {spaceChoice.here ? <option value="all">{t("mytasks.space.all")}</option> : null}
