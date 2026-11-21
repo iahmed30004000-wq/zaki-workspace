@@ -42,3 +42,17 @@ export const PASS_FRESH_MS = 90_000;
 export function isFresh(fetchedAt: number, now: number): boolean {
   return now - fetchedAt < PASS_FRESH_MS;
 }
+
+/**
+ * Does a person enter a call with the microphone on? Only a private call (they were rung, they answer and talk) and the
+ * person who started the call; everybody who joins a topic's, a group's or a meeting's call comes in muted, like a Telegram
+ * video chat, and opens the microphone when they want to speak.
+ */
+export function micOnAtJoin(call: { kind: string; startedByMe: boolean }): boolean {
+  return call.kind === "DM" || call.startedByMe;
+}
+
+/** Is the person already in THIS call (connecting, in it, or dropped and coming back)? The join bar is for those who are not. */
+export function insideCall(callId: string, state: { callId: string | null; phase: string }): boolean {
+  return state.callId === callId && (state.phase === "in" || state.phase === "connecting" || state.phase === "lost");
+}

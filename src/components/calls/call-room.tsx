@@ -6,6 +6,7 @@ import { Track, type Participant } from "livekit-client";
 import { ct, ctCount } from "@/lib/chat/text";
 import { bestGrid } from "@/lib/calls/layout";
 import { ringbackFor, startRingback } from "@/lib/calls/ring-sound";
+import { micOnAtJoin } from "@/lib/calls/session";
 import { Avatar } from "@/components/ui/avatar";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, type CallView } from "./call-api";
@@ -69,7 +70,8 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
   joinRef.current = join;
   React.useEffect(() => {
     void load().then((v) => {
-      if (v && !v.endedAt) void joinRef.current(callId, v.video);
+      // a private call and its starter open the microphone; a joiner of a topic's call comes in muted
+      if (v && !v.endedAt) void joinRef.current(callId, v.video, { mic: micOnAtJoin(v) });
     });
   }, [load, callId]);
 

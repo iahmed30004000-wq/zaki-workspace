@@ -56,7 +56,8 @@ export interface CallApi {
   /** the call's picture in the browser's floating window, where it has one */
   canPip: boolean;
   pip: () => void;
-  join: (callId: string, video: boolean) => Promise<void>;
+  /** `opts.mic: false`: enter with the microphone (and camera) off, like a joiner of a topic's call; the default is on */
+  join: (callId: string, video: boolean, opts?: { mic?: boolean }) => Promise<void>;
   leave: () => Promise<void>;
   toggle: (what: "mic" | "cam" | "screen") => Promise<void>;
   startAudio: () => Promise<void>;
@@ -110,8 +111,8 @@ function livekit(): LiveKit {
 
 const MEMO_KEY = "zk-active-call";
 
-/** The call this tab is in, kept across a reload of the page (switching space reloads it): {id, video}. */
-function remember(call: { id: string; video: boolean } | null): void {
+/** The call this tab is in, kept across a reload of the page (switching space reloads it): {id, video, mic}. */
+function remember(call: { id: string; video: boolean; mic: boolean } | null): void {
   try {
     if (call) sessionStorage.setItem(MEMO_KEY, JSON.stringify(call));
     else sessionStorage.removeItem(MEMO_KEY);
@@ -120,11 +121,11 @@ function remember(call: { id: string; video: boolean } | null): void {
   }
 }
 
-function remembered(): { id: string; video: boolean } | null {
+function remembered(): { id: string; video: boolean; mic: boolean } | null {
   try {
     const raw = sessionStorage.getItem(MEMO_KEY);
-    const v = raw ? (JSON.parse(raw) as { id?: unknown; video?: unknown }) : null;
-    return v && typeof v.id === "string" ? { id: v.id, video: v.video === true } : null;
+    const v = raw ? (JSON.parse(raw) as { id?: unknown; video?: unknown; mic?: unknown }) : null;
+    return v && typeof v.id === "string" ? { id: v.id, video: v.video === true, mic: v.mic !== false } : null;
   } catch {
     return null;
   }
@@ -207,6 +208,8 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   const roomRef = React.useRef<Room | null>(null);
   const joining = React.useRef(false);
   const lastVideo = React.useRef(false);
+  // whether the person's microphone is open: a joiner of a topic's call starts muted, and a quiet rejoin keeps what they chose
+  const lastMic = React.useRef(true);
   const rejoins = React.useRef(0);
   const prefetched = React.useRef<{ callId: string; pass: Pass; at: number } | null>(null);
   // the page is going away (a reload, switching space): the disconnect that follows is not a choice
@@ -238,11 +241,13 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     return callApi<Pass>(`/api/calls/${encodeURIComponent(callId)}/token`, {});
   }, []);
 
-  const join = React.useCallback(async (callId: string, video: boolean) => {
+  const join = React.useCallback(async (callId: string, video: boolean, opts?: { mic?: boolean }) => {
     if (joining.current) return;
     if (roomRef.current && state.callId === callId && (state.phase === "in" || state.phase === "connecting")) return;
     joining.current = true;
     lastVideo.current = video;
+    const mic = opts?.mic !== false;
+    lastMic.current = mic;
     // one call at a time: a new one closes the old one
     const old = roomRef.current;
     roomRef.current = null;
@@ -339,11 +344,14 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       }
       roomRef.current = room;
       rejoins.current = 0;
-      remember({ id: callId, video });
+      remember({ id: callId, video, mic });
       patch({ phase: "in", reconnecting: false, needsAudioTap: !room.canPlaybackAudio });
       try {
-        await room.localParticipant.setMicrophoneEnabled(true);
-        if (video) await room.localParticipant.setCameraEnabled(true);
+        // a joiner of a topic's or a group's call comes in muted (and with no camera): they open them when they want to speak
+        if (mic) {
+          await room.localParticipant.setMicrophoneEnabled(true);
+          if (video) await room.localParticipant.setCameraEnabled(true);
+        }
       } catch {
         // no permission, or no device: the person is in and hears everybody; the buttons ask again
         say(ct("calls.no_media"));
@@ -368,7 +376,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
         rejoins.current--; // wait for the person to come back; visibility below tries again
         return;
       }
-      void join(callId, lastVideo.current);
+      void join(callId, lastVideo.current, { mic: lastMic.current });
     }, rejoinDelayMs(attempt));
     return () => clearTimeout(t);
   }, [state.phase, state.callId, join, patch]);
@@ -438,7 +446,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   // back on the tab, or back online: a lost call is tried again at once
   React.useEffect(() => {
     const again = () => {
-      if (state.phase === "lost" && state.callId && document.visibilityState === "visible") void join(state.callId, lastVideo.current);
+      if (state.phase === "lost" && state.callId && document.visibilityState === "visible") void join(state.callId, lastVideo.current, { mic: lastMic.current });
     };
     document.addEventListener("visibilitychange", again);
     window.addEventListener("online", again);
@@ -462,7 +470,7 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
     void callApi<CallView>(`/api/calls/${encodeURIComponent(memo.id)}`).then(
       (v) => {
         if (v.endedAt) remember(null);
-        else void joinRef.current(memo.id, memo.video);
+        else void joinRef.current(memo.id, memo.video, { mic: memo.mic });
       },
       () => remember(null),
     );
@@ -489,7 +497,11 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
       return;
     }
     try {
-      if (what === "mic") await me.setMicrophoneEnabled(!me.isMicrophoneEnabled);
+      if (what === "mic") {
+        const next = !me.isMicrophoneEnabled;
+        await me.setMicrophoneEnabled(next);
+        lastMic.current = next; // a quiet rejoin keeps what the person chose
+      }
       else if (what === "cam") await me.setCameraEnabled(!me.isCameraEnabled);
       else await me.setScreenShareEnabled(!me.isScreenShareEnabled, { audio: true, contentHint: "detail" });
     } catch {

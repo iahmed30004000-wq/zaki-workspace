@@ -15,11 +15,13 @@ import { ensurePush } from "./push-client";
  * whoever may write here, a menu: a voice or a video call, and in a topic «رنّ على الكل» (a DM always rings).
  * The server decides again on every step (src/server/policy/call.ts): this only offers.
  *
+ * `joinInBar` (the new conversation screen's header): while a call is going on the header shows nothing here, because the join bar under it is the one «انضم».
+ *
  * C2.9 — the look is the new tokens', the behaviour is not touched (the same component serves the old screen, the quick chat, the new header and the info
  * panel): in a header it is a flat 44 px icon (with the word from `sm`) among the other header icons, `outlined` makes it the bordered pill the info panel's
  * buttons are, and while a call is going on it is a green «انضم للمكالمة» pill. Icons are lucide, never emoji.
  */
-export function CallButton({ conversationId, isDm, canStart, compact = false, outlined = false }: { conversationId: string; isDm: boolean; canStart: boolean; compact?: boolean; outlined?: boolean }) {
+export function CallButton({ conversationId, isDm, canStart, compact = false, outlined = false, joinInBar = false }: { conversationId: string; isDm: boolean; canStart: boolean; compact?: boolean; outlined?: boolean; joinInBar?: boolean }) {
   const router = useRouter();
   const toast = useOptionalToast();
   const [going, setGoing] = React.useState<{ id: string } | null>(null);
@@ -61,6 +63,8 @@ export function CallButton({ conversationId, isDm, canStart, compact = false, ou
       </button>
     );
   }
+  // `joinInBar`: the conversation's own bar under the header (with the faces and the count) is the one «انضم»; the header does not repeat it
+  if (going && joinInBar) return null;
   if (going) {
     return (
       <button type="button" data-call-join="" onClick={() => router.push(`/calls/${encodeURIComponent(going.id)}`)} className={`${look} rounded-full bg-ok px-3 font-semibold text-ok-fg hover:bg-ok/90`}>

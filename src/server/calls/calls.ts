@@ -53,6 +53,8 @@ export interface CallDto {
    * somebody rung: never a topic call, a meeting, or a call the person merely joined.
    */
   rangCount: number;
+  /** the viewer started this call (they enter it with the microphone on; a topic's other joiners enter muted) */
+  startedByMe: boolean;
   startedAt: string;
   endedAt: string | null;
   startedBy: { id: string; name: string; avatarUrl: string | null };
@@ -154,7 +156,7 @@ export async function settleCall(callId: string, now: Date = new Date()): Promis
 }
 
 /** The call going on in this conversation (settled first), or null. Its readers only. */
-export async function activeCallOf(ctx: OrgAccessContext, conversationId: string): Promise<{ id: string; video: boolean; startedAt: string } | null> {
+export async function activeCallOf(ctx: OrgAccessContext, conversationId: string): Promise<ActiveCall | null> {
   // «المكالمات» off (or «وضع التوفير»): nobody is on a call here, and the calls server is never asked
   if (!(await isFeatureOn(ctx.orgId, "calls"))) return null;
   // the calls row of the person's grid (an external partner by the space's rules)
@@ -166,8 +168,33 @@ export async function activeCallOf(ctx: OrgAccessContext, conversationId: string
   const open = await db.call.findFirst({ where: { conversationId, endedAt: null }, orderBy: { startedAt: "desc" }, select: { id: true } });
   if (!open || (await settleCall(open.id))) return null;
   const call = await db.call.findUniqueOrThrow({ where: { id: open.id }, select: { id: true, video: true, startedAt: true } });
-  return { id: call.id, video: call.video, startedAt: call.startedAt.toISOString() };
+  // who is in the room now, for the join bar's faces (the calls server cannot be asked: no faces, the call is still there)
+  const inRoom = (await peopleInRoom(call.id)) ?? [];
+  const faces = inRoom.length
+    ? await db.user.findMany({ where: { id: { in: inRoom.slice(0, JOIN_BAR_LOOK).map((p) => p.identity) } }, select: { id: true, name: true, avatarUrl: true } })
+    : [];
+  const byId = new Map(faces.map((u) => [u.id, u] as const));
+  const people = inRoom
+    .map((p) => byId.get(p.identity))
+    .filter((u): u is NonNullable<typeof u> => !!u)
+    .slice(0, JOIN_BAR_FACES)
+    .map((u) => ({ userId: u.id, name: u.name, avatarUrl: u.avatarUrl }));
+  return { id: call.id, video: call.video, startedAt: call.startedAt.toISOString(), count: inRoom.length, people };
 }
+
+/** The call going on in a conversation, as the join bar under its header shows it. */
+export interface ActiveCall {
+  id: string;
+  video: boolean;
+  startedAt: string;
+  /** how many are in the room now */
+  count: number;
+  /** up to three of them, for the bar's faces */
+  people: { userId: string; name: string; avatarUrl: string | null }[];
+}
+/** The join bar draws this many faces, and looks this far into the room to find them (an assistant is in the room without being a person). */
+const JOIN_BAR_FACES = 3;
+const JOIN_BAR_LOOK = 8;
 
 /**
  * The people a call of this conversation rings: its audience (a DM's other person; a topic's space people, or its
@@ -321,6 +348,7 @@ export async function callDetail(ctx: OrgAccessContext, callId: string): Promise
     video: call.video,
     kind,
     rangCount,
+    startedByMe: call.startedBy.id === ctx.userId,
     startedAt: call.startedAt.toISOString(),
     endedAt: call.endedAt?.toISOString() ?? null,
     startedBy: { id: call.startedBy.id, name: call.startedBy.name, avatarUrl: call.startedBy.avatarUrl },

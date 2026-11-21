@@ -15,6 +15,8 @@ export interface CallView {
   kind: "DM" | "GROUP" | "TOPIC" | "MEETING";
   /** how many people were really rung (told to the starter only; 0 otherwise): the caller's ringback needs somebody rung */
   rangCount: number;
+  /** the viewer started this call */
+  startedByMe: boolean;
   startedAt: string;
   endedAt: string | null;
   startedBy: { id: string; name: string; avatarUrl?: string | null };

@@ -44,6 +44,7 @@ const VIEW: CallView = {
   video: true,
   kind: "TOPIC",
   rangCount: 0,
+  startedByMe: false,
   startedAt: "2026-11-19T10:00:00.000Z",
   endedAt: null,
   startedBy: { id: "u2", name: "سلمى", avatarUrl: null },
@@ -62,6 +63,29 @@ describe("the bar of a live call", () => {
     expect(tokens).toEqual(expect.arrayContaining(["bg-ok", "text-ok-fg", "min-h-11", "w-full", "animate-pulse", "motion-reduce:animate-none"]));
     expect(html).toContain("lucide-phone-call");
     expect(html).toContain("lucide-chevron-left");
+  });
+
+  it("shows up to three of the people in the call, and how many are in (the Telegram video-chat bar), still ONE button", () => {
+    const people = [1, 2, 3, 4].map((n) => ({ userId: `u${n}`, name: `شخص${n}`, avatarUrl: null }));
+    const html = draw(createElement(CallBarView, { onJoin: noop, people, count: 4 }));
+    expect(html.match(/<button/g)).toHaveLength(1);
+    expect(html).toContain("4 بالمكالمة");
+    expect(html.match(/data-call-face/g)).toHaveLength(3);
+    const two = draw(createElement(CallBarView, { onJoin: noop, people: people.slice(0, 2), count: 2 }));
+    expect(two).toContain("اتنين بالمكالمة");
+    expect(two.match(/data-call-face/g)).toHaveLength(2);
+    // nobody connected yet: the old words alone, no faces
+    const none = draw(createElement(CallBarView, { onJoin: noop, people: [], count: 0 }));
+    expect(none).not.toContain("data-call-face");
+    expect(none).toContain(AR["chatui.pane.call_bar"]!);
+  });
+
+  it("is hidden for a person who is already inside the call, and the header's button no longer repeats it", () => {
+    const bar = read("src/components/chat/v2/pane/call-bar.tsx");
+    expect(bar).toContain("insideCall(going.id,");
+    const button = read("src/components/calls/call-button.tsx");
+    expect(button).toContain("joinInBar");
+    expect(read("src/components/chat/v2/pane/pane-header.tsx")).toMatch(/<CallButton[^>]*joinInBar/);
   });
 });
 

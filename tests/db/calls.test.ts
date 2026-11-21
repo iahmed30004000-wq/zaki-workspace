@@ -302,6 +302,34 @@ describe("calls: what the call's page says about the ring (the caller's ringback
   });
 });
 
+describe("calls: the join bar (who is in, and who started it)", () => {
+  it("the call going on lists up to three of the people in the room and their count, for the bar under the header", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await start(topic.id, { ring: false })).json?.["id"] as string;
+    expect(((await call(convCallRoute.GET, { params: { id: topic.id } })).json as { call: { count: number; people: unknown[] } }).call).toMatchObject({ count: 0, people: [] });
+    const extra = await makeUser({ orgId: t.org.id, role: "MEMBER", name: "Extra" });
+    const more = await makeUser({ orgId: t.org.id, role: "MEMBER", name: "More" });
+    rooms.set(roomOf(id), [t.member.id, t.admin.id, extra.id, more.id]);
+    const live = (await call(convCallRoute.GET, { params: { id: topic.id } })).json as { call: { id: string; count: number; people: { userId: string; name: string }[] } };
+    expect(live.call.id).toBe(id);
+    expect(live.call.count).toBe(4);
+    expect(live.call.people).toHaveLength(3);
+    expect(live.call.people[0]).toMatchObject({ userId: t.member.id, name: "Member" });
+  });
+
+  it("the call's page says whether the viewer started it (a topic's joiners enter with the microphone off)", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await start(topic.id, { ring: false })).json?.["id"] as string;
+    expect(((await call(callRoute.GET, { params: { id } })).json as { startedByMe: boolean }).startedByMe).toBe(true);
+    await loginAs(t.admin.id);
+    expect(((await call(callRoute.GET, { params: { id } })).json as { startedByMe: boolean }).startedByMe).toBe(false);
+  });
+});
+
 describe("calls: add somebody, take somebody out", () => {
   it("«ضيف حدا» rings one of the space's people in: they join the CALL without reading the restricted topic", async () => {
     const t = await space();
