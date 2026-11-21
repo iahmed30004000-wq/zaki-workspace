@@ -11,12 +11,22 @@ import { fmtTime } from "@/lib/format";
  * from the same words and rules as `message-item.tsx` (and the same dictionary keys), restyled with the theme tokens and logical sides.
  */
 
-/** «محوّلة من فلان». */
-export function ForwardedHeader({ name }: { name: string }) {
+/**
+ * «محوّلة من فلان» — the ORIGINAL author's name (a re-forward keeps the first author). With `onOpen` it is a button: a tap goes to the original message when the viewer may
+ * read it (S5.2; the server decides, `GET /api/chat/messages/[id]/forward`) and says so when they may not. A guest never gets this header at all (redact.ts).
+ */
+export function ForwardedHeader({ name, onOpen }: { name: string; onOpen?: () => void }) {
+  if (!onOpen) {
+    return (
+      <span data-forwarded className="mb-1 block text-xs font-semibold text-accent">
+        {ct("chatui.bubble.forwarded", { name })}
+      </span>
+    );
+  }
   return (
-    <span data-forwarded className="mb-1 block text-xs font-semibold text-accent">
+    <button type="button" data-forwarded data-forwarded-open aria-label={ct("chatfwd.source_open")} onClick={onOpen} className="mb-1 block max-w-full truncate text-start text-xs font-semibold text-accent hover:underline">
       {ct("chatui.bubble.forwarded", { name })}
-    </span>
+    </button>
   );
 }
 

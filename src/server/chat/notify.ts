@@ -30,6 +30,16 @@ export function previewText(body: string): string {
   return stripFormatting(body, { math: true, partial: true }).slice(0, PREVIEW_CHARS);
 }
 
+/**
+ * S5.2: what the bell and the push say for a forward that carried no comment: the words of the one message, or — for several — how many were passed on (Western digits,
+ * the Arabic number form of the noun). An attachment-only message has no words: the empty text becomes «أرسل مرفقًا» in `notifyAfterSend`.
+ */
+export function forwardedPreview(count: number, body: string): string {
+  if (count <= 1) return body;
+  if (count === 2) return "حوّل لك رسالتين";
+  return count % 100 >= 3 && count % 100 <= 10 ? `حوّل لك ${count} رسائل` : `حوّل لك ${count} رسالة`;
+}
+
 export async function notifyMessageToAudience(opts: {
   conversationId: string;
   authorId: string;

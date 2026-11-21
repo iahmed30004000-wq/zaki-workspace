@@ -16,6 +16,7 @@ import { BubbleFooter, ForwardedHeader, ReactionChips, ReplyBlock } from "@/comp
 import { useLongPress } from "@/components/chat/v2/bubble/use-long-press";
 import { ReactionPop } from "@/components/chat/v2/phone/reaction-pop";
 import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
+import { useOpenForwardSource } from "@/components/chat/v2/forward/use-open-forward-source";
 import { ct } from "@/lib/chat/text";
 import { replyOnDoubleClick } from "@/lib/chat/v2/menu/gestures";
 import { isFreshArrival } from "@/lib/chat/v2/phone/motion";
@@ -110,6 +111,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const downAt = React.useRef(0);
   const gestures = useBubbleGestures();
   const translation = useTranslation(message.id);
+  // S5.2: the «محوّلة من» header is a button: the server says where the original is (only when I may read it)
+  const openForwardSource = useOpenForwardSource(conversationId, onJump);
   const canAct = !facts.oversight && !message.deleted && message.kind !== "SYSTEM";
   // C3b.5: while selecting, a press anywhere on the row picks it: the bubble takes no pointer (so its long press and double-click gestures never start) and draws no menu or hover buttons
   const selecting = select?.on === true && canAct;
@@ -182,7 +185,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
                   {message.authorName}
                 </p>
               ) : null}
-              {message.forwardedFrom && !message.deleted ? <ForwardedHeader name={message.forwardedFrom.name} /> : null}
+              {message.forwardedFrom && !message.deleted ? <ForwardedHeader name={message.forwardedFrom.name} onOpen={() => openForwardSource(message.id)} /> : null}
               {message.replyTo ? <ReplyBlock replyTo={message.replyTo} onJump={onJump} /> : null}
               {mentionsMe ? (
                 <span data-mentions-me className="mb-1 block text-xs font-semibold text-warn">

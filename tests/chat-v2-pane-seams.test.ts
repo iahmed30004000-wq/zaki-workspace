@@ -175,6 +175,15 @@ describe("what the review of this package found", () => {
     expect(host.slice(host.indexOf("function ForwardHost("), host.indexOf("function MessageMenuSlot("))).toContain("usePaneActions()");
   });
 
+  it("S5.2: the forward host opens THE forward sheet while the company's multi-select switch is on, and the old list while it is off", () => {
+    const host = read("src/components/chat/v2/pane/seams/menu-host.tsx");
+    const forwardHost = host.slice(host.indexOf("function ForwardHost("), host.indexOf("function SeenDialog("));
+    expect(host).toContain("<ForwardHost header={header} />");
+    expect(forwardHost).toContain("useMultiSelectSwitch(header)");
+    expect(forwardHost).toContain("<ForwardSheet open={forwarding !== null} from={conversationId} messageIds={forwarding ? [forwarding.id] : []} onClose={endForward} />");
+    expect(forwardHost).toContain("<ForwardDialog");
+  });
+
   it("the rows do not hold the messages: the run flags are given per row, so a new message does not draw every row again", () => {
     const env = /export interface RowEnv \{[\s\S]*?\n\}/.exec(read("src/components/chat/v2/pane/viewport-row.tsx"))![0];
     expect(env).not.toMatch(/\bmessages\b/);
