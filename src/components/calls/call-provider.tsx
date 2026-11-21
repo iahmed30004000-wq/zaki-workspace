@@ -7,6 +7,7 @@ import type { DisconnectReason, LocalAudioTrack, LocalTrack, Participant, Room, 
 import { ct } from "@/lib/chat/text";
 import { AWAY_TOPIC, decodeAway, encodeAway, micHeld, type MicFacts } from "@/lib/calls/mic";
 import { isDrop, isFresh, MAX_REJOINS, miniVisible, rejoinDelayMs } from "@/lib/calls/session";
+import { clampOffset, type Corner, DEFAULT_CORNER, isTap, loadCorner, nearestCorner, saveCorner } from "@/lib/calls/mini-window";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, callErrorText, type CallView } from "./call-api";
 import { ensurePush } from "./push-client";
@@ -598,7 +599,20 @@ export function CallProvider({ children }: { children: React.ReactNode }) {
   );
 }
 
-/** The call while the person is on another page: a small window in the corner. */
+/** Where each corner of the small window sits at rest: under the app's top bar, or above the home bar of a phone, at the page's start or end edge. */
+const MINI_CORNER_CLASS: Record<Corner, string> = {
+  "top-start": "top-[calc(4rem+env(safe-area-inset-top))] start-3",
+  "top-end": "top-[calc(4rem+env(safe-area-inset-top))] end-3",
+  "bottom-start": "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] start-3",
+  "bottom-end": "bottom-[calc(0.75rem+env(safe-area-inset-bottom))] end-3",
+};
+
+/**
+ * The call while the person is on another page: a small window in a corner. It is MOVED by dragging its picture (or the strip under it) with a finger
+ * or the mouse: it follows the pointer, never leaves the screen, and on release snaps to the nearest corner, which it remembers on this device. A tap
+ * that does not move still returns to the call. Only the drag handles take the touch (`touch-none`), so scrolling the page elsewhere is untouched; the
+ * rest positions of the corners respect the notch and the home bar.
+ */
 function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
   const { state, room, everyone } = api;
   const me = room?.localParticipant;
@@ -606,9 +620,72 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
   const href = `/calls/${encodeURIComponent(state.callId ?? "")}`;
   const micOn = !!me?.isMicrophoneEnabled && !state.micHeld;
 
+  const boxRef = React.useRef<HTMLElement>(null);
+  const [corner, setCorner] = React.useState<Corner>(DEFAULT_CORNER);
+  // the remembered corner is read once the window is on screen (the first draw is the same on the server and the browser)
+  React.useEffect(() => setCorner(loadCorner()), []);
+  const [offset, setOffset] = React.useState<{ dx: number; dy: number } | null>(null);
+  const offsetRef = React.useRef<{ dx: number; dy: number } | null>(null);
+  const drag = React.useRef<{ id: number; from: { x: number; y: number }; rect: DOMRect; moved: boolean } | null>(null);
+  const justDragged = React.useRef(false);
+
+  function onPointerDown(e: React.PointerEvent<HTMLElement>) {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    // the buttons under the picture are for tapping, never for dragging
+    if ((e.target as HTMLElement).closest("button")) return;
+    const box = boxRef.current;
+    if (!box) return;
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch {
+      // a pointer that is already gone: the drag simply does not start
+      return;
+    }
+    drag.current = { id: e.pointerId, from: { x: e.clientX, y: e.clientY }, rect: box.getBoundingClientRect(), moved: false };
+    justDragged.current = false;
+  }
+  function onPointerMove(e: React.PointerEvent<HTMLElement>) {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    const to = { x: e.clientX, y: e.clientY };
+    if (!d.moved && isTap(d.from, to)) return;
+    d.moved = true;
+    const next = clampOffset({ dx: to.x - d.from.x, dy: to.y - d.from.y }, d.rect, { width: window.innerWidth, height: window.innerHeight });
+    offsetRef.current = next;
+    setOffset(next);
+  }
+  function onPointerEnd(e: React.PointerEvent<HTMLElement>) {
+    const d = drag.current;
+    if (!d || e.pointerId !== d.id) return;
+    drag.current = null;
+    if (!d.moved) return; // a tap: the link back to the call does its work
+    justDragged.current = true; // the click that follows a drag is not a tap
+    const o = offsetRef.current ?? { dx: 0, dy: 0 };
+    const rtl = boxRef.current ? getComputedStyle(boxRef.current).direction === "rtl" : true;
+    const next = nearestCorner({ x: d.rect.left + o.dx, y: d.rect.top + o.dy, width: d.rect.width, height: d.rect.height }, { width: window.innerWidth, height: window.innerHeight }, rtl);
+    offsetRef.current = null;
+    setOffset(null);
+    setCorner(next);
+    saveCorner(next);
+  }
+  const handle = { onPointerDown, onPointerMove, onPointerUp: onPointerEnd, onPointerCancel: onPointerEnd };
+
   return (
-    <aside dir="rtl" lang="ar" aria-label={ct("calls.mini")} className="fixed bottom-20 end-3 z-[55] w-44 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-lg md:bottom-4">
-      <Link href={href} className="relative block aspect-video bg-surface-2" aria-label={ct("calls.back_to_call")}>
+    <aside
+      ref={boxRef}
+      dir="rtl"
+      lang="ar"
+      aria-label={ct("calls.mini")}
+      onClickCapture={(e) => {
+        if (!justDragged.current) return;
+        justDragged.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
+      style={offset ? { transform: `translate(${offset.dx}px, ${offset.dy}px)` } : undefined}
+      className={`fixed z-[55] w-44 overflow-hidden rounded-2xl border border-border bg-surface-1 shadow-lg ${MINI_CORNER_CLASS[corner]}`}
+    >
+      <Link href={href} draggable={false} {...handle} className="relative block aspect-video touch-none select-none bg-surface-2" aria-label={ct("calls.back_to_call")}>
         {main && room && libs ? (
           <libs.media.PersonPicture p={main.p} me={me} source={main.source} fit={main.source === libs.lk.Track.Source.ScreenShare ? "contain" : "cover"} small />
         ) : (
@@ -617,7 +694,7 @@ function MiniCall({ api, libs }: { api: CallApi; libs: CallLibs | null }) {
         {state.reconnecting && <span className="absolute inset-x-0 top-0 bg-warn/80 px-1 text-center text-xs text-fg">{ct("calls.reconnecting_short")}</span>}
         {state.micHeld && !state.reconnecting && <span className="absolute inset-x-0 top-0 bg-warn/80 px-1 text-center text-xs text-fg">{ct("calls.mic_held")}</span>}
       </Link>
-      <div className="flex items-center justify-between gap-1 p-1.5">
+      <div {...handle} className="flex touch-none items-center justify-between gap-1 p-1.5">
         <button
           type="button"
           onClick={() => void api.toggle("mic")}
