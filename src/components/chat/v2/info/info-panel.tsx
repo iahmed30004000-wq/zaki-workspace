@@ -6,6 +6,7 @@ import { Bookmark, Phone, Search, X } from "lucide-react";
 import type { ConversationHeaderDto, MemberDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { InfoTabs } from "@/components/chat/v2/info/info-tabs";
+import { MuteRow } from "@/components/chat/v2/info/info-mute";
 import { CallButton } from "@/components/calls/call-button";
 import { TopicSettingsDialog } from "@/components/chat/conversation/topic-settings-dialog";
 import { useChatRow } from "@/lib/chat/cache/selectors";
@@ -42,8 +43,8 @@ function Names({ names }: { names: MemberDto[] }) {
  *   a private chat: the job title and the bio (the profile door; nothing when it refuses) and «افتح الملف الشخصي»
  *   a topic: the space, who sees it (P0.4: a private topic says so WITHOUT names unless the door gave them) and, for its moderators, «إعدادات الموضوع», close, archive
  *
- * C3d: under all of that, the tabs «الوسائط · الملفات · الروابط · الصوتيات · الشغل · المثبّتة» (`InfoTabs`). A tab is drawn only when it has data — nothing empty,
- * no placeholder. The server decides every action again.
+ * C3d + S5.4: «كتم الإشعارات» (`MuteRow`, the chat list's own presets), then the tabs «الوسائط · الملفات · الروابط · الصوتيات · الأعضاء» — always drawn, each with an empty
+ * sentence — and «الشغل · المثبّتة» when they have data (`InfoTabs`). The server decides every action again.
  */
 export interface InfoPanelProps {
   header: ConversationHeaderDto;
@@ -106,6 +107,8 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
           </button>
           {model.buttons.includes("call") && !saved ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
         </div>
+
+        <MuteRow header={header} saved={saved} />
 
         <div className={`space-y-3 ${card}`}>
           {model.kind === "dm" && profile ? (
@@ -180,7 +183,7 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
             )}
           </div>
         ) : null}
-        <InfoTabs header={header} />
+        <InfoTabs header={header} people={people} />
       </div>
       {header.kind === "TOPIC" && header.me.canModerate ? <TopicSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} topic={settingsTopic} onSaved={() => onSettingsSaved?.()} /> : null}
     </div>

@@ -88,6 +88,7 @@ import chatUi from "./ar.chat-ui.json";
 import chatFeatures from "./ar.chat-features.json";
 import chatForward from "./ar.chat-forward.json";
 import chatFolders from "./ar.chat-folders.json";
+import chatInfo from "./ar.chat-info.json";
 import workV2 from "./ar.work-v2.json";
 import permissionsV2 from "./ar.permissions-v2.json";
 import settingsCompanyChat from "./ar.settings-company-chat.json";
@@ -194,6 +195,7 @@ export const AR: Record<string, string> = {
   ...chatFeatures,
   ...chatForward,
   ...chatFolders,
+  ...chatInfo,
   ...workV2,
   ...permissionsV2,
   ...settingsCompanyChat,

@@ -178,7 +178,9 @@ describe("the media of a conversation", () => {
     expect(new Set(seen).size).toBe(3);
   });
 
-  it("LINK: the messages with a link card (status OK) — not a failed one, a deleted one, and not while the switches are off", async () => {
+  // S5.4 (changed deliberately): «الروابط» lists EVERY address found in the messages, not only the first link of a message that got an OK card. The card's words come
+  // only from an OK preview of that address while the switches are on; a deleted message still gives nothing. The full rules of the tab: tests/db/chat-info-profile.test.ts.
+  it("LINK: every address of a message that is not deleted; the card's words only from an OK card while the switches are on", async () => {
     const w = await getWorld();
     const conv = await db.conversation.create({ data: { orgId: w.orgId, kind: "TOPIC", spaceId: w.space.id, title: "Links" } });
     const card = (url: string, status: string, title: string) => db.linkPreview.create({ data: { orgId: w.orgId, urlHash: `h_${uid()}`, url, title, siteName: "example.com", status } });
@@ -188,15 +190,18 @@ describe("the media of a conversation", () => {
     const m1 = await w.say(conv.id, w.bee.id, "see https://example.com/a", { previewId: good.id });
     await w.say(conv.id, w.bee.id, "see https://example.com/b", { previewId: failed.id });
     await w.say(conv.id, w.bee.id, "see https://example.com/c", { previewId: gone.id, deletedAt: new Date() });
-    // off (the default: the new chat screen's switch is off): no list, no count
-    expect((await get(w.t.member.id, conv.id, "?kind=LINK")).links).toEqual([]);
-    expect((await get(w.t.member.id, conv.id, "?counts=1")).counts?.["LINK"]).toBe(0);
+    // switches off (the default): the addresses are listed and counted (they are the messages' own words); the card's title is not given
+    const off = await get(w.t.member.id, conv.id, "?kind=LINK");
+    expect(off.links!.map((l) => l.url).sort()).toEqual(["https://example.com/a", "https://example.com/b"]);
+    expect(off.links!.every((l) => l.title === null)).toBe(true);
+    expect((await get(w.t.member.id, conv.id, "?counts=1")).counts?.["LINK"]).toBe(2);
     await featuresOn(w.orgId, { chatLayoutV2: true, linkPreviews: true });
     const r = await get(w.t.member.id, conv.id, "?kind=LINK");
     expect(r.items).toEqual([]);
-    expect(r.links).toHaveLength(1);
-    expect(r.links![0]).toMatchObject({ id: m1.id, messageId: m1.id, url: "https://example.com/a", title: "العنوان", siteName: "example.com" });
-    expect((await get(w.t.member.id, conv.id, "?counts=1")).counts?.["LINK"]).toBe(1);
+    expect(r.links).toHaveLength(2);
+    expect(r.links!.find((l) => l.messageId === m1.id)).toMatchObject({ url: "https://example.com/a", title: "العنوان", siteName: "example.com" });
+    expect(r.links!.find((l) => l.url === "https://example.com/b")).toMatchObject({ title: null });
+    expect((await get(w.t.member.id, conv.id, "?counts=1")).counts?.["LINK"]).toBe(2);
     await featuresOn(w.orgId, { chatLayoutV2: false });
   });
 

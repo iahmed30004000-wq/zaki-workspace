@@ -3,6 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { CHAT_GC_MS, CHAT_STALE_MS } from "@/lib/chat/cache/constants";
 import { chatKeys } from "@/lib/chat/cache/keys";
+import { listQueryOptions } from "@/lib/chat/cache/queries";
+import type { ChatListDto } from "@/lib/chat/cache/types";
 
 /**
  * C2.7 — the two small things the info panel asks for that the header does not carry, each through a door that ALREADY exists (no new route):
@@ -59,4 +61,14 @@ export function useTeamName(conversationId: string, spaceId: string | null, team
     },
   });
   return query.data ?? null;
+}
+
+/**
+ * S5.4 — does the company keep the person's OWN state of a chat (the switch `chatPersonalState`)? The chat list's answer says so (`personal`); the mute row is drawn
+ * only while it is on. Read from the list the cache already holds (never fetched for this): with no list in the cache it reads as on, and the door itself refuses
+ * (the row says «ما زبطت») if it is not.
+ */
+export function useListPersonal(): boolean {
+  const query = useQuery({ ...listQueryOptions(), enabled: false, select: (list: ChatListDto): boolean => list.personal !== false });
+  return query.data ?? true;
 }
