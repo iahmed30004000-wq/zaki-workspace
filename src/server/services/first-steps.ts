@@ -2,8 +2,9 @@ import { db } from "@/server/db";
 import type { Actor } from "@/server/policy/actor";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { audienceOf, type Audience } from "@/lib/guide/audience";
-import { CURRENT_PHASE, stepsFor, toViews, type Fact, type FirstStepView } from "@/lib/guide/first-steps";
+import { CURRENT_PHASE, FIRST_STEPS, stepsFor, toViews, type Fact, type FirstStepView } from "@/lib/guide/first-steps";
 import { isChosenTheme } from "@/lib/themes/registry";
+import { isFeatureOn } from "@/server/services/features";
 
 /**
  * The first-steps card («خطواتك الأولى») computed from REAL data for the signed-in actor: nothing is
@@ -94,7 +95,10 @@ export async function loadFirstStepFacts(actor: Who, facts: readonly Fact[]): Pr
  */
 export async function getFirstSteps(actor: Who, opts: { phase?: number } = {}): Promise<FirstStepsResult> {
   const audience = audienceOf(actor);
-  const defs = stepsFor(audience, opts.phase ?? CURRENT_PHASE);
+  // S3.3: while «الإعدادات» is ONE door (both switches, as `oneDoorOnFor`) the guide has no step here and the theme's step leads to its home
+  const [door, panel] = await Promise.all([isFeatureOn(actor.orgId, "settingsOneDoor"), isFeatureOn(actor.orgId, "controlPanelV2")]);
+  const oneDoor = door && panel;
+  const defs = stepsFor(audience, opts.phase ?? CURRENT_PHASE, FIRST_STEPS, oneDoor);
   const needed = defs.flatMap((def) => (def.fact ? [def.fact] : []));
   const facts = await loadFirstStepFacts(actor, needed);
   return { audience, steps: toViews(defs, facts) };

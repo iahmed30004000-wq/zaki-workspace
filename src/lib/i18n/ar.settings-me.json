@@ -217,5 +217,9 @@
   "settingsMe.v.sessions.ended": "طلع الجهاز من حسابك",
   "settingsMe.v.sessions.confirm": "هاد الجهاز اللي عم تستعمله هلأ. رح تطلع منه وتحتاج تدخل من جديد. تكمل؟",
   "settingsMe.v.sessions.failed": "ما قدرنا نطلّع الجهاز، جرّب مرة تانية",
-  "session.not_found": "هاي الجلسة مش موجودة بقائمتك"
+  "session.not_found": "هاي الجلسة مش موجودة بقائمتك",
+  "settingsMe.s.language.one": "المظهر واللغة",
+  "settingsMe.s.language.one.hint": "المظهر والعربية وشكل الأرقام",
+  "settingsMe.s.chat.one.hint": "حجم الخط والخلفية والتفاعل",
+  "settingsMe.c.theme.moved": "المظهر صار مع اللغة والأرقام بمكان واحد: «المظهر واللغة»."
 }

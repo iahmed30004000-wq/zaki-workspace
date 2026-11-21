@@ -29,7 +29,8 @@ export const scopeText = (t: ServerT, scope: PanelScope): string => {
  * the eleven-section list of the panel inside the administration, exactly as it was.
  */
 export function PanelFrame({ t, sections, current, notice, oneNav = false, children }: { t: ServerT; sections: readonly PanelSectionKey[]; current: PanelSectionKey; notice?: string; oneNav?: boolean; children: React.ReactNode }) {
-  const nameOf = (key: PanelSectionKey) => t(oneNav ? `cpone.nav.${key}` : `cpv2.section.${key}`);
+  // S3.3: «الأرشيف» is called «الأرشيف» in the one navigation (the same word as the menu's tab), not «الأرشيف والرقابة»
+  const nameOf = (key: PanelSectionKey) => t(oneNav ? (key === "archive" ? "cpv2.dd.nav.archive" : `cpone.nav.${key}`) : `cpv2.section.${key}`);
   return (
     <div dir="rtl" className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6" data-panel-v2 {...(oneNav ? { "data-panel-one": "" } : {})} data-section={current}>
       <header>

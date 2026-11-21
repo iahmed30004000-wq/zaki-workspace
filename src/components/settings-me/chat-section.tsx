@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useReducer, useState } from "react";
+import Link from "next/link";
 import { Check } from "lucide-react";
 import { Segmented } from "@/components/ui/segmented";
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,8 @@ import { QUICK_COUNT, QUICK_PALETTE, doubleTapEmojiOf, quickReactionsOf } from "
 import { THEME_COOKIE, prefCookieString } from "@/lib/themes/registry";
 import { applyAppearance } from "@/components/settings-me/appearance";
 import { Group, Scope, WarnFix } from "@/components/settings-me/parts";
+import { sectionHref } from "@/components/settings-me/sections";
+import { useSettingsOneDoor } from "@/components/shell/nav-options";
 import { useSavePatch, usePersonPrefs } from "@/components/settings-me/use-person-prefs";
 
 /**
@@ -319,11 +322,22 @@ export function QuickReactionsBlock() {
 }
 
 export function ChatSection() {
+  // S3.3: while «الإعدادات» is ONE door the theme has ONE home, «المظهر واللغة»: here only a link says where it went
+  const oneDoor = useSettingsOneDoor();
+  const { t } = useI18n();
   return (
     <div data-section-body="chat">
       <FontSizeBlock />
       <WallpaperBlock />
-      <ThemeBlock />
+      {oneDoor ? (
+        <Group rows>
+          <Link href={sectionHref("language")} data-theme-moved="" className="flex min-h-14 items-center px-3.5 py-2 text-start text-[13px] text-fg-muted transition-colors hover:bg-surface-2">
+            {t("settingsMe.c.theme.moved")}
+          </Link>
+        </Group>
+      ) : (
+        <ThemeBlock />
+      )}
       <SendKeyBlock />
       <QuickReactionsBlock />
     </div>

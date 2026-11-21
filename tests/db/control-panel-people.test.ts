@@ -152,7 +152,8 @@ describe("S3.2 · ON: ONE navigation", () => {
     expect(page.markup).toContain("data-panel-one");
     expect(page.markup.match(/data-testid="cp-side-list"/g)?.length).toBe(1);
     expect(page.markup.match(/<nav\b/g)?.length).toBe(1);
-    for (const key of PANEL_ONE_NAV) expect(page.text).toContain(AR[`cpone.nav.${key}`] as string);
+    // S3.3 (deliberate change): the archive's entry is called «الأرشيف» (`cpv2.dd.nav.archive`), the same word as the menu's tab; the other five keep S3.2's names
+    for (const key of PANEL_ONE_NAV) expect(page.text).toContain((key === "archive" ? AR["cpv2.dd.nav.archive"] : AR[`cpone.nav.${key}`]) as string);
     // the settings sections and «الحسابات» are not entries
     for (const gone of ["accounts", "spaces", "features", "integrations", "company"]) expect(listed(page.markup)).not.toContain(gone);
     expect(await panelOneDoorOn(await requireActor())).toBe(true);
