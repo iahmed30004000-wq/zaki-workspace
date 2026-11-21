@@ -110,8 +110,8 @@ describe("a row (D1's list row)", () => {
   it("the look: a round two-line tick, a person's circle instead of a name, an overdue open task wears its day in the danger colour", () => {
     const markup = row(task({ id: "1", dueDay: "2026-11-10", dueDate: "2026-11-10T09:00:00.000Z" }), { todayIso: "2026-11-20" });
     expect(markup).toMatch(/<button[^>]*class="[^"]*rounded-full border-2/);
-    expect(markup).toMatch(/type="date"[^>]*class="[^"]*text-danger/);
-    expect(row(task({ id: "1", dueDay: "2026-11-10", completedAt: "2026-11-19T09:00:00.000Z" }), { todayIso: "2026-11-20" })).not.toMatch(/type="date"[^>]*class="[^"]*text-danger/);
+    expect(markup).toMatch(/<label[^>]*class="[^"]*text-danger/);
+    expect(row(task({ id: "1", dueDay: "2026-11-10", completedAt: "2026-11-19T09:00:00.000Z" }), { todayIso: "2026-11-20" })).not.toMatch(/<label[^>]*class="[^"]*text-danger/);
     // the last row of a card has no divider under it
     expect(markup).toContain("last:border-b-0");
   });

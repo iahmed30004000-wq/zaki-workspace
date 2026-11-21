@@ -66,44 +66,49 @@ export function Toolbar({
 
   return (
     <div className="space-y-2.5 pb-1">
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented<MyTaskView>
-          label={t("mytasks.view.label")}
-          value={params.view}
-          onChange={(view) => onChange({ view })}
-          options={(["list", "board", "calendar"] as const).map((v) => ({ value: v, label: t(`mytasks.view.${v}`) }))}
-        />
-        <Segmented<MyTaskScope>
-          label={t("mytasks.scope.label")}
-          value={scope}
-          onChange={(next) => onChange({ scope: next })}
-          options={scopes.map((s) => ({ value: s, label: t(`mytasks.scope.${s}`) }))}
-        />
-        {staleHref ? (
-          <Link
-            href={staleHref}
-            className="ms-auto inline-flex min-h-9 items-center rounded-lg px-2 text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            {t("nav.tab.stale")}
-          </Link>
-        ) : null}
-        <form
-          className={cn("flex items-center", staleHref ? "" : "ms-auto")}
-          onSubmit={(e) => {
-            e.preventDefault();
-            const input = e.currentTarget.elements.namedItem("q") as HTMLInputElement | null;
-            onChange({ q: input?.value.trim() ?? "" }, "replace");
-          }}
-        >
-          <input
-            name="q"
-            type="search"
-            defaultValue={params.q}
-            aria-label={t("mytasks.search")}
-            placeholder={t("mytasks.search")}
-            className={WORK_SEARCH}
+      <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
+        {/* a phone: the views and the scopes are ONE row that slides sideways (no bar), bleeding to the screen's edge; a desktop: part of the one wrapping row */}
+        <div className="strip-scroll flex items-center gap-2 overflow-x-auto max-md:-mx-4 max-md:px-4 md:contents [&>*]:shrink-0">
+          <Segmented<MyTaskView>
+            label={t("mytasks.view.label")}
+            value={params.view}
+            onChange={(view) => onChange({ view })}
+            options={(["list", "board", "calendar"] as const).map((v) => ({ value: v, label: t(`mytasks.view.${v}`) }))}
           />
-        </form>
+          <Segmented<MyTaskScope>
+            label={t("mytasks.scope.label")}
+            value={scope}
+            onChange={(next) => onChange({ scope: next })}
+            options={scopes.map((s) => ({ value: s, label: t(`mytasks.scope.${s}`) }))}
+          />
+        </div>
+        <div className="flex items-center gap-2 md:contents">
+          {staleHref ? (
+            <Link
+              href={staleHref}
+              className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:ms-auto"
+            >
+              {t("nav.tab.stale")}
+            </Link>
+          ) : null}
+          <form
+            className={cn("flex min-w-0 flex-1 items-center md:flex-none", staleHref ? "" : "md:ms-auto")}
+            onSubmit={(e) => {
+              e.preventDefault();
+              const input = e.currentTarget.elements.namedItem("q") as HTMLInputElement | null;
+              onChange({ q: input?.value.trim() ?? "" }, "replace");
+            }}
+          >
+            <input
+              name="q"
+              type="search"
+              defaultValue={params.q}
+              aria-label={t("mytasks.search")}
+              placeholder={t("mytasks.search")}
+              className={cn(WORK_SEARCH, "min-w-0 max-md:w-full")}
+            />
+          </form>
+        </div>
       </div>
 
       {data.scopeFellBack ? <p className="text-xs text-fg-muted">{t("mytasks.scope.hq_note")}</p> : null}
@@ -124,7 +129,7 @@ export function Toolbar({
       {scope === "project" ? (
         <label className="flex items-center gap-2 text-xs text-fg-muted">
           {t("mytasks.project.label")}
-          <select className={cn(SELECT, "max-w-72")} value={params.projectId ?? ""} onChange={(e) => onChange({ projectId: e.target.value || null }, "replace")}>
+          <select className={cn(SELECT, "min-w-0 max-w-72")} value={params.projectId ?? ""} onChange={(e) => onChange({ projectId: e.target.value || null }, "replace")}>
             <option value="">{t("mytasks.project.pick")}</option>
             {data.projects.map((p) => (
               <option key={p.id} value={p.id}>
@@ -137,7 +142,7 @@ export function Toolbar({
 
       <div className="flex flex-col gap-2 md:flex-row md:flex-wrap md:items-center">
         {showChips ? (
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden md:flex-wrap [&>button]:shrink-0" role="group" aria-label={t("mytasks.chips.label")}>
+          <div className="strip-scroll flex items-center gap-1.5 overflow-x-auto pb-0.5 max-md:-mx-4 max-md:px-4 md:flex-wrap [&>*]:shrink-0" role="group" aria-label={t("mytasks.chips.label")}>
             <Pill pressed={params.chip === null} onClick={() => onChange({ chip: null }, "replace")}>
               {t("mytasks.chip.all")}
             </Pill>
@@ -150,7 +155,7 @@ export function Toolbar({
           </div>
         ) : null}
 
-        <div className="flex items-center gap-2 overflow-x-auto max-md:[scrollbar-width:none] max-md:[&::-webkit-scrollbar]:hidden md:ms-auto md:flex-wrap [&>select]:shrink-0">
+        <div className="strip-scroll flex items-center gap-2 overflow-x-auto max-md:-mx-4 max-md:px-4 md:ms-auto md:flex-wrap [&>*]:shrink-0">
           {params.view !== "calendar" ? (
             <>
               <select aria-label={t("work.stage.label")} className={SELECT} value={params.stage ?? ""} onChange={(e) => onChange({ stage: (e.target.value || null) as MyTasksParams["stage"] }, "replace")}>
