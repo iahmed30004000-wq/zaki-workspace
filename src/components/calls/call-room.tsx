@@ -5,7 +5,7 @@ import Link from "next/link";
 import { Track, type Participant } from "livekit-client";
 import { ct, ctCount } from "@/lib/chat/text";
 import { bestGrid } from "@/lib/calls/layout";
-import { ringbackMsLeft, startRing } from "@/lib/calls/ring-sound";
+import { ringbackFor, startRingback } from "@/lib/calls/ring-sound";
 import { Avatar } from "@/components/ui/avatar";
 import { useOptionalToast } from "@/components/ui/toast";
 import { callApi, type CallView } from "./call-api";
@@ -141,20 +141,23 @@ function CallScreen({ callId, call }: { callId: string; call: CallApi }) {
   // a tap on somebody's picture makes it the big one; a tap on the big one puts everybody back
   const [pinned, setPinned] = React.useState<string | null>(null);
 
-  // the caller hears the ring until somebody joins (or the 30 s the other side rings are over)
+  // the caller of a PRIVATE call hears the soft ringback (its own tone, never the incoming ringtone) until somebody joins or
+  // the 30 s the other side rings are over; never in a topic call, a meeting, or a call somebody joined rather than started
   const aloneInCall = phase === "in" && call.everyone.length <= 1;
+  const ringKind = view?.kind ?? null;
+  const ringRang = view?.rangCount ?? 0;
   const startedAt = view?.startedAt ?? null;
   React.useEffect(() => {
-    if (!aloneInCall || !startedAt) return;
-    const left = ringbackMsLeft({ alone: true, startedAt, now: Date.now(), forMs: RING_FOR_MS });
+    if (!aloneInCall || !startedAt || !ringKind) return;
+    const left = ringbackFor({ view: { kind: ringKind, rangCount: ringRang, startedAt }, alone: true, now: Date.now(), forMs: RING_FOR_MS });
     if (left <= 0) return;
-    const stop = startRing();
+    const stop = startRingback();
     const timer = setTimeout(stop, left);
     return () => {
       clearTimeout(timer);
       stop();
     };
-  }, [aloneInCall, startedAt]);
+  }, [aloneInCall, startedAt, ringKind, ringRang]);
 
   function copyLink() {
     if (!view) return;

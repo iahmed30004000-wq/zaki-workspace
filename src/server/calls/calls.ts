@@ -35,6 +35,8 @@ import { ct } from "@/lib/chat/text";
 export const EMPTY_GRACE_MS = 60_000;
 /** Ringing a whole topic stops at this many people (a company-wide topic rings no crowd). */
 export const RING_CAP = 200;
+/** The rings of a call are counted for its starter only while the call is this young (the ringback lasts 30 s). */
+const RING_COUNT_WINDOW_MS = 120_000;
 
 export interface CallDto {
   id: string;
@@ -43,6 +45,14 @@ export interface CallDto {
   conversationTitle: string | null;
   spaceId: string | null;
   video: boolean;
+  /** what kind of call: a private chat's (`DM`), a group's, a topic's, or a meeting by link (no conversation) */
+  kind: "DM" | "GROUP" | "TOPIC" | "MEETING";
+  /**
+   * How many people were really rung when the call started — told to its STARTER only, while the call is young (0 for
+   * everybody else, and for a call nobody was rung for). The caller's soft ringback plays only for a private call with
+   * somebody rung: never a topic call, a meeting, or a call the person merely joined.
+   */
+  rangCount: number;
   startedAt: string;
   endedAt: string | null;
   startedBy: { id: string; name: string; avatarUrl: string | null };
@@ -280,6 +290,13 @@ export async function callDetail(ctx: OrgAccessContext, callId: string): Promise
       conversation: { select: { title: true, kind: true } },
     },
   });
+  const kind = call.conversation?.kind === "DM" || call.conversation?.kind === "GROUP" || call.conversation?.kind === "TOPIC" ? call.conversation.kind : "MEETING";
+  // the rings of a young call, counted for its starter only (see `CallDto.rangCount`)
+  const youngMs = Date.now() - call.startedAt.getTime();
+  const rangCount =
+    !call.endedAt && call.startedBy.id === ctx.userId && youngMs < RING_COUNT_WINDOW_MS
+      ? await db.realtimeEvent.count({ where: { orgId: ctx.orgId, kind: "call.ring", ids: { path: ["callId"], equals: callId } } })
+      : 0;
   const inRoom = facts.endedAt ? [] : ((await peopleInRoom(callId)) ?? []);
   const ranks = inRoom.length
     ? await db.organizationMember.findMany({ where: { organizationId: ctx.orgId, userId: { in: inRoom.map((p) => p.identity) } }, select: { userId: true, role: true, user: { select: { name: true, avatarUrl: true } } } }) // all-statuses: names of the people the calls server says are in the room
@@ -292,6 +309,8 @@ export async function callDetail(ctx: OrgAccessContext, callId: string): Promise
     conversationTitle: call.conversation?.kind === "TOPIC" ? call.conversation.title : null,
     spaceId: call.spaceId,
     video: call.video,
+    kind,
+    rangCount,
     startedAt: call.startedAt.toISOString(),
     endedAt: call.endedAt?.toISOString() ?? null,
     startedBy: { id: call.startedBy.id, name: call.startedBy.name, avatarUrl: call.startedBy.avatarUrl },

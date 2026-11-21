@@ -247,6 +247,42 @@ describe("calls: the ring", () => {
   });
 });
 
+describe("calls: what the call's page says about the ring (the caller's ringback is for a private call only)", () => {
+  it("a private call says it is one, and tells its STARTER that somebody was rung; the other person is told nothing of the ringing", async () => {
+    const t = await space();
+    await loginAs(t.member.id);
+    const dm = (await call(dmRoute.POST, { body: { userId: t.admin.id } })).json?.["id"] as string;
+    const id = (await start(dm)).json?.["id"] as string;
+    const mine = (await call(callRoute.GET, { params: { id } })).json as { kind: string; rangCount: number };
+    expect(mine).toMatchObject({ kind: "DM", rangCount: 1 });
+    await loginAs(t.admin.id);
+    expect(((await call(callRoute.GET, { params: { id } })).json as { rangCount: number }).rangCount).toBe(0);
+  });
+
+  it("a topic call says «topic»: how many it rang when started with the ring, none without it", async () => {
+    const t = await space();
+    const topic = await topicOf(t.org.id, t.ws.id);
+    await loginAs(t.member.id);
+    const rung = (await start(topic.id, { ring: true })).json?.["id"] as string;
+    const view = (await call(callRoute.GET, { params: { id: rung } })).json as { kind: string; rangCount: number };
+    expect(view.kind).toBe("TOPIC");
+    expect(view.rangCount).toBe((await ringsOf(rung)).length);
+    await db.call.update({ where: { id: rung }, data: { endedAt: new Date() } });
+    const quiet = (await start(topic.id, { ring: false })).json?.["id"] as string;
+    expect(((await call(callRoute.GET, { params: { id: quiet } })).json as { rangCount: number }).rangCount).toBe(0);
+  });
+
+  it("a meeting is a meeting, and rang nobody", async () => {
+    const t = await space();
+    jar().set(SPACE_COOKIE, t.ws.id);
+    await loginAs(t.member.id);
+    const id = (await call(meetingsRoute.POST, { body: { title: "الصباح", video: true } })).json?.["id"] as string;
+    jar().delete(SPACE_COOKIE);
+    const view = (await call(callRoute.GET, { params: { id } })).json as { kind: string; rangCount: number };
+    expect(view).toMatchObject({ kind: "MEETING", rangCount: 0 });
+  });
+});
+
 describe("calls: add somebody, take somebody out", () => {
   it("«ضيف حدا» rings one of the space's people in: they join the CALL without reading the restricted topic", async () => {
     const t = await space();

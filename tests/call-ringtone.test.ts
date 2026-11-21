@@ -1,7 +1,8 @@
 import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RING_GAP_MS, RING_SOUND_URL, ringbackMsLeft, startRing } from "../src/lib/calls/ring-sound";
+import { RING_GAP_MS, RING_SOUND_URL, ringbackFor, ringbackMsLeft, startRing, startRingback } from "../src/lib/calls/ring-sound";
+import { RING_PATTERNS, RINGBACK_NOTES } from "../src/lib/calls/tones";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -17,6 +18,64 @@ describe("the caller hears the phone ring while nobody has answered (the owner, 
   it("stops as soon as somebody else is in, and does not ring in an old call", () => {
     expect(ringbackMsLeft({ alone: false, startedAt, now: at(5), forMs: 30_000 })).toBe(0);
     expect(ringbackMsLeft({ alone: true, startedAt, now: at(31), forMs: 30_000 })).toBe(0);
+  });
+});
+
+describe("the ringback is for a private call where somebody is really being rung (the owner: «برن علي ع حالي»)", () => {
+  const startedAt = "2026-11-21T12:00:00Z";
+  const at = (sec: number) => Date.parse(startedAt) + sec * 1000;
+  const dm = { kind: "DM" as const, rangCount: 1, startedAt };
+
+  it("rings the caller of a private call who is alone while the other side rings", () => {
+    expect(ringbackFor({ view: dm, alone: true, now: at(5), forMs: 30_000 })).toBe(25_000);
+  });
+
+  it("never rings for a topic call, even one started with «رنّ على الكل»", () => {
+    expect(ringbackFor({ view: { ...dm, kind: "TOPIC", rangCount: 40 }, alone: true, now: at(5), forMs: 30_000 })).toBe(0);
+    expect(ringbackFor({ view: { ...dm, kind: "GROUP", rangCount: 3 }, alone: true, now: at(5), forMs: 30_000 })).toBe(0);
+  });
+
+  it("never rings for a meeting, nor when nobody was rung (a call that was joined, not started with a ring)", () => {
+    expect(ringbackFor({ view: { ...dm, kind: "MEETING", rangCount: 0 }, alone: true, now: at(5), forMs: 30_000 })).toBe(0);
+    expect(ringbackFor({ view: { ...dm, rangCount: 0 }, alone: true, now: at(5), forMs: 30_000 })).toBe(0);
+  });
+
+  it("is silent while the call is not loaded yet, and once somebody has joined", () => {
+    expect(ringbackFor({ view: null, alone: true, now: at(5), forMs: 30_000 })).toBe(0);
+    expect(ringbackFor({ view: dm, alone: false, now: at(5), forMs: 30_000 })).toBe(0);
+  });
+});
+
+describe("the ringback has its own soft tone, not the incoming ringtone", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it("is two notes, softer than the ringtone, and a different pattern from every incoming tone", () => {
+    expect(RINGBACK_NOTES).toHaveLength(2);
+    expect(RINGBACK_NOTES[0]!.freq).not.toBe(RINGBACK_NOTES[1]!.freq);
+    for (const n of RINGBACK_NOTES) expect(n.gain ?? 0.1).toBeLessThanOrEqual(0.1);
+    expect(RINGBACK_NOTES).not.toEqual(RING_PATTERNS.soft);
+    expect(RINGBACK_NOTES).not.toEqual(RING_PATTERNS.bell);
+  });
+
+  it("never plays the ringtone file and stops cleanly", () => {
+    vi.useFakeTimers();
+    const files: string[] = [];
+    class FakeAudio {
+      constructor(src: string) {
+        files.push(src);
+      }
+      play = () => Promise.resolve();
+      pause = () => undefined;
+    }
+    vi.stubGlobal("Audio", FakeAudio);
+    const stop = startRingback();
+    vi.advanceTimersByTime(10_000);
+    expect(files).toEqual([]);
+    expect(() => stop()).not.toThrow();
+    expect(() => stop()).not.toThrow();
   });
 });
 
@@ -84,12 +143,14 @@ describe("the sound file and who owns it", () => {
     expect(middleware).toMatch(/STATIC_EXT = [^\n]*mp3/);
   });
 
-  it("is used by both sides: the incoming card and the caller's room", () => {
+  it("the incoming ringtone belongs to the incoming card ONLY; the caller's room has its own soft ringback", () => {
     const card = readFileSync(path.join(ROOT, "src/components/calls/call-ring.tsx"), "utf8");
     const room = readFileSync(path.join(ROOT, "src/components/calls/call-room.tsx"), "utf8");
-    expect(card).toMatch(/startRing/);
+    expect(card).toMatch(/startRing\b/);
+    expect(card).not.toMatch(/startRingback/);
     expect(card).not.toMatch(/createOscillator/);
-    expect(room).toMatch(/startRing/);
-    expect(room).toMatch(/ringbackMsLeft/);
+    expect(room).not.toMatch(/\bstartRing\b/);
+    expect(room).toMatch(/startRingback/);
+    expect(room).toMatch(/ringbackFor/);
   });
 });

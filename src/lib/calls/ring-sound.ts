@@ -1,12 +1,15 @@
 /**
- * THE RING (the owner, 2026-10-30: «بدي لما ارن ع حد كمان يرن زي الماسنجر»): one sound for both sides of a call. The
- * person being rung hears it on the incoming card; the person who rang hears it in the call room until somebody
- * joins (or the same 30 seconds are over), the way a messenger rings the caller too.
+ * THE RING. The person being rung hears the ringtone on the incoming card. The person who rang a PRIVATE call hears a
+ * different, softer ringback in the call room until somebody joins (or the same 30 seconds are over), the way a
+ * messenger rings the caller too (the owner, 2026-10-30) — but never the incoming ringtone itself (2026-11-21: «برن علي
+ * ع حالي»), and never in a topic call or a meeting.
  *
  * The sound is a file (public/sounds/ring.mp3, CC0, credited in public/brand/CREDITS.md) that plays, waits a
  * moment and plays again. A browser may refuse to play before the person has touched the page; then the
  * built-in two-beat tone (the one the card always had) takes over, so a call never rings silent by accident.
  */
+import { playLoop, RINGBACK_NOTES, RINGBACK_PERIOD_MS } from "./tones";
+
 export const RING_SOUND_URL = "/sounds/ring.mp3";
 /** The pause between two rings. */
 export const RING_GAP_MS = 1500;
@@ -17,6 +20,27 @@ export function ringbackMsLeft(opts: { alone: boolean; startedAt: string; now: n
   const started = Date.parse(opts.startedAt);
   if (!Number.isFinite(started)) return 0;
   return Math.max(0, opts.forMs - (opts.now - started));
+}
+
+/**
+ * How long the CALLER's ringback runs (the owner, 2026-11-21: «برن علي ع حالي» — the incoming ringtone must never play to the
+ * person who is calling). Only a private call, and only while somebody was really rung: a topic call, a meeting, and a call
+ * the person joined (nobody was rung for them) have no ringback. `view` is the call as its page read it; `null` while it loads.
+ */
+export function ringbackFor(opts: {
+  view: { kind: string; rangCount: number; startedAt: string } | null;
+  alone: boolean;
+  now: number;
+  forMs: number;
+}): number {
+  const { view } = opts;
+  if (!view || view.kind !== "DM" || view.rangCount < 1) return 0;
+  return ringbackMsLeft({ alone: opts.alone, startedAt: view.startedAt, now: opts.now, forMs: opts.forMs });
+}
+
+/** The caller's own soft two-note ringback (see `RINGBACK_NOTES`); returns its stop. It is never the incoming ringtone. */
+export function startRingback(): () => void {
+  return playLoop(RINGBACK_NOTES, RINGBACK_PERIOD_MS);
 }
 
 /** A soft two-beat ring drawn by the browser itself (no sound file); returns its stop. */

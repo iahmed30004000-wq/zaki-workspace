@@ -42,6 +42,8 @@ const VIEW: CallView = {
   conversationTitle: "مبيعات الشام",
   spaceId: null,
   video: true,
+  kind: "TOPIC",
+  rangCount: 0,
   startedAt: "2026-11-19T10:00:00.000Z",
   endedAt: null,
   startedBy: { id: "u2", name: "سلمى", avatarUrl: null },
