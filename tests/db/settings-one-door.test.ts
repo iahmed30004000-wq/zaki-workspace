@@ -82,9 +82,9 @@ async function as(w: World, who: Person) {
 type Outcome = { kind: "rendered"; text: string; markup: string } | { kind: "redirect"; to: string } | { kind: "not-found" };
 
 /** Opens a page the way Next does: an element, a redirect or «not found» (anything else is a thrown error and fails the test). */
-async function open(page: () => Promise<React.ReactNode> | React.ReactNode): Promise<Outcome> {
+async function open(page: () => Promise<React.ReactNode | void> | React.ReactNode): Promise<Outcome> {
   try {
-    const tree = await resolveServerTree(await page());
+    const tree = await resolveServerTree((await page()) as React.ReactNode);
     const markup = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(Queries, { client: new QueryClient() }, createElement(Toasts, null, tree as ReactElement))));
     return { kind: "rendered", markup, text: readable(markup) };
   } catch (err) {
