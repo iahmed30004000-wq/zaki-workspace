@@ -19,6 +19,7 @@ import { Drawer } from "@/components/shell/drawer";
 import { ToastProvider } from "@/components/ui/toast";
 import { I18nProvider } from "@/lib/i18n";
 import { AR } from "@/lib/i18n/dict";
+import { enumLabel } from "@/lib/i18n/enums";
 import { audienceOf } from "@/lib/guide/audience";
 import { buildNav, type NavRole, type NavSubject } from "@/lib/nav/places";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
@@ -137,5 +138,37 @@ describe("the guide's button: at the top of the page, coloured, with a shape", (
     expect(row?.[0]).toContain("bg-info");
     const floating = read("src/components/site-guide/site-guide.tsx");
     expect(floating).toMatch(/"fixed z-50 flex h-12 w-12 items-center justify-center rounded-full[^"]*bg-info text-info-fg/);
+  });
+});
+
+describe("the drawer's header: the rank beside the @name, and the small buttons side by side in ONE row (the owner, 2026-11-22)", () => {
+  const head = (html: string): string => html.slice(html.indexOf('data-shell="drawer-head"'), html.indexOf('data-shell="drawer-foot"'));
+
+  it("the @username and the rank («مالك») share one line", () => {
+    const h = head(drawer());
+    const line = /<div[^>]*data-shell="drawer-head-id"[^>]*>([\s\S]*?)<\/div>/.exec(h);
+    expect(line).not.toBeNull();
+    expect(line?.[1]).toContain("@ahmad");
+    expect(line?.[1]).toContain(enumLabel("OrgRole", "OWNER"));
+  });
+
+  it("the tools row holds the online count, the light/dark button and (at the end) «إغلاق»: one row, not scattered over the corners", () => {
+    const src = read("src/components/shell/drawer.tsx");
+    const tools = src.indexOf('data-shell="drawer-head-tools"');
+    expect(tools).toBeGreaterThan(-1);
+    expect(src.indexOf("DialogPrimitive.Close", tools)).toBeGreaterThan(tools);
+    expect(src.indexOf("{presence}", tools)).toBeGreaterThan(tools);
+    expect(src.indexOf("<ThemeIconButton", tools)).toBeGreaterThan(tools);
+    expect(src.indexOf("<NavOrderButton", tools)).toBeGreaterThan(tools);
+    // nothing in the header is pinned to a corner any more
+    expect(src.slice(src.indexOf('data-shell="drawer-head"'), src.indexOf("min-h-0 flex-1 overflow-y-auto"))).not.toContain("absolute");
+  });
+
+  it("the buttons are small (32px): the theme button and the count pill", () => {
+    const h = head(drawer());
+    const theme = /<button[^>]*data-shell="drawer-theme"[^>]*class="([^"]*)"/.exec(h) ?? /<button[^>]*class="([^"]*)"[^>]*data-shell="drawer-theme"/.exec(h);
+    expect(theme?.[1]).toContain("size-8");
+    expect(theme?.[1]).not.toContain("size-11");
+    expect(read("src/components/shell/people-dock.tsx")).toContain('"flex h-8 items-center gap-1.5 rounded-full bg-accent-fg/15');
   });
 });

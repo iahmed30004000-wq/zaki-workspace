@@ -226,7 +226,7 @@ export function PeopleDock({
         aria-controls={open ? panelId : undefined}
         aria-label={drawer ? t("phoneChrome.online_label", { text: online.length > 0 ? onlineText : t("shell.dock.title") }) : online.length > 0 ? onlineText : t("shell.dock.title")}
         onClick={() => setOpen((v) => !v)}
-        className={drawer ? "flex h-9 items-center gap-1.5 rounded-full bg-accent-fg/15 px-3 text-xs font-semibold text-accent-fg transition-colors hover:bg-accent-fg/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-fg" : rail ? railCellClass(open) : "flex h-8 min-w-0 items-center gap-2 rounded-full px-1 text-xs font-semibold text-fg transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"}
+        className={drawer ? "flex h-8 items-center gap-1.5 rounded-full bg-accent-fg/15 px-3 text-xs font-semibold text-accent-fg transition-colors hover:bg-accent-fg/25 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-fg" : rail ? railCellClass(open) : "flex h-8 min-w-0 items-center gap-2 rounded-full px-1 text-xs font-semibold text-fg transition-colors hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-inset"}
       >
         {drawer ? (
           <>

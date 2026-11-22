@@ -117,41 +117,44 @@ export function Drawer({
         <DialogTitle className="sr-only">{t("navv2.drawer.title")}</DialogTitle>
         {/* the header: me */}
         {/* the owner's mock-up (`.dh`): the person on the accent, in the accent's own text colour; it runs up under the notch */}
-        <div data-shell="drawer-head" className="shrink-0 bg-accent px-4 pb-2 pt-[calc(1.125rem+env(safe-area-inset-top))] text-accent-fg">
-          <div className={cn("flex items-center gap-3", oneDoor ? "pe-24" : "pe-14")}>
+        <div data-shell="drawer-head" className="shrink-0 bg-accent px-4 pb-3 pt-[calc(1rem+env(safe-area-inset-top))] text-accent-fg">
+          <div className="flex items-center gap-3">
             <Initial name={user.name} src={user.avatarUrl} large onAccent />
             <div className="min-w-0 flex-1">
               <p className="truncate text-base font-bold">
                 <bdi>{user.name}</bdi>
               </p>
-              {handle ? (
-                <p dir="ltr" className="truncate text-end text-xs opacity-85">
-                  {handle}
-                </p>
-              ) : null}
-              <p className="mt-1 inline-flex rounded-full bg-accent-fg/15 px-2 py-0.5 text-xs font-medium text-accent-fg">{enumLabel("OrgRole", rank)}</p>
+              {/* the owner (2026-11-22): the @name and the rank on ONE line */}
+              <div data-shell="drawer-head-id" className="mt-0.5 flex min-w-0 items-center gap-2">
+                {handle ? (
+                  <span dir="ltr" className="min-w-0 truncate text-xs opacity-85">
+                    {handle}
+                  </span>
+                ) : null}
+                <span className="inline-flex shrink-0 rounded-full bg-accent-fg/15 px-2 py-0.5 text-xs font-medium text-accent-fg">{enumLabel("OrgRole", rank)}</span>
+              </div>
             </div>
           </div>
-          {/* P2.1: what a phone's page no longer draws: who is online (a dot and a count) and «ليل / نهار» as an icon */}
-          <div role="group" aria-label={t("phoneChrome.tools")} data-shell="drawer-head-tools" className="mt-1 flex items-center gap-2">
+          {/* the owner: ONE small row, side by side: who is online (a dot and a count) · «ليل / نهار» · «ترتيب» · «إغلاق» (32px each, nothing pinned to a corner) */}
+          <div role="group" aria-label={t("phoneChrome.tools")} data-shell="drawer-head-tools" className="mt-2 flex items-center gap-1.5">
             {presence}
-            <ThemeIconButton data-shell="drawer-theme" className="ms-auto" />
+            <ThemeIconButton data-shell="drawer-theme" className="ms-auto size-8" />
+            {oneDoor ? (
+              // S3.1: «ترتيب» - one small button (the drawer stays open: the places to drag are in it, and so are «تم» and «رجّع»)
+              <NavOrderButton
+                orderLocked={orderLocked}
+                onEditStart={editing ? undefined : onEditStart}
+                className="size-8 rounded-full bg-accent-fg/15 text-accent-fg hover:bg-accent-fg/25 hover:text-accent-fg"
+              />
+            ) : null}
+            <DialogPrimitive.Close
+              aria-label={t("ui.close")}
+              className="grid size-8 shrink-0 place-items-center rounded-full bg-accent-fg/15 text-accent-fg transition-colors hover:bg-accent-fg/25"
+            >
+              <X aria-hidden="true" className="size-4" />
+            </DialogPrimitive.Close>
           </div>
         </div>
-        <DialogPrimitive.Close
-          aria-label={t("ui.close")}
-          className="absolute end-2 top-[calc(0.5rem+env(safe-area-inset-top))] grid size-11 place-items-center rounded-lg text-accent-fg transition-colors hover:bg-accent-fg/15"
-        >
-          <X aria-hidden="true" className="size-4" />
-        </DialogPrimitive.Close>
-        {oneDoor ? (
-          // S3.1: «ترتيب» - one small button beside «إغلاق» (the drawer stays open: the places to drag are in it, and so are «تم» and «رجّع»)
-          <NavOrderButton
-            orderLocked={orderLocked}
-            onEditStart={editing ? undefined : onEditStart}
-            className="absolute end-[3.25rem] top-[calc(0.5rem+env(safe-area-inset-top))] size-11 text-accent-fg hover:bg-accent-fg/15 hover:text-accent-fg"
-          />
-        ) : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {/* …and the spaces, each with what waits in it */}
