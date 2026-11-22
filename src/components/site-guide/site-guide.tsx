@@ -330,12 +330,12 @@ export function SiteGuide({ enabled }: { enabled: boolean }) {
           onClick={() => setOpen(true)}
           aria-label={t("siteGuide.open")}
           className={cn(
-            "fixed z-50 flex h-12 w-12 items-center justify-center rounded-full border border-border bg-surface text-fg shadow-card hover:bg-surface-2 md:bottom-[18px] md:start-[calc(72px+18px)]",
+            "fixed z-50 flex h-12 w-12 items-center justify-center rounded-full bg-info text-info-fg shadow-card hover:opacity-90 md:bottom-[18px] md:start-[calc(72px+18px)]",
             // the new map: not over a phone's page at all (the drawer opens it); the old map: above its bottom bar
             drawerChrome ? "bottom-[18px] max-md:hidden" : "bottom-[calc(3.5rem+0.75rem+env(safe-area-inset-bottom))] start-3",
           )}
         >
-          <Compass className="h-6 w-6 text-info" aria-hidden="true" />
+          <Compass className="h-6 w-6" aria-hidden="true" />
         </button>
       )}
       {open && (

@@ -1,13 +1,13 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Menu } from "lucide-react";
+import { Compass, Menu } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import type { Audience } from "@/lib/guide/audience";
 import type { NavModel, NavRole, PlaceKey } from "@/lib/nav/places";
 import type { NewActionKey } from "@/lib/nav/new-actions";
-import { appBarOf } from "@/lib/nav/shell-v2";
+import { appBarOf, GUIDE_OPEN_EVENT } from "@/lib/nav/shell-v2";
 import { CommandPalette } from "@/components/command-palette";
 import { NotificationBell } from "@/components/notification-bell";
 import { PageHelpButton } from "@/components/guide/page-help-button";
@@ -42,6 +42,7 @@ export function AppBar({
   onOpenDrawer,
   tabs = null,
   hideOnDesktop = false,
+  guide = false,
 }: {
   nav: NavModel;
   /** The place on screen (null: a page of no place, like the profile). */
@@ -61,6 +62,8 @@ export function AppBar({
   tabs?: ReactNode;
   /** Hidden from `md` up by CSS (the chat's computer layout). */
   hideOnDesktop?: boolean;
+  /** The owner's guide is on: a coloured round button on a phone's bar opens its panel (the computer has the floating one). */
+  guide?: boolean;
 }) {
   const { t } = useI18n();
   const slots = appBarOf(place);
@@ -104,6 +107,18 @@ export function AppBar({
             <div data-phone-hidden="help" className="max-md:hidden">
               <PageHelpButton pathname={pathname} audience={audience} />
             </div>
+          ) : null}
+          {guide ? (
+            <button
+              type="button"
+              data-shell="app-bar-guide"
+              onClick={() => window.dispatchEvent(new Event(GUIDE_OPEN_EVENT))}
+              aria-label={t("siteGuide.open")}
+              title={t("siteGuide.open")}
+              className="m-1 grid size-9 shrink-0 place-items-center rounded-full bg-info text-info-fg shadow-card transition-opacity hover:opacity-90 md:hidden"
+            >
+              <Compass aria-hidden="true" className="size-5" />
+            </button>
           ) : null}
           {slots.bell ? <NotificationBell /> : null}
           {slots.create ? <NewWheel actions={newActions} v2 /> : null}

@@ -54,6 +54,50 @@ export function Initial({ name, src, large = false, onAccent = false }: { name: 
 }
 
 /**
+ * The sign-out, once: the avatar menu's last row and the phone drawer's last button both use it. Nothing of this person stays on the device for the next one to sign in.
+ */
+function useLogout() {
+  const { t } = useI18n();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: () => apiPost("/api/auth/logout"),
+    onSuccess: async () => {
+      // nothing of this person stays queued in the browser for the next one to sign in (src/lib/chat/outbox/)
+      await clearAllOutboxes();
+      // ⚠️ message text is kept on the device for the instant start (C1.5): 🔧 gone with the person who signed out
+      await wipeChatCache();
+      // the copy of this person's settings (theme, text size, send key) leaves with them (C4.1)
+      clearMirror();
+      window.location.href = "/login";
+    },
+    onError: () => toast(t("common.error"), "error"),
+  });
+}
+
+/**
+ * «تسجيل الخروج» as a button of its own: the LAST thing in the phone drawer, one tap (the owner: no opening the profile to find it). The danger colour, 48px high.
+ */
+export function SignOutButton({ className }: { className?: string }) {
+  const { t } = useI18n();
+  const logout = useLogout();
+  return (
+    <button
+      type="button"
+      data-shell="drawer-signout"
+      disabled={logout.isPending}
+      onClick={() => logout.mutate()}
+      className={cn(
+        "flex min-h-12 w-full items-center gap-3 rounded-xl border border-danger/30 bg-danger/10 px-3 text-start text-sm font-semibold text-danger transition-colors hover:bg-danger/15 disabled:opacity-60",
+        className,
+      )}
+    >
+      <LogOut aria-hidden="true" className="size-5 shrink-0" />
+      <span className="truncate">{t("shell.avatar.logout")}</span>
+    </button>
+  );
+}
+
+/**
  * The avatar menu: who is signed in (name, @username or the e-mail, and the rank in Arabic), then
  * «المظهر» (the theme picker, in a sheet), «الدليل», «حسابي», and «تسجيل الخروج». Nothing else: no
  * button for something that does not exist yet. C4.1 adds «إعداداتي» (`/settings/me`) as the gear beside the person's name at the top of the menu (the four items below are
@@ -81,26 +125,13 @@ export function AvatarMenu({
   portal?: boolean;
 }) {
   const { t } = useI18n();
-  const { toast } = useToast();
   // S3.1: «الإعدادات» is ONE door: the menu keeps the theme, ONE row «الإعدادات» (it replaces «إعداداتي», «الدليل» and «حسابي»: «حسابي» is the first section inside) and the sign-out
   const oneDoor = useSettingsOneDoor();
   const [themeOpen, setThemeOpen] = useState(false);
   const themeAfterClose = useRef(false);
   const handle = user.username ? `@${user.username}` : (user.email ?? "");
 
-  const logout = useMutation({
-    mutationFn: () => apiPost("/api/auth/logout"),
-    onSuccess: async () => {
-      // nothing of this person stays queued in the browser for the next one to sign in (src/lib/chat/outbox/)
-      await clearAllOutboxes();
-      // ⚠️ message text is kept on the device for the instant start (C1.5): 🔧 gone with the person who signed out
-      await wipeChatCache();
-      // the copy of this person's settings (theme, text size, send key) leaves with them (C4.1)
-      clearMirror();
-      window.location.href = "/login";
-    },
-    onError: () => toast(t("common.error"), "error"),
-  });
+  const logout = useLogout();
 
   const opensUp = variant !== "bar";
 
