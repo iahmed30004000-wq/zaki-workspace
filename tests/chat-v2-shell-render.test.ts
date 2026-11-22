@@ -75,15 +75,16 @@ describe("the addresses of the chat", () => {
   });
 });
 
-describe("the width of the column: 360 px, dragged between 300 and 480, kept on the device", () => {
+describe("the width of the column: 360 px, dragged between 300 and 720 (Telegram-wide), a rail of 72 below that, kept on the device", () => {
   const store = () => {
     const data = new Map<string, string>();
     return { getItem: (k: string) => data.get(k) ?? null, setItem: (k: string, v: string) => void data.set(k, v), removeItem: (k: string) => void data.delete(k), data };
   };
   it("the numbers of the spec", () => {
-    expect([LIST_WIDTH_DEFAULT, LIST_WIDTH_MIN, LIST_WIDTH_MAX, LIST_WIDTH_KEY]).toEqual([360, 300, 480, "zk-chat-list-w"]);
-    expect(clampListWidth(100)).toBe(300);
-    expect(clampListWidth(900)).toBe(480);
+    expect([LIST_WIDTH_DEFAULT, LIST_WIDTH_MIN, LIST_WIDTH_MAX, LIST_WIDTH_KEY]).toEqual([360, 300, 720, "zk-chat-list-w"]);
+    expect(clampListWidth(100)).toBe(72); // narrower than a list can be: the rail (2026-11-22)
+    expect(clampListWidth(250)).toBe(300);
+    expect(clampListWidth(900)).toBe(720);
     expect(clampListWidth(400.4)).toBe(400);
     expect(clampListWidth(Number.NaN)).toBe(360);
   });
@@ -93,7 +94,7 @@ describe("the width of the column: 360 px, dragged between 300 and 480, kept on 
     expect(s.data.get("zk-chat-list-w")).toBe("420");
     expect(readListWidth(s)).toBe(420);
     saveListWidth(9999, s);
-    expect(readListWidth(s)).toBe(480);
+    expect(readListWidth(s)).toBe(720);
     s.data.set("zk-chat-list-w", "wide");
     expect(readListWidth(s)).toBe(360);
     s.data.set("zk-chat-list-w", "99999");
@@ -108,17 +109,17 @@ describe("the width of the column: 360 px, dragged between 300 and 480, kept on 
   it("a drag: the pointer's distance from the column's START edge is the width, either direction of the page", () => {
     const rect = { left: 100, right: 500 };
     expect(widthFromPointer(180, rect, true)).toBe(320); // right-to-left: start edge is the right (500)
-    expect(widthFromPointer(180, rect, false)).toBe(300); // left-to-right: 180 - 100 = 80 → clamped
+    expect(widthFromPointer(180, rect, false)).toBe(72); // left-to-right: 180 - 100 = 80 → the rail
     expect(widthFromPointer(560, rect, false)).toBe(460);
-    expect(widthFromPointer(0, rect, true)).toBe(480);
+    expect(widthFromPointer(0, rect, true)).toBe(500);
   });
   it("the keyboard: the arrow pointing away from the start edge widens, Home and End go to the ends", () => {
     expect(widthFromKey(360, "ArrowLeft", true)).toBe(376);
     expect(widthFromKey(360, "ArrowRight", true)).toBe(344);
     expect(widthFromKey(360, "ArrowRight", false)).toBe(376);
-    expect(widthFromKey(300, "ArrowRight", true)).toBe(300);
-    expect(widthFromKey(360, "Home", true)).toBe(300);
-    expect(widthFromKey(360, "End", true)).toBe(480);
+    expect(widthFromKey(300, "ArrowRight", true)).toBe(72); // the narrowest list folds to the rail
+    expect(widthFromKey(360, "Home", true)).toBe(72);
+    expect(widthFromKey(360, "End", true)).toBe(720);
     expect(widthFromKey(360, "a", true)).toBeNull();
   });
 });

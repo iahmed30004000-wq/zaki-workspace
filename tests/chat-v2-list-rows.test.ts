@@ -230,7 +230,7 @@ describe("a row subscribes to ITSELF (the structure that makes one new message r
     expect(virtualSrc).toContain('from "@tanstack/react-virtual"');
     expect(virtualSrc).toContain("export const OVERSCAN = 8;");
     expect(virtualSrc).toContain("overscan: OVERSCAN");
-    expect(virtualSrc).toContain("rowHeight = tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT");
+    expect(virtualSrc).toContain("rowHeight = rail ? RAIL_ROW_HEIGHT : tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT");
   });
 });
 
@@ -302,12 +302,12 @@ describe("the whole column, from a seeded cache", () => {
     expect(html).not.toContain("data-chat-loading");
   });
 
-  it("the column has the resize handle (a separator between 300 and 480) on the computer, and none on the phone", () => {
+  it("the column has the resize handle (a separator between the rail (72) and 720) on the computer, and none on the phone", () => {
     where.pathname = "/chat";
     const column = render(createElement(ChatListColumn, props), seeded(dto(rows)));
     expect(column).toContain('role="separator"');
-    expect(column).toContain('aria-valuemin="300"');
-    expect(column).toContain('aria-valuemax="480"');
+    expect(column).toContain('aria-valuemin="72"');
+    expect(column).toContain('aria-valuemax="720"');
     expect(column).toContain("width:360px");
     const phone = render(createElement(ChatListColumn, { ...props, variant: "screen" }), seeded(dto(rows)));
     expect(phone).not.toContain('role="separator"');

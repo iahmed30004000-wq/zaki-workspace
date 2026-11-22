@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 /** The row heights of the spec (C2 §3): 72 px, and 76 px on the phone (a bigger thumb, a bigger avatar). */
 export const ROW_HEIGHT = 72;
 export const ROW_HEIGHT_PHONE = 76;
+/** a row of the folded list (the picture, 12 + a little air) */
+export const RAIL_ROW_HEIGHT = 64;
 export const SECTION_HEIGHT = 36;
 
 export function rowHref(row: Pick<ChatRowDto, "kind" | "id">): string {
@@ -75,10 +77,13 @@ export function RowView({
   now,
   menu,
   saved = false,
+  rail = false,
 }: {
   row: ChatRowDto;
   selected: boolean;
   tall?: boolean;
+  /** the owner (2026-11-22): the list folded to a rail: the picture only, a number for what is unread, the name as its tooltip */
+  rail?: boolean;
   /** C3a.3: this row is «الرسائل المحفوظة» (the connected row knows it from the viewer's id): a bookmark for a picture, no typing line, no ticks */
   saved?: boolean;
   typingNames?: readonly string[];
@@ -98,6 +103,38 @@ export function RowView({
   const chips = space ? (row.topicChips ?? []) : [];
   const muted = row.muted;
   const on = selected;
+
+  if (rail) {
+    return (
+      <div
+        data-chat-row=""
+        data-row-id={row.id}
+        data-kind={row.kind}
+        data-selected={on ? "true" : "false"}
+        data-rail=""
+        className={cn("relative flex w-full items-center justify-center transition-colors motion-reduce:transition-none", on ? "bg-accent/15" : "hover:bg-surface-2")}
+        style={{ height: RAIL_ROW_HEIGHT }}
+      >
+        <Link
+          href={rowHref(row)}
+          scroll={false}
+          prefetch
+          aria-current={on ? "page" : undefined}
+          data-row-link=""
+          title={row.title}
+          aria-label={row.title}
+          className={cn("relative grid size-12 place-items-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", on && "ring-2 ring-accent")}
+        >
+          <RowAvatar row={row} tall={false} saved={saved} />
+          {unread ? (
+            <span data-rail-badge="" className={cn("absolute -end-1 -top-1 min-w-5 rounded-full px-1 text-center text-xs font-semibold leading-5", muted ? "bg-fg-muted text-surface" : "bg-accent text-accent-fg")}>
+              {row.unread > 0 ? (row.unread > 99 ? "99+" : row.unread) : ""}
+            </span>
+          ) : null}
+        </Link>
+      </div>
+    );
+  }
 
   const quiet = on ? "text-accent-fg/80" : "text-fg-muted";
   const previewTone =
@@ -230,6 +267,8 @@ export interface ChatRowItemProps {
   /** is this the conversation that is open (its row is highlighted)? A boolean, so choosing another chat re-renders two rows, not all of them */
   selected: boolean;
   tall: boolean;
+  /** the list is folded to a rail (computer only) */
+  rail?: boolean;
   userId: string;
   menu: RowMenuContext;
   /** the local date: only here to make a memoized row draw again once a day, so «09:05» becomes the day's name */
@@ -240,11 +279,11 @@ export interface ChatRowItemProps {
  * The row as the list draws it: it subscribes to ITSELF by id (`useChatRow`), so a new message in one chat re-renders that one row and moves it,
  * never the whole list; the typing line and the draft are its own too. `memo` keeps the others still when the list re-sorts.
  */
-export const ChatRowItem = memo(function ChatRowItem({ id, selected, tall, userId, menu }: ChatRowItemProps) {
+export const ChatRowItem = memo(function ChatRowItem({ id, selected, tall, rail = false, userId, menu }: ChatRowItemProps) {
   // `day` is read by `memo` (a changed prop draws the row again) and by nothing else
   const row = useChatRow(id);
   if (!row) return null;
-  return <ConnectedRow row={row} selected={selected} tall={tall} userId={userId} menu={menu} />;
+  return <ConnectedRow row={row} selected={selected} tall={tall} rail={rail} userId={userId} menu={menu} />;
 });
 
 const SWIPE_ICON: Record<RowSwipeActionId, LucideIcon> = { pin: Pin, unpin: PinOff, mute: BellOff, unmute: Bell, archive: Archive, unarchive: ArchiveRestore };
@@ -345,7 +384,7 @@ function SwipeShell({ row, personal, children }: { row: ChatRowDto; personal: bo
   );
 }
 
-function ConnectedRow({ row, selected, tall, userId, menu: given }: { row: ChatRowDto; selected: boolean; tall: boolean; userId: string; menu: RowMenuContext }) {
+function ConnectedRow({ row, selected, tall, rail, userId, menu: given }: { row: ChatRowDto; selected: boolean; tall: boolean; rail: boolean; userId: string; menu: RowMenuContext }) {
   const conversation = row.kind !== "SPACE";
   // C3a.1: the company's switch for the person's own items, from the cached list (the forum view hands the same context without it)
   const personal = useChatPersonalState();
@@ -366,7 +405,8 @@ function ConnectedRow({ row, selected, tall, userId, menu: given }: { row: ChatR
       typingNames={typing.typingNames}
       draft={draft}
       saved={saved}
-      menu={has ? <RowActionsMenu row={row} ctx={menu} open={open} onOpenChange={setOpen} openConversationId={selected ? row.id : null} className="ms-1" /> : null}
+      rail={rail}
+      menu={has && !rail ? <RowActionsMenu row={row} ctx={menu} open={open} onOpenChange={setOpen} openConversationId={selected ? row.id : null} className="ms-1" /> : null}
     />
   );
   return (

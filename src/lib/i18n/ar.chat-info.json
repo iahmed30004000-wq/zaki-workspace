@@ -1,4 +1,6 @@
 {
+  "chatui.list.archived_entry": "المحادثات المؤرشفة",
+  "chatprof.header.toggle": "إظهار أو إخفاء البروفايل",
   "chatprof.header.open": "افتح معلومات «{name}»",
   "chatprof.tab.members": "الأعضاء",
   "chatprof.empty.media": "ما في صور أو فيديوهات بهالمحادثة لسا",

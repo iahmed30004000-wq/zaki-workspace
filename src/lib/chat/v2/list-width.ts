@@ -8,13 +8,23 @@ import { browserStorage, type DraftStorage } from "@/lib/cards/draft";
 export const LIST_WIDTH_KEY = "zk-chat-list-w";
 export const LIST_WIDTH_DEFAULT = 360;
 export const LIST_WIDTH_MIN = 300;
-export const LIST_WIDTH_MAX = 480;
+/** the owner (2026-11-22), like Telegram Desktop: the list may be dragged wide (it was 480) */
+export const LIST_WIDTH_MAX = 720;
+/** …and narrow it becomes a rail of pictures only: a drag below LIST_RAIL_SNAP lands here */
+export const LIST_RAIL_WIDTH = 72;
+export const LIST_RAIL_SNAP = 200;
 /** one press of an arrow key on the resize handle */
 export const LIST_WIDTH_STEP = 16;
 
+export function isRailWidth(width: number): boolean {
+  return width <= LIST_RAIL_WIDTH;
+}
+
 export function clampListWidth(value: number): number {
   if (!Number.isFinite(value)) return LIST_WIDTH_DEFAULT;
-  return Math.min(LIST_WIDTH_MAX, Math.max(LIST_WIDTH_MIN, Math.round(value)));
+  const rounded = Math.round(value);
+  if (rounded < LIST_RAIL_SNAP) return LIST_RAIL_WIDTH;
+  return Math.min(LIST_WIDTH_MAX, Math.max(LIST_WIDTH_MIN, rounded));
 }
 
 /** What is stored, or the default for anything else (a stranger's value, a damaged one). */
@@ -22,8 +32,11 @@ export function readListWidth(storage: DraftStorage | null = browserStorage()): 
   if (!storage) return LIST_WIDTH_DEFAULT;
   try {
     const raw = storage.getItem(LIST_WIDTH_KEY);
-    if (!raw || !/^\d{3}$/.test(raw)) return LIST_WIDTH_DEFAULT;
-    return clampListWidth(Number(raw));
+    if (!raw || !/^\d{2,3}$/.test(raw)) return LIST_WIDTH_DEFAULT;
+    const stored = Number(raw);
+    // only the rail's own two-digit value is believed; any other short number is a stranger's
+    if (stored < 100 && stored !== LIST_RAIL_WIDTH) return LIST_WIDTH_DEFAULT;
+    return clampListWidth(stored);
   } catch {
     return LIST_WIDTH_DEFAULT;
   }
@@ -48,11 +61,12 @@ export function widthFromPointer(clientX: number, rect: { left: number; right: n
 
 /** Arrow keys on the resize handle: the arrow that points away from the start edge widens the column. */
 export function widthFromKey(width: number, key: string, rtl: boolean): number | null {
-  if (key === "Home") return LIST_WIDTH_MIN;
+  if (key === "Home") return LIST_RAIL_WIDTH;
   if (key === "End") return LIST_WIDTH_MAX;
   const widen = rtl ? "ArrowLeft" : "ArrowRight";
   const narrow = rtl ? "ArrowRight" : "ArrowLeft";
-  if (key === widen) return clampListWidth(width + LIST_WIDTH_STEP);
-  if (key === narrow) return clampListWidth(width - LIST_WIDTH_STEP);
+  // from the rail one step opens the list at its narrowest; from the narrowest list one step folds it to the rail
+  if (key === widen) return isRailWidth(width) ? LIST_WIDTH_MIN : clampListWidth(width + LIST_WIDTH_STEP);
+  if (key === narrow) return width <= LIST_WIDTH_MIN ? LIST_RAIL_WIDTH : clampListWidth(width - LIST_WIDTH_STEP);
   return null;
 }

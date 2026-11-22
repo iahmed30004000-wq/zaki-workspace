@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
-import { LIST_WIDTH_DEFAULT, LIST_WIDTH_MAX, LIST_WIDTH_MIN, readListWidth, saveListWidth, widthFromKey, widthFromPointer } from "@/lib/chat/v2/list-width";
+import { LIST_RAIL_WIDTH, LIST_WIDTH_DEFAULT, LIST_WIDTH_MAX, readListWidth, saveListWidth, widthFromKey, widthFromPointer } from "@/lib/chat/v2/list-width";
 
 /**
  * C2.1 — the width of the list column: 360 px, dragged between 300 and 480 by its END edge (the keyboard works too: the arrow keys, Home and End), kept
@@ -69,7 +69,7 @@ export function useListWidth(): {
     handle: {
       role: "separator",
       "aria-orientation": "vertical",
-      "aria-valuemin": LIST_WIDTH_MIN,
+      "aria-valuemin": LIST_RAIL_WIDTH,
       "aria-valuemax": LIST_WIDTH_MAX,
       "aria-valuenow": width,
       tabIndex: 0,

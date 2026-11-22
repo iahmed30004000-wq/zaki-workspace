@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Megaphone, MoreVertical, Search } from "lucide-react";
+import { ArrowRight, Megaphone, MoreVertical, PanelRight, Search } from "lucide-react";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
@@ -220,6 +220,18 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
       ) : header.calls !== false && !saved ? (
         <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart={header.me.canPost && header.me.canCall !== false} joinInBar />
       ) : null}
+      {/* the owner (2026-11-22), like Telegram: a button that shows and hides the profile panel on the side (a computer only: on a phone the panel is a screen of its own) */}
+      <button
+        type="button"
+        data-header-info-toggle
+        aria-pressed={a.infoOpen}
+        aria-label={ct("chatprof.header.toggle")}
+        title={ct("chatprof.header.toggle")}
+        onClick={a.toggleInfo}
+        className={`${iconButton} max-md:hidden ${a.infoOpen ? "text-accent" : "text-fg-muted"}`}
+      >
+        <PanelRight aria-hidden="true" className="size-5" />
+      </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" data-header-menu aria-label={ct("chatc.more")} className={iconButton}>
