@@ -3,7 +3,7 @@
 import React, { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bookmark } from "lucide-react";
+import { Archive, Bookmark } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import { ChatPwaHost } from "@/components/pwa/chat-pwa-host";
@@ -12,6 +12,7 @@ import { ForumView } from "@/components/chat/v2/forum/forum-view";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { PhoneListBar } from "@/components/chat/v2/phone/list-bar";
 import { useListWidth } from "@/components/chat/v2/use-list-width";
+import { isRailWidth } from "@/lib/chat/v2/list-width";
 import { useChatList, useChatSpace, useChatUnreadSummary } from "@/lib/chat/cache/selectors";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { listQueryOptions } from "@/lib/chat/cache/queries";
@@ -87,7 +88,7 @@ export function ChatListColumn(props: ChatListColumnProps) {
     >
       {/* the list stays where it is (its folder, its search, its scroll) while the forum view is drawn over it; it is out of the tab order meanwhile */}
       <div className="flex min-h-0 flex-1 flex-col" aria-hidden={forumId ? true : undefined} {...(forumId ? ({ inert: "" } as Record<string, string>) : {})}>
-        <ListScreen {...props} selectedId={selectedConversationId(route)} />
+        <ListScreen {...props} selectedId={selectedConversationId(route)} rail={column && isRailWidth(width)} />
       </div>
       {forumId ? (
         column ? (
@@ -151,8 +152,27 @@ function SavedEntry({ tall }: { tall: boolean }) {
   );
 }
 
+/** «المحادثات المؤرشفة»: one row on top of the list (Telegram's), the person's OWN archive (C3a.1); it opens the archive folder. */
+function ArchivedEntry({ tall, count, onOpen }: { tall: boolean; count: number; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      data-archived-entry=""
+      onClick={onOpen}
+      style={{ height: tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT }}
+      className="flex w-full shrink-0 items-center gap-3 border-b border-border/60 px-3 text-start hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+    >
+      <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-full bg-surface-2 text-fg-muted", tall ? "size-14" : "size-12")}>
+        <Archive className="size-6" />
+      </span>
+      <span className="min-w-0 flex-1 truncate text-base font-medium">{ct("chatui.list.archived_entry")}</span>
+      <span className="grid min-w-6 shrink-0 place-items-center rounded-full bg-fg-muted/20 px-1.5 text-xs font-semibold text-fg-muted">{count}</span>
+    </button>
+  );
+}
+
 /** The conversations list with its folders and search: every conversation the server put in the list, in the folder asked for. */
-const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, selectedId }: ChatListColumnProps & { selectedId: string | null }) {
+const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, selectedId, rail }: ChatListColumnProps & { selectedId: string | null; rail: boolean }) {
   const tall = variant === "screen";
   const searchId = useId();
   const day = useDayKey();
@@ -241,17 +261,19 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   return (
     <div className="flex min-h-0 flex-1">
       {/* the desktop keeps the folders in a column beside the list (like a messenger); the phone has them as a strip on top */}
-      {tall ? null : <FolderRail folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} />}
+      {tall ? null : rail ? null : <FolderRail folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} />}
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       {tall ? (
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
         <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
-      ) : (
+      ) : rail ? null : (
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
       {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} /> : null}
       {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
-      <ChatPwaHost guest={guest} />
+      {rail ? null : <ChatPwaHost guest={guest} />}
+      {/* the owner (2026-11-22), like Telegram: «المحادثات المؤرشفة» at the top of the list, with how many; a press opens the archive */}
+      {archived && !rail && !words && folder === "all" && !list.isPending ? <ArchivedEntry tall={tall} count={list.archivedRows.length} onOpen={() => setFolderKey("archived")} /> : null}
       {/* C3a.3: «المحفوظة» before it exists: one pinned entry on top of the list (the folder «الكل», no search) */}
       {savedOn && !hasSaved && !company && !words && folder === "all" && !list.isPending ? <SavedEntry tall={tall} /> : null}
       {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}
@@ -266,7 +288,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       ) : rows.length === 0 ? (
         <ListEmpty folder={custom ? "custom" : (folder as ListFolderKey)} query={words} {...(canCreateSpace && folder === "all" && !words ? { onCreateSpace: () => setCreatingSpace(true) } : {})} />
       ) : (
-        <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
+        <VirtualRows items={items} tall={tall} rail={rail} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
       )}
 
       {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} onGroup={openGroup} onTopic={openTopic} canMeet={canMeet} /> : null}

@@ -6,7 +6,7 @@ import type { ListItem } from "@/lib/chat/list-folders";
 import { ct } from "@/lib/chat/text";
 import { useFlipRows } from "@/lib/chat/v2/phone/use-flip";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
-import { ChatRowItem, ROW_HEIGHT, ROW_HEIGHT_PHONE, SECTION_HEIGHT } from "./chat-row";
+import { ChatRowItem, RAIL_ROW_HEIGHT, ROW_HEIGHT, ROW_HEIGHT_PHONE, SECTION_HEIGHT } from "./chat-row";
 
 /**
  * C2.2 — the rows of the list, VIRTUAL: only the rows on the screen (and eight beyond each edge) exist in the page, so a company with a thousand
@@ -23,6 +23,7 @@ const INITIAL_RECT = { width: 360, height: 720 } as const;
 export function VirtualRows({
   items,
   tall,
+  rail = false,
   selectedId,
   userId,
   menu,
@@ -31,6 +32,8 @@ export function VirtualRows({
 }: {
   items: readonly ListItem[];
   tall: boolean;
+  /** the list is folded to a rail of pictures (computer only) */
+  rail?: boolean;
   selectedId: string | null;
   userId: string;
   menu: RowMenuContext;
@@ -39,7 +42,7 @@ export function VirtualRows({
   day: string;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const rowHeight = tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT;
+  const rowHeight = rail ? RAIL_ROW_HEIGHT : tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT;
   const sizeOf = useCallback((index: number) => (items[index]?.type === "section" ? SECTION_HEIGHT : rowHeight), [items, rowHeight]);
   const keyOf = useCallback((index: number) => items[index]?.key ?? index, [items]);
   const virtualizer = useVirtualizer({
@@ -119,7 +122,7 @@ export function VirtualRows({
               {item.type === "section" ? (
                 <div className="flex h-full items-center border-b border-border/60 px-3 text-xs font-semibold text-fg-muted">{ct("chath.archived", { n: item.count })}</div>
               ) : (
-                <ChatRowItem id={item.id} selected={selectedId === item.id} tall={tall} userId={userId} menu={menu} day={day} />
+                <ChatRowItem id={item.id} selected={selectedId === item.id} tall={tall} rail={rail} userId={userId} menu={menu} day={day} />
               )}
             </div>
           );
