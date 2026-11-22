@@ -309,6 +309,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             space={space}
             newActions={isGuest ? [] : newActions}
             onOpenDrawer={() => setDrawerOpen(true)}
+            guide={!isGuest && siteGuide}
           />
           )
         ) : (

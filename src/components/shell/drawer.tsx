@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { GUIDE_OPEN_EVENT } from "@/lib/nav/shell-v2";
 import { ThemeIconButton } from "@/components/theme/theme-switch";
 import type { NavModel, NavRole, PlaceKey } from "@/lib/nav/places";
-import { AvatarMenu, Initial, type AvatarUser } from "./avatar-menu";
+import { Initial, SignOutButton, type AvatarUser } from "./avatar-menu";
 import { ariaCurrent } from "./current";
 import { NavIcon } from "./nav-icons";
 import { NavOptions, NavOrderButton, SettingsDoor, useSettingsOneDoor } from "./nav-options";
@@ -227,12 +227,14 @@ export function Drawer({
                 // the guide is its own lazy chunk: it opens its panel on this event once the drawer has finished closing
                 window.setTimeout(() => window.dispatchEvent(new Event(GUIDE_OPEN_EVENT)), 180);
               }}
-              className="flex min-h-12 w-full items-center gap-3 rounded-xl px-3 py-1.5 text-start text-sm text-fg transition-colors hover:bg-surface-2"
+              className="flex min-h-12 w-full items-center gap-3 rounded-xl bg-info px-3 py-1.5 text-start text-sm text-info-fg shadow-card transition-opacity hover:opacity-90"
             >
-              <Compass aria-hidden="true" className="size-5 shrink-0 text-info" />
+              <span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-full bg-info-fg/20">
+                <Compass className="size-5" />
+              </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-semibold">{t("siteGuide.open")}</span>
-                <span className="block truncate text-xs text-fg-muted">{t("phoneChrome.guide_hint")}</span>
+                <span className="block truncate text-xs opacity-85">{t("phoneChrome.guide_hint")}</span>
               </span>
             </button>
           ) : null}
@@ -249,7 +251,8 @@ export function Drawer({
             </>
           )}
           <InstallAppButton />
-          <AvatarMenu user={user} rank={rank} variant="sidebar" />
+          {/* the owner: the last thing is «تسجيل الخروج», one tap (the profile row that opened a menu is gone: the person is the header above) */}
+          <SignOutButton className="mt-1" />
         </div>
       </DialogPrimitive.Content>
     </>
