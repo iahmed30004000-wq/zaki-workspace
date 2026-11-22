@@ -18,7 +18,7 @@ import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTitle } from "@/compo
 import { ThemePicker } from "@/components/theme/theme-picker";
 import { useToast } from "@/components/ui/toast";
 import { MeEffects } from "@/components/settings-me/me-effects";
-import { SETTINGS_DOOR_HREF, useSettingsOneDoor } from "./nav-options";
+import { useSettingsOneDoor } from "./nav-options";
 import { clearMirror } from "@/lib/device-prefs";
 
 /** What the menu shows of the signed-in person (CurrentUser fits as it is). */
@@ -104,7 +104,7 @@ export function SignOutButton({ className }: { className?: string }) {
  * pinned by tests/shell-render.test.ts; «حسابي» is the first section of «إعداداتي» and its old address `/profile` redirects there), and mounts `MeEffects` (draws nothing):
  * the device's copy of the person's choices and Ctrl+, .
  *
- * S3.3: while «الإعدادات» is ONE door the theme row and its sheet are gone (the theme's home is the person's own settings, «المظهر واللغة»).
+ * 2026-11-22: while «الإعدادات» is ONE door the menu has no «الإعدادات» row either (a duplicate of the side menu and the rail). S3.3: the theme row and its sheet are gone (the theme's home is the person's own settings, «المظهر واللغة»).
  *
  * The theme sheet opens only once the menu has closed and handed focus back to the avatar, so the sheet
  * remembers the avatar as its opener and gives focus back to it when it closes.
@@ -210,14 +210,8 @@ export function AvatarMenu({
               {t("theme.picker")}
             </DropdownMenuItem>
           )}
-          {oneDoor ? (
-            <DropdownMenuItem asChild>
-              <Link href={SETTINGS_DOOR_HREF} data-settings-me-link data-settings-door="">
-                <Settings aria-hidden="true" className="size-4 text-muted" />
-                {t("settingsOneDoor.door")}
-              </Link>
-            </DropdownMenuItem>
-          ) : (
+          {/* the owner (2026-11-22): while «الإعدادات» is ONE door this menu has no row for it: the side menu and the rail already carry the door, so a second one was a duplicate */}
+          {oneDoor ? null : (
             <>
               <DropdownMenuItem asChild>
                 <Link href="/guide">
@@ -231,9 +225,9 @@ export function AvatarMenu({
                   {t("shell.avatar.account")}
                 </Link>
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
             </>
           )}
-          <DropdownMenuSeparator />
           <DropdownMenuItem tone="danger" disabled={logout.isPending} onSelect={() => logout.mutate()}>
             <LogOut aria-hidden="true" className="size-4" />
             {t("shell.avatar.logout")}

@@ -470,10 +470,11 @@ describe("S3.1 · the avatar menu", () => {
     expect(hrefs(html)).toEqual(expect.arrayContaining(["/settings/me", "/guide", "/profile"]));
   });
 
-  it("ON: ONE row «الإعدادات» to /settings/me, and sign out; no theme (S3.3: its home is settings › «المظهر واللغة»), no guide, no «حسابي», no second gear", () => {
+  it("ON: only sign out (the owner, 2026-11-22: «الإعدادات» in this menu is a duplicate, the side menu and the rail already carry the door); no theme (S3.3), no guide, no «حسابي», no gear", () => {
     const html = open(true);
-    expect(items(html)).toEqual([AR["settingsOneDoor.door"], AR["shell.avatar.logout"]]);
-    expect(count(html, 'href="/settings/me"')).toBe(1);
+    expect(items(html)).toEqual([AR["shell.avatar.logout"]]);
+    expect(count(html, 'href="/settings/me"')).toBe(0);
+    expect(html).not.toContain("data-settings-door");
     expect(hrefs(html)).not.toContain("/guide");
     expect(hrefs(html)).not.toContain("/profile");
   });

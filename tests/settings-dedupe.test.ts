@@ -65,8 +65,8 @@ describe("S3.3 · theme and digits have ONE home: «المظهر واللغة» 
   const items = (html: string) => [...html.matchAll(/<(?:div|a)\b[^>]*role="menuitem"[^>]*>(.*?)<\/(?:div|a)>/gs)].map((m) => (m[1] as string).replace(/<[^>]*>/g, ""));
   const menu = (oneDoor: boolean) => render(createElement(AvatarMenu, { user: USER, rank: "OWNER", defaultOpen: true, portal: false }), oneDoor);
 
-  it("the avatar menu loses the theme row (and its sheet): ONE row «الإعدادات» and sign out", () => {
-    expect(items(menu(true))).toEqual([AR["settingsOneDoor.door"], AR["shell.avatar.logout"]]);
+  it("the avatar menu loses the theme row (and its sheet), and the «الإعدادات» row (the side menu and the rail already carry the door): only sign out is left", () => {
+    expect(items(menu(true))).toEqual([AR["shell.avatar.logout"]]);
     expect(menu(true)).not.toContain(AR["theme.picker"] as string);
   });
 
