@@ -298,7 +298,7 @@ describe("the gates, pinned in the source (where a database test cannot see them
   const pages = filesUnder(path.join(ROOT, "src/app/(app)/owner/assistant"), (n) => n === "page.tsx");
 
   it("every route and page decides access through assistantAccess and nothing else, and every route answers through withAssistantApi", () => {
-    expect(routes.length).toBe(9); // the seven of the assistant + the local model's «اختبر الاتصال» and the gateway's key
+    expect(routes.length).toBe(10); // the seven of the assistant + the local model's «اختبر الاتصال», the gateway's key and «افحص المفتاح»
     expect(pages.length).toBe(2);
     for (const file of [...routes, ...pages]) {
       const src = read(path.relative(ROOT, file));

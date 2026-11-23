@@ -100,6 +100,18 @@ describe("PUT /api/me/chat-prefs", () => {
     expect(await stored(owner.id)).toBeNull();
   });
 
+  it("changing the wallpaper (and the other settings of the chat screen) keeps the folders and the hidden tabs saved a moment before", async () => {
+    const { owner, org } = await makeTeam();
+    await loginAs(owner.id);
+    expect((await put({ folders: { [org.id]: [FOLDER] }, tabs: { hidden: ["mentions"] } })).status).toBe(200);
+    for (const chat of [{ wallpaper: "sea" }, { wallpaper: "sea", fontStep: 3 }, { wallpaper: "plain", fontStep: 3, themeAuto: true }]) {
+      expect((await put({ chat })).status).toBe(200);
+      expect(prefsOf(await get())).toMatchObject({ folders: { [org.id]: [FOLDER] }, tabs: { hidden: ["mentions"] }, chat });
+    }
+    expect((await put({ chat: { wallpaper: "dark" }, voiceSpeed: 2 })).status).toBe(200);
+    expect(await stored(owner.id)).toEqual({ folders: { [org.id]: [FOLDER] }, tabs: { hidden: ["mentions"] }, chat: { wallpaper: "dark" }, voiceSpeed: 2 });
+  });
+
   it("two saves at once of different sections both stay", async () => {
     const { owner, org } = await makeTeam();
     await loginAs(owner.id);

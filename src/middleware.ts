@@ -181,7 +181,8 @@ async function handleRequest(req: NextRequest): Promise<NextResponse> {
   if (PUBLIC_PATHS.includes(pathname) || pathname.startsWith("/_next")) {
     return NextResponse.next();
   }
-  if (isApi || isStaticFile(pathname)) {
+  // a machine endpoint (the MCP server at /mcp is one) is no page: it answers its own Bearer, and a cookie-less client must never be sent to /login
+  if (isApi || isMachine || isStaticFile(pathname)) {
     return NextResponse.next();
   }
 

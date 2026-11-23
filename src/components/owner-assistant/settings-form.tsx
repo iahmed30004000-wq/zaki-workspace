@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { apiDelete, apiPut, ApiError } from "@/lib/api-client";
+import { apiDelete, apiPost, apiPut, ApiError } from "@/lib/api-client";
 import { fmtNumber } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { LocalPanel, localValueOf, type LocalValue } from "./local-panel";
@@ -63,6 +63,20 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
       setLast4(res.keyLast4);
       setEditingKey(false);
       setKeyMessage({ ok: true, text: t("assistant.key.done") });
+    } catch (err) {
+      setKeyMessage({ ok: false, text: errorText(t, err) });
+    } finally {
+      setKeyBusy(false);
+    }
+  };
+
+  const checkKey = async () => {
+    if (keyBusy) return;
+    setKeyBusy(true);
+    setKeyMessage({ ok: true, text: t("assistant.key.checking") });
+    try {
+      const res = await apiPost<{ ok: boolean; reason?: string }>("/api/owner-assistant/key/check", {});
+      setKeyMessage(res.ok ? { ok: true, text: t("assistant.key.check_ok") } : { ok: false, text: t("assistant.key.check_bad", { reason: t(res.reason ?? "assistant.err_request") }) });
     } catch (err) {
       setKeyMessage({ ok: false, text: errorText(t, err) });
     } finally {
@@ -172,6 +186,11 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
             <button type="button" onClick={() => setEditingKey(true)} className="rounded-lg border border-border bg-surface-1 px-4 py-2 text-sm" data-testid="ai-key-change">
               {t("assistant.key.change")}
             </button>
+            {hasKey ? (
+              <button type="button" onClick={checkKey} disabled={keyBusy} className="rounded-lg border border-border bg-surface-1 px-4 py-2 text-sm" data-testid="ai-key-check">
+                {t("assistant.key.check")}
+              </button>
+            ) : null}
             <button type="button" onClick={removeKey} disabled={keyBusy} className="rounded-lg border border-border bg-surface-1 px-4 py-2 text-sm text-danger" data-testid="ai-key-delete">
               {t("assistant.key.delete")}
             </button>

@@ -203,7 +203,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               {!message.deleted ? <LinkPreviewCard preview={message.preview} enabled={facts.linkPreviews} /> : null}
               {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} /> : null}
               {message.card && !message.deleted ? message.card.type === "order" ? facts.canOrderState ? <OrderCardBubble number={message.card.number} conversationId={conversationId} /> : null : <CardBubble card={message.card} /> : null}
-              {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} albums={facts.albums} /> : null}
+              {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} albums={facts.albums} mine={mine} /> : null}
               {message.work?.length ? <WorkChips work={message.work} onOpenWork={onOpenWork} /> : null}
               <MustReadBlock message={message} onAck={onAck} />
               <CustomerHint hint={hint} canProblem={facts.canProblem} onTicket={onHintTicket ? () => onHintTicket(message) : undefined} />

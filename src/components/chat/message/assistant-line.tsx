@@ -1,4 +1,5 @@
 import React from "react";
+import Link from "next/link";
 import type { SystemMeta } from "@/server/chat/dto";
 import { ct } from "@/lib/chat/text";
 import { AssistantProposals } from "@/components/chat/message/assistant-proposals";
@@ -31,14 +32,20 @@ export function AssistantLine({ meta, time, createdAt, formatting = false }: { m
   const noteShort = local ? (relaxed ? "chatai.local_relaxed_short" : "chatai.local_note_short") : "chatai.note_short";
   return (
     <div role="note" dir="rtl" data-assistant-line={refusal ? "refusal" : "answer"} className="my-3 flex justify-center px-3">
-      <div className={`w-full max-w-xl rounded-2xl border px-3 py-2 ${refusal ? "border-warn/40 bg-warn/10" : "border-info/30 bg-info/10"}`}>
+      {/* an opaque surface with the theme's own text colour: the words keep their contrast on every theme and over every wallpaper (a tinted see-through card faded on the dark ones) */}
+      <div className={`w-full max-w-xl rounded-2xl border bg-surface-1 px-3 py-2 text-fg ${refusal ? "border-warn/60" : "border-info/40"}`}>
         <p className="mb-1 flex items-center gap-2 text-xs font-semibold">
           <span aria-hidden="true" className="text-info">✦</span>
           <span>{ct("chatai.label")}</span>
-          <span className="rounded-full bg-info/15 px-2 py-0.5 text-info">{ct("chatai.badge")}</span>
+          <span className="rounded-full border border-info/40 bg-surface-2 px-2 py-0.5 text-fg">{ct("chatai.badge")}</span>
           <time dateTime={createdAt} dir="ltr" className="ms-auto font-normal tabular-nums text-fg-muted">{time}</time>
         </p>
         {formatting && !refusal ? <FormattedText body={text} className="whitespace-pre-wrap break-words text-sm leading-relaxed" /> : <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</p>}
+        {refusal && (p["err"] === "key_rejected" || p["err"] === "no_key") ? (
+          <Link href="/owner/assistant/settings" data-assistant-fix="" className="mt-2 inline-block rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-xs font-semibold text-accent underline-offset-2 hover:underline">
+            {ct("chatai.fix_settings")}
+          </Link>
+        ) : null}
         {!refusal && props ? <AssistantProposals ids={props} /> : null}
         {!refusal && (
           <div className="mt-2 border-t border-border pt-1 text-xs text-fg-muted">
