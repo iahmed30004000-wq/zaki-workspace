@@ -62,7 +62,7 @@ const TOUCH_EVERY_MS = 60_000;
  *  4. the token's rate limit (429 + Retry-After);
  *  5. the permission the route needs (403).
  */
-export async function authenticateDoor(req: Request, requestId: string, needed: DoorPermission): Promise<DoorPrincipal> {
+export async function authenticateDoor(req: Request, requestId: string, needed: DoorPermission | null): Promise<DoorPrincipal> {
   const ip = clientIp(req);
   // An address that keeps presenting refused tokens is not served: but only a token that is NOT a live one is refused for that
   // (a sender with a good token must not be locked out by a neighbour behind the same address).
@@ -121,7 +121,8 @@ export async function authenticateDoor(req: Request, requestId: string, needed: 
   }
   tokenLimiter.hit(`t:${row.id}`);
 
-  if (!permits(row.permissions, needed)) {
+  // `null`: the caller (the MCP server) checks the scope of each tool itself
+  if (needed !== null && !permits(row.permissions, needed)) {
     throw new DoorError(403, "door.forbidden", `This token does not hold the permission ${needed}.`);
   }
 

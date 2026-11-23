@@ -85,7 +85,7 @@ describe("the permission and the switches", () => {
   it("messages.write is the one permission of v2: v1's four stay as they were, and every permission is accepted by the management route", () => {
     expect([...DOOR_PERMISSIONS]).toEqual(["ideas.read", "ideas.write", "tasks.read", "tasks.write"]);
     expect([...DOOR_MESSAGE_PERMISSIONS]).toEqual(["messages.write"]);
-    expect([...ALL_DOOR_PERMISSIONS]).toEqual(["ideas.read", "ideas.write", "tasks.read", "tasks.write", "messages.write"]);
+    expect([...ALL_DOOR_PERMISSIONS]).toEqual(["ideas.read", "ideas.write", "tasks.read", "tasks.write", "messages.write", "mcp.tasks", "mcp.chat"]);
   });
 
   it("a token without messages.write is 403; with it, 201 with the one answer shape and nothing of the author or the space", async () => {
