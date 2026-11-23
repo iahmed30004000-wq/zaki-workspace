@@ -13,7 +13,7 @@ import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
  * «مجموعات المواضيع» — ONE row of the list for a group, like Telegram's forum group: its picture, its name, the newest message of its topics and the unread of all of them added up.
  * A tap opens the group's topics (`onOpen`); «عام» (`id` null) is the topics that have no group. The numbers come from the topic rows (`groupRows`), never from a counter of their own.
  */
-export function GroupRowItem({ group, tall, now, onOpen }: { group: GroupRowModel; tall: boolean; now: Date; onOpen: (id: string | null) => void }) {
+export function GroupRowItem({ group, tall, now, onOpen }: { group: GroupRowModel; tall: boolean; now: Date; onOpen: (group: GroupRowModel) => void }) {
   // the last message is drawn with the very words of a topic row (author, «صورة»، «رسالة محذوفة»…): the group is shown as the topic it is the newest of
   const preview = rowPreview({ kind: "TOPIC", lastMessage: group.last } as ChatRowDto);
   const time = rowTimeLabel(group.last?.at, now);
@@ -23,7 +23,7 @@ export function GroupRowItem({ group, tall, now, onOpen }: { group: GroupRowMode
     <button
       type="button"
       data-group-row={group.id ?? "general"}
-      onClick={() => onOpen(group.id)}
+      onClick={() => onOpen(group)}
       aria-label={ct("chatgrp.open_label", { name: group.name })}
       style={{ height: tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT }}
       className="flex w-full items-center gap-3 border-b border-border/60 px-3 py-2 text-start text-fg transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent motion-reduce:transition-none"

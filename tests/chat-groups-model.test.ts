@@ -108,3 +108,22 @@ describe("groupedForumItems", () => {
     expect(items.map((i) => i.type)).toEqual(["group", "section", "row"]);
   });
 });
+
+describe("expandSpaces: «مجلد ← مجموعة ← موضوع»", () => {
+  const spaceRow = (id: string): ChatRowDto => ({ ...topic(id, null), kind: "SPACE", title: `مساحة ${id}`, topicChips: [] });
+  it("a space with groups becomes its group rows (with the space named on each); other rows and spaces without groups stay one row", async () => {
+    const { expandSpaces } = await import("@/lib/chat/v2/groups");
+    const spaces = new Map([["s1", { groups: [admin, ads], topics: [topic("a", "g-admin", { unread: 2 }), topic("b", "g-ads"), topic("c", null)], canManage: false }]]);
+    const items = expandSpaces([spaceRow("s1"), spaceRow("s2"), dm("x")], spaces, "عام");
+    expect(items.map((i) => (i.type === "group" ? `G:${i.group.name}@${i.group.spaceId}` : i.type === "row" ? i.id : i.key))).toEqual(["G:التسويق@s1", "G:الإدارة@s1", "G:عام@s1", "s2", "x"]);
+    const g = items.find((i) => i.type === "group" && i.group.id === "g-admin");
+    expect(g && g.type === "group" && g.group.key).toBe("group:s1:g-admin");
+    expect(g && g.type === "group" && g.group.unread).toBe(2);
+  });
+
+  it("a space whose groups are not known yet (or none) stays as it was", async () => {
+    const { expandSpaces } = await import("@/lib/chat/v2/groups");
+    expect(expandSpaces([spaceRow("s1")], new Map(), "عام").map((i) => i.type)).toEqual(["row"]);
+    expect(expandSpaces([spaceRow("s1")], new Map([["s1", { groups: [], topics: [topic("a", null)], canManage: true }]]), "عام").map((i) => i.type)).toEqual(["row"]);
+  });
+});

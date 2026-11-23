@@ -22,6 +22,8 @@ import { VirtualRows } from "./virtual-rows";
  * THIS group: the new order is saved as the person's own order of the space (`space:<id>`), changing only the places this group's topics hold.
  */
 export interface GroupPick {
+  /** the space the group is of, when the list that opened it is a folder's (not the space's own) */
+  spaceId?: string;
   id: string | null;
   name: string;
   emoji: string | null;

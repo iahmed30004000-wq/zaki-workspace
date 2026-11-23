@@ -13,7 +13,7 @@ import { GroupTopicsPane, type GroupPick } from "@/components/chat/v2/list/group
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { useChatSpace } from "@/lib/chat/cache/selectors";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
-import { groupedForumItems, groupOfRow, groupRows } from "@/lib/chat/v2/groups";
+import { groupedForumItems, groupOfRow } from "@/lib/chat/v2/groups";
 import { useGroupActions, useSpaceGroups } from "@/lib/chat/v2/use-space-groups";
 import { cn } from "@/lib/utils";
 import { forumItems, forumRows, normalizeQuery } from "@/lib/chat/list-folders";
@@ -74,11 +74,7 @@ export function ForumView({
     () => ({ enabled: rowMenu, canPurge, canModerate: canManage, ...(groupMode && canManage ? { onMoveToGroup: (row: ChatRowDto) => setMoving(row) } : {}) }),
     [rowMenu, canPurge, canManage, groupMode],
   );
-  const groupModels = useMemo(() => groupRows(rows, groups, generalName, { showEmpty: canManage }), [rows, groups, generalName, canManage]);
-  const openGroup = (id: string | null) => {
-    const model = groupModels.find((g) => g.id === id);
-    if (model) setOpen({ id: model.id, name: model.name, emoji: model.emoji });
-  };
+  const openGroup = (model: { id: string | null; name: string; emoji: string | null }) => setOpen({ id: model.id, name: model.name, emoji: model.emoji });
   const { sections, settled } = useSpaceSections(spaceId, creating);
 
   return (

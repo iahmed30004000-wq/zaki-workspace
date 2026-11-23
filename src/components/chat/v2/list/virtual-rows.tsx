@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useRef, type KeyboardEvent } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { ListItem } from "@/lib/chat/list-folders";
+import type { GroupRowModel } from "@/lib/chat/v2/groups";
 import { ct } from "@/lib/chat/text";
 import { useFlipRows } from "@/lib/chat/v2/phone/use-flip";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
@@ -43,7 +44,7 @@ export function VirtualRows({
   /** the local date (`useDayKey`): the rows' time labels roll over at midnight */
   day: string;
   /** «مجموعات المواضيع»: a tap on a group row (null: «عام») */
-  onOpenGroup?: (groupId: string | null) => void;
+  onOpenGroup?: (group: GroupRowModel) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowHeight = rail ? RAIL_ROW_HEIGHT : tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT;
@@ -126,7 +127,7 @@ export function VirtualRows({
               {item.type === "section" ? (
                 <div className="flex h-full items-center border-b border-border/60 px-3 text-xs font-semibold text-fg-muted">{ct("chath.archived", { n: item.count })}</div>
               ) : item.type === "group" ? (
-                <GroupRowItem group={item.group} tall={tall} now={new Date()} onOpen={(id) => onOpenGroup?.(id)} />
+                <GroupRowItem group={item.group} tall={tall} now={new Date()} onOpen={(group) => onOpenGroup?.(group)} />
               ) : (
                 <ChatRowItem id={item.id} selected={selectedId === item.id} tall={tall} rail={rail} userId={userId} menu={menu} day={day} />
               )}

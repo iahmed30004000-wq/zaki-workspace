@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api-client";
 import { chatKeys } from "@/lib/chat/cache/keys";
@@ -22,6 +22,13 @@ interface GroupDto {
 
 const NONE: GroupMeta[] = [];
 
+const metaOf = (g: GroupDto): GroupMeta => ({ id: g.id, name: g.name, emoji: g.emoji, position: g.position, restricted: g.restricted });
+
+/** The groups of one space the person may know (the very read of the hook, for the screens that ask for several spaces at once). */
+export async function fetchSpaceGroups(spaceId: string): Promise<GroupMeta[]> {
+  return (await apiGet<{ groups: GroupDto[] }>(`/api/groups?spaceId=${encodeURIComponent(spaceId)}`)).groups.map(metaOf);
+}
+
 export function useSpaceGroups(spaceId: string | null): { groups: GroupMeta[]; isPending: boolean } {
   const query = useQuery({
     queryKey: groupsKey(spaceId ?? ""),
@@ -29,10 +36,9 @@ export function useSpaceGroups(spaceId: string | null): { groups: GroupMeta[]; i
     staleTime: 30_000,
     retry: false,
     refetchOnWindowFocus: true,
-    queryFn: async () => (await apiGet<{ groups: GroupDto[] }>(`/api/groups?spaceId=${encodeURIComponent(spaceId ?? "")}`)).groups,
+    queryFn: () => fetchSpaceGroups(spaceId ?? ""),
   });
-  const groups = useMemo<GroupMeta[]>(() => (query.data ?? NONE).map((g) => ({ id: g.id, name: g.name, emoji: g.emoji, position: g.position, restricted: g.restricted })), [query.data]);
-  return { groups, isPending: !!spaceId && query.isPending };
+  return { groups: query.data ?? NONE, isPending: !!spaceId && query.isPending };
 }
 
 /** What a manager does: make a group, move a topic into one (or back to «عام»), drag the groups. Each asks the lists again; the server decides every time. */

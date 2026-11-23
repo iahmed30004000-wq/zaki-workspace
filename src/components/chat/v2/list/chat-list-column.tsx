@@ -44,7 +44,8 @@ import { VirtualRows } from "./virtual-rows";
 import { ArrangeRows } from "./group-arrange";
 import { MoveToGroupDialog, NewTopicGroupDialog } from "./group-dialogs";
 import { GroupTopicsPane, type GroupPick } from "./group-topics-pane";
-import { groupItems, groupOfRow, groupRows } from "@/lib/chat/v2/groups";
+import { expandSpaces, groupItems, groupOfRow, type GroupMeta } from "@/lib/chat/v2/groups";
+import { useFolderGroupSpaces } from "@/lib/chat/v2/use-folder-groups";
 import { useGroupActions, useSpaceGroups } from "@/lib/chat/v2/use-space-groups";
 
 /**
@@ -268,34 +269,50 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const [newGroupOpen, setNewGroupOpen] = useState(false);
   const [moving, setMoving] = useState<ChatRowDto | null>(null);
   const groupActions = useGroupActions(groupSpaceId);
-  const groupModels = useMemo(() => groupRows(list.rows, groups, generalName, { showEmpty: canManageGroups }), [list.rows, groups, generalName, canManageGroups]);
-  const shownItems = useMemo(() => (groupMode ? groupItems(rows, groups, generalName, { showEmpty: canManageGroups }) : items), [groupMode, rows, groups, generalName, canManageGroups, items]);
+  // «مجلد ← مجموعة ← موضوع»: in a folder of the person's own, a space that has groups is drawn as its groups (the one list's shape, where the list holds the space as ONE row)
+  const expandIds = useMemo(() => (custom && list.scope === "all" && !words ? custom.include.spaceIds.filter((id) => rows.some((r) => r.kind === "SPACE" && r.id === id)) : []), [custom, list.scope, words, rows]);
+  const expanded = useFolderGroupSpaces(expandIds, expandIds.length > 0);
+  const shownItems = useMemo(
+    () => (groupMode ? groupItems(rows, groups, generalName, { showEmpty: canManageGroups }) : expanded.size > 0 ? expandSpaces(rows, expanded, generalName) : items),
+    [groupMode, rows, groups, generalName, canManageGroups, items, expanded],
+  );
   const menu = useMemo<RowMenuContext>(
     () => ({
       enabled: rowMenu,
       canPurge,
       canModerate: oneSpace.space?.canModerate === true,
       personal: list.personal,
-      ...(groupMode && canManageGroups ? { onMoveToGroup: (row: ChatRowDto) => setMoving(row) } : {}),
+      ...((groupMode && canManageGroups) || [...expanded.values()].some((s) => s.canManage) ? { onMoveToGroup: (row: ChatRowDto) => setMoving(row) } : {}),
     }),
-    [rowMenu, canPurge, oneSpace.space?.canModerate, list.personal, groupMode, canManageGroups],
+    [rowMenu, canPurge, oneSpace.space?.canModerate, list.personal, groupMode, canManageGroups, expanded],
   );
-  const onOpenGroup = (id: string | null) => {
-    const model = groupModels.find((g) => g.id === id);
-    if (model) setTopicGroup({ id: model.id, name: model.name, emoji: model.emoji });
-  };
+  const onOpenGroup = (model: { id: string | null; name: string; emoji: string | null; spaceId?: string }) =>
+    setTopicGroup({ ...(model.spaceId ? { spaceId: model.spaceId } : {}), id: model.id, name: model.name, emoji: model.emoji });
+  // what the open group's pane reads: the space's own list, or the space a folder holds
+  const paneSpace: { id: string; rows: readonly ChatRowDto[]; groups: readonly GroupMeta[]; canManage: boolean } | null = topicGroup?.spaceId
+    ? (() => {
+        const known = expanded.get(topicGroup.spaceId);
+        return known ? { id: topicGroup.spaceId, rows: known.topics, groups: known.groups, canManage: known.canManage } : null;
+      })()
+    : groupSpaceId && groupMode
+      ? { id: groupSpaceId, rows: list.rows, groups, canManage: canManageGroups }
+      : null;
+  const movingSpace = moving ? (moving.space?.id && expanded.has(moving.space.id) ? { id: moving.space.id, groups: expanded.get(moving.space.id)!.groups } : groupSpaceId ? { id: groupSpaceId, groups } : null) : null;
   // the group stays open only while the list is grouped; and (on the computer) the topic that is open keeps its group on screen
   useEffect(() => {
     if (!groupMode) {
-      setTopicGroup(null);
+      // the group a FOLDER opened (it names its space) lives on while that space's groups are known
+      setTopicGroup((open) => (open?.spaceId ? open : null));
       setArrangingGroups(false);
     }
   }, [groupMode]);
   useEffect(() => {
     if (tall || !groupMode || !selectedId || topicGroup) return;
     const row = list.rows.find((r) => r.id === selectedId && r.kind === "TOPIC");
-    const model = row ? groupModels.find((g) => g.id === groupOfRow(row, groups)) : undefined;
-    if (model) setTopicGroup({ id: model.id, name: model.name, emoji: model.emoji });
+    const place = row ? groupOfRow(row, groups) : undefined;
+    const meta = place ? groups.find((g) => g.id === place) : undefined;
+    if (row && place === null) setTopicGroup({ id: null, name: generalName, emoji: null });
+    else if (meta) setTopicGroup({ id: meta.id, name: meta.name, emoji: meta.emoji });
     // only when the open topic (or the mode) changes: a group the person closed by hand is not opened again by a new message
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId, groupMode]);
@@ -376,11 +393,11 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       {!guest ? <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} /> : null}
       {topicSpaceId && oneSpace.space && newTopic && sections.settled ? <NewTopicDialog open onOpenChange={setNewTopic} space={{ id: topicSpaceId, name: oneSpace.space.name, sections: sections.sections }} /> : null}
       {inline.element}
-      {groupSpaceId && topicGroup && groupMode ? (
-        <GroupTopicsPane spaceId={groupSpaceId} group={topicGroup} rows={list.rows} groups={groups} orders={orders} canManage={canManageGroups} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setTopicGroup(null)} />
+      {topicGroup && paneSpace ? (
+        <GroupTopicsPane spaceId={paneSpace.id} group={topicGroup} rows={paneSpace.rows} groups={paneSpace.groups} orders={orders} canManage={paneSpace.canManage} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setTopicGroup(null)} />
       ) : null}
       {groupSpaceId && newGroupOpen ? <NewTopicGroupDialog spaceId={groupSpaceId} onClose={() => setNewGroupOpen(false)} /> : null}
-      {groupSpaceId && moving ? <MoveToGroupDialog row={moving} spaceId={groupSpaceId} groups={groups} current={groupOfRow(moving, groups)} onClose={() => setMoving(null)} /> : null}
+      {moving && movingSpace ? <MoveToGroupDialog row={moving} spaceId={movingSpace.id} groups={movingSpace.groups} current={groupOfRow(moving, movingSpace.groups)} onClose={() => setMoving(null)} /> : null}
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
       </div>
     </div>

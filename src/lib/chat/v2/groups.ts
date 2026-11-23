@@ -19,8 +19,10 @@ export interface GroupMeta {
 export const GENERAL_KEY = "group:general";
 
 export interface GroupRowModel {
-  /** `group:<id>` or `group:general` */
+  /** `group:<id>` or `group:general`; in a folder that holds several spaces, `group:<spaceId>:<id>` */
   key: string;
+  /** the space the group belongs to, when the list is not the space's own (a folder of the person's) */
+  spaceId?: string;
   /** null: «عام» */
   id: string | null;
   name: string;
@@ -45,12 +47,13 @@ function placeOf(row: ChatRowDto, known: ReadonlySet<string>): string | null {
  * The group rows of a list of topics: the groups in the order of their `position`, then «عام» (only when something is in it). An empty group is drawn only for a manager
  * (`showEmpty`: somebody who can drop topics into it). No group at all: no rows.
  */
-export function groupRows(rows: readonly ChatRowDto[], groups: readonly GroupMeta[], generalName: string, opts: { showEmpty: boolean }): GroupRowModel[] {
+export function groupRows(rows: readonly ChatRowDto[], groups: readonly GroupMeta[], generalName: string, opts: { showEmpty: boolean; spaceId?: string }): GroupRowModel[] {
   if (groups.length === 0) return [];
   const known = new Set(groups.map((g) => g.id));
   const topics = rows.filter(live);
   const model = (id: string | null, name: string, emoji: string | null, restricted: boolean, inside: readonly ChatRowDto[]): GroupRowModel => ({
-    key: id === null ? GENERAL_KEY : `group:${id}`,
+    key: `${opts.spaceId ? `group:${opts.spaceId}:` : "group:"}${id ?? "general"}`,
+    ...(opts.spaceId ? { spaceId: opts.spaceId } : {}),
     id,
     name,
     emoji,
@@ -121,5 +124,28 @@ export function groupedForumItems(rows: readonly ChatRowDto[], groups: readonly 
   const archived = rows.filter((r) => r.archived || r.archivedByMe);
   const items = groupItems(liveRows, groups, generalName, opts);
   if (archived.length) items.push({ type: "section", key: "section:archived", count: archived.length }, ...rowItems(archived));
+  return items;
+}
+
+/** What a folder needs to know about one space it holds to draw that space's groups in place of the space's own row. */
+export interface SpaceGroups {
+  groups: readonly GroupMeta[];
+  /** the topics of the space the viewer reads (the forum view's rows) */
+  topics: readonly ChatRowDto[];
+  canManage: boolean;
+}
+
+/**
+ * «مجلد ← مجموعة ← موضوع»: inside a folder of the person's own, a space that HAS groups is not one row any more but its groups, each one row (and «عام»), exactly as the space's own
+ * list draws them; every other row stays where it was. A space with no group, or whose topics are not known yet, stays one row (the forum view). Pure.
+ */
+export function expandSpaces(rows: readonly ChatRowDto[], spaces: ReadonlyMap<string, SpaceGroups>, generalName: string): ListItem[] {
+  const items: ListItem[] = [];
+  for (const row of rows) {
+    const known = row.kind === "SPACE" ? spaces.get(row.id) : undefined;
+    const models = known ? groupRows(known.topics, known.groups, generalName, { showEmpty: known.canManage, spaceId: row.id }) : [];
+    if (models.length === 0) items.push(...rowItems([row]));
+    else for (const group of models) items.push({ type: "group", key: group.key, group });
+  }
   return items;
 }
