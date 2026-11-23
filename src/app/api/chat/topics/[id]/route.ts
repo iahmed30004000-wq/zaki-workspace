@@ -3,6 +3,7 @@ import { z } from "zod";
 import { apiError, withApi } from "@/server/api";
 import { parseJson } from "@/server/validation";
 import { activeOrgCtx } from "@/server/services/integrations";
+import { moveTopicToGroup } from "@/server/chat/groups";
 import {
   TopicConflictError,
   deleteTopic,
@@ -17,6 +18,8 @@ const patchSchema = updateTopicSchema.extend({
   closed: z.boolean().optional(),
   archived: z.boolean().optional(),
   pinned: z.boolean().optional(),
+  /** «نقل إلى مجموعة»: a group of the topic's space, or null for «عام» (src/server/chat/groups.ts). */
+  groupId: z.string().min(1).nullable().optional(),
 });
 
 /**
@@ -25,7 +28,7 @@ const patchSchema = updateTopicSchema.extend({
  */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   return withApi(async () => {
-    const { closed, archived, pinned, ...input } = await parseJson(patchSchema, req);
+    const { closed, archived, pinned, groupId, ...input } = await parseJson(patchSchema, req);
     const ctx = await activeOrgCtx();
     try {
       if (archived !== undefined) await setTopicArchived(ctx, params.id, archived);
@@ -36,6 +39,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       throw err;
     }
     if (Object.keys(input).length) await updateTopic(ctx, params.id, input);
+    if (groupId !== undefined) await moveTopicToGroup(ctx, params.id, groupId);
     return NextResponse.json({ ok: true });
   });
 }

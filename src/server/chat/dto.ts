@@ -201,8 +201,25 @@ export interface SpaceSummaryDto {
   canCreateTopic: boolean;
   /** The «مقاطع» of the space the viewer sees (a manager: all of them; anybody else: their own). */
   sections: { id: string; name: string }[];
+  /** The groups of the space the viewer knows, in order; the unread of each is rolled up from its topics. «عام» (topics with no group) is not a row here. */
+  groups?: GroupSummaryDto[];
   unread: number;
   topics: TopicSummaryDto[];
+}
+
+export interface GroupSummaryDto {
+  id: string;
+  name: string;
+  emoji: string | null;
+  position: number;
+  restricted: boolean;
+  /** how many of its topics the viewer lists */
+  topicCount: number;
+  /** the unread of those topics, summed */
+  unread: number;
+  mentions: number;
+  /** the newest message of those topics */
+  lastMessage: { at: string; preview: string | null; mine: boolean } | null;
 }
 
 export interface TopicSummaryDto {
@@ -216,6 +233,8 @@ export interface TopicSummaryDto {
   restricted: boolean;
   /** The «مقطع» the topic belongs to (null: the whole space's). */
   teamId: string | null;
+  /** The group of the space the topic is arranged in (null: «عام»). */
+  groupId?: string | null;
   /** Pinned on top of the space's list. */
   pinned: boolean;
   /** Archived (listed only for the space's managers, under «المؤرشفة»). */

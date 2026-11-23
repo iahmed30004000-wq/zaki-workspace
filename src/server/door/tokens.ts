@@ -23,8 +23,13 @@ export const DOOR_MESSAGE_PERMISSIONS = ["messages.write"] as const;
  * conversations). Held only by the system «Claude (MCP)» of «توكنات الأنظمة»; /api/v1 never asks for them.
  */
 export const DOOR_MCP_PERMISSIONS = ["mcp.tasks", "mcp.chat"] as const;
+/**
+ * `chat.structure`: arranging the chat of a space (`/api/groups`, `PATCH /api/topics/:id { groupId }`, docs/contracts/chat-groups.md): make, rename, order and fill the groups of topics.
+ * Held only by the system «ميوز» of «توكنات الأنظمة»; it reads no message and writes none.
+ */
+export const DOOR_STRUCTURE_PERMISSIONS = ["chat.structure"] as const;
 /** Everything a token can hold: what the management route accepts and what a stored token is read against. */
-export const ALL_DOOR_PERMISSIONS = [...DOOR_PERMISSIONS, ...DOOR_MESSAGE_PERMISSIONS, ...DOOR_MCP_PERMISSIONS] as const;
+export const ALL_DOOR_PERMISSIONS = [...DOOR_PERMISSIONS, ...DOOR_MESSAGE_PERMISSIONS, ...DOOR_MCP_PERMISSIONS, ...DOOR_STRUCTURE_PERMISSIONS] as const;
 export type DoorPermission = (typeof ALL_DOOR_PERMISSIONS)[number];
 
 export function isDoorPermission(value: unknown): value is DoorPermission {

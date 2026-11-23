@@ -5,7 +5,7 @@ import { isFeatureOn } from "@/server/services/features";
 import type { OrgAccessContext } from "@/server/auth";
 import { hasOversight, loadOrgFacts, isSpaceAdmin, type OrgFacts } from "@/server/policy/conversation";
 import { listDms } from "@/server/chat/dm";
-import type { DmSummaryDto, HomeDto, SpaceSummaryDto, TopicSummaryDto } from "@/server/chat/dto";
+import type { DmSummaryDto, GroupSummaryDto, HomeDto, SpaceSummaryDto, TopicSummaryDto } from "@/server/chat/dto";
 import { previewOf } from "@/server/chat/redact";
 import { systemSentenceOfBody } from "@/lib/chat/system-sentence";
 import { loadOrders } from "@/server/chat/order";
@@ -106,6 +106,10 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
         },
         select: { id: true },
       },
+      topicGroups: {
+        orderBy: [{ position: "asc" }, { createdAt: "asc" }],
+        select: { id: true, name: true, emoji: true, position: true, restricted: true, members: { where: { userId: ctx.userId }, select: { userId: true } } },
+      },
       teams: {
         orderBy: [{ position: "asc" }, { name: "asc" }],
         select: { id: true, name: true, members: { where: { userId: ctx.userId }, select: { id: true } } },
@@ -126,6 +130,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
           systemKey: true,
           dmKey: true,
           teamId: true,
+          groupId: true,
           members: { where: { userId: ctx.userId }, select: { lastReadAt: true } },
         },
       },
@@ -189,6 +194,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
         closed: !!t.closedAt,
         restricted: t.restricted,
         teamId: t.teamId,
+        groupId: t.groupId,
         pinned: !!t.pinnedAt,
         archived,
         system: !!t.systemKey,
@@ -213,6 +219,26 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
     // a space where I read nothing is not on my list — except the space I am in: its page is never blank
     if (!topics.length && opts.spaceId === undefined) continue;
 
+    // the groups: a restricted one only for the owner rank and its people; a group none of whose topics the viewer lists is shown to its managers only (to drop topics in)
+    const groups: GroupSummaryDto[] = [];
+    for (const g of s.topicGroups) {
+      if (g.restricted && !isOwner && g.members.length === 0) continue;
+      const inside = topics.filter((t) => t.groupId === g.id && !t.archived);
+      if (!inside.length && !viewer.manager) continue;
+      const newest = inside.reduce<TopicSummaryDto["lastMessage"]>((best, t) => (t.lastMessage && (!best || t.lastMessage.at > best.at) ? t.lastMessage : best), null);
+      groups.push({
+        id: g.id,
+        name: g.name,
+        emoji: g.emoji,
+        position: g.position,
+        restricted: g.restricted,
+        topicCount: inside.length,
+        unread: inside.reduce((n, t) => n + t.unread, 0),
+        mentions: inside.reduce((n, t) => n + t.mentions, 0),
+        lastMessage: newest,
+      });
+    }
+
     spaces.push({
       id: s.id,
       name: s.name,
@@ -222,6 +248,7 @@ export async function chatHome(ctx: OrgAccessContext, opts: { spaceId?: string |
       canModerate: isOwner || isSpaceAdmin(spaceRole),
       canCreateTopic: isOwner || isSpaceAdmin(spaceRole),
       sections,
+      groups,
       unread: spaceUnread,
       topics,
     });

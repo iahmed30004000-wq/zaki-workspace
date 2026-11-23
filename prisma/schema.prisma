@@ -79,6 +79,7 @@ model User {
   cardRatings     CardRating[]         @relation("CardRater")
   cardAttachments CardAttachment[]     @relation("CardAttachmentAdder")
   chatMemberships ConversationMember[] @relation("ChatMember")
+  topicGroupMemberships TopicGroupMember[] @relation("TopicGroupMember")
   chatMessages    ChatMessage[]        @relation("ChatAuthor")
   chatDeletions   ChatMessage[]        @relation("ChatDeleter")
   scheduledChat   ScheduledChatMessage[] @relation("ScheduledChatAuthor")
@@ -496,6 +497,9 @@ model Conversation {
   // A topic that belongs to a team of its space: its audience is that team and the space's managers.
   teamId       String?
   team         Team?                @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  // «مجموعة المواضيع»: the ONE group of its space the topic is arranged in (NULL: «عام»). Arrangement only: who may read the topic is still decided by its own rows.
+  groupId      String?
+  group        TopicGroup?          @relation(fields: [groupId], references: [id], onDelete: SetNull)
   members      ConversationMember[]
   messages     ChatMessage[]
   whiteboard   Whiteboard?
@@ -513,6 +517,41 @@ model Conversation {
   @@index([orgId, lastMessageAt])
   @@index([spaceId, position])
   @@index([teamId])
+  @@index([groupId])
+}
+
+// «مجموعة المواضيع»: a named group of topics inside ONE space, drawn as one row of the chat list; opening it lists its topics (Telegram's forum group). It only ARRANGES topics.
+// `restricted`: the people with a row here are the group's audience; the group's topics are then restricted topics with exactly these people (the topic rows stay the one door
+// of «من يقدر يقرأ»), and the group's own row is listed for the owner rank and for them only. Deleting a group never deletes a topic: they fall back to «عام».
+model TopicGroup {
+  id         String   @id @default(cuid())
+  orgId      String
+  spaceId    String
+  name       String
+  emoji      String?
+  position   Int      @default(0)
+  restricted Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  space         Workspace          @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  members       TopicGroupMember[]
+  conversations Conversation[]
+
+  @@index([spaceId, position])
+  @@index([orgId])
+}
+
+model TopicGroupMember {
+  groupId   String
+  userId    String
+  createdAt DateTime @default(now())
+
+  group TopicGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User       @relation("TopicGroupMember", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
 }
 
 model ConversationMember {
@@ -1184,6 +1223,8 @@ model Workspace {
   projects      Project[]
   taskRecurrences TaskRecurrence[]
   conversations Conversation[]
+  // «مجموعات المواضيع»: the groups the space's topics are arranged in (Telegram's folder → group → topic)
+  topicGroups   TopicGroup[]
   goals         Goal[]
   routines      Routine[]
   customers     Customer[]

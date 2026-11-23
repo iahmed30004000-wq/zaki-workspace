@@ -20,6 +20,8 @@
   "systok.system.mediabuyer": "الميديا باير",
   "systok.system.claude-mcp": "Claude (MCP)",
   "systok.perm.mcp.tasks": "المهام: قراءة وإنشاء ونقل وتعليق وتعديل",
+  "systok.system.muse": "ميوز",
+  "systok.perm.chat.structure": "ترتيب الدردشة: مجموعات المواضيع (إنشاء وتسمية وترتيب ونقل مواضيع)",
   "systok.perm.mcp.chat": "الدردشة: كتابة رسائل وقراءة قائمة المحادثات",
   "systok.empty": "ما في ولا توكن لسا.",
   "systok.col.system": "النظام",
