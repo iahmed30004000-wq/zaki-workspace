@@ -179,7 +179,7 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
           <MediaViewerProvider messages={history.messages} conversationId={header.id} onShowInChat={commands.jumpTo}>
             <InfoJumpProvider>
               <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
-              <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} />
+              <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} always={header.voiceTelegram !== false} />
               <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
               <CallBar conversationId={header.id} enabled={header.calls !== false} />
               <SearchPanel conversationId={header.id} people={people} />

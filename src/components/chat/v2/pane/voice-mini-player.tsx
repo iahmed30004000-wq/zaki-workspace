@@ -82,7 +82,7 @@ export function VoiceMiniPlayerView({ note, playing, at, durationMs, speed, onTo
  * person's speed in step with their prefs (read from, and saved to, the existing `/api/me/chat-prefs` door through the chat cache's own helpers), and draws
  * the bar while a note of this conversation is playing (or paused part of the way) and its bubble is out of sight. Leaving the conversation stops the sound.
  */
-export function VoiceMiniPlayer({ conversationId, messages, onJump }: { conversationId: string; messages: readonly MessageDto[]; onJump: (messageId: string) => void }) {
+export function VoiceMiniPlayer({ conversationId, messages, onJump, always = false }: { conversationId: string; messages: readonly MessageDto[]; onJump: (messageId: string) => void; /** «الصوت زي تيليجرام»: the bar stays while a note plays even when its bubble is on screen */ always?: boolean }) {
   const qc = useQueryClient();
   const prefs = useQuery(chatPrefsQueryOptions());
   const notes = React.useMemo(() => voiceNotesOf(messages), [messages]);
@@ -107,7 +107,7 @@ export function VoiceMiniPlayer({ conversationId, messages, onJump }: { conversa
 
   // the note as it was when it started: the bar stays while the sound goes on, even when the list has since dropped the message
   const note = snap.note;
-  if (!note || snap.activeVisible) return null;
+  if (!note || (snap.activeVisible && !always)) return null;
   return (
     <VoiceMiniPlayerView
       note={note}
