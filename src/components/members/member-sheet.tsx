@@ -10,6 +10,7 @@ import { ApiError, apiGet, apiPost } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
+import { OpenCardsDialog } from "./open-cards-dialog";
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/lib/i18n";
 import { ROLE_KEYS } from "@/lib/i18n/roles";
@@ -94,6 +95,8 @@ export function MemberSheet({
 
   const [view, setView] = useState<View>({ kind: "main" });
   const [busy, setBusy] = useState<Busy>(null);
+  // «مهامه المفتوحة»: right after a suspension or an offboarding (silent when there is nothing to arrange), or by the button on a person who is not active
+  const [cards, setCards] = useState<"auto" | "manual" | null>(null);
   const [pendingCap, setPendingCap] = useState<Capability | null>(null);
   const [form, setForm] = useState<InfoForm>(() => ({
     name: member.name,
@@ -257,6 +260,7 @@ export function MemberSheet({
     toast(t("members.suspended_done", { name: member.name }), "success");
     returnFocus.current = "suspend";
     setView({ kind: "main" });
+    setCards("auto");
   }
 
   async function confirmOffboard() {
@@ -279,6 +283,7 @@ export function MemberSheet({
     toast(t("members.offboarded_done", { name: member.name }), "success");
     returnFocus.current = "offboard";
     setView({ kind: "main" });
+    setCards("auto");
   }
 
   // ------------------------------------------------------------------ pieces
@@ -566,6 +571,15 @@ export function MemberSheet({
             </div>
           </Section>
         ) : null}
+
+        {member.status !== "ACTIVE" ? (
+          <Section title={t("bulk.section")}>
+            <p className="text-xs text-fg-muted">{t("bulk.section_hint")}</p>
+            <Button type="button" variant="secondary" onClick={() => setCards("manual")} data-open-cards-button="">
+              {t("bulk.open_button")}
+            </Button>
+          </Section>
+        ) : null}
       </div>
     );
   })();
@@ -580,6 +594,7 @@ export function MemberSheet({
       dismissOnBackdrop={busy === null && !secretOnScreen && !dirty}
     >
       {body}
+      {cards ? <OpenCardsDialog person={{ id: member.id, name: member.name }} silentWhenEmpty={cards === "auto"} onClose={() => setCards(null)} /> : null}
     </Sheet>
   );
 }
