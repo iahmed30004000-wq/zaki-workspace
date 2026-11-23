@@ -30,7 +30,8 @@ import { useChatOrders } from "@/lib/chat/v2/use-orders";
 import { cn } from "@/lib/utils";
 import { CompanyRows } from "./company-rows";
 import { useInlineFolders } from "./folder-inline";
-import { FolderRail, FolderTabs, useChatPrefs } from "./folder-tabs";
+import { FolderTabs, useChatPrefs } from "./folder-tabs";
+import { nextTab, useFolderSwipe } from "@/lib/chat/v2/folder-swipe";
 import { ListHeader } from "./list-header";
 import { useFolderSourceRows } from "./use-folder-chats";
 import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
@@ -218,6 +219,12 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   }, [list.rows, list.archivedRows, list.scope, list.spaceId, custom, builtin, words, orders, folderSource]);
   const items = useMemo(() => rowItems(rows), [rows]);
 
+  // a finger across the list goes to the next or the previous folder (`src/lib/chat/v2/folder-swipe.ts`); the click on a tab does the same
+  const swipe = useFolderSwipe((way) => {
+    const target = nextTab(folders, folder, way);
+    if (target) setFolderKey(target.key);
+  }, tall || !rail);
+
   // C2.6: the keyboard (Alt+↑/↓, Alt+Shift+↑/↓, Ctrl+1…9) reads the rows in the order they are drawn and the folders of THIS list. A space row is not a
   // conversation, so it is not a chat to step to. The source is registered once and always answers from the latest rows.
   const live = useRef({ entries: [] as { id: string; unread: boolean }[], folders });
@@ -307,16 +314,15 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
 
   return (
     <div className="flex min-h-0 flex-1">
-      {/* the desktop keeps the folders in a column beside the list (like a messenger); the phone has them as a strip on top */}
-      {tall ? null : rail ? null : <FolderRail folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} />}
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" {...swipe}>
       {tall ? (
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
         <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
       ) : rail ? null : (
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
-      {tall ? <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} /> : null}
+      {/* the owner (item 7): the folders are ONE strip of tabs above the list, on the phone and on the computer alike (the column beside the list is gone); folded to a rail there is no room for it */}
+      {rail ? null : <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} />}
       {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
       {rail ? null : <ChatPwaHost guest={guest} />}
       {/* the owner (2026-11-22), like Telegram: «المحادثات المؤرشفة» at the top of the list, with how many; a press opens the archive */}
