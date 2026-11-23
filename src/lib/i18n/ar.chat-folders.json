@@ -16,6 +16,8 @@
   "chatfolders.saved_toast": "انحفظ المجلد",
   "chatfolders.tab_menu": "خيارات المجلد {name}",
   "chatfolders.menu_edit": "تعديل المجلد",
+  "chatfolders.menu_earlier": "قدّمه خطوة",
+  "chatfolders.menu_later": "أخّره خطوة",
   "chatfolders.menu_delete": "حذف المجلد",
   "chatfolders.delete_title": "حذف المجلد «{name}»؟",
   "chatfolders.delete_body": "المحادثات نفسها ما بتنحذف، بس المجلد بيروح.",

@@ -160,6 +160,17 @@ export function reorderFolders(list: ChatFolderDef[], ids: readonly string[]): C
   return next.every((f, i) => f === list[i]) ? list : next;
 }
 
+/** One place earlier (`-1`) or later (`1`) in the strip; the very same list when the folder is already at that end or is not there. */
+export function moveFolder(list: ChatFolderDef[], id: string, step: -1 | 1): ChatFolderDef[] {
+  const at = list.findIndex((f) => f.id === id);
+  const to = at + step;
+  if (at < 0 || to < 0 || to >= list.length) return list;
+  const next = [...list];
+  const [moved] = next.splice(at, 1);
+  next.splice(to, 0, moved!);
+  return next;
+}
+
 export function removeFolder(list: ChatFolderDef[], id: string): ChatFolderDef[] {
   return list.some((f) => f.id === id) ? list.filter((f) => f.id !== id) : list;
 }

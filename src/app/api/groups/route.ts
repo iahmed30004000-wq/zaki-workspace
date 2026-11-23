@@ -3,7 +3,7 @@ import { withApi } from "@/server/api";
 import { ValidationError } from "@/server/auth";
 import { parseJson } from "@/server/validation";
 import { activeOrgCtx } from "@/server/services/integrations";
-import { createGroup, createGroupSchema, listGroups } from "@/server/chat/groups";
+import { createGroup, createGroupSchema, listGroups, reorderGroups, reorderGroupsSchema } from "@/server/chat/groups";
 import { structureRoute } from "@/server/door/structure-auth";
 
 /** GET `?spaceId=`: the groups of a space the person may know, in order (a restricted group only for the owner rank and its people). */
@@ -25,6 +25,17 @@ export async function POST(req: Request) {
       const input = await parseJson(createGroupSchema, req);
       const ctx = await activeOrgCtx();
       return NextResponse.json({ group: await createGroup(ctx, input) }, { status: 201 });
+    }),
+  );
+}
+
+/** PUT `{ spaceId, order: [groupId…] }`: dragging the groups: their `position` becomes the place in the list sent (the space's ADMIN and the owner rank). */
+export async function PUT(req: Request) {
+  return structureRoute(req, () =>
+    withApi(async () => {
+      const input = await parseJson(reorderGroupsSchema, req);
+      const ctx = await activeOrgCtx();
+      return NextResponse.json({ groups: await reorderGroups(ctx, input) });
     }),
   );
 }

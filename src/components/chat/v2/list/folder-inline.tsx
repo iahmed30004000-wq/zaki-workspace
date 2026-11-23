@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState, type ReactNode } from "react";
-import { Pencil, Trash2 } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
 import { useOptionalToast } from "@/components/ui/toast";
-import { customIdOf, removeFolder, type TabKey } from "@/lib/chat/folders";
+import { customIdOf, moveFolder, removeFolder, type TabKey } from "@/lib/chat/folders";
 import { MAX_FOLDERS } from "@/lib/chat/prefs";
 import { ct } from "@/lib/chat/text";
 import { FolderSheetConnected } from "./folder-sheet";
@@ -44,6 +44,14 @@ export function useInlineFolders(): { tabProps: FolderStripExtras<TabKey>; eleme
   const doomed = confirm ? prefs.folders.find((f) => f.id === confirm) : undefined;
   const orgId = prefs.orgId;
 
+  // «قدّمه» / «أخّره»: one place in the strip, one save of the company's list (the folders keep the person's order; the built-in tabs stay before them)
+  const move = (id: string, step: -1 | 1) => {
+    if (!orgId) return;
+    const next = moveFolder(prefs.folders, id, step);
+    if (next === prefs.folders) return;
+    save({ folders: { [orgId]: next } }).then(undefined, () => toast?.toast(ct("chatfolders.failed"), "error"));
+  };
+
   const remove = () => {
     if (!doomed || !orgId) return;
     const next = removeFolder(prefs.folders, doomed.id);
@@ -67,6 +75,14 @@ export function useInlineFolders(): { tabProps: FolderStripExtras<TabKey>; eleme
             <DropdownMenuItem data-folder-menu-edit="" onSelect={() => setSheet({ kind: "edit", id: target.id })}>
               <Pencil aria-hidden="true" className="size-4" />
               {ct("chatfolders.menu_edit")}
+            </DropdownMenuItem>
+            <DropdownMenuItem data-folder-menu-earlier="" disabled={prefs.folders[0]?.id === target.id} onSelect={() => move(target.id, -1)}>
+              <ChevronsRight aria-hidden="true" className="size-4" />
+              {ct("chatfolders.menu_earlier")}
+            </DropdownMenuItem>
+            <DropdownMenuItem data-folder-menu-later="" disabled={prefs.folders[prefs.folders.length - 1]?.id === target.id} onSelect={() => move(target.id, 1)}>
+              <ChevronsLeft aria-hidden="true" className="size-4" />
+              {ct("chatfolders.menu_later")}
             </DropdownMenuItem>
             <DropdownMenuItem data-folder-menu-delete="" tone="danger" onSelect={() => setConfirm(target.id)}>
               <Trash2 aria-hidden="true" className="size-4" />

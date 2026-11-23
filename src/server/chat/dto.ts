@@ -455,6 +455,8 @@ export interface ChatRowDto {
   pinned?: boolean;
   archived?: boolean;
   teamId?: string | null;
+  /** TOPIC: the group of its space it is arranged in (null: «عام»; absent: an answer from before groups) */
+  groupId?: string | null;
   system?: boolean;
 }
 

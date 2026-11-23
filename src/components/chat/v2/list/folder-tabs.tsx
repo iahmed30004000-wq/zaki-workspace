@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { chatPrefsQueryOptions, saveChatPrefs, type ChatPrefsDto } from "@/lib/chat/cache/queries";
 import { foldersOfOrg, resolveChatPrefs, type BuiltinTab, type ChatFolderDef, type ChatPrefsPatch } from "@/lib/chat/prefs";
@@ -111,8 +111,14 @@ export function FolderTabs<K extends string>({
   badges: Partial<Record<K, number>>;
   onChange: (key: K) => void;
 } & FolderStripExtras<K>) {
+  // the tab you are in is brought into view when the strip is longer than the screen (a folder of your own sits at the far end)
+  const stripRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    stripRef.current?.querySelector<HTMLElement>('[aria-selected="true"]')?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  }, [active]);
   const strip = (
     <div
+      ref={stripRef}
       role="tablist"
       aria-label={ct("chatui.folders.label")}
       data-chat-folders=""

@@ -41,6 +41,8 @@ export interface RowMenuContext {
   canModerate: boolean;
   /** the company's switch `chatPersonalState` (C3a.1): the personal items. Absent reads as on; a connected row fills it in from the cached list. */
   personal?: boolean;
+  /** «مجموعات المواضيع»: the viewer may move a topic of this list into a group (the space has groups and they manage it): the item «نقل إلى مجموعة» asks the screen to open its sheet */
+  onMoveToGroup?: (row: ChatRowDto) => void;
 }
 
 /** What the menu of this row would offer: a space row has no menu (its id is a space's, never a conversation's). */
@@ -65,8 +67,13 @@ function hasPersonalItems(row: ChatRowDto, ctx: RowMenuContext): boolean {
   return ctx.personal !== false && personalOffers(row) !== null;
 }
 
+/** Does the row have «نقل إلى مجموعة» (a topic, in a space that has groups, for a manager)? It does not depend on the company's switch `chatRowMenu`: it arranges, it deletes nothing. */
+function hasMoveItem(row: ChatRowDto, ctx: RowMenuContext): boolean {
+  return row.kind === "TOPIC" && ctx.onMoveToGroup !== undefined && ctx.canModerate;
+}
+
 export function rowHasMenu(row: ChatRowDto, ctx: RowMenuContext): boolean {
-  return hasPersonalItems(row, ctx) || hasManagerItems(row, ctx);
+  return hasPersonalItems(row, ctx) || hasManagerItems(row, ctx) || hasMoveItem(row, ctx);
 }
 
 /** The gestures that open a row's menu (a right click, a long press): they live in `list/long-press.ts` since S5.3, where the folder strip uses them too. */
@@ -276,6 +283,14 @@ export function RowActionsMenu({
         <DropdownMenuContent align="end">
           {personal ? <PersonalMenuItems row={row} call={mine.call} /> : null}
           <FolderMenuItems row={row} onNew={() => setFolderSheet(true)} />
+          {hasMoveItem(row, ctx) ? (
+            <>
+              {personal ? <DropdownMenuSeparator /> : null}
+              <DropdownMenuItem data-move-to-group-item="" onSelect={() => ctx.onMoveToGroup?.(row)}>
+                <span aria-hidden="true">📁</span> {ct("chatgrp.move")}
+              </DropdownMenuItem>
+            </>
+          ) : null}
           {personal && managers ? <DropdownMenuSeparator /> : null}
           {managers ? <RowMenuItems id={row.id} pinned={row.pinned === true} call={call} onPurge={() => setConfirming(true)} {...target} /> : null}
         </DropdownMenuContent>

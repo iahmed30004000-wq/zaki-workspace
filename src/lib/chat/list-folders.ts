@@ -3,6 +3,7 @@ import { foldedIncludes } from "@/lib/search/arabic";
 import { inFolder } from "@/lib/chat/cache/unread";
 import type { UnreadSummary } from "@/lib/chat/cache/unread";
 import type { ChatFolder, ChatRowDto } from "@/lib/chat/cache/types";
+import type { GroupRowModel } from "@/lib/chat/v2/groups";
 
 /**
  * C2.2 — the folders of the chat list («الكل · غير مقروء · خاص · المساحات · ذكروني», and «كل الشركة» for the people who hold the silent
@@ -164,8 +165,8 @@ export function forumRows(rows: readonly ChatRowDto[], spaceId: string, orders: 
 
 // ───────────────────────────────────────── what the list is made of ─────────────────────────────────────────
 
-/** One thing the virtual list draws: a conversation row, or the folded «المؤرشفة» line of the forum view. */
-export type ListItem = { type: "row"; key: string; id: string } | { type: "section"; key: string; count: number };
+/** One thing the virtual list draws: a conversation row, the folded «المؤرشفة» line of the forum view, or a group of topics («مجموعات المواضيع», `src/lib/chat/v2/groups.ts`). */
+export type ListItem = { type: "row"; key: string; id: string } | { type: "section"; key: string; count: number } | { type: "group"; key: string; group: GroupRowModel };
 
 export function rowItems(rows: readonly ChatRowDto[]): ListItem[] {
   return rows.map((row) => ({ type: "row", key: `${row.kind}:${row.id}`, id: row.id }));

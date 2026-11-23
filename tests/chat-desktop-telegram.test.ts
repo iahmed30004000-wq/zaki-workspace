@@ -103,7 +103,7 @@ describe("the list as a rail, and the «المؤرشفة» row", () => {
 
   it("the column knows when it is a rail and then draws pictures only: no search header, no folder column", () => {
     expect(column).toContain("isRailWidth(width)");
-    expect(column).toContain("rail ? null : <FolderRail");
+    expect(column).toContain("rail ? null : <FolderTabs"); // item 7: the strip of tabs above the list, no column beside it
     expect(column).toMatch(/rail \? null : \(\s*<ListHeader/);
   });
 

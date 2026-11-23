@@ -319,7 +319,7 @@ describe("the list column wires the inline folders (and keeps what the calls age
   it("the strip and the column get the add / manage props and the sheets are drawn once", () => {
     expect(src).toContain("useInlineFolders");
     expect(src).toMatch(/<FolderTabs[^>]*\.\.\.inline\.tabProps/);
-    expect(src).toMatch(/<FolderRail[^>]*\.\.\.inline\.tabProps/);
+    expect(src).not.toContain("<FolderRail"); // the desktop has the same strip of tabs above the list (item 7)
     expect(src).toContain("inline.element");
   });
   it("a folder view reads the topics of the current space as well as the list", () => {
