@@ -6,6 +6,8 @@ import { apiGet, apiPost, ApiError } from "@/lib/api-client";
 import { Button } from "@/components/ui/button";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
+import { OpenCardsDialog } from "@/components/members/open-cards-dialog";
+import { useState } from "react";
 
 interface MemberRow {
   id: string;
@@ -41,6 +43,8 @@ export function WorkspaceMembersPanel({ workspaceId, onClose }: { workspaceId: s
   const { t } = useI18n();
   const { toast } = useToast();
   const qc = useQueryClient();
+  // right after somebody is taken out of the space: their open cards HERE, listed, to unassign or hand over (nothing is drawn when they hold none)
+  const [leaving, setLeaving] = useState<{ id: string; name: string } | null>(null);
 
   const members = useQuery({
     queryKey: ["ws-members", workspaceId],
@@ -59,7 +63,12 @@ export function WorkspaceMembersPanel({ workspaceId, onClose }: { workspaceId: s
 
   const manage = useMutation({
     mutationFn: (payload: Record<string, string[]>) => apiPost(`/api/workspaces/${workspaceId}/members`, payload),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["ws-members", workspaceId] }),
+    onSuccess: (_done, payload) => {
+      const removed = payload["removeUserIds"]?.[0];
+      const row = removed ? members.data?.members.find((m) => m.id === removed) : undefined;
+      if (row) setLeaving({ id: row.id, name: row.name });
+      return qc.invalidateQueries({ queryKey: ["ws-members", workspaceId] });
+    },
     onError: (err) => toast(errText(err, t), "error"),
   });
 
@@ -120,6 +129,7 @@ export function WorkspaceMembersPanel({ workspaceId, onClose }: { workspaceId: s
           </ul>
         </div>
       ) : null}
+      {leaving ? <OpenCardsDialog person={leaving} workspaceId={workspaceId} silentWhenEmpty onClose={() => setLeaving(null)} /> : null}
       {onClose ? (
         <div className="flex justify-end">
           <Button variant="ghost" size="sm" onClick={onClose}>

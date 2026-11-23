@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 401 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 402 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 194 feature switches and every place that reads them (§8).
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 401 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 402 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 162 services — the business rules (§6) |
+| `src/server/services/` | 163 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 175 · `activeOrgCtx` 116 · `(none)` 43 · `requireTeamWork` 14 · `requireUser` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 175 · `activeOrgCtx` 117 · `(none)` 43 · `requireTeamWork` 14 · `requireUser` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -427,6 +427,7 @@ Doors in use: `requireActor` 175 · `activeOrgCtx` 116 · `(none)` 43 · `requir
 | GET | `/api/tasks/[id]/time` | **none** (public by design) | `time-tracking`: taskTimeCard |
 | POST | `/api/tasks/[id]/time/manual` | **none** (public by design) | `time-tracking`: addManualEntry |
 | POST | `/api/tasks/[id]/time/start` | **none** (public by design) | `time-tracking`: startTimer |
+| GET, POST | `/api/tasks/bulk-assign` | activeOrgCtx | `integrations`: activeOrgCtx<br>`bulk-assign`: bulkAssign, bulkAssignSchema, listOpenTasks |
 | GET, POST | `/api/team-development/criteria` | requireActor | `team-criteria`: addCriterion, criterionInputSchema, listCriteria |
 | PATCH | `/api/team-development/criteria/[id]` | requireActor | `team-criteria`: criterionPatchSchema, updateCriterion |
 | PATCH | `/api/team-development/goals/[id]` | requireActor | `team-plans`: goalPatchSchema, updateGoal |
@@ -495,7 +496,7 @@ Doors in use: `requireActor` 175 · `activeOrgCtx` 116 · `(none)` 43 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 401. Each one is a door that cannot have a session, or one that is closed.
+Six of 402. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -517,7 +518,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
 | `features` | 87 | 173 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
-| `integrations` | 180 | 132 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
+| `integrations` | 180 | 133 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 74 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 273 | 48 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
@@ -649,6 +650,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `zaki-ai` | 171 | 2 | «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
 | `ai-settings` | 30 | 1 | THE AI CONNECTION — ONE PLACE (A2.1). |
 | `assistant-work` | 107 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
+| `bulk-assign` | 142 | 1 | «نقل أو فكّ المهام المفتوحة»: when a person leaves, their OPEN cards (not archived, not completed, not in a finished column) are listed and handed to somebody else, or unassigne… |
 | `card-log` | 92 | 1 | «السجل»: a read-only timeline made of the AuditLog rows written about this card. |
 | `card-status` | 32 | 1 | «حالة الاعتماد» (the second of the two systems): مسودة → قيد المراجعة → معتمدة → مؤرشفة, set by a moderator of the space or the OWNER. |
 | `checkins-section` | 27 | 1 | «التسجيل اليومي» as a section of the team score: how many days a person answered in the period and the run of answered days. |
@@ -1027,8 +1029,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 395 of 401 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 291 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 396 of 402 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 292 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **19 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 6 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`, `/mcp`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right; the 1 left (`/mcp`) are the ones Phase E looks at. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 
