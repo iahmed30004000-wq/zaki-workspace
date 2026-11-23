@@ -219,6 +219,7 @@ describe("the chat tools", () => {
     const { token } = await mint(w);
     const res = await tool(token, "post_message", { conversationId: "no-such-conversation", body: "x" });
     expect(res.isError).toBe(true);
-    expect(await db.chatMessage.count({ where: { body: "x" } })).toBe(0);
+    // other tests of the same database also write "x": count only what THIS person wrote
+    expect(await db.chatMessage.count({ where: { authorId: w.owner.id } })).toBe(0);
   });
 });
