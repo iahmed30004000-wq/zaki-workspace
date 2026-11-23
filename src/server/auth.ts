@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { db } from "./db";
 import { perRequest } from "./env";
+import { actingUserId } from "./acting-as";
 import { log } from "./log";
 import { getSessionUser, clearSessionCookie, setSessionCookie } from "./session";
 import { createSession, readSession, renewSession, revokeReplacedSession, touchSession } from "./services/sessions";
@@ -56,7 +57,9 @@ export interface CurrentUser {
  * outlives the render, so a session revoked a moment later is refused by the very next request.
  */
 export const currentUser: () => Promise<CurrentUser | null> = perRequest(async () => {
-  const session = await getSessionUser();
+  // a machine caller that passed its own gate acts for ONE person for the length of one call (src/server/acting-as.ts: only the MCP route sets it)
+  const acting = actingUserId();
+  const session = acting ? { userId: acting, tv: -1, sid: null as string | null } : await getSessionUser();
   if (!session) return null;
   const [user, row] = await Promise.all([
     db.user.findUnique({
@@ -80,7 +83,7 @@ export const currentUser: () => Promise<CurrentUser | null> = perRequest(async (
     }),
     session.sid ? readSession(session.sid) : Promise.resolve(null),
   ]);
-  if (!user || user.tokenVersion !== session.tv) return null;
+  if (!user || (!acting && user.tokenVersion !== session.tv)) return null;
   const active = user.memberships[0];
   if (!active) return null;
   // a cookie that names a session must find it live and the person's own; a cookie that names none is an old one (honoured until it expires)

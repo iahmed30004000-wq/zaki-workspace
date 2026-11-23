@@ -95,6 +95,7 @@ const LATIN_IN_DICTIONARY = [
   "projectId",
   "boardId",
   "title",
+  "Claude (MCP)", // the system of «توكنات الأنظمة» that holds the MCP key: Claude's own settings show this very name
 ];
 
 function latinLeft(value: string, allowed: readonly string[]): string[] {
@@ -124,7 +125,7 @@ describe("the Arabic dictionary", () => {
 
   it("the allow-list is short and every entry is really used (a stale entry would hide new English)", () => {
     const all = files.flatMap((f) => Object.values(f.data)).join("\n");
-    expect(LATIN_IN_DICTIONARY.length).toBeLessThan(25);
+    expect(LATIN_IN_DICTIONARY.length).toBeLessThan(26);
     for (const phrase of LATIN_IN_DICTIONARY) expect(all, phrase).toContain(phrase);
   });
 

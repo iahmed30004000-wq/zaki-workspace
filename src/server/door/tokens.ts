@@ -18,8 +18,13 @@ export const TOKEN_LABEL = "zws";
 export const DOOR_PERMISSIONS = ["ideas.read", "ideas.write", "tasks.read", "tasks.write"] as const;
 /** `messages.write` (I1.1b) belongs to `POST /api/v2/messages` only (docs/contracts/workspace-door.v2.md); v1 never asks for it. */
 export const DOOR_MESSAGE_PERMISSIONS = ["messages.write"] as const;
+/**
+ * The scopes of the MCP server (https://workspace.zakiai.io/mcp, docs/contracts/mcp.md): `mcp.tasks` (list, create, move, comment, update, boards) and `mcp.chat` (post, list
+ * conversations). Held only by the system «Claude (MCP)» of «توكنات الأنظمة»; /api/v1 never asks for them.
+ */
+export const DOOR_MCP_PERMISSIONS = ["mcp.tasks", "mcp.chat"] as const;
 /** Everything a token can hold: what the management route accepts and what a stored token is read against. */
-export const ALL_DOOR_PERMISSIONS = [...DOOR_PERMISSIONS, ...DOOR_MESSAGE_PERMISSIONS] as const;
+export const ALL_DOOR_PERMISSIONS = [...DOOR_PERMISSIONS, ...DOOR_MESSAGE_PERMISSIONS, ...DOOR_MCP_PERMISSIONS] as const;
 export type DoorPermission = (typeof ALL_DOOR_PERMISSIONS)[number];
 
 export function isDoorPermission(value: unknown): value is DoorPermission {
