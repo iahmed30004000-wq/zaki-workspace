@@ -27,6 +27,7 @@
   "door.perm.ideas.write": "إرسال أفكار",
   "door.perm.tasks.read": "قراءة حالة المهام اللي عملها المفتاح",
   "door.perm.tasks.write": "إنشاء مهام",
+  "door.perm.chat.structure": "ترتيب الدردشة (مجموعات المواضيع)",
   "door.perm.mcp.tasks": "الموصل: المهام (قراءة وإنشاء ونقل وتعليق وتعديل)",
   "door.perm.mcp.chat": "الموصل: الدردشة (كتابة رسائل وقراءة المحادثات)",
   "door.once.title": "انسخ المفتاح هلأ",

@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
  * the module itself, `currentUser` (which reads it), and the route of /mcp (which sets it, after the token passed the door).
  */
 const ROOT = path.resolve(__dirname, "..");
-const ALLOWED = new Set(["src/server/acting-as.ts", "src/server/auth.ts", "src/app/mcp/route.ts"]);
+const ALLOWED = new Set(["src/server/acting-as.ts", "src/server/auth.ts", "src/app/mcp/route.ts", "src/server/door/structure-auth.ts"]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -38,5 +38,16 @@ describe("nobody borrows an identity but the MCP route", () => {
     const auth = readFileSync(path.join(ROOT, "src/server/auth.ts"), "utf8");
     expect(auth).toContain("const acting = actingUserId();");
     expect(auth).toContain(": await getSessionUser()");
+  });
+});
+
+describe("the chat-structure gate lends an identity only after the door", () => {
+  it("structure-auth.ts runs the route as the token's person only after authenticateDoor, and a browser request never reaches runAsUser", () => {
+    const gate = readFileSync(path.join(ROOT, "src/server/door/structure-auth.ts"), "utf8");
+    expect(gate.indexOf("authenticateDoor(")).toBeGreaterThan(-1);
+    expect(gate.indexOf("runAsUser(")).toBeGreaterThan(gate.indexOf("authenticateDoor("));
+    expect(gate).toContain("runAsUser(who.issuerId");
+    // a bad token is refused: there is no fallback to the cookie after it
+    expect(gate).toMatch(/header === null/);
   });
 });

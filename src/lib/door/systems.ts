@@ -17,6 +17,8 @@ export const DOOR_SYSTEMS: readonly DoorSystem[] = [
   { key: "mediabuyer", name: "الميديا باير", permissions: ["tasks.write", "tasks.read"] },
   // the MCP server (docs/contracts/mcp.md): Claude logs the scheduled operations as tasks, comments and chat messages, in the name of whoever made the token
   { key: "claude-mcp", name: "Claude (MCP)", permissions: ["mcp.tasks", "mcp.chat"] },
+  // «ميوز»: builds the structure of the chat (groups of topics) by the API alone; reads and writes no message (docs/contracts/chat-groups.md)
+  { key: "muse", name: "ميوز", permissions: ["chat.structure"] },
 ];
 
 export const DEFAULT_SYSTEM_EXPIRY_DAYS = 90;
