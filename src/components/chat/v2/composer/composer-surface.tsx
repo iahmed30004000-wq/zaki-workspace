@@ -31,6 +31,8 @@ export type SurfaceEngine = Pick<
 > &
   /** C3c.2: «ابعت بدون صوت» (the send button's menu); an engine without them (a test's) draws no menu */
   Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn" | "setFeedback">> &
+  /** «نص مباشر أثناء التسجيل»: the live words of the recorder bar; an engine without it (a test's, or the switch off) draws none */
+  Partial<Pick<ComposerEngine, "live">> &
   /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
   Partial<Pick<ComposerEngine, "scheduling" | "scheduledCount" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
 
@@ -120,7 +122,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
   };
   if (c.voice.mode !== "idle") {
     const voice = c.voice;
-    return <RecordBar voice={voice} error={c.error} onCancel={c.cancelRecording} onSend={() => void c.sendVoice(voice.mode === "review" ? voice.take : null)} />;
+    return <RecordBar voice={voice} error={c.error} live={c.live} onCancel={c.cancelRecording} onSend={() => void c.sendVoice(voice.mode === "review" ? voice.take : null)} />;
   }
   const mic = c.face === "mic";
   // C3c.2: the send button's menu (right-click, long press): only an engine that can send silently, only while the company's switch is on (absent: on)

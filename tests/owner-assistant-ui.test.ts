@@ -207,6 +207,9 @@ describe("the settings screen", () => {
     gatewayKeyLast4: null,
     gatewayConfirmedLocal: false,
     localRelaxRedaction: false,
+    transcribeSource: null,
+    transcribeBaseUrl: null,
+    transcribeModel: null,
   };
   const form = (over: Partial<typeof settings> = {}) => render(createElement(SettingsForm, { settings: { ...settings, ...over }, usage, models: ["claude-sonnet-5-5", "claude-opus-5-5", "claude-haiku-5-5"] }));
 

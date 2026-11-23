@@ -4,6 +4,7 @@ import React from "react";
 import { Send, Trash2 } from "lucide-react";
 import { ROUND_BUTTON } from "@/components/chat/v2/composer/composer-styles";
 import { ct } from "@/lib/chat/text";
+import { DICTATION_LANGS, type DictationError } from "@/lib/chat/v2/dictation";
 import type { VoiceState } from "@/lib/chat/v2/composer/types";
 import { barsFor, formatDuration } from "@/lib/chat/waveform";
 
@@ -13,13 +14,66 @@ import { barsFor, formatDuration } from "@/lib/chat/waveform";
  * computer a click started it and the bar's send button stops it. A take that stopped by itself (5 minutes, a hidden page) waits here for send or cancel.
  * Drawn like Telegram's: a pill with the red dot and the time, the waveform, a bin to cancel, and the same round accent button as the composer's.
  */
-export function RecordBar({ voice, error, onCancel, onSend }: { voice: Exclude<VoiceState, { mode: "idle" }>; error: string; onCancel: () => void; onSend: () => void }) {
+/** «نص مباشر أثناء التسجيل»: what the bar draws above the pill (absent: nothing) */
+export interface LiveView {
+  supported: boolean;
+  listening: boolean;
+  text: string;
+  lang: string;
+  error: DictationError | null;
+  setLang: (code: string) => void;
+  sendAsText: () => void;
+}
+
+/** The sentence under the language picker: what the live text is doing, or why it is not (a key of the dictionary each, never built from the error's name). */
+function liveStatus(live: LiveView): string {
+  if (live.error === "denied") return ct("chatlive.err_denied");
+  if (live.error === "busy") return ct("chatlive.err_busy");
+  if (live.error === "failed") return ct("chatlive.err_failed");
+  return live.listening ? ct("chatlive.listening") : ct("chatlive.idle");
+}
+
+export function RecordBar({ voice, error, live, onCancel, onSend }: { voice: Exclude<VoiceState, { mode: "idle" }>; error: string; live?: LiveView | undefined; onCancel: () => void; onSend: () => void }) {
   const recording = voice.mode === "recording" ? voice : null;
   const elapsed = recording ? recording.elapsedMs : voice.mode === "review" ? voice.take.durationMs : 0;
   const peaks = recording ? recording.peaks : voice.mode === "review" ? voice.take.peaks : [];
   const holding = recording?.hold === true;
   return (
     <div className="mx-auto flex w-full max-w-[904px] flex-col gap-1" data-recording={voice.mode} data-locked={recording?.locked ? "" : undefined}>
+      {live && live.supported ? (
+        <div data-live-text className="flex flex-col gap-1 rounded-2xl bg-surface-1 px-3 py-2 shadow-card">
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              aria-label={ct("chatlive.lang")}
+              value={live.lang}
+              onChange={(e) => live.setLang(e.target.value)}
+              data-live-lang
+              className="min-h-9 rounded-lg border border-border bg-surface-2 px-2 text-sm text-fg"
+            >
+              {DICTATION_LANGS.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-fg-muted" aria-live="polite">
+              {liveStatus(live)}
+            </span>
+            <button
+              type="button"
+              data-live-send
+              onClick={live.sendAsText}
+              disabled={live.text === ""}
+              className="ms-auto min-h-9 rounded-full bg-accent px-3 text-sm font-semibold text-accent-fg disabled:opacity-50"
+            >
+              {ct("chatlive.send_text")}
+            </button>
+          </div>
+          <p dir="auto" aria-live="polite" className="min-h-6 whitespace-pre-wrap break-words text-sm text-fg">
+            {live.text || ct("chatlive.placeholder")}
+          </p>
+        </div>
+      ) : null}
       <div className="flex items-end gap-2">
         <div className="flex min-h-[52px] min-w-0 flex-1 items-center gap-2 rounded-[26px] bg-surface-1 px-1 shadow-card">
           <button

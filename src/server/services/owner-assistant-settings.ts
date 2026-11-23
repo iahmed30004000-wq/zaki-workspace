@@ -57,7 +57,15 @@ export interface PublicSettings {
   gatewayFixed?: { url: boolean; model: boolean; key: boolean };
   /** The privacy filter is relaxed for a local model (for the gateway: only with the confirmation). Never for Claude. */
   localRelaxRedaction: boolean;
+  /** «تفريغ الصوت»: null (the server's variable), "local" (`transcribeBaseUrl`) or "gateway" (the gateway above); the model name of the service. */
+  transcribeSource: TranscribeSource | null;
+  transcribeBaseUrl: string | null;
+  transcribeModel: string | null;
 }
+
+export const TRANSCRIBE_SOURCES = ["local", "gateway"] as const;
+export type TranscribeSource = (typeof TRANSCRIBE_SOURCES)[number];
+const asTranscribeSource = (value: string | null): TranscribeSource | null => ((TRANSCRIBE_SOURCES as readonly (string | null)[]).includes(value) ? (value as TranscribeSource) : null);
 
 export const PROVIDER_KINDS: readonly ProviderKind[] = ["claude", "ollama", "openai"];
 const asProvider = (value: string): ProviderKind => ((PROVIDER_KINDS as readonly string[]).includes(value) ? (value as ProviderKind) : "claude");
@@ -80,6 +88,9 @@ export const DEFAULT_SETTINGS: PublicSettings = {
   gatewayKeyLast4: null,
   gatewayConfirmedLocal: false,
   localRelaxRedaction: false,
+  transcribeSource: null,
+  transcribeBaseUrl: null,
+  transcribeModel: null,
 };
 
 /** The columns a read may take: NOT the cipher. */
@@ -99,6 +110,9 @@ const PUBLIC_COLUMNS = {
   gatewayKeyLast4: true,
   gatewayConfirmedLocal: true,
   localRelaxRedaction: true,
+  transcribeSource: true,
+  transcribeBaseUrl: true,
+  transcribeModel: true,
 } as const;
 
 /** The gateway's address, model and key as the server's variables fix them (ZAKI_GATEWAY_*): they win over the saved ones. */
@@ -142,6 +156,9 @@ async function readSettings(orgId: string): Promise<PublicSettings> {
     gatewayKeyLast4: row.gatewayKeyLast4,
     gatewayConfirmedLocal: row.gatewayConfirmedLocal,
     localRelaxRedaction: row.localRelaxRedaction,
+    transcribeSource: asTranscribeSource(row.transcribeSource),
+    transcribeBaseUrl: row.transcribeBaseUrl,
+    transcribeModel: row.transcribeModel,
   };
 }
 
@@ -213,6 +230,10 @@ const settingsSchema = z
     gatewayModel: modelNameSchema.optional(),
     gatewayConfirmedLocal: z.boolean().optional(),
     localRelaxRedaction: z.boolean().optional(),
+    // «تفريغ الصوت»: null puts the choice back to the server's variable; a local service must be inside the server
+    transcribeSource: z.enum(TRANSCRIBE_SOURCES, { errorMap: () => ({ message: "assistant.transcribe_source_invalid" }) }).nullable().optional(),
+    transcribeBaseUrl: addressSchema(false).optional(),
+    transcribeModel: modelNameSchema.optional(),
   })
   .strict();
 
@@ -248,6 +269,9 @@ export async function updateSettings(ctx: { orgId: string; userId: string }, bod
     if (patch[slot] === undefined) continue;
     if (!providerConfigured(merged, merged[slot])) invalid(slot, "assistant.local_incomplete");
   }
+  // «تفريغ الصوت» needs what it points at: a saved address for a local service, a saved gateway address for the gateway
+  if (patch.transcribeSource === "local" && !merged.transcribeBaseUrl) invalid("transcribeSource", "assistant.transcribe_incomplete");
+  if (patch.transcribeSource === "gateway" && !merged.gatewayBaseUrl) invalid("transcribeSource", "assistant.transcribe_incomplete");
   // the confirmation belongs to ONE address: a new gateway address starts unconfirmed unless it is confirmed in the same request
   if (patch.gatewayBaseUrl !== undefined && patch.gatewayBaseUrl !== current.gatewayBaseUrl && patch.gatewayConfirmedLocal === undefined) patch.gatewayConfirmedLocal = false;
   if (patch.gatewayConfirmedLocal === true && !merged.gatewayBaseUrl) invalid("gatewayConfirmedLocal", "assistant.local_incomplete");

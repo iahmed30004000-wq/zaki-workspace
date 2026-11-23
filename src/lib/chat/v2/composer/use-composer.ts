@@ -14,6 +14,7 @@ import { sendKeyAllows } from "@/lib/chat/prefs";
 import { isSavedHeader } from "@/lib/chat/v2/menu/menu-context";
 import { scheduledPlanOf } from "@/lib/chat/v2/composer/scheduled-plan";
 import { createChatUploadFormData, createVoiceUploadFormData, enterSends, messageClientId } from "@/lib/chat/conversation/client";
+import { DEFAULT_DICTATION_LANG, browserRecognition, createDictation, dictationText, type DictationSnapshot } from "@/lib/chat/v2/dictation";
 import { ASSISTANT_MENTION_ID, filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
 import { classifyFile, exceedsKindLimit, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/chat/file-kinds";
 import { errorKeyOf } from "@/lib/chat/poll-client";
@@ -574,6 +575,10 @@ export function useComposer(p: ComposerParams) {
   }
 
   // ---------- voice ----------
+  // «نص مباشر أثناء التسجيل» (the switch `voiceLiveText`): the browser's recognition writes the words while the take is recorded; none of it exists with the switch off
+  const liveTextOn = detail.voiceLiveText === true;
+  const dictation = React.useMemo(() => (liveTextOn && typeof window !== "undefined" ? createDictation(browserRecognition()) : null), [liveTextOn]);
+  const live = React.useSyncExternalStore(dictation?.subscribe ?? NO_SUBSCRIBE, dictation?.getSnapshot ?? (() => NO_LIVE), dictation?.getServerSnapshot ?? (() => NO_LIVE));
   async function startRecording(hold: boolean) {
     if (voice.mode !== "idle" || busy || editing) return;
     setError("");
@@ -582,6 +587,7 @@ export function useComposer(p: ComposerParams) {
       onPeaks: (peaks) => setVoice((v) => (v.mode === "recording" ? { ...v, peaks } : v)),
       // the 5-minute cap or a hidden page: the take waits to be sent or thrown away, it is never lost
       onAutoStop: (take) => {
+        dictation?.cancel();
         recorder.current = null;
         releaseHold.current?.();
         setVoice(take ? { mode: "review", take } : { mode: "idle" });
@@ -593,7 +599,9 @@ export function useComposer(p: ComposerParams) {
       await rec.start();
       // the finger lifted (or slid away) while the browser was still asking for the microphone
       if (recorder.current !== rec) rec.cancel();
+      else dictation?.start();
     } catch (e) {
+      dictation?.cancel();
       recorder.current = null;
       releaseHold.current?.();
       setVoice({ mode: "idle" });
@@ -602,12 +610,27 @@ export function useComposer(p: ComposerParams) {
     }
   }
   function cancelRecording() {
+    dictation?.cancel();
     releaseHold.current?.();
     recorder.current?.cancel();
     recorder.current = null;
     setVoice({ mode: "idle" });
   }
+  /** «ابعت كنص»: the words heard so far go as a text message; the recording is thrown away */
+  async function sendVoiceAsText() {
+    const text = dictation?.finish() ?? "";
+    recorder.current?.cancel();
+    recorder.current = null;
+    releaseHold.current?.();
+    setVoice({ mode: "idle" });
+    if (!text.trim()) {
+      setError(ct("chatlive.empty"));
+      return;
+    }
+    await sendNow(text.trim(), [], messageClientId());
+  }
   async function sendVoice(take?: VoiceTake | null) {
+    dictation?.cancel();
     let recording = take ?? null;
     if (!recording && recorder.current) {
       recording = await recorder.current.stop();
@@ -766,9 +789,14 @@ export function useComposer(p: ComposerParams) {
     scheduleDialog, closeScheduleDialog: () => setScheduleDialog(null), openScheduleDialog, scheduleNow, saveScheduledEdit,
     scheduledOpen, setScheduledOpen: showScheduled, scheduledBusy, scheduledError, scheduleNotice, beginEditScheduled, sendScheduledNow, deleteScheduled,
     startRecording, cancelRecording, sendVoice, onMicPointerDown, onMicClick,
+    // «نص مباشر أثناء التسجيل»: what the recorder bar shows above the pill (absent while the switch is off)
+    live: dictation ? { supported: live.supported, listening: live.listening, text: dictationText(live.final, live.interim), lang: live.lang, error: live.error, setLang: dictation.setLang, sendAsText: sendVoiceAsText } : undefined,
     insertWords: (text: string) => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); },
     setDismissed,
   };
 }
+
+const NO_SUBSCRIBE = () => () => undefined;
+const NO_LIVE: DictationSnapshot = { supported: false, listening: false, final: "", interim: "", lang: DEFAULT_DICTATION_LANG, error: null };
 
 export type ComposerEngine = ReturnType<typeof useComposer>;

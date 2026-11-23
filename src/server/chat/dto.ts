@@ -381,6 +381,10 @@ export interface ConversationDto {
   voiceNotes?: boolean;
   /** «كتابة نص الرسالة الصوتية» (`voiceTranscript`): the switch is on AND a speech-to-text service is set up; absent or false: no «اكتب النص» button */
   voiceTranscript?: boolean;
+  /** «الصوت زي تيليجرام» (`voiceTelegram`): the speed button on every voice note and the bar under the header while one plays; absent: on */
+  voiceTelegram?: boolean;
+  /** «نص مباشر أثناء التسجيل» (`voiceLiveText`, off by default): the recorder writes a live transcript above the composer; absent or false: none */
+  voiceLiveText?: boolean;
   /** «قراءة نص الصور» (`imageOcr`): the switch is on, a vision service is set up AND no guest can reach this conversation; absent or false: no «اقرا النص» button under a picture */
   imageOcr?: boolean;
   /** «لخّصلي» (`morningDigest`): the switches are on, a provider is ready, and this is a topic of staff; absent or false: no button */

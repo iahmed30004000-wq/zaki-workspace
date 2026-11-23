@@ -27,6 +27,9 @@ const base: PublicSettings = {
   gatewayKeyLast4: null,
   gatewayConfirmedLocal: false,
   localRelaxRedaction: false,
+  transcribeSource: null,
+  transcribeBaseUrl: null,
+  transcribeModel: null,
 };
 const settings = (over: Partial<PublicSettings>): PublicSettings => ({ ...base, ...over });
 

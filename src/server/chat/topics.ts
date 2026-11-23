@@ -530,6 +530,8 @@ export async function conversationDetail(
     whiteboard: await isFeatureOn(ctx.orgId, "whiteboard"),
     voiceNotes: await isFeatureOn(ctx.orgId, "voiceNotes"),
     voiceTranscript: await transcriptAvailable(ctx.orgId),
+    voiceTelegram: await isFeatureOn(ctx.orgId, "voiceTelegram"),
+    voiceLiveText: (await isFeatureOn(ctx.orgId, "voiceLiveText")) && (await isFeatureOn(ctx.orgId, "voiceNotes")),
     // a picture of a conversation a guest can reach is never read by a model: no button there
     imageOcr: (await ocrAvailable(ctx.orgId)) && ctx.orgRole !== "GUEST" && !(await conversationHasGuest(facts, conversationId, ctx.orgId)),
     // «لخّصلي»: a topic only (never a private chat or somebody's conversation with the assistant), never for a partner, while «شو فاتني؟» is offered
@@ -669,7 +671,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
 
   // the switches: ONE read of the settings. A service that decides "is it offered" by itself (a ready model, a service address) is asked only
   // while its own switches are on, so a company that never turned them on pays no read for them.
-  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn, zakiEmojis, checklistsOn] = await Promise.all([
+  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn, zakiEmojis, checklistsOn, voiceTelegram, liveTextOn] = await Promise.all([
     feature("chatBubbles"),
     feature("chatOutbox"),
     feature("chatFormatting"),
@@ -689,6 +691,8 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     feature("mustRead"),
     feature("zakiEmojis"),
     feature("chatChecklists"),
+    feature("voiceTelegram"),
+    feature("voiceLiveText"),
   ]);
   const hidden = silent && !joined;
   // «جدول الإرسال» (C3c.3): the person's OWN waiting messages here, asked only where they may use it (the switch is on and they may write; the silent eye cannot schedule)
@@ -771,6 +775,8 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     whiteboard,
     voiceNotes,
     voiceTranscript,
+    voiceTelegram,
+    voiceLiveText: liveTextOn && voiceNotes,
     imageOcr,
     assistantCall: org.role === "OWNER" /* oversight-ok: the owner's own assistant, not reading */ && isAssistantChatOf(conv.dmKey, ctx.userId) && siteGuide && (await feature("ownerAssistant")),
     digest,

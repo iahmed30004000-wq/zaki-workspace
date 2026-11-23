@@ -20,6 +20,8 @@ export interface BubbleFacts extends MenuFacts {
   /** the hint line for customer data: only in an open topic */
   orderHints: boolean;
   canTranscribe: boolean;
+  /** «الصوت زي تيليجرام»: the speed button on every voice note (the header says `false` to switch it off; absent: on) */
+  voiceTg: boolean;
   canReadImages: boolean;
   /** C3b.2: the company's switch `linkPreviews`; off, a card the cache still holds is not drawn */
   linkPreviews: boolean;
@@ -52,6 +54,7 @@ export function bubbleFactsOf(header: ConversationHeaderDto): BubbleFacts {
     canOrderState: Boolean(me.canOrderState),
     orderHints: Boolean(me.orderHints) && header.kind === "TOPIC" && !header.restricted && !header.teamId,
     canTranscribe: header.voiceTranscript === true,
+    voiceTg: header.voiceTelegram !== false,
     canReadImages: header.imageOcr === true,
     linkPreviews: header.linkPreviews === true,
     formatting: header.chatFormatting !== false,

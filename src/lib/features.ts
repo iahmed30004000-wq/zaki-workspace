@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -420,6 +420,10 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // compact switch, no effect code is loaded and no tint is drawn; the choices already saved stay and come back with the switch. «وضع التوفير» still keeps its
   // motion off while this is on. ⚠️ A tint changes the colours of the whole screen a little. 🔧 It is capped, «رجّع» clears it, and this switch removes it.
   themeSwitchFx: true,
+  // «الصوت زي تيليجرام» (src/components/chat/message/voice-player.tsx, src/components/chat/v2/pane/voice-mini-player.tsx): the speed button (1x, 1.5x, 2x) is drawn on EVERY voice note, not only the one that plays, and the bar under the header stays while a note plays even when its bubble is on screen. ON by default; off: the chip shows only on the playing note and the bar only when its bubble is out of sight, exactly as before. The speed itself stays the person own choice.
+  voiceTelegram: true,
+  // «نص مباشر أثناء التسجيل» (src/lib/chat/v2/composer/use-live-dictation.ts): while a voice note is recorded, the phone own speech recognition writes a live transcript above the composer (a language picker, and «ابعت كنص» sends it as a text message instead of the voice). OFF by default: Chrome on Android sends the sound to Google to recognise it, so the words leave the company. Off: no live text, no button, the recorder is exactly what it was.
+  voiceLiveText: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
@@ -651,4 +655,6 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   meetingMinutes: { group: "owner", dependsOn: ["assistantInMeetings"] },
   chatSounds: { group: "chat" },
   spaceBadges: { group: "work", dependsOn: ["workRequests", "navV2"] },
+  voiceTelegram: { group: "chat", dependsOn: ["voiceNotes"] },
+  voiceLiveText: { group: "chat", dependsOn: ["voiceNotes"] },
 };
