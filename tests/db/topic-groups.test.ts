@@ -332,3 +332,20 @@ describe("agents: a system token makes a group and moves three topics by the API
     expect(await db.topicGroup.count({ where: { spaceId: w.space.id } })).toBe(0);
   });
 });
+
+describe("dragging the groups", () => {
+  it("PUT /api/groups puts the groups in the order sent; the ones not named keep their order after them; a plain member cannot", async () => {
+    const w = await world();
+    await loginAs(w.owner.id);
+    const ids: string[] = [];
+    for (const name of ["أ", "ب", "ج"]) ids.push(((await createGroup({ spaceId: w.space.id, name })).json as { group: { id: string } }).group.id);
+    const put = (spaceId: string, order: string[]) => call(groupsRoute.PUT, { method: "PUT", url: "http://localhost/api/groups", body: { spaceId, order } });
+    const r = await put(w.space.id, [ids[2]!, ids[0]!]);
+    expect(r.status, r.text).toBe(200);
+    expect(((r.json as { groups: Array<{ id: string }> }).groups).map((g) => g.id)).toEqual([ids[2], ids[0], ids[1]]);
+    const names = ((await listGroups(w.space.id)).json as { groups: Array<{ name: string }> }).groups.map((g) => g.name);
+    expect(names).toEqual(["ج", "أ", "ب"]);
+    await loginAs(w.alice.id);
+    expect((await put(w.space.id, ids)).status).toBe(403);
+  });
+});

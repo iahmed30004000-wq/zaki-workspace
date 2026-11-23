@@ -3,13 +3,14 @@
 import React, { memo, useEffect, useId, useMemo, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Archive, Bookmark } from "lucide-react";
+import { Archive, ArrowUpDown, Bookmark, FolderPlus } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import { ChatPwaHost } from "@/components/pwa/chat-pwa-host";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
 import { ForumView } from "@/components/chat/v2/forum/forum-view";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
+import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { PhoneListBar } from "@/components/chat/v2/phone/list-bar";
 import { useListWidth } from "@/components/chat/v2/use-list-width";
 import { isRailWidth } from "@/lib/chat/v2/list-width";
@@ -39,6 +40,11 @@ import { NewGroupDialog } from "@/components/chat/home/new-group-dialog";
 import { NewTopicDialog } from "@/components/chat/home/new-topic-dialog";
 import { useSpaceSections } from "@/lib/chat/v2/use-space-sections";
 import { VirtualRows } from "./virtual-rows";
+import { ArrangeRows } from "./group-arrange";
+import { MoveToGroupDialog, NewTopicGroupDialog } from "./group-dialogs";
+import { GroupTopicsPane, type GroupPick } from "./group-topics-pane";
+import { groupItems, groupOfRow, groupRows } from "@/lib/chat/v2/groups";
+import { useGroupActions, useSpaceGroups } from "@/lib/chat/v2/use-space-groups";
 
 /**
  * C2.2 — THE CHAT LIST COLUMN. One component for both shapes of the screen: `column` (the computer: 360 px beside the rail, dragged between 300 and 480,
@@ -241,10 +247,51 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
 
   // the list of ONE space (D-N2 «كل مساحة حساب»): its topics have no manager flag of their own, so the space's own view says whether the viewer manages it
   const oneSpace = useChatSpace(list.scope === "space" ? list.spaceId : null);
+
+  // «مجموعات المواضيع»: inside ONE space the topics are drawn as one row per group (and «عام»); a tap opens the group's topics over the list. With no group, a search, the archive or the
+  // company's screen, the list is exactly what it was. The managers get «مجموعة جديدة» and «ترتيب» on a thin bar above the rows.
+  const groupSpaceId = list.scope === "space" ? list.spaceId : null;
+  const { groups } = useSpaceGroups(groupSpaceId);
+  const canManageGroups = oneSpace.space?.canModerate === true && !guest;
+  const groupable = groupSpaceId !== null && !words && !company && builtin !== "archived";
+  const groupMode = groupable && groups.length > 0;
+  const generalName = ct("chatgrp.general");
+  const [topicGroup, setTopicGroup] = useState<GroupPick | null>(null);
+  const [arrangingGroups, setArrangingGroups] = useState(false);
+  const [newGroupOpen, setNewGroupOpen] = useState(false);
+  const [moving, setMoving] = useState<ChatRowDto | null>(null);
+  const groupActions = useGroupActions(groupSpaceId);
+  const groupModels = useMemo(() => groupRows(list.rows, groups, generalName, { showEmpty: canManageGroups }), [list.rows, groups, generalName, canManageGroups]);
+  const shownItems = useMemo(() => (groupMode ? groupItems(rows, groups, generalName, { showEmpty: canManageGroups }) : items), [groupMode, rows, groups, generalName, canManageGroups, items]);
   const menu = useMemo<RowMenuContext>(
-    () => ({ enabled: rowMenu, canPurge, canModerate: oneSpace.space?.canModerate === true, personal: list.personal }),
-    [rowMenu, canPurge, oneSpace.space?.canModerate, list.personal],
+    () => ({
+      enabled: rowMenu,
+      canPurge,
+      canModerate: oneSpace.space?.canModerate === true,
+      personal: list.personal,
+      ...(groupMode && canManageGroups ? { onMoveToGroup: (row: ChatRowDto) => setMoving(row) } : {}),
+    }),
+    [rowMenu, canPurge, oneSpace.space?.canModerate, list.personal, groupMode, canManageGroups],
   );
+  const onOpenGroup = (id: string | null) => {
+    const model = groupModels.find((g) => g.id === id);
+    if (model) setTopicGroup({ id: model.id, name: model.name, emoji: model.emoji });
+  };
+  // the group stays open only while the list is grouped; and (on the computer) the topic that is open keeps its group on screen
+  useEffect(() => {
+    if (!groupMode) {
+      setTopicGroup(null);
+      setArrangingGroups(false);
+    }
+  }, [groupMode]);
+  useEffect(() => {
+    if (tall || !groupMode || !selectedId || topicGroup) return;
+    const row = list.rows.find((r) => r.id === selectedId && r.kind === "TOPIC");
+    const model = row ? groupModels.find((g) => g.id === groupOfRow(row, groups)) : undefined;
+    if (model) setTopicGroup({ id: model.id, name: model.name, emoji: model.emoji });
+    // only when the open topic (or the mode) changes: a group the person closed by hand is not opened again by a new message
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId, groupMode]);
 
   // «موضوع جديد» (the owner, 2026-11-21): in the list of ONE space, for whoever may open a topic there (the server decides again); the dialog opens once the space's sections are in
   const topicSpaceId = list.scope === "space" && !guest && oneSpace.space?.canCreateTopic === true ? list.spaceId : null;
@@ -278,6 +325,31 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       {savedOn && !hasSaved && !company && !words && folder === "all" && !list.isPending ? <SavedEntry tall={tall} /> : null}
       {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}
       {!company && list.isError && list.rows.length > 0 ? <ListError onRetry={() => void list.refetch()} /> : null}
+      {groupable && canManageGroups && !rail ? (
+        <div data-groups-toolbar="" className="flex shrink-0 items-center gap-1 border-b border-border/60 px-2 py-1">
+          <button
+            type="button"
+            data-new-group-button=""
+            onClick={() => setNewGroupOpen(true)}
+            className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-sm text-fg-muted hover:bg-surface-2 hover:text-fg focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <FolderPlus className="size-4" aria-hidden="true" />
+            {ct("chatgrp.new")}
+          </button>
+          {groupMode && groups.length > 1 ? (
+            <button
+              type="button"
+              data-groups-arrange=""
+              aria-pressed={arrangingGroups}
+              onClick={() => setArrangingGroups((on) => !on)}
+              className={cn("ms-auto inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2 text-sm hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", arrangingGroups ? "bg-accent/15 text-accent" : "text-fg-muted hover:text-fg")}
+            >
+              <ArrowUpDown className="size-4" aria-hidden="true" />
+              {ct(arrangingGroups ? "chatgrp.arrange_done" : "chatgrp.arrange")}
+            </button>
+          ) : null}
+        </div>
+      ) : null}
 
       {company ? (
         <CompanyRows selectedId={selectedId} />
@@ -287,8 +359,10 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
         <ListError onRetry={() => void list.refetch()} />
       ) : rows.length === 0 ? (
         <ListEmpty folder={custom ? "custom" : (folder as ListFolderKey)} query={words} {...(canCreateSpace && folder === "all" && !words ? { onCreateSpace: () => setCreatingSpace(true) } : {})} />
+      ) : arrangingGroups && groupMode ? (
+        <ArrangeRows listId={`groups-${groupSpaceId}`} entries={groups.map((g) => ({ id: g.id, label: g.name, emoji: g.emoji }))} onReorder={(ids) => groupActions.reorder.mutate(ids)} />
       ) : (
-        <VirtualRows items={items} tall={tall} rail={rail} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} />
+        <VirtualRows items={shownItems} tall={tall} rail={rail} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} onOpenGroup={onOpenGroup} />
       )}
 
       {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} onGroup={openGroup} onTopic={openTopic} canMeet={canMeet} /> : null}
@@ -296,6 +370,11 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       {!guest ? <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} /> : null}
       {topicSpaceId && oneSpace.space && newTopic && sections.settled ? <NewTopicDialog open onOpenChange={setNewTopic} space={{ id: topicSpaceId, name: oneSpace.space.name, sections: sections.sections }} /> : null}
       {inline.element}
+      {groupSpaceId && topicGroup && groupMode ? (
+        <GroupTopicsPane spaceId={groupSpaceId} group={topicGroup} rows={list.rows} groups={groups} orders={orders} canManage={canManageGroups} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setTopicGroup(null)} />
+      ) : null}
+      {groupSpaceId && newGroupOpen ? <NewTopicGroupDialog spaceId={groupSpaceId} onClose={() => setNewGroupOpen(false)} /> : null}
+      {groupSpaceId && moving ? <MoveToGroupDialog row={moving} spaceId={groupSpaceId} groups={groups} current={groupOfRow(moving, groups)} onClose={() => setMoving(null)} /> : null}
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
       </div>
     </div>

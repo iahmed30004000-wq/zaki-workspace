@@ -7,6 +7,7 @@ import { ct } from "@/lib/chat/text";
 import { useFlipRows } from "@/lib/chat/v2/phone/use-flip";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { ChatRowItem, RAIL_ROW_HEIGHT, ROW_HEIGHT, ROW_HEIGHT_PHONE, SECTION_HEIGHT } from "./chat-row";
+import { GroupRowItem } from "./group-row";
 
 /**
  * C2.2 — the rows of the list, VIRTUAL: only the rows on the screen (and eight beyond each edge) exist in the page, so a company with a thousand
@@ -29,6 +30,7 @@ export function VirtualRows({
   menu,
   label,
   day,
+  onOpenGroup,
 }: {
   items: readonly ListItem[];
   tall: boolean;
@@ -40,6 +42,8 @@ export function VirtualRows({
   label: string;
   /** the local date (`useDayKey`): the rows' time labels roll over at midnight */
   day: string;
+  /** «مجموعات المواضيع»: a tap on a group row (null: «عام») */
+  onOpenGroup?: (groupId: string | null) => void;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowHeight = rail ? RAIL_ROW_HEIGHT : tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT;
@@ -121,6 +125,8 @@ export function VirtualRows({
             >
               {item.type === "section" ? (
                 <div className="flex h-full items-center border-b border-border/60 px-3 text-xs font-semibold text-fg-muted">{ct("chath.archived", { n: item.count })}</div>
+              ) : item.type === "group" ? (
+                <GroupRowItem group={item.group} tall={tall} now={new Date()} onOpen={(id) => onOpenGroup?.(id)} />
               ) : (
                 <ChatRowItem id={item.id} selected={selectedId === item.id} tall={tall} rail={rail} userId={userId} menu={menu} day={day} />
               )}

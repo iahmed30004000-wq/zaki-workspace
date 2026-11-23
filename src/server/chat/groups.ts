@@ -265,3 +265,27 @@ export async function moveTopicToGroup(ctx: OrgAccessContext, conversationId: st
   });
   await audit(ctx, "chat.topic.group", groupId ?? conversationId, facts.spaceId, { topicId: conversationId, groupId });
 }
+
+export const reorderGroupsSchema = z.object({
+  spaceId: z.string().min(1),
+  /** the groups of the space in the order they should have: the ones named come first in that order, the others keep their order after them */
+  order: z.array(z.string().min(1)).max(200),
+});
+
+/** Dragging the groups: `position` becomes the place in the list sent. Only for the people who arrange the space; a group the viewer does not know is never touched. */
+export async function reorderGroups(ctx: OrgAccessContext, input: z.infer<typeof reorderGroupsSchema>): Promise<GroupDto[]> {
+  await spaceOf(ctx, input.spaceId);
+  const viewer = await viewerIn(ctx, input.spaceId);
+  if (!viewer.manager) throw new ForbiddenError("chat.e.moderator_only");
+  const rows = await db.topicGroup.findMany({ where: { spaceId: input.spaceId }, orderBy: [{ position: "asc" }, { createdAt: "asc" }], include: { members: { select: { userId: true } } } });
+  const mine = rows.filter((g) => seen(g, viewer, ctx.userId));
+  const named = [...new Set(input.order)].filter((id) => mine.some((g) => g.id === id));
+  const rest = mine.map((g) => g.id).filter((id) => !named.includes(id));
+  const final = [...named, ...rest];
+  await db.$transaction(async (tx) => {
+    for (const [position, id] of final.entries()) await tx.topicGroup.update({ where: { id }, data: { position } });
+    await emitRealtime(tx, ctx.orgId, "conversation.changed", { spaceId: input.spaceId });
+  });
+  await audit(ctx, "chat.group.order", input.spaceId, input.spaceId, { order: final });
+  return listGroups(ctx, input.spaceId);
+}

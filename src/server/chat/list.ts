@@ -141,6 +141,8 @@ export interface ConvRecord {
   systemKey: string | null;
   dmKey: string | null;
   teamId: string | null;
+  /** the group of the space the topic is arranged in (NULL: «عام») */
+  groupId?: string | null;
   position: number;
   createdAt: Date;
   // the viewer's own rows
@@ -297,7 +299,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
 
   return db.$queryRaw<ConvRecord[]>(Prisma.sql`
     SELECT c.id, c."orgId", c.kind, c.title, c.emoji, c."spaceId", c."topicType", c.restricted, c."postingPolicy", c."closedAt", c."archivedAt", c."pinnedAt",
-      c."systemKey", c."dmKey", c."teamId", c.position, c."createdAt",
+      c."systemKey", c."dmKey", c."teamId", c."groupId", c.position, c."createdAt",
       (cm.id IS NOT NULL) AS "isMember", cm.role AS "groupRole", cm."lastReadAt" AS "lastReadAt", cm."mutedUntil" AS "mutedUntil",
       wm.role::text AS "spaceRole", wm."mutedUntil" AS "spaceMutedUntil",
       (c."teamId" IS NOT NULL AND EXISTS (SELECT 1 FROM "TeamMember" tmx WHERE tmx."teamId" = c."teamId" AND tmx."userId" = ${uid})) AS "viewerInTeam",
@@ -456,6 +458,7 @@ function conversationRow(r: ConvRecord, v: ListViewer): ChatRowDto {
     row.pinned = !!r.pinnedAt;
     row.archived = !!r.archivedAt;
     row.teamId = r.teamId;
+    row.groupId = r.groupId ?? null;
     row.system = !!r.systemKey;
   }
   return row;

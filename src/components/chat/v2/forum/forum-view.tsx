@@ -2,13 +2,20 @@
 
 import React, { useId, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, Plus } from "lucide-react";
+import { ArrowRight, ArrowUpDown, FolderPlus, Plus } from "lucide-react";
 import { NewTopicDialog } from "@/components/chat/home/new-topic-dialog";
 import { ListHeader } from "@/components/chat/v2/list/list-header";
 import { ListEmpty, ListError, ListSkeleton } from "@/components/chat/v2/list/list-states";
 import { VirtualRows } from "@/components/chat/v2/list/virtual-rows";
+import { ArrangeRows } from "@/components/chat/v2/list/group-arrange";
+import { MoveToGroupDialog, NewTopicGroupDialog } from "@/components/chat/v2/list/group-dialogs";
+import { GroupTopicsPane, type GroupPick } from "@/components/chat/v2/list/group-topics-pane";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
 import { useChatSpace } from "@/lib/chat/cache/selectors";
+import type { ChatRowDto } from "@/lib/chat/cache/types";
+import { groupedForumItems, groupOfRow, groupRows } from "@/lib/chat/v2/groups";
+import { useGroupActions, useSpaceGroups } from "@/lib/chat/v2/use-space-groups";
+import { cn } from "@/lib/utils";
 import { forumItems, forumRows, normalizeQuery } from "@/lib/chat/list-folders";
 import { ct, ctCount } from "@/lib/chat/text";
 import { chatHref } from "@/lib/chat/v2/routes";
@@ -52,8 +59,26 @@ export function ForumView({
   const [creating, setCreating] = useState(false);
   const words = normalizeQuery(query);
   const shown = useMemo(() => forumRows(rows, spaceId, orders, words), [rows, spaceId, orders, words]);
-  const items = useMemo(() => forumItems(shown), [shown]);
-  const menu = useMemo<RowMenuContext>(() => ({ enabled: rowMenu, canPurge, canModerate: space?.canModerate === true }), [rowMenu, canPurge, space?.canModerate]);
+  // «مجموعات المواضيع»: a space with groups draws one row per group (and «عام»); a search looks at the topics themselves, flat, as ever
+  const { groups } = useSpaceGroups(spaceId);
+  const canManage = space?.canModerate === true;
+  const groupMode = groups.length > 0 && !words;
+  const generalName = ct("chatgrp.general");
+  const [open, setOpen] = useState<GroupPick | null>(null);
+  const [arranging, setArranging] = useState(false);
+  const [newGroup, setNewGroup] = useState(false);
+  const [moving, setMoving] = useState<ChatRowDto | null>(null);
+  const { reorder } = useGroupActions(spaceId);
+  const items = useMemo(() => (groupMode ? groupedForumItems(shown, groups, generalName, { showEmpty: canManage }) : forumItems(shown)), [groupMode, shown, groups, generalName, canManage]);
+  const menu = useMemo<RowMenuContext>(
+    () => ({ enabled: rowMenu, canPurge, canModerate: canManage, ...(groupMode && canManage ? { onMoveToGroup: (row: ChatRowDto) => setMoving(row) } : {}) }),
+    [rowMenu, canPurge, canManage, groupMode],
+  );
+  const groupModels = useMemo(() => groupRows(rows, groups, generalName, { showEmpty: canManage }), [rows, groups, generalName, canManage]);
+  const openGroup = (id: string | null) => {
+    const model = groupModels.find((g) => g.id === id);
+    if (model) setOpen({ id: model.id, name: model.name, emoji: model.emoji });
+  };
   const { sections, settled } = useSpaceSections(spaceId, creating);
 
   return (
@@ -83,6 +108,31 @@ export function ForumView({
         ) : (
           <div className="min-w-0 flex-1 ps-2" />
         )}
+        {canManage && groupMode && groups.length > 1 ? (
+          <button
+            type="button"
+            aria-label={ct(arranging ? "chatgrp.arrange_done" : "chatgrp.arrange")}
+            title={ct(arranging ? "chatgrp.arrange_done" : "chatgrp.arrange")}
+            aria-pressed={arranging}
+            data-groups-arrange=""
+            onClick={() => setArranging((on) => !on)}
+            className={cn("grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", arranging && "bg-accent/15 text-accent")}
+          >
+            <ArrowUpDown className="size-5" aria-hidden="true" />
+          </button>
+        ) : null}
+        {canManage ? (
+          <button
+            type="button"
+            aria-label={ct("chatgrp.new")}
+            title={ct("chatgrp.new")}
+            data-new-group-button=""
+            onClick={() => setNewGroup(true)}
+            className="grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <FolderPlus className="size-5" aria-hidden="true" />
+          </button>
+        ) : null}
         {space?.canCreateTopic ? (
           <button
             type="button"
@@ -109,6 +159,8 @@ export function ForumView({
             {ct("chath.retry")}
           </button>
         </div>
+      ) : arranging && groupMode ? (
+        <ArrangeRows listId={`groups-${spaceId}`} entries={groups.map((g) => ({ id: g.id, label: g.name, emoji: g.emoji }))} onReorder={(ids) => reorder.mutate(ids)} />
       ) : items.length === 0 ? (
         words ? (
           <ListEmpty folder="all" query={words} />
@@ -118,10 +170,13 @@ export function ForumView({
           </p>
         )
       ) : (
-        <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.forum.rows")} day={day} />
+        <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.forum.rows")} day={day} onOpenGroup={openGroup} />
       )}
       {isError && space ? <ListError onRetry={() => void refetch()} /> : null}
 
+      {open ? <GroupTopicsPane spaceId={spaceId} group={open} rows={rows} groups={groups} orders={orders} canManage={canManage} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setOpen(null)} /> : null}
+      {newGroup ? <NewTopicGroupDialog spaceId={spaceId} onClose={() => setNewGroup(false)} /> : null}
+      {moving ? <MoveToGroupDialog row={moving} spaceId={spaceId} groups={groups} current={groupOfRow(moving, groups)} onClose={() => setMoving(null)} /> : null}
       {space?.canCreateTopic && creating && settled ? <NewTopicDialog open onOpenChange={setCreating} space={{ id: spaceId, name: space.name, sections }} /> : null}
     </div>
   );

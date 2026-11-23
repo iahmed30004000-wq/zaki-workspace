@@ -245,7 +245,7 @@ Doors in use: `requireActor` 175 · `activeOrgCtx` 117 · `(none)` 43 · `requir
 | GET, POST | `/api/goals` | requireActor | `guest-guard`: assertNotGuest<br>`goals`: createGoal, goalSchema, listGoals<br>`space-place`: placeOf<br>`features`: isFeatureOn |
 | PATCH, DELETE | `/api/goals/[id]` | requireActor | `guest-guard`: assertNotGuest<br>`goals`: deleteGoal, goalPatchSchema, updateGoal |
 | POST | `/api/goals/[id]/key-results` | requireActor | `guest-guard`: assertNotGuest<br>`okr`: addKeyResult, keyResultInputSchema |
-| GET, POST | `/api/groups` | activeOrgCtx | `integrations`: activeOrgCtx |
+| GET, POST, PUT | `/api/groups` | activeOrgCtx | `integrations`: activeOrgCtx |
 | PATCH, DELETE | `/api/groups/[id]` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/groups/[id]/topics` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/health` | **none** (public by design) † | — |
@@ -704,7 +704,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `StoredFile` | 16 | `server/services/files.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>+4 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
 | `Conversation` | 32 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+13 more |
-| `TopicGroup` | 3 | `server/chat/groups.ts`: 3 |
+| `TopicGroup` | 4 | `server/chat/groups.ts`: 4 |
 | `TopicGroupMember` | 3 | `server/chat/groups.ts`: 3 |
 | `ConversationMember` | 26 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 5<br>`server/chat/groups.ts`: 4<br>`server/chat/read-state.ts`: 3<br>+6 more |
 | `ChatMessage` | 15 | `server/chat/messages.ts`: 6<br>`server/chat/link-preview.ts`: 2<br>`server/services/must-read.ts`: 2<br>`server/calls/assistant-agent.ts`: 1<br>+4 more |
