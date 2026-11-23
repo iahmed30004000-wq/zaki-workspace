@@ -67,14 +67,14 @@ async function manageable(ctx: OrgAccessContext): Promise<{ all: boolean; spaces
 }
 
 async function personOf(ctx: OrgAccessContext, userId: string): Promise<void> {
-  // any status: the very person who was just removed or suspended is the usual case
-  const row = await db.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: ctx.orgId, userId } }, select: { userId: true } });
+  const row = await db.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: ctx.orgId, userId } }, select: { userId: true } }); // all-statuses: the very person who was just removed or suspended is the usual case
   if (!row) throw new NotFoundError("bulk.person_not_found");
 }
 
 async function openRows(ctx: OrgAccessContext, from: string, opts: { workspaceId?: string | undefined; taskIds?: readonly string[] | undefined }): Promise<Row[]> {
   const scope = await manageable(ctx);
   if (!scope.all && scope.spaces.size === 0) throw new ForbiddenError("bulk.manager_only");
+  // task-visibility: only the OWNER and the admins of the very spaces read here, and a space's managers read a private task by that same rule
   return db.task.findMany({
     where: {
       orgId: ctx.orgId,
