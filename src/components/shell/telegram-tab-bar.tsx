@@ -14,7 +14,7 @@ import { PlaceBadge } from "./place-badge";
  */
 export const TG_TABS = [
   { key: "chats", href: "/chat", labelKey: "tgbar.chats" },
-  { key: "contacts", href: "/members", labelKey: "tgbar.contacts" },
+  { key: "contacts", href: "/contacts", labelKey: "tgbar.contacts" },
   { key: "settings", href: "/settings/me", labelKey: "tgbar.settings" },
   { key: "profile", href: "/profile", labelKey: "tgbar.profile" },
 ] as const;
@@ -24,7 +24,7 @@ export type TgTabKey = (typeof TG_TABS)[number]["key"];
 export function tgTabOf(pathname: string): TgTabKey | null {
   const p = pathname.split("?")[0] ?? "";
   if (p === "/chat" || p.startsWith("/chat/")) return "chats";
-  if (p === "/members" || p.startsWith("/members/") || p.startsWith("/u/")) return "contacts";
+  if (p === "/contacts" || p === "/members" || p.startsWith("/members/") || p.startsWith("/u/")) return "contacts";
   if (p === "/settings" || p.startsWith("/settings/")) return "settings";
   if (p === "/profile" || p.startsWith("/profile/")) return "profile";
   return null;

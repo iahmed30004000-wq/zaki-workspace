@@ -380,6 +380,15 @@ export const PAGE_HELP: readonly PageHelp[] = [
     article: "places",
   },
   {
+    id: "contacts",
+    pattern: "/contacts",
+    whatKey: "guide.page.contacts.what",
+    nextKey: "guide.page.contacts.next",
+    guestNextKey: INTERNAL,
+    tour: "shell",
+    article: "team",
+  },
+  {
     id: "members",
     pattern: "/members",
     whatKey: "guide.page.members.what",

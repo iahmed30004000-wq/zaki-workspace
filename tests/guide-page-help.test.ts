@@ -50,6 +50,7 @@ const PAGES: [string, string][] = [
   ["/tickets", "tickets"],
   ["/campaigns", "campaigns"],
   ["/teams", "teams"],
+  ["/contacts", "contacts"],
   ["/members", "members"],
   ["/files", "files"],
   ["/documents", "documents"],

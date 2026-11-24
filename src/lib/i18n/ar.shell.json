@@ -76,5 +76,11 @@
   "navv2.banner.go": "انتقل لها",
   "navv2.nowork.title": "لسا ما إلك مساحة شغل",
   "navv2.nowork.hint": "اطلب من مديرك يضيفك",
-  "navv2.nowork.hint_admin": "افتح مساحة عمل من قائمة المساحات"
+  "navv2.nowork.hint_admin": "افتح مساحة عمل من قائمة المساحات",
+  "contacts.title": "جهات الاتصال",
+  "contacts.search": "ابحث عن اسم",
+  "contacts.sorted_seen": "مرتّبة حسب آخر ظهور",
+  "contacts.sorted_name": "مرتّبة حسب الاسم",
+  "contacts.empty": "ما في حدا بعد بشركتك",
+  "contacts.no_match": "ما لقيت حدا بهالاسم"
 }
