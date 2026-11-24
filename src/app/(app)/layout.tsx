@@ -84,6 +84,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       defaultCollapsed={sidebarCollapsed}
       peopleDock={on.peopleDock}
       quickChat={on.quickChat}
+      // «شريط تيليجرام السفلي»: a phone's bottom bar is Telegram's four tabs (the company's switch `tgTabBar`, off by default; never for an external partner)
+      tgTabBar={on.tgTabBar && !actor.isExternal}
       siteGuide={on.siteGuide && on.ownerAssistant && actor.isOwner}
       economy={economyOn(org?.settings)}
       // «مظهر المفتاح»: the person's look of the light/dark switch (the `zk-switch` cookie, so the very first paint already has the right tint);

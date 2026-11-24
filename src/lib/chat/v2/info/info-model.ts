@@ -91,6 +91,17 @@ export function infoModelOf(header: ConversationHeaderDto, opts: { people: PaneM
 
 // ───────────────────────────── S5.4: the members tab, the mute row, a video's length ─────────────────────────────
 
+/**
+ * «شكل تيليجرام»: the small tag next to a member's name, by his rank in the company (the owner, a space admin) and «بوت» for the assistant: a key of the dictionary, or
+ * nothing for everybody else. A guest and a plain member wear none, as in Telegram.
+ */
+export function memberTagKeyOf(role: string | undefined): string | null {
+  if (role === "OWNER") return "chatinfo.tag.owner";
+  if (role === "ADMIN") return "chatinfo.tag.admin";
+  if (role === "AI") return "chatinfo.tag.bot";
+  return null;
+}
+
 export interface MembersTab {
   /** who sees the conversation: the same four words as the privacy state */
   state: PrivacyState;

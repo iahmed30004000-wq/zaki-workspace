@@ -394,7 +394,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       {topicSpaceId && oneSpace.space && newTopic && sections.settled ? <NewTopicDialog open onOpenChange={setNewTopic} space={{ id: topicSpaceId, name: oneSpace.space.name, sections: sections.sections }} /> : null}
       {inline.element}
       {topicGroup && paneSpace ? (
-        <GroupTopicsPane spaceId={paneSpace.id} group={topicGroup} rows={paneSpace.rows} groups={paneSpace.groups} orders={orders} canManage={paneSpace.canManage} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setTopicGroup(null)} />
+        <GroupTopicsPane spaceId={paneSpace.id} group={topicGroup} rows={paneSpace.rows} groups={paneSpace.groups} orders={orders} canManage={paneSpace.canManage} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setTopicGroup(null)} onEdited={(next) => setTopicGroup((open) => (open ? { ...open, ...next } : open))} />
       ) : null}
       {groupSpaceId && newGroupOpen ? <NewTopicGroupDialog spaceId={groupSpaceId} onClose={() => setNewGroupOpen(false)} /> : null}
       {moving && movingSpace ? <MoveToGroupDialog row={moving} spaceId={movingSpace.id} groups={movingSpace.groups} current={groupOfRow(moving, movingSpace.groups)} onClose={() => setMoving(null)} /> : null}

@@ -170,7 +170,7 @@ export function ForumView({
       )}
       {isError && space ? <ListError onRetry={() => void refetch()} /> : null}
 
-      {open ? <GroupTopicsPane spaceId={spaceId} group={open} rows={rows} groups={groups} orders={orders} canManage={canManage} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setOpen(null)} /> : null}
+      {open ? <GroupTopicsPane spaceId={spaceId} group={open} rows={rows} groups={groups} orders={orders} canManage={canManage} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setOpen(null)} onEdited={(next) => setOpen((now) => (now ? { ...now, ...next } : now))} /> : null}
       {newGroup ? <NewTopicGroupDialog spaceId={spaceId} onClose={() => setNewGroup(false)} /> : null}
       {moving ? <MoveToGroupDialog row={moving} spaceId={spaceId} groups={groups} current={groupOfRow(moving, groups)} onClose={() => setMoving(null)} /> : null}
       {space?.canCreateTopic && creating && settled ? <NewTopicDialog open onOpenChange={setCreating} space={{ id: spaceId, name: space.name, sections }} /> : null}

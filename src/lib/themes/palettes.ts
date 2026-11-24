@@ -393,6 +393,103 @@ export const PALETTES: Record<ThemeKey, Palette> = {
       "shadow-card": "0 1px 2px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.35)",
     },
   },
+
+  /**
+   * «تيليجرام ليلي» — Telegram's own night colours, as the owner gave them (2026-11-24): page #17212B, the list #0E1621, the header the page colour, the accent
+   * #5288C1, outgoing bubbles #2B5278 and incoming #182533. Dark. Moved by the contrast gate (a text colour must read on every surface, a row you select too): the accent #5288C1 → #70A6DD (the same blue, lighter: Telegram's own is 4.4:1 on the lists) and the selected row #2B5278 → #1C3148 (#2B5278 stays the outgoing bubble, exactly as given).
+   */
+  "tg-night": {
+    colors: {
+      surface: "#0E1621",
+      "surface-1": "#17212B",
+      "surface-2": "#1E2C3A",
+      border: "#243242",
+      muted: "#8A9BAD",
+      fg: "#F5F7FA",
+      "fg-muted": "#9AABBC",
+      accent: "#70A6DD",
+      "accent-fg": "#06131F",
+      "accent-2": "#F0B955",
+      ok: "#4FCA8B",
+      warn: "#E6B150",
+      danger: "#F07B7B",
+      info: "#B8A2FF",
+      "ok-fg": "#0E1621",
+      "warn-fg": "#0E1621",
+      "danger-fg": "#0E1621",
+      "info-fg": "#0E1621",
+      scrim: "#000000",
+      "cat-1": "#CDB0FF",
+      "cat-2": "#F28ADC",
+      "cat-3": "#FF8FA3",
+      "cat-4": "#62C6DA",
+      "cat-5": "#AED561",
+      "cat-6": "#7FAEFF",
+      "on-photo": "#FFFFFF",
+      "bubble-out": "#2B5278",
+      "bubble-out-fg": "#F5F7FA",
+      "bubble-in": "#182533",
+      "bubble-in-fg": "#F5F7FA",
+      "chat-wallpaper": "#0E1621",
+      "chat-pattern": "#1A2735",
+      "selected-row": "#1C3148",
+      "selected-row-fg": "#F5F7FA",
+      "badge-muted": "#7D8891",
+    },
+    style: {
+      "font-display": PLEX_STACK,
+      "radius-card": "0.75rem",
+      "shadow-card": "0 1px 2px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.35)",
+    },
+  },
+
+  /**
+   * «تيليجرام نهاري» — Telegram's day colours: the header #517DA2 (white words), white lists, the accent #3390EC, outgoing bubbles #EFFDDE, incoming white. Light. Moved by the contrast gate: the accent #3390EC → #2560A0 (Telegram's own is 3.4:1 on white), and a hair darker muted, status and accent-2 colours, a lighter selected row.
+   */
+  "tg-day": {
+    colors: {
+      surface: "#E6EBEE",
+      "surface-1": "#FFFFFF",
+      "surface-2": "#F1F3F5",
+      border: "#DCE2E7",
+      muted: "#566370",
+      fg: "#0F1923",
+      "fg-muted": "#52606B",
+      accent: "#2560A0",
+      "accent-fg": "#FFFFFF",
+      "accent-2": "#A9751F",
+      ok: "#1D6A3E",
+      warn: "#7F5804",
+      danger: "#AE2E2E",
+      info: "#094982",
+      "ok-fg": "#FFFFFF",
+      "warn-fg": "#FFFFFF",
+      "danger-fg": "#FFFFFF",
+      "info-fg": "#FFFFFF",
+      scrim: "#0A121A",
+      "cat-1": "#624F91",
+      "cat-2": "#963989",
+      "cat-3": "#8F4A62",
+      "cat-4": "#086A79",
+      "cat-5": "#56661A",
+      "cat-6": "#384DB8",
+      "on-photo": "#FFFFFF",
+      "bubble-out": "#EFFDDE",
+      "bubble-out-fg": "#0F1923",
+      "bubble-in": "#FFFFFF",
+      "bubble-in-fg": "#0F1923",
+      "chat-wallpaper": "#DDE6C9",
+      "chat-pattern": "#C5D3AE",
+      "selected-row": "#DCEAF7",
+      "selected-row-fg": "#0F1B2A",
+      "badge-muted": "#71777C",
+    },
+    style: {
+      "font-display": PLEX_STACK,
+      "radius-card": "0.75rem",
+      "shadow-card": "0 1px 2px rgb(15 27 42 / 0.06), 0 2px 6px rgb(15 27 42 / 0.08)",
+    },
+  },
 };
 
 /**
@@ -516,6 +613,8 @@ export const FX_COLORS: Record<ThemeKey, Record<FxToken, string>> = {
   "neon-coast": { ...FX_BASE, "fx-aurora-a": "#4DD9DB", "fx-aurora-b": "#F067AE", "fx-spark": "#4DD9DB", "fx-glass-glow": "#BFF3F4" },
   sky: { ...FX_BASE, "fx-hill-far": "#6F86B3", "fx-hill-near": "#41507E", "fx-glass-glow": "#FFF1CC" },
   "blue-night": FX_BASE,
+  "tg-night": FX_BASE,
+  "tg-day": { ...FX_BASE, "fx-hill-far": "#6F86B3", "fx-hill-near": "#41507E", "fx-glass-glow": "#FFF1CC" },
 };
 
 /** The illustration colours of one theme as CSS custom properties (`R G B` triplets), written after the interface tokens. */

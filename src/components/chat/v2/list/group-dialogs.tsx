@@ -11,6 +11,84 @@ import { ct } from "@/lib/chat/text";
 import { cn } from "@/lib/utils";
 import { useGroupActions } from "@/lib/chat/v2/use-space-groups";
 
+/** The emojis offered for a group's picture (a tap picks one; a second tap on the same one takes it off); anything else can still be typed in the box beside them. */
+export const GROUP_EMOJIS = ["📁", "💼", "📊", "📣", "🛒", "📦", "🚚", "🎯", "💬", "🧾", "🛠️", "📞", "🎨", "📷", "🧪", "⭐", "🔥", "💡", "✅", "🏷️", "📅", "👥", "🧑‍💼", "🌍"] as const;
+
+/** One row of emoji choices plus a free box: what the new-group and edit-group dialogs share. */
+function EmojiChoices({ value, onChange, id }: { value: string; onChange: (next: string) => void; id: string }) {
+  return (
+    <div data-group-emojis="" className="space-y-2">
+      <div role="group" aria-label={ct("chatgrp.emoji")} className="grid grid-cols-8 gap-1">
+        {GROUP_EMOJIS.map((e) => (
+          <button
+            key={e}
+            type="button"
+            data-group-emoji={e}
+            aria-pressed={value === e}
+            onClick={() => onChange(value === e ? "" : e)}
+            className={cn("grid size-10 place-items-center rounded-lg text-xl hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", value === e && "bg-accent/15 ring-2 ring-accent")}
+          >
+            <span aria-hidden="true">{e}</span>
+          </button>
+        ))}
+      </div>
+      <Input id={id} value={value} maxLength={8} onChange={(event) => onChange(event.target.value)} className="w-28" aria-label={ct("chatgrp.emoji")} />
+    </div>
+  );
+}
+
+/** «تعديل المجموعة»: the name and the picture (an emoji) of a group, for whoever may arrange the space; the server decides again (`PATCH /api/groups/:id`). */
+export function EditTopicGroupDialog({ spaceId, group, onClose, onSaved }: { spaceId: string; group: { id: string; name: string; emoji: string | null }; onClose: () => void; onSaved?: (next: { name: string; emoji: string | null }) => void }) {
+  const toast = useOptionalToast();
+  const { update } = useGroupActions(spaceId);
+  const [name, setName] = useState(group.name);
+  const [emoji, setEmoji] = useState(group.emoji ?? "");
+  const clean = name.trim();
+  const submit = () => {
+    if (!clean || update.isPending) return;
+    const nextEmoji = emoji.trim() === "" ? null : emoji.trim();
+    update.mutate(
+      { groupId: group.id, name: clean, emoji: nextEmoji },
+      {
+        onSuccess: () => {
+          onSaved?.({ name: clean, emoji: nextEmoji });
+          onClose();
+        },
+        onError: () => toast?.toast(ct("chatgrp.failed"), "error"),
+      },
+    );
+  };
+  return (
+    <Modal open title={ct("chatgrp.edit_title")} onClose={onClose}>
+      <form
+        data-edit-group=""
+        className="space-y-3"
+        onSubmit={(event) => {
+          event.preventDefault();
+          submit();
+        }}
+      >
+        <label className="block text-xs font-medium text-fg-muted" htmlFor="edit-group-name">
+          {ct("chatgrp.name")}
+        </label>
+        <Input id="edit-group-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} autoFocus />
+        <label className="block text-xs font-medium text-fg-muted" htmlFor="edit-group-emoji">
+          {ct("chatgrp.emoji")}
+        </label>
+        <EmojiChoices id="edit-group-emoji" value={emoji} onChange={setEmoji} />
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" onClick={onClose} disabled={update.isPending}>
+            {ct("chatgrp.cancel")}
+          </Button>
+          <Button type="submit" disabled={!clean || update.isPending}>
+            {ct("chatgrp.save")}
+          </Button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 /** «مجموعة جديدة»: a name (and, if wanted, one emoji); the new group is empty and goes to the end. The server decides who may (the space's admin, the owner). */
 export function NewTopicGroupDialog({ spaceId, onClose }: { spaceId: string; onClose: () => void }) {
   const toast = useOptionalToast();
@@ -42,7 +120,7 @@ export function NewTopicGroupDialog({ spaceId, onClose }: { spaceId: string; onC
         <label className="block text-xs font-medium text-fg-muted" htmlFor="new-group-emoji">
           {ct("chatgrp.emoji")}
         </label>
-        <Input id="new-group-emoji" value={emoji} maxLength={4} onChange={(e) => setEmoji(e.target.value)} className="w-24" />
+        <EmojiChoices id="new-group-emoji" value={emoji} onChange={setEmoji} />
         <div className="flex justify-end gap-2">
           <Button type="button" variant="ghost" onClick={onClose} disabled={create.isPending}>
             {ct("chatgrp.cancel")}

@@ -385,6 +385,8 @@ export interface ConversationDto {
   voiceTelegram?: boolean;
   /** «نص مباشر أثناء التسجيل» (`voiceLiveText`, off by default): the recorder writes a live transcript above the composer; absent or false: none */
   voiceLiveText?: boolean;
+  /** «شكل تيليجرام» (`tgLook`): the pinned bar's counter and list, the header as a floating glass bar; absent: on */
+  tgLook?: boolean;
   /** «قراءة نص الصور» (`imageOcr`): the switch is on, a vision service is set up AND no guest can reach this conversation; absent or false: no «اقرا النص» button under a picture */
   imageOcr?: boolean;
   /** «لخّصلي» (`morningDigest`): the switches are on, a provider is ready, and this is a topic of staff; absent or false: no button */

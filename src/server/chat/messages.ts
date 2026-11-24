@@ -581,6 +581,24 @@ export async function togglePin(ctx: OrgAccessContext, messageId: string): Promi
   return { pinned: next };
 }
 
+/**
+ * «إلغاء تثبيت الكل»: every pinned message of one conversation is unpinned in ONE step, by whoever may pin there (a space admin in a topic, a participant of a private
+ * chat). One line says so for everybody (the very line of a single unpin), one event tells the screens; nothing is written when nothing was pinned.
+ */
+export async function unpinAll(ctx: OrgAccessContext, conversationId: string): Promise<{ unpinned: number }> {
+  const { facts, org } = await guard(ctx, conversationId);
+  if (hasOversight(org) && !facts.viewerIsMember) throw new ForbiddenError("chat.e.join_first");
+  const mayPin = facts.kind === "DM" ? facts.viewerIsMember : canModerate(facts, org);
+  if (!mayPin) throw new ForbiddenError("chat.e.pin_denied");
+  return db.$transaction(async (tx) => {
+    const done = await tx.chatMessage.updateMany({ where: { conversationId, orgId: ctx.orgId, pinned: true, kind: { not: "SYSTEM" } }, data: { pinned: false } });
+    if (done.count === 0) return { unpinned: 0 };
+    await emitRealtime(tx, ctx.orgId, "message.pinned", { conversationId, messageId: "all", spaceId: facts.spaceId ?? undefined });
+    await writeSystemMessage(tx, { orgId: ctx.orgId, conversationId, authorId: ctx.userId, k: "unpin", p: { by: ctx.userId, n: done.count }, spaceId: facts.spaceId });
+    return { unpinned: done.count };
+  });
+}
+
 // ---------- notes ----------
 
 export const noteSchema = z.object({ body: z.string().trim().min(1, "chat.e.empty").max(2000) });

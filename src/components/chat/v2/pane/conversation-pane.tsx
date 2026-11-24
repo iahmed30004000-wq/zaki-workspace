@@ -180,7 +180,7 @@ function PaneBody({ header, history, people, watch }: { header: ConversationHead
             <InfoJumpProvider>
               <PaneHeader header={header} people={people} watch={watch} system={row?.system === true} />
               <VoiceMiniPlayer conversationId={header.id} messages={history.messages} onJump={commands.jumpTo} always={header.voiceTelegram !== false} />
-              <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} />
+              <PinnedBar pins={header.pinnedMessages ?? []} onJump={commands.jumpTo} tg={header.tgLook !== false} conversationId={header.id} canUnpinAll={header.kind === "DM" || header.me.canModerate} />
               <CallBar conversationId={header.id} enabled={header.calls !== false} />
               <SearchPanel conversationId={header.id} people={people} />
               {header.me.oversight ? <p className="border-b border-border p-2 text-center text-sm">{ct("chatc.oversight_banner")}</p> : null}

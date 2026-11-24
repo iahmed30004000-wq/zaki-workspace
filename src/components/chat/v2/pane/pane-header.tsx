@@ -165,7 +165,15 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
 
   return (
     // C2.8: on a phone the header owns the notch (the frame's top bar is hidden on a chat screen), so it pads its top by the inset; from `md` there is none
-    <header data-pane-header className="flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 pt-[env(safe-area-inset-top)] md:px-3 md:pt-0">
+    <header
+      data-pane-header
+      {...(header.tgLook !== false ? { "data-tg-glass": "" } : {})}
+      className={
+        header.tgLook !== false
+          ? "mx-2 mt-[max(env(safe-area-inset-top),0.5rem)] flex min-h-14 items-center gap-2 rounded-2xl border border-border/60 bg-surface-1/85 px-2 shadow-card backdrop-blur-md md:mx-0 md:mt-0 md:rounded-none md:border-0 md:border-b md:border-border md:bg-surface md:px-3 md:shadow-none md:backdrop-blur-0"
+          : "flex min-h-14 items-center gap-2 border-b border-border bg-surface px-2 pt-[env(safe-area-inset-top)] md:px-3 md:pt-0"
+      }
+    >
       <Link href={chatHref.list} aria-label={ct("chatc.back")} onClick={onLinkClick(chatHref.list)} className={`${iconButton} md:hidden`}>
         <ArrowRight aria-hidden="true" className="size-5" />
       </Link>

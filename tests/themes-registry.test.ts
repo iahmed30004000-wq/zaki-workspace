@@ -23,9 +23,9 @@ import {
   themeOf,
 } from "@/lib/themes/registry";
 
-describe("the six themes", () => {
-  it("are exactly the six agreed keys, in the picker's order (the two of D1 last)", () => {
-    expect([...THEME_KEYS]).toEqual(["night", "day", "islamic-epic", "neon-coast", "sky", "blue-night"]);
+describe("the eight themes", () => {
+  it("are exactly the eight agreed keys, in the picker's order (the two of D1, then the two of «تيليجرام»)", () => {
+    expect([...THEME_KEYS]).toEqual(["night", "day", "islamic-epic", "neon-coast", "sky", "blue-night", "tg-night", "tg-day"]);
     expect(THEME_LIST.map((t) => t.key)).toEqual([...THEME_KEYS]);
   });
 
@@ -34,9 +34,9 @@ describe("the six themes", () => {
     expect(isDarkTheme(DEFAULT_THEME)).toBe(true);
   });
 
-  it("four are dark (they also carry the `dark` class); «نهار» and «سماء» are light", () => {
-    expect(THEME_KEYS.filter(isDarkTheme)).toEqual(["night", "islamic-epic", "neon-coast", "blue-night"]);
-    expect(THEME_KEYS.filter((k) => !isDarkTheme(k))).toEqual(["day", "sky"]);
+  it("five are dark (they also carry the `dark` class); «نهار», «سماء» and «تيليجرام نهاري» are light", () => {
+    expect(THEME_KEYS.filter(isDarkTheme)).toEqual(["night", "islamic-epic", "neon-coast", "blue-night", "tg-night"]);
+    expect(THEME_KEYS.filter((k) => !isDarkTheme(k))).toEqual(["day", "sky", "tg-day"]);
   });
 
   it("«ليل», «نهار» and «إسلامي ملحمي» title in Reem Kufi, «ساحل النيون» in IBM Plex", () => {

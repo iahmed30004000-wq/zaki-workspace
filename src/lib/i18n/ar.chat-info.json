@@ -9,6 +9,9 @@
   "chatprof.empty.voice": "ما في تسجيلات صوتية بهالمحادثة لسا",
   "chatprof.empty.members": "ما في أسماء لعرضها هون",
   "chatprof.members.online": "متصل هلأ",
+  "chatinfo.tag.owner": "مالك",
+  "chatinfo.tag.admin": "مشرف",
+  "chatinfo.tag.bot": "بوت",
   "chatprof.mute.label": "كتم الإشعارات",
   "chatprof.mute.muted": "الإشعارات مكتومة"
 }
