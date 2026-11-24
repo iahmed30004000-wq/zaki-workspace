@@ -20,7 +20,7 @@ const LABELS: Record<AttachItemId, string> = { media: "chat.f.attach_media", fil
  * composer sends the old way (files, a voice note, a poll), and the pane scrolls to the newest message. It is a component of its own so that the pane's context is read
  * only after «قائمة مهام» was chosen (the menu itself draws anywhere).
  */
-function ChecklistFromMenu({ onClose }: { onClose: () => void }) {
+export function ChecklistFromMenu({ onClose }: { onClose: () => void }) {
   const qc = useQueryClient();
   const { conversationId } = usePaneActions();
   const commands = usePaneCommands();

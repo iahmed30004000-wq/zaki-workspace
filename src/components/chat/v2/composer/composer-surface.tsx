@@ -5,6 +5,7 @@ import { CalendarClock, Check, LoaderCircle, Mic, Send, Smile, Star, X, Zap } fr
 import type { MessageDto } from "@/server/chat/dto";
 import { CustomerHint } from "@/components/chat/v2/bubble/bubble-extras";
 import { AttachMenu } from "@/components/chat/v2/composer/attach-menu";
+import { AttachSheet } from "@/components/chat/v2/composer/attach-sheet";
 import { EmojiPopover } from "@/components/chat/v2/composer/emoji-panel";
 import { FileTray } from "@/components/chat/v2/composer/file-tray";
 import { FormatToolbar } from "@/components/chat/v2/composer/format-toolbar";
@@ -33,6 +34,8 @@ export type SurfaceEngine = Pick<
   Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn" | "setFeedback">> &
   /** «نص مباشر أثناء التسجيل»: the live words of the recorder bar; an engine without it (a test's, or the switch off) draws none */
   Partial<Pick<ComposerEngine, "live">> &
+  /** S6.2: the attach sheet's edit and «جودة عالية» buttons; an engine without them (a test's) draws neither */
+  Partial<Pick<ComposerEngine, "replaceFile" | "setHd">> &
   /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
   Partial<Pick<ComposerEngine, "scheduling" | "scheduledCount" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
 
@@ -51,6 +54,8 @@ export interface SurfaceProps {
   formatting?: boolean;
   /** the company's switch `zakiEmojis` (the composer passes the header's answer; absent: off): on, the emoji picker's first tab is the Zaki stickers */
   zakiEmojis?: boolean;
+  /** «شكل تيليجرام» (`tgLook`; absent: off): the paperclip opens the attach sheet (picked files as a numbered grid, caption, send with a count, the glass bar of kinds) instead of the little menu */
+  attachSheet?: boolean;
   /** the company's switch `linkPreviews` (C3b.2; absent: on): off, the line about the link's preview is not drawn */
   linkPreviews?: boolean;
   /**
@@ -65,7 +70,7 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, onNoPreviewChange }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   // C3b.2: the first https link of the draft is what the server will visit after the send; ✕ says «no preview» for THAT link (another first link brings the line back)
   const draftLink = linkPreviews && !editing ? firstLink(c.body) : null;
@@ -187,7 +192,23 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           className="max-h-60 min-h-11 min-w-0 flex-1 resize-none bg-transparent px-1.5 py-[11px] text-base leading-[1.45] text-fg outline-none placeholder:text-fg-muted md:min-h-10 md:py-[9px]"
           placeholder={ct("chatc.message")}
         />
-        {!editing ? <AttachMenu items={attachItemsOf(me)} disabled={c.busy} onPick={(id) => (id === "media" ? c.mediaInput.current?.click() : id === "file" ? c.fileInput.current?.click() : c.setPollOpen(true))} /> : null}
+        {!editing && attachSheet ? (
+          <AttachSheet
+            items={attachItemsOf(me)}
+            disabled={c.busy}
+            files={c.files}
+            busy={c.busy}
+            caption={c.body}
+            canSend={c.canSubmit}
+            onCaption={c.onTextChange}
+            onRemove={c.removeFile}
+            onEdit={c.replaceFile}
+            onHd={c.setHd}
+            onSend={() => c.submit()}
+            onPick={(id) => (id === "media" ? c.mediaInput.current?.click() : id === "file" ? c.fileInput.current?.click() : c.setPollOpen(true))}
+          />
+        ) : null}
+        {!editing && !attachSheet ? <AttachMenu items={attachItemsOf(me)} disabled={c.busy} onPick={(id) => (id === "media" ? c.mediaInput.current?.click() : id === "file" ? c.fileInput.current?.click() : c.setPollOpen(true))} /> : null}
         {!editing && scheduledCount > 0 ? (
           <button type="button" data-sched-icon className={COMPOSER_ICON_BUTTON} aria-label={ct("chatsched.icon", { n: scheduledCount })} title={ct("chatsched.icon", { n: scheduledCount })} onClick={() => c.setScheduledOpen?.(true)}>
             <CalendarClock aria-hidden="true" className="size-6" />
