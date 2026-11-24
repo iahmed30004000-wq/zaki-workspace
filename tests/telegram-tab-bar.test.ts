@@ -65,9 +65,9 @@ describe("the shell", () => {
     expect(shell).toContain("tgTabBar = false");
     expect(shell).toContain("tgTabBar && !isGuest ? null : (");
     expect(shell).toContain("{tgTabBar && !isGuest ? <TelegramTabBar");
-    expect(shell).toContain('tgTabBar && !isGuest ? "flex min-h-0 flex-1 flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0"');
-    // the old paddings are still the ones for the switch off
-    expect(shell).toContain('"flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:pb-0"');
+    // the page (`main`) clears the bar on a phone; the column's own paddings are the old ones, untouched
+    expect(shell).toContain('tgTabBar && !isGuest && "max-md:pb-[4.25rem]"');
+    expect(shell).toContain('<div className={navV2 ? "flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] md:pb-0" : "flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:pb-0"}>');
     expect(SRC("app/(app)/layout.tsx")).toContain("tgTabBar={on.tgTabBar && !actor.isExternal}");
   });
 

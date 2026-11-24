@@ -349,8 +349,8 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
         {/* N1.3: a thing of another space says so in one line instead of switching the app's space by itself */}
         {navV2 ? <SpaceBanner /> : null}
         {/* on the old phone the content stops above the fixed bottom bar (its 56px, its border and the home-indicator inset); the drawer has no bar */}
-        <div className={tgTabBar && !isGuest ? "flex min-h-0 flex-1 flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0" : navV2 ? "flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] md:pb-0" : "flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:pb-0"}>
-          <main id="zk-main" tabIndex={-1} className={cn("zk-safe-x min-w-0 flex-1 overflow-y-auto focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0", floatsOverPage && "md:pb-24")}>
+        <div className={navV2 ? "flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] md:pb-0" : "flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:pb-0"}>
+          <main id="zk-main" tabIndex={-1} className={cn("zk-safe-x min-w-0 flex-1 overflow-y-auto focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0", floatsOverPage && "md:pb-24", tgTabBar && !isGuest && "max-md:pb-[4.25rem]")}>
             {showNoWork && !noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : null}
             {noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : children}
           </main>
