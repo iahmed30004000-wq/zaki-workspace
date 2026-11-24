@@ -52,7 +52,7 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
 
   const row = await db.apiToken.findUnique({
     where: { prefix: parsed.prefix },
-    select: { id: true, name: true, organizationId: true, workspaceId: true, createdById: true, permissions: true, tokenHash: true, expiresAt: true, lastUsedAt: true, revokedAt: true, buttonHosts: true },
+    select: { id: true, name: true, system: true, organizationId: true, workspaceId: true, createdById: true, permissions: true, tokenHash: true, expiresAt: true, lastUsedAt: true, revokedAt: true, buttonHosts: true },
   });
   if (!tokenMatches(token, row?.tokenHash ?? null) || !row) return refuse("unknown_or_wrong");
   const now = new Date();
@@ -63,7 +63,10 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
     where: { organizationId_userId: { organizationId: row.organizationId, userId: row.createdById } },
     select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
   });
-  if (!issuer || issuer.status !== "ACTIVE" || issuer.role === "GUEST" || !can(issuer, "integrations.manage")) return refuse("issuer_inactive", row.id);
+  // a BOT's token (docs/contracts/bots.md) is issued by the bot's own account, an ordinary member: it needs no «integrations.manage», but it must be the live token of a live bot
+  // (this door only; the bot's token holds `messages.write` and nothing else, so no other door ever sees it)
+  const botIssuer = row.system === "bot" ? await db.bot.findFirst({ where: { userId: row.createdById, orgId: row.organizationId, tokenId: row.id, deletedAt: null }, select: { id: true } }) : null;
+  if (!issuer || issuer.status !== "ACTIVE" || issuer.role === "GUEST" || (!botIssuer && !can(issuer, "integrations.manage"))) return refuse("issuer_inactive", row.id);
   if (!(await accessibleWorkspaceIds(row.createdById)).includes(row.workspaceId)) return refuse("space_unreachable", row.id);
 
   // one kill switch for every door, and this door's own

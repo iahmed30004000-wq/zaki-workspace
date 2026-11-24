@@ -3539,3 +3539,28 @@ model DigestCache {
   @@unique([orgId, userId])
   @@index([createdAt])
 }
+
+// «بوت فاذر» (docs/contracts/bots.md): a bot is a non-human member of the company, made by the owner or an admin in the system chat «بوت فاذر». It has its OWN account (`userId`: no password anyone knows,
+// it never signs in, the account is an ordinary member with the rank MEMBER) so that a message it posts is its own and the space and topic lists hold it like anybody; it speaks through the door of
+// messages with its token (`tokenId`, an ApiToken whose issuer is the bot's account). `webhookUrl` is where the messages that address it are sent (signed with `webhookSecretCipher`). Plain ids, no foreign keys,
+// on purpose: removing a company or an account must never trip over a bot row (the cleanup is the service's `deleteBot`).
+model Bot {
+  id                  String    @id @default(cuid())
+  orgId               String
+  userId              String    @unique
+  ownerId             String
+  workspaceId         String
+  username            String
+  name                String
+  description         String?
+  commands            Json?
+  webhookUrl          String?
+  webhookSecretCipher String?
+  tokenId             String?
+  deletedAt           DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@unique([orgId, username])
+  @@index([orgId, deletedAt])
+}

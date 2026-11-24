@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import type { OrgAccessContext } from "@/server/auth";
 import { isAssistantChatKey } from "@/lib/chat/assistant-chat";
+import { isBotFatherChatKey } from "@/lib/chat/botfather";
 import { MENTION_ALL_ID } from "@/lib/chat/conversation/mentions";
 import { featureOn, type FeatureKey } from "@/lib/features";
 import { systemSentenceOfBody } from "@/lib/chat/system-sentence";
@@ -365,7 +366,7 @@ export function listable(r: ConvRecord, v: ListViewer): boolean {
   if (r.kind !== "TOPIC") {
     if (v.guest || !r.isMember) return false;
   } else {
-    if (isAssistantChatKey(r.dmKey) && !r.isMember) return false;
+    if ((isAssistantChatKey(r.dmKey) || isBotFatherChatKey(r.dmKey)) && !r.isMember) return false;
     if (r.archivedAt && !(v.ownerRank || r.spaceRole === "ADMIN")) return false;
   }
   return canRead(factsOfRecord(r), v.org);

@@ -4,6 +4,7 @@ import React from "react";
 import { Phone } from "lucide-react";
 import type { MessageDto } from "@/server/chat/dto";
 import { AssistantLine } from "@/components/chat/message/assistant-line";
+import { BotFatherLine } from "@/components/chat/message/botfather-line";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { dayLabelOf } from "@/lib/chat/day-separator";
 import { fmtTime } from "@/lib/format";
@@ -43,6 +44,7 @@ export function UnreadLine() {
 /** A system line is a quiet sentence in the middle, never a bubble with an empty body; the assistant's answer is its own block. */
 export function ServiceLine({ message, formatting = true }: { message: MessageDto; /** C3b.1: the company's `chatFormatting`, from the header's facts: the assistant's answer is drawn with its formatting unless it is off */ formatting?: boolean }) {
   if (message.system?.k === "assistant") return <AssistantLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt} formatting={formatting} />;
+  if (message.system?.k === "botfather") return <BotFatherLine messageId={message.id} meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt} />;
   return (
     <p dir="rtl" role="note" data-service-line={message.system?.k ?? "other"} className={chip}>
       {systemSentence(message.system, message.authorName)}
