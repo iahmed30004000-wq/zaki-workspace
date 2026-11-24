@@ -62,7 +62,7 @@ function AddTab({ onAdd, disabled, rail }: { onAdd: () => void; disabled: boolea
   );
 }
 
-function StripTab<K extends string>({ folder, on, badge, onChange, onManage }: { folder: TabItem<K>; on: boolean; badge: number; onChange: (key: K) => void; onManage: FolderStripExtras<K>["onManage"] }) {
+function StripTab<K extends string>({ folder, on, badge, onChange, onManage, pill = false }: { folder: TabItem<K>; on: boolean; badge: number; onChange: (key: K) => void; onManage: FolderStripExtras<K>["onManage"]; pill?: boolean }) {
   const custom = customIdOf(folder.key) !== null;
   const { ref, gestures } = useTabGestures(folder.key, custom, onManage);
   return (
@@ -77,7 +77,13 @@ function StripTab<K extends string>({ folder, on, badge, onChange, onManage }: {
       {...gestures}
       className={cn(
         "relative inline-flex min-h-11 shrink-0 items-center gap-1.5 px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent",
-        on ? "font-semibold text-accent after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent" : "text-fg-muted hover:text-fg",
+        pill
+          ? on
+            ? "rounded-full bg-accent/15 font-semibold text-accent"
+            : "rounded-full text-fg-muted hover:text-fg"
+          : on
+            ? "font-semibold text-accent after:absolute after:inset-x-2 after:bottom-0 after:h-0.5 after:rounded-full after:bg-accent"
+            : "text-fg-muted hover:text-fg",
       )}
     >
       {folder.emoji ? <span aria-hidden="true">{folder.emoji}</span> : null}
@@ -105,11 +111,14 @@ export function FolderTabs<K extends string>({
   onAdd,
   addDisabled,
   onManage,
+  pill = false,
 }: {
   folders: readonly TabItem<K>[];
   active: K;
   badges: Partial<Record<K, number>>;
   onChange: (key: K) => void;
+  /** S6.6 «شكل تيليجرام»: the strip is one rounded pill and the folder you are in a filled chip, not underlined tabs on a hairline */
+  pill?: boolean;
 } & FolderStripExtras<K>) {
   // the tab you are in is brought into view when the strip is longer than the screen (a folder of your own sits at the far end)
   const stripRef = useRef<HTMLDivElement>(null);
@@ -122,16 +131,21 @@ export function FolderTabs<K extends string>({
       role="tablist"
       aria-label={ct("chatui.folders.label")}
       data-chat-folders=""
-      className={cn("flex gap-1 overflow-x-auto px-2", onAdd ? "min-w-0 flex-1" : "shrink-0 border-b border-border")}
+      {...(pill ? { "data-folders-pill": "" } : {})}
+      className={cn(
+        "flex gap-1 overflow-x-auto",
+        pill ? "mx-3 my-2 rounded-full bg-surface-1 p-1 shadow-card" : "px-2",
+        onAdd ? "min-w-0 flex-1" : pill ? "shrink-0" : "shrink-0 border-b border-border",
+      )}
     >
       {folders.map((folder) => (
-        <StripTab key={folder.key} folder={folder} on={folder.key === active} badge={badges[folder.key] ?? 0} onChange={onChange} onManage={onManage} />
+        <StripTab key={folder.key} folder={folder} on={folder.key === active} badge={badges[folder.key] ?? 0} onChange={onChange} onManage={onManage} pill={pill} />
       ))}
     </div>
   );
   if (!onAdd) return strip;
   return (
-    <div data-chat-folders-bar="" className="flex shrink-0 items-stretch border-b border-border">
+    <div data-chat-folders-bar="" className={pill ? "flex shrink-0 items-stretch" : "flex shrink-0 items-stretch border-b border-border"}>
       {strip}
       <AddTab onAdd={onAdd} disabled={addDisabled} rail={false} />
     </div>

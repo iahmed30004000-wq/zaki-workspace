@@ -21,6 +21,7 @@ export function ListHeader({
   onNewGroup,
   onNewTopic,
   searchId,
+  menu,
 }: {
   query: string;
   onQuery: (value: string) => void;
@@ -31,6 +32,8 @@ export function ListHeader({
   /** «موضوع جديد», only for somebody who may open a topic in the space on screen */
   onNewTopic?: () => void;
   searchId: string;
+  /** S6.6 «شكل تيليجرام»: the list's main «⋮» menu, at the end of the row */
+  menu?: React.ReactNode;
 }) {
   return (
     <div className="relative shrink-0">
@@ -108,6 +111,7 @@ export function ListHeader({
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
+        {menu}
       </div>
       <ListSearchPanel query={query} onPick={() => onQuery("")} />
     </div>

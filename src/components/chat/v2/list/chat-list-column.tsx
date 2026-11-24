@@ -33,6 +33,7 @@ import { useInlineFolders } from "./folder-inline";
 import { FolderTabs, useChatPrefs } from "./folder-tabs";
 import { nextTab, useFolderSwipe } from "@/lib/chat/v2/folder-swipe";
 import { ListHeader } from "./list-header";
+import { ListMenu } from "./list-menu";
 import { useFolderSourceRows } from "./use-folder-chats";
 import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
 import { ListEmpty, ListError, ListSkeleton } from "./list-states";
@@ -68,6 +69,8 @@ export interface ChatListColumnProps {
   rowMenu: boolean;
   /** the owner rank's «حذف نهائي» */
   canPurge: boolean;
+  /** «شكل تيليجرام» (`tgLook`; absent: off): the folders as a pill and the main «⋮» menu */
+  tgLook?: boolean;
 }
 
 export function ChatListColumn(props: ChatListColumnProps) {
@@ -180,7 +183,7 @@ function ArchivedEntry({ tall, count, onOpen }: { tall: boolean; count: number; 
 }
 
 /** The conversations list with its folders and search: every conversation the server put in the list, in the folder asked for. */
-const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, selectedId, rail }: ChatListColumnProps & { selectedId: string | null; rail: boolean }) {
+const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, tgLook, selectedId, rail }: ChatListColumnProps & { selectedId: string | null; rail: boolean }) {
   const tall = variant === "screen";
   const searchId = useId();
   const day = useDayKey();
@@ -334,12 +337,12 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       <div className="flex min-h-0 min-w-0 flex-1 flex-col" {...swipe}>
       {tall ? (
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
-        <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} />
+        <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} />
       ) : rail ? null : (
-        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
+        <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
       {/* the owner (item 7): the folders are ONE strip of tabs above the list, on the phone and on the computer alike (the column beside the list is gone); folded to a rail there is no room for it */}
-      {rail ? null : <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} {...inline.tabProps} />}
+      {rail ? null : <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} pill={tgLook === true} {...inline.tabProps} />}
       {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
       {rail ? null : <ChatPwaHost guest={guest} />}
       {/* the owner (2026-11-22), like Telegram: «المحادثات المؤرشفة» at the top of the list, with how many; a press opens the archive */}
