@@ -1,7 +1,7 @@
 # THE ANDROID APP IS BUILT HERE, NOT ON ANYBODY'S COMPUTER.
 #
-# `android/` is a native app (Kotlin + Compose) on the site's own API; the rest of the site opens inside it in a web view, so
-# every page and every update comes from https://workspace.zakiai.io and this file is run only when the WRAPPER changes (or by hand).
+# `android/` is a fully native app (Kotlin + Compose, docs/restructure/M2-native-app.md) on the site's own API. Its unit tests run here
+# too, and the release is shrunk (R8). A section that is not native yet still opens the site's page inside the app (⚠️ WebBridge).
 #
 # The APK is signed with ONE fixed key kept as the repository secret ANDROID_KEYSTORE_B64 (never a file in git): it makes every new build install over the
 # old one and lets Chrome hide its address bar (public/.well-known/assetlinks.json). Without the secret it falls back to the debug key. See docs/ANDROID.md.
@@ -67,14 +67,14 @@ jobs:
             echo "::warning::ANDROID_KEYSTORE_B64 is not set: this build is signed with the debug key (see docs/ANDROID.md)"
           fi
 
-      - name: Build the signed APK
+      - name: Build and test (unit tests, then the signed APK of the real site)
         env:
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: gradle -p android assembleRelease --no-daemon --stacktrace
+        run: gradle -p android testStagingDebugUnitTest assembleProdRelease --no-daemon --stacktrace
 
       - name: Name the file
-        run: cp android/app/build/outputs/apk/release/app-release.apk zaki-workspace.apk
+        run: cp android/app/build/outputs/apk/prod/release/app-prod-release.apk zaki-workspace.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -90,5 +90,5 @@ jobs:
           gh release delete android-latest --yes --cleanup-tag || true
           gh release create android-latest zaki-workspace.apk \
             --title "Zaki Workspace for Android" \
-            --notes "The Android app of Zaki Workspace (the site in a full-screen window). Install it on the phone: allow installs from this source, open the file. Built from ${GITHUB_SHA}." \
+            --notes "The Android app of Zaki Workspace (native). Install it on the phone: allow installs from this source, open the file. Built from ${GITHUB_SHA}." \
             --target "${GITHUB_SHA}"

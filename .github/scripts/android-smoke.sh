@@ -3,7 +3,7 @@
 set -u
 OUT=smoke-out
 mkdir -p "$OUT"
-APK=android/app/build/outputs/apk/debug/app-debug.apk
+APK=android/app/build/outputs/apk/prod/debug/app-prod-debug.apk
 PKG=io.zakiai.workspace
 
 adb install -r "$APK" || { echo "install failed"; exit 1; }
@@ -28,15 +28,24 @@ if [ -f "$OUT/ui-1.xml" ] && ! grep -q "تسجيل الدخول" "$OUT/ui-1.xml"
   exit 1
 fi
 
-# the Pixel 6 screen is 1080x2400: the two fields and the button sit where the first screenshot shows them
-adb shell input tap 540 1270; sleep 1
+# where a thing is on the screen: the centre of the Nth node of the dump that matches (the layout may move, the words do not)
+center() {
+  grep -o "<node[^>]*$2[^>]*>" "$1" | sed -n "${3:-1}p" | grep -o 'bounds="\[[0-9]*,[0-9]*\]\[[0-9]*,[0-9]*\]"' \
+    | sed -E 's/bounds="\[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]"/\1 \2 \3 \4/' | awk '{print int(($1+$3)/2), int(($2+$4)/2)}'
+}
+
+FIELD=$(center "$OUT/ui-1.xml" 'class="android.widget.EditText"' 1)
+if [ -z "$FIELD" ]; then echo "no sign-in field on the screen"; adb logcat -d > "$OUT/logcat.txt"; exit 1; fi
+adb shell input tap $FIELD; sleep 1
 adb shell input text "nobody@example.com"; sleep 1
 adb shell input keyevent 61; sleep 1   # TAB: the next field (the keyboard moved the screen, a tap would miss)
 adb shell input text "wrong-password-123"; sleep 1
 adb exec-out screencap -p > "$OUT/1b-typed.png"
 adb shell input keyevent 4   # closes the keyboard
 sleep 1
-adb shell input tap 540 1665
+dump ui-2.xml || echo "no dump of the filled screen"
+BUTTON=$(center "$OUT/ui-2.xml" 'text="دخول"' 1)
+adb shell input tap ${BUTTON:-540 1665}
 sleep 8
 adb exec-out screencap -p > "$OUT/2-wrong-password.png"
 dump ui-3.xml || echo "no dump of the last screen"
