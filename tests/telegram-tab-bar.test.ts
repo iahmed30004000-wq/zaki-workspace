@@ -20,7 +20,7 @@ const draw = (pathname: string, chatUnread = 0) =>
 describe("the four tabs", () => {
   it("are chats, contacts, settings and profile, each an existing page", () => {
     expect(TG_TABS.map((t) => t.key)).toEqual(["chats", "contacts", "settings", "profile"]);
-    expect(TG_TABS.map((t) => t.href)).toEqual(["/chat", "/members", "/settings/me", "/profile"]);
+    expect(TG_TABS.map((t) => t.href)).toEqual(["/chat", "/contacts", "/settings/me", "/profile"]);
     for (const tab of TG_TABS) expect(AR[tab.labelKey], tab.key).toBeTruthy();
   });
 
