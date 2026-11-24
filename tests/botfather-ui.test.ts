@@ -74,9 +74,9 @@ describe("where it is wired", () => {
   });
 
   it("somebody else's chat with the bot maker is on nobody's list or forward targets, and the directory offers the row only for the owner and the admins", () => {
-    expect(SRC("server/chat/list.ts")).toContain("isAssistantChatKey(r.dmKey) || isBotFatherChatKey(r.dmKey)");
-    expect(SRC("server/chat/home.ts")).toContain("isAssistantChatKey(t.dmKey) || isBotFatherChatKey(t.dmKey)");
-    expect(SRC("server/chat/forward-targets.ts")).toContain("isAssistantChatKey(t.dmKey) || isBotFatherChatKey(t.dmKey)");
+    expect(SRC("server/chat/list.ts")).toContain("isBotFatherChatKey(r.dmKey) && !r.isMember");
+    expect(SRC("server/chat/home.ts")).toContain("isBotFatherChatKey(t.dmKey) && t.memberCount === 0");
+    expect(SRC("server/chat/forward-targets.ts")).toContain("if (isBotFatherChatKey(t.dmKey)) continue;");
     expect(SRC("app/api/chat/directory/route.ts")).toContain("botFatherOffered(ctx.orgId, ctx.orgRole)");
   });
 

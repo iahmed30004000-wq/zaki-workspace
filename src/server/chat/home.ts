@@ -58,7 +58,8 @@ export function spaceViewerOf(
 
 /** Is the topic on the viewer's list? (a restricted one only by its own rows, a «مقطع»'s only for its people, an archived one only for managers, somebody's assistant chat only for them) */
 export function topicListed(t: { restricted: boolean; teamId: string | null; archivedAt: Date | null; dmKey: string | null; memberCount: number }, v: SpaceViewer): boolean {
-  if ((isAssistantChatKey(t.dmKey) || isBotFatherChatKey(t.dmKey)) && t.memberCount === 0) return false;
+  if (isAssistantChatKey(t.dmKey) && t.memberCount === 0) return false;
+  if (isBotFatherChatKey(t.dmKey) && t.memberCount === 0) return false;
   const passes = v.oversight || (!t.restricted && v.spaceRole !== null) || (t.restricted && t.memberCount > 0);
   if (!passes) return false;
   if (t.teamId && !v.teamIds.has(t.teamId)) return false;

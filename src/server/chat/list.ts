@@ -366,7 +366,8 @@ export function listable(r: ConvRecord, v: ListViewer): boolean {
   if (r.kind !== "TOPIC") {
     if (v.guest || !r.isMember) return false;
   } else {
-    if ((isAssistantChatKey(r.dmKey) || isBotFatherChatKey(r.dmKey)) && !r.isMember) return false;
+    if (isAssistantChatKey(r.dmKey) && !r.isMember) return false;
+    if (isBotFatherChatKey(r.dmKey) && !r.isMember) return false;
     if (r.archivedAt && !(v.ownerRank || r.spaceRole === "ADMIN")) return false;
   }
   return canRead(factsOfRecord(r), v.org);

@@ -62,7 +62,8 @@ export async function listForwardTargets(ctx: OrgAccessContext): Promise<Forward
     for (const t of s.conversations) {
       const memberCount = t.members.length;
       // the person's chat with the assistant is not a place to forward to (a forward is never answered there, and its title is the assistant's, not a topic's)
-      if (isAssistantChatKey(t.dmKey) || isBotFatherChatKey(t.dmKey)) continue;
+      if (isAssistantChatKey(t.dmKey)) continue;
+      if (isBotFatherChatKey(t.dmKey)) continue;
       if (!topicListed({ restricted: t.restricted, teamId: t.teamId, archivedAt: t.archivedAt, dmKey: t.dmKey, memberCount }, viewer)) continue;
       // an archived topic is read-only and a closed one takes no messages: neither is a place to forward to
       if (t.archivedAt || !topicPostable({ closedAt: t.closedAt, postingPolicy: t.postingPolicy, topicType: t.topicType, memberCount }, viewer)) continue;
