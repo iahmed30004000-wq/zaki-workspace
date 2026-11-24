@@ -940,7 +940,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `themeSwitchFx` | 1 — `app/(app)/theme-gallery/page.tsx` |
 | `voiceTelegram` | 1 — `server/chat/topics.ts` |
 | `voiceLiveText` | 1 — `server/chat/topics.ts` |
-| `tgLook` | 1 — `server/chat/topics.ts` |
+| `tgLook` | 2 — `app/(app)/chat/layout.tsx`, `server/chat/topics.ts` |
 | `tgTabBar` | 0 —  |
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
@@ -1044,7 +1044,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `spaceBadges` | 1 — `app/api/workspaces/route.ts` |
 | `voiceTelegram` | 1 — `server/chat/topics.ts` |
 | `voiceLiveText` | 1 — `server/chat/topics.ts` |
-| `tgLook` | 1 — `server/chat/topics.ts` |
+| `tgLook` | 2 — `app/(app)/chat/layout.tsx`, `server/chat/topics.ts` |
 | `tgTabBar` | 0 —  |
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
