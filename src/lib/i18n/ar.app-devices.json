@@ -15,5 +15,6 @@
   "appLink.last_seen": "آخر اتصال: {when}",
   "appLink.never": "ما اتصل لسا",
   "appLink.remove": "فك الربط",
-  "appLink.removed": "انفك الربط."
+  "appLink.removed": "انفك الربط.",
+  "client_errors.too_many": "وصل تطبيق الجوال تقارير أعطال كتير هالساعة. رح يبعت الباقي بعدين."
 }
