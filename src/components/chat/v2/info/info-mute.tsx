@@ -19,7 +19,7 @@ const chip = "inline-flex min-h-11 items-center justify-center rounded-full bord
  * header says whether it is muted (`me.muted`), so after a change the header is asked for again and the row follows. Nothing for «الرسائل المحفوظة», for a reader in
  * silent oversight, or while the company's switch is off (`muteOffersOf`).
  */
-export function MuteRow({ header, saved }: { header: ConversationHeaderDto; saved: boolean }) {
+export function MuteRow({ header, saved, tg = false }: { header: ConversationHeaderDto; saved: boolean; /** S6.4 «شكل تيليجرام»: a rounded inset card */ tg?: boolean }) {
   const qc = useQueryClient();
   const personal = useListPersonal();
   // the hook only needs the row's id (the unread count matters for «mark read», which this row never asks)
@@ -33,7 +33,7 @@ export function MuteRow({ header, saved }: { header: ConversationHeaderDto; save
     });
 
   return (
-    <section data-info-mute={offers.state} className="mt-2 bg-surface-1 px-4 py-3">
+    <section data-info-mute={offers.state} className={tg ? "mx-3 mt-2 rounded-2xl bg-surface-1 px-4 py-3 shadow-card" : "mt-2 bg-surface-1 px-4 py-3"}>
       {offers.state === "lift" ? (
         <div className="flex items-center gap-3">
           <BellOff aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />

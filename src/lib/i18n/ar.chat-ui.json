@@ -242,5 +242,9 @@
   "chatui.photoedit.contrast": "التباين",
   "chatui.photoedit.cancel": "إلغاء",
   "chatui.photoedit.done": "تم",
-  "chatui.photoedit.failed": "ما قدرت أفتح الصورة للتعديل."
+  "chatui.photoedit.failed": "ما قدرت أفتح الصورة للتعديل.",
+  "chatui.info.menu": "المزيد",
+  "chatui.info.share": "شارك الملف",
+  "chatui.info.share_copied": "اننسخ رابط الملف",
+  "chatui.info.share_failed": "ما زبط النسخ، جرّب كمان مرة"
 }
