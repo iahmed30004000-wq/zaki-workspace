@@ -24,6 +24,12 @@ data/files/
 
 # the app signing key is a repository secret, never a file in git
 android/zaki.p12
+# the Android build's own output and caches (the Room schemas in android/app/schemas ARE committed)
+android/.gradle/
+android/.kotlin/
+android/build/
+android/app/build/
+android/local.properties
 *.p12
 *.jks
 

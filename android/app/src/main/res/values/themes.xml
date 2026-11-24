@@ -3,7 +3,14 @@
     <!-- the app's own dark paper: no white flash while it opens -->
     <style name="Theme.Zaki" parent="@android:style/Theme.DeviceDefault.NoActionBar">
         <item name="android:windowBackground">@color/zk_surface</item>
-        <item name="android:statusBarColor">@color/zk_surface</item>
-        <item name="android:navigationBarColor">@color/zk_surface</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+
+    <!-- the splash: the app's mark on the night colour until the first frame -->
+    <style name="Theme.Zaki.Splash" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/zk_surface</item>
+        <item name="windowSplashScreenAnimatedIcon">@mipmap/ic_launcher</item>
+        <item name="postSplashScreenTheme">@style/Theme.Zaki</item>
     </style>
 </resources>

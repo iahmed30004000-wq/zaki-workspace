@@ -1,0 +1,160 @@
+package io.zakiai.workspace.feature.web
+
+import android.Manifest
+import android.annotation.SuppressLint
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.view.ViewGroup
+import android.webkit.CookieManager
+import android.webkit.PermissionRequest
+import android.webkit.ValueCallback
+import android.webkit.WebChromeClient
+import android.webkit.WebResourceRequest
+import android.webkit.WebSettings
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import androidx.activity.compose.BackHandler
+import androidx.activity.result.ActivityResult
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
+import io.zakiai.workspace.BuildConfig
+import io.zakiai.workspace.Config
+import io.zakiai.workspace.core.net.EncryptedCookieJar
+import io.zakiai.workspace.ui.T
+import io.zakiai.workspace.ui.components.WarnFix
+import okhttp3.HttpUrl.Companion.toHttpUrl
+
+/**
+ * ⚠️ TEMPORARY — the one place the app still shows the site: a section that is not native YET opens its page here, signed in with
+ * the app's own session, so nothing the team uses today goes missing while the app becomes native phase by phase
+ * (docs/restructure/M2-native-app.md). 🔧 Each phase removes its paths from here; when N6 lands this file is deleted.
+ *
+ * The page is made when it is opened and thrown away when it is left. Only addresses of the site open inside it; anything else
+ * opens in the phone's own browser. The system's questions (microphone and camera for a call, a file to pick) go through the
+ * activity, the only one that can ask them.
+ */
+class WebBridge(
+    private val activity: FragmentActivity,
+    private val jar: EncryptedCookieJar,
+    private val askPermissions: (Array<String>, (Map<String, Boolean>) -> Unit) -> Unit,
+    private val pickFiles: (Intent, (ActivityResult) -> Unit) -> Unit,
+) {
+    private var pendingPermission: PermissionRequest? = null
+    private var fileCallback: ValueCallback<Array<Uri>>? = null
+    private var loaded: String? = null
+
+    @SuppressLint("SetJavaScriptEnabled")
+    val webView: WebView = WebView(activity).apply {
+        settings.javaScriptEnabled = true
+        settings.domStorageEnabled = true
+        settings.mediaPlaybackRequiresUserGesture = false
+        settings.mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+        settings.userAgentString = settings.userAgentString + " ZakiApp/" + BuildConfig.VERSION_NAME
+        webViewClient = object : WebViewClient() {
+            override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
+                val uri = request.url
+                if (uri.host == Uri.parse(Config.BASE).host) return false
+                runCatching { activity.startActivity(Intent(Intent.ACTION_VIEW, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                return true
+            }
+        }
+        webChromeClient = object : WebChromeClient() {
+            override fun onPermissionRequest(request: PermissionRequest) {
+                val needed = request.resources.mapNotNull {
+                    when (it) {
+                        PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
+                        PermissionRequest.RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA
+                        else -> null
+                    }
+                }
+                if (needed.isEmpty()) { request.deny(); return }
+                val missing = needed.filter { ContextCompat.checkSelfPermission(activity, it) != PackageManager.PERMISSION_GRANTED }
+                if (missing.isEmpty()) { request.grant(request.resources); return }
+                pendingPermission?.deny()
+                pendingPermission = request
+                askPermissions(missing.toTypedArray()) { granted ->
+                    val asked = pendingPermission ?: return@askPermissions
+                    pendingPermission = null
+                    val ok = asked.resources.filter { r ->
+                        val p = when (r) {
+                            PermissionRequest.RESOURCE_AUDIO_CAPTURE -> Manifest.permission.RECORD_AUDIO
+                            PermissionRequest.RESOURCE_VIDEO_CAPTURE -> Manifest.permission.CAMERA
+                            else -> null
+                        }
+                        p != null && (granted[p] == true || ContextCompat.checkSelfPermission(activity, p) == PackageManager.PERMISSION_GRANTED)
+                    }
+                    if (ok.isEmpty()) asked.deny() else asked.grant(ok.toTypedArray())
+                }
+            }
+
+            override fun onShowFileChooser(view: WebView, callback: ValueCallback<Array<Uri>>, params: FileChooserParams): Boolean {
+                fileCallback?.onReceiveValue(null)
+                fileCallback = callback
+                return try {
+                    pickFiles(params.createIntent()) { result ->
+                        val cb = fileCallback
+                        fileCallback = null
+                        cb?.onReceiveValue(FileChooserParams.parseResult(result.resultCode, result.data))
+                    }
+                    true
+                } catch (e: Exception) {
+                    fileCallback = null
+                    false
+                }
+            }
+        }
+    }
+
+    /** Gives the web view the cookies of the session, so the page opens already signed in. */
+    private fun syncCookies() {
+        val cm = CookieManager.getInstance()
+        cm.setAcceptCookie(true)
+        for (c in jar.cookiesFor(Config.BASE.toHttpUrl())) cm.setCookie(Config.BASE, c.toString())
+        cm.flush()
+    }
+
+    fun show(path: String) {
+        val url = Config.siteUrl(path)
+        if (loaded == url) return
+        loaded = url
+        syncCookies()
+        webView.loadUrl(url)
+    }
+
+    fun destroy() {
+        webView.stopLoading()
+        (webView.parent as? ViewGroup)?.removeView(webView)
+        webView.destroy()
+    }
+}
+
+/** A page of the site over the app, with the ⚠️/🔧 line that says why. Its back walks back through the site's pages, then closes it. */
+@Composable
+fun WebPage(path: String, make: () -> WebBridge, onClose: () -> Unit) {
+    val bridge = remember { make() }
+    DisposableEffect(Unit) { onDispose { bridge.destroy() } }
+    BackHandler { if (bridge.webView.canGoBack()) bridge.webView.goBack() else onClose() }
+    LaunchedEffect(path) { bridge.show(path) }
+    Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
+        WarnFix(T.webWarn, T.webFix)
+        AndroidView(
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            factory = {
+                (bridge.webView.parent as? ViewGroup)?.removeView(bridge.webView)
+                bridge.webView
+            },
+        )
+    }
+}
