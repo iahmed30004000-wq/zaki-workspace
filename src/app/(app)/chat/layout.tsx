@@ -18,6 +18,7 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
   const { actor } = await pageActor();
   if (!(await isFeatureOn(actor.orgId, "chatLayoutV2"))) return <>{children}</>;
   const rowMenu = await isFeatureOn(actor.orgId, "chatRowMenu");
+  const tgLook = await isFeatureOn(actor.orgId, "tgLook");
   return (
     <ChatShell
       userId={actor.userId}
@@ -25,6 +26,7 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
       canMeet={!actor.isExternal && actorCan(actor, "calls.edit")}
       rowMenu={rowMenu}
       canPurge={rowMenu && actor.isOwner}
+      tgLook={tgLook}
     >
       {children}
     </ChatShell>

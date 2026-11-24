@@ -19,7 +19,7 @@ const iconButton =
  * C3d: while the field is open and holds two letters, the chats, people and messages the server found (`GET /api/search?scope=chat`) are drawn as a panel under the
  * bar, over the rows; opening one folds the field.
  */
-export function PhoneListBar({ title, query, onQuery, searchId }: { title: string; query: string; onQuery: (value: string) => void; searchId: string }) {
+export function PhoneListBar({ title, query, onQuery, searchId, menu }: { title: string; query: string; onQuery: (value: string) => void; searchId: string; /** S6.6 «شكل تيليجرام»: the list's main «⋮» menu */ menu?: React.ReactNode }) {
   const bridge = useFrameBridge();
   // the field stays open while it holds words (a rebuilt list must not close what the person is typing)
   const [open, setOpen] = React.useState(query !== "");
@@ -77,6 +77,7 @@ export function PhoneListBar({ title, query, onQuery, searchId }: { title: strin
           <button type="button" data-chat-phone-search-open="" aria-label={ct("chatui.phone.search.open")} onClick={() => setOpen(true)} className={iconButton}>
             <Search aria-hidden="true" className="size-5" />
           </button>
+          {menu}
           {bridge?.trailing ? (
             <div data-chat-phone-trailing="" className="flex shrink-0 items-center">
               {bridge.trailing}

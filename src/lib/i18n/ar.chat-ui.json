@@ -250,5 +250,12 @@
   "chatui.info.qr_share": "شارك الرمز",
   "chatui.info.qr_download": "نزّل الصورة",
   "chatui.info.qr_copied": "اننسخ رابط الملف",
-  "chatui.info.qr_failed": "ما زبطت العملية، جرّب كمان مرة"
+  "chatui.info.qr_failed": "ما زبطت العملية، جرّب كمان مرة",
+  "chatui.listmenu.label": "القائمة الرئيسية",
+  "chatui.listmenu.day": "وضع النهار",
+  "chatui.listmenu.night": "وضع الليل",
+  "chatui.listmenu.contacts": "جهات الاتصال",
+  "chatui.listmenu.group": "مجموعة جديدة",
+  "chatui.listmenu.saved": "الرسائل المحفوظة",
+  "chatui.listmenu.saved_failed": "ما انفتحت الرسائل المحفوظة، جرّب كمان مرة"
 }
