@@ -230,7 +230,7 @@ export const CAPS = {
  * allowed (the login door, an empty list, the sidebar header, the Today strip) they use the plain identity — the logo and the colour — so each of the four
  * places has a rule that draws nothing. No file, no pattern, no motion.
  */
-export const PLAIN = ["sky", "blue-night"] as const satisfies readonly ThemeKey[];
+export const PLAIN = ["sky", "blue-night", "tg-night", "tg-day"] as const satisfies readonly ThemeKey[];
 
 // ───────────────────────────────────── what a theme owns on the disk ─────────────────────────────────────
 

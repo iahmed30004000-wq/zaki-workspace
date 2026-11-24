@@ -12,7 +12,7 @@ import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { MediaViewerContext, MediaViewerProvider, safeMediaUrl, viewerItemsOfMedia } from "@/components/chat/v2/media-viewer";
 import { useInfoJump } from "@/components/chat/v2/info/info-jump";
 import { ct, ctCount } from "@/lib/chat/text";
-import { durationLabel, membersTabOf, type MembersTab } from "@/lib/chat/v2/info/info-model";
+import { durationLabel, memberTagKeyOf, membersTabOf, type MembersTab } from "@/lib/chat/v2/info/info-model";
 import { activeTabOf, emptyKeyOf, isPagedTab, safeLinkHref, tabAfterKey, tabsOf, type InfoTab, type InfoTabId, type PagedTab } from "@/lib/chat/v2/info/info-tabs";
 import { mergeLinkPages } from "@/lib/chat/v2/info/link-list";
 import { useConversationWork, useMediaCounts, useMediaPages, useRefreshOnMessages } from "@/lib/chat/v2/info/use-info-tabs";
@@ -86,7 +86,7 @@ export function InfoTabs({ header, people = null, initialTab }: { header: Conver
         {isPagedTab(active) ? (
           <PagedPanel key={active} header={header} tab={active} jump={jump} count={known(active)} />
         ) : active === "members" ? (
-          <MembersPanel model={membersTab} pending={people === null} />
+          <MembersPanel model={membersTab} pending={people === null} tags={header.tgLook !== false} />
         ) : active === "work" ? (
           <WorkPanel header={header} jump={jump} tasks={work.data?.tasks ?? []} tickets={work.data?.tickets ?? []} />
         ) : (
@@ -355,7 +355,7 @@ function LinkRows({ links, jump }: { links: LinkItemDto[]; jump: (messageId: str
  * The people of an open topic, a restricted topic (only the names the door gave) or a group. Nobody to list (a topic of a section, a restricted topic whose people
  * were not given, people not loaded yet) says so and shows the count the header carries — never a name from another list.
  */
-function MembersPanel({ model, pending }: { model: MembersTab | null; pending: boolean }) {
+function MembersPanel({ model, pending, tags }: { model: MembersTab | null; pending: boolean; /** «شكل تيليجرام» (`tgLook`): the rank tag after a name */ tags: boolean }) {
   if (!model) return null;
   // the door's people have not come yet (a topic of a section never lists, so it never waits): say so, never «nobody»
   if (pending && model.names.length === 0 && model.state !== "team") {
@@ -382,6 +382,11 @@ function MembersPanel({ model, pending }: { model: MembersTab | null; pending: b
         <li key={m.id} className="flex min-h-11 items-center gap-3 px-2 py-1">
           <Avatar name={m.name} src={m.avatarUrl ?? null} className="size-9 text-sm" />
           <bdi className="min-w-0 flex-1 truncate text-sm">{m.name}</bdi>
+          {tags && memberTagKeyOf(m.role) ? (
+            <span data-member-tag={m.role} className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
+              {ct(memberTagKeyOf(m.role)!)}
+            </span>
+          ) : null}
           {m.verified ? <VerifiedBadge /> : null}
           {m.online ? <span role="img" aria-label={ct("chatprof.members.online")} className="size-2.5 shrink-0 rounded-full bg-success" /> : null}
         </li>

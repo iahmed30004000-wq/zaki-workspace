@@ -14,6 +14,7 @@ import { chatChromeOf, holdsNoWork, tabIsDrawn } from "@/lib/nav/shell-v2";
 import { useOptionalToast } from "@/components/ui/toast";
 import type { NewActionKey } from "@/lib/nav/new-actions";
 import { AvatarMenu, type AvatarUser } from "@/components/shell/avatar-menu";
+import { TelegramTabBar } from "@/components/shell/telegram-tab-bar";
 import { NotificationBell } from "@/components/notification-bell";
 import { AppBar } from "@/components/shell/app-bar";
 import { BottomNav } from "@/components/shell/bottom-nav";
@@ -71,6 +72,8 @@ export interface AppShellProps {
   peopleDock?: boolean;
   /** The company's «الدردشة السريعة» switch: off, the floating button is not drawn. */
   quickChat?: boolean;
+  /** «شريط تيليجرام السفلي» (`tgTabBar`): a phone's bottom bar is Telegram's four tabs instead of the places bar. Off (the default): nothing of it is drawn. */
+  tgTabBar?: boolean;
   /** «المرشد»: the owner guide (its switch is on and the person is the owner). */
   siteGuide?: boolean;
   /** The company's «وضع التوفير» (`src/lib/features.ts`): the screen's repeated refreshes wait longer (`src/lib/economy.ts`). */
@@ -130,7 +133,7 @@ export function AppShell(props: AppShellProps) {
   );
 }
 
-function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, siteGuide = false, economy = false, navV2 = false, orderLocked = false, noWorkSpace = false, chatBare = false, listSlot, children }: AppShellProps) {
+function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, tgTabBar = false, siteGuide = false, economy = false, navV2 = false, orderLocked = false, noWorkSpace = false, chatBare = false, listSlot, children }: AppShellProps) {
   // set while rendering, on purpose: the shell renders before its children, so every timer below reads the right period
   setEconomy(economy);
   const { t } = useI18n();
@@ -346,7 +349,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
         {/* N1.3: a thing of another space says so in one line instead of switching the app's space by itself */}
         {navV2 ? <SpaceBanner /> : null}
         {/* on the old phone the content stops above the fixed bottom bar (its 56px, its border and the home-indicator inset); the drawer has no bar */}
-        <div className={navV2 ? "flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] md:pb-0" : "flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:pb-0"}>
+        <div className={tgTabBar && !isGuest ? "flex min-h-0 flex-1 flex-col pb-[calc(4.25rem+env(safe-area-inset-bottom))] md:pb-0" : navV2 ? "flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)] md:pb-0" : "flex min-h-0 flex-1 flex-col pb-[calc(3.5rem+1px+env(safe-area-inset-bottom))] md:pb-0"}>
           <main id="zk-main" tabIndex={-1} className={cn("zk-safe-x min-w-0 flex-1 overflow-y-auto focus:outline-none focus-visible:ring-0 focus-visible:ring-offset-0", floatsOverPage && "md:pb-24")}>
             {showNoWork && !noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : null}
             {noWorkInstead ? <NoWorkSpace canCreate={canOverview} /> : children}
@@ -394,7 +397,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
             </div>
           ) : null}
         </>
-      ) : (
+      ) : tgTabBar && !isGuest ? null : (
         <BottomNav
           places={nav.places}
           current={place?.key ?? null}
@@ -408,6 +411,8 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
           canReset={hasOrder(order)}
         />
       )}
+
+      {tgTabBar && !isGuest ? <TelegramTabBar pathname={pathname} chatUnread={chatUnread} user={{ name: user.name, avatarUrl: user.avatarUrl ?? null }} /> : null}
 
       {/* the round quick chat in the corner (the owner's ask, 2026-10-30); the chat page itself is the full
           conversation, so the button stays out of its way, and never for a guest (no DMs at all) */}

@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo, useState } from "react";
-import { ArrowRight, ArrowUpDown } from "lucide-react";
+import { ArrowRight, ArrowUpDown, Pencil } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiPut } from "@/lib/api-client";
 import type { RowMenuContext } from "@/components/chat/v2/row-menu";
@@ -14,6 +14,7 @@ import { CHAT_ORDERS_KEY } from "@/lib/chat/v2/use-orders";
 import { useDayKey } from "@/lib/chat/v2/use-day";
 import { cn } from "@/lib/utils";
 import { ArrangeRows } from "./group-arrange";
+import { EditTopicGroupDialog } from "./group-dialogs";
 import { VirtualRows } from "./virtual-rows";
 
 /**
@@ -41,6 +42,7 @@ export function GroupTopicsPane({
   menu,
   selectedId,
   onBack,
+  onEdited,
 }: {
   spaceId: string;
   group: GroupPick;
@@ -53,11 +55,14 @@ export function GroupTopicsPane({
   menu: RowMenuContext;
   selectedId: string | null;
   onBack: () => void;
+  /** a manager changed the group's name or picture here: the list that opened it keeps the new ones */
+  onEdited?: (next: { name: string; emoji: string | null }) => void;
 }) {
   const tall = variant === "screen";
   const day = useDayKey();
   const qc = useQueryClient();
   const [arranging, setArranging] = useState(false);
+  const [editing, setEditing] = useState(false);
   const ordered = useMemo(() => forumRows(rows, spaceId, orders), [rows, spaceId, orders]);
   const inside = useMemo(() => topicsOfGroup(ordered, group.id, groups), [ordered, group.id, groups]);
   const live = useMemo(() => inside.filter((r) => !r.archived && !r.archivedByMe), [inside]);
@@ -90,6 +95,18 @@ export function GroupTopicsPane({
           </h2>
           <p className="truncate text-xs leading-4 text-fg-muted">{ctCount("chatui.forum.topics", live.length)}</p>
         </div>
+        {canManage && group.id !== null ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label={ct("chatgrp.edit")}
+            title={ct("chatgrp.edit")}
+            data-group-edit=""
+            className="grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+          >
+            <Pencil className="size-5" aria-hidden="true" />
+          </button>
+        ) : null}
         {canManage && live.length > 1 ? (
           <button
             type="button"
@@ -113,6 +130,7 @@ export function GroupTopicsPane({
       ) : (
         <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.forum.rows")} day={day} />
       )}
+      {editing && group.id !== null ? <EditTopicGroupDialog spaceId={spaceId} group={{ id: group.id, name: group.name, emoji: group.emoji }} onClose={() => setEditing(false)} {...(onEdited ? { onSaved: onEdited } : {})} /> : null}
     </div>
   );
 }

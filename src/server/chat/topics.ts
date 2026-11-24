@@ -538,6 +538,7 @@ export async function conversationDetail(
     // the owner in his OWN conversation with the assistant: the call button rings the assistant (only while the guide, which owns the voice call, is on)
     assistantCall: org!.role === "OWNER" /* oversight-ok: the owner's own assistant, not reading */ && isAssistantChatOf(conv.dmKey, ctx.userId) && (await isFeatureOn(ctx.orgId, "siteGuide")) && (await isFeatureOn(ctx.orgId, "ownerAssistant")),
     digest: org!.role !== "GUEST" && facts.kind === "TOPIC" && conv.dmKey === null && (await digestOffered(ctx.orgId)),
+    tgLook: await isFeatureOn(ctx.orgId, "tgLook"),
   };
 }
 
@@ -780,6 +781,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     imageOcr,
     assistantCall: org.role === "OWNER" /* oversight-ok: the owner's own assistant, not reading */ && isAssistantChatOf(conv.dmKey, ctx.userId) && siteGuide && (await feature("ownerAssistant")),
     digest,
+    tgLook: await feature("tgLook"),
   };
 }
 

@@ -15,7 +15,7 @@
  */
 // D1.1: «سماء» (light) and «ليل أزرق» (dark), the flat, list-first look; they are selectable like the others, and become the default of people who never chose
 // a theme only when a later step connects `systemTheme()` below (there is no switch yet: a switch that did nothing would lie); `DEFAULT_THEME` stays «ليل».
-export const THEME_KEYS = ["night", "day", "islamic-epic", "neon-coast", "sky", "blue-night"] as const;
+export const THEME_KEYS = ["night", "day", "islamic-epic", "neon-coast", "sky", "blue-night", "tg-night", "tg-day"] as const;
 export type ThemeKey = (typeof THEME_KEYS)[number];
 
 /** The night: the default for everybody who has not chosen. */
@@ -36,6 +36,9 @@ export const THEMES: Record<ThemeKey, ThemeInfo> = {
   "neon-coast": { key: "neon-coast", dark: true, headingFont: "plex" },
   sky: { key: "sky", dark: false, headingFont: "plex" },
   "blue-night": { key: "blue-night", dark: true, headingFont: "plex" },
+  // «تيليجرام» (2026-11-24): Telegram's own night and day colours, flat like the two themes of D1
+  "tg-night": { key: "tg-night", dark: true, headingFont: "plex" },
+  "tg-day": { key: "tg-day", dark: false, headingFont: "plex" },
 };
 
 /** The themes in the order the picker shows them. */

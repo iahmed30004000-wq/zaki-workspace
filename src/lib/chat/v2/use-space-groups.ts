@@ -58,9 +58,16 @@ export function useGroupActions(spaceId: string | null) {
     mutationFn: (input: { topicId: string; groupId: string | null }) => apiPatch(`/api/topics/${encodeURIComponent(input.topicId)}`, { groupId: input.groupId }),
     onSuccess: refresh,
   });
+  const update = useMutation({
+    mutationFn: (input: { groupId: string; name?: string; emoji?: string | null }) => {
+      const { groupId, ...rest } = input;
+      return apiPatch(`/api/groups/${encodeURIComponent(groupId)}`, rest);
+    },
+    onSuccess: refresh,
+  });
   const reorder = useMutation({
     mutationFn: (order: string[]) => apiPut("/api/groups", { spaceId, order }),
     onSuccess: refresh,
   });
-  return { create, move, reorder, refresh };
+  return { create, update, move, reorder, refresh };
 }

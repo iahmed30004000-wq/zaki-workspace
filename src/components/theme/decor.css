@@ -306,6 +306,42 @@
   display: none;
 }
 
+/* ── TG-NIGHT — flat: no decoration, the logo and the colour only ── */
+
+[data-theme="tg-night"] .zk-decor-door {
+  display: none;
+}
+
+[data-theme="tg-night"] .zk-decor-empty {
+  display: none;
+}
+
+[data-theme="tg-night"] .zk-decor-sidebar {
+  display: none;
+}
+
+[data-theme="tg-night"] .zk-decor-strip {
+  display: none;
+}
+
+/* ── TG-DAY — flat: no decoration, the logo and the colour only ── */
+
+[data-theme="tg-day"] .zk-decor-door {
+  display: none;
+}
+
+[data-theme="tg-day"] .zk-decor-empty {
+  display: none;
+}
+
+[data-theme="tg-day"] .zk-decor-sidebar {
+  display: none;
+}
+
+[data-theme="tg-day"] .zk-decor-strip {
+  display: none;
+}
+
 /* ── MOTION — only at the «full» level ── */
 
 /* The keyframes do nothing until a rule below uses them. */

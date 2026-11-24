@@ -229,10 +229,10 @@ const count = (markup: string, pattern: RegExp) => (markup.match(pattern) ?? [])
 describe("ThemePicker", () => {
   const markup = renderPicker("neon-coast", "off");
 
-  it("is the tour's theme stop and a labelled group of six radio cards", () => {
+  it("is the tour's theme stop and a labelled group of eight radio cards", () => {
     expect(markup).toContain('data-tour="theme"');
     expect(markup).toMatch(/<fieldset[^>]*>[\s\S]*<legend[^>]*>[^<]*المظهر/);
-    expect(count(markup, /type="radio" name="zk-theme"/g)).toBe(6);
+    expect(count(markup, /type="radio" name="zk-theme"/g)).toBe(8);
     for (const key of THEME_KEYS) expect(markup).toContain(`value="${key}"`);
   });
 
