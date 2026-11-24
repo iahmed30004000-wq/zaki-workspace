@@ -6,6 +6,9 @@ import { LocalQueue } from "@/server/ai/local-queue";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
 import { callLocal, jsonOf, targetOf, type LocalTransport } from "@/server/ai/local-transport";
 import { AiProviderError } from "@/server/ai/provider";
+import { redactText } from "@/server/ai/redact";
+import { judgeGatewayAddress } from "@/server/services/gateway-address";
+import { getSettings, readGatewayKey } from "@/server/services/owner-assistant-settings";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { openStored } from "@/server/services/files";
 import type { ApiErrorCode } from "@/server/api";
@@ -13,7 +16,9 @@ import type { ApiErrorCode } from "@/server/api";
 /**
  * «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine.
  *
- *   WHERE   `TRANSCRIBE_URL` (an origin such as `http://whisper:8000`) in the server's environment, judged by the same allow-list as the
+ *   WHERE   chosen on the owner's AI settings screen («تفريغ الصوت»): a service inside the server (`transcribeBaseUrl`) or the OpenAI-compatible gateway of the
+ *           assistant (its address and key); when nothing is chosen there, `TRANSCRIBE_URL` (an origin such as `http://whisper:8000`) in the server's environment as
+ *           before, judged by the same allow-list as the
  *           local model (src/server/ai/local-host.ts: his machine or private network only, a public address is refused) and again on
  *           every call; `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_LANGUAGE` (default `ar`, empty: let the service guess).
  *           The service speaks the OpenAI shape: POST `/v1/audio/transcriptions`, a multipart form, the answer `{ "text": "…" }`
@@ -39,6 +44,12 @@ export interface TranscribeServer {
   model: string;
   /** null: the service decides the language. */
   language: string | null;
+  /** The gateway's Bearer key, sent in one header to the judged origin only. */
+  bearer?: string;
+  /** An outside https gateway the owner allowed: the socket accepts public addresses only. */
+  external?: boolean;
+  /** The text goes through the assistant's privacy filter before it is kept (a gateway that is not confirmed local). */
+  filter?: boolean;
 }
 
 /** The speech-to-text service of this installation, or null while it has none (the feature then hides its button). */
@@ -55,9 +66,35 @@ export function transcribeServer(source: Readonly<Record<string, string | undefi
   return { origin: parsed.target.origin, model, language: language === "" ? null : language };
 }
 
+/**
+ * The service of THIS company: the one chosen on the AI settings screen («خدمة محلية» or the assistant's gateway), else the server's variable (`transcribeServer`), else
+ * none. A gateway that is not confirmed local, or that sits at an outside address, is an EXTERNAL service: its text is filtered (`filter`) like the assistant's.
+ */
+export async function resolveTranscribeServer(orgId: string, source: Readonly<Record<string, string | undefined>> = process.env): Promise<TranscribeServer | null> {
+  const settings = await getSettings(orgId);
+  const language = (() => {
+    const raw = source["TRANSCRIBE_LANGUAGE"];
+    const value = raw === undefined ? "ar" : raw.trim().toLowerCase();
+    return value === "" ? null : /^[a-z]{2,3}$/.test(value) ? value : "ar";
+  })();
+  const model = (settings.transcribeModel ?? "").trim() || "whisper-1";
+  if (settings.transcribeSource === "local") {
+    const parsed = parseLocalBaseUrl(settings.transcribeBaseUrl);
+    return parsed.ok ? { origin: parsed.target.origin, model, language } : null;
+  }
+  if (settings.transcribeSource === "gateway") {
+    const address = await judgeGatewayAddress(orgId, settings.gatewayBaseUrl);
+    if (!address.ok) return null;
+    const bearer = settings.hasGatewayKey ? await readGatewayKey(orgId) : null;
+    const local = settings.gatewayConfirmedLocal && !address.external;
+    return { origin: address.target.origin, model, language, ...(bearer ? { bearer } : {}), ...(address.external ? { external: true } : {}), filter: !local };
+  }
+  return transcribeServer(source);
+}
+
 /** Is the button to be drawn for this company: the switch is on AND a service is set up. */
 export async function transcriptAvailable(orgId: string, source: Readonly<Record<string, string | undefined>> = process.env): Promise<boolean> {
-  return transcribeServer(source) !== null && (await isFeatureOn(orgId, "voiceTranscript"));
+  return (await isFeatureOn(orgId, "voiceTranscript")) && (await resolveTranscribeServer(orgId, source)) !== null;
 }
 
 export class VoiceTranscriptError extends Error {
@@ -140,8 +177,17 @@ export async function transcribeBytes(
     options.boundary ?? `zk${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`,
   );
   try {
-    const target = targetOf(server.origin);
-    const run = () => callLocal({ target, method: "POST", path: TRANSCRIPT_PATH, raw: form, timeoutMs: TRANSCRIBE_TIMEOUT_MS, ...(options.transport ? { transport: options.transport } : {}) });
+    const target = targetOf(server.origin, server.external === true);
+    const run = () =>
+      callLocal({
+        target,
+        method: "POST",
+        path: TRANSCRIPT_PATH,
+        raw: form,
+        timeoutMs: TRANSCRIBE_TIMEOUT_MS,
+        ...(server.bearer ? { headers: { authorization: `Bearer ${server.bearer}` } } : {}),
+        ...(options.transport ? { transport: options.transport } : {}),
+      });
     const res = await (options.queue ?? transcribeQueue).run(run);
     const json = jsonOf(res) as { text?: unknown } | null;
     return json && typeof json.text === "string" ? json.text.trim().slice(0, MAX_TRANSCRIPT_CHARS) : "";
@@ -183,12 +229,14 @@ export async function transcribeAttachment(
   if (att.message.deletedAt && !actor.isOwner) throw new NotFoundError("voiceTranscript.not_found");
   const kept = transcriptOf(att.file.meta);
   if (kept) return { text: kept.text, cached: true };
-  const server = transcribeServer(options.source);
+  const server = await resolveTranscribeServer(actor.orgId, options.source);
   if (!server) throw new VoiceTranscriptError("voiceTranscript.err_not_configured");
   const opened = await openStored(actor.orgId, att.file.id);
   if (opened.size > MAX_TRANSCRIBE_BYTES) throw new VoiceTranscriptError("voiceTranscript.err_big");
   const bytes = await readAll(await opened.stream(null), MAX_TRANSCRIBE_BYTES);
-  const text = await transcribeBytes(server, { bytes, mime: att.file.mimeType }, { ...(options.transport ? { transport: options.transport } : {}), ...(options.queue ? { queue: options.queue } : {}) });
+  const heard = await transcribeBytes(server, { bytes, mime: att.file.mimeType }, { ...(options.transport ? { transport: options.transport } : {}), ...(options.queue ? { queue: options.queue } : {}) });
+  // a service that may be outside the owner's machine: the same filter as the assistant (numbers, e-mails, links, handles) before the words are kept
+  const text = server.filter && heard !== "" ? redactText(heard).text : heard;
   if (text === "") throw new VoiceTranscriptError("voiceTranscript.err_empty");
   // written once: a second request that raced this one keeps the first text
   const fresh = await db.storedFile.findUnique({ where: { id: att.file.id }, select: { meta: true } });

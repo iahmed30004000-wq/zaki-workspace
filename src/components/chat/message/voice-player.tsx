@@ -43,7 +43,7 @@ function useVoiceView(src: string): View {
  * The speed chip («1×» → «1.5×» → «2×») shows while this note is the active one, and on every note once the person has picked a speed other than 1×; an
  * idle note at 1× looks exactly as it always did. The old screen and the quick chat use this player too, and get the same behaviour without a queue.
  */
-export function VoicePlayer({ src, peaks = [], durationMs = 0, mine = false }: { src: string; peaks?: number[]; durationMs?: number; /** the note sits in the person's OWN bubble, which is the accent colour: the player is drawn in the bubble's text colour so it shows */ mine?: boolean }) {
+export function VoicePlayer({ src, peaks = [], durationMs = 0, mine = false, speedAlways = false }: { src: string; peaks?: number[]; durationMs?: number; /** «الصوت زي تيليجرام»: the speed button is on every note (not only the one that plays) */ speedAlways?: boolean; /** the note sits in the person's OWN bubble, which is the accent colour: the player is drawn in the bubble's text colour so it shows */ mine?: boolean }) {
  const root = React.useRef<HTMLDivElement | null>(null);
  const view = useVoiceView(src);
  const [total, setTotal] = React.useState(durationMs);
@@ -86,7 +86,7 @@ export function VoicePlayer({ src, peaks = [], durationMs = 0, mine = false }: {
     ))}
    </div>
    <span className={`w-11 shrink-0 text-xs tabular-nums ${tone.time}`} dir="ltr">{formatDuration(left)}</span>
-   {active || speed !== 1 ? (
+   {speedAlways || active || speed !== 1 ? (
     <button
      type="button"
      data-voice-speed={speed}

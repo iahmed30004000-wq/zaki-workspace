@@ -2309,6 +2309,11 @@ model AiSettings {
   gatewayKeyLast4       String?
   gatewayConfirmedLocal Boolean  @default(false)
   localRelaxRedaction   Boolean  @default(false)
+  // «تفريغ الصوت»: which speech-to-text service the voice notes go to - null (the server's TRANSCRIBE_URL variable, as before), "local" (an
+  // address inside the server, `transcribeBaseUrl`) or "gateway" (the OpenAI-compatible gateway above, with its key). `transcribeModel` is the model name.
+  transcribeSource      String?
+  transcribeBaseUrl     String?
+  transcribeModel       String?
   updatedAt          DateTime @updatedAt
 }
 

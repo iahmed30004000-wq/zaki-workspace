@@ -26,7 +26,7 @@ const pct = (part: number, whole: number) => `${Math.round((part / whole) * 1e6)
  * reserves the same box), and a tap on a picture of a mosaic, or on a lone picture, opens the media viewer. OFF: exactly the old rendering, one box per
  * picture and no viewer. A voice note and a file line are the same in both.
  */
-export function BubbleMedia({ attachments, kind, canTranscribe, canReadImages, albums = true, mine = false }: { attachments: AttachmentDto[]; kind: MessageKind; canTranscribe: boolean; canReadImages: boolean; albums?: boolean; /** the bubble is the person's own (the accent colour): a voice note is drawn in its text colour */ mine?: boolean }) {
+export function BubbleMedia({ attachments, kind, canTranscribe, canReadImages, albums = true, mine = false, voiceTg = true }: { attachments: AttachmentDto[]; kind: MessageKind; canTranscribe: boolean; canReadImages: boolean; albums?: boolean; /** «الصوت زي تيليجرام»: the speed button shows on every voice note */ voiceTg?: boolean; /** the bubble is the person's own (the accent colour): a voice note is drawn in its text colour */ mine?: boolean }) {
   const source = React.useContext(MediaViewerContext);
   // With a provider above the conversation the viewer is drawn THERE (a bubble that is deleted or scrolled away must not take it along) and steps through the whole
   // loaded conversation. Without one the viewer is drawn here, over this bubble's own pictures. Either way only the tapped picture is remembered and the list is
@@ -58,7 +58,7 @@ export function BubbleMedia({ attachments, kind, canTranscribe, canReadImages, a
       return (
         <div key={file.id} data-voice-box>
           <div className="flex items-center" style={{ height: VOICE_BOX_PX }}>
-            <VoicePlayer src={url} peaks={file.peaks} durationMs={file.durationMs} mine={mine} />
+            <VoicePlayer src={url} peaks={file.peaks} durationMs={file.durationMs} mine={mine} speedAlways={voiceTg} />
           </div>
           {canTranscribe && <VoiceTranscript attachmentId={file.id} />}
         </div>

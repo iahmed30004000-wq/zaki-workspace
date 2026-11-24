@@ -49,6 +49,10 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
   const [allowNames, setAllowNames] = useState(initial.allowNames);
   const [allowTitles, setAllowTitles] = useState(initial.allowTitles);
   const [local, setLocal] = useState<LocalValue>(() => localValueOf(initial));
+  // «تفريغ الصوت»: the service the voice notes go to ("" = the server's own variable, as before)
+  const [tSource, setTSource] = useState<"" | "local" | "gateway">(initial.transcribeSource ?? "");
+  const [tUrl, setTUrl] = useState(initial.transcribeBaseUrl ?? "");
+  const [tModel, setTModel] = useState(initial.transcribeModel ?? "");
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
@@ -122,6 +126,9 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
         gatewayModel: local.gatewayModel.trim(),
         gatewayConfirmedLocal: local.gatewayConfirmedLocal,
         localRelaxRedaction: local.localRelaxRedaction,
+        transcribeSource: tSource === "" ? null : tSource,
+        transcribeBaseUrl: tUrl.trim(),
+        transcribeModel: tModel.trim(),
       });
       setMessage({ ok: true, text: t("assistant.settings.saved") });
     } catch (err) {
@@ -263,6 +270,32 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
             </span>
           </span>
         </label>
+      </section>
+
+      <section className={card} aria-label={t("assistant.transcribe.title")} data-testid="ai-transcribe">
+        <h2 className="text-sm font-semibold">{t("assistant.transcribe.title")}</h2>
+        <p className="text-sm leading-7 text-muted">{t("assistant.transcribe.hint")}</p>
+        <label className="flex flex-col gap-1 text-xs text-muted">
+          {t("assistant.transcribe.source")}
+          <select value={tSource} onChange={(e) => setTSource(e.target.value as "" | "local" | "gateway")} className={field} data-testid="ai-transcribe-source">
+            <option value="">{t("assistant.transcribe.none")}</option>
+            <option value="local">{t("assistant.transcribe.local")}</option>
+            <option value="gateway">{t("assistant.transcribe.gateway")}</option>
+          </select>
+        </label>
+        {tSource === "local" ? (
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            {t("assistant.transcribe.url")}
+            <input type="text" dir="ltr" value={tUrl} onChange={(e) => setTUrl(e.target.value)} placeholder="http://whisper:8000" className={`${field} text-start`} data-testid="ai-transcribe-url" />
+          </label>
+        ) : null}
+        {tSource !== "" ? (
+          <label className="flex flex-col gap-1 text-xs text-muted">
+            {t("assistant.transcribe.model")}
+            <input type="text" dir="ltr" value={tModel} onChange={(e) => setTModel(e.target.value)} placeholder="whisper-1" className={`${field} text-start`} data-testid="ai-transcribe-model" />
+          </label>
+        ) : null}
+        {tSource === "gateway" ? <p className="text-xs leading-6 text-warn">{t("assistant.transcribe.gateway_warning")}</p> : null}
       </section>
 
       <div className="flex flex-wrap items-center gap-3">
