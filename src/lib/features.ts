@@ -422,7 +422,7 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   themeSwitchFx: true,
   // «الصوت زي تيليجرام» (src/components/chat/message/voice-player.tsx, src/components/chat/v2/pane/voice-mini-player.tsx): the speed button (1x, 1.5x, 2x) is drawn on EVERY voice note, not only the one that plays, and the bar under the header stays while a note plays even when its bubble is on screen. ON by default; off: the chip shows only on the playing note and the bar only when its bubble is out of sight, exactly as before. The speed itself stays the person own choice.
   voiceTelegram: true,
-  // «نص مباشر أثناء التسجيل» (src/lib/chat/v2/composer/use-live-dictation.ts): while a voice note is recorded, the phone own speech recognition writes a live transcript above the composer (a language picker, and «ابعت كنص» sends it as a text message instead of the voice). OFF by default: Chrome on Android sends the sound to Google to recognise it, so the words leave the company. Off: no live text, no button, the recorder is exactly what it was.
+  // «نص مباشر أثناء التسجيل» (the engine src/lib/chat/v2/dictation.ts): while a voice note is recorded, the phone own speech recognition writes a live transcript above the composer (a language picker, and «ابعت كنص» sends it as a text message instead of the voice). OFF by default: Chrome on Android sends the sound to Google to recognise it, so the words leave the company. Off: no live text, no button, the recorder is exactly what it was.
   voiceLiveText: false,
 };
 

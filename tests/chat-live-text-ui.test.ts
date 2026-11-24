@@ -25,7 +25,7 @@ describe("the recorder bar with live text", () => {
     expect(textOf(html)).toContain("مرحبا شباب كيفكم");
     expect(textOf(html)).toContain(AR["chatlive.send_text"]);
     expect(textOf(html)).toContain(AR["chatlive.listening"]);
-    expect(html.indexOf("العربية (الأردن)")).toBeLessThan(html.indexOf("English"));
+    expect(html.indexOf(AR["chatlive.lang_ar_jo"]!)).toBeLessThan(html.indexOf(AR["chatlive.lang_en_us"]!));
     expect(html).toContain('value="ar-JO" selected');
   });
 

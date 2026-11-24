@@ -8,11 +8,12 @@
  * recording itself goes on.
  */
 
+/** Each language is a code for the browser and a key of the dictionary for the picker (never a word in the code). */
 export const DICTATION_LANGS = [
-  { code: "ar-JO", label: "العربية (الأردن)" },
-  { code: "ar-SA", label: "العربية (السعودية)" },
-  { code: "ar-EG", label: "العربية (مصر)" },
-  { code: "en-US", label: "English" },
+  { code: "ar-JO", labelKey: "chatlive.lang_ar_jo" },
+  { code: "ar-SA", labelKey: "chatlive.lang_ar_sa" },
+  { code: "ar-EG", labelKey: "chatlive.lang_ar_eg" },
+  { code: "en-US", labelKey: "chatlive.lang_en_us" },
 ] as const;
 export const DEFAULT_DICTATION_LANG = "ar-JO";
 export const DICTATION_MAX_CHARS = 4000;

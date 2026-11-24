@@ -2,6 +2,7 @@
 
 import React from "react";
 import { Send, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { ROUND_BUTTON } from "@/components/chat/v2/composer/composer-styles";
 import { ct } from "@/lib/chat/text";
 import { DICTATION_LANGS, type DictationError } from "@/lib/chat/v2/dictation";
@@ -52,22 +53,16 @@ export function RecordBar({ voice, error, live, onCancel, onSend }: { voice: Exc
             >
               {DICTATION_LANGS.map((l) => (
                 <option key={l.code} value={l.code}>
-                  {l.label}
+                  {ct(l.labelKey)}
                 </option>
               ))}
             </select>
             <span className="text-xs text-fg-muted" aria-live="polite">
               {liveStatus(live)}
             </span>
-            <button
-              type="button"
-              data-live-send
-              onClick={live.sendAsText}
-              disabled={live.text === ""}
-              className="ms-auto min-h-9 rounded-full bg-accent px-3 text-sm font-semibold text-accent-fg disabled:opacity-50"
-            >
+            <Button type="button" size="sm" data-live-send onClick={live.sendAsText} disabled={live.text === ""} className="ms-auto rounded-full font-semibold">
               {ct("chatlive.send_text")}
-            </button>
+            </Button>
           </div>
           <p dir="auto" aria-live="polite" className="min-h-6 whitespace-pre-wrap break-words text-sm text-fg">
             {live.text || ct("chatlive.placeholder")}
