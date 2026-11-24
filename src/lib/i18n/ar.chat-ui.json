@@ -246,5 +246,9 @@
   "chatui.info.menu": "المزيد",
   "chatui.info.share": "شارك الملف",
   "chatui.info.share_copied": "اننسخ رابط الملف",
-  "chatui.info.share_failed": "ما زبط النسخ، جرّب كمان مرة"
+  "chatui.info.share_failed": "ما زبط النسخ، جرّب كمان مرة",
+  "chatui.info.qr_share": "شارك الرمز",
+  "chatui.info.qr_download": "نزّل الصورة",
+  "chatui.info.qr_copied": "اننسخ رابط الملف",
+  "chatui.info.qr_failed": "ما زبطت العملية، جرّب كمان مرة"
 }
