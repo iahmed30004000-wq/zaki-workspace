@@ -43,6 +43,27 @@ describe("the assistant's line", () => {
     expectClean(html);
   });
 
+  it("the card is an opaque surface with the theme's text colour (no see-through tint that fades on the dark themes or over a wallpaper)", () => {
+    const cases: Array<Record<string, string | number>> = [{ text: "جواب", read: 2 }, { text: AR["chatai.err.key_rejected"] ?? "", err: "key_rejected" }];
+    for (const p of cases) {
+      const tokens = classTokens(line(p));
+      expect(tokens).toContain("bg-surface-1");
+      expect(tokens).toContain("text-fg");
+      expect(tokens.filter((t) => /^bg-(info|warn)\/\d+$/.test(t)), "no tinted see-through background").toEqual([]);
+    }
+  });
+
+  it("a key the provider refused (or no key) links to the AI settings, where «افحص المفتاح» is; other refusals do not", () => {
+    for (const err of ["key_rejected", "no_key"]) {
+      const html = line({ text: "x", err });
+      expect(html).toContain("data-assistant-fix");
+      expect(html).toContain('href="/owner/assistant/settings"');
+      expect(textOf(html)).toContain(AR["chatai.fix_settings"] ?? "?");
+    }
+    expect(line({ text: "x", err: "guest" })).not.toContain("data-assistant-fix");
+    expect(line({ text: "x", read: 1 })).not.toContain("data-assistant-fix");
+  });
+
   it("the text is plain text: markup the model writes is not markup", () => {
     const html = line({ text: "<img src=x onerror=alert(1)> **bold**", read: 1 });
     expect(html).not.toContain("<img");

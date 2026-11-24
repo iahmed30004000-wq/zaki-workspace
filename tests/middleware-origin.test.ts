@@ -91,6 +91,19 @@ describe("middleware", () => {
     }
   });
 
+  it("a cookie-less call to /mcp (a real MCP client) reaches the server, never the login page; its own Bearer decides", async () => {
+    for (const method of ["POST", "GET"]) {
+      const res = await middleware(req("/mcp", { method, headers: { authorization: "Bearer zws_x", "content-type": "application/json" } }));
+      expect(res.status, method).not.toBe(307);
+      expect(res.headers.get("location"), method).toBeNull();
+      expect(res.headers.get("x-middleware-next"), method).toBe("1");
+    }
+    // with a sub-path too, and a look-alike is still a page behind the login
+    expect((await middleware(req("/mcp/", { method: "POST" }))).headers.get("x-middleware-next")).toBe("1");
+    const lookalike = await middleware(req("/mcpx", { method: "POST" }));
+    expect(lookalike.status).toBe(307);
+  });
+
   it("still redirects anonymous page requests to /login", async () => {
     const res = await middleware(req("/projects"));
     expect(res.status).toBe(307);
