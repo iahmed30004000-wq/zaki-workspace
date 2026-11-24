@@ -76,8 +76,8 @@ export function InfoTabs({ header, people = null, initialTab }: { header: Conver
   const known = (id: PagedTab): number | null => (counts ? tabs.find((t) => t.id === id)?.count ?? 0 : null);
 
   return (
-    <section data-info-tabs className="mt-2 border-t border-border bg-surface-1">
-      <div role="tablist" aria-label={ct("chatinfo.tabs.label")} onKeyDown={onKeyDown} className="flex flex-wrap gap-1 px-2 py-2">
+    <section data-info-tabs className={header.tgLook !== false ? "mx-3 mb-3 mt-2 rounded-2xl bg-surface-1 shadow-card" : "mt-2 border-t border-border bg-surface-1"}>
+      <div role="tablist" aria-label={ct("chatinfo.tabs.label")} onKeyDown={onKeyDown} className={header.tgLook !== false ? "m-2 flex flex-wrap gap-1 rounded-full bg-surface-2 p-1" : "flex flex-wrap gap-1 px-2 py-2"}>
         {tabs.map((tab) => (
           <TabButton key={tab.id} tab={tab} selected={tab.id === active} onSelect={() => setChosen(tab.id)} />
         ))}

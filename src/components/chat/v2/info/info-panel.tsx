@@ -8,6 +8,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { InfoTabs } from "@/components/chat/v2/info/info-tabs";
 import { MuteRow } from "@/components/chat/v2/info/info-mute";
+import { InfoMenu } from "@/components/chat/v2/info/info-menu";
 import { TopicSoundRow } from "@/components/chat/v2/info/info-sound";
 import { CallButton } from "@/components/calls/call-button";
 import { TopicSettingsDialog } from "@/components/chat/conversation/topic-settings-dialog";
@@ -70,6 +71,9 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
   const teamName = useTeamName(header.id, header.space?.id ?? null, header.teamId ?? null);
   const model = infoModelOf(header, { people, teamName, system });
   const profile = usePeerProfile(header.id, model.peerId);
+  // S6.4 «شكل تيليجرام»: rounded inset cards, three equal tiles, the «⋮» corner menu (the company's switch `tgLook`; absent: on)
+  const tg = header.tgLook !== false;
+  const cardClass = tg ? "mx-3 mt-2 rounded-2xl bg-surface-1 px-4 py-3 shadow-card" : card;
   // C3a.3: «الرسائل المحفوظة» — a chat with myself: a bookmark for a picture, no call (nobody to ring), no profile, and ONE line that says the owner's rule honestly
   // the list's row says it by the chat's KEY (its other person is me); the header's own look is only for a header opened before the list is in the cache
   const saved = listed ? isSavedRow(listed, header.me.id) : isSavedHeader(header);
@@ -88,7 +92,8 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <section data-info-hero className="flex flex-col items-center gap-1 px-4 pb-3 pt-6 text-center">
+        <section data-info-hero className="relative flex flex-col items-center gap-1 px-4 pb-3 pt-6 text-center">
+          {tg && model.kind === "dm" && !saved && model.peerId ? <InfoMenu userId={model.peerId} name={header.title} onSearch={onSearch} /> : null}
           {saved ? (
             <span aria-hidden="true" data-info-saved-avatar className="grid size-24 place-items-center rounded-full bg-accent text-accent-fg">
               <Bookmark className="size-12" />
@@ -108,7 +113,7 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
           {model.subtitle && !saved ? <p className="max-w-full break-words text-sm text-fg-muted">{model.subtitle}</p> : null}
         </section>
 
-        <div className="grid grid-cols-2 gap-2 px-4 pb-3 sm:grid-cols-3">
+        <div className={`grid ${tg ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3"} gap-2 px-4 pb-3`}>
           <button type="button" data-info-button="search" onClick={onSearch} className={pill}>
             <Search aria-hidden="true" className="size-6" />
             {ct("chatui.info.search")}
@@ -116,11 +121,11 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
           {model.buttons.includes("call") && !saved ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
         </div>
 
-        <MuteRow header={header} saved={saved} />
+        <MuteRow header={header} saved={saved} tg={tg} />
         {/* S5.1: «صوت هالموضوع»: كل الرسائل / الذكر بس (this device; only while the company's switch `chatSounds` is on) */}
         <TopicSoundRow header={header} saved={saved} />
 
-        <div className={`space-y-3 ${card}`}>
+        <div className={`space-y-3 ${cardClass}`}>
           {model.kind === "dm" && profile ? (
             <div data-info-profile className="space-y-2 text-sm">
               {profile.jobTitle ? (
