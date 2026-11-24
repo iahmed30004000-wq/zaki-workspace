@@ -8,7 +8,7 @@ import { editChangesTime, type ScheduleSubmit } from "@/components/chat/v2/compo
 import type { OutboxRestore } from "@/components/chat/composer/chat-composer";
 import { dropStalePending, replacePending, syncPendingWithOutbox } from "@/lib/chat/cache/pending";
 import { clearComposerDraft, loadComposerDraft, saveComposerDraft } from "@/lib/chat/composer-draft";
-import { compressImage, maxSideFor } from "@/lib/chat/compress-image";
+import { compressImage, HIGH_MAX_SIDE, maxSideFor } from "@/lib/chat/compress-image";
 import { readDevicePrefs } from "@/lib/device-prefs";
 import { sendKeyAllows } from "@/lib/chat/prefs";
 import { isSavedHeader } from "@/lib/chat/v2/menu/menu-context";
@@ -211,6 +211,22 @@ export function useComposer(p: ComposerParams) {
       return current.filter((_, i) => i !== index);
     });
   }
+  /** The editor's result takes the place of the file at `index` (same place in the tray, same choice of quality): the old preview is let go, the new one made. */
+  function replaceFile(index: number, file: File) {
+    setClientId(messageClientId());
+    setFiles((current) =>
+      current.map((item, i) => {
+        if (i !== index) return item;
+        if (item.preview) URL.revokeObjectURL(item.preview);
+        const kind = classifyFile(file);
+        return { ...item, file, kind, preview: kind === "IMAGE" || kind === "VIDEO" ? URL.createObjectURL(file) : null };
+      }),
+    );
+  }
+  /** «جودة عالية» for one picture of the tray. */
+  function setHd(index: number, on: boolean) {
+    setFiles((current) => current.map((item, i) => (i === index ? { ...item, hd: on } : item)));
+  }
   function selectMention(id: string, name: string) {
     setClientId(messageClientId());
     const nextBody = insertMention(body, name);
@@ -302,7 +318,7 @@ export function useComposer(p: ComposerParams) {
       let upload = item.file;
       // «ابعتها كملف»: the original bytes, never compressed
       if (item.kind === "IMAGE" && !item.asFile) {
-        const compressed = await compressImage(item.file, item.file.name, { maxSide: maxSideFor(readDevicePrefs().imageQuality) });
+        const compressed = await compressImage(item.file, item.file.name, item.hd ? { maxSide: HIGH_MAX_SIDE } : { maxSide: maxSideFor(readDevicePrefs().imageQuality) });
         if (compressed) upload = new File([compressed.blob], item.file.name, { type: compressed.mime });
       }
       if (exceedsKindLimit(upload.size, item.kind)) throw new Error(ct("chatc.file_too_large"));
@@ -782,7 +798,7 @@ export function useComposer(p: ComposerParams) {
     hint: composerHintOf(body, detail, editing !== null),
     pollOpen, setPollOpen, recall, setRecall, feedback, setFeedback, pasted, setPasted, noPreview, setNoPreview,
     textRef, mediaInput, fileInput,
-    addFiles, addDropped: (list: ArrayLike<File>, asFile: boolean) => addFiles(forDropMode(list, asFile ? "files" : "media")), removeFile, selectMention, insertAtCaret,
+    addFiles, addDropped: (list: ArrayLike<File>, asFile: boolean) => addFiles(forDropMode(list, asFile ? "files" : "media")), removeFile, replaceFile, setHd, selectMention, insertAtCaret,
     onTextChange, onKeyDown, onPaste, submit, submitSilent, silentSendOn: detail.silentSend !== false, sendPasted,
     // C3c.3: the send menu's «جدول الإرسال» (only where the person may write and the company's switch is on), the dialogs and the list
     scheduling: !editing && plan.entry && scheduledList?.canSchedule !== false, scheduledCount: scheduledList ? scheduledList.items.length : plan.count, scheduledItems: scheduledList?.items ?? [], scheduledZone: scheduledList?.timeZone ?? "UTC",

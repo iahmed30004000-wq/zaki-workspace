@@ -7,6 +7,8 @@ export interface PendingFile {
   kind: FileKind;
   preview: string | null;
   asFile: boolean;
+  /** «جودة عالية» (S6.2): this picture keeps the high limit of the longest side instead of the device's choice */
+  hd?: boolean;
 }
 
 /**

@@ -38,6 +38,7 @@ export function ChatComposerV2(props: ComposerParams) {
         formatting={detail.chatFormatting !== false}
         linkPreviews={detail.linkPreviews !== false}
         zakiEmojis={detail.zakiEmojis !== false}
+        attachSheet={detail.tgLook !== false}
         onNoPreviewChange={c.setNoPreview}
         onEmoji={(emoji) => {
           // a Zaki sticker goes in as its text code like an emoji, but it is not a recent emoji (`rememberEmoji` keeps it out)
