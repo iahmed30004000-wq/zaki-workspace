@@ -21,7 +21,7 @@ import javax.inject.Singleton
  * A crash cannot make a network call — the process is dying — so every report is a small JSON file in the app's own storage,
  * written at once, and `ClientErrorUploadWorker` sends them (20 at a time) to `/api/client-errors` once somebody is signed in,
  * then deletes what the server took. At most 50 files are kept: a crash loop must not fill the phone. A report holds the
- * exception and the screen's name only — never a message, a file name or anything the person typed.
+ * exception's class, its code frames ([SafeTrace]) and the screen's name only — never a message, a file name or anything typed.
  */
 @Singleton
 class CrashStore @Inject constructor(@ApplicationContext context: Context) {
@@ -64,20 +64,44 @@ class CrashStore @Inject constructor(@ApplicationContext context: Context) {
     companion object { const val MAX_FILES = 50 }
 }
 
+/**
+ * What of an exception may leave the phone: its class and its code frames, for it and its causes — never its MESSAGE. A message
+ * can carry what the person typed or what the server answered («For input string: "…"», a JSON fragment of a chat), and the house
+ * rule is that no such thing reaches a log. Pure (unit-tested).
+ */
+object SafeTrace {
+    fun headline(error: Throwable, thread: String? = null): String = error.javaClass.name + (thread?.let { " [$it]" } ?: "")
+
+    fun stack(error: Throwable, maxCauses: Int = 5, maxFrames: Int = 40): String {
+        val out = StringBuilder()
+        var t: Throwable? = error
+        var depth = 0
+        val seen = HashSet<Throwable>()
+        while (t != null && depth < maxCauses && seen.add(t)) {
+            if (depth > 0) out.append("Caused by: ")
+            out.append(t.javaClass.name).append('\n')
+            for (f in t.stackTrace.take(maxFrames)) out.append("\tat ").append(f).append('\n')
+            t = t.cause
+            depth++
+        }
+        return out.toString()
+    }
+}
+
 /** The uncaught-exception hook: the report is on disk before the process goes, then the system's own handler runs. */
 @Singleton
 class CrashReporter @Inject constructor(private val store: CrashStore) {
     fun install() {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, error ->
-            store.record("CRASH", "${error.javaClass.name}: ${error.message.orEmpty()} [${thread.name}]", error.stackTraceToString())
+            store.record("CRASH", SafeTrace.headline(error, thread.name), SafeTrace.stack(error))
             previous?.uncaughtException(thread, error)
         }
     }
 
     /** A caught error worth knowing about (an answer the app could not read). */
     fun caught(error: Throwable, where: String) {
-        store.record("ERROR", "$where: ${error.javaClass.simpleName}: ${error.message.orEmpty()}", error.stackTraceToString())
+        store.record("ERROR", "$where: ${SafeTrace.headline(error)}", SafeTrace.stack(error))
     }
 }
 

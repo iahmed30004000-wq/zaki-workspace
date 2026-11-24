@@ -44,6 +44,17 @@ data class OutboxItem(
     val attempts: Int = 0,
     /** the server's refusal (a key, never a body): a refused row stops, it is shown with «حاول مرة تانية» / «احذف» */
     val refusedKey: String? = null,
+    /**
+     * Who wrote it (the user id). Only the person who wrote a row may send it: after somebody else signs in on this phone,
+     * the worker drops rows that are not theirs instead of sending them in the new person's name.
+     */
+    val ownerId: String = "",
+    /**
+     * When the server took it. A sent row is KEPT (drawn as a normal message) until the conversation's answer carries a message
+     * with its clientId — so a message is never missing from the screen between «sent» and «fetched» (the person would type it
+     * again, and the retry would have a new clientId). Rows sent more than a day ago are swept.
+     */
+    val sentAt: Long? = null,
 )
 
 @Dao
@@ -63,15 +74,30 @@ interface OutboxDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun add(item: OutboxItem)
 
-    /** Waiting to be sent, oldest first (a refused row is not retried by itself). */
-    @Query("SELECT * FROM outbox WHERE refusedKey IS NULL ORDER BY createdAt ASC LIMIT :limit")
+    /** Waiting to be sent, oldest first (a refused row is not retried by itself; a sent one is done). */
+    @Query("SELECT * FROM outbox WHERE refusedKey IS NULL AND sentAt IS NULL ORDER BY createdAt ASC LIMIT :limit")
     suspend fun due(limit: Int = 50): List<OutboxItem>
 
     @Query("SELECT * FROM outbox WHERE kind = :kind AND target = :target ORDER BY createdAt ASC")
     fun watch(kind: String, target: String): Flow<List<OutboxItem>>
 
-    @Query("SELECT COUNT(*) FROM outbox")
+    /** What still waits to be sent (the settings screen's number). */
+    @Query("SELECT COUNT(*) FROM outbox WHERE sentAt IS NULL")
     fun count(): Flow<Int>
+
+    @Query("UPDATE outbox SET sentAt = :at WHERE clientId = :clientId")
+    suspend fun sent(clientId: String, at: Long)
+
+    /** The server's answer now carries these messages: their outbox copies are no longer needed. */
+    @Query("DELETE FROM outbox WHERE sentAt IS NOT NULL AND clientId IN (:clientIds)")
+    suspend fun seen(clientIds: List<String>)
+
+    @Query("DELETE FROM outbox WHERE sentAt IS NOT NULL AND sentAt < :before")
+    suspend fun sweepSent(before: Long)
+
+    /** Rows another person wrote on this phone: never sent in the current person's name. */
+    @Query("DELETE FROM outbox WHERE ownerId != :userId")
+    suspend fun dropOthers(userId: String)
 
     @Query("UPDATE outbox SET attempts = attempts + 1 WHERE clientId = :clientId")
     suspend fun tried(clientId: String)

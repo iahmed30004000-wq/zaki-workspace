@@ -20,22 +20,27 @@ import javax.inject.Singleton
  */
 @Singleton
 class EncryptedCookieJar @Inject constructor(@ApplicationContext context: Context) : CookieJar {
-    private val prefs: SharedPreferences = runCatching { open(context) }.getOrElse {
-        // a Keystore that lost its key (a restored phone, a vendor bug): start clean rather than crash on every start
+    /**
+     * null when the phone's Keystore cannot be used at all (a vendor bug): the session then lives in memory only — the person signs
+     * in again at the next start — rather than the app crashing on every start, and it is never written in plain text.
+     */
+    private val prefs: SharedPreferences? = runCatching { open(context) }.getOrElse {
+        // a Keystore that lost its key (a restored phone): start clean
         context.deleteSharedPreferences(FILE)
-        open(context)
+        runCatching { open(context) }.getOrNull()
     }
     private val cookies = linkedMapOf<String, Cookie>()
 
     init {
-        for ((key, value) in prefs.all) decode(value as? String)?.let { cookies[key] = it }
+        prefs?.all?.forEach { (key, value) -> decode(value as? String)?.let { cookies[key] = it } }
         migrateLegacy(context)
     }
 
     private fun migrateLegacy(context: Context) {
+        val store = prefs ?: return // nowhere safe to move them: the old file stays until there is
         val legacy = context.getSharedPreferences(LEGACY_FILE, Context.MODE_PRIVATE)
         if (legacy.all.isEmpty()) return
-        val editor = prefs.edit()
+        val editor = store.edit()
         for ((key, value) in legacy.all) {
             val raw = value as? String ?: continue
             val c = decode(raw) ?: continue
@@ -44,26 +49,26 @@ class EncryptedCookieJar @Inject constructor(@ApplicationContext context: Contex
                 editor.putString(key, raw)
             }
         }
-        editor.apply()
-        context.deleteSharedPreferences(LEGACY_FILE)
+        // written to disk BEFORE the old file goes: a process killed in between never signs the person out
+        if (editor.commit()) context.deleteSharedPreferences(LEGACY_FILE)
     }
 
     private fun keyOf(c: Cookie) = "${c.name}|${c.domain}|${c.path}"
 
     @Synchronized
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
-        val editor = prefs.edit()
+        val editor = prefs?.edit()
         for (c in cookies) {
             val key = keyOf(c)
             if (c.expiresAt < System.currentTimeMillis()) {
                 this.cookies.remove(key)
-                editor.remove(key)
+                editor?.remove(key)
             } else {
                 this.cookies[key] = c
-                editor.putString(key, encode(c))
+                editor?.putString(key, encode(c))
             }
         }
-        editor.apply()
+        editor?.apply()
     }
 
     @Synchronized
@@ -82,7 +87,7 @@ class EncryptedCookieJar @Inject constructor(@ApplicationContext context: Contex
     @Synchronized
     fun clear() {
         cookies.clear()
-        prefs.edit().clear().apply()
+        prefs?.edit()?.clear()?.apply()
     }
 
     companion object {

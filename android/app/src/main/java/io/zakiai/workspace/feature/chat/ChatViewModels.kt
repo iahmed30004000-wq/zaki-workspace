@@ -15,8 +15,8 @@ import io.zakiai.workspace.core.net.Conversation
 import io.zakiai.workspace.core.net.SendBody
 import io.zakiai.workspace.core.net.WorkspaceApi
 import io.zakiai.workspace.core.net.apiCall
+import io.zakiai.workspace.core.sync.Outbox
 import io.zakiai.workspace.core.sync.OutboxWorker
-import io.zakiai.workspace.core.sync.Schedules
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -24,7 +24,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
-import java.util.UUID
 import javax.inject.Inject
 
 /**
@@ -86,8 +85,8 @@ class ConversationViewModel @Inject constructor(
     private val api: WorkspaceApi,
     private val cache: Cache,
     private val session: Session,
-    private val outbox: OutboxDao,
-    private val schedules: Schedules,
+    outboxDao: OutboxDao,
+    private val outbox: Outbox,
     private val json: Json,
 ) : ViewModel() {
     val id: String = checkNotNull(savedState["id"])
@@ -98,9 +97,11 @@ class ConversationViewModel @Inject constructor(
 
     /** The rows of this conversation still in the outbox. */
     val pending: StateFlow<List<OutboxItem>> =
-        outbox.watch(OutboxWorker.KIND_CHAT_SEND, id).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        outboxDao.watch(OutboxWorker.KIND_CHAT_SEND, id).stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private var lastRead = ""
+    /** a refresh asked for while one runs: run once more after it (its answer may predate what was just sent) */
+    private var again = false
 
     private val _calling = MutableStateFlow(false)
     val calling: StateFlow<Boolean> = _calling.asStateFlow()
@@ -110,12 +111,15 @@ class ConversationViewModel @Inject constructor(
     }
 
     fun refresh() {
-        if (_state.value.refreshing) return
+        if (_state.value.refreshing) { again = true; return }
         _state.value = _state.value.copy(refreshing = true)
         viewModelScope.launch {
             when (val r = cache.refresh(key, Conversation.serializer()) { apiCall { api.conversation(id) } }) {
                 is ApiResult.Ok -> {
                     _state.value = Loadable(r.value)
+                    // the sent outbox copies whose message the server now shows are no longer needed
+                    val onServer = r.value.messages.mapNotNullTo(HashSet()) { it.clientId }
+                    outbox.seen(pending.value.filter { it.sentAt != null && it.clientId in onServer }.map { it.clientId })
                     val last = r.value.messages.lastOrNull()
                     if (last != null && last.id != lastRead) {
                         lastRead = last.id
@@ -127,25 +131,13 @@ class ConversationViewModel @Inject constructor(
                     _state.value = _state.value.copy(failure = r.failure, refreshing = false)
                 }
             }
+            if (again) { again = false; refresh() }
         }
     }
 
     fun send(text: String) {
         val body = text.trim()
-        if (body.isEmpty()) return
-        val clientId = UUID.randomUUID().toString()
-        viewModelScope.launch {
-            outbox.add(
-                OutboxItem(
-                    clientId = clientId,
-                    kind = OutboxWorker.KIND_CHAT_SEND,
-                    target = id,
-                    payload = json.encodeToString(SendBody.serializer(), SendBody(body, clientId)),
-                    createdAt = System.currentTimeMillis(),
-                ),
-            )
-            schedules.flushOutbox()
-        }
+        if (body.isNotEmpty()) outbox.sendChat(id, body)
     }
 
     /** «شارك بالمحادثة»: the owner reading in silence joins the topic, so the owner may post. */
@@ -156,9 +148,9 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    fun retry(clientId: String) = viewModelScope.launch { outbox.retry(clientId); schedules.flushOutbox() }
+    fun retry(clientId: String) = outbox.retry(clientId)
 
-    fun discard(clientId: String) = viewModelScope.launch { outbox.remove(clientId) }
+    fun discard(clientId: String) = outbox.discard(clientId)
 
     fun startCall(onStarted: (String) -> Unit) {
         if (_calling.value) return
@@ -172,15 +164,30 @@ class ConversationViewModel @Inject constructor(
         }
     }
 
-    /** The lines as drawn: the server's messages, then what still waits in the outbox (a sent row leaves the outbox by itself). */
-    fun linesOf(conv: Conversation?, waiting: List<OutboxItem>): List<Line> {
+    /** The lines as drawn: [ChatLines.of] with this conversation's answer and its outbox rows. */
+    fun linesOf(conv: Conversation?, rows: List<OutboxItem>): List<Line> = ChatLines.of(conv, rows) { payload ->
+        runCatching { json.decodeFromString(SendBody.serializer(), payload).body }.getOrNull()
+    }
+}
+
+/** How the server's messages and the outbox rows become one list. Pure (unit-tested). */
+object ChatLines {
+    /**
+     * The server's messages, then every outbox row the server does not show yet: waiting (the clock), refused (retry / delete),
+     * or already sent but not fetched — drawn as a plain message, so it never disappears from the screen in between.
+     */
+    fun of(conv: Conversation?, rows: List<OutboxItem>, bodyOf: (String) -> String?): List<Line> {
         val server = conv?.messages.orEmpty().map { m ->
             Line(m.id, m.body, m.mine, m.authorName, m.createdAt, m.kind, m.deleted, m.attachments)
         }
         val onServer = conv?.messages.orEmpty().mapNotNullTo(HashSet()) { it.clientId }
-        val local = waiting.filter { it.clientId !in onServer }.map { o ->
-            val body = runCatching { json.decodeFromString(SendBody.serializer(), o.payload).body }.getOrNull()
-            Line("outbox-${o.clientId}", body, true, "", java.time.Instant.ofEpochMilli(o.createdAt).toString(), outbox = if (o.refusedKey != null) "refused" else "waiting")
+        val local = rows.filter { it.clientId !in onServer }.map { o ->
+            val state = when {
+                o.refusedKey != null -> "refused"
+                o.sentAt != null -> null
+                else -> "waiting"
+            }
+            Line("outbox-${o.clientId}", bodyOf(o.payload), true, "", java.time.Instant.ofEpochMilli(o.createdAt).toString(), outbox = state)
         }
         return server + local
     }

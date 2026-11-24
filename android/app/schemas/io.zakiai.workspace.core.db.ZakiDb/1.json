@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 1,
-    "identityHash": "11b048ca5020bf5032b234a5da78c956",
+    "identityHash": "13151e3bc7e5f9ca62e698686efe8203",
     "entities": [
       {
         "tableName": "cache",
@@ -38,7 +38,7 @@
       },
       {
         "tableName": "outbox",
-        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`clientId` TEXT NOT NULL, `kind` TEXT NOT NULL, `target` TEXT NOT NULL, `payload` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `refusedKey` TEXT, PRIMARY KEY(`clientId`))",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`clientId` TEXT NOT NULL, `kind` TEXT NOT NULL, `target` TEXT NOT NULL, `payload` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `attempts` INTEGER NOT NULL, `refusedKey` TEXT, `ownerId` TEXT NOT NULL, `sentAt` INTEGER, PRIMARY KEY(`clientId`))",
         "fields": [
           {
             "fieldPath": "clientId",
@@ -81,6 +81,18 @@
             "columnName": "refusedKey",
             "affinity": "TEXT",
             "notNull": false
+          },
+          {
+            "fieldPath": "ownerId",
+            "columnName": "ownerId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sentAt",
+            "columnName": "sentAt",
+            "affinity": "INTEGER",
+            "notNull": false
           }
         ],
         "primaryKey": {
@@ -96,7 +108,7 @@
     "views": [],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '11b048ca5020bf5032b234a5da78c956')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '13151e3bc7e5f9ca62e698686efe8203')"
     ]
   }
 }

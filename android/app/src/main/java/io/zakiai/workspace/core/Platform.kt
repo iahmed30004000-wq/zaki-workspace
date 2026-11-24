@@ -7,6 +7,8 @@ import android.net.NetworkCapabilities
 import android.os.SystemClock
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import android.os.Build
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -81,7 +83,7 @@ class AppLock @Inject constructor(@ApplicationContext private val context: Conte
 
     init { ProcessLifecycleOwner.get().lifecycle.addObserver(this) }
 
-    fun available(): Boolean = BiometricManager.from(context).canAuthenticate(BIOMETRIC_STRONG or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+    fun available(): Boolean = BiometricManager.from(context).canAuthenticate(authenticators(Build.VERSION.SDK_INT)) == BiometricManager.BIOMETRIC_SUCCESS
 
     fun setEnabled(on: Boolean) {
         prefs.edit().putBoolean("on", on).apply()
@@ -103,13 +105,19 @@ class AppLock @Inject constructor(@ApplicationContext private val context: Conte
             BiometricPrompt.PromptInfo.Builder()
                 .setTitle(title)
                 .setSubtitle(subtitle)
-                .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+                .setAllowedAuthenticators(authenticators(Build.VERSION.SDK_INT))
                 .build(),
         )
     }
 
     companion object {
         const val AWAY_MS = 5 * 60_000L
+
+        /**
+         * What may open the lock: Android 11+ takes a strong fingerprint or the screen lock; Android 8–10 cannot combine the
+         * screen lock with «strong», so there it is any fingerprint or the screen lock (otherwise the switch would stay greyed out).
+         */
+        fun authenticators(sdk: Int): Int = if (sdk >= 30) BIOMETRIC_STRONG or DEVICE_CREDENTIAL else BIOMETRIC_WEAK or DEVICE_CREDENTIAL
 
         /** Locks again only when it is on and the app was away more than five minutes. Pure (unit-tested). */
         fun shouldLock(enabled: Boolean, backgroundAt: Long, now: Long): Boolean = enabled && backgroundAt > 0 && now - backgroundAt > AWAY_MS

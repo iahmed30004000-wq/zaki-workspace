@@ -34,7 +34,11 @@ class LinksTest {
     @Test fun `the native tabs open as tabs`() {
         assertEquals(Destination.Chats, Links.destinationOf("/chat", BASE))
         assertEquals(Destination.Notifications, Links.destinationOf("/notifications?x=1", BASE))
-        assertEquals(Destination.Settings, Links.destinationOf("/settings/me", BASE))
+    }
+
+    @Test fun `the site's settings stay reachable - a settings link opens the site's page, not the smaller native tab`() {
+        assertEquals(Destination.Site("/settings/me"), Links.destinationOf("/settings/me", BASE))
+        assertEquals(Destination.Site("/settings"), Links.destinationOf("$BASE/settings", BASE))
     }
 
     @Test fun `a section not native yet opens the site's page, with its query`() {
@@ -130,8 +134,56 @@ class HandleTest {
 }
 
 class HeadersTest {
-    @Test fun `writes carry the site's own origin and the app says who it is`() {
-        assertEquals(Config.BASE, AppHeaders.origin())
+    @Test fun `the app says who it is`() {
         assertEquals("ZakiApp/4.0.0 (Android 14; Pixel 6)", AppHeaders.userAgent("4.0.0", "14", "Pixel 6"))
+        assertEquals("ZakiApp/4.0.0 (Android ?; ?)", AppHeaders.userAgent("4.0.0", null, null))
+    }
+}
+
+class ChatLinesTest {
+    private fun msg(id: String, clientId: String?) = io.zakiai.workspace.core.net.Message(id = id, body = "b-$id", mine = true, clientId = clientId)
+    private fun row(clientId: String, sentAt: Long? = null, refused: String? = null) =
+        io.zakiai.workspace.core.db.OutboxItem(clientId, "chat.send", "c1", "p-$clientId", 1_000, refusedKey = refused, sentAt = sentAt)
+    private val conv = io.zakiai.workspace.core.net.Conversation(id = "c1", messages = listOf(msg("m1", "k1")))
+
+    @Test fun `a message the server already shows is drawn once, never with its outbox copy`() {
+        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(conv, listOf(row("k1", sentAt = 5)), { it })
+        assertEquals(listOf("m1"), lines.map { it.id })
+    }
+
+    @Test fun `a sent message the server does not show yet stays on screen as a plain message`() {
+        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(conv, listOf(row("k2", sentAt = 5)), { it })
+        assertEquals(listOf("m1", "outbox-k2"), lines.map { it.id })
+        assertNull(lines.last().outbox)
+    }
+
+    @Test fun `waiting and refused rows say so`() {
+        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(conv, listOf(row("k3"), row("k4", refused = "forbidden")), { it })
+        assertEquals(listOf("waiting", "refused"), lines.drop(1).map { it.outbox })
+    }
+}
+
+class SafeTraceTest {
+    @Test fun `a crash report carries the classes and frames, never what the message said`() {
+        val secret = "For input string: \"0790000000 Ahmad\""
+        val e = RuntimeException("wrapper with secret", NumberFormatException(secret))
+        val stack = io.zakiai.workspace.core.crash.SafeTrace.stack(e)
+        val head = io.zakiai.workspace.core.crash.SafeTrace.headline(e, "main")
+        assertTrue(stack.contains("java.lang.RuntimeException"))
+        assertTrue(stack.contains("Caused by: java.lang.NumberFormatException"))
+        assertTrue(stack.contains("\tat "))
+        assertFalse(stack.contains("0790000000") || stack.contains("secret"))
+        assertEquals("java.lang.RuntimeException [main]", head)
+    }
+}
+
+class LockAuthenticatorsTest {
+    @Test fun `the lock can be switched on from Android 8 up`() {
+        val weak = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+        val strong = androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
+        val pin = androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        assertEquals(weak or pin, AppLock.authenticators(28))
+        assertEquals(weak or pin, AppLock.authenticators(29))
+        assertEquals(strong or pin, AppLock.authenticators(30))
     }
 }

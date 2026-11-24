@@ -181,8 +181,8 @@ fun ConversationScreen(offline: Boolean, onBack: () -> Unit, onOpenPath: (String
     val pending by vm.pending.collectAsStateWithLifecycle()
     val calling by vm.calling.collectAsStateWithLifecycle()
     WhileOnScreen(5_000) { vm.refresh() }
-    // a row that left the outbox was sent: fetch it at once rather than wait for the next tick
-    LaunchedEffect(pending.size) { vm.refresh() }
+    // a row of the outbox was just sent: fetch it at once rather than wait for the next tick
+    LaunchedEffect(pending.count { it.sentAt != null }) { vm.refresh() }
     val conv = state.data
     val lines = remember(conv, pending) { vm.linesOf(conv, pending) }
 

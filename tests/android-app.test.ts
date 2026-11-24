@@ -107,11 +107,35 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(bridge).toContain("WarnFix(T.webWarn, T.webFix)");
   });
 
-  it("sends a message through the outbox with the server's idempotency key, so a retry never doubles it", () => {
-    const vm = read(SRC + "feature/chat/ChatViewModels.kt");
-    expect(vm).toContain("SendBody(body, clientId)");
-    expect(vm).toContain("outbox.add(");
-    expect(read(SRC + "core/db/Db.kt")).toContain("@PrimaryKey val clientId: String");
+  it("sends a message through the outbox with the server's idempotency key, so a retry never doubles it, and only in its writer's name", () => {
+    const workers = read(SRC + "core/sync/Workers.kt");
+    // the write runs on the application's scope (leaving the screen never loses it), with the clientId the server honours
+    expect(workers).toContain("SendBody(body, clientId)");
+    expect(workers).toContain("ownerId = user.id.orEmpty()");
+    // a new message never waits behind an old run's retry delay
+    expect(workers).toContain("ExistingWorkPolicy.REPLACE");
+    // rows another person wrote on this phone are dropped, never sent
+    expect(workers).toContain("outbox.dropOthers(me)");
+    expect(read(SRC + "feature/chat/ChatViewModels.kt")).toContain("outbox.sendChat(id, body)");
+    const db = read(SRC + "core/db/Db.kt");
+    expect(db).toContain("@PrimaryKey val clientId: String");
+    expect(db).toContain("val sentAt: Long? = null");
+  });
+
+  it("an expired session keeps the person's own unsent messages; signing out on purpose removes them", () => {
+    const session = read(SRC + "core/Session.kt");
+    expect(session).toContain("wipe(failure.message, keepOutbox = true)");
+    expect(session).toContain("wipe(null, keepOutbox = false)");
+    // an answer still on its way never refills the cache after a sign-out
+    expect(session).toContain("cache.bump()");
+    expect(read(SRC + "core/Cache.kt")).toContain("if (startedIn == generation)");
+  });
+
+  it("a crash report never carries an exception's message (it can hold what the person typed)", () => {
+    const crash = read(SRC + "core/crash/Crash.kt");
+    expect(crash).toContain("SafeTrace.headline(error, thread.name), SafeTrace.stack(error)");
+    expect(crash).not.toMatch(/error\.message/);
+    expect(crash).not.toContain("stackTraceToString()");
   });
 
   it("has its icons, its colour is the site's theme colour, and its release is shrunk", () => {

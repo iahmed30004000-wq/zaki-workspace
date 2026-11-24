@@ -58,6 +58,7 @@ object T {
     const val ideas = "الأفكار"
     const val teams = "الفريق"
     const val guide = "دليل زاكي"
+    const val accountSettings = "إعدادات الحساب والشركة"
     const val webWarn = "⚠️ هالقسم لسا مش أصلي بالتطبيق: بيفتح صفحة الموقع جوّا التطبيق مؤقتًا."
     const val webFix = "🔧 بيصير أصلي بمرحلته من خطة التطبيق، وبتنشال هالصفحة لحالها."
 

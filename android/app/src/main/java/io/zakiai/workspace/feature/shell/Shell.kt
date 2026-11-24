@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Groups
 import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.ManageAccounts
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
@@ -120,6 +121,16 @@ class ShellViewModel @Inject constructor(
 
     init {
         viewModelScope.launch { cache.read(KEY, Spaces.serializer())?.let { if (_spaces.value == null) _spaces.value = it } }
+        // this view-model lives as long as the activity: what it holds of one person is dropped when their session ends
+        viewModelScope.launch {
+            session.gate.collect { g ->
+                if (g == io.zakiai.workspace.core.Gate.SIGNED_OUT) {
+                    _spaces.value = null
+                    _chatUnread.value = 0
+                    _notesUnread.value = 0
+                }
+            }
+        }
     }
 
     fun refresh() = viewModelScope.launch {
@@ -164,6 +175,8 @@ private val SITE_ITEMS = listOf(
     SiteItem(T.goals, "/goals", Icons.Filled.Flag),
     SiteItem(T.ideas, "/ideas", Icons.Filled.Lightbulb),
     SiteItem(T.teams, "/teams", Icons.Filled.Groups),
+    // the profile, the password, the company's settings: the native «الإعدادات» tab has only what lives on the phone
+    SiteItem(T.accountSettings, "/settings", Icons.Filled.ManageAccounts),
     SiteItem(T.guide, "/guide", Icons.AutoMirrored.Filled.MenuBook),
 )
 

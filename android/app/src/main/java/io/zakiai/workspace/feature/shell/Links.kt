@@ -38,10 +38,11 @@ object Links {
         }
         CHAT.find(path)?.let { return Destination.Conversation(it.groupValues[1]) }
         val bare = path.substringBefore('?').trimEnd('/')
+        // «/settings…» stays the site's page: the profile, the password and the company's settings live there, not in the
+        // native tab (which holds only what belongs to the phone: theme, lock, permissions)
         return when (bare) {
             "/chat" -> Destination.Chats
             "/notifications" -> Destination.Notifications
-            "/settings", "/settings/me" -> Destination.Settings
             else -> Destination.Site(path)
         }
     }

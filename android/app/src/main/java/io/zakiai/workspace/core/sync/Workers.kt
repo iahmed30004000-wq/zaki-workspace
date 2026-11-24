@@ -23,7 +23,12 @@ import io.zakiai.workspace.core.net.ClientErrorBatch
 import io.zakiai.workspace.core.net.SendBody
 import io.zakiai.workspace.core.net.WorkspaceApi
 import io.zakiai.workspace.core.net.apiCall
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -39,7 +44,8 @@ object OutboxRules {
             result.failure.offline -> OutboxStep.RETRY_LATER
             result.failure.status == null -> OutboxStep.REFUSED
             result.failure.status == 408 || result.failure.status == 429 || result.failure.status >= 500 -> OutboxStep.RETRY_LATER
-            // a 401 is not the row's fault: the session ended; the row waits for the next sign-in (signing out empties the outbox)
+            // a 401 is not the row's fault: the session ended; the row waits for the next sign-in of the SAME person
+            // (an expired session keeps the outbox; an explicit sign-out, or somebody else signing in, empties it)
             result.failure.status == 401 -> OutboxStep.RETRY_LATER
             else -> OutboxStep.REFUSED
         }
@@ -58,13 +64,17 @@ class OutboxWorker @AssistedInject constructor(
     private val outbox: OutboxDao,
     private val api: WorkspaceApi,
     private val json: Json,
+    private val user: UserMark,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
+        val me = user.id ?: return Result.success() // nobody known on this phone yet: the sign-in flushes again
+        outbox.dropOthers(me)
+        outbox.sweepSent(System.currentTimeMillis() - SENT_KEPT_MS)
         for (item in outbox.due()) {
             outbox.tried(item.clientId)
             val result = send(item)
             when (OutboxRules.stepOf(result)) {
-                OutboxStep.DONE -> outbox.remove(item.clientId)
+                OutboxStep.DONE -> outbox.sent(item.clientId, System.currentTimeMillis())
                 OutboxStep.REFUSED -> outbox.refused(item.clientId, (result as? ApiResult.Err)?.failure?.key ?: "refused")
                 OutboxStep.RETRY_LATER -> return Result.retry()
             }
@@ -77,7 +87,59 @@ class OutboxWorker @AssistedInject constructor(
         else -> ApiResult.Ok(Unit) // a kind this build does not know (written by a newer one): dropped rather than stuck
     }
 
-    companion object { const val KIND_CHAT_SEND = "chat.send" }
+    companion object {
+        const val KIND_CHAT_SEND = "chat.send"
+        const val SENT_KEPT_MS = 24 * 60 * 60_000L
+    }
+}
+
+/** The id of the person signed in on this phone (kept when the session expires, so their own outbox can wait for them). */
+@Singleton
+class UserMark @Inject constructor(@ApplicationContext context: Context) {
+    private val prefs = context.getSharedPreferences("zaki_user", Context.MODE_PRIVATE)
+    var id: String?
+        get() = prefs.getString("id", null)
+        set(value) { prefs.edit().putString("id", value).commit() }
+}
+
+/**
+ * Puts what the person did into the outbox and starts the sender. The write runs on the application's own scope, not the
+ * screen's: tapping «إرسال» and leaving at once never loses the message.
+ */
+@Singleton
+class Outbox @Inject constructor(
+    private val dao: OutboxDao,
+    private val schedules: Schedules,
+    private val user: UserMark,
+    private val json: Json,
+) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun sendChat(conversationId: String, body: String) {
+        val clientId = UUID.randomUUID().toString()
+        scope.launch {
+            dao.add(
+                OutboxItem(
+                    clientId = clientId,
+                    kind = OutboxWorker.KIND_CHAT_SEND,
+                    target = conversationId,
+                    payload = json.encodeToString(SendBody.serializer(), SendBody(body, clientId)),
+                    createdAt = System.currentTimeMillis(),
+                    ownerId = user.id.orEmpty(),
+                ),
+            )
+            schedules.flushOutbox()
+        }
+    }
+
+    fun retry(clientId: String) = scope.launch { dao.retry(clientId); schedules.flushOutbox() }
+
+    fun discard(clientId: String) = scope.launch { dao.remove(clientId) }
+
+    /** The conversation's answer now carries these clientIds: drop their sent copies. */
+    fun seen(clientIds: List<String>) {
+        if (clientIds.isNotEmpty()) scope.launch { dao.seen(clientIds) }
+    }
 }
 
 /** Sends the crash reports kept on the phone (20 at a time) and deletes what the server took. */
@@ -119,14 +181,18 @@ class Schedules @Inject constructor(@ApplicationContext private val context: Con
         flushOutbox()
     }
 
-    /** Sends what waits in the outbox as soon as there is a network (a new row calls this). */
+    /**
+     * Sends what waits in the outbox as soon as there is a network (a new row calls this). REPLACE, not append: a new message
+     * never waits behind an old run's growing retry delay; a run cut mid-send is harmless (the clientId makes the resend the
+     * same message). The delay grows linearly, so after a long outage the next try is never far away.
+     */
     fun flushOutbox() {
         WorkManager.getInstance(context).enqueueUniqueWork(
             "outbox",
-            ExistingWorkPolicy.APPEND_OR_REPLACE,
+            ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<OutboxWorker>()
                 .setConstraints(online)
-                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 10, TimeUnit.SECONDS)
+                .setBackoffCriteria(BackoffPolicy.LINEAR, 15, TimeUnit.SECONDS)
                 .build(),
         )
     }

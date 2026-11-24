@@ -59,7 +59,9 @@ class MainActivity : FragmentActivity() {
         Notifier.cancelRing(this)
         session.ensurePaired()
         if (session.gate.value != io.zakiai.workspace.core.Gate.SIGNED_OUT) schedules.ensure()
-        link.value = intent?.dataString
+        // the address the app was opened with, once: a rotation re-creates the activity with the same intent, and must not
+        // push the same screen a second time
+        if (savedInstanceState == null) link.value = intent?.dataString
         setContent { Root(this) }
     }
 
