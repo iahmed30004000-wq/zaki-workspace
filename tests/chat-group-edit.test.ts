@@ -29,7 +29,7 @@ describe("where a manager edits a group", () => {
 
   it("the dialog saves the name and the emoji through PATCH /api/groups/:id and tells the screen what to show", () => {
     expect(hook).toContain("apiPatch(`/api/groups/${encodeURIComponent(groupId)}`, rest)");
-    expect(hook).toContain("return { create, update, move, reorder, refresh }");
+    expect(hook).toContain("return { create, update, move, reorder, picture, clearPicture, refresh }");
     expect(dialogs).toContain("update.mutate(");
     expect(dialogs).toContain("onSaved?.({ name: clean, emoji: nextEmoji })");
     // an empty box takes the picture off (null), it never sends an empty string

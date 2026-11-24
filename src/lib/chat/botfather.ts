@@ -58,6 +58,7 @@ export const BOTFATHER_WORDS: Readonly<Record<string, string>> = {
   c_setdescription: "/setdescription",
   c_setcommands: "/setcommands",
   c_setwebhook: "/setwebhook",
+  c_setavatar: "/setavatar",
   c_deletebot: "/deletebot",
   c_start: "/start",
   c_confirm: "confirm",

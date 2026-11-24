@@ -46,6 +46,8 @@ export interface GroupDto {
   spaceId: string;
   name: string;
   emoji: string | null;
+  /** `/api/avatars/<id>` when the group has a picture (src/server/chat/group-picture.ts), else null: the emoji is drawn */
+  imageUrl: string | null;
   position: number;
   restricted: boolean;
   topicCount: number;
@@ -90,7 +92,7 @@ async function loadVisible(ctx: OrgAccessContext, groupId: string): Promise<{ gr
   return { group, viewer };
 }
 
-async function loadManaged(ctx: OrgAccessContext, groupId: string): Promise<GroupRow> {
+export async function loadManaged(ctx: OrgAccessContext, groupId: string): Promise<GroupRow> {
   const { group, viewer } = await loadVisible(ctx, groupId);
   if (!viewer.manager) throw new ForbiddenError("chat.e.moderator_only");
   return group;
@@ -105,6 +107,7 @@ const dto = (g: GroupRow, topicCount: number, withPeople: boolean): GroupDto => 
   spaceId: g.spaceId,
   name: g.name,
   emoji: g.emoji,
+  imageUrl: g.imageUrl,
   position: g.position,
   restricted: g.restricted,
   topicCount,

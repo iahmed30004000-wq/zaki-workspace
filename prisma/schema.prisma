@@ -39,6 +39,10 @@ model User {
   avatarUrl    String?
   jobTitle     String? // وظيفي: professional title shown on profile (e.g. "Project Manager")
   bio          String?
+  // «ساعات الدوام»: { days: number[] (0 = Sunday), from: "HH:MM", to: "HH:MM", tz: string } — null = no hours set (src/lib/chat/work-hours.ts)
+  workHours    Json?
+  // «أتمتة المحادثة»: { on: boolean, text: string } — a labelled away line in a DM outside the hours, never a message in the person's name (src/server/chat/away.ts)
+  chatAutomation Json?
   // «ترتيبي»: the person's own order of the menu's places and of the tabs inside each place — { places: string[], tabs: Record<placeKey, string[]> }, null = the code's order (src/lib/nav/order.ts)
   navOrder     Json?
   // C3a.2: the person's chat preferences — { folders (by company id), tabs, notifications, chat, voiceSpeed }; null = all defaults (one zod schema: src/lib/chat/prefs.ts; C4.1 and C3b.4 reuse it)
@@ -529,6 +533,8 @@ model TopicGroup {
   spaceId    String
   name       String
   emoji      String?
+  // a picture instead of the emoji: `/api/avatars/<stored file id>` (src/server/chat/group-picture.ts)
+  imageUrl   String?
   position   Int      @default(0)
   restricted Boolean  @default(false)
   createdAt  DateTime @default(now())

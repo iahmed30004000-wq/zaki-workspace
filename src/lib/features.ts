@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -430,6 +430,10 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   tgTabBar: false,
   // «بوت فاذر» (src/server/services/botfather.ts, src/server/services/bots.ts, docs/contracts/bots.md): the owner and the admins make bots in the system chat «بوت فاذر» (/newbot, /token, /setdescription, /setcommands, /setwebhook, /deletebot): a bot is a non-human member of the company with its own token for the door of messages and an optional webhook for the messages that address it. OFF by default: it makes accounts and sends the text of messages to an address the owner types. Off: the chat is not offered, the doors answer «not found», the bots already made keep their tokens until the owner revokes them.
   botFather: false,
+  // a picture for a group of topics instead of the fixed folder emoji (src/server/chat/group-picture.ts); off, nobody sets one and the lists draw the emoji as before
+  groupPictures: true,
+  // «أتمتة المحادثة»: a person may set work hours and an away line; a person who writes to them in a private chat outside the hours sees the line, labelled as automatic (src/server/chat/away.ts)
+  chatAutomation: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
@@ -666,4 +670,6 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   tgLook: { group: "chat", dependsOn: ["chatLayoutV2"] },
   tgTabBar: { group: "chat", dependsOn: ["chatLayoutV2"] },
   botFather: { group: "owner", dependsOn: ["apiDoor", "doorMessages"] },
+  groupPictures: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatAutomation: { group: "chat" },
 };

@@ -7,6 +7,7 @@ import { decryptSecrets, encryptSecrets, generateSharedSecret } from "@/server/c
 import { generateToken } from "@/server/door/tokens";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
 import { assertFeatureOn } from "@/server/services/features";
+import { setAvatar } from "@/server/services/avatars";
 import { isOfSpace } from "@/server/chat/space-people";
 import { BOT_DESCRIPTION_MAX, BOT_NAME_MAX, isBotUsername, normalizeBotUsername, type BotCommandDef } from "@/lib/chat/botfather";
 
@@ -195,6 +196,23 @@ export async function setBotDescription(ctx: OrgAccessContext, handle: string, d
     db.bot.update({ where: { id: bot.id }, data: { description: text === "" ? null : text } }),
     db.user.update({ where: { id: bot.userId }, data: { bio: text === "" ? null : text } }),
   ]);
+  return toDto(await db.bot.findUniqueOrThrow({ where: { id: bot.id }, select: BOT_SELECT }));
+}
+
+/** The bot of this handle, for its maker (a miss is «not found»): what «/setavatar» checks before it starts waiting for a picture. */
+export async function findBot(ctx: OrgAccessContext, handle: string): Promise<BotDto> {
+  await assertMaker(ctx);
+  await assertFeatureOn(ctx.orgId, "botFather");
+  const bot = await botOf(ctx, handle);
+  return toDto(await db.bot.findUniqueOrThrow({ where: { id: bot.id }, select: BOT_SELECT }));
+}
+
+/** The bot's face: the same picture rules as a person's (still image, 2 MB, the bytes decide), stored as the BOT's own picture so every list that draws a member draws it. */
+export async function setBotAvatar(ctx: OrgAccessContext, handle: string, input: { name: string; bytes: Uint8Array }): Promise<BotDto> {
+  await assertMaker(ctx);
+  await assertFeatureOn(ctx.orgId, "botFather");
+  const bot = await botOf(ctx, handle);
+  await setAvatar({ orgId: ctx.orgId, orgRole: "MEMBER", userId: bot.userId }, input);
   return toDto(await db.bot.findUniqueOrThrow({ where: { id: bot.id }, select: BOT_SELECT }));
 }
 

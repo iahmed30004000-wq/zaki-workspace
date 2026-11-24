@@ -2,7 +2,8 @@
 
 import { useCallback } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { apiGet, apiPatch, apiPost, apiPut } from "@/lib/api-client";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut, apiUpload } from "@/lib/api-client";
+import { compressImage } from "@/lib/chat/compress-image";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import type { GroupMeta } from "@/lib/chat/v2/groups";
 
@@ -16,13 +17,14 @@ interface GroupDto {
   id: string;
   name: string;
   emoji: string | null;
+  imageUrl?: string | null;
   position: number;
   restricted: boolean;
 }
 
 const NONE: GroupMeta[] = [];
 
-const metaOf = (g: GroupDto): GroupMeta => ({ id: g.id, name: g.name, emoji: g.emoji, position: g.position, restricted: g.restricted });
+const metaOf = (g: GroupDto): GroupMeta => ({ id: g.id, name: g.name, emoji: g.emoji, imageUrl: g.imageUrl ?? null, position: g.position, restricted: g.restricted });
 
 /** The groups of one space the person may know (the very read of the hook, for the screens that ask for several spaces at once). */
 export async function fetchSpaceGroups(spaceId: string): Promise<GroupMeta[]> {
@@ -65,9 +67,24 @@ export function useGroupActions(spaceId: string | null) {
     },
     onSuccess: refresh,
   });
+  // the picture of a group: the phone's photo is shrunk first (the server takes 2 MB), then sent; removing takes it back to the emoji
+  const picture = useMutation({
+    mutationFn: async (input: { groupId: string; file: File }) => {
+      const compressed = await compressImage(input.file, input.file.name);
+      const body = compressed ? new File([compressed.blob], "group.jpg", { type: compressed.mime }) : input.file;
+      const form = new FormData();
+      form.set("file", body, body.name || "group.jpg");
+      return apiUpload<{ imageUrl: string }>(`/api/groups/${encodeURIComponent(input.groupId)}/picture`, form);
+    },
+    onSuccess: refresh,
+  });
+  const clearPicture = useMutation({
+    mutationFn: (groupId: string) => apiDelete(`/api/groups/${encodeURIComponent(groupId)}/picture`),
+    onSuccess: refresh,
+  });
   const reorder = useMutation({
     mutationFn: (order: string[]) => apiPut("/api/groups", { spaceId, order }),
     onSuccess: refresh,
   });
-  return { create, update, move, reorder, refresh };
+  return { create, update, move, reorder, picture, clearPicture, refresh };
 }

@@ -28,6 +28,7 @@ import { cleanQuote, quoteIsPartOf } from "@/lib/chat/v2/menu/gestures";
 import { ASSISTANT_MENTION_ID, MENTION_ALL_ID, mentionsAll } from "@/lib/chat/conversation/mentions";
 import { afterMessageSent } from "@/server/services/chat-assistant";
 import { afterBotFatherMessage } from "@/server/services/botfather";
+import { afterMessageAway } from "@/server/chat/away";
 import { afterBotAddressed } from "@/server/services/bot-webhooks";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { queueSync } from "@/server/services/search-embed-index";
@@ -311,6 +312,8 @@ export async function sendMessage(
   if (kind === "TEXT") afterMessageSent({ orgId: ctx.orgId, conversationId, messageId: created.id, body });
   // «بوت فاذر»: a message the person wrote in THEIR chat with the bot maker is answered (one cheap read of the conversation's key, off the sender's path)
   if (kind === "TEXT") afterBotFatherMessage({ orgId: ctx.orgId, conversationId, messageId: created.id, authorId: ctx.userId, body });
+  // «أتمتة المحادثة»: a private chat with somebody outside their work hours gets their away line (off the sender's path; a no-op without the switch)
+  if (kind === "TEXT") afterMessageAway({ orgId: ctx.orgId, conversationId, authorId: ctx.userId });
   // a bot that the message addresses (a mention, a slash command, a private chat with it) gets it at its webhook
   if (kind === "TEXT") afterBotAddressed({ orgId: ctx.orgId, conversationId, messageId: created.id, authorId: ctx.userId, body });
   // «بحث بالمعنى»: its vector is made in the background (a no-op without the switch and a service)

@@ -383,7 +383,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       ) : rows.length === 0 ? (
         <ListEmpty folder={custom ? "custom" : (folder as ListFolderKey)} query={words} {...(canCreateSpace && folder === "all" && !words ? { onCreateSpace: () => setCreatingSpace(true) } : {})} />
       ) : arrangingGroups && groupMode ? (
-        <ArrangeRows listId={`groups-${groupSpaceId}`} entries={groups.map((g) => ({ id: g.id, label: g.name, emoji: g.emoji }))} onReorder={(ids) => groupActions.reorder.mutate(ids)} />
+        <ArrangeRows listId={`groups-${groupSpaceId}`} entries={groups.map((g) => ({ id: g.id, label: g.name, emoji: g.emoji, imageUrl: g.imageUrl ?? null }))} onReorder={(ids) => groupActions.reorder.mutate(ids)} />
       ) : (
         <VirtualRows items={shownItems} tall={tall} rail={rail} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} onOpenGroup={onOpenGroup} />
       )}
