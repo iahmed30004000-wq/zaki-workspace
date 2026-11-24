@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 404 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 406 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 202 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 204 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 404 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 406 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 164 services — the business rules (§6) |
+| `src/server/services/` | 167 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 176 · `activeOrgCtx` 118 · `(none)` 43 · `requireTeamWork` 14 · `requireUser` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 176 · `activeOrgCtx` 120 · `(none)` 43 · `requireTeamWork` 14 · `requireUser` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -154,6 +154,8 @@ Doors in use: `requireActor` 176 · `activeOrgCtx` 118 · `(none)` 43 · `requir
 | GET | `/api/chat/attachments/[id]` | requireActor | — |
 | POST | `/api/chat/attachments/[id]/text` | requireActor | `features`: assertFeatureOn<br>`image-ocr-route`: answerReadText |
 | POST | `/api/chat/attachments/[id]/transcript` | requireActor | `voice-transcript`: transcribeAttachment, VoiceTranscriptError |
+| POST | `/api/chat/botfather` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`botfather`: openBotFatherChat |
+| GET | `/api/chat/botfather/reveal/[id]` | activeOrgCtx | `integrations`: activeOrgCtx<br>`botfather`: takeReveal |
 | GET, POST | `/api/chat/conversations` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace |
 | GET, POST, PATCH, DELETE | `/api/chat/conversations/[id]` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET, POST | `/api/chat/conversations/[id]/call` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -173,7 +175,7 @@ Doors in use: `requireActor` 176 · `activeOrgCtx` 118 · `(none)` 43 · `requir
 | GET | `/api/chat/conversations/[id]/search` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/conversations/[id]/summarize` | requireActor † | `digest`: summarizeTopic |
 | GET, PUT | `/api/chat/conversations/[id]/whiteboard` | activeOrgCtx | `integrations`: activeOrgCtx |
-| GET | `/api/chat/directory` | directoryContext | `current-space`: currentSpace<br>`last-seen`: lastSeenReader<br>`assistant-chat`: assistantContactOffered |
+| GET | `/api/chat/directory` | directoryContext | `current-space`: currentSpace<br>`last-seen`: lastSeenReader<br>`assistant-chat`: assistantContactOffered<br>`botfather`: botFatherOffered |
 | POST | `/api/chat/dm` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn |
 | GET | `/api/chat/forward-targets` | activeOrgCtx | `integrations`: activeOrgCtx<br>`features`: assertFeatureOn |
 | GET | `/api/chat/home` | activeOrgCtx | `current-space`: currentSpace<br>`integrations`: activeOrgCtx |
@@ -498,7 +500,7 @@ Doors in use: `requireActor` 176 · `activeOrgCtx` 118 · `(none)` 43 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 404. Each one is a door that cannot have a session, or one that is closed.
+Six of 406. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -519,9 +521,9 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 87 | 173 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
-| `integrations` | 180 | 134 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
-| `current-space` | 155 | 74 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
+| `features` | 87 | 176 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `integrations` | 180 | 136 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
+| `current-space` | 155 | 75 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 273 | 48 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 35 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
@@ -592,6 +594,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `telegram` | 299 | 5 | Validates a bot token by calling getMe. |
 | `users` | 340 | 5 | no header comment — exports `updateProfile`, `getProfileForViewer`, `getPublicProfile`, `memberDirectory` |
 | `views` | 567 | 5 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
+| `botfather` | 215 | 4 | «بوت فاذر» — the system chat where the owner and the admins make bots (docs/contracts/bots.md), like Telegram's. |
 | `calendar-feed` | 331 | 4 | «اشتراك التقويم» — a person's private calendar feed. |
 | `crm` | 228 | 4 | no header comment — exports `OPPORTUNITY_STAGES`, `createCustomerSchema`, `updateCustomerSchema`, `createOpportunitySchema`, `updateOpportunitySchema`, … |
 | `db-backup` | 460 | 4 | «نسخ احتياطي لقاعدة البيانات»: a daily, encrypted copy of the WHOLE database on the owner's own Google Drive. |
@@ -624,6 +627,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `analytics` | 66 | 2 | Numbers behind the analytics page. |
 | `assistant-chat` | 73 | 2 | «المساعد» كجهة اتصال — the assistant as a name in the chat's people lists, with a private conversation of its own for each person. |
 | `avatars` | 118 | 2 | A PERSON'S PICTURE (the owner's ask, 2026-10-29: «خيار إن المستخدم يحط صورة بروفايل»). |
+| `bots` | 262 | 2 | «بوت فاذر» — the bots of a company (docs/contracts/bots.md). |
 | `calendar` | 62 | 2 | The calendar's data logic, taken out of the page so it can be tested with an injected `now`. |
 | `card-links` | 106 | 2 | What the card was turned into: the tasks made from it («حوّلها لمهمة») and the topic it was sent to («أرسل»). |
 | `card-notes` | 113 | 2 | «الملاحظات» (the card's thread). |
@@ -652,6 +656,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `zaki-ai` | 171 | 2 | «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
 | `ai-settings` | 30 | 1 | THE AI CONNECTION — ONE PLACE (A2.1). |
 | `assistant-work` | 107 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
+| `bot-webhooks` | 133 | 1 | «بوت فاذر» — the webhook of a bot (docs/contracts/bots.md): the messages that ADDRESS a bot are sent to its address, signed. |
 | `bulk-assign` | 142 | 1 | «نقل أو فكّ المهام المفتوحة»: when a person leaves, their OPEN cards (not archived, not completed, not in a finished column) are listed and handed to somebody else, or unassigne… |
 | `card-log` | 92 | 1 | «السجل»: a read-only timeline made of the AuditLog rows written about this card. |
 | `card-status` | 32 | 1 | «حالة الاعتماد» (the second of the two systems): مسودة → قيد المراجعة → معتمدة → مؤرشفة, set by a moderator of the space or the OWNER. |
@@ -692,7 +697,7 @@ to be added to, and the places a bug can leave the row half-written.
 
 | Model | Writes | Written by (file: calls) |
 |---|---|---|
-| `User` | 17 | `server/services/accounts.ts`: 3<br>`server/services/avatars.ts`: 2<br>`server/services/nav-order.ts`: 2<br>`server/services/onboarding.ts`: 2<br>+8 more |
+| `User` | 20 | `server/services/accounts.ts`: 3<br>`server/services/bots.ts`: 3<br>`server/services/avatars.ts`: 2<br>`server/services/nav-order.ts`: 2<br>+9 more |
 | `UserSession` | 7 | `server/services/sessions.ts`: 6<br>`app/api/me/logout-everywhere/route.ts`: 1 |
 | `Department` | 4 | `server/services/departments.ts`: 3<br>`server/services/accounts.ts`: 1 |
 | `Ticket` | 7 | `server/services/tickets.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1<br>`server/services/problem-tickets.ts`: 1 |
@@ -706,11 +711,11 @@ to be added to, and the places a bug can leave the row half-written.
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
 | `StoredFile` | 16 | `server/services/files.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>+4 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
-| `Conversation` | 32 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+13 more |
+| `Conversation` | 34 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+14 more |
 | `TopicGroup` | 4 | `server/chat/groups.ts`: 4 |
 | `TopicGroupMember` | 3 | `server/chat/groups.ts`: 3 |
-| `ConversationMember` | 26 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 5<br>`server/chat/groups.ts`: 4<br>`server/chat/read-state.ts`: 3<br>+6 more |
-| `ChatMessage` | 16 | `server/chat/messages.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/must-read.ts`: 2<br>`server/calls/assistant-agent.ts`: 1<br>+4 more |
+| `ConversationMember` | 27 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 5<br>`server/chat/groups.ts`: 4<br>`server/chat/read-state.ts`: 3<br>+7 more |
+| `ChatMessage` | 17 | `server/chat/messages.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/must-read.ts`: 2<br>`server/calls/assistant-agent.ts`: 1<br>+5 more |
 | `LinkPreview` | 3 | `server/chat/link-preview.ts`: 3 |
 | `ScheduledChatMessage` | 6 | `server/chat/scheduled.ts`: 5<br>`server/jobs/chat-scheduled.ts`: 1 |
 | `ChatReaction` | 4 | `server/chat/messages.ts`: 2<br>`server/services/must-read.ts`: 2 |
@@ -731,7 +736,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `AppDevice` | 5 | `server/devices/devices.ts`: 4<br>`app/api/me/logout-everywhere/route.ts`: 1 |
 | `WatchSession` | 4 | `server/services/watch.ts`: 4 |
 | `Organization` | 12 | `server/services/features.ts`: 2<br>`server/services/google.ts`: 2<br>`app/api/organizations/[id]/route.ts`: 1<br>`server/calls/transcripts.ts`: 1<br>+6 more |
-| `OrganizationMember` | 7 | `server/services/accounts.ts`: 4<br>`server/services/last-seen.ts`: 1<br>`server/services/org-members.ts`: 1<br>`server/services/team-lines.ts`: 1 |
+| `OrganizationMember` | 8 | `server/services/accounts.ts`: 4<br>`server/services/bots.ts`: 1<br>`server/services/last-seen.ts`: 1<br>`server/services/org-members.ts`: 1<br>+1 more |
 | `Workspace` | 9 | `server/services/department-space.ts`: 2<br>`server/services/space-manage.ts`: 2<br>`server/services/workspaces.ts`: 2<br>`app/api/workspaces/[id]/route.ts`: 1<br>+2 more |
 | `WorkspaceMember` | 17 | `server/services/accounts.ts`: 6<br>`server/services/workspaces.ts`: 5<br>`server/services/department-space.ts`: 3<br>`server/chat/hq.ts`: 2<br>+1 more |
 | `Team` | 8 | `server/services/teams.ts`: 4<br>`server/services/accounts.ts`: 3<br>`server/services/workspaces.ts`: 1 |
@@ -754,7 +759,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `TaskComment` | 3 | `app/api/tasks/[id]/comments/[commentId]/route.ts`: 2<br>`app/api/tasks/[id]/comments/route.ts`: 1 |
 | `TaskActivity` | 13 | `server/services/tasks.ts`: 5<br>`server/services/task-assign.ts`: 3<br>`app/api/tasks/[id]/comments/route.ts`: 1<br>`server/activity.ts`: 1<br>+3 more |
 | `Notification` | 8 | `server/notify.ts`: 3<br>`app/api/notifications/[id]/route.ts`: 1<br>`app/api/notifications/read/route.ts`: 1<br>`server/chat/notify.ts`: 1<br>+2 more |
-| `AuditLog` | 59 | `server/services/owner-assistant-settings.ts`: 5<br>`server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>`server/services/db-backup.ts`: 4<br>+26 more |
+| `AuditLog` | 64 | `server/services/bots.ts`: 5<br>`server/services/owner-assistant-settings.ts`: 5<br>`server/services/teams.ts`: 5<br>`server/services/approvals.ts`: 4<br>+27 more |
 | `Idea` | 6 | `server/services/ideas.ts`: 4<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `IdeaVote` | 2 | `server/services/ideas.ts`: 2 |
 | `Integration` | 12 | `server/integrations/oms-events.ts`: 4<br>`server/integrations/oms-sync.ts`: 2<br>`server/services/integrations.ts`: 2<br>`server/services/oms-link.ts`: 2<br>+2 more |
@@ -762,7 +767,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `InboundDelivery` | 3 | `server/jobs/oms-daily-card.ts`: 2<br>`server/integrations/oms-events.ts`: 1 |
 | `TelegramChat` | 1 | `server/services/telegram.ts`: 1 |
 | `TelegramMessage` | 3 | `server/services/telegram.ts`: 3 |
-| `IntegrationEvent` | 4 | `server/door/messages.ts`: 1<br>`server/integrations/oms-events.ts`: 1<br>`server/jobs/oms-daily-card.ts`: 1<br>`server/services/integrations.ts`: 1 |
+| `IntegrationEvent` | 5 | `server/door/messages.ts`: 1<br>`server/integrations/oms-events.ts`: 1<br>`server/jobs/oms-daily-card.ts`: 1<br>`server/services/bot-webhooks.ts`: 1<br>+1 more |
 | `Customer` | 5 | `server/services/crm.ts`: 3<br>`server/services/move-to-space.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `Opportunity` | 7 | `server/services/crm.ts`: 3<br>`server/services/move-to-space.ts`: 2<br>`server/services/accounts.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `PendingRegistration` | 4 | `server/services/registration.ts`: 4 |
@@ -796,7 +801,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `KeyResult` | 4 | `server/services/okr.ts`: 4 |
 | `KeyResultTask` | 3 | `server/services/okr.ts`: 3 |
 | `KeyResultUpdate` | 1 | `server/services/okr.ts`: 1 |
-| `ApiToken` | 4 | `server/services/api-tokens.ts`: 3<br>`server/door/messages.ts`: 1 |
+| `ApiToken` | 6 | `server/services/api-tokens.ts`: 3<br>`server/services/bots.ts`: 2<br>`server/door/messages.ts`: 1 |
 | `IdempotencyRecord` | 6 | `server/door/messages.ts`: 3<br>`server/services/api-door.ts`: 3 |
 | `TaskRule` | 4 | `server/services/task-rules.ts`: 4 |
 | `TaskRuleRun` | 1 | `server/services/task-rules-run.ts`: 1 |
@@ -819,6 +824,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `MailTaskSeen` | 3 | `server/services/mail-to-task.ts`: 3 |
 | `SearchEmbedding` | 2 | `server/services/search-embed-index.ts`: 2 |
 | `DigestCache` | 1 | `server/services/digest.ts`: 1 |
+| `Bot` | 7 | `server/services/bots.ts`: 7 |
 
 `PollOption` has no direct write of its own: it is filled only through a nested write on `Poll.options` in `server/chat/poll-shared.ts` — counted here so a change there is read as a change here.
 `ChatChecklist` has no direct write of its own: it is filled only through a nested write on `ChatMessage.checklist`, `ChatChecklistItem.checklist` in `server/chat/messages.ts` — counted here so a change there is read as a change here.
@@ -865,7 +871,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `teamDevelopment` | 5 — `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/policy/capabilities.ts`, `server/policy/team-development.ts`, `server/services/team-score.ts` |
 | `okr` | 4 — `app/api/goals/route.ts`, `lib/feature-groups.ts`, `server/services/goals.ts`, `server/services/okr.ts` |
 | `taskRules` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
-| `apiDoor` | 3 — `server/door/messages.ts`, `server/services/api-door.ts`, `server/services/api-tokens.ts` |
+| `apiDoor` | 4 — `server/door/messages.ts`, `server/services/api-door.ts`, `server/services/api-tokens.ts`, `server/services/botfather.ts` |
 | `spaceDocs` | 3 — `app/(app)/documents/page.tsx`, `lib/nav/places.ts`, `server/services/documents.ts` |
 | `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
 | `calls` | 16 — `app/(app)/calls/[id]/page.tsx`, `components/chat/v2/pane/message-viewport.tsx`, `components/chat/v2/pane/viewport-row.tsx`, `components/settings-me/notifications-section.tsx`, `lib/chat/prefs.ts`, `lib/chat/viewport/rows.ts`, `lib/chat/viewport/sizes.ts`, `lib/chat/viewport/use-message-viewport.ts`, `lib/guide/articles.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `server/calls/assistant-agent.ts`, `server/calls/calls.ts`, `server/calls/push.ts`, `server/chat/topics.ts`, `server/policy/capabilities.ts` |
@@ -897,7 +903,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `navV2` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/boards/[id]/trail/route.ts`, `app/(app)/page.tsx`, `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/timeline/page.tsx`, `app/api/workspaces/route.ts`, `server/policy/org-settings.ts`, `server/services/current-space.ts`, `server/services/landing.ts` |
 | `chatOneList` | 1 — `app/api/chat/list/route.ts` |
 | `omsEvents` | 3 — `components/control-panel/sections/integrations-section.tsx`, `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
-| `doorMessages` | 1 — `server/door/messages.ts` |
+| `doorMessages` | 2 — `server/door/messages.ts`, `server/services/botfather.ts` |
 | `chatLayoutV2` | 7 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/hidden-messages.ts`, `server/chat/link-preview.ts`, `server/chat/messages.ts` |
 | `chatFormatting` | 2 — `server/chat/sync.ts`, `server/chat/topics.ts` |
 | `workInbox` | 8 — `app/(app)/projects/page.tsx`, `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts` |
@@ -934,6 +940,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `voiceLiveText` | 1 — `server/chat/topics.ts` |
 | `tgLook` | 1 — `server/chat/topics.ts` |
 | `tgTabBar` | 0 —  |
+| `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
 | `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
 | `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/(app)/tasks/[id]/page.tsx`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts` |
@@ -1016,8 +1023,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `dbBackup` | 3 — `components/db-backup-card.tsx`, `lib/db-backup.ts`, `server/services/db-backup.ts` |
 | `externalGateway` | 2 — `server/services/gateway-address.ts`, `server/services/owner-assistant-settings.ts` |
 | `emailToTask` | 2 — `components/mail-to-task-card.tsx`, `server/services/mail-to-task.ts` |
-| `apiDoor` | 3 — `server/door/messages.ts`, `server/services/api-door.ts`, `server/services/api-tokens.ts` |
-| `doorMessages` | 1 — `server/door/messages.ts` |
+| `apiDoor` | 4 — `server/door/messages.ts`, `server/services/api-door.ts`, `server/services/api-tokens.ts`, `server/services/botfather.ts` |
+| `doorMessages` | 2 — `server/door/messages.ts`, `server/services/botfather.ts` |
 | `omsLink` | 5 — `components/oms-link-card.tsx`, `server/chat/topics.ts`, `server/integrations/oms-sync.ts`, `server/services/oms-link.ts`, `server/services/order-state.ts` |
 | `omsEvents` | 3 — `components/control-panel/sections/integrations-section.tsx`, `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
 | `navV2` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/boards/[id]/trail/route.ts`, `app/(app)/page.tsx`, `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/timeline/page.tsx`, `app/api/workspaces/route.ts`, `server/policy/org-settings.ts`, `server/services/current-space.ts`, `server/services/landing.ts` |
@@ -1035,13 +1042,14 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `voiceLiveText` | 1 — `server/chat/topics.ts` |
 | `tgLook` | 1 — `server/chat/topics.ts` |
 | `tgTabBar` | 0 —  |
+| `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 
 ## 9. What this map noticed
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 398 of 404 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 294 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 400 of 406 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 296 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **19 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 6 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`, `/mcp`); 5 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right; the 1 left (`/mcp`) are the ones Phase E looks at. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

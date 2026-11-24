@@ -5,6 +5,7 @@ import { chatDirectory, companyDirectory } from "@/server/chat/directory";
 import { currentSpace } from "@/server/services/current-space";
 import { lastSeenReader } from "@/server/services/last-seen";
 import { assistantContactOffered } from "@/server/services/assistant-chat";
+import { botFatherOffered } from "@/server/services/botfather";
 
 /**
  * GET: chatable org members (recipients picker). It is the staff directory, so it follows the
@@ -23,11 +24,14 @@ export async function GET(req: Request) {
     const zone = seen.enabled ? { timeZone: seen.timeZone } : {};
     // «المساعد» as the first name of the list: only when its switch is on and «@المساعد» is offered
     const assistant = await assistantContactOffered(ctx.orgId);
+    // «بوت فاذر» next to it: only for the owner and the admins, while its switch is on
+    const botFather = await botFatherOffered(ctx.orgId, ctx.orgRole);
     if (new URL(req.url).searchParams.get("scope") === "company") {
       const everyone = await companyDirectory(ctx.orgId, ctx.userId, space?.id ?? null, seen);
       return NextResponse.json({
         ...zone,
         assistant,
+        botFather,
         people: everyone
           .filter((p) => p.userId !== ctx.userId)
           .map((p) => ({
@@ -46,6 +50,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ...zone,
       assistant,
+      botFather,
       people: people
         .filter((p) => p.userId !== ctx.userId)
         .map((p) => ({

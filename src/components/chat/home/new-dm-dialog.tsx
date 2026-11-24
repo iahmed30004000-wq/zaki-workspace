@@ -7,6 +7,7 @@ import { ct } from "@/lib/chat/text";
 import { foldedIncludes } from "@/lib/search/arabic";
 import { Avatar } from "@/components/ui/avatar";
 import { AssistantRow } from "@/components/chat/assistant-row";
+import { BotFatherRow } from "@/components/chat/botfather-row";
 
 type Person = { userId: string; user: { name: string; jobTitle: string | null; avatarUrl?: string | null } };
 
@@ -18,6 +19,7 @@ export function NewDmDialog({ open, onOpenChange }: { open: boolean; onOpenChang
   const router = useRouter();
   const [people, setPeople] = useState<Person[] | null>(null);
   const [assistant, setAssistant] = useState(false);
+  const [botFather, setBotFather] = useState(false);
   const [query, setQuery] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -25,8 +27,8 @@ export function NewDmDialog({ open, onOpenChange }: { open: boolean; onOpenChang
     if (!open || people) return;
     let alive = true;
     fetch("/api/chat/directory", { cache: "no-store" })
-      .then((r) => { if (!r.ok) throw new Error("directory"); return r.json() as Promise<{ people: Person[]; assistant?: boolean }>; })
-      .then((data) => { if (alive) { setPeople(data.people); setAssistant(data.assistant === true); } })
+      .then((r) => { if (!r.ok) throw new Error("directory"); return r.json() as Promise<{ people: Person[]; assistant?: boolean; botFather?: boolean }>; })
+      .then((data) => { if (alive) { setPeople(data.people); setAssistant(data.assistant === true); setBotFather(data.botFather === true); } })
       .catch(() => { if (alive) setError(ct("chath.dm.load_failed")); });
     return () => { alive = false; };
   }, [open, people]);
@@ -56,6 +58,7 @@ export function NewDmDialog({ open, onOpenChange }: { open: boolean; onOpenChang
         {error && <p role="alert" className="mt-2 text-sm text-danger">{error}</p>}
         {!people && !error && <p role="status" className="mt-3 text-sm text-fg-muted">{ct("chath.loading")}</p>}
         {assistant && (!q || foldedIncludes(ct("assistantChat.row_title"), q)) && <AssistantRow className="mt-3 border-b border-border" onOpened={() => onOpenChange(false)} />}
+        {botFather && (!q || foldedIncludes(ct("botfather.label"), q)) && <BotFatherRow className="mt-3 border-b border-border" onOpened={() => onOpenChange(false)} />}
         {people && !shown.length && <p className="mt-3 text-sm text-fg-muted">{ct("chath.dm.none")}</p>}
         <ul className="mt-3 divide-y divide-border">{shown.map((p) => <li key={p.userId}><button type="button" disabled={busy} onClick={() => void start(p.userId)} className="flex min-h-12 w-full items-center gap-3 py-2 text-start hover:bg-surface-2 disabled:opacity-60">
           <Avatar name={p.user.name} src={p.user.avatarUrl} className="size-9 text-xs" />

@@ -57,6 +57,7 @@
   "column.blocked": "متوقّف",
 
   "event.task.created": "أُنشئت مهمة",
+  "event.bot.webhook": "رسالة لرابط بوت",
   "event.task.completed": "أُنجزت مهمة",
   "event.task.moved": "نُقلت مهمة",
   "event.idea.created": "أُضيفت فكرة",
