@@ -14,6 +14,7 @@ import { matchRule, ruleMode, type AutoRule } from "@/lib/tickets/auto-rules";
 import { customerDataHint, type CustomerDataHint } from "@/lib/chat/customer-data-hint";
 import { AssistantLine } from "@/components/chat/message/assistant-line";
 import { BotFatherLine } from "@/components/chat/message/botfather-line";
+import { AwayLine } from "@/components/chat/message/away-line";
 import { VoicePlayer } from "@/components/chat/message/voice-player";
 import { VoiceTranscript } from "@/components/chat/message/voice-transcript";
 import { ImageText } from "@/components/image-text";
@@ -76,6 +77,7 @@ export function MessageItem({message,canModerate,oversight=false,readers=[],conv
  const canAct=!oversight&&!message.deleted&&message.kind!=="SYSTEM";
  // a system line is a quiet sentence in the middle, never a bubble with an empty body
  if(message.kind==="SYSTEM"&&message.system?.k==="assistant")return <AssistantLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt}/>;
+ if(message.kind==="SYSTEM"&&message.system?.k==="away")return <AwayLine meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt}/>;
  if(message.kind==="SYSTEM"&&message.system?.k==="botfather")return <BotFatherLine messageId={message.id} meta={message.system} time={fmtTime(message.createdAt)} createdAt={message.createdAt}/>;
  if(message.kind==="SYSTEM")return <p dir="rtl" role="note" className="my-2 text-center text-xs text-fg-muted">{systemSentence(message.system,message.authorName)}</p>;
  const context:MessageMenuContext=messageMenuContext(message,{conversationKind,canPost,canModerate,oversight,canMakeWork,canMakeTask,canMakeTicket,canRemind,canTranslate,canProblem,canMustRead});

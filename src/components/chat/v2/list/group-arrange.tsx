@@ -3,6 +3,7 @@
 import React from "react";
 import { Grip, SortableItem, SortableList } from "@/components/shell/nav-sort";
 import { ct } from "@/lib/chat/text";
+import { GroupFace } from "./group-face";
 
 /**
  * «ترتيب» — dragging the groups of a space, or the topics inside one group: a plain sortable list (the grip, or the keyboard: Space lifts, the arrows move) with the picture and
@@ -12,6 +13,7 @@ export interface ArrangeEntry {
   id: string;
   label: string;
   emoji: string | null;
+  imageUrl?: string | null;
 }
 
 export function ArrangeRows({ listId, entries, onReorder }: { listId: string; entries: readonly ArrangeEntry[]; onReorder: (ids: string[]) => void }) {
@@ -25,9 +27,7 @@ export function ArrangeRows({ listId, entries, onReorder }: { listId: string; en
               {({ props }) => (
                 <div data-arrange-id={entry.id} className="flex min-h-14 items-center gap-2 px-2">
                   <Grip handle={{ ...props, "data-arrange-grip": "" }} label={entry.label} />
-                  <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-lg">
-                    {entry.emoji ?? "📁"}
-                  </span>
+                  <GroupFace emoji={entry.emoji} imageUrl={entry.imageUrl ?? null} fallback="📁" className="size-10 text-lg" />
                   <span className="min-w-0 flex-1 truncate text-base font-medium text-fg">
                     <bdi>{entry.label}</bdi>
                   </span>

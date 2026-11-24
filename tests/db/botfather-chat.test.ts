@@ -1,5 +1,13 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+
+// the pictures of this file live in a throw-away folder, never in the repository
+vi.hoisted(() => {
+  const tmp = process.env["TEMP"] ?? process.env["TMPDIR"] ?? "/tmp";
+  process.env["UPLOAD_DIR"] = `${tmp}/zaki-test-botfather-${process.pid}`;
+});
+
 import type { Prisma } from "@prisma/client";
+import * as uploadsRoute from "@/app/api/chat/uploads/route";
 import * as openRoute from "@/app/api/chat/botfather/route";
 import * as revealRoute from "@/app/api/chat/botfather/reveal/[id]/route";
 import * as messagesRoute from "@/app/api/chat/conversations/[id]/messages/route";
@@ -171,6 +179,69 @@ describe("a command is answered by a line, and a secret is never in the line", (
     expect(await db.bot.count({ where: { orgId: w.org.id } })).toBe(0);
     expect((await lines(other.id)).length).toBe(0);
     expect((await lines(chat)).length).toBe(0);
+  });
+});
+
+const PNG = Uint8Array.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3, 4, 5, 6, 7, 8]);
+async function uploadPicture(): Promise<string> {
+  const form = new FormData();
+  form.append("file", new File([PNG as BlobPart], "bot.png", { type: "image/png" }));
+  form.append("kind", "IMAGE");
+  const res = await uploadsRoute.POST(new Request("http://localhost/api/chat/uploads", { method: "POST", body: form }));
+  expect(res.status).toBeLessThan(300);
+  return ((await res.json()) as { id: string }).id;
+}
+const sayPicture = async (conversationId: string) => {
+  const attachmentId = await uploadPicture();
+  const res = await call(messagesRoute.POST, { params: { id: conversationId }, body: { attachmentIds: [attachmentId] } });
+  expect(res.status, JSON.stringify(res.json)).toBeLessThan(300);
+  await settleBotFatherForTests();
+};
+
+describe("«/setavatar»: the bot's picture", () => {
+  afterAll(async () => {
+    await db.$disconnect();
+  });
+
+  it("the next picture the person sends becomes the bot's face, and the answer says so; a picture while no command waits is only a picture", async () => {
+    const w = await world();
+    const h = handle();
+    const chat = (await openAs(w.admin)).json?.["id"] as string;
+    await say(chat, `/newbot بوت @${h}`);
+    const bot = await db.bot.findFirstOrThrow({ where: { orgId: w.org.id, username: h } });
+    // no command waiting: the picture is stored as a message and the bot is untouched, with no line from the bot maker
+    await sayPicture(chat);
+    expect((await db.user.findUniqueOrThrow({ where: { id: bot.userId }, select: { avatarUrl: true } })).avatarUrl).toBeNull();
+    expect((await lines(chat)).length).toBe(1);
+
+    await say(chat, `/setavatar @${h}`);
+    await sayPicture(chat);
+    const texts = (await lines(chat)).map((l) => l.p.text ?? "");
+    expect(texts).toHaveLength(3);
+    expect(texts[1]).toContain("ابعت");
+    expect(texts[2]).toContain(h);
+    const face = (await db.user.findUniqueOrThrow({ where: { id: bot.userId }, select: { avatarUrl: true } })).avatarUrl;
+    expect(face).toMatch(/^\/api\/avatars\/[A-Za-z0-9_-]+$/);
+    // the command waits for ONE picture: a second one changes nothing
+    await sayPicture(chat);
+    expect((await db.user.findUniqueOrThrow({ where: { id: bot.userId }, select: { avatarUrl: true } })).avatarUrl).toBe(face);
+    expect((await lines(chat)).length).toBe(3);
+  });
+
+  it("a text message in between cancels the wait; an unknown bot is a plain sentence and waits for nothing", async () => {
+    const w = await world();
+    const h = handle();
+    const chat = (await openAs(w.admin)).json?.["id"] as string;
+    await say(chat, `/newbot بوت @${h}`);
+    await say(chat, `/setavatar @${h}`);
+    await say(chat, "/mybots");
+    await sayPicture(chat);
+    const bot = await db.bot.findFirstOrThrow({ where: { orgId: w.org.id, username: h } });
+    expect((await db.user.findUniqueOrThrow({ where: { id: bot.userId }, select: { avatarUrl: true } })).avatarUrl).toBeNull();
+    await say(chat, "/setavatar @nobody_bot");
+    expect((await lines(chat)).at(-1)?.p.text).toContain("ما لقيت بوت");
+    await sayPicture(chat);
+    expect((await lines(chat)).length).toBe(4);
   });
 });
 

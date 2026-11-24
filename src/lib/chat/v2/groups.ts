@@ -12,6 +12,8 @@ export interface GroupMeta {
   id: string;
   name: string;
   emoji: string | null;
+  /** `/api/avatars/<id>` when the group has a picture: it is drawn instead of the emoji */
+  imageUrl?: string | null;
   position: number;
   restricted: boolean;
 }
@@ -27,6 +29,7 @@ export interface GroupRowModel {
   id: string | null;
   name: string;
   emoji: string | null;
+  imageUrl?: string | null;
   restricted: boolean;
   topicCount: number;
   unread: number;
@@ -51,12 +54,13 @@ export function groupRows(rows: readonly ChatRowDto[], groups: readonly GroupMet
   if (groups.length === 0) return [];
   const known = new Set(groups.map((g) => g.id));
   const topics = rows.filter(live);
-  const model = (id: string | null, name: string, emoji: string | null, restricted: boolean, inside: readonly ChatRowDto[]): GroupRowModel => ({
+  const model = (id: string | null, name: string, emoji: string | null, restricted: boolean, inside: readonly ChatRowDto[], imageUrl: string | null = null): GroupRowModel => ({
     key: `${opts.spaceId ? `group:${opts.spaceId}:` : "group:"}${id ?? "general"}`,
     ...(opts.spaceId ? { spaceId: opts.spaceId } : {}),
     id,
     name,
     emoji,
+    imageUrl,
     restricted,
     topicCount: inside.length,
     unread: inside.reduce((n, t) => n + t.unread, 0),
@@ -68,7 +72,7 @@ export function groupRows(rows: readonly ChatRowDto[], groups: readonly GroupMet
   const out: GroupRowModel[] = [];
   for (const g of ordered) {
     const inside = topics.filter((t) => placeOf(t, known) === g.id);
-    if (inside.length || opts.showEmpty) out.push(model(g.id, g.name, g.emoji, g.restricted, inside));
+    if (inside.length || opts.showEmpty) out.push(model(g.id, g.name, g.emoji, g.restricted, inside, g.imageUrl ?? null));
   }
   const general = topics.filter((t) => placeOf(t, known) === null);
   if (general.length) out.push(model(null, generalName, null, false, general));

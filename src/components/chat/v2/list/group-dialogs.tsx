@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import type { GroupMeta } from "@/lib/chat/v2/groups";
 import { ct } from "@/lib/chat/text";
 import { cn } from "@/lib/utils";
 import { useGroupActions } from "@/lib/chat/v2/use-space-groups";
+import { GroupFace } from "./group-face";
 
 /** The emojis offered for a group's picture (a tap picks one; a second tap on the same one takes it off); anything else can still be typed in the box beside them. */
 export const GROUP_EMOJIS = ["📁", "💼", "📊", "📣", "🛒", "📦", "🚚", "🎯", "💬", "🧾", "🛠️", "📞", "🎨", "📷", "🧪", "⭐", "🔥", "💡", "✅", "🏷️", "📅", "👥", "🧑‍💼", "🌍"] as const;
@@ -38,9 +39,11 @@ function EmojiChoices({ value, onChange, id }: { value: string; onChange: (next:
 }
 
 /** «تعديل المجموعة»: the name and the picture (an emoji) of a group, for whoever may arrange the space; the server decides again (`PATCH /api/groups/:id`). */
-export function EditTopicGroupDialog({ spaceId, group, onClose, onSaved }: { spaceId: string; group: { id: string; name: string; emoji: string | null }; onClose: () => void; onSaved?: (next: { name: string; emoji: string | null }) => void }) {
+export function EditTopicGroupDialog({ spaceId, group, onClose, onSaved }: { spaceId: string; group: { id: string; name: string; emoji: string | null; imageUrl?: string | null }; onClose: () => void; onSaved?: (next: { name: string; emoji: string | null }) => void }) {
   const toast = useOptionalToast();
-  const { update } = useGroupActions(spaceId);
+  const { update, picture, clearPicture } = useGroupActions(spaceId);
+  const picker = useRef<HTMLInputElement | null>(null);
+  const [image, setImage] = useState<string | null>(group.imageUrl ?? null);
   const [name, setName] = useState(group.name);
   const [emoji, setEmoji] = useState(group.emoji ?? "");
   const clean = name.trim();
@@ -72,6 +75,35 @@ export function EditTopicGroupDialog({ spaceId, group, onClose, onSaved }: { spa
           {ct("chatgrp.name")}
         </label>
         <Input id="edit-group-name" value={name} maxLength={60} onChange={(e) => setName(e.target.value)} autoFocus />
+        <div data-group-picture="" className="flex items-center gap-3">
+          <GroupFace emoji={emoji.trim() || null} imageUrl={image} fallback="📁" className="size-14 text-2xl" />
+          <input
+            ref={picker}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            data-group-picture-input=""
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = "";
+              if (!file) return;
+              picture.mutate({ groupId: group.id, file }, { onSuccess: (made) => setImage(made.imageUrl), onError: () => toast?.toast(ct("chatgrp.failed"), "error") });
+            }}
+          />
+          <Button type="button" variant="secondary" disabled={picture.isPending || clearPicture.isPending} onClick={() => picker.current?.click()}>
+            {image ? ct("chatgrp.picture_change") : ct("chatgrp.picture_add")}
+          </Button>
+          {image ? (
+            <Button
+              type="button"
+              variant="ghost"
+              disabled={picture.isPending || clearPicture.isPending}
+              onClick={() => clearPicture.mutate(group.id, { onSuccess: () => setImage(null), onError: () => toast?.toast(ct("chatgrp.failed"), "error") })}
+            >
+              {ct("chatgrp.picture_remove")}
+            </Button>
+          ) : null}
+        </div>
         <label className="block text-xs font-medium text-fg-muted" htmlFor="edit-group-emoji">
           {ct("chatgrp.emoji")}
         </label>

@@ -15,6 +15,7 @@ import { useDayKey } from "@/lib/chat/v2/use-day";
 import { cn } from "@/lib/utils";
 import { ArrangeRows } from "./group-arrange";
 import { EditTopicGroupDialog } from "./group-dialogs";
+import { GroupFace } from "./group-face";
 import { VirtualRows } from "./virtual-rows";
 
 /**
@@ -59,6 +60,8 @@ export function GroupTopicsPane({
   onEdited?: (next: { name: string; emoji: string | null }) => void;
 }) {
   const tall = variant === "screen";
+  // the picture is read from the live groups (the pick only holds the name and emoji it was opened with), so a new picture shows at once
+  const pictureOf = groups.find((g) => g.id === group.id)?.imageUrl ?? null;
   const day = useDayKey();
   const qc = useQueryClient();
   const [arranging, setArranging] = useState(false);
@@ -86,9 +89,7 @@ export function GroupTopicsPane({
         >
           <ArrowRight className="size-5" aria-hidden="true" />
         </button>
-        <span aria-hidden="true" className="grid size-9 shrink-0 place-items-center rounded-full bg-surface-2 text-lg">
-          {group.emoji ?? (group.id === null ? "🗂️" : "📁")}
-        </span>
+        <GroupFace emoji={group.emoji} imageUrl={pictureOf} fallback={group.id === null ? "🗂️" : "📁"} className="size-9 text-lg" />
         <div className="min-w-0 flex-1 ps-2">
           <h2 className="truncate text-base font-semibold leading-5">
             <bdi>{group.name}</bdi>
@@ -130,7 +131,7 @@ export function GroupTopicsPane({
       ) : (
         <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.forum.rows")} day={day} />
       )}
-      {editing && group.id !== null ? <EditTopicGroupDialog spaceId={spaceId} group={{ id: group.id, name: group.name, emoji: group.emoji }} onClose={() => setEditing(false)} {...(onEdited ? { onSaved: onEdited } : {})} /> : null}
+      {editing && group.id !== null ? <EditTopicGroupDialog spaceId={spaceId} group={{ id: group.id, name: group.name, emoji: group.emoji, imageUrl: pictureOf }} onClose={() => setEditing(false)} {...(onEdited ? { onSaved: onEdited } : {})} /> : null}
     </div>
   );
 }

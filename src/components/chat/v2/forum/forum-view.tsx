@@ -156,7 +156,7 @@ export function ForumView({
           </button>
         </div>
       ) : arranging && groupMode ? (
-        <ArrangeRows listId={`groups-${spaceId}`} entries={groups.map((g) => ({ id: g.id, label: g.name, emoji: g.emoji }))} onReorder={(ids) => reorder.mutate(ids)} />
+        <ArrangeRows listId={`groups-${spaceId}`} entries={groups.map((g) => ({ id: g.id, label: g.name, emoji: g.emoji, imageUrl: g.imageUrl ?? null }))} onReorder={(ids) => reorder.mutate(ids)} />
       ) : items.length === 0 ? (
         words ? (
           <ListEmpty folder="all" query={words} />

@@ -13,6 +13,7 @@ import { myHideLastSeen } from "@/server/services/last-seen";
 import { avatarHue } from "@/lib/format";
 import { ChatFoldersSettings } from "@/components/chat/v2/list/folder-editor";
 import { ProfileForm } from "@/components/profile-form";
+import { AutomationBlock } from "@/components/settings-me/automation-block";
 import { ChatSection } from "@/components/settings-me/chat-section";
 import { DataSection } from "@/components/settings-me/data-section";
 import { DevicesSection } from "@/components/settings-me/devices-section";
@@ -45,13 +46,18 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
       if (!me) notFound();
       // «الصورة الشخصية» switched off: the form does not offer it, and the upload route answers «not found»
       const withPicture = await actorFeatureOn(actor, "avatars");
+      // «ساعات الدوام والرد التلقائي»: only while the company's switch is on
+      const withAutomation = await actorFeatureOn(actor, "chatAutomation");
       body = (
+        <>
         <ProfileForm
           embedded
           me={{ ...me, hue: avatarHue(me.name) }}
           withPicture={withPicture}
           identity={{ username: user.username, usernameManaged: actorCan(actor, "users.manage") }}
         />
+        {withAutomation ? <AutomationBlock /> : null}
+        </>
       );
       break;
     }

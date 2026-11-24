@@ -17,6 +17,7 @@ import { infoModelOf } from "@/lib/chat/v2/info/info-model";
 import { isSavedHeader, isSavedRow } from "@/lib/chat/v2/menu/menu-context";
 import { usePeerProfile, useTeamName } from "@/lib/chat/v2/info/use-info-data";
 import { composerDetailOf, type PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
+import { ProfileQrRow } from "./profile-qr";
 
 const card = "mt-2 bg-surface-1 px-4 py-3";
 const row = "inline-flex min-h-11 w-full items-center rounded-lg px-3 text-start text-sm hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
@@ -134,6 +135,7 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
                   <bdi className="whitespace-pre-wrap">{profile.bio}</bdi>
                 </p>
               ) : null}
+              {model.peerId && header.tgLook !== false ? <ProfileQrRow userId={model.peerId} name={header.title} className={`${row} text-accent`} /> : null}
               {model.peerId ? (
                 <Link href={`/u/${encodeURIComponent(model.peerId)}`} data-info-open-profile className={`${row} text-accent`}>
                   {ct("chatui.info.open_profile")}

@@ -8,7 +8,8 @@ import { log } from "@/server/log";
 import { AR } from "@/lib/i18n/dict";
 import { interpolate } from "@/lib/i18n/interpolate";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
-import { createBot, deleteBot, listBots, revokeBotToken, rotateBotToken, setBotCommands, setBotDescription, setBotWebhook, type BotDto } from "@/server/services/bots";
+import { readStored } from "@/server/services/files";
+import { createBot, deleteBot, findBot, listBots, setBotAvatar, revokeBotToken, rotateBotToken, setBotCommands, setBotDescription, setBotWebhook, type BotDto } from "@/server/services/bots";
 import { BOTFATHER_EMOJI, BOTFATHER_TITLE, BOTFATHER_WORDS, botFatherChatKey, isBotFatherChatOf, parseBotCommands, parseBotFatherCall, parseNewBot, type BotFatherCall } from "@/lib/chat/botfather";
 
 /**
@@ -106,7 +107,14 @@ function failureText(err: unknown): string {
 interface Answer {
   text: string;
   reveal?: Reveal;
+  /** «/setavatar»: the handle whose picture is the next one the person sends */
+  waitAvatar?: string;
 }
+
+// «/setavatar»: the person's NEXT picture in this chat is the bot's face. Kept in memory for ten minutes only; any other message of theirs ends the wait.
+const AVATAR_WAIT_MS = 10 * 60_000;
+const waitingAvatar = new Map<string, { username: string; at: number }>();
+const waitKey = (userId: string, conversationId: string): string => `${userId}:${conversationId}`;
 
 /** Runs ONE command of the person and answers it in words. Never throws: a failure is the answer. */
 export async function runBotFatherCall(ctx: OrgAccessContext, call: BotFatherCall, spaceId: string | null): Promise<Answer> {
@@ -153,8 +161,11 @@ export async function runBotFatherCall(ctx: OrgAccessContext, call: BotFatherCal
           ? { text: t("botfather.webhook_set", { username: out.bot.username, host: out.bot.webhookHost ?? "" }), reveal: { webhookSecret: out.webhookSecret, username: out.bot.username } }
           : { text: t("botfather.webhook_cleared", { username: out.bot.username }) };
       }
-      case "setavatar":
-        return { text: t("botfather.avatar_later") };
+      case "setavatar": {
+        if (!call.handle) return { text: t("botfather.usage_setavatar") };
+        const bot = await findBot(ctx, call.handle);
+        return { text: t("botfather.avatar_wait", { username: bot.username }), waitAvatar: bot.username };
+      }
       case "deletebot": {
         if (!call.handle) return { text: t("botfather.usage_deletebot") };
         // a delete is not one slip of the finger: the handle must be repeated with «confirm»
@@ -186,7 +197,16 @@ async function answer(input: { orgId: string; conversationId: string; messageId:
   if (!conv || !isBotFatherChatOf(conv.dmKey, input.authorId)) return;
   const me = await loadOrgFacts(input.authorId, input.orgId);
   const ctx: OrgAccessContext = { orgId: input.orgId, userId: input.authorId, orgRole: (me?.role ?? "GUEST") as OrgAccessContext["orgRole"] };
-  const out = await runBotFatherCall(ctx, parseBotFatherCall(input.body), conv.spaceId);
+  // any message of the person ends a «/setavatar» wait; a picture inside it is what the wait was for
+  const key = waitKey(input.authorId, input.conversationId);
+  const held = waitingAvatar.get(key);
+  waitingAvatar.delete(key);
+  const waiting = held && Date.now() - held.at < AVATAR_WAIT_MS ? held : null;
+  const image = waiting ? await db.messageAttachment.findFirst({ where: { messageId: input.messageId, kind: "IMAGE" }, orderBy: { position: "asc" }, select: { fileId: true, name: true } }) : null;
+  // a picture or a file with no words, while nothing waits for it, is only a message: nothing to answer
+  if (!image && input.body.trim() === "") return;
+  const out: Answer = waiting && image ? await applyAvatar(ctx, input.orgId, waiting.username, image) : await runBotFatherCall(ctx, parseBotFatherCall(input.body), conv.spaceId);
+  if (out.waitAvatar) waitingAvatar.set(key, { username: out.waitAvatar, at: Date.now() });
   const reveal = out.reveal;
   const id = await db.$transaction(async (tx) => {
     const msg = await tx.chatMessage.create({
@@ -206,6 +226,20 @@ async function answer(input: { orgId: string; conversationId: string; messageId:
     return msg.id;
   });
   if (reveal) stash(id, input.authorId, input.conversationId, reveal);
+}
+
+const orgIdOf = (input: { orgId: string }): string => input.orgId;
+
+/** The picture the person sent becomes the bot's face; a picture the rules refuse is a plain sentence, not a crash. */
+async function applyAvatar(ctx: OrgAccessContext, orgId: string, username: string, image: { fileId: string; name: string | null }): Promise<Answer> {
+  try {
+    const stored = await readStored(orgId, image.fileId);
+    const bot = await setBotAvatar(ctx, username, { name: image.name ?? stored.name, bytes: new Uint8Array(stored.buffer) });
+    return { text: t("botfather.avatar_done", { username: bot.username }) };
+  } catch (err) {
+    if (err instanceof ForbiddenError && err.message.startsWith("avatar.")) return { text: t("botfather.avatar_failed") };
+    return { text: failureText(err) };
+  }
 }
 
 /** Tests: wait until every message to «بوت فاذر» has been answered. */

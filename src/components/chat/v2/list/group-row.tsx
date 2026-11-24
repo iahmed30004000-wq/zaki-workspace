@@ -8,6 +8,7 @@ import { ct, ctCount } from "@/lib/chat/text";
 import { rowPreview, rowTimeLabel, unreadText } from "@/lib/chat/row-preview";
 import { cn } from "@/lib/utils";
 import { ROW_HEIGHT, ROW_HEIGHT_PHONE } from "./chat-row";
+import { GroupFace } from "./group-face";
 
 /**
  * «مجموعات المواضيع» — ONE row of the list for a group, like Telegram's forum group: its picture, its name, the newest message of its topics and the unread of all of them added up.
@@ -28,9 +29,7 @@ export function GroupRowItem({ group, tall, now, onOpen }: { group: GroupRowMode
       style={{ height: tall ? ROW_HEIGHT_PHONE : ROW_HEIGHT }}
       className="flex w-full items-center gap-3 border-b border-border/60 px-3 py-2 text-start text-fg transition-colors hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent motion-reduce:transition-none"
     >
-      <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-full bg-surface-2 text-xl", size)}>
-        {group.emoji ?? (group.id === null ? "🗂️" : "📁")}
-      </span>
+      <GroupFace emoji={group.emoji} imageUrl={group.imageUrl ?? null} fallback={group.id === null ? "🗂️" : "📁"} className={cn("text-xl", size)} />
       <span className="flex min-w-0 flex-1 flex-col justify-center">
         <span className="flex min-w-0 items-center gap-1.5">
           <span className={cn("min-w-0 truncate text-base leading-5", unread ? "font-semibold" : "font-medium")}>
