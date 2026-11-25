@@ -80,8 +80,13 @@ fun GoalsScreen(onBack: () -> Unit, onOpenSite: (String) -> Unit, vm: GoalsViewM
                 data == null && state.closed -> Empty(W.sectionOff)
                 data == null -> Failure(state.failure!!.message, onRetry = { vm.refresh() })
                 else -> {
-                    val today = LocalDate.now().toString()
-                    val shown = data.goals.filter { it.period == period && it.periodStart.take(10) <= today && it.periodEnd.take(10) >= today }
+                    // the site's `inPeriod`: today at noon in the phone's zone, against the period's instants (a stored start's UTC date may be the day before)
+                    val noon = LocalDate.now().atTime(12, 0).atZone(java.time.ZoneId.systemDefault()).toInstant()
+                    val shown = data.goals.filter { g ->
+                        val from = runCatching { java.time.Instant.parse(g.periodStart) }.getOrNull()
+                        val to = runCatching { java.time.Instant.parse(g.periodEnd) }.getOrNull()
+                        g.period == period && from != null && to != null && !noon.isBefore(from) && !noon.isAfter(to)
+                    }
                     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
                         item {
                             Text(P.goalsSubtitle, fontSize = 13.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 10.dp))

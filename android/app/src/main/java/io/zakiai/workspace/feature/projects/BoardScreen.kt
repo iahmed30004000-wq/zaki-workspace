@@ -155,6 +155,8 @@ private fun Kanban(data: BoardAnswer, onOpenTask: (String) -> Unit, vm: BoardVie
     // where everything is on screen, for the drop: each column's box and each card's box (root coordinates)
     val columnBounds = remember { HashMap<String, Rect>() }
     val cardBounds = remember { HashMap<String, Rect>() }
+    // a card scrolled out of its column is clipped to nothing; its order is read from where it really is
+    val cardFull = remember { HashMap<String, Rect>() }
     var origin by remember { mutableStateOf(Offset.Zero) }
     var boardBox by remember { mutableStateOf(Rect.Zero) }
     // the card in the hand: which, where the finger is, where on the card it was taken
@@ -191,9 +193,9 @@ private fun Kanban(data: BoardAnswer, onOpenTask: (String) -> Unit, vm: BoardVie
         if (target == null) return
         // its index among the other cards of the target column: how many of them sit above the finger
         val others = BoardLogic.column(current.tasks, target).filter { it.id != card.id }
-        val above = others.count { o -> cardBounds[o.id]?.let { it.center.y < finger.y } ?: false }
-        val index = if (above >= others.size) null else above
-        vm.move(card.id, target, index)
+        val above = others.count { o -> cardFull[o.id]?.let { it.center.y < finger.y } ?: false }
+        // always the place itself (the site sends the column's length for its end): the end of the card's own column is a real move too
+        vm.move(card.id, target, above)
     }
 
     Box(
@@ -247,11 +249,11 @@ private fun Kanban(data: BoardAnswer, onOpenTask: (String) -> Unit, vm: BoardVie
                     liftedId = lifted?.id,
                     columns = data.columns,
                     onBounds = { columnBounds[col.id] = it },
-                    onCardBounds = { id, r -> cardBounds[id] = r },
+                    onCardBounds = { id, seen, full -> cardBounds[id] = seen; cardFull[id] = full },
                     onOpenTask = onOpenTask,
                     onAdd = { title -> vm.addCard(col.id, title) },
                     onMoveTo = { card, to -> vm.move(card.id, to, null) },
-                    onGone = { id -> columnBounds.remove(id); cardBounds.remove(id) },
+                    onGone = { id -> columnBounds.remove(id); cardBounds.remove(id); cardFull.remove(id) },
                     lifting = lifted != null,
                 )
             }
@@ -280,7 +282,7 @@ private fun ColumnBox(
     liftedId: String?,
     columns: List<BoardColumn>,
     onBounds: (Rect) -> Unit,
-    onCardBounds: (String, Rect) -> Unit,
+    onCardBounds: (String, Rect, Rect) -> Unit,
     onOpenTask: (String) -> Unit,
     onAdd: (String) -> Unit,
     onMoveTo: (BoardCard, String) -> Unit,
@@ -289,7 +291,7 @@ private fun ColumnBox(
 ) {
     val shape = RoundedCornerShape(16.dp)
     var adding by remember { mutableStateOf(false) }
-    androidx.compose.runtime.DisposableEffect(col.id) { onDispose { onGone(col.id); cards.forEach { onGone(it.id) } } }
+    androidx.compose.runtime.DisposableEffect(col.id) { onDispose { onGone(col.id) } }
     Column(
         Modifier.width(288.dp).fillMaxHeight().clip(shape).background(Zk.colors.surface2)
             .then(if (hovered) Modifier.border(2.dp, Zk.colors.accent.copy(alpha = 0.5f), shape) else Modifier)
@@ -310,9 +312,11 @@ private fun ColumnBox(
             }
             for (card in cards) {
                 var menu by remember(card.id) { mutableStateOf(false) }
+                // a card that leaves this column (moved, or the column scrolled away) forgets where it was
+                androidx.compose.runtime.DisposableEffect(card.id) { onDispose { onGone(card.id) } }
                 Box(
                     Modifier.fillMaxWidth()
-                        .onGloballyPositioned { onCardBounds(card.id, it.boundsInRoot()) }
+                        .onGloballyPositioned { onCardBounds(card.id, it.boundsInRoot(), Rect(it.positionInRoot(), androidx.compose.ui.geometry.Size(it.size.width.toFloat(), it.size.height.toFloat()))) }
 ,
                 ) {
                     Card(

@@ -24,13 +24,14 @@ import io.zakiai.workspace.core.net.TimelineAnswer
 import io.zakiai.workspace.core.net.WorkspaceApi
 import io.zakiai.workspace.core.net.apiCall
 import io.zakiai.workspace.feature.work.Screen
+import io.zakiai.workspace.feature.work.missingDoor
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** «المشاريع»: the projects of the space the person is in (`GET /api/work/projects`), opened with the phone's last copy. */
+/** آ«ط§ظ„ظ…ط´ط§ط±ظٹط¹آ»: the projects of the space the person is in (`GET /api/work/projects`), opened with the phone's last copy. */
 @HiltViewModel
 class ProjectsViewModel @Inject constructor(private val api: WorkspaceApi, private val cache: Cache, private val session: Session) : ViewModel() {
     private val _state = MutableStateFlow(Screen<ProjectsAnswer>())
@@ -52,7 +53,7 @@ class ProjectsViewModel @Inject constructor(private val api: WorkspaceApi, priva
         }
     }
 
-    /** «مشروع جديد» in the space the person is in; the server decides whether they may. */
+    /** آ«ظ…ط´ط±ظˆط¹ ط¬ط¯ظٹط¯آ» in the space the person is in; the server decides whether they may. */
     fun create(name: String, then: (String) -> Unit) = viewModelScope.launch {
         val space = _state.value.data?.space ?: return@launch
         when (val r = apiCall { api.newProject(NewProjectBody(workspaceId = space.id, name = name.trim())) }) {
@@ -97,7 +98,7 @@ class ProjectViewModel @Inject constructor(
             is ApiResult.Ok -> _state.value = Screen(r.value)
             is ApiResult.Err -> {
                 if (r.failure.signedOut) session.expired(r.failure)
-                _state.value = _state.value.copy(failure = r.failure, closed = r.failure.status == 403 || r.failure.status == 404)
+                _state.value = _state.value.copy(failure = r.failure, closed = r.failure.status == 403 || (r.failure.status == 404 && !r.failure.missingDoor()))
             }
         }
     }
@@ -151,6 +152,8 @@ class BoardViewModel @Inject constructor(private val api: WorkspaceApi, private 
     val notice: StateFlow<String?> = _notice.asStateFlow()
     /** a move in flight: a refresh that lands meanwhile must not snap the card back */
     private var moving = 0
+    /** counts the moves: a refresh that STARTED before a move is stale even if it lands after it */
+    private var moves = 0
 
     fun open(id: String) {
         if (boardId == id) return
@@ -162,13 +165,14 @@ class BoardViewModel @Inject constructor(private val api: WorkspaceApi, private 
 
     fun refresh() = viewModelScope.launch {
         val id = boardId ?: return@launch
+        val asOf = moves
         val r = cache.refresh("board:$id", BoardAnswer.serializer()) { apiCall { api.workBoard(id) } }
-        if (boardId != id || moving > 0) return@launch
+        if (boardId != id || moving > 0 || asOf != moves) return@launch
         when (r) {
             is ApiResult.Ok -> _state.value = Screen(r.value)
             is ApiResult.Err -> {
                 if (r.failure.signedOut) session.expired(r.failure)
-                _state.value = _state.value.copy(failure = r.failure, closed = r.failure.status == 403 || r.failure.status == 404)
+                _state.value = _state.value.copy(failure = r.failure, closed = r.failure.status == 403 || (r.failure.status == 404 && !r.failure.missingDoor()))
             }
         }
     }
@@ -179,9 +183,11 @@ class BoardViewModel @Inject constructor(private val api: WorkspaceApi, private 
         val card = before.firstOrNull { it.id == cardId } ?: return@launch
         val index = BoardLogic.dropIndex(before, cardId, toColumn, overIndex)
         val done = data.columns.firstOrNull { it.id == toColumn }?.done == true
-        if (card.columnId == toColumn && index == null) return@launch
+        // dropped where it already was: nothing to send
+        if (card.columnId == toColumn && (index == null || index == BoardLogic.column(before, toColumn).indexOfFirst { it.id == cardId })) return@launch
         _state.value = _state.value.copy(data = data.copy(tasks = BoardLogic.moved(before, cardId, toColumn, index, done)))
         moving++
+        moves++
         val r = apiCall { api.move(cardId, MoveBody(toColumn, index)) }
         moving--
         if (r is ApiResult.Err) {
@@ -211,7 +217,7 @@ class BoardViewModel @Inject constructor(private val api: WorkspaceApi, private 
     fun consumeNotice() { _notice.value = null }
 }
 
-/** «الأهداف»: the goals of the space (`GET /api/goals`); the progress slider writes through the site's `PATCH /api/goals/[id]`. */
+/** آ«ط§ظ„ط£ظ‡ط¯ط§ظپآ»: the goals of the space (`GET /api/goals`); the progress slider writes through the site's `PATCH /api/goals/[id]`. */
 @HiltViewModel
 class GoalsViewModel @Inject constructor(private val api: WorkspaceApi, private val cache: Cache, private val session: Session) : ViewModel() {
     private val _state = MutableStateFlow(Screen<GoalsAnswer>())

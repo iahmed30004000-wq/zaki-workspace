@@ -1,7 +1,9 @@
 package io.zakiai.workspace
 
 import androidx.compose.ui.graphics.toArgb
+import io.zakiai.workspace.core.net.ApiFailure
 import io.zakiai.workspace.core.net.BoardCard
+import io.zakiai.workspace.feature.work.missingDoor
 import io.zakiai.workspace.feature.projects.BoardLogic
 import io.zakiai.workspace.feature.projects.P
 import io.zakiai.workspace.feature.projects.hexColor
@@ -37,6 +39,17 @@ class BoardLogicTest {
         assertEquals(listOf("c", "a", "b"), order(BoardLogic.moved(board, "c", "todo", 0, done = false), "todo"))
         // a between b and c: index 1 among [b, c]
         assertEquals(listOf("b", "a", "c"), order(BoardLogic.moved(board, "a", "todo", 1, done = false), "todo"))
+    }
+
+    @Test fun `a card dragged below the last card of its own column goes to its end`() {
+        // a below c: index 2 among [b, c] (the board sends the place itself, never «nothing» for its own column)
+        assertEquals(listOf("b", "c", "a"), order(BoardLogic.moved(board, "a", "todo", 2, done = false), "todo"))
+    }
+
+    @Test fun `a missing door is a 404 without the site's key, a real not-found carries one`() {
+        assertTrue(ApiFailure("x", key = null, status = 404).missingDoor())
+        assertFalse(ApiFailure("x", key = "board.not_found", status = 404).missingDoor())
+        assertFalse(ApiFailure("x", key = null, status = 403).missingDoor())
     }
 
     @Test fun `an empty column takes the card, and an index past the end is the end`() {
