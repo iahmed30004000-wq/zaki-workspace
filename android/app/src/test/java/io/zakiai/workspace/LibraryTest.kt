@@ -41,6 +41,33 @@ class DocMarkupTest {
     }
 }
 
+/** The review's cases: the site's mention edges, Western digits only, the WHATWG-like link check, the upload refusals in the site's words. */
+class DocMarkupParityTest {
+    @Test fun `a mention needs a space before it and a space or punctuation after it, as on the site`() {
+        val names = listOf("سارة")
+        assertEquals(listOf(Inline.Text("(@سارة)")), DocMarkup.parseInline("(@سارة)", names))
+        assertEquals(listOf(Inline.Text("«@سارة»")), DocMarkup.parseInline("«@سارة»", names))
+        assertEquals(listOf(Inline.Text("مرحبا "), Inline.Mention("@سارة"), Inline.Text("، تعالي")), DocMarkup.parseInline("مرحبا @سارة، تعالي", names))
+    }
+
+    @Test fun `a list numbered in Arabic-Indic digits stays a paragraph, as on the site`() {
+        assertEquals(Block.Para(listOf(Inline.Text("١. بند"))), DocMarkup.parse("١. بند").single())
+    }
+
+    @Test fun `a link to a host with an underscore is a link, a mailto without an address is not`() {
+        assertEquals("https://my_host.example.com", DocMarkup.safeHref("https://my_host.example.com"))
+        assertNull(DocMarkup.safeHref("mailto:?subject=x"))
+        assertNull(DocMarkup.safeHref("https://"))
+    }
+
+    @Test fun `an upload the site refuses reads in the site's words`() {
+        val f = { status: Int, key: String? -> io.zakiai.workspace.core.net.ApiFailure("ليس لديك صلاحية", key, status) }
+        assertEquals("نوع الملف غير مدعوم", io.zakiai.workspace.feature.library.uploadRefusal(f(403, "files.unsupported")))
+        assertEquals("الملف أكبر من 25 ميغابايت", io.zakiai.workspace.feature.library.uploadRefusal(f(413, null)))
+        assertEquals("ليس لديك صلاحية", io.zakiai.workspace.feature.library.uploadRefusal(f(403, "forbidden")))
+    }
+}
+
 /** The site's «قبل …» and sizes (src/lib/format.ts `fmtAgo`, `fmtSize`). */
 class AgoTest {
     private val now = Instant.parse("2026-11-25T12:00:00Z")

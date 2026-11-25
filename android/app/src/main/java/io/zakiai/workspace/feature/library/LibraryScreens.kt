@@ -126,11 +126,13 @@ fun LibraryHub(spaceId: String?, onOpenDoc: (String) -> Unit, onOpenSheet: (Stri
 private fun FilesTab(spaceKey: String?, onOpenSite: (String) -> Unit, vm: FilesViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
-    val uploading by vm.uploading.collectAsStateWithLifecycle()
+    val uploading by vm.uploads.uploading.collectAsStateWithLifecycle()
+    val uploadNotice by vm.uploads.notice.collectAsStateWithLifecycle()
     val busy by vm.opener.busy.collectAsStateWithLifecycle()
     WhileOnScreen(60_000, spaceKey) { vm.refresh() }
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); vm.consumeNotice() } }
+    LaunchedEffect(uploadNotice) { uploadNotice?.let { snack.showSnackbar(it); vm.uploads.consumeNotice() } }
     val pick = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris -> if (uris.isNotEmpty()) vm.upload(uris) }
     var query by rememberSaveable { mutableStateOf("") }
     var asking by remember { mutableStateOf<LibFile?>(null) }
@@ -173,8 +175,8 @@ private fun FilesTab(spaceKey: String?, onOpenSite: (String) -> Unit, vm: FilesV
                                 FileRow(
                                     f,
                                     busy = busy == "lib-" + f.id,
-                                    onOpen = { vm.opener.open(vm.asAttachment(f)) { vm.consumeNotice() } },
-                                    onShare = { vm.opener.share(vm.asAttachment(f)) { } },
+                                    onOpen = { vm.opener.open(vm.asAttachment(f)) { vm.say(it) } },
+                                    onShare = { vm.opener.share(vm.asAttachment(f)) { vm.say(it) } },
                                     onDelete = { asking = f },
                                 )
                             }

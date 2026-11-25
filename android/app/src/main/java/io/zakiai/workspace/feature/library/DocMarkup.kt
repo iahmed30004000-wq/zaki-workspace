@@ -22,7 +22,10 @@ object DocMarkup {
 
     private val HEADING = Regex("^(#{1,3}) +(.*)$")
     private val BULLET = Regex("^[-*] +(.*)$")
-    private val NUMBERED = Regex("^\\d{1,3}[.)] +(.*)$")
+    // Western digits only, as the site's \d in JavaScript (Android's \d would also take ١٢٣)
+    private val NUMBERED = Regex("^[0-9]{1,3}[.)] +(.*)$")
+    /** what may end a mention, besides a space (src/lib/chat/conversation/mentions.ts MENTION_END) */
+    private const val MENTION_END = ",،.!?؟:؛;"
     private val TOKEN = Regex("\\*\\*([^*]+?)\\*\\*|\\[([^\\]\\n]+)\\]\\(([^)\\n]*)\\)")
     private val CONTROL = Regex("[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]")
 
@@ -34,10 +37,11 @@ object DocMarkup {
         if (t != raw || t.isEmpty() || t.length > 2000 || t.any { it.isWhitespace() }) return null
         val lower = t.lowercase()
         return when {
-            lower.startsWith("mailto:") -> if (t.length > 7) t else null
+            lower.startsWith("mailto:") -> if (t.substring(7).substringBefore('?').isNotEmpty()) t else null
             lower.startsWith("https://") || lower.startsWith("http://") -> {
-                val host = runCatching { java.net.URI(t).host }.getOrNull()
-                if (host.isNullOrEmpty()) null else t
+                val rest = t.substringAfter("://")
+                val host = rest.substringBefore('/').substringBefore('?').substringBefore('#').substringAfterLast('@').substringBefore(':')
+                if (host.isEmpty()) null else t
             }
             else -> null
         }
@@ -52,9 +56,9 @@ object DocMarkup {
         var i = 0
         while (i < chunk.length) {
             val c = chunk[i]
-            val starts = c == '@' && (i == 0 || !chunk[i - 1].isLetterOrDigit())
+            val starts = c == '@' && (i == 0 || chunk[i - 1].isWhitespace())
             val hit = if (starts) sorted.firstOrNull { n ->
-                chunk.startsWith(n, i + 1) && (i + 1 + n.length == chunk.length || !chunk[i + 1 + n.length].isLetterOrDigit())
+                chunk.startsWith(n, i + 1) && (i + 1 + n.length == chunk.length || MENTION_END.contains(chunk[i + 1 + n.length]) || chunk[i + 1 + n.length].isWhitespace())
             } else null
             if (hit != null) {
                 if (buf.isNotEmpty()) { out += Inline.Text(buf.toString()); buf.clear() }

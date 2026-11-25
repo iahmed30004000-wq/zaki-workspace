@@ -25,7 +25,11 @@ import io.zakiai.workspace.core.net.WorkspaceApi
 import io.zakiai.workspace.core.net.apiCall
 import io.zakiai.workspace.feature.work.Screen
 import io.zakiai.workspace.feature.work.missingDoor
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -39,29 +43,25 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.ByteArrayOutputStream
 import javax.inject.Inject
 
-/** The site's one-file limit (src/server/files/sniff.ts `MAX_FILE_BYTES`): known on the phone so a too-big file is refused before it travels. */
-const val MAX_FILE_BYTES = 25L * 1024 * 1024
-
-/** «مكتبة مساحة العمل»: the space's files (`GET /api/files`); upload through the site's own `POST /api/files`, delete through `DELETE`. */
+/** «مكتبة مساحة العمل»: the space's files (`GET /api/files`); uploads go through [LibraryUploads] (the app's life), delete through `DELETE`. */
 @HiltViewModel
 class FilesViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
     private val api: WorkspaceApi,
     private val cache: Cache,
     private val session: Session,
     /** the chat's own fetch-and-open (the session's client, the app's private cache, a temporary read grant): one way to open a file */
     val opener: io.zakiai.workspace.feature.chat.ChatFiles,
+    val uploads: LibraryUploads,
 ) : ViewModel() {
     private val _state = MutableStateFlow(Screen<FilesAnswer>())
     val state: StateFlow<Screen<FilesAnswer>> = _state.asStateFlow()
     private val _notice = MutableStateFlow<String?>(null)
     val notice: StateFlow<String?> = _notice.asStateFlow()
-    /** the names being uploaded now (their rows show a spinner) */
-    private val _uploading = MutableStateFlow<List<String>>(emptyList())
-    val uploading: StateFlow<List<String>> = _uploading.asStateFlow()
 
     init {
         viewModelScope.launch { cache.read(KEY, FilesAnswer.serializer())?.let { c -> if (_state.value.data == null) _state.value = _state.value.copy(data = c) } }
+        // a finished upload (even one started before the tab was left and opened again) reloads the list
+        viewModelScope.launch { var first = true; uploads.done.collect { if (!first) refresh(); first = false } }
     }
 
     fun refresh() = viewModelScope.launch {
@@ -74,30 +74,7 @@ class FilesViewModel @Inject constructor(
         }
     }
 
-    /** One file at a time, as the site sends them; a camera's HEIC becomes a JPEG (the site's sniffing refuses HEIC). */
-    fun upload(uris: List<Uri>) {
-        for (uri in uris) viewModelScope.launch {
-            val name = nameOf(uri)
-            val size = sizeOf(uri)
-            if (size != null && size > MAX_FILE_BYTES) { _notice.value = L.tooLarge; return@launch }
-            _uploading.value = _uploading.value + name
-            val prepared = withContext(Dispatchers.IO) { runCatching { prepare(uri, name) }.getOrNull() }
-            if (prepared == null) {
-                _uploading.value = _uploading.value - name
-                _notice.value = io.zakiai.workspace.feature.chat.C.uploadFailed
-                return@launch
-            }
-            val (bytes, sentName, mime) = prepared
-            if (bytes.size > MAX_FILE_BYTES) { _uploading.value = _uploading.value - name; _notice.value = L.tooLarge; return@launch }
-            val part = MultipartBody.Part.createFormData("file", sentName, bytes.toRequestBody(mime.toMediaTypeOrNull()))
-            val r = apiCall { api.uploadLibrary(part) }
-            _uploading.value = _uploading.value - name
-            when (r) {
-                is ApiResult.Ok -> { _notice.value = L.uploaded; refresh() }
-                is ApiResult.Err -> _notice.value = r.failure.message
-            }
-        }
-    }
+    fun upload(uris: List<Uri>) = uploads.add(uris)
 
     fun delete(id: String) = viewModelScope.launch {
         when (val r = apiCall { api.deleteFile(id) }) {
@@ -109,26 +86,9 @@ class FilesViewModel @Inject constructor(
     /** A library file as the chat's attachment shape, so it opens and shares the same way (`/api/files/<id>/raw`, the site's permission check). */
     fun asAttachment(f: io.zakiai.workspace.core.net.LibFile) = io.zakiai.workspace.core.net.Attachment(id = "lib-" + f.id, name = f.name, mime = f.mimeType, size = f.size, url = "/api/files/" + f.id + "/raw")
 
+    fun say(text: String) { _notice.value = text }
+
     fun consumeNotice() { _notice.value = null }
-
-    private fun prepare(uri: Uri, name: String): Triple<ByteArray, String, String> {
-        val mime = context.contentResolver.getType(uri).orEmpty()
-        if ((mime == "image/heic" || mime == "image/heif") && Build.VERSION.SDK_INT >= 28) {
-            val bmp: Bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, uri)) { d, _, _ -> d.allocator = ImageDecoder.ALLOCATOR_SOFTWARE }
-            val out = ByteArrayOutputStream().use { o -> bmp.compress(Bitmap.CompressFormat.JPEG, 90, o); o.toByteArray() }
-            return Triple(out, name.substringBeforeLast('.') + ".jpg", "image/jpeg")
-        }
-        val bytes = context.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
-        return Triple(bytes, name, mime.ifEmpty { "application/octet-stream" })
-    }
-
-    private fun nameOf(uri: Uri): String = runCatching {
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null }
-    }.getOrNull() ?: (uri.lastPathSegment ?: "file")
-
-    private fun sizeOf(uri: Uri): Long? = runCatching {
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { c -> if (c.moveToFirst() && !c.isNull(0)) c.getLong(0) else null }
-    }.getOrNull()
 
     companion object { const val KEY = "library-files" }
 }
@@ -167,8 +127,10 @@ class DocsViewModel @Inject constructor(private val api: WorkspaceApi, private v
 
 /**
  * ONE DOCUMENT: read (`GET /api/documents/[id]`), and for whom may write, written with the site's autosave — 1.2 s after the typing stops,
- * with the version it was read at; another person's newer save (409) stops the autosave until the person chooses «خلّي نسختي» (saved over
- * the newest version) or «خذ نسختهم» (theirs loaded, the phone's words dropped).
+ * with the version it was read at. As on the site: a save in flight is never cancelled (typing meanwhile only asks for one more save after
+ * it), a blank title is left out and the text is still saved, a failure retries after 6 s, and another person's newer save (409) stops the
+ * autosave until the person chooses «خلّي نسختي» (saved over the newest version) or «خذ نسختهم» (after a question). Leaving the screen saves
+ * what is still unsaved, outside the screen's life, so no word is lost on «رجوع».
  */
 @HiltViewModel
 class DocumentViewModel @Inject constructor(private val api: WorkspaceApi, private val session: Session, handle: SavedStateHandle) : ViewModel() {
@@ -176,16 +138,21 @@ class DocumentViewModel @Inject constructor(private val api: WorkspaceApi, priva
     private val _state = MutableStateFlow(Screen<DocItem>())
     val state: StateFlow<Screen<DocItem>> = _state.asStateFlow()
 
-    /** what the person typed (null: the document as read) */
-    private val _title = MutableStateFlow<String?>(null)
-    val title: StateFlow<String?> = _title.asStateFlow()
-    private val _content = MutableStateFlow<String?>(null)
-    val content: StateFlow<String?> = _content.asStateFlow()
+    /** what the person typed (null: the document as read) — Compose state, so the field and its cursor stay in step with the keyboard */
+    var title by androidx.compose.runtime.mutableStateOf<String?>(null)
+        private set
+    var content by androidx.compose.runtime.mutableStateOf<String?>(null)
+        private set
 
     enum class Save { Idle, Unsaved, Saving, Saved, Error, Conflict }
     private val _save = MutableStateFlow(Save.Idle)
     val save: StateFlow<Save> = _save.asStateFlow()
-    private var pending: Job? = null
+
+    private var timer: Job? = null
+    private var inflight = false
+    private var again = false
+    /** the saves outlive the screen: «رجوع» right after typing still saves */
+    private val saver = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     fun load() = viewModelScope.launch {
         when (val r = apiCall { api.document(id) }) {
@@ -197,50 +164,72 @@ class DocumentViewModel @Inject constructor(private val api: WorkspaceApi, priva
         }
     }
 
+    /** Read once per screen: reading again would move the base version under the person's unsaved words (and could overwrite a colleague). */
+    fun loadOnce() { if (_state.value.data == null) load() }
+
     fun type(title: String? = null, content: String? = null) {
-        title?.let { _title.value = it.take(200) }
-        content?.let { _content.value = it.take(100_000) }
+        title?.let { this.title = it.take(200) }
+        content?.let { this.content = it.take(100_000) }
         if (_save.value == Save.Conflict) return
         _save.value = Save.Unsaved
-        pending?.cancel()
-        pending = viewModelScope.launch { delay(1200); saveNow() }
+        schedule(1200)
+    }
+
+    private fun schedule(ms: Long) {
+        timer?.cancel()
+        timer = saver.launch { kotlinx.coroutines.delay(ms); saveNow() }
     }
 
     private suspend fun saveNow() {
         val doc = _state.value.data ?: return
-        val t = _title.value
-        if (t != null && t.isBlank()) return
+        if (_save.value == Save.Conflict) return
+        if (inflight) { again = true; return }
+        if (title == null && content == null) return
+        inflight = true
+        again = false
         _save.value = Save.Saving
-        when (val r = apiCall { api.saveDocument(id, SaveDocBody(version = doc.version, title = t, content = _content.value)) }) {
+        // a blank title is left out (the site's rule): the text is still saved
+        val t = title?.takeIf { it.isNotBlank() }
+        val r = apiCall { api.saveDocument(id, SaveDocBody(version = doc.version, title = t, content = content)) }
+        inflight = false
+        when (r) {
             is ApiResult.Ok -> {
                 _state.value = Screen(r.value.document)
-                _save.value = Save.Saved
+                _save.value = if (again) Save.Unsaved else Save.Saved
+                if (again) schedule(0)
             }
-            is ApiResult.Err -> when {
-                r.failure.status == 409 -> _save.value = Save.Conflict
-                else -> {
-                    _save.value = Save.Error
-                    // the site retries after 6 s
-                    pending = viewModelScope.launch { delay(6000); saveNow() }
-                }
+            is ApiResult.Err -> when (r.failure.status) {
+                409 -> _save.value = Save.Conflict
+                else -> { _save.value = Save.Error; schedule(6000) }
             }
         }
     }
 
     /** «خلّي نسختي»: the newest version read again, the phone's words saved over it. */
-    fun keepMine() = viewModelScope.launch {
-        val fresh = (apiCall { api.document(id) } as? ApiResult.Ok)?.value?.document ?: return@launch
+    fun keepMine() = saver.launch {
+        val fresh = (apiCall { api.document(id) } as? ApiResult.Ok)?.value?.document
+        if (fresh == null) { _save.value = Save.Error; return@launch }
         _state.value = Screen(fresh)
         _save.value = Save.Unsaved
         saveNow()
     }
 
-    /** «خذ نسختهم»: theirs loaded, what the phone typed dropped. */
+    /** «خذ نسختهم»: theirs loaded, what the phone typed dropped (the screen asks first). */
     fun takeTheirs() = viewModelScope.launch {
-        _title.value = null
-        _content.value = null
+        timer?.cancel()
+        title = null
+        content = null
         _save.value = Save.Idle
         load()
+    }
+
+    override fun onCleared() {
+        // what is still unsaved goes now, in the saver's own scope (the screen's is ending)
+        if (_save.value == Save.Unsaved || _save.value == Save.Error) {
+            timer?.cancel()
+            saver.launch { saveNow() }
+        }
+        super.onCleared()
     }
 }
 

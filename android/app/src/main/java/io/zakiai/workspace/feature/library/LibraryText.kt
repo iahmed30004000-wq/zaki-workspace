@@ -16,6 +16,7 @@ object L {
     const val deleteAsk = "حذف هذا الإصدار؟"
     const val deleted = "حُذف الملف"
     const val tooLarge = "الملف أكبر من 25 ميغابايت"
+    const val unsupported = "نوع الملف غير مدعوم" // files.unsupported
     const val uploaded = "انرفع الملف."
     const val uploading = "عم نرفع"
     const val search = "دوّر باسم الملف"
@@ -59,6 +60,7 @@ object L {
     const val conflict = "غيرك حفظ نسخة أحدث من هالمستند."
     const val keepMine = "خلّي نسختي"
     const val takeTheirs = "خذ نسختهم"
+    const val takeConfirm = "نصك الحالي رح يضيع من الشاشة (جرّب «انسخ نصي» قبل). تكمّل؟" // docs.conflict.take_confirm
     const val titleHint = "عنوان المستند"
 
     // «المنتجات» (knowledge.*)
@@ -72,6 +74,8 @@ object L {
     const val badgeTest = "تيست"
     const val badgeNew = "جديد"
     const val noPriceShort = "بلا سعر"
+    const val noPrice = "ما في سعر بنظام الطلبات" // knowledge.no_price
+    const val noPriceFix = "عبّيه هناك" // knowledge.no_price_fix
     const val priceStale = "⚠️ السعر مش محدّث"
     const val missing = "مش موجود بنظام الطلبات"
     const val faq = "أسئلة الزباين"

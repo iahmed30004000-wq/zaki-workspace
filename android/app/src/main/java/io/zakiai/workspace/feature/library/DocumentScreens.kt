@@ -73,12 +73,13 @@ import io.zakiai.workspace.ui.theme.Zk
  */
 @Composable
 fun DocumentScreen(onBack: () -> Unit, vm: DocumentViewModel = hiltViewModel()) {
-    LaunchedEffect(vm.id) { vm.load() }
+    LaunchedEffect(vm.id) { vm.loadOnce() }
     val state by vm.state.collectAsStateWithLifecycle()
-    val title by vm.title.collectAsStateWithLifecycle()
-    val content by vm.content.collectAsStateWithLifecycle()
+    val title = vm.title
+    val content = vm.content
     val save by vm.save.collectAsStateWithLifecycle()
     var writing by rememberSaveable { mutableStateOf(false) }
+    var askTake by remember { mutableStateOf(false) }
     val doc = state.data
     Column(Modifier.fillMaxSize().background(Zk.colors.surface).navigationBarsPadding().imePadding()) {
         ZkBar(
@@ -118,7 +119,7 @@ fun DocumentScreen(onBack: () -> Unit, vm: DocumentViewModel = hiltViewModel()) 
                         WarnFix("⚠️ " + L.conflict, "🔧 " + L.keepMine + " · " + L.takeTheirs)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(onClick = { vm.keepMine() }) { Text(L.keepMine, color = Zk.colors.accent) }
-                            TextButton(onClick = { vm.takeTheirs() }) { Text(L.takeTheirs, color = Zk.colors.fg) }
+                            TextButton(onClick = { askTake = true }) { Text(L.takeTheirs, color = Zk.colors.fg) }
                         }
                     }
                     Spacer(Modifier.height(6.dp))
@@ -141,6 +142,16 @@ fun DocumentScreen(onBack: () -> Unit, vm: DocumentViewModel = hiltViewModel()) 
                 }
             }
         }
+    }
+    // the site asks before the person's words leave the screen (docs.conflict.take_confirm)
+    if (askTake) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { askTake = false },
+            containerColor = Zk.colors.surface1,
+            text = { Text(L.takeConfirm) },
+            confirmButton = { TextButton(onClick = { askTake = false; vm.takeTheirs() }) { Text(L.takeTheirs, color = Zk.colors.danger) } },
+            dismissButton = { TextButton(onClick = { askTake = false }) { Text(L.cancel) } },
+        )
     }
 }
 
@@ -235,6 +246,9 @@ fun SheetScreen(onBack: () -> Unit, vm: SheetViewModel = hiltViewModel()) {
                     if ("new" in s.data?.badges.orEmpty()) StateChip(L.badgeNew, Zk.colors.accent)
                 }
                 s.data?.tagline?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 16.sp, lineHeight = 26.sp, color = Zk.colors.fg, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) }
+                s.data?.testNote?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 13.sp, color = Zk.colors.warn, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+                if (s.external?.missingSince != null) Box(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) { StateChip(L.missing, Zk.colors.danger) }
+                if (s.external?.price == null) WarnFix("⚠️ " + L.noPrice, "🔧 " + L.noPriceFix, Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp))
                 s.external?.price?.let { p ->
                     Text(
                         priceOf(p, s.external.currency) + if (s.external.stale) "  ${L.priceStale}" else "",

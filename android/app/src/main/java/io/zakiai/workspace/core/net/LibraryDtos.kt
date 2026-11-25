@@ -137,6 +137,8 @@ data class SheetExternal(
     val stockStatus: String? = null,
     val stale: Boolean = false,
     val link: String? = null,
+    /** set while the product is gone from the orders system (the site oms.missing chip) */
+    val missingSince: String? = null,
 )
 
 @Serializable
