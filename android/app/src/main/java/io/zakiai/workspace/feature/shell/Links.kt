@@ -24,6 +24,9 @@ sealed interface Destination {
     data class Sheet(val id: String) : Destination
     /** a call, native (M2 N5): the site's LiveKit room joined from the phone */
     data class Call(val id: String) : Destination
+    /** a tab of «الشغل» (M2 N6): ideas · approvals · checkins */
+    data class Work(val tab: String) : Destination
+    data class Approval(val id: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -43,6 +46,7 @@ object Links {
     private val DOCUMENT = Regex("^/documents/([A-Za-z0-9_-]+)/?$")
     private val SHEET = Regex("^/knowledge/([A-Za-z0-9_-]+)/?$")
     private val CALL = Regex("^/calls/([A-Za-z0-9_-]+)/?$")
+    private val APPROVAL = Regex("^/approvals/([A-Za-z0-9_-]+)/?$")
 
     fun pathOf(url: String?, base: String): String? {
         if (url.isNullOrBlank()) return null
@@ -57,7 +61,7 @@ object Links {
         if (path.startsWith("/go?")) {
             val next = path.removePrefix("/go?").split("&").firstOrNull { it.startsWith("next=") }?.removePrefix("next=")
                 ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
-            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET, CALL).any { it.matches(next.substringBefore('?')) }) path = next
+            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET, CALL, APPROVAL).any { it.matches(next.substringBefore('?')) }) path = next
         }
         // a task opens natively in any space: its sheet is read by id (the site's own scope rules decide)
         TASK.find(path.substringBefore('?'))?.let { return Destination.Task(it.groupValues[1]) }
@@ -66,6 +70,8 @@ object Links {
         DOCUMENT.find(path.substringBefore('?'))?.let { return Destination.Document(it.groupValues[1]) }
         SHEET.find(path.substringBefore('?'))?.let { return Destination.Sheet(it.groupValues[1]) }
         CALL.find(path.substringBefore('?'))?.let { return Destination.Call(it.groupValues[1]) }
+        // «/approvals/forms» is still the site's page
+        APPROVAL.find(path.substringBefore('?'))?.takeIf { it.groupValues[1] != "forms" }?.let { return Destination.Approval(it.groupValues[1]) }
         CHAT.find(path.substringBefore('?'))?.let { match ->
             val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
                 ?.takeIf { ID.matches(it) }
@@ -83,6 +89,9 @@ object Links {
             "/projects" -> Destination.Projects
             "/goals" -> Destination.Goals
             "/files", "/documents", "/knowledge" -> Destination.Library
+            "/ideas" -> Destination.Work("ideas")
+            "/approvals" -> Destination.Work("approvals")
+            "/checkins" -> Destination.Work("checkins")
             else -> Destination.Site(path)
         }
     }

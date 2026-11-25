@@ -343,4 +343,35 @@ interface WorkspaceApi {
 
     @POST("api/calls/{id}/mute")
     suspend fun callMute(@Path("id") id: String, @Body body: CallUserBody): Ok
+
+    // ── M2 N6 batch 1: «الأفكار», «التسجيل اليومي», «الموافقات» — the site's own routes ──
+    @GET("api/ideas")
+    suspend fun ideas(@Header("Cache-Control") cache: String = "no-cache"): IdeasAnswer
+
+    @POST("api/ideas")
+    suspend fun newIdea(@Body body: NewIdeaBody): kotlinx.serialization.json.JsonObject
+
+    @POST("api/ideas/{id}/vote")
+    suspend fun voteIdea(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): kotlinx.serialization.json.JsonObject
+
+    @GET("api/checkins/today")
+    suspend fun checkinToday(@Query("workspaceId") workspaceId: String?, @Header("Cache-Control") cache: String = "no-cache"): CheckinToday
+
+    @POST("api/checkins/answer")
+    suspend fun checkinAnswer(@Body body: CheckinAnswerBody): kotlinx.serialization.json.JsonObject
+
+    @POST("api/checkins/excuse")
+    suspend fun checkinExcuse(@Body body: CheckinExcuseBody): kotlinx.serialization.json.JsonObject
+
+    @GET("api/approvals")
+    suspend fun approvals(@Query("view") view: String, @Query("workspaceId") workspaceId: String?, @Header("Cache-Control") cache: String = "no-cache"): ApprovalsAnswer
+
+    @GET("api/approvals/{id}")
+    suspend fun approval(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): ApprovalDetailAnswer
+
+    @POST("api/approvals/{id}/decide")
+    suspend fun decideApproval(@Path("id") id: String, @Body body: DecideBody): kotlinx.serialization.json.JsonObject
+
+    @POST("api/approvals/{id}/cancel")
+    suspend fun cancelApproval(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): kotlinx.serialization.json.JsonObject
 }

@@ -207,13 +207,14 @@ private object Routes {
     const val DOCUMENT = "document/{id}"
     const val SHEET = "sheet/{id}"
     const val CALL = "call/{id}"
+    const val APPROVAL = "approval/{id}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
     fun task(id: String) = "task/$id"
     fun work(tab: String) = "work?tab=$tab"
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -250,6 +251,8 @@ fun NavHostController.open(dest: Destination) {
         is Destination.Document -> navigate("document/" + dest.id)
         is Destination.Sheet -> navigate("sheet/" + dest.id)
         is Destination.Call -> navigate("call/" + dest.id) { launchSingleTop = true }
+        is Destination.Work -> navigate(Routes.work(dest.tab)) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.Approval -> navigate("approval/" + dest.id)
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -418,6 +421,8 @@ fun Shell(
                             onOpenGoals = { nav.open(Destination.Goals) },
                             onOpenSite = { nav.open(Destination.Site(it)) },
                             spaceKey = spaces?.currentSpaceId,
+                            meId = me?.id,
+                            onOpenApproval = { nav.open(Destination.Approval(it)) },
                         )
                     }
                     composable(Routes.PROJECT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
@@ -436,6 +441,9 @@ fun Shell(
                     }
                     composable(Routes.DOCUMENT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.library.DocumentScreen(onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.APPROVAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.desk.ApprovalScreen(onBack = { nav.popBackStack() })
                     }
                     composable(Routes.CALL, arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
                         io.zakiai.workspace.feature.calls.CallScreen(callId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
@@ -540,6 +548,8 @@ private fun WorkHub(
     onOpenGoals: () -> Unit,
     onOpenSite: (String) -> Unit,
     spaceKey: String?,
+    meId: String? = null,
+    onOpenApproval: (String) -> Unit = {},
 ) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable(initial) { androidx.compose.runtime.mutableStateOf(initial) }
     Column(Modifier.fillMaxSize()) {
@@ -547,10 +557,20 @@ private fun WorkHub(
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.myWork, 0, tab == "mine") { tab = "mine" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.projects, 0, tab == "projects") { tab = "projects" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.goals, 0, false) { onOpenGoals() }
+            // M2 N6: the site's other work tabs, native
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.approvals, 0, tab == "approvals") { tab = "approvals" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.ideas, 0, tab == "ideas") { tab = "ideas" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.checkins, 0, tab == "checkins") { tab = "checkins" }
         }
         Box(Modifier.weight(1f)) {
             if (tab == "projects") {
                 ProjectsScreen(onOpenProject = onOpenProject, onOpenSite = onOpenSite, spaceKey = spaceKey)
+            } else if (tab == "approvals") {
+                io.zakiai.workspace.feature.desk.ApprovalsScreen(spaceId = spaceKey, onOpen = onOpenApproval)
+            } else if (tab == "ideas") {
+                io.zakiai.workspace.feature.desk.IdeasScreen(spaceKey = spaceKey, meId = meId)
+            } else if (tab == "checkins") {
+                io.zakiai.workspace.feature.desk.CheckinsScreen(spaceId = spaceKey)
             } else {
                 MyWorkScreen(onOpenTask = onOpenTask, onOpenSite = onOpenSite, spaceKey = spaceKey)
             }

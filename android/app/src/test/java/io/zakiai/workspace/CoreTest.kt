@@ -72,7 +72,7 @@ class LinksTest {
     }
 
     @Test fun `a section not native yet opens the site's page, with its query`() {
-        assertEquals(Destination.Site("/ideas?view=board"), Links.destinationOf("$BASE/ideas?view=board", BASE))
+        assertEquals(Destination.Site("/crm?view=board"), Links.destinationOf("$BASE/crm?view=board", BASE))
         assertEquals(Destination.Site("/watch/k2"), Links.destinationOf("/watch/k2", BASE))
     }
 
