@@ -30,19 +30,15 @@ interface InstantInfo {
   space: { id: string; name: string } | null;
   /** `request`: somebody of a higher rank than the viewer; a task for them is only a request (task-assign.ts). */
   people: { id: string; name: string; request?: boolean }[];
+  /** The company's default due date as its wall clock (`YYYY-MM-DDTHH:mm`), or null. */
+  defaultDue?: string | null;
   /** «مهمة بمكافأة»: only for the OWNER while the switch is on (the toggle is drawn for nobody else); the company's default currency, if any. */
   reward?: { defaultCurrency: string | null } | null;
 }
 
-/** Today as `yyyy-mm-dd` in the person's own clock (what a date field holds). */
-function todayValue(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-/** The day as picked, sent as a day: the server makes it noon in the COMPANY's zone (review B5) — the browser's clock never decides. */
+/** The day and hour as picked, sent as they are: the server reads them on the COMPANY's clock (review B5) — the browser's clock never decides. Empty: «بدون موعد». */
 function dueOf(day: string): string | null {
-  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day : null;
+  return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(day) ? day.slice(0, 16) : null;
 }
 
 export function InstantWorkButton({ kind, onSent }: { kind: "task" | "ticket"; onSent?: () => void }) {
@@ -67,7 +63,9 @@ export function InstantWorkButton({ kind, onSent }: { kind: "task" | "ticket"; o
   // «لمين»: one person for a ticket, one or more for a task (the first picked is the task's own assignee)
   const [people, setPeople] = useState<string[]>([]);
   const [priority, setPriority] = useState("NORMAL");
-  const [day, setDay] = useState(todayValue);
+  // null: the person has not touched the box, so it shows (and sends) the company's default
+  const [picked, setDay] = useState<string | null>(null);
+  const day = picked ?? info?.defaultDue ?? "";
   // «مهمة بمكافأة»: the owner's toggle, with the amount, the currency and a note; the day above becomes required
   const [rewardOn, setRewardOn] = useState(false);
   const [draft, setDraft] = useState<RewardDraft>(() => emptyDraft(null));
@@ -89,7 +87,7 @@ export function InstantWorkButton({ kind, onSent }: { kind: "task" | "ticket"; o
       setDetails("");
       setPeople([]);
       setPriority("NORMAL");
-      setDay(todayValue());
+      setDay(null);
       setRewardOn(false);
       setDraft(emptyDraft(info?.reward?.defaultCurrency));
       onSent?.();
@@ -176,7 +174,7 @@ export function InstantWorkButton({ kind, onSent }: { kind: "task" | "ticket"; o
               {kind === "task" ? (
                 <label className="block space-y-1 text-xs">
                   <span className="font-medium text-fg">{t("instant.field.due")}</span>
-                  <Input type="date" value={day} onChange={(e) => setDay(e.target.value)} required={rewardOn} />
+                  <Input type="datetime-local" value={day} onChange={(e) => setDay(e.target.value)} required={rewardOn} />
                 </label>
               ) : null}
             </div>

@@ -1,3 +1,4 @@
+import { isDueOverdue } from "@/lib/due-day";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
@@ -106,7 +107,7 @@ export async function listDepartments(ctx: OrgAccessContext, now: Date = new Dat
     loadWorkScope(ctx.userId),
     db.organization.findUnique({ where: { id: ctx.orgId }, select: { timezone: true } }),
   ]);
-  const todayStart = zonedDayStart(now, resolveTimeZone(org?.timezone));
+  const zone = resolveTimeZone(org?.timezone);
   const wsIds = scopeSpaceIds(scope);
   const rows = await db.department.findMany({
     where: { orgId: ctx.orgId },
@@ -126,7 +127,7 @@ export async function listDepartments(ctx: OrgAccessContext, now: Date = new Dat
   return rows.map((d) => {
     const all = d.projects.flatMap((p) => p.tasks);
     const open = all.filter((t) => !t.completedAt).length;
-    const overdue = all.filter((t) => !t.completedAt && t.dueDate && t.dueDate < todayStart).length;
+    const overdue = all.filter((t) => !t.completedAt && t.dueDate && isDueOverdue(t.dueDate, zone, now)).length;
     return {
       id: d.id,
       name: d.name,

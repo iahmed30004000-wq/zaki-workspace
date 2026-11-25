@@ -3,6 +3,7 @@ import { GET as sheetGET } from "@/app/api/tasks/[id]/sheet/route";
 import { GET as todayGET } from "@/app/api/today/route";
 import { GET as myWorkGET } from "@/app/api/my-work/route";
 import { call, db, loginAs, makeOrg, makeProject, makeTask, makeTeam, makeUser, makeWorkspace } from "./helpers";
+import { todayNoon } from "./today-helpers";
 
 /**
  * The phone's three read-only doors (M2 N2): «اليوم», «مهامي» and one task's sheet. They read the very services the site's pages read,
@@ -28,7 +29,8 @@ async function world() {
     creatorId: t.member.id,
     assigneeId: t.member.id,
     title: "Phone door task",
-    dueDate: new Date(),
+    // «due today» as a whole day (noon, no hour): an hour of «now» is late a moment later
+    dueDate: todayNoon("Asia/Damascus"),
   });
   return { ...t, outsider, ws, ...p, task };
 }

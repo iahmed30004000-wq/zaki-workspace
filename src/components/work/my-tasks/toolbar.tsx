@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { X } from "lucide-react";
+import { CLEARED_FILTERS, activeFilterCount } from "@/lib/work/saved-filters";
 import { Segmented } from "@/components/ui/segmented";
 import { fmtNumber } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -61,6 +63,7 @@ export function Toolbar({
   const { t } = useI18n();
   const scope: MyTaskScope = data.scopeFellBack ? "me" : params.scope;
   const showChips = params.view !== "calendar";
+  const active = activeFilterCount(params);
   const scopes: MyTaskScope[] = data.current.hq ? ["me", "project"] : ["me", "space", "project"];
   const spaceChoice = spaceChoiceOf(params, data);
 
@@ -156,13 +159,43 @@ export function Toolbar({
         ) : null}
 
         <div className="strip-scroll flex items-center gap-2 overflow-x-auto max-md:-mx-4 max-md:px-4 md:ms-auto md:flex-wrap [&>*]:shrink-0">
+          {active > 0 ? (
+            <button type="button" data-clear-filters onClick={() => onChange(CLEARED_FILTERS, "replace")} className="inline-flex min-h-9 items-center gap-1 whitespace-nowrap rounded-full bg-danger/10 px-3 text-[13.5px] font-semibold text-danger hover:bg-danger/20 focus-visible:outline focus-visible:outline-2 focus-visible:outline-danger">
+              <X aria-hidden="true" className="size-4" />
+              {t("mytasks.filter.clear", { n: fmtNumber(active) })}
+            </button>
+          ) : null}
+          <Pill pressed={params.urgent} onClick={() => onChange({ urgent: !params.urgent }, "replace")}>
+            {t("mytasks.filter.urgent")}
+            {showChips ? <span className="tabular-nums opacity-70">{fmtNumber(data.filters.urgent)}</span> : null}
+          </Pill>
+          {scope !== "project" && (data.filters.projects.length > 0 || params.inProject) ? (
+            <select aria-label={t("mytasks.filter.project")} className={cn(SELECT, "max-w-56")} value={params.inProject ?? ""} onChange={(e) => onChange({ inProject: e.target.value || null }, "replace")}>
+              <option value="">{t("mytasks.filter.any_project")}</option>
+              {data.filters.projects.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {`${p.name} (${fmtNumber(p.count)})`}
+                </option>
+              ))}
+            </select>
+          ) : null}
+          {data.filters.people ? (
+            <select aria-label={t("mytasks.filter.person")} className={cn(SELECT, "max-w-56")} value={params.who ?? ""} onChange={(e) => onChange({ who: e.target.value || null }, "replace")}>
+              <option value="">{t("mytasks.filter.any_person")}</option>
+              {data.filters.people.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {`${p.name} (${fmtNumber(p.count)})`}
+                </option>
+              ))}
+            </select>
+          ) : null}
           {params.view !== "calendar" ? (
             <>
               <select aria-label={t("work.stage.label")} className={SELECT} value={params.stage ?? ""} onChange={(e) => onChange({ stage: (e.target.value || null) as MyTasksParams["stage"] }, "replace")}>
                 <option value="">{t("mytasks.stage.any")}</option>
                 {WORK_STAGES.map((s) => (
                   <option key={s} value={s}>
-                    {enumLabel("WorkStage", s)}
+                    {`${enumLabel("WorkStage", s)} (${fmtNumber(data.filters.stages[s])})`}
                   </option>
                 ))}
               </select>

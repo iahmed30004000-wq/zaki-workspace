@@ -16,6 +16,9 @@ import { pinnedTasks, type PinnedCard } from "@/server/services/pinned";
 import { projectProgress } from "@/components/work/project/progress";
 import { projectCardAccess, type ProjectCardAccess } from "@/app/(app)/projects/[id]/project-chrome";
 import type { TaskCardData } from "@/components/board-view";
+import { resolveTimeZone } from "@/lib/zoned-time";
+import { fmtDueStamp, fmtStamp } from "@/lib/work/stamp";
+import { isDueOverdue, isDueToday, dueTimeText, dueWallOfInstant } from "@/lib/due-day";
 
 /**
  * M2 N3 — what the projects pages show, read ONCE for the page and for the phone's doors (the way `taskSheetFor` serves the task page and
@@ -38,6 +41,9 @@ export interface ProjectRow {
   workspaceName: string;
   tasks: number;
   boards: number;
+  createdAt: string;
+  createdById: string | null;
+  createdByName: string | null;
 }
 
 export interface ProjectsScreen {
@@ -50,7 +56,7 @@ export interface ProjectsScreen {
   canCreate: boolean;
 }
 
-export async function projectsScreenFor(actor: Actor): Promise<ScreenResult<ProjectsScreen>> {
+export async function projectsScreenFor(actor: Actor, opts: { sort?: "created" } = {}): Promise<ScreenResult<ProjectsScreen>> {
   if (!actorCanWork(actor, "projects.view")) return { kind: "off" };
   const space = await currentSpace(actor);
   const everything = await loadWorkScope(actor.userId);
@@ -61,11 +67,13 @@ export async function projectsScreenFor(actor: Actor): Promise<ScreenResult<Proj
   if (accessible.length === 0) return { kind: "ok", data: { space: null, inboxes: [], projects: [], canCreate } };
   const rows = await db.project.findMany({
     where: { workspaceId: { in: accessible }, status: { not: "ARCHIVED" }, AND: [projectVisibleWhere(scope)] },
-    orderBy: { updatedAt: "desc" },
+    orderBy: opts.sort === "created" ? { createdAt: "desc" } : { updatedAt: "desc" },
     select: {
       id: true,
       name: true,
       systemKey: true,
+      createdAt: true,
+      createdById: true,
       description: true,
       status: true,
       priority: true,
@@ -74,6 +82,10 @@ export async function projectsScreenFor(actor: Actor): Promise<ScreenResult<Proj
       _count: { select: { tasks: { where: { archived: false, AND: [taskParticipantWhere(everything)] } }, boards: true } },
     },
   });
+  const creatorIds = [...new Set(rows.flatMap((p) => (p.createdById ? [p.createdById] : [])))];
+  const creators = new Map(
+    (creatorIds.length ? await db.user.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } }) : []).map((u) => [u.id, u.name] as const),
+  );
   const projects: ProjectRow[] = rows.map((p) => ({
     id: p.id,
     name: p.name,
@@ -85,6 +97,9 @@ export async function projectsScreenFor(actor: Actor): Promise<ScreenResult<Proj
     workspaceName: p.workspace.name,
     tasks: p._count.tasks,
     boards: p._count.boards,
+    createdAt: p.createdAt.toISOString(),
+    createdById: p.createdById,
+    createdByName: p.createdById ? (creators.get(p.createdById) ?? null) : null,
   }));
   // «صندوق المهام» (W1.2, switch `workInbox`): drawn once, pinned on top; off: an ordinary card, as it was
   const inboxes = (await isFeatureOn(actor.orgId, "workInbox")) ? projects.filter((p) => p.systemKey === INSTANT_PROJECT_KEY) : [];
@@ -204,8 +219,12 @@ export async function boardScreenFor(actor: Actor, boardId: string): Promise<Scr
   const [columns, tasks, org] = await Promise.all([
     db.boardColumn.findMany({ where: { boardId: board.id }, orderBy: { position: "asc" }, select: { id: true, name: true, color: true, position: true, done: true } }),
     db.task.findMany({ where: { boardId: board.id, archived: false, AND: [taskVisibleWhere(scope)] }, orderBy: [{ position: "asc" }, { id: "asc" }], include: TASK_INCLUDE }),
-    db.organization.findUnique({ where: { id: board.project.workspace.organizationId }, select: { keyPrefix: true } }),
+    db.organization.findUnique({ where: { id: board.project.workspace.organizationId }, select: { keyPrefix: true, timezone: true } }),
   ]);
+  const zone = resolveTimeZone(org?.timezone);
+  const creators = new Map(
+    (await db.user.findMany({ where: { id: { in: [...new Set(tasks.map((t) => t.creatorId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name] as const),
+  );
 
   // «٣ من ٥» on the cards: one grouped read for the whole board, and only while the company's switch is on
   const progress = (await actorFeatureOn(actor, "taskSteps")) ? await stepProgressFor(tasks.map((t) => t.id)) : new Map();
@@ -228,6 +247,11 @@ export async function boardScreenFor(actor: Actor, boardId: string): Promise<Scr
     priority: t.priority,
     columnId: t.columnId,
     dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+    dueTone: !t.dueDate || t.completedAt ? null : isDueOverdue(t.dueDate, zone) ? "late" : isDueToday(t.dueDate, zone) ? "today" : null,
+    dueText: t.dueDate ? fmtDueStamp(t.dueDate, zone) : null,
+    dueTime: t.dueDate ? dueTimeText(dueWallOfInstant(t.dueDate, zone)) : "",
+    createdBy: creators.get(t.creatorId),
+    createdText: fmtStamp(t.createdAt, zone),
     labels: t.labels.map((l) => ({ id: l.label.id, name: l.label.name, color: l.label.color })),
     assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
     assigneeNames: [...(t.assignee ? [t.assignee.name] : []), ...t.coAssignees.map((r) => r.user.name)],

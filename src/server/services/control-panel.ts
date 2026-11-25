@@ -1,3 +1,4 @@
+import { overdueDueFilter, defaultDueHourOf } from "@/lib/due-day";
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, audit } from "@/server/auth";
@@ -124,7 +125,7 @@ async function ideasWaitingTop(orgId: string, spaces: readonly { id: string; nam
 }
 
 /** The company's open work right now, and the facts the insights are made of. */
-async function loadFigures(orgId: string, todayStart: Date, now: Date): Promise<Figures> {
+async function loadFigures(orgId: string, todayStart: Date, now: Date, late: { lt: Date; not: Date }): Promise<Figures> {
   const staleBefore = new Date(now.getTime() - STALE_DAYS * DAY_MS);
   const windowStart = new Date(todayStart.getTime() - (FORECAST_DAYS - 1) * DAY_MS);
   const ideasBefore = new Date(now.getTime() - IDEA_WAIT_DAYS * DAY_MS);
@@ -133,12 +134,12 @@ async function loadFigures(orgId: string, todayStart: Date, now: Date): Promise<
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ open: number; overdue: number; unassigned: number; stale: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "open",
-        (count(*) FILTER (WHERE t."dueDate" < ${ts(todayStart)}))::int AS "overdue",
+        (count(*) FILTER (WHERE t."dueDate" < ${ts(late.lt)} AND t."dueDate" <> ${ts(late.not)}))::int AS "overdue",
         (count(*) FILTER (WHERE t."assigneeId" IS NULL AND NOT EXISTS (SELECT 1 FROM "TaskCoAssignee" co WHERE co."taskId" = t."id")))::int AS "unassigned",
         (count(*) FILTER (WHERE t."updatedAt" < ${ts(staleBefore)}))::int AS "stale"
       FROM "Task" t WHERE t."orgId" = ${orgId} AND t."completedAt" IS NULL AND NOT t."archived"`),
     // B4: the per-space late numbers are `spaceFigures` (an owner-level aggregate: no viewer scope; its audience is narrowed in A1.3, policy/board.ts)
-    spaceFigures({ orgId, spaceIds: spaces.map((s) => s.id), todayStart }),
+    spaceFigures({ orgId, spaceIds: spaces.map((s) => s.id), overdue: late }),
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ n: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "n" FROM "Task" t WHERE t."orgId" = ${orgId} AND t."completedAt" >= ${ts(windowStart)} AND t."completedAt" < ${ts(now)}`),
@@ -208,7 +209,7 @@ export async function loadPanelHome(access: BoardAccess, now: Date = new Date())
     completedStats(orgId, tz, win.start, win.end, null),
     completedStats(orgId, tz, prevWin.start, prevWin.end, null),
     completedStats(orgId, tz, todayStart, new Date(now.getTime() + 1000), null),
-    loadFigures(orgId, todayStart, now),
+    loadFigures(orgId, todayStart, now, overdueDueFilter(now, tz)),
   ]);
 
   const people: PersonWeek[] = week
@@ -279,7 +280,7 @@ export async function loadPanelReports(access: BoardAccess, query: { space?: str
       FROM "Task" t WHERE t."orgId" = ${orgId} AND t."workspaceId" = ANY(${arr(wsIds)}) AND t."completedAt" >= ${ts(seriesFrom)} AND t."completedAt" < ${ts(tomorrow)} GROUP BY 1`),
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     // B4: ONE source for the per-space numbers (`spaceFigures`, shared with «كل المساحات» and the overview's insight)
-    spaceFigures({ orgId, spaceIds: wsIds, todayStart, since: since30 }),
+    spaceFigures({ orgId, spaceIds: wsIds, overdue: overdueDueFilter(now, tz), since: since30 }),
   ]);
 
   const points = new Map<number, WeekPoint>();
@@ -453,6 +454,8 @@ export interface CompanySettingsView {
   timezone: string;
   landing: Landing;
   workTabs: string[];
+  /** The hour of a new task's default due date; null: none. */
+  dueHour: number | null;
   /** The company's own order of the menu (D-N5), null when the code's order is used. */
   menuOrder: NavOrder | null;
   /** How many people still hold an order of their own (it stays stored while the company's is set). */
@@ -470,6 +473,7 @@ export async function loadCompanySettings(actor: Actor): Promise<CompanySettings
     timezone: resolveTimeZone(org.timezone),
     landing: landingOf(org.settings),
     workTabs: workTabsOf(org.settings),
+    dueHour: defaultDueHourOf(org.settings),
     menuOrder: readCompanyMenuOrder(org.settings),
     personalOrders,
   };
@@ -494,6 +498,7 @@ export async function saveCompanySettings(actor: Actor, raw: unknown): Promise<C
     const next = settingsObject(org.settings);
     if (input.landing !== undefined) next["landing"] = input.landing;
     if (input.workTabs !== undefined) next["workTabs"] = input.workTabs;
+    if (input.defaultDueHour !== undefined) next["defaultDueHour"] = input.defaultDueHour;
     if (input.menuOrder !== undefined) {
       if (input.menuOrder === null || !hasOrder(input.menuOrder)) delete next["menuOrder"];
       else next["menuOrder"] = input.menuOrder;

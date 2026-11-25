@@ -46,7 +46,7 @@ describe("a department's «متأخرة» is the company's day, not the server's
     // two days back, so the OLD code (which read the real clock) cannot pass this by luck
     const now = new Date(Date.now() - 2 * DAY);
     const w = await departmentWorld(now);
-    const dueToday = await w.task(new Date(w.dayStart.getTime() + 3600 * 1000), "مستحقة اليوم");
+    const dueToday = await w.task(new Date(w.dayStart.getTime() + 12 * 3600 * 1000), "مستحقة اليوم"); // noon: the whole day
     await w.task(new Date(w.dayStart.getTime() - 3600 * 1000), "فات موعدها أمس");
 
     const actor = await actorOf(w.owner.id);

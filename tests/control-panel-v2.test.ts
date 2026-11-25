@@ -325,11 +325,11 @@ describe("the AI connection is ONE place", () => {
 });
 
 describe("the company's settings form", () => {
-  const initial = { timezone: "Asia/Damascus", landing: "chat", workTabs: ["goals"], menuOrder: null, personalOrders: 3 };
+  const initial = { timezone: "Asia/Damascus", landing: "chat", workTabs: ["goals"], dueHour: 18, menuOrder: null, personalOrders: 3 };
 
-  it("has its four blocks, the ⚠️ with the 🔧 under it for the menu order, the number of people with an order of their own, and the D-N1 note", () => {
+  it("has its blocks (the due hour among them), the ⚠️ with the 🔧 under it for the menu order, the number of people with an order of their own, and the D-N1 note", () => {
     const html = render(createElement(CompanySettingsForm, { initial }));
-    for (const block of ["timezone", "landing", "worktabs", "menuorder"]) expect(html, block).toContain(`data-block="${block}"`);
+    for (const block of ["timezone", "duehour", "landing", "worktabs", "menuorder"]) expect(html, block).toContain(`data-block="${block}"`);
     expect(html).toContain("⚠️");
     expect(html).toContain("🔧");
     expect(html).toContain("عند 3 واحد ترتيب خاص فيه");

@@ -1,3 +1,5 @@
+import { parseDueInput } from "@/lib/due-day";
+import { dueTextSchema } from "@/lib/due-input";
 import { NextResponse } from "next/server";
 import { assertMemberCan } from "@/server/policy/actor";
 import { z } from "zod";
@@ -9,7 +11,6 @@ import { parseJson, priorities, taskTypes } from "@/server/validation";
 import { updateTask, deleteTask } from "@/server/services/tasks";
 import { assertActiveAssignee } from "@/server/services/active-people";
 import { orgTimeZone } from "@/server/services/org-day";
-import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 import { notifyAssignment } from "@/server/notify";
 import { rewardsVisibleTo, setReward } from "@/server/services/rewards";
 import { rewardBodySchema, toRewardRequest } from "@/server/services/reward-input";
@@ -23,8 +24,7 @@ import { withoutReward } from "@/server/policy/reward";
 async function dueFromInput(orgId: string, value: string | null | undefined): Promise<Date | null | undefined> {
   if (value === undefined) return undefined;
   if (value === null) return null;
-  if (parseDayText(value)) return dueInstantForDay(value, await orgTimeZone(orgId));
-  return new Date(value);
+  return parseDueInput(value, await orgTimeZone(orgId));
 }
 
 
@@ -69,7 +69,7 @@ const patchSchema = z.object({
   assigneeIds: z.array(z.string().min(1)).max(50).optional(),
   /** The people beside the primary, when the primary is sent on its own (`assigneeId` + these). */
   coAssigneeIds: z.array(z.string().min(1)).max(50).optional(),
-  dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
+  dueDate: dueTextSchema.nullable().optional(),
   startDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
   /** A milestone of THIS task's project, or null to detach it (`updateTask` refuses another project's). */
   milestoneId: z.string().min(1).nullable().optional(),

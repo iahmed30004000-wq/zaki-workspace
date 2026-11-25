@@ -39,9 +39,11 @@ describe("My Work follows the company's day", () => {
     expect(data.overdue.map((r) => r.task.id)).not.toContain(task.id);
   });
 
-  it("at 15:00 there on the 16th (12:00 UTC) that task is still TODAY and NOT overdue: overdue starts at the company's midnight", async () => {
+  it("at 15:00 there on the 16th (12:00 UTC) a whole-day task is still TODAY and NOT overdue, and one whose hour was 10:00 is overdue", async () => {
     const { team, due } = await world("Asia/Damascus");
-    const task = await due("2026-03-16T07:00:00Z"); // 10:00 in Damascus, five hours before `now`
+    const timed = await due("2026-03-16T07:00:00Z"); // 10:00 in Damascus, five hours before `now`
+    expect((await getMyWork(team.member.id, new Date("2026-03-16T12:00:00Z"))).overdue.map((r) => r.task.id)).toContain(timed.id);
+    const task = await due("2026-03-16T09:00:00Z"); // no hour picked: noon
     const data = await getMyWork(team.member.id, new Date("2026-03-16T12:00:00Z"));
     expect(data.today.map((r) => r.task.id)).toContain(task.id);
     expect(data.overdue.map((r) => r.task.id)).not.toContain(task.id);
@@ -67,14 +69,14 @@ describe("My Work follows the company's day", () => {
 });
 
 /**
- * "Overdue" is one line for every screen: due strictly before the START of the company's today. A task due today at
- * 09:00 is "today" at 15:00, never "overdue" (My Work used to count it in both, and the reports counted it overdue).
+ * "Overdue" is one line for every screen (src/lib/due-day.ts): a whole-day task is late once its day ends, a task with an hour once the hour passes (the
+ * owner, 2026-11-25). Never in two groups at once.
  */
 describe("one line between today and overdue: My Work, Today and Analytics agree", () => {
-  it("at 15:00 on its due day a task due 09:00 is today and not overdue in all three, and yesterday's task is overdue in all three", async () => {
+  it("at 15:00 on its due day a whole-day task is today and not overdue in all three, and yesterday's task is overdue in all three", async () => {
     const w = await todayWorld("Asia/Damascus");
     const now = new Date("2026-03-16T12:00:00Z"); // 15:00 on the 16th in Damascus
-    const dueToday = await put(w, "in", { assigneeId: w.member.id, due: new Date("2026-03-16T06:00:00Z") }); // 09:00 on the 16th
+    const dueToday = await put(w, "in", { assigneeId: w.member.id, due: new Date("2026-03-16T09:00:00Z") }); // the 16th, no hour picked
     const dueYesterday = await put(w, "in", { assigneeId: w.member.id, due: new Date("2026-03-15T06:00:00Z") }); // 09:00 on the 15th
 
     const myWork = await getMyWork(w.member.id, now);

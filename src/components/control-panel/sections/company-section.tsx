@@ -27,7 +27,7 @@ export async function CompanySection({ ctx }: { ctx: SectionCtx }) {
         </h3>
         <OrgNameForm organizationId={actor.orgId} initialName={view.name} />
       </section>
-      <CompanySettingsForm initial={{ timezone: view.timezone, landing: view.landing, workTabs: view.workTabs, menuOrder: view.menuOrder, personalOrders: view.personalOrders }} />
+      <CompanySettingsForm initial={{ timezone: view.timezone, landing: view.landing, workTabs: view.workTabs, dueHour: view.dueHour, menuOrder: view.menuOrder, personalOrders: view.personalOrders }} />
       <p className="text-xs leading-5 text-fg-muted">
         {t("cpv2.company.chat_link")}{" "}
         <Link href={panelSectionHref("features", undefined, ctx.oneDoor === true)} className="text-info underline">
