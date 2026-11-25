@@ -88,6 +88,23 @@ import io.zakiai.workspace.ui.components.OfflineBar
 import io.zakiai.workspace.ui.components.WhileOnScreen
 import io.zakiai.workspace.ui.components.shortTime
 import io.zakiai.workspace.ui.theme.Zk
+import io.zakiai.workspace.ui.components.GlassHeader
+import io.zakiai.workspace.ui.components.RoundIcon
+import io.zakiai.workspace.ui.components.cardShadow
+import io.zakiai.workspace.ui.components.chatWallpaper
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.SentimentSatisfied
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import java.time.Instant
@@ -178,7 +195,8 @@ fun ConversationScreen(
     BackHandler(enabled = mode != ComposeMode.New) { vm.cancelMode() }
 
     Scaffold(
-        containerColor = Zk.colors.chatWallpaper,
+        containerColor = Zk.colors.surface,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snack) },
         topBar = { Header(header, typingAll[vm.id].orEmpty().filter { it.until > System.currentTimeMillis() }, calling, onBack, onInfo = { onInfo(vm.id) }, onCall = { vm.startCall { onOpenPath("/calls/$it") } }) },
         bottomBar = {
@@ -196,19 +214,29 @@ fun ConversationScreen(
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             OfflineBar(offline)
-            header?.pinnedMessages?.firstOrNull()?.let { p ->
-                Row(Modifier.fillMaxWidth().background(Zk.colors.surface1).clickable { vm.jumpTo(p.id) }.padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.width(3.dp).height(32.dp).background(Zk.colors.accent))
-                    Spacer(Modifier.width(8.dp))
+            // the pinned bar of «شكل تيليجرام»: 44 high on surface-1, the pin in the accent, «رسالة مثبّتة #N» over «فلان: …»; a tap goes to the
+            // next pin and cycles
+            val pins = header?.pinnedMessages.orEmpty()
+            if (pins.isNotEmpty()) {
+                var at by rememberSaveable(pins.size) { mutableStateOf(0) }
+                val p = pins[at.coerceIn(0, pins.lastIndex)]
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 44.dp).background(Zk.colors.surface1).clickable { vm.jumpTo(p.id); at = (at + 1) % pins.size }.padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Icon(Icons.Filled.PushPin, contentDescription = null, tint = Zk.colors.accent, modifier = Modifier.size(16.dp))
                     Column(Modifier.weight(1f)) {
-                        Text(C.pinned + (header?.pinnedMessages?.size?.takeIf { it > 1 }?.let { " ($it)" } ?: ""), color = Zk.colors.accent, style = MaterialTheme.typography.labelMedium)
-                        Text(p.preview ?: C.deletedPreview, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(C.pinned + if (pins.size > 1) " #${pins.size - at.coerceIn(0, pins.lastIndex)}" else "", color = Zk.colors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        Text("${p.authorName}: ${p.preview ?: C.deletedPreview}", fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Zk.colors.fg)
                     }
-                    Icon(Icons.Filled.PushPin, contentDescription = null, tint = Zk.colors.fgMuted, modifier = Modifier.size(16.dp))
                 }
-                HorizontalDivider(color = Zk.colors.border)
+                HorizontalDivider(color = Zk.colors.border, thickness = 1.dp)
             }
-            Box(Modifier.weight(1f).fillMaxWidth()) {
+            // the messages on the chat's wallpaper (the theme's colour and the site's «boxes» pattern)
+            val wallpaper = Zk.colors.chatWallpaper
+            val pattern = Zk.colors.chatPattern
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds().chatWallpaper(wallpaper, pattern)) {
                 when {
                     !window.loaded && window.messages.isEmpty() && failure == null -> Loading()
                     window.messages.isEmpty() && failure != null && pending.isEmpty() -> Failure(failure!!.message, onRetry = { vm.refresh() })
@@ -226,7 +254,7 @@ fun ConversationScreen(
                             onRetry = { vm.retry(it) },
                             onDiscard = { vm.discard(it) },
                         )
-                        LazyColumn(Modifier.fillMaxSize(), state = list, reverseLayout = true) {
+                        LazyColumn(Modifier.fillMaxSize(), state = list, reverseLayout = true, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
                             items(entries, key = { it.key }) { e ->
                                 when (e) {
                                     is Entry.Day -> DayLine(e.label)
@@ -236,19 +264,23 @@ fun ConversationScreen(
                                         if (line.message.kind == "SYSTEM") SystemLine(line.message)
                                         else {
                                             val older = e.older
-                                            val showAuthor = multi && !line.message.mine && (older == null || older.authorId != line.message.authorId || older.kind == "SYSTEM")
-                                            Bubble(line, showAuthor, if (multi) readersAt[line.id].orEmpty().filter { it.userId != vm.me } else emptyList(), act, playing)
+                                            fun sameRun(a: Message?, b: Message) = a != null && a.kind != "SYSTEM" && a.authorId == b.authorId && a.mine == b.mine
+                                            val first = !sameRun(older, line.message)
+                                            val last = !sameRun(e.newer, line.message)
+                                            Bubble(line, first, last, multi, if (multi) readersAt[line.id].orEmpty().filter { it.userId != vm.me } else emptyList(), act, playing)
                                         }
                                     }
                                 }
                             }
                         }
                         if (!atBottom) {
-                            SmallFloatingActionButton(
-                                onClick = { scope.launch { if (window.hasNewer) vm.refresh(); list.animateScrollToItem(0) } },
-                                containerColor = Zk.colors.surface1,
-                                modifier = Modifier.align(Alignment.BottomStart).padding(12.dp),
-                            ) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = C.toBottom, tint = Zk.colors.accent) }
+                            // the site's jump button: 44 round, the surface with a hairline, the accent's arrow, at the bottom end
+                            Box(
+                                Modifier.align(Alignment.BottomEnd).padding(12.dp).size(44.dp).cardShadow(CircleShape, Zk.theme.dark).clip(CircleShape)
+                                    .background(Zk.colors.surface).border(1.dp, Zk.colors.border, CircleShape)
+                                    .clickable { scope.launch { if (window.hasNewer) vm.refresh(); list.animateScrollToItem(0) } },
+                                contentAlignment = Alignment.Center,
+                            ) { Icon(Icons.Filled.KeyboardArrowDown, contentDescription = C.toBottom, tint = Zk.colors.accent, modifier = Modifier.size(22.dp)) }
                         }
                     }
                 }
@@ -321,7 +353,7 @@ fun ConversationScreen(
 /** What the conversation's list draws, newest first (it is laid out from the bottom): a message, the day between two, «رسائل جديدة». */
 sealed interface Entry {
     val key: String
-    data class Of(val line: Line, val older: Message?) : Entry { override val key get() = line.id }
+    data class Of(val line: Line, val older: Message?, val newer: Message? = null) : Entry { override val key get() = line.id }
     data class Day(val label: String, val after: String) : Entry { override val key get() = "day-$after" }
     data object Unread : Entry { override val key = "unread" }
 
@@ -331,7 +363,7 @@ sealed interface Entry {
             for (i in shown.indices) {
                 val line = shown[i]
                 val older = shown.getOrNull(i + 1)
-                add(Of(line, older?.message))
+                add(Of(line, older?.message, shown.getOrNull(i - 1)?.message))
                 if (line.id == firstUnreadId) add(Unread)
                 val d = day(line.message.createdAt)
                 if (older == null || day(older.message.createdAt) != d) add(Day(d, line.id))
@@ -340,43 +372,51 @@ sealed interface Entry {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+
+/**
+ * The conversation's header of «شكل تيليجرام»: a floating card above the messages — ←, the 40 picture, the title 16sp semibold over the
+ * subtitle 12sp (the typing line in the accent), the call.
+ */
 @Composable
 private fun Header(h: ConversationHeader?, typing: List<Typist>, calling: Boolean, onBack: () -> Unit, onInfo: () -> Unit, onCall: () -> Unit) {
-    TopAppBar(
-        navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.back) } },
-        title = {
-            Row(Modifier.clickable(enabled = h != null, onClick = onInfo), verticalAlignment = Alignment.CenterVertically) {
-                if (h != null) Avatar(h.title, url = h.peer?.avatarUrl, emoji = h.emoji, size = 38.dp)
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(h?.title.orEmpty(), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    val sub = when {
-                        typing.size == 1 -> (if (h?.kind == "DM") "" else typing[0].name + " ") + C.typing
-                        typing.size > 1 -> typing.joinToString("، ") { it.name } + " " + C.typingMany
-                        h?.kind == "DM" -> h.peerLastSeenAt?.let { "${C.lastSeen} ${shortTime(it)}" }
-                        h != null && h.memberCount > 0 -> "${h.memberCount} ${C.members}"
-                        else -> null
-                    }
-                    if (sub != null) Text(sub, style = MaterialTheme.typography.labelMedium, color = if (typing.isNotEmpty()) Zk.colors.accent else Zk.colors.fgMuted, maxLines = 1)
+    GlassHeader {
+        RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, T.back, onClick = onBack)
+        Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable(enabled = h != null, onClick = onInfo).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (h != null) Avatar(h.title, url = h.peer?.avatarUrl, emoji = h.emoji, size = 40.dp)
+            Spacer(Modifier.width(10.dp))
+            Column {
+                Text(h?.title.orEmpty(), fontSize = 16.sp, fontWeight = FontWeight.SemiBold, lineHeight = 20.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Zk.colors.fg)
+                val sub = when {
+                    typing.size == 1 -> (if (h?.kind == "DM") "" else typing[0].name + " ") + C.typing
+                    typing.size > 1 -> typing.joinToString("، ") { it.name } + " " + C.typingMany
+                    h?.kind == "DM" -> h.peerLastSeenAt?.let { "${C.lastSeen} ${shortTime(it)}" }
+                    h != null && h.memberCount > 0 -> "${h.memberCount} ${C.members}"
+                    else -> null
                 }
+                if (sub != null) Text(sub, fontSize = 12.sp, color = if (typing.isNotEmpty()) Zk.colors.accent else Zk.colors.fgMuted, maxLines = 1)
             }
-        },
-        actions = {
-            val canCall = h != null && h.calls != false && h.me.canCall != false && h.kind != "TOPIC" || (h?.kind == "TOPIC" && h.me.canCall == true)
-            if (canCall) IconButton(enabled = !calling, onClick = onCall) { Icon(Icons.Filled.Call, contentDescription = T.call, tint = Zk.colors.accent) }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(containerColor = Zk.colors.surface1),
-    )
+        }
+        val canCall = h != null && h.calls != false && h.me.canCall != false && h.kind != "TOPIC" || (h?.kind == "TOPIC" && h.me.canCall == true)
+        if (canCall) RoundIcon(Icons.Filled.Call, T.call, tint = Zk.colors.accent, enabled = !calling, onClick = onCall)
+    }
 }
 
-/** The composer: the reply / edit bar, the attachments, the field, send (or the microphone when empty). Only the field redraws while typing. */
+/** The emojis a tap of ☺ offers (the composer's quick set). */
+private val QUICK_EMOJIS = listOf("👍", "❤️", "😂", "😊", "🙏", "👏", "🔥", "✅", "🎉", "😮", "😢", "🤝", "💪", "👌", "🌹", "😅", "🤔", "👀", "💯", "⭐")
+
+/**
+ * The composer of «شكل تيليجرام» (composer-surface.tsx): on the surface with a hairline above it, padding 12; a pill (radius 23, surface-1, the
+ * card shadow) holding ☺, the field (16sp, from 44 up to 240) and the paperclip; beside it the 46 round button of the accent — the microphone
+ * while the box is empty, send when there is something, ✓ while editing. Above it the reply / edit bar (a 3px accent edge).
+ */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun Composer(vm: ConversationViewModel, mode: ComposeMode, files: ChatFiles) {
     // the draft belongs to the conversation: a reply keeps what was typed; an edit puts it aside and gives it back afterwards
     var text by rememberSaveable { mutableStateOf("") }
     var draft by rememberSaveable { mutableStateOf("") }
     var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    var emojis by remember { mutableStateOf(false) }
     LaunchedEffect(mode) {
         if (mode is ComposeMode.Edit && editing != mode.of.id) {
             if (editing == null) draft = text
@@ -388,54 +428,80 @@ private fun Composer(vm: ConversationViewModel, mode: ComposeMode, files: ChatFi
             editing = null
         }
     }
-    Column(Modifier.background(Zk.colors.surface1).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
-        HorizontalDivider(color = Zk.colors.border)
-        val target = when (mode) { is ComposeMode.Reply -> mode.to; is ComposeMode.Edit -> mode.of; else -> null }
-        if (target != null) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (mode is ComposeMode.Edit) Icons.Filled.Edit else Icons.AutoMirrored.Filled.Reply, contentDescription = null, tint = Zk.colors.accent)
-                Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(if (mode is ComposeMode.Edit) C.editing else "${C.replyingTo} ${target.authorName}", color = Zk.colors.accent, style = MaterialTheme.typography.labelMedium)
-                    Text(target.body ?: target.attachments.firstOrNull()?.name.orEmpty(), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    val dark = Zk.theme.dark
+    Column(Modifier.background(Zk.colors.surface).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
+        HorizontalDivider(color = Zk.colors.border, thickness = 1.dp)
+        Column(Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            val target = when (mode) { is ComposeMode.Reply -> mode.to; is ComposeMode.Edit -> mode.of; else -> null }
+            if (target != null) {
+                val shape = RoundedCornerShape(12.dp)
+                Row(
+                    Modifier.fillMaxWidth().cardShadow(shape, dark).clip(shape).background(Zk.colors.surface1),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.width(3.dp).height(44.dp).background(Zk.colors.accent))
+                    Spacer(Modifier.width(10.dp))
+                    Icon(if (mode is ComposeMode.Edit) Icons.Filled.Edit else Icons.AutoMirrored.Filled.Reply, contentDescription = null, tint = Zk.colors.accent, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(if (mode is ComposeMode.Edit) C.editing else "${C.replyingTo} ${target.authorName}", color = Zk.colors.accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(target.body ?: target.attachments.firstOrNull()?.name.orEmpty(), fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = Zk.colors.fg)
+                    }
+                    RoundIcon(Icons.Filled.Close, C.cancel, tint = Zk.colors.fgMuted) { vm.cancelMode() }
                 }
-                IconButton(onClick = { vm.cancelMode() }) { Icon(Icons.Filled.Close, contentDescription = C.cancel) }
             }
-        }
-        Uploads(vm, files)
-        // leaving the conversation stops a recording that was started here (it is never sent anywhere else)
-        DisposableEffect(vm.id) { onDispose { files.abandonRecording(vm.id) } }
-        Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (mode !is ComposeMode.Edit) AttachButton(vm, files)
-            TextField(
-                value = text,
-                onValueChange = { text = it; if (it.isNotBlank()) vm.typing() },
-                placeholder = { Text(T.writeMessage) },
-                modifier = Modifier.weight(1f),
-                maxLines = 6,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                shape = RoundedCornerShape(20.dp),
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Zk.colors.surface2,
-                    unfocusedContainerColor = Zk.colors.surface2,
-                    focusedIndicatorColor = Zk.colors.surface2,
-                    unfocusedIndicatorColor = Zk.colors.surface2,
-                ),
-            )
-            val ups by files.ready(vm.id).collectAsStateWithLifecycle()
-            val done = ups.filter { it.state == "done" }
-            val busy = ups.any { it.state == "uploading" }
-            val header by vm.header.collectAsStateWithLifecycle()
-            if (text.isBlank() && ups.isEmpty() && mode !is ComposeMode.Edit && header?.voiceNotes != false) {
-                VoiceButton(vm, files)
-            } else {
-                val edit = mode is ComposeMode.Edit
-                IconButton(enabled = if (edit) text.isNotBlank() else !busy && (text.isNotBlank() || done.isNotEmpty()), onClick = {
-                    // an edit changes the words only: the files waiting for the next message stay where they are
-                    if (edit) vm.send(text) else { vm.send(text, done.map { it.uploadedId }); files.consumed(vm.id) }
-                    text = ""
-                }) {
-                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = T.send, tint = Zk.colors.accent)
+            Uploads(vm, files)
+            // leaving the conversation stops a recording that was started here (it is never sent anywhere else)
+            DisposableEffect(vm.id) { onDispose { files.abandonRecording(vm.id) } }
+            if (emojis) {
+                FlowRow(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Zk.colors.surface1).padding(6.dp), horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    for (e in QUICK_EMOJIS) Text(e, fontSize = 24.sp, modifier = Modifier.clip(CircleShape).clickable { text += e }.padding(6.dp))
+                }
+            }
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                val pill = RoundedCornerShape(23.dp)
+                Row(
+                    Modifier.weight(1f).cardShadow(pill, dark).clip(pill).background(Zk.colors.surface1).padding(horizontal = 4.dp, vertical = 3.dp),
+                    verticalAlignment = Alignment.Bottom,
+                ) {
+                    RoundIcon(Icons.Filled.SentimentSatisfied, C.emoji, tint = if (emojis) Zk.colors.accent else Zk.colors.fgMuted, size = 24.dp) { emojis = !emojis }
+                    BasicTextField(
+                        value = text,
+                        onValueChange = { text = it; if (it.isNotBlank()) vm.typing() },
+                        textStyle = TextStyle(fontSize = 16.sp, lineHeight = 23.sp, color = Zk.colors.fg, fontFamily = io.zakiai.workspace.ui.theme.Plex),
+                        cursorBrush = SolidColor(Zk.colors.accent),
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        modifier = Modifier.weight(1f).heightIn(min = 44.dp, max = 240.dp).padding(horizontal = 6.dp, vertical = 11.dp),
+                        decorationBox = { inner ->
+                            Box {
+                                if (text.isEmpty()) Text(T.writeMessage, fontSize = 16.sp, color = Zk.colors.fgMuted)
+                                inner()
+                            }
+                        },
+                    )
+                    if (mode !is ComposeMode.Edit) AttachButton(vm, files)
+                }
+                val ups by files.ready(vm.id).collectAsStateWithLifecycle()
+                val done = ups.filter { it.state == "done" }
+                val busy = ups.any { it.state == "uploading" }
+                val header by vm.header.collectAsStateWithLifecycle()
+                if (text.isBlank() && ups.isEmpty() && mode !is ComposeMode.Edit && header?.voiceNotes != false) {
+                    VoiceButton(vm, files)
+                } else {
+                    val edit = mode is ComposeMode.Edit
+                    val ready = if (edit) text.isNotBlank() else !busy && (text.isNotBlank() || done.isNotEmpty())
+                    Box(
+                        Modifier.size(46.dp).cardShadow(CircleShape, dark).clip(CircleShape).background(if (ready) Zk.colors.accent else Zk.colors.surface2)
+                            .clickable(enabled = ready) {
+                                // an edit changes the words only: the files waiting for the next message stay where they are
+                                if (edit) vm.send(text) else { vm.send(text, done.map { it.uploadedId }); files.consumed(vm.id) }
+                                text = ""
+                                emojis = false
+                            },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Icon(if (edit) Icons.Filled.Check else Icons.AutoMirrored.Filled.Send, contentDescription = T.send, tint = if (ready) Zk.colors.accentFg else Zk.colors.fgMuted, modifier = Modifier.size(24.dp))
+                    }
                 }
             }
         }

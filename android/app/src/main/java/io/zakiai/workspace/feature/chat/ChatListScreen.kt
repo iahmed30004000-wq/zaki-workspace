@@ -80,6 +80,13 @@ import io.zakiai.workspace.ui.components.SectionLabel
 import io.zakiai.workspace.ui.components.WhileOnScreen
 import io.zakiai.workspace.ui.components.shortTime
 import io.zakiai.workspace.ui.theme.Zk
+import io.zakiai.workspace.ui.components.cardShadow
+import io.zakiai.workspace.ui.components.UnreadPill
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.unit.sp
 
 /**
  * THE CHAT LIST: the search, the tabs (the built-in ones and the person's own folders), the rows (my pins first, then the newest), a
@@ -88,6 +95,8 @@ import io.zakiai.workspace.ui.theme.Zk
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChatListScreen(
+    /** the search typed in the shell's bar (the site's phone keeps it there) */
+    query: String,
     onOpen: (id: String, at: String?) -> Unit,
     onOpenSpace: (String) -> Unit,
     onNewChat: (group: Boolean) -> Unit,
@@ -102,7 +111,7 @@ fun ChatListScreen(
     // the live line keeps the list current; without it, the list asks every 15 seconds (and once on opening, always)
     WhileOnScreen(if (connected) 120_000 else 15_000, connected) { vm.refresh() }
 
-    var query by rememberSaveable { mutableStateOf("") }
+    LaunchedEffect(query) { vm.search(query) }
     var tabKey by rememberSaveable { mutableStateOf(ListTab.All.key) }
     var menuOf by remember { mutableStateOf<ChatRow?>(null) }
     var newMenu by remember { mutableStateOf(false) }
@@ -120,9 +129,9 @@ fun ChatListScreen(
 
     Box(Modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
-            SearchField(query, onChange = { query = it; vm.search(it) })
             if (query.isBlank()) {
-                Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                // the folder strip of «شكل تيليجرام»: one pill holding the tabs
+                io.zakiai.workspace.ui.components.PillStrip {
                     for (t in tabs) {
                         val label = when (t) {
                             ListTab.All -> C.all
@@ -133,10 +142,9 @@ fun ChatListScreen(
                             ListTab.Archive -> C.archive
                             is ListTab.Custom -> listOfNotNull(t.folder.emoji, t.folder.name).joinToString(" ")
                         }
-                        TabChip(label, ChatFilter.badge(rows, t), t.key == tab.key) { tabKey = t.key }
+                        io.zakiai.workspace.ui.components.PillTab(label, ChatFilter.badge(rows, t), t.key == tab.key) { tabKey = t.key }
                     }
                 }
-                HorizontalDivider(color = Zk.colors.border)
             }
             Box(Modifier.weight(1f)) {
                 when {
@@ -155,10 +163,13 @@ fun ChatListScreen(
                 }
             }
         }
-        Box(Modifier.align(Alignment.BottomStart).padding(16.dp)) {
-            FloatingActionButton(onClick = { newMenu = true }, containerColor = Zk.colors.accent, contentColor = Zk.colors.accentFg) {
-                Icon(Icons.Filled.Create, contentDescription = C.newChat)
-            }
+        // «جديد»: a 56 circle of the accent at the bottom END (the left in Arabic), the card shadow — the site's own button
+        Box(Modifier.align(Alignment.BottomEnd).padding(16.dp)) {
+            val fab = androidx.compose.foundation.shape.CircleShape
+            Box(
+                Modifier.size(56.dp).cardShadow(fab, Zk.theme.dark).clip(fab).background(Zk.colors.accent).clickable { newMenu = true },
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Filled.Create, contentDescription = C.newChat, tint = Zk.colors.accentFg, modifier = Modifier.size(24.dp)) }
             DropdownMenu(expanded = newMenu, onDismissRequest = { newMenu = false }) {
                 DropdownMenuItem(text = { Text(C.newMessage) }, leadingIcon = { Icon(Icons.Filled.Search, null) }, onClick = { newMenu = false; onNewChat(false) })
                 DropdownMenuItem(text = { Text(C.newGroup) }, leadingIcon = { Icon(Icons.Filled.GroupAdd, null) }, onClick = { newMenu = false; onNewChat(true) })
@@ -229,49 +240,88 @@ fun previewOf(r: ChatRow): String {
     return if (who != null) "$who: $text" else text
 }
 
-/** One row: 72 dp, the round picture, title + time (and my pin, my mute), preview + the unread number (grey when muted). */
+/**
+ * One row, as the site's phone draws it (chat-row.tsx): 76 high, a 56 avatar, gap 12, a full-width hairline (the border at 60%); the title 16sp
+ * (semibold when something waits), the small icons after it, the ticks and the time (12sp, the accent when unread and not muted) at the end;
+ * the preview 14sp in the quiet colour with the author's name in the text colour, the «@» and the count (surface-2 when muted), or the pin.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun Row_(r: ChatRow, onClick: () -> Unit, onLong: () -> Unit) {
-    Row(
-        Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLong).padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Avatar(r.title, url = r.avatarUrl, emoji = r.emoji, size = 54.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (r.restricted) Icon(Icons.Filled.Lock, contentDescription = null, tint = Zk.colors.fgMuted, modifier = Modifier.size(14.dp).padding(end = 2.dp))
-                Text(r.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
-                if (r.muted) Icon(Icons.Filled.NotificationsOff, contentDescription = C.mute, tint = Zk.colors.fgMuted, modifier = Modifier.padding(start = 4.dp).size(14.dp))
-                Spacer(Modifier.weight(1f))
-                val last = r.lastMessage
-                if (last?.mine == true && last.status != null) {
-                    Icon(if (last.status == "sent") Icons.Filled.Done else Icons.Filled.DoneAll, contentDescription = null, tint = if (last.status == "read") Zk.colors.accent else Zk.colors.fgMuted, modifier = Modifier.size(15.dp))
-                    Spacer(Modifier.width(3.dp))
+    val unread = ChatFilter.hasUnread(r)
+    Column(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLong)) {
+        Row(
+            Modifier.fillMaxWidth().height(76.dp).padding(horizontal = 12.dp, vertical = if (r.kind == "SPACE") 6.dp else 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Avatar(r.title, url = r.avatarUrl, emoji = r.emoji, size = 56.dp)
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.Center) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(r.title, fontSize = 16.sp, lineHeight = 20.sp, fontWeight = if (unread) FontWeight.SemiBold else FontWeight.Medium, color = Zk.colors.fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false))
+                    val small = Modifier.size(14.dp)
+                    if (r.muted) Icon(Icons.Filled.NotificationsOff, contentDescription = C.mute, tint = Zk.colors.fgMuted, modifier = small)
+                    if (r.archivedByMe) Icon(Icons.Filled.Archive, contentDescription = C.archive, tint = Zk.colors.fgMuted, modifier = small)
+                    if (r.restricted || r.closed) Icon(Icons.Filled.Lock, contentDescription = null, tint = Zk.colors.fgMuted, modifier = small)
+                    Spacer(Modifier.weight(1f))
+                    val last = r.lastMessage
+                    if (last?.mine == true && last.status != null) {
+                        Icon(if (last.status == "sent") Icons.Filled.Done else Icons.Filled.DoneAll, contentDescription = null, tint = if (last.status == "read") Zk.colors.accent else Zk.colors.fgMuted, modifier = Modifier.size(16.dp))
+                    }
+                    Text(shortTime(last?.at), fontSize = 12.sp, color = if (unread && !r.muted) Zk.colors.accent else Zk.colors.fgMuted, maxLines = 1)
                 }
-                Text(shortTime(last?.at), style = MaterialTheme.typography.labelMedium, color = if (ChatFilter.hasUnread(r) && !r.muted) Zk.colors.accent else Zk.colors.fgMuted)
-            }
-            Spacer(Modifier.height(2.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    if (r.space != null && r.kind == "TOPIC") Text(r.space.name, style = MaterialTheme.typography.labelSmall, color = Zk.colors.accent, maxLines = 1)
-                    Text(previewOf(r), style = MaterialTheme.typography.bodyMedium, color = Zk.colors.fgMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    if (r.kind == "SPACE" && r.topicChips.isNotEmpty()) {
-                        Text(r.topicChips.joinToString("  ·  ") { listOfNotNull(it.emoji, it.title).joinToString(" ") }, style = MaterialTheme.typography.labelSmall, color = Zk.colors.fgMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Spacer(Modifier.height(2.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        if (r.kind == "SPACE" && r.topicChips.isNotEmpty()) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                for (chip in r.topicChips.take(3)) Text(
+                                    listOfNotNull(chip.emoji, chip.title).joinToString(" "),
+                                    fontSize = 12.sp,
+                                    fontWeight = if (chip.unread > 0) FontWeight.SemiBold else FontWeight.Normal,
+                                    color = if (chip.unread > 0) Zk.colors.accent else Zk.colors.fgMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f, fill = false).clip(RoundedCornerShape(50)).background(Zk.colors.surface2).padding(horizontal = 8.dp, vertical = 1.dp),
+                                )
+                            }
+                        } else {
+                            Text(previewLine(r), fontSize = 14.sp, lineHeight = 20.sp, color = Zk.colors.fgMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
+                    if (r.mentionsUnread > 0) {
+                        Box(Modifier.size(20.dp).clip(CircleShape).background(Zk.colors.accent), contentAlignment = Alignment.Center) {
+                            Text("@", color = Zk.colors.accentFg, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                    when {
+                        r.unread > 0 -> UnreadPill(r.unread, muted = r.muted)
+                        r.markedUnread -> Box(Modifier.size(12.dp).clip(CircleShape).background(if (r.muted) Zk.colors.surface2 else Zk.colors.accent))
+                        r.pinnedByMe -> Icon(Icons.Filled.PushPin, contentDescription = C.pin, tint = Zk.colors.fgMuted, modifier = Modifier.size(16.dp))
                     }
                 }
-                if (r.mentionsUnread > 0) {
-                    Box(Modifier.padding(start = 6.dp).size(20.dp).clip(CircleShape).background(Zk.colors.accent), contentAlignment = Alignment.Center) {
-                        Text("@", color = Zk.colors.accentFg, style = MaterialTheme.typography.labelSmall)
-                    }
-                }
-                if (r.pinnedByMe && !ChatFilter.hasUnread(r)) Icon(Icons.Filled.PushPin, contentDescription = C.pin, tint = Zk.colors.fgMuted, modifier = Modifier.padding(start = 6.dp).size(16.dp))
-                Spacer(Modifier.width(6.dp))
-                if (r.markedUnread && r.unread == 0) Box(Modifier.size(12.dp).clip(CircleShape).background(if (r.muted) Zk.colors.badgeMuted else Zk.colors.accent))
-                else CountBadge(r.unread, muted = r.muted)
             }
         }
+        HorizontalDivider(color = Zk.colors.border.copy(alpha = 0.6f), thickness = 1.dp)
+    }
+}
+
+/** The second line: the author's «فلان: » in the text colour, then what was said in the quiet colour (the site's own preview). */
+@Composable
+private fun previewLine(r: ChatRow): androidx.compose.ui.text.AnnotatedString {
+    val full = previewOf(r)
+    val m = r.lastMessage
+    val who = when {
+        m == null || m.kind == "SYSTEM" || r.kind == "DM" -> null
+        m.mine -> C.you
+        else -> m.authorName.takeIf { it.isNotBlank() }
+    }
+    val fg = Zk.colors.fg
+    return buildAnnotatedString {
+        if (who != null && full.startsWith("$who: ")) {
+            withStyle(SpanStyle(color = fg)) { append("$who: ") }
+            append(full.removePrefix("$who: "))
+        } else append(full)
     }
 }
 

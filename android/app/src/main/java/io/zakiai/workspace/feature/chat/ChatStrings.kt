@@ -115,6 +115,7 @@ object C {
     const val downloadFailed = "ما زبط نجيب الملف. جرّب كمان مرة."
     const val share = "شارك أو احفظ"
     const val voiceNote = "رسالة صوتية"
+    const val emoji = "إيموجي"
     const val attachments = "مرفقات"
 
     /** The site's templates of a system line (src/lib/i18n, `chatc.sys.*`): `{name}` is always the line's author. */

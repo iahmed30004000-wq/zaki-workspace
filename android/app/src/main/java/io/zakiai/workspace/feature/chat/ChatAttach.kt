@@ -31,6 +31,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Close
@@ -147,14 +148,21 @@ fun VoiceButton(vm: ConversationViewModel, files: ChatFiles) {
         if (recording) {
             IconButton(onClick = { files.stopRecording(vm.id, send = false) {} }) { Icon(Icons.Filled.Close, contentDescription = C.cancel, tint = Zk.colors.danger) }
         }
-        IconButton(onClick = {
-            when {
-                recording -> files.stopRecording(vm.id, send = true) { uploaded -> vm.send("", listOf(uploaded), voice = true) }
-                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> files.startRecording(vm.id)
-                else -> ask.launch(Manifest.permission.RECORD_AUDIO)
-            }
-        }) {
-            Icon(Icons.Filled.Mic, contentDescription = if (recording) C.recording else C.record, tint = if (recording) Zk.colors.danger else Zk.colors.accent)
+        // the site's round button: 46, the accent (the danger while recording: a second tap sends), the card shadow
+        val circle = androidx.compose.foundation.shape.CircleShape
+        Box(
+            Modifier.size(46.dp).then(io.zakiai.workspace.ui.components.cardShadowOf(circle, Zk.theme.dark)).clip(circle)
+                .background(if (recording) Zk.colors.danger else Zk.colors.accent)
+                .clickable {
+                    when {
+                        recording -> files.stopRecording(vm.id, send = true) { uploaded -> vm.send("", listOf(uploaded), voice = true) }
+                        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> files.startRecording(vm.id)
+                        else -> ask.launch(Manifest.permission.RECORD_AUDIO)
+                    }
+                },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(if (recording) Icons.AutoMirrored.Filled.Send else Icons.Filled.Mic, contentDescription = if (recording) C.recording else C.record, tint = Zk.colors.accentFg, modifier = Modifier.size(24.dp))
         }
     }
 }

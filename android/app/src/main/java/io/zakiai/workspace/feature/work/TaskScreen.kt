@@ -60,6 +60,37 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import io.zakiai.workspace.ui.components.nameColor
+import io.zakiai.workspace.ui.components.cardShadow
+import io.zakiai.workspace.ui.components.ZkBar
+import io.zakiai.workspace.ui.components.TaskTick
+import io.zakiai.workspace.ui.components.SoftCard
+import io.zakiai.workspace.ui.components.RoundIcon
+import io.zakiai.workspace.ui.components.CountPill
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material.icons.filled.ViewColumn
+import androidx.compose.material.icons.filled.Replay
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Flag
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Event
+import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.automirrored.filled.Comment
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.border
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.zakiai.workspace.core.net.TaskSheet
@@ -92,16 +123,15 @@ fun TaskScreen(onBack: () -> Unit, vm: TaskViewModel = hiltViewModel()) {
 
     Scaffold(
         containerColor = Zk.colors.surface,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snack) },
         topBar = {
-            TopAppBar(
-                navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.back) } },
-                title = { Text(sheet?.task?.key.orEmpty(), maxLines = 1) },
-                actions = {
-                    if (sheet?.remind == true) RemindButton(sheet.task.title, vm)
-                },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Zk.colors.surface1),
-            )
+            ZkBar(
+                title = sheet?.task?.key.orEmpty(),
+                start = { RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, T.back, onClick = onBack) },
+            ) {
+                if (sheet?.remind == true) RemindButton(sheet.task.title, vm)
+            }
         },
     ) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
@@ -119,106 +149,169 @@ private fun Sheet(s: TaskSheet, busy: Boolean, vm: TaskViewModel) {
     val t = s.task
     val edit = s.canEdit && !busy
     val done = t.completedAt != null || t.columnDone
+    val open = edit && !s.lockedFields
     var renaming by remember { mutableStateOf(false) }
     var describing by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
     var returning by remember { mutableStateOf<String?>(null) }
 
-    LazyColumn(Modifier.fillMaxSize().navigationBarsPadding()) {
+    LazyColumn(Modifier.fillMaxSize().navigationBarsPadding(), contentPadding = PaddingValues(top = 6.dp, bottom = 24.dp)) {
         item {
-            Column(Modifier.fillMaxWidth().padding(16.dp)) {
+            // the head: the title 22sp bold (✎ when it may be renamed), who made it, the status and priority as pills, the big done button
+            Column(Modifier.fillMaxWidth().padding(start = 18.dp, end = 10.dp, top = 8.dp, bottom = 6.dp)) {
                 Row(verticalAlignment = Alignment.Top) {
-                    Text(t.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), color = if (done) Zk.colors.fgMuted else Zk.colors.fg)
-                    if (edit && !s.lockedFields) IconButton(onClick = { renaming = true }) { Icon(Icons.Filled.Edit, contentDescription = W.save, tint = Zk.colors.fgMuted) }
+                    Text(
+                        t.title,
+                        fontSize = 22.sp,
+                        lineHeight = 29.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.weight(1f).padding(top = 6.dp),
+                        color = if (done) Zk.colors.fgMuted else Zk.colors.fg,
+                        textDecoration = if (done) TextDecoration.LineThrough else null,
+                    )
+                    if (open) RoundIcon(Icons.Filled.Edit, W.save, tint = Zk.colors.fgMuted, size = 18.dp) { renaming = true }
                 }
-                Text("${W.creator}: ${t.creatorName}", style = MaterialTheme.typography.labelMedium, color = Zk.colors.fgMuted)
-                if (!s.canEdit) Text(W.readOnly, style = MaterialTheme.typography.labelMedium, color = Zk.colors.warn, modifier = Modifier.padding(top = 4.dp))
+                Spacer(Modifier.height(4.dp))
+                Text("${W.creator}: ${t.creatorName}", fontSize = 13.sp, color = Zk.colors.fgMuted)
                 Spacer(Modifier.height(10.dp))
+                Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    StatusPill(W.columnLabel(t.status), if (done) Zk.colors.ok else Zk.colors.info)
+                    StatusPill(W.priorityLabel(t.priority), priorityColor(t.priority))
+                    W.dueLabel(t.dueDate)?.let { StatusPill(it, if (!done && W.isLate(t.dueDate)) Zk.colors.danger else Zk.colors.fgMuted) }
+                }
+                if (!s.canEdit) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(W.readOnly, fontSize = 13.sp, color = Zk.colors.warn, modifier = Modifier.clip(RoundedCornerShape(10.dp)).background(Zk.colors.warn.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 6.dp))
+                }
                 if (s.canEdit) {
-                    Button(
-                        onClick = { vm.complete(!done) },
-                        enabled = !busy,
-                        colors = ButtonDefaults.buttonColors(containerColor = if (done) Zk.colors.surface2 else Zk.colors.accent, contentColor = if (done) Zk.colors.fg else Zk.colors.accentFg),
-                    ) { Text(if (done) W.reopen else W.markDone) }
+                    Spacer(Modifier.height(14.dp))
+                    val shape = RoundedCornerShape(50)
+                    Row(
+                        Modifier.fillMaxWidth().height(46.dp).then(if (done) Modifier else Modifier.cardShadow(shape, Zk.theme.dark)).clip(shape)
+                            .background(if (done) Zk.colors.surface2 else Zk.colors.accent).clickable(enabled = !busy) { vm.complete(!done) },
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(if (done) Icons.Filled.Replay else Icons.Filled.CheckCircle, null, tint = if (done) Zk.colors.fg else Zk.colors.accentFg, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(if (done) W.reopen else W.markDone, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = if (done) Zk.colors.fg else Zk.colors.accentFg)
+                    }
                 }
             }
         }
         // a request to give the task to somebody of a higher rank: the addressee (or the owner) answers it; the asker waits
         for (r in s.assignRequests) item(key = "req-${r.id}") {
-            Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp).clip(RoundedCornerShape(12.dp)).background(Zk.colors.info.copy(alpha = 0.12f)).padding(12.dp)) {
-                Text("${W.requestFor}: ${r.fromName} ← ${r.toName}", style = MaterialTheme.typography.bodyMedium)
-                if (r.mode == "addressee" || r.mode == "owner") Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(enabled = !busy, onClick = { vm.accept(r.id) }) { Text(W.accept, color = Zk.colors.ok) }
-                    TextButton(enabled = !busy, onClick = { returning = r.id }) { Text(W.giveBack, color = Zk.colors.danger) }
-                } else Text(W.waitingAnswer, style = MaterialTheme.typography.labelMedium, color = Zk.colors.fgMuted)
+            val shape = RoundedCornerShape(16.dp)
+            Column(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(shape).background(Zk.colors.info.copy(alpha = 0.10f))
+                    .border(1.dp, Zk.colors.info.copy(alpha = 0.35f), shape).padding(14.dp),
+            ) {
+                Text("${W.requestFor}: ${r.fromName} ← ${r.toName}", fontSize = 14.sp, color = Zk.colors.fg)
+                if (r.mode == "addressee" || r.mode == "owner") {
+                    Spacer(Modifier.height(10.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SmallPillButton(W.accept, Zk.colors.ok, enabled = !busy) { vm.accept(r.id) }
+                        SmallPillButton(W.giveBack, Zk.colors.danger, enabled = !busy) { returning = r.id }
+                    }
+                } else Text(W.waitingAnswer, fontSize = 12.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(top = 4.dp))
             }
         }
         item {
-            HorizontalDivider(color = Zk.colors.border)
-            Field(W.status) {
-                Picker(W.columnLabel(t.status), enabled = edit && !s.lockedFields, options = s.columns.map { it.id to W.columnLabel(it.name) }) { vm.move(it) }
-            }
-            Field(W.priority) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    PriorityDot(t.priority)
-                    Spacer(Modifier.width(6.dp))
-                    Picker(W.priorityLabel(t.priority), enabled = edit && !s.lockedFields, options = W.PRIORITIES.map { it to W.priorityLabel(it) }) { vm.priority(it) }
+            SoftCard {
+                Field(Icons.Filled.ViewColumn, W.status, first = true) {
+                    Picker(W.columnLabel(t.status), enabled = open, options = s.columns.map { it.id to W.columnLabel(it.name) }) { vm.move(it) }
+                }
+                Field(Icons.Filled.Flag, W.priority) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        PriorityDot(t.priority)
+                        Spacer(Modifier.width(6.dp))
+                        Picker(W.priorityLabel(t.priority), enabled = open, options = W.PRIORITIES.map { it to W.priorityLabel(it) }) { vm.priority(it) }
+                    }
+                }
+                Field(Icons.Filled.Event, W.due) { DuePicker(t.dueDate, enabled = open) { vm.due(it) } }
+                Field(Icons.Filled.Person, W.assignees) {
+                    val people = s.members.filter { it.id in t.assigneeIds }.map { it.name }.ifEmpty { listOfNotNull(t.assigneeName) }
+                    Row(
+                        Modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = open) { picking = true }.padding(vertical = 4.dp, horizontal = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        for (n in people.take(3)) { Avatar(n, size = 24.dp); Spacer(Modifier.width(4.dp)) }
+                        Text(people.joinToString("، ").ifEmpty { "—" }, fontSize = 14.sp, color = if (open) Zk.colors.accent else Zk.colors.fg, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
                 }
             }
-            Field(W.due) { DuePicker(t.dueDate, enabled = edit && !s.lockedFields) { vm.due(it) } }
-            Field(W.assignees) {
-                val names = s.members.filter { it.id in t.assigneeIds }.map { it.name }.ifEmpty { listOfNotNull(t.assigneeName) }
+        }
+        item {
+            SoftCard(W.description, Icons.AutoMirrored.Filled.Notes) {
                 Text(
-                    names.joinToString("، ").ifEmpty { "—" },
-                    color = if (edit && !s.lockedFields) Zk.colors.accent else Zk.colors.fg,
-                    modifier = Modifier.clickable(enabled = edit && !s.lockedFields) { picking = true }.padding(vertical = 4.dp),
+                    t.description?.ifBlank { null } ?: W.noDescription,
+                    fontSize = 15.sp,
+                    lineHeight = 23.sp,
+                    color = if (t.description.isNullOrBlank()) Zk.colors.fgMuted else Zk.colors.fg,
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).clickable(enabled = open) { describing = true }.padding(vertical = 4.dp),
                 )
             }
-            HorizontalDivider(color = Zk.colors.border)
-            SectionLabel(W.description)
-            Text(
-                t.description?.ifBlank { null } ?: W.noDescription,
-                color = if (t.description.isNullOrBlank()) Zk.colors.fgMuted else Zk.colors.fg,
-                modifier = Modifier.fillMaxWidth().clickable(enabled = edit && !s.lockedFields) { describing = true }.padding(horizontal = 16.dp, vertical = 6.dp),
-            )
         }
         s.steps?.let { steps ->
             item {
-                HorizontalDivider(color = Zk.colors.border)
-                SectionLabel("${W.steps} (${steps.progress.done}/${steps.progress.total})")
-            }
-            for (st in steps.steps) item(key = "step-${st.id}") {
-                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(st.done, { vm.tickStep(st.id, it) }, enabled = steps.canEdit && !busy)
-                    Text(st.title, modifier = Modifier.weight(1f), color = if (st.done) Zk.colors.fgMuted else Zk.colors.fg)
-                    if (steps.canEdit) IconButton(onClick = { vm.deleteStep(st.id) }, enabled = !busy) { Icon(Icons.Filled.Close, contentDescription = W.cancel, tint = Zk.colors.fgMuted, modifier = Modifier.size(18.dp)) }
+                SoftCard(W.steps, Icons.Filled.Checklist, count = null) {
+                    // the progress: «done/total» over a thin bar of the accent
+                    val total = steps.progress.total
+                    if (total > 0) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(Modifier.weight(1f).height(6.dp).clip(RoundedCornerShape(50)).background(Zk.colors.surface2)) {
+                                Box(Modifier.fillMaxWidth(steps.progress.done.toFloat() / total).height(6.dp).clip(RoundedCornerShape(50)).background(Zk.colors.accent))
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Text("${steps.progress.done}/$total", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Zk.colors.fgMuted)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                    }
+                    steps.steps.forEachIndexed { i, st ->
+                        if (i > 0) HorizontalDivider(color = Zk.colors.border.copy(alpha = 0.6f), thickness = 1.dp, modifier = Modifier.padding(start = 40.dp))
+                        Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 44.dp), verticalAlignment = Alignment.CenterVertically) {
+                            TaskTick(done = st.done, late = false, enabled = steps.canEdit && !busy, description = st.title) { vm.tickStep(st.id, !st.done) }
+                            Text(
+                                st.title,
+                                fontSize = 15.sp,
+                                modifier = Modifier.weight(1f),
+                                color = if (st.done) Zk.colors.fgMuted else Zk.colors.fg,
+                                textDecoration = if (st.done) TextDecoration.LineThrough else null,
+                            )
+                            if (steps.canEdit) RoundIcon(Icons.Filled.Close, W.cancel, tint = Zk.colors.fgMuted, size = 16.dp, enabled = !busy) { vm.deleteStep(st.id) }
+                        }
+                    }
+                    if (steps.canEdit) { Spacer(Modifier.height(6.dp)); AddLine(W.addStep, enabled = !busy) { vm.addStep(it) } }
                 }
             }
-            if (steps.canEdit) item { AddLine(W.addStep, enabled = !busy) { vm.addStep(it) } }
         }
         item {
-            HorizontalDivider(color = Zk.colors.border)
-            SectionLabel(W.comments)
-            if (t.comments.isEmpty()) Text(W.noComments, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+            Row(Modifier.fillMaxWidth().padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.AutoMirrored.Filled.Comment, null, tint = Zk.colors.accent, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text(W.comments, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Zk.colors.fg, modifier = Modifier.weight(1f))
+                if (t.comments.isNotEmpty()) CountPill(t.comments.size, background = Zk.colors.surface2, foreground = Zk.colors.fgMuted)
+            }
+            if (t.comments.isEmpty()) Text(W.noComments, fontSize = 14.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 18.dp, vertical = 6.dp))
         }
-        // newest first, as the site shows them
+        // newest first, as the site shows them: each one a chat bubble of «the others» beside its author's picture
         for (c in t.comments) item(key = "c-${c.id}") {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), verticalAlignment = Alignment.Top) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.Bottom) {
                 Avatar(c.author, size = 32.dp)
                 Spacer(Modifier.width(8.dp))
-                Column(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).background(Zk.colors.surface1).padding(10.dp)) {
-                    Row {
-                        Text(c.author, style = MaterialTheme.typography.labelLarge, color = Zk.colors.accent, modifier = Modifier.weight(1f))
-                        Text(shortTime(c.createdAt), style = MaterialTheme.typography.labelSmall, color = Zk.colors.fgMuted)
-                    }
-                    Text(c.body, style = MaterialTheme.typography.bodyMedium)
+                Column(
+                    Modifier.weight(1f, fill = false).clip(RoundedCornerShape(topStart = 17.dp, topEnd = 17.dp, bottomEnd = 17.dp, bottomStart = 4.dp))
+                        .background(Zk.colors.bubbleIn).padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Text(c.author, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = nameColor(c.author))
+                    Text(c.body, fontSize = 15.sp, lineHeight = 22.sp, color = Zk.colors.bubbleInFg)
+                    Text(shortTime(c.createdAt), fontSize = 11.sp, color = Zk.colors.bubbleInFg.copy(alpha = 0.6f), modifier = Modifier.align(Alignment.End))
                 }
-                if (c.authorId == s.viewerId) IconButton(onClick = { vm.deleteComment(c.id) }, enabled = !busy) { Icon(Icons.Filled.Close, contentDescription = W.deleteComment, tint = Zk.colors.fgMuted, modifier = Modifier.size(18.dp)) }
+                if (c.authorId == s.viewerId) RoundIcon(Icons.Filled.Close, W.deleteComment, tint = Zk.colors.fgMuted, size = 16.dp, enabled = !busy) { vm.deleteComment(c.id) }
             }
         }
         // a partner reads without writing: the server refuses a comment it would not take, the box is offered only to who may write
-        if (s.canEdit) item { AddLine(W.writeComment, enabled = !busy, send = true) { vm.comment(it) } }
-        item { Spacer(Modifier.height(24.dp)) }
+        if (s.canEdit) item { Box(Modifier.padding(horizontal = 12.dp, vertical = 8.dp)) { AddLine(W.writeComment, enabled = !busy, send = true) { vm.comment(it) } } }
     }
 
     if (renaming) TextDialog(W.taskTitle, t.title, single = true, onDismiss = { renaming = false }) { vm.rename(it); renaming = false }
@@ -227,11 +320,36 @@ private fun Sheet(s: TaskSheet, busy: Boolean, vm: TaskViewModel) {
     returning?.let { rid -> TextDialog(W.reason, "", single = false, onDismiss = { returning = null }) { if (it.isNotBlank()) vm.giveBack(rid, it); returning = null } }
 }
 
+/** A quiet pill of a fact (status, priority, day): its colour at 12% with the colour's own text, 12sp semibold. */
 @Composable
-private fun Field(label: String, content: @Composable () -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Text(label, color = Zk.colors.fgMuted, style = MaterialTheme.typography.labelLarge, modifier = Modifier.width(90.dp))
-        content()
+private fun StatusPill(label: String, color: Color) {
+    Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color, maxLines = 1, modifier = Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.12f)).padding(horizontal = 10.dp, vertical = 5.dp))
+}
+
+@Composable
+private fun priorityColor(p: String): Color = when (p) { "URGENT" -> Zk.colors.danger; "HIGH" -> Zk.colors.warn; "LOW" -> Zk.colors.fgMuted; else -> Zk.colors.info }
+
+/** A small tonal button: the colour at 14%, its text in the colour, 36 high. */
+@Composable
+private fun SmallPillButton(label: String, color: Color, enabled: Boolean, onClick: () -> Unit) {
+    Text(
+        label,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.SemiBold,
+        color = if (enabled) color else Zk.colors.fgMuted,
+        modifier = Modifier.clip(RoundedCornerShape(50)).background(color.copy(alpha = 0.14f)).clickable(enabled = enabled, onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+    )
+}
+
+/** One line of the details card: its icon, the label (muted, 96 wide), the value; a hairline above every line but the first. */
+@Composable
+private fun Field(icon: ImageVector, label: String, first: Boolean = false, content: @Composable () -> Unit) {
+    if (!first) HorizontalDivider(color = Zk.colors.border.copy(alpha = 0.6f), thickness = 1.dp)
+    Row(Modifier.fillMaxWidth().defaultMinSize(minHeight = 48.dp).padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(icon, null, tint = Zk.colors.fgMuted, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(label, color = Zk.colors.fgMuted, fontSize = 14.sp, modifier = Modifier.width(86.dp))
+        Box(Modifier.weight(1f)) { content() }
     }
 }
 
@@ -239,8 +357,11 @@ private fun Field(label: String, content: @Composable () -> Unit) {
 private fun Picker(current: String, enabled: Boolean, options: List<Pair<String, String>>, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Column {
-        Text(current, color = if (enabled) Zk.colors.accent else Zk.colors.fg, modifier = Modifier.clickable(enabled = enabled) { open = true }.padding(vertical = 4.dp))
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+        Row(Modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = enabled) { open = true }.padding(vertical = 4.dp, horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(current, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = if (enabled) Zk.colors.accent else Zk.colors.fg)
+            if (enabled) Icon(Icons.Filled.ExpandMore, null, tint = Zk.colors.accent, modifier = Modifier.size(18.dp))
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }, containerColor = Zk.colors.surface1) {
             for ((value, label) in options) DropdownMenuItem(text = { Text(label) }, onClick = { open = false; onPick(value) })
         }
     }
@@ -254,23 +375,45 @@ private fun DuePicker(iso: String?, enabled: Boolean, onPick: (LocalDate?) -> Un
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
             W.dueLabel(iso) ?: W.dueNone,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
             color = when { W.isLate(iso) -> Zk.colors.danger; enabled -> Zk.colors.accent; else -> Zk.colors.fg },
-            modifier = Modifier.clickable(enabled = enabled) {
+            modifier = Modifier.clip(RoundedCornerShape(10.dp)).clickable(enabled = enabled) {
                 val d = current ?: LocalDate.now()
                 DatePickerDialog(context, { _, y, m, day -> onPick(LocalDate.of(y, m + 1, day)) }, d.year, d.monthValue - 1, d.dayOfMonth).show()
-            }.padding(vertical = 4.dp),
+            }.padding(vertical = 4.dp, horizontal = 2.dp),
         )
-        if (enabled && current != null) IconButton(onClick = { onPick(null) }) { Icon(Icons.Filled.Close, contentDescription = W.dueNone, tint = Zk.colors.fgMuted, modifier = Modifier.size(16.dp)) }
+        if (enabled && current != null) RoundIcon(Icons.Filled.Close, W.dueNone, tint = Zk.colors.fgMuted, size = 16.dp) { onPick(null) }
     }
 }
 
+/** The add box: the composer's pill (radius 23, surface-1, a hairline) with the 40 round button of the accent beside it. */
 @Composable
 private fun AddLine(hint: String, enabled: Boolean, send: Boolean = false, onAdd: (String) -> Unit) {
     var text by rememberSaveable { mutableStateOf("") }
-    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-        OutlinedTextField(text, { text = it.take(2000) }, placeholder = { Text(hint) }, modifier = Modifier.weight(1f), maxLines = 4)
-        IconButton(enabled = enabled && text.isNotBlank(), onClick = { onAdd(text); text = "" }) {
-            Icon(if (send) Icons.AutoMirrored.Filled.Send else Icons.Filled.CheckBox, contentDescription = hint, tint = Zk.colors.accent)
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        val pill = RoundedCornerShape(23.dp)
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it.take(2000) },
+            textStyle = TextStyle(fontSize = 15.sp, lineHeight = 22.sp, color = Zk.colors.fg, fontFamily = io.zakiai.workspace.ui.theme.Plex),
+            cursorBrush = SolidColor(Zk.colors.accent),
+            maxLines = 4,
+            modifier = Modifier.weight(1f).defaultMinSize(minHeight = 44.dp).clip(pill).background(if (send) Zk.colors.surface1 else Zk.colors.surface)
+                .border(1.dp, Zk.colors.border, pill).padding(horizontal = 16.dp, vertical = 11.dp),
+            decorationBox = { inner ->
+                Box {
+                    if (text.isEmpty()) Text(hint, fontSize = 15.sp, color = Zk.colors.fgMuted)
+                    inner()
+                }
+            },
+        )
+        val ready = enabled && text.isNotBlank()
+        Box(
+            Modifier.size(44.dp).clip(CircleShape).background(if (ready) Zk.colors.accent else Zk.colors.surface2).clickable(enabled = ready) { onAdd(text); text = "" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(if (send) Icons.AutoMirrored.Filled.Send else Icons.Filled.Add, contentDescription = hint, tint = if (ready) Zk.colors.accentFg else Zk.colors.fgMuted, modifier = Modifier.size(22.dp))
         }
     }
 }
