@@ -42,7 +42,7 @@ export interface TaskSheet {
     columnDone: boolean;
     dueDate: string | null;
     startDate: string | null;
-    completedAt: string | null;
+    completedAt: null | string;
     createdAt: string;
     creatorId: string;
     creatorName: string;
