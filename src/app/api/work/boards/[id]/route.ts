@@ -4,9 +4,9 @@ import { withApi } from "@/server/api";
 import { requireActor } from "@/server/policy/actor";
 import { boardScreenFor } from "@/server/services/work-app";
 /**
- * GET â€” ONE BOARD AS THE KANBAN DRAWS IT, for the phone (M2 N3): the same `boardScreenFor` the board page reads â€” its columns in order, the
+ * GET — ONE BOARD AS THE KANBAN DRAWS IT, for the phone (M2 N3): the same `boardScreenFor` the board page reads — its columns in order, the
  * cards the person may open (`taskVisibleWhere`) with their labels, people, steps, reward (only to whom the lens shows it) and fields, and
- * whether the person may add and drag. Read-only: a card still moves through `POST /api/tasks/[id]/move`. Another team's board is آ«not foundآ».
+ * whether the person may add and drag. Read-only: a card still moves through `POST /api/tasks/[id]/move`. Another team's board is «not found».
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   return withApi(async () => {

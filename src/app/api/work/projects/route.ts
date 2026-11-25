@@ -4,8 +4,8 @@ import { withApi } from "@/server/api";
 import { requireActor } from "@/server/policy/actor";
 import { projectsScreenFor } from "@/server/services/work-app";
 /**
- * GET â€” THE PROJECTS OF THE SPACE THE PERSON IS IN, as the projects page shows them, for the phone (M2 N3): the same `projectsScreenFor` the
- * page reads â€” not archived, inside the person's work scope and teams, the space's quick-task inbox pinned apart (switch `workInbox`).
+ * GET — THE PROJECTS OF THE SPACE THE PERSON IS IN, as the projects page shows them, for the phone (M2 N3): the same `projectsScreenFor` the
+ * page reads — not archived, inside the person's work scope and teams, the space's quick-task inbox pinned apart (switch `workInbox`).
  * Read-only: a project is still created through `POST /api/projects`. Without the projects row of the grid it is refused.
  */
 export async function GET() {
