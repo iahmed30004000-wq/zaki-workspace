@@ -1,3 +1,6 @@
+import { WORK_STAGES } from "@/lib/work/stage";
+import { emptyFilterOptions } from "@/lib/work/my-tasks";
+import { countByProjectForView } from "@/server/services/views";
 import { fmtStamp } from "@/lib/work/stamp";
 import { db } from "@/server/db";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
@@ -248,6 +251,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
   const now = opts.now ?? new Date();
   const hq = opts.current?.kind === "HQ";
   const result = (over: Partial<WorkTasksResult>): WorkTasksResult => ({
+    filters: emptyFilterOptions(),
     params,
     tasks: [],
     truncated: false,
@@ -343,6 +347,21 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
   const firstOrg = batches[0]?.orgId ?? memberships[0]!.organizationId;
   const timeZone = zoneOf(firstOrg);
   const cal = calendarView({ now, timeZone, month: params.month ?? undefined });
+  // the space this list is cut for (for the heading, the select and the filters): «المساحة» is the current one, «مشروع» that project's, «أنا» the picked one or all
+  const cutSpaceId = scopeKind === "space" ? (cur?.id ?? null) : scopeKind === "project" ? (project?.workspaceId ?? null) : pickedSpace;
+  // «لمين» is for whoever manages what is on screen: the company's owner and admins, and the space's own admin. «أنا» is already one person
+  const mayFilterPeople = scopeKind !== "me" && cutSpaceId !== null && (["OWNER", "ADMIN"].includes(roleOfOrg.get(wsById.get(cutSpaceId)!.organizationId) ?? "") || wsRoleById.get(cutSpaceId) === "ADMIN");
+  const who = mayFilterPeople ? params.who : null;
+  // the filter «المشروع» (the SCOPE «مشروع» already is one project)
+  const inProject = scopeKind !== "project" && params.inProject && projectRows.some((p) => p.id === params.inProject) ? params.inProject : null;
+  /** The filters beside the chips; `without` leaves one out, so its own options can be counted. */
+  const narrowing = (without?: "inProject" | "urgent" | "who" | "stage"): Partial<ViewQuery> => ({
+    ...(inProject && without !== "inProject" ? { projectId: inProject } : {}),
+    ...(params.urgent && without !== "urgent" ? { priority: "URGENT" as const } : {}),
+    ...(who && without !== "who" ? { assigneeId: who } : {}),
+    ...(params.stage && without !== "stage" ? { stage: params.stage } : {}),
+  });
+
   // «أنشأتها» is about who MADE the task: the «أنا» assignee filter gives way to it
   const scopedBy = (b: Batch, chip: MyTaskChip | null): Partial<ViewQuery> => (chip === "created" && b.scope.kind === "me" ? { creatorId: userId } : { scope: b.scope });
 
@@ -360,7 +379,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
         visible,
         ...scopedBy(b, chip),
         ...shape,
-        ...(params.stage ? { stage: params.stage } : {}),
+        ...narrowing(),
         ...(params.q ? { search: params.q } : {}),
         limit: MY_TASKS_LIMIT,
         pinnedFirst: lensOn,
@@ -422,27 +441,57 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
       batches.flatMap((b) =>
         MY_TASK_CHIPS.map(async (chip) => {
           const day = dayWindow(now, zoneOf(b.orgId));
-          counts[chip] += await countTasksForView({
+          const n = await countTasksForView({
             orgId: b.orgId,
             workspaceIds: b.workspaceIds,
             visible,
             ...scopedBy(b, chip),
             ...chipQuery(chip, "list", userId, day, now, zoneOf(b.orgId)),
-            ...(params.stage ? { stage: params.stage } : {}),
+            ...narrowing(),
           });
+          counts[chip] += n;
         }),
       ),
     );
   }
 
-  // the space this list is cut for (for the heading and the select): «المساحة» is the current one, «مشروع» that project's, «أنا» the picked one or all
-  const cutSpaceId = scopeKind === "space" ? (cur?.id ?? null) : scopeKind === "project" ? (project?.workspaceId ?? null) : pickedSpace;
+  const filters = emptyFilterOptions();
+  if (!calendar) {
+    // each option is counted inside the chip that is on and every OTHER filter
+    const base = (b: Batch): ViewQuery => ({ orgId: b.orgId, workspaceIds: b.workspaceIds, visible, ...scopedBy(b, chip), ...chipQuery(chip, "list", userId, dayWindow(now, zoneOf(b.orgId)), now, zoneOf(b.orgId)) });
+    const perProject = new Map<string, number>();
+    await Promise.all(
+      batches.map(async (b) => {
+        const urgent = await countTasksForView({ ...base(b), ...narrowing("urgent"), priority: "URGENT" });
+        filters.urgent += urgent;
+        await Promise.all(
+          WORK_STAGES.map(async (stage) => {
+            const n = await countTasksForView({ ...base(b), ...narrowing("stage"), stage });
+            filters.stages[stage] += n;
+          }),
+        );
+        for (const [id, n] of await countByProjectForView({ ...base(b), ...narrowing("inProject") })) perProject.set(id, (perProject.get(id) ?? 0) + n);
+      }),
+    );
+    if (scopeKind !== "project") filters.projects = projectRows.filter((p) => perProject.has(p.id) || p.id === inProject).map((p) => ({ id: p.id, name: p.name, count: perProject.get(p.id) ?? 0 }));
+    if (mayFilterPeople && batches[0]) {
+      const b = batches[0];
+      const members = await db.workspaceMember.findMany({
+        where: { workspaceId: cutSpaceId!, user: { memberships: { some: { organizationId: b.orgId, status: "ACTIVE" } } } },
+        select: { user: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+        take: 60,
+      });
+      filters.people = await Promise.all(members.map(async (m) => ({ id: m.user.id, name: m.user.name, count: await countTasksForView({ ...base(b), ...narrowing("who"), assigneeId: m.user.id }) })));
+    }
+  }
 
   return result({
     params: effective,
     tasks: listed,
     truncated,
     counts,
+    filters,
     spaces,
     projects,
     space: { id: cutSpaceId, name: cutSpaceId ? (wsById.get(cutSpaceId)?.name ?? null) : null },

@@ -50,6 +50,7 @@ const answer = (params: MyTasksParams, tasks: WorkTaskDto[]): WorkTasksResult =>
   todayIso: "2026-11-20",
   month: null,
   canAdd: true,
+  filters: { urgent: 0, stages: { TODO: 0, DOING: 0, REVIEW: 0, DONE: 0 }, projects: [], people: null },
 });
 
 const LIST = { ...DEFAULT_MY_TASKS_PARAMS };
