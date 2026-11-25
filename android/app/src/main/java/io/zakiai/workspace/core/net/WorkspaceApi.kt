@@ -289,4 +289,36 @@ interface WorkspaceApi {
 
     @PATCH("api/goals/{id}")
     suspend fun goalProgress(@Path("id") id: String, @Body body: GoalProgressBody): kotlinx.serialization.json.JsonObject
+
+    // ── «المكتبة» (M2 N4): the site's own routes, as the pages call them ──
+    @GET("api/files")
+    suspend fun libraryFiles(@Header("Cache-Control") cache: String = "no-cache"): FilesAnswer
+
+    @Multipart
+    @POST("api/files")
+    suspend fun uploadLibrary(@Part file: okhttp3.MultipartBody.Part): UploadedFile
+
+    @DELETE("api/files/{id}")
+    suspend fun deleteFile(@Path("id") id: String): Ok
+
+    @GET("api/documents")
+    suspend fun documents(@Query("spaceId") spaceId: String, @Header("Cache-Control") cache: String = "no-cache"): DocsAnswer
+
+    @POST("api/documents")
+    suspend fun newDocument(@Body body: NewDocBody): DocAnswer
+
+    @GET("api/documents/{id}")
+    suspend fun document(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): DocAnswer
+
+    @PATCH("api/documents/{id}")
+    suspend fun saveDocument(@Path("id") id: String, @Body body: SaveDocBody): DocAnswer
+
+    @GET("api/knowledge")
+    suspend fun knowledge(@Header("Cache-Control") cache: String = "no-cache"): SheetsAnswer
+
+    @GET("api/knowledge/{id}")
+    suspend fun sheet(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): SheetAnswer
+
+    @DELETE("api/notifications/{id}")
+    suspend fun deleteNotification(@Path("id") id: String): Ok
 }
