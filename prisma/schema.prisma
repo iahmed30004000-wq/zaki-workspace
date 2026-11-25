@@ -47,6 +47,8 @@ model User {
   navOrder     Json?
   // C3a.2: the person's chat preferences — { folders (by company id), tabs, notifications, chat, voiceSpeed }; null = all defaults (one zod schema: src/lib/chat/prefs.ts; C4.1 and C3b.4 reuse it)
   chatPrefs    Json?
+  /// «مهامي»: the filters this person keeps (src/lib/work/saved-filters.ts).
+  taskFilters  Json?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

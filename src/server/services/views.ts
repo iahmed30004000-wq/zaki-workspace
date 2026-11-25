@@ -488,6 +488,14 @@ export async function countTasksForView(query: ViewQuery): Promise<number> {
   return db.task.count({ where: await viewWhere(q) });
 }
 
+/** The same count, per project: what the «المشروع» filter says beside each name. */
+export async function countByProjectForView(query: ViewQuery): Promise<Map<string, number>> {
+  const q = normalizeViewScope(query);
+  // task-visibility: read through the caller's own `where` (q.visible = taskVisibleWhere)
+  const rows = await db.task.groupBy({ by: ["projectId"], where: await viewWhere(q), _count: { _all: true } });
+  return new Map(rows.map((r) => [r.projectId, r._count._all]));
+}
+
 /** Single query core for every task view; always org-scoped. */
 export async function queryTasksForView(query: ViewQuery): Promise<ViewTask[]> {
   const q = normalizeViewScope(query);

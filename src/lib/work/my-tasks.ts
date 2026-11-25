@@ -54,6 +54,12 @@ export interface MyTasksParams {
   projectId: string | null;
   /** A normalized stage filter. */
   stage: WorkStage | null;
+  /** The filter «المشروع» (`?in=`): narrows «أنا» and «المساحة» to one project. (The SCOPE «مشروع» is `projectId`.) */
+  inProject: string | null;
+  /** The filter «فوري»: the URGENT priority only. */
+  urgent: boolean;
+  /** The filter «لمين» (`?who=`): offered to whoever manages the space, in «المساحة» and «مشروع». */
+  who: string | null;
   q: string;
   /** The calendar's month (`YYYY-MM`), null = the company's current month. */
   month: string | null;
@@ -70,6 +76,9 @@ export const DEFAULT_MY_TASKS_PARAMS: MyTasksParams = {
   spaceId: null,
   projectId: null,
   stage: null,
+  inProject: null,
+  urgent: false,
+  who: null,
   q: "",
   month: null,
   taskId: null,
@@ -101,6 +110,9 @@ export function parseMyTasksParams(raw: RawParams): MyTasksParams {
     spaceId: first(raw, "space") || null,
     projectId: first(raw, "project") || null,
     stage: isWorkStage(stage) ? stage : null,
+    inProject: first(raw, "in").slice(0, 64) || null,
+    urgent: first(raw, "urgent") === "1",
+    who: first(raw, "who").slice(0, 64) || null,
     q: first(raw, "q").slice(0, 120),
     month,
     taskId: first(raw, "task") || null,
@@ -119,6 +131,9 @@ export function myTasksSearch(params: MyTasksParams): string {
   if (params.spaceId && params.scope === "me") sp.set("space", params.spaceId);
   if (params.projectId && params.scope === "project") sp.set("project", params.projectId);
   if (params.stage) sp.set("stage", params.stage);
+  if (params.inProject && params.scope !== "project") sp.set("in", params.inProject);
+  if (params.urgent) sp.set("urgent", "1");
+  if (params.who && params.scope !== "me") sp.set("who", params.who);
   if (params.q) sp.set("q", params.q);
   if (params.month && params.view === "calendar") sp.set("month", params.month);
   if (params.taskId) sp.set("task", params.taskId);
@@ -211,7 +226,20 @@ export interface WorkProjectOption {
   spaceName: string;
 }
 
+/** What the filter row offers, each with the number its press would give (inside the other filters). */
+export interface WorkFilterOptions {
+  /** How many of the list's tasks are «فوري». */
+  urgent: number;
+  stages: Record<WorkStage, number>;
+  projects: { id: string; name: string; count: number }[];
+  /** Null: this person is not offered «لمين» here. */
+  people: { id: string; name: string; count: number }[] | null;
+}
+
+export const emptyFilterOptions = (): WorkFilterOptions => ({ urgent: 0, stages: { TODO: 0, DOING: 0, REVIEW: 0, DONE: 0 }, projects: [], people: null });
+
 export interface WorkTasksResult {
+  filters: WorkFilterOptions;
   /** The state the answer was made for: the scope AFTER the fallbacks (a request for «المساحة» inside «الشركة» comes back as «أنا»). */
   params: MyTasksParams;
   tasks: WorkTaskDto[];
