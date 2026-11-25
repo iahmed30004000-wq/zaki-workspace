@@ -203,13 +203,16 @@ private object Routes {
     const val PROJECT = "project/{id}"
     const val BOARD = "board/{id}"
     const val GOALS = "goals"
-    val TABS = setOf(TODAY, CHATS, WORK, NOTIFICATIONS, SETTINGS)
+    const val LIBRARY = "library"
+    const val DOCUMENT = "document/{id}"
+    const val SHEET = "sheet/{id}"
+    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
     fun task(id: String) = "task/$id"
     fun work(tab: String) = "work?tab=$tab"
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -222,7 +225,6 @@ private data class SiteItem(val label: String, val path: String, val icon: Image
 
 private val SITE_ITEMS = listOf(
     SiteItem(T.calendar, "/calendar", Icons.Filled.CalendarMonth),
-    SiteItem(T.files, "/files", Icons.Filled.Folder),
     SiteItem(T.ideas, "/ideas", Icons.Filled.Lightbulb),
     SiteItem(T.teams, "/teams", Icons.Filled.Groups),
     // the profile, the password, the company's settings: the native «الإعدادات» tab has only what lives on the phone
@@ -243,6 +245,9 @@ fun NavHostController.open(dest: Destination) {
         is Destination.Project -> navigate(Routes.project(dest.id))
         is Destination.Board -> navigate(Routes.board(dest.id))
         Destination.Goals -> navigate(Routes.GOALS) { launchSingleTop = true }
+        Destination.Library -> navigate(Routes.LIBRARY) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.Document -> navigate("document/" + dest.id)
+        is Destination.Sheet -> navigate("sheet/" + dest.id)
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -354,6 +359,7 @@ fun Shell(
                             title = when (route) {
                                 Routes.NOTIFICATIONS -> T.notifications
                                 Routes.WORK -> io.zakiai.workspace.feature.projects.P.work
+                                Routes.LIBRARY -> T.library
                                 Routes.SETTINGS -> T.settings
                                 else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
                             },
@@ -379,7 +385,7 @@ fun Shell(
                             BarTab(T.today, Icons.Filled.Home, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
                             BarTab(T.chat, Icons.Filled.ChatBubbleOutline, route == Routes.CHATS, chatUnread) { nav.open(Destination.Chats) },
                             BarTab(io.zakiai.workspace.feature.projects.P.work, Icons.Filled.TaskAlt, route == Routes.WORK, 0) { nav.open(Destination.MyWork) },
-                            BarTab(T.library, Icons.Filled.LocalLibrary, false, 0) { nav.open(Destination.Site("/files")) },
+                            BarTab(T.library, Icons.Filled.LocalLibrary, route == Routes.LIBRARY, 0) { nav.open(Destination.Library) },
                             BarTab(T.watch, Icons.Filled.Movie, false, 0) { nav.open(Destination.Site("/watch")) },
                             BarTab(T.admin, Icons.Filled.AdminPanelSettings, route == Routes.SETTINGS, 0) { nav.open(Destination.Settings) },
                         ),
@@ -417,6 +423,20 @@ fun Shell(
                     }
                     composable(Routes.BOARD, arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
                         BoardScreen(boardId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    composable(Routes.LIBRARY) {
+                        io.zakiai.workspace.feature.library.LibraryHub(
+                            spaceId = spaces?.currentSpaceId,
+                            onOpenDoc = { nav.open(Destination.Document(it)) },
+                            onOpenSheet = { nav.open(Destination.Sheet(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.DOCUMENT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.library.DocumentScreen(onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.SHEET, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.library.SheetScreen(onBack = { nav.popBackStack() })
                     }
                     composable(Routes.GOALS) { GoalsScreen(onBack = { nav.popBackStack() }, onOpenSite = { nav.open(Destination.Site(it)) }) }
                     composable(Routes.TASK, arguments = listOf(navArgument("id") { type = NavType.StringType })) {

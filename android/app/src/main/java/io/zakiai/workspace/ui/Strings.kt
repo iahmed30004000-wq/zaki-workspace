@@ -88,6 +88,9 @@ object T {
     // notifications
     const val noNotifications = "ما في إشعارات."
     const val markAllRead = "تعليم الكل كمقروء"
+    // the site's panel row (notif.markRead / notif.delete)
+    const val markRead = "تحديد كمقروء"
+    const val delete = "حذف"
 
     // settings
     const val account = "الحساب"
