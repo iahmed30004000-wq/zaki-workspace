@@ -326,7 +326,8 @@ fun Shell(
                     composable(Routes.NOTIFICATIONS) { NotificationsScreen(onOpenPath = openPath) }
                     composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications) }
                     composable(Routes.CONVERSATION, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
-                        ConversationScreen(offline = !online, onBack = { nav.popBackStack() }, onOpenPath = openPath)
+                        // ⚠️ straight to the bridge: Links.destinationOf would send «/chat/{id}» back to the native screen
+                        ConversationScreen(offline = !online, onBack = { nav.popBackStack() }, onOpenPath = openPath, onAttach = { id -> nav.open(Destination.Site("/chat/$id")) })
                     }
                     composable(Routes.SITE, arguments = listOf(navArgument("path") { type = NavType.StringType; defaultValue = "/" })) { e ->
                         WebPage(e.arguments?.getString("path") ?: "/", makeBridge) { nav.popBackStack() }

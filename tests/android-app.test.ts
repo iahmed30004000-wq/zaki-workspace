@@ -107,6 +107,27 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(bridge).toContain("WarnFix(T.webWarn, T.webFix)");
   });
 
+  it("a page inside the app lets the person pick SEVERAL files, of every kind the page accepts, and hands all of them back", () => {
+    const bridge = read(SRC + "feature/web/WebBridge.kt");
+    expect(bridge).toContain("FileChooserParams.MODE_OPEN_MULTIPLE");
+    expect(bridge).toContain("Intent.EXTRA_ALLOW_MULTIPLE");
+    expect(bridge).toContain("Intent.EXTRA_MIME_TYPES");
+    expect(bridge).toContain("clipData");
+    // the system's two shortcuts ask for ONE file of the FIRST kind only, and read one file back
+    expect(bridge).not.toContain("createIntent()");
+    expect(bridge).not.toContain("parseResult(");
+  });
+
+  it("the native conversation has a paperclip: until attachments are native it opens the same conversation of the site", () => {
+    const chat = read(SRC + "feature/chat/ChatScreens.kt");
+    expect(chat).toContain("Icons.Filled.AttachFile");
+    expect(chat).toContain("contentDescription = T.attachFiles");
+    expect(chat).toContain("Composer(onSend = vm::send, onAttach = { onAttach(vm.id) })");
+    const shell = read(SRC + "feature/shell/Shell.kt");
+    // straight to the bridge: Links.destinationOf would send «/chat/{id}» back to the native screen
+    expect(shell).toContain('onAttach = { id -> nav.open(Destination.Site("/chat/$id")) }');
+  });
+
   it("sends a message through the outbox with the server's idempotency key, so a retry never doubles it, and only in its writer's name", () => {
     const workers = read(SRC + "core/sync/Workers.kt");
     // the write runs on the application's scope (leaving the screen never loses it), with the clientId the server honours

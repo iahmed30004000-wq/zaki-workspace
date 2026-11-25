@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Schedule
@@ -176,7 +177,7 @@ private fun Bubble(line: Line, showAuthor: Boolean, onAttachment: (String) -> Un
 
 /** One conversation: the messages (newest at the bottom), the composer pinned above the keyboard, and a call button. */
 @Composable
-fun ConversationScreen(offline: Boolean, onBack: () -> Unit, onOpenPath: (String) -> Unit, vm: ConversationViewModel = hiltViewModel()) {
+fun ConversationScreen(offline: Boolean, onBack: () -> Unit, onOpenPath: (String) -> Unit, onAttach: (String) -> Unit, vm: ConversationViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
     val calling by vm.calling.collectAsStateWithLifecycle()
@@ -212,7 +213,7 @@ fun ConversationScreen(offline: Boolean, onBack: () -> Unit, onOpenPath: (String
         bottomBar = {
             if (conv != null) {
                 when {
-                    conv.me.canPost && !conv.closed -> Composer(onSend = vm::send)
+                    conv.me.canPost && !conv.closed -> Composer(onSend = vm::send, onAttach = { onAttach(vm.id) })
                     // the owner reading an open topic in silence: say so, and offer to join it (as the site does)
                     conv.me.canJoin -> Column(Modifier.fillMaxWidth().background(Zk.colors.surface1).navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
                         Text(T.silentReading, color = Zk.colors.fgMuted, style = MaterialTheme.typography.bodySmall)
@@ -255,12 +256,16 @@ fun ConversationScreen(offline: Boolean, onBack: () -> Unit, onOpenPath: (String
 
 /** The composer: only the field redraws while typing; the text survives a rotation. */
 @Composable
-private fun Composer(onSend: (String) -> Unit) {
+private fun Composer(onSend: (String) -> Unit, onAttach: () -> Unit) {
     var text by rememberSaveable { mutableStateOf("") }
     // pinned above the keyboard: the navigation bar's inset, or the keyboard's when it is open
     Column(Modifier.background(Zk.colors.surface1).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
         HorizontalDivider(color = Zk.colors.border)
         Row(Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            // ⚠️ attachments are not native yet (N1): the paperclip opens this conversation on the site's page, which has them all
+            IconButton(onClick = onAttach) {
+                Icon(Icons.Filled.AttachFile, contentDescription = T.attachFiles, tint = Zk.colors.fgMuted)
+            }
             TextField(
                 value = text,
                 onValueChange = { text = it },
