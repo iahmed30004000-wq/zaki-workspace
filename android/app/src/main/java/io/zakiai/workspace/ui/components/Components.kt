@@ -41,12 +41,17 @@ fun avatarColor(name: String, hue: Int? = null): Color {
     return cats[Math.floorMod(i, cats.size)]
 }
 
-/** A round picture, or the first letter (or the emoji) on the person's colour. */
+/**
+ * A round picture, or the first letter on the site's avatar colour (hsl(avatarHue, 45%, 30%), white letters); an emoji (a topic) sits in a
+ * surface-2 circle, as on the site.
+ */
 @Composable
 fun Avatar(name: String, url: String? = null, emoji: String? = null, size: Dp = 48.dp, hue: Int? = null) {
-    Box(Modifier.size(size).clip(CircleShape).background(avatarColor(name, hue)), contentAlignment = Alignment.Center) {
-        val label = emoji?.takeIf { it.isNotBlank() } ?: name.trim().take(1)
-        Text(label, color = Zk.colors.scrim, fontSize = (size.value * 0.42f).sp, fontWeight = FontWeight.Bold)
+    val isEmoji = !emoji.isNullOrBlank()
+    val bg = if (isEmoji) Zk.colors.surface2 else Color.hsl(hue?.toFloat()?.mod(360f) ?: avatarHue(name), 0.45f, 0.30f)
+    Box(Modifier.size(size).clip(CircleShape).background(bg), contentAlignment = Alignment.Center) {
+        val label = if (isEmoji) emoji!! else name.trim().take(1)
+        Text(label, color = Color.White, fontSize = (size.value * (if (isEmoji) 0.40f else 0.36f)).sp, fontWeight = FontWeight.Bold)
         if (!url.isNullOrBlank()) {
             AsyncImage(model = if (url.startsWith("/")) Config.BASE + url else url, contentDescription = null, modifier = Modifier.size(size).clip(CircleShape))
         }
