@@ -183,8 +183,10 @@ describe("«تكرار»: the screen is Arabic and the pages wire it", () => {
 
   it("the task page draws the control from the series, only while the switch is on, and never for the owner reading silently", () => {
     const page = read("src/app/(app)/tasks/[id]/page.tsx");
-    expect(page).toContain("recurrenceOfTask(task.id, task.orgId)");
-    expect(page).toMatch(/canEdit: canEdit && !\(membership\?\.role === "OWNER" && !spaceRow\)/);
+    expect(page).toContain("recurrenceOfTask(task.id, orgId)");
+    // the owner reading a space he is not in (`ownerOutsideSpace`, the shared sheet's rule) never changes a series
+    expect(page).toMatch(/canEdit: sheet\.canEdit && !ownerOutsideSpace/);
+    expect(read("src/server/services/task-sheet.ts")).toContain('const ownerOutsideSpace = membership?.role === "OWNER" && !spaceRow;');
     expect(read("src/components/task-detail.tsx")).toContain("<RecurrenceControl");
   });
 });

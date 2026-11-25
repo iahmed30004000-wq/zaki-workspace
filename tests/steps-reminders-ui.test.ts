@@ -100,9 +100,11 @@ describe("«الخطوات»: the list on the task page", () => {
   });
 
   it("the task page draws it only while the switch is on, and the owner reading silently gets it read-only", () => {
-    const page = read("src/app/(app)/tasks/[id]/page.tsx");
-    expect(page).toMatch(/actorFeatureOn\(actor, "taskSteps"\)/);
-    expect(page).toMatch(/canEdit && !\(membership\?\.role === "OWNER" && !spaceRow\)/);
+    // the page and the phone draw the steps from one sheet (src/server/services/task-sheet.ts)
+    expect(read("src/app/(app)/tasks/[id]/page.tsx")).toContain("steps={sheet.steps ? { initial: sheet.steps.steps, canEdit: sheet.steps.canEdit } : null}");
+    const sheet = read("src/server/services/task-sheet.ts");
+    expect(sheet).toMatch(/actorFeatureOn\(actor, "taskSteps"\)/);
+    expect(sheet).toMatch(/canEdit: canEdit && !ownerOutsideSpace/);
   });
 });
 
