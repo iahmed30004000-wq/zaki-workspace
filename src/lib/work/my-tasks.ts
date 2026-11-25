@@ -6,7 +6,7 @@
  * Pure (no React, no server imports): the page, the route and the client read the same words and the same rules. The server decides WHICH tasks a
  * person may see (`taskVisibleWhere`, src/server/services/team-scope.ts); nothing here widens that.
  */
-import { dayOfInstant } from "@/lib/due-day";
+import { dayOfInstant, isAllDayDue } from "@/lib/due-day";
 import { WORK_STAGES, isWorkStage, type WorkStage } from "@/lib/work/stage";
 
 export const MY_TASK_VIEWS = ["list", "board", "calendar"] as const;
@@ -23,7 +23,7 @@ export type MyTaskChip = (typeof MY_TASK_CHIPS)[number];
 /** `?space=all`: «كل مساحاتي», never the default (the default is the space the person is in). */
 export const ALL_SPACES = "all";
 
-export const MY_TASK_SORTS = ["due", "priority", "updated", "title"] as const;
+export const MY_TASK_SORTS = ["due", "priority", "updated", "created", "title"] as const;
 export type MyTaskSort = (typeof MY_TASK_SORTS)[number];
 
 export const MY_TASK_GROUPS = ["none", "stage", "project", "person", "due"] as const;
@@ -54,6 +54,12 @@ export interface MyTasksParams {
   projectId: string | null;
   /** A normalized stage filter. */
   stage: WorkStage | null;
+  /** The filter «المشروع» (`?in=`): narrows «أنا» and «المساحة» to one project. (The SCOPE «مشروع» is `projectId`.) */
+  inProject: string | null;
+  /** The filter «فوري»: the URGENT priority only. */
+  urgent: boolean;
+  /** The filter «لمين» (`?who=`): offered to whoever manages the space, in «المساحة» and «مشروع». */
+  who: string | null;
   q: string;
   /** The calendar's month (`YYYY-MM`), null = the company's current month. */
   month: string | null;
@@ -70,6 +76,9 @@ export const DEFAULT_MY_TASKS_PARAMS: MyTasksParams = {
   spaceId: null,
   projectId: null,
   stage: null,
+  inProject: null,
+  urgent: false,
+  who: null,
   q: "",
   month: null,
   taskId: null,
@@ -101,6 +110,9 @@ export function parseMyTasksParams(raw: RawParams): MyTasksParams {
     spaceId: first(raw, "space") || null,
     projectId: first(raw, "project") || null,
     stage: isWorkStage(stage) ? stage : null,
+    inProject: first(raw, "in").slice(0, 64) || null,
+    urgent: first(raw, "urgent") === "1",
+    who: first(raw, "who").slice(0, 64) || null,
     q: first(raw, "q").slice(0, 120),
     month,
     taskId: first(raw, "task") || null,
@@ -119,6 +131,9 @@ export function myTasksSearch(params: MyTasksParams): string {
   if (params.spaceId && params.scope === "me") sp.set("space", params.spaceId);
   if (params.projectId && params.scope === "project") sp.set("project", params.projectId);
   if (params.stage) sp.set("stage", params.stage);
+  if (params.inProject && params.scope !== "project") sp.set("in", params.inProject);
+  if (params.urgent) sp.set("urgent", "1");
+  if (params.who && params.scope !== "me") sp.set("who", params.who);
   if (params.q) sp.set("q", params.q);
   if (params.month && params.view === "calendar") sp.set("month", params.month);
   if (params.taskId) sp.set("task", params.taskId);
@@ -165,6 +180,12 @@ export interface WorkTaskDto {
   dueDate: string | null;
   /** The due day as the company reads it (`YYYY-MM-DD`). */
   dueDay: string | null;
+  /** Who made it and when (the words are made on the server, on the company's clock). */
+  creatorName?: string;
+  createdAt?: string;
+  createdText?: string;
+  /** The due date as the company's wall clock (`YYYY-MM-DDTHH:mm`): what the date box shows. Absent: no hour was read (the whole day). */
+  dueWall?: string | null;
   completedAt: string | null;
   columnId: string;
   columnName: string;
@@ -205,7 +226,20 @@ export interface WorkProjectOption {
   spaceName: string;
 }
 
+/** What the filter row offers, each with the number its press would give (inside the other filters). */
+export interface WorkFilterOptions {
+  /** How many of the list's tasks are «فوري». */
+  urgent: number;
+  stages: Record<WorkStage, number>;
+  projects: { id: string; name: string; count: number }[];
+  /** Null: this person is not offered «لمين» here. */
+  people: { id: string; name: string; count: number }[] | null;
+}
+
+export const emptyFilterOptions = (): WorkFilterOptions => ({ urgent: 0, stages: { TODO: 0, DOING: 0, REVIEW: 0, DONE: 0 }, projects: [], people: null });
+
 export interface WorkTasksResult {
+  filters: WorkFilterOptions;
   /** The state the answer was made for: the scope AFTER the fallbacks (a request for «المساحة» inside «الشركة» comes back as «أنا»). */
   params: MyTasksParams;
   tasks: WorkTaskDto[];
@@ -275,6 +309,8 @@ export function sortWorkTasks(tasks: readonly WorkTaskDto[], sort: MyTaskSort, c
       return rows.sort((a, b) => (PRIORITY_RANK[a.priority] ?? 9) - (PRIORITY_RANK[b.priority] ?? 9) || byDue(a, b));
     case "updated":
       return rows.sort((a, b) => (time(b.updatedAt) ?? 0) - (time(a.updatedAt) ?? 0));
+    case "created":
+      return rows.sort((a, b) => (time(b.createdAt ?? null) ?? 0) - (time(a.createdAt ?? null) ?? 0));
     case "title":
       return rows.sort((a, b) => a.title.localeCompare(b.title, "ar"));
     default:
@@ -292,11 +328,12 @@ export const DUE_BUCKETS = ["overdue", "today", "tomorrow", "week", "later", "no
 export type DueBucket = (typeof DUE_BUCKETS)[number];
 
 /** Where a task falls on the company's calendar today. A finished task is never «متأخرة». */
-export function dueBucketOf(task: Pick<WorkTaskDto, "dueDate" | "completedAt">, todayIso: string, timeZone: string): DueBucket {
+export function dueBucketOf(task: Pick<WorkTaskDto, "dueDate" | "completedAt">, todayIso: string, timeZone: string, now: Date = new Date()): DueBucket {
   if (!task.dueDate) return "none";
   const day = dayOfInstant(task.dueDate, timeZone);
   if (day < todayIso) return task.completedAt ? "later" : "overdue";
-  if (day === todayIso) return "today";
+  // today, and its hour has passed: late (a whole-day task is not, until the day ends)
+  if (day === todayIso) return !task.completedAt && !isAllDayDue(task.dueDate, timeZone) && Date.parse(task.dueDate) < now.getTime() ? "overdue" : "today";
   if (day === addDays(todayIso, 1)) return "tomorrow";
   if (day <= addDays(todayIso, 6)) return "week";
   return "later";
@@ -366,9 +403,10 @@ export function withStage(tasks: readonly WorkTaskDto[], id: string, stage: Work
   return patch(tasks, id, (t) => ({ ...t, columnStage: stage, completedAt: stage === "DONE" ? (t.completedAt ?? at.toISOString()) : null }));
 }
 
-/** A new due day (`YYYY-MM-DD`, or null to clear it): the day the person picked, shown at once. */
-export function withDueDay(tasks: readonly WorkTaskDto[], id: string, day: string | null, noonOf: (day: string) => string | null): WorkTaskDto[] {
-  return patch(tasks, id, (t) => ({ ...t, dueDay: day, dueDate: day ? noonOf(day) : null }));
+/** A new due date (`YYYY-MM-DD` or `YYYY-MM-DDTHH:mm`, or null to clear it): what the person picked, shown at once. */
+export function withDueDay(tasks: readonly WorkTaskDto[], id: string, picked: string | null, instantOf: (picked: string) => string | null): WorkTaskDto[] {
+  const day = picked ? picked.slice(0, 10) : null;
+  return patch(tasks, id, (t) => ({ ...t, dueDay: day, dueWall: picked && picked.length > 10 ? picked : day ? `${day}T12:00` : null, dueDate: picked ? instantOf(picked) : null }));
 }
 
 /** A task is on the open screen (a list chip other than «مكتملة» shows open work only; ticking one takes it off the list). */

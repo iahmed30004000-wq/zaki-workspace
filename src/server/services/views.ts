@@ -1,9 +1,10 @@
+import { overdueDueFilter } from "@/lib/due-day";
 import { Prisma, type TaskPriority } from "@prisma/client";
 import { db } from "@/server/db";
 import { TASK_INCLUDE } from "@/server/services/tasks";
 import { loadWorkScope, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
 import { canWriteInWorkspace, workspaceRoleOf } from "@/server/workspace-role";
-import { orgDayStart } from "@/server/services/org-day";
+import { orgTimeZone } from "@/server/services/org-day";
 import { arabicSearch } from "@/lib/search/arabic";
 import { rankedSearch, sqlIn } from "@/server/search/ranked";
 import { listBadgeStatus } from "@/lib/rewards";
@@ -268,7 +269,10 @@ export interface ViewQuery {
    * "overdue"). Without it this service reads the company's own line itself — never "this very moment", which
    * would make the same task late here and not on the next screen.
    */
-  overdueBefore?: Date;
+  /** `overdueDueFilter` for the zone the caller cuts the days in; absent: this company's, at `now`. */
+  overdueFilter?: { lt: Date; not: Date };
+  /** Leave out what is already late (the «اليوم» chip: a task whose hour has passed is «متأخرة»). */
+  stillDue?: { OR: [{ dueDate: { gte: Date } }, { dueDate: Date }] };
   /** The moment the caller is asking as (tests pin it; the routes and pages pass nothing and get now). */
   now?: Date;
   openOnly?: boolean;
@@ -368,6 +372,9 @@ export interface ViewTask {
   assigneeIds: string[];
   assigneeNames: string[];
   creatorId: string;
+  /** Who made it and when: said on the row, and a sort. */
+  creatorName?: string;
+  createdAt?: Date;
   /** «مين بيشوفها؟»: SPACE or PARTICIPANTS (a lock is drawn on the second). */
   visibility: string;
   labelIds: string[];
@@ -460,9 +467,10 @@ async function viewWhere(q: ViewQuery): Promise<Prisma.TaskWhereInput> {
   }
   if (q.undated) where.dueDate = null;
   if (q.overdueOnly) {
-    where.dueDate = { lt: q.overdueBefore ?? (await orgDayStart(q.orgId, q.now)) };
+    where.dueDate = q.overdueFilter ?? overdueDueFilter(q.now ?? new Date(), await orgTimeZone(q.orgId));
     where.completedAt = null;
   }
+  if (q.stillDue) and.push(q.stillDue);
   if (q.openOrCompletedSince) and.push({ OR: [{ completedAt: null }, { completedAt: { gte: q.openOrCompletedSince } }] });
   if (q.openOnly) where.completedAt = null;
   if (q.completedOnly) where.completedAt = { not: null };
@@ -480,6 +488,14 @@ export async function countTasksForView(query: ViewQuery): Promise<number> {
   return db.task.count({ where: await viewWhere(q) });
 }
 
+/** The same count, per project: what the «المشروع» filter says beside each name. */
+export async function countByProjectForView(query: ViewQuery): Promise<Map<string, number>> {
+  const q = normalizeViewScope(query);
+  // task-visibility: read through the caller's own `where` (q.visible = taskVisibleWhere)
+  const rows = await db.task.groupBy({ by: ["projectId"], where: await viewWhere(q), _count: { _all: true } });
+  return new Map(rows.map((r) => [r.projectId, r._count._all]));
+}
+
 /** Single query core for every task view; always org-scoped. */
 export async function queryTasksForView(query: ViewQuery): Promise<ViewTask[]> {
   const q = normalizeViewScope(query);
@@ -495,6 +511,7 @@ export async function queryTasksForView(query: ViewQuery): Promise<ViewTask[]> {
     project: { select: { id: true, name: true } },
     column: { select: { id: true, name: true, done: true, stage: true } },
     organization: { select: { keyPrefix: true } },
+    creator: { select: { name: true } },
   } satisfies Prisma.TaskInclude;
 
   // a text filter is spelling-tolerant (src/lib/search/arabic.ts): the pool of ids by spelling, narrowed by the
@@ -549,6 +566,8 @@ export async function queryTasksForView(query: ViewQuery): Promise<ViewTask[]> {
       assigneeIds: [...(t.assignee ? [t.assignee.id] : []), ...co.map((u) => u.id)],
       assigneeNames: [...(t.assignee ? [t.assignee.name] : []), ...co.map((u) => u.name)],
       creatorId: t.creatorId,
+      creatorName: t.creator.name,
+      createdAt: t.createdAt,
       visibility: t.visibility,
       labelIds: t.labels.map((l) => l.label.id),
       updatedAt: t.updatedAt,

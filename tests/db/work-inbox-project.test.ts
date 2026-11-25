@@ -366,7 +366,8 @@ describe("Today's quick add uses the inbox instead of «the first project with a
     expect(body).not.toHaveProperty("projectId");
     expect(body).not.toHaveProperty("boardId");
     expect(body?.dueDate).toBeTruthy();
-    expect(quickInboxBody(DATA, { title: "x", due: "none", timeZone: "Asia/Damascus" })).not.toHaveProperty("dueDate");
+    // «بدون موعد» is SAID (null): an absent date would take the company's default
+    expect(quickInboxBody(DATA, { title: "x", due: "none", timeZone: "Asia/Damascus" })).toHaveProperty("dueDate", null);
     expect(quickInboxBody(DATA, { title: "   ", due: "today", timeZone: "Asia/Damascus" })).toBeNull();
   });
 

@@ -88,7 +88,7 @@ describe("mine: open, overdue, due today, finished this week, the week's progres
     await setZone(w.org.id, "Asia/Damascus"); // UTC+3 in October 2026: 22:30 UTC on the 21st is 01:30 on the 22nd
     await put(w, "in", { assigneeId: w.member.id, due: at("2026-10-21T22:30:00Z") }); // today there
     await put(w, "in", { assigneeId: w.member.id, due: at("2026-10-21T20:00:00Z") }); // 23:00 on the 21st there: overdue
-    const mine = (await dashFor(w.member.id))?.mine;
+    const mine = (await dashFor(w.member.id, { now: at("2026-10-21T22:10:00Z") }))?.mine; // 01:10 on the 22nd there; the server's day is still the 21st
     expect(mine).toMatchObject({ overdue: 1, dueToday: 1 });
   });
 

@@ -1,3 +1,5 @@
+import { parseDueInput } from "@/lib/due-day";
+import { dueTextSchema } from "@/lib/due-input";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireWorkspace, audit } from "@/server/auth";
@@ -6,7 +8,6 @@ import { teamFilterInSpace } from "@/server/services/team-scope";
 import { parseJson, priorities, taskTypes } from "@/server/validation";
 import { createTask, listTasks } from "@/server/services/tasks";
 import { orgTimeZone } from "@/server/services/org-day";
-import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 import { dispatchEvent } from "@/server/services/n8n";
 import { rewardsVisibleTo } from "@/server/services/rewards";
 import { rewardBodySchema, toRewardRequest } from "@/server/services/reward-input";
@@ -22,7 +23,7 @@ const createSchema = z.object({
   priority: z.enum(priorities).optional(),
   type: z.enum(taskTypes).optional(),
   assigneeId: z.string().min(1).optional().nullable(),
-  dueDate: z.string().datetime({ offset: true }).or(z.string().date()).optional().nullable(),
+  dueDate: dueTextSchema.optional().nullable(),
   labels: z.array(z.string().min(1)).max(10).optional(),
   /** «مهمة بمكافأة»: the OWNER's alone; needs `dueDate` (src/server/services/rewards.ts). */
   reward: rewardBodySchema.optional(),
@@ -77,11 +78,8 @@ export async function POST(req: Request) {
     const input = await parseJson(createSchema, req);
     const ctx = await requireWorkspace(input.workspaceId, ["ADMIN", "MEMBER"]);
     // a plain day ("2026-11-05", the date box) is noon in the COMPANY's zone, never the browser's (review B5)
-    const dueDate = input.dueDate
-      ? parseDayText(input.dueDate)
-        ? dueInstantForDay(input.dueDate, await orgTimeZone(ctx.orgId))
-        : new Date(input.dueDate)
-      : null;
+    // absent: the company's default (today at its hour); null: no date
+    const dueDate = input.dueDate === undefined ? undefined : input.dueDate ? parseDueInput(input.dueDate, await orgTimeZone(ctx.orgId)) : null;
     const task = await createTask(ctx, {
       workspaceId: input.workspaceId,
       projectId: input.projectId,

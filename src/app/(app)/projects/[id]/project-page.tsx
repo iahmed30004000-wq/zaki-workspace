@@ -1,3 +1,4 @@
+import { projectCreatedLine } from "@/server/services/project-created";
 import { cloneElement, type ComponentProps, type ReactElement } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -77,6 +78,7 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
   const doneCount = doneColumns.length ? await db.task.count({ where: { projectId: project.id, archived: false, columnId: { in: doneColumns.map((c) => c.id) }, AND: [visible] } }) : 0;
   const { open, pct } = projectProgress(project._count.tasks, doneCount);
 
+  const createdLine = await projectCreatedLine(project.workspace.organizationId, project, t);
   const places = { spaceName: project.workspace.name, projectId: project.id, projectName: project.name };
   const boardAsked = parseBoardParam(searchParams?.["board"]);
   const board = project.boards.find((b) => b.id === boardAsked) ?? project.boards[0] ?? null;
@@ -94,6 +96,9 @@ export async function ProjectPageV2({ params, searchParams, user, actor }: { par
           </span>
         </div>
         {project.description ? <p className="max-w-2xl text-sm text-fg-muted">{project.description}</p> : null}
+        <p data-project-created className="text-xs text-fg-muted">
+          {createdLine}
+        </p>
       </header>
 
       <ProjectTabs tabs={tabs} current={tab} />

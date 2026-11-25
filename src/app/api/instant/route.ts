@@ -1,3 +1,5 @@
+import { resolveTimeZone } from "@/lib/zoned-time";
+import { defaultDueDate, dueWallOfInstant } from "@/lib/due-day";
 import { NextResponse } from "next/server";
 import { withApi } from "@/server/api";
 import { activeOrgCtx } from "@/server/services/integrations";
@@ -44,8 +46,13 @@ export async function GET() {
     const roleOf = new Map(ranks.map((r) => [r.userId, r.role]));
     // «مهمة بمكافأة»: the toggle is offered to the OWNER alone, while the switch is on (the server refuses anybody else anyway)
     const reward = (await isFeatureOn(ctx.orgId, "taskRewards")) && (await isOrgOwner(ctx));
+    // what the date box starts with: today at the company's hour, on the company's clock; null when the company chose none
+    const org = await db.organization.findUnique({ where: { id: ctx.orgId }, select: { settings: true, timezone: true } });
+    const zone = resolveTimeZone(org?.timezone);
+    const due = defaultDueDate(org?.settings, zone);
     return NextResponse.json({
       inbox,
+      defaultDue: due ? dueWallOfInstant(due, zone) : null,
       reward: reward ? { defaultCurrency: await defaultCurrencyOf(ctx.orgId) } : null,
       task: task === true,
       ticket: ticket === true,

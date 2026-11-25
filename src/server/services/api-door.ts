@@ -1,3 +1,4 @@
+import { parseDueInput } from "@/lib/due-day";
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { clientIp } from "@/server/rate-limit";
@@ -11,7 +12,6 @@ import { createTaskInTx } from "@/server/services/tasks";
 import { userSeesProject } from "@/server/services/team-scope";
 import { orgTimeZone } from "@/server/services/org-day";
 import { dispatchEvent } from "@/server/services/n8n";
-import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 import { bearerOf, parseToken, permits, tokenMatches, type DoorPermission } from "@/server/door/tokens";
 import { DoorError, safeErrorFacts } from "@/server/door/http";
 import { failureLimiter, tokenLimiter } from "@/server/door/limits";
@@ -359,7 +359,7 @@ export async function doorCreateTask(who: DoorPrincipal, clientKey: string, inpu
   const actor = { userId: who.issuerId, orgId: who.orgId };
   // the same door every way of making a task passes (src/server/services/tasks.ts `createTask`): the section grid's «يضيف ويعدّل»
   await assertMemberCan(actor, "tasks.edit", "section.edit_denied", { spaceGuestsPass: true });
-  const dueDate = input.dueDate ? (parseDayText(input.dueDate) ? dueInstantForDay(input.dueDate, await orgTimeZone(who.orgId)) : new Date(input.dueDate)) : null;
+  const dueDate = input.dueDate === undefined ? undefined : input.dueDate ? parseDueInput(input.dueDate, await orgTimeZone(who.orgId)) : null;
 
   const out = await idempotently(who, "task.create", clientKey, input, async (tx) => {
     // the board must be one of THE TOKEN'S space: the sender names the board, never the space

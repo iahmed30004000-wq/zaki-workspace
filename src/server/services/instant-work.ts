@@ -88,7 +88,8 @@ export interface InstantTaskInput {
   /** The one person (the form before «لمين» took several): the same as `assigneeIds: [assigneeId]`. */
   assigneeId?: string;
   priority: TaskPriority;
-  dueDate: Date | null;
+  /** Absent: the company's default (today at its hour). Null: no date. */
+  dueDate?: Date | null;
   description?: string | null;
   /** «مهمة بمكافأة»: the OWNER's alone (`createTask` refuses anybody else: 403 `reward.owner_only`); needs `dueDate`. */
   reward?: RewardRequest;

@@ -68,7 +68,7 @@ async function busyWorld(now: Date = new Date()) {
   const today = await put(w, "in", { title: "تقرير اليوم", assigneeId: w.member.id, priority: "HIGH", due: todayNoon("UTC", now) });
   const later = await put(w, "in", { title: "عرض الأسبوع القادم", assigneeId: w.member.id, due: ahead(4, now) });
   const colleague = await put(w, "in", { title: "مهمة الزميل عمر", assigneeId: w.lead.id, due: ago(9, now) });
-  const closed = await put(w, "out", { title: "مهمة المساحة المغلقة", assigneeId: w.member.id, due: now });
+  const closed = await put(w, "out", { title: "مهمة المساحة المغلقة", assigneeId: w.member.id, due: todayNoon("UTC", now) });
   return { w, overdue, today, later, colleague, closed };
 }
 

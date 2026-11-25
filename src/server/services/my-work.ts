@@ -1,3 +1,7 @@
+import { WORK_STAGES } from "@/lib/work/stage";
+import { emptyFilterOptions } from "@/lib/work/my-tasks";
+import { countByProjectForView } from "@/server/services/views";
+import { fmtStamp } from "@/lib/work/stamp";
 import { db } from "@/server/db";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
 import {
@@ -14,7 +18,7 @@ import { calendarView } from "@/server/services/calendar";
 import { resolveTimeZone } from "@/lib/zoned-time";
 import { canWriteInWorkspace } from "@/server/workspace-role";
 import { featureOn } from "@/lib/features";
-import { dayOfInstant } from "@/lib/due-day";
+import { dayOfInstant, notLateWhere, overdueDueFilter, dueWallOfInstant } from "@/lib/due-day";
 import { actorCanWork, type Actor } from "@/server/policy/actor";
 import { currentSpace } from "@/server/services/current-space";
 import { actorFeatureOn } from "@/server/services/features";
@@ -82,14 +86,16 @@ export type MyWorkData = Record<MyWorkTab, MyWorkRow[]>;
 
 /** Per-tab filters, before the org and the workspace allow-list are applied. */
 function tabFilters(userId: string, timeZone: string, now: Date): Record<MyWorkTab, Omit<ViewQuery, "orgId" | "workspaceIds">> {
+  const late = overdueDueFilter(now, timeZone);
+  const stillDue = notLateWhere(now, timeZone);
   // "today" is the company's day (Organization.timezone), not the server's
   const day = dayWindow(now, timeZone);
   const dayAfter = new Date(day.to.getTime() + 1);
   return {
-    today: { assigneeId: userId, dueFrom: day.from, dueTo: day.to, openOnly: true },
+    today: { assigneeId: userId, dueFrom: day.from, dueTo: day.to, stillDue, openOnly: true },
     upcoming: { assigneeId: userId, dueFrom: dayAfter, openOnly: true },
-    // overdue = due before the START of the company's today: a task due earlier today is in "today" only
-    overdue: { assigneeId: userId, overdueOnly: true, overdueBefore: day.from },
+    // overdue (src/lib/due-day.ts): a task whose hour today has passed is here and no longer in "today"
+    overdue: { assigneeId: userId, overdueOnly: true, overdueFilter: late },
     completed: { assigneeId: userId, completedOnly: true, limit: 100 },
     mine: { assigneeId: userId, openOnly: true },
     created: { creatorId: userId, openOnly: true },
@@ -197,12 +203,12 @@ const DAY_MS = 24 * 3600 * 1000;
 const BOARD_DONE_DAYS = 14;
 
 /** What a chip (or no chip) asks of the query, cut on the company's day. `view` decides the open/done shape of «no chip». */
-function chipQuery(chip: MyTaskChip | null, view: MyTasksParams["view"], userId: string, day: { from: Date; to: Date }, now: Date): Partial<ViewQuery> {
+function chipQuery(chip: MyTaskChip | null, view: MyTasksParams["view"], userId: string, day: { from: Date; to: Date }, now: Date, timeZone: string): Partial<ViewQuery> {
   switch (chip) {
     case "today":
-      return { dueFrom: day.from, dueTo: day.to, openOnly: true };
+      return { dueFrom: day.from, dueTo: day.to, stillDue: notLateWhere(now, timeZone), openOnly: true };
     case "overdue":
-      return { overdueOnly: true, overdueBefore: day.from };
+      return { overdueOnly: true, overdueFilter: overdueDueFilter(now, timeZone) };
     case "week":
       return { dueFrom: day.from, dueTo: new Date(day.to.getTime() + 6 * DAY_MS), openOnly: true };
     case "nodate":
@@ -245,6 +251,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
   const now = opts.now ?? new Date();
   const hq = opts.current?.kind === "HQ";
   const result = (over: Partial<WorkTasksResult>): WorkTasksResult => ({
+    filters: emptyFilterOptions(),
     params,
     tasks: [],
     truncated: false,
@@ -340,6 +347,21 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
   const firstOrg = batches[0]?.orgId ?? memberships[0]!.organizationId;
   const timeZone = zoneOf(firstOrg);
   const cal = calendarView({ now, timeZone, month: params.month ?? undefined });
+  // the space this list is cut for (for the heading, the select and the filters): «المساحة» is the current one, «مشروع» that project's, «أنا» the picked one or all
+  const cutSpaceId = scopeKind === "space" ? (cur?.id ?? null) : scopeKind === "project" ? (project?.workspaceId ?? null) : pickedSpace;
+  // «لمين» is for whoever manages what is on screen: the company's owner and admins, and the space's own admin. «أنا» is already one person
+  const mayFilterPeople = scopeKind !== "me" && cutSpaceId !== null && (["OWNER", "ADMIN"].includes(roleOfOrg.get(wsById.get(cutSpaceId)!.organizationId) ?? "") || wsRoleById.get(cutSpaceId) === "ADMIN");
+  const who = mayFilterPeople ? params.who : null;
+  // the filter «المشروع» (the SCOPE «مشروع» already is one project)
+  const inProject = scopeKind !== "project" && params.inProject && projectRows.some((p) => p.id === params.inProject) ? params.inProject : null;
+  /** The filters beside the chips; `without` leaves one out, so its own options can be counted. */
+  const narrowing = (without?: "inProject" | "urgent" | "who" | "stage"): Partial<ViewQuery> => ({
+    ...(inProject && without !== "inProject" ? { projectId: inProject } : {}),
+    ...(params.urgent && without !== "urgent" ? { priority: "URGENT" as const } : {}),
+    ...(who && without !== "who" ? { assigneeId: who } : {}),
+    ...(params.stage && without !== "stage" ? { stage: params.stage } : {}),
+  });
+
   // «أنشأتها» is about who MADE the task: the «أنا» assignee filter gives way to it
   const scopedBy = (b: Batch, chip: MyTaskChip | null): Partial<ViewQuery> => (chip === "created" && b.scope.kind === "me" ? { creatorId: userId } : { scope: b.scope });
 
@@ -350,14 +372,14 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
       const lensOn = featureOn(orgById.get(b.orgId)?.settings, "taskRewards") && roleOfOrg.get(b.orgId) !== "GUEST";
       const shape: Partial<ViewQuery> = calendar
         ? { dueFrom: cal.win.from, dueTo: cal.win.to, openOnly: true }
-        : chipQuery(chip, params.view, userId, day, now);
+        : chipQuery(chip, params.view, userId, day, now, zone);
       const rows = await queryTasksForView({
         orgId: b.orgId,
         workspaceIds: b.workspaceIds,
         visible,
         ...scopedBy(b, chip),
         ...shape,
-        ...(params.stage ? { stage: params.stage } : {}),
+        ...narrowing(),
         ...(params.q ? { search: params.q } : {}),
         limit: MY_TASKS_LIMIT,
         pinnedFirst: lensOn,
@@ -380,6 +402,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
         priority: task.priority,
         dueDate: task.dueDate?.toISOString() ?? null,
         dueDay: task.dueDate ? dayOfInstant(task.dueDate, zone) : null,
+        dueWall: task.dueDate ? dueWallOfInstant(task.dueDate, zone) : null,
         completedAt: task.completedAt?.toISOString() ?? null,
         columnId: task.columnId,
         columnName: task.columnName,
@@ -394,6 +417,9 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
         assigneeIds: task.assigneeIds,
         assigneeNames: task.assigneeNames,
         creatorId: task.creatorId,
+        creatorName: task.creatorName,
+        createdAt: task.createdAt?.toISOString(),
+        createdText: task.createdAt ? fmtStamp(task.createdAt, zone, now) : undefined,
         visibility: task.visibility,
         updatedAt: task.updatedAt.toISOString(),
         editable: canWriteInWorkspace(roleOfOrg.get(b.orgId), wsRoleById.get(task.workspaceId)),
@@ -415,27 +441,57 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
       batches.flatMap((b) =>
         MY_TASK_CHIPS.map(async (chip) => {
           const day = dayWindow(now, zoneOf(b.orgId));
-          counts[chip] += await countTasksForView({
+          const n = await countTasksForView({
             orgId: b.orgId,
             workspaceIds: b.workspaceIds,
             visible,
             ...scopedBy(b, chip),
-            ...chipQuery(chip, "list", userId, day, now),
-            ...(params.stage ? { stage: params.stage } : {}),
+            ...chipQuery(chip, "list", userId, day, now, zoneOf(b.orgId)),
+            ...narrowing(),
           });
+          counts[chip] += n;
         }),
       ),
     );
   }
 
-  // the space this list is cut for (for the heading and the select): «المساحة» is the current one, «مشروع» that project's, «أنا» the picked one or all
-  const cutSpaceId = scopeKind === "space" ? (cur?.id ?? null) : scopeKind === "project" ? (project?.workspaceId ?? null) : pickedSpace;
+  const filters = emptyFilterOptions();
+  if (!calendar) {
+    // each option is counted inside the chip that is on and every OTHER filter
+    const base = (b: Batch): ViewQuery => ({ orgId: b.orgId, workspaceIds: b.workspaceIds, visible, ...scopedBy(b, chip), ...chipQuery(chip, "list", userId, dayWindow(now, zoneOf(b.orgId)), now, zoneOf(b.orgId)) });
+    const perProject = new Map<string, number>();
+    await Promise.all(
+      batches.map(async (b) => {
+        const urgent = await countTasksForView({ ...base(b), ...narrowing("urgent"), priority: "URGENT" });
+        filters.urgent += urgent;
+        await Promise.all(
+          WORK_STAGES.map(async (stage) => {
+            const n = await countTasksForView({ ...base(b), ...narrowing("stage"), stage });
+            filters.stages[stage] += n;
+          }),
+        );
+        for (const [id, n] of await countByProjectForView({ ...base(b), ...narrowing("inProject") })) perProject.set(id, (perProject.get(id) ?? 0) + n);
+      }),
+    );
+    if (scopeKind !== "project") filters.projects = projectRows.filter((p) => perProject.has(p.id) || p.id === inProject).map((p) => ({ id: p.id, name: p.name, count: perProject.get(p.id) ?? 0 }));
+    if (mayFilterPeople && batches[0]) {
+      const b = batches[0];
+      const members = await db.workspaceMember.findMany({
+        where: { workspaceId: cutSpaceId!, user: { memberships: { some: { organizationId: b.orgId, status: "ACTIVE" } } } },
+        select: { user: { select: { id: true, name: true } } },
+        orderBy: { createdAt: "asc" },
+        take: 60,
+      });
+      filters.people = await Promise.all(members.map(async (m) => ({ id: m.user.id, name: m.user.name, count: await countTasksForView({ ...base(b), ...narrowing("who"), assigneeId: m.user.id }) })));
+    }
+  }
 
   return result({
     params: effective,
     tasks: listed,
     truncated,
     counts,
+    filters,
     spaces,
     projects,
     space: { id: cutSpaceId, name: cutSpaceId ? (wsById.get(cutSpaceId)?.name ?? null) : null },
@@ -502,6 +558,7 @@ export async function getWorkTaskDetail(userId: string, taskId: string): Promise
       priority: row.priority,
       dueDate: row.dueDate?.toISOString() ?? null,
       dueDay: row.dueDate ? dayOfInstant(row.dueDate, zone) : null,
+      dueWall: row.dueDate ? dueWallOfInstant(row.dueDate, zone) : null,
       completedAt: row.completedAt?.toISOString() ?? null,
       columnId: row.column.id,
       columnName: row.column.name,
@@ -516,6 +573,9 @@ export async function getWorkTaskDetail(userId: string, taskId: string): Promise
       assigneeIds: [...(row.assignee ? [row.assignee.id] : []), ...co.map((u) => u.id)],
       assigneeNames: [...(row.assignee ? [row.assignee.name] : []), ...co.map((u) => u.name)],
       creatorId: row.creatorId,
+      creatorName: row.creator.name,
+      createdAt: row.createdAt.toISOString(),
+      createdText: fmtStamp(row.createdAt, zone),
       visibility: row.visibility,
       updatedAt: row.updatedAt.toISOString(),
       editable: member ? canWriteInWorkspace(member.role, spaceRow?.role) : false,

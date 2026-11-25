@@ -430,7 +430,8 @@ describe("«إضافة سريعة»", () => {
     expect(
       quickTaskBody(QUICK, { projectId: "p2", title: "x", due: "tomorrow", timeZone: "Asia/Damascus", now: new Date("2026-10-22T09:00:00.000Z") }),
     ).toMatchObject({ workspaceId: "w2", boardId: "b2", dueDate: "2026-10-23T09:00:00.000Z" });
-    expect(quickTaskBody(QUICK, { projectId: "p1", title: "x", due: "none", timeZone: "Asia/Damascus" })).not.toHaveProperty("dueDate");
+    // «بدون موعد» is SAID (null): an absent date would take the company's default
+    expect(quickTaskBody(QUICK, { projectId: "p1", title: "x", due: "none", timeZone: "Asia/Damascus" })).toHaveProperty("dueDate", null);
   });
 
   it("computes noon at submit time, not from the server render: a phone resumed after midnight gets the NEW day (item 11)", () => {

@@ -1,11 +1,12 @@
 "use client";
 
+import { fmtDueStamp, fmtStamp } from "@/lib/work/stamp";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Check, Lock } from "lucide-react";
 import { apiPatch, apiPost, ApiError } from "@/lib/api-client";
 import { PRIORITY_STYLES, fmtDMY, fmtRelative } from "@/lib/format";
-import { dayOfInstant } from "@/lib/due-day";
+import { dayOfInstant, dueWallOfInstant, isDueOverdue, isDueToday } from "@/lib/due-day";
 import { columnLabel, enumLabel } from "@/lib/i18n/enums";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
@@ -38,8 +39,11 @@ export interface RowTask {
   assigneeNames?: string[];
   projectName?: string;
   columnName?: string;
-  /** The due day as the company reads it (`YYYY-MM-DD`) — what the date box shows; without it the row derives it in the company's zone. */
+  /** The due day as the company reads it (`YYYY-MM-DD`); without it the row derives it in the company's zone. */
   dueDay?: string | null;
+  /** Who made it and when. */
+  creatorName?: string;
+  createdAt?: Date | string;
   /** «٣ من ٥»: the checklist progress; absent when the task has no steps or the «الخطوات» switch is off. */
   steps?: StepProgress;
   /** «الوقت شغّال»: the viewer's own timer runs on this task (only while the company's «حساب الوقت» switch is on). */
@@ -117,8 +121,8 @@ export function TaskRow({
     if (busy) return;
     setBusy(true);
     try {
-      // the day as picked (`YYYY-MM-DD`): the server turns it into noon in the COMPANY's zone. Building the
-      // instant here meant the browser's clock decided which day was saved (review B5).
+      // what was picked (`YYYY-MM-DDTHH:mm`): the server reads it on the COMPANY's clock. Building the instant
+      // here meant the browser's clock decided what was saved (review B5).
       await apiPatch(`/api/tasks/${task.id}`, {
         dueDate: value === "" ? null : value,
       });
@@ -148,7 +152,11 @@ export function TaskRow({
     }
   }
 
-  const dueValue = task.dueDay ?? (task.dueDate ? dayOfInstant(task.dueDate, timeZone) : "");
+  // the box shows the company's wall clock, day and hour
+  const dueValue = task.dueDate ? dueWallOfInstant(task.dueDate, timeZone) : task.dueDay ? `${task.dueDay}T12:00` : "";
+  const late = !done && !!task.dueDate && isDueOverdue(task.dueDate, timeZone);
+  const today = !done && !late && !!task.dueDate && isDueToday(task.dueDate, timeZone);
+  const createdText = task.createdAt ? fmtStamp(task.createdAt, timeZone) : "";
 
   return (
     <li className="group flex items-center gap-2 rounded-lg px-2 py-1.5 hover:bg-surface-2">
@@ -192,6 +200,11 @@ export function TaskRow({
         {task.pinnedAt ? <PinMark /> : null}
         <RewardBadge reward={task.reward as RewardBadgeData | null | undefined} />
         <FieldChips cells={task.fields} />
+        {createdText ? (
+          <span data-task-created className="hidden min-w-0 truncate text-xs text-fg-muted lg:inline" suppressHydrationWarning>
+            {task.creatorName ? t("task.created_line", { name: task.creatorName, when: createdText }) : t("task.created_at", { when: createdText })}
+          </span>
+        ) : null}
       </Link>
 
       <span
@@ -204,16 +217,20 @@ export function TaskRow({
 
       {editable ? (
         <input
-          type="date"
+          type="datetime-local"
           aria-label={t("task.due")}
           defaultValue={dueValue}
-          onChange={(e) => changeDue(e.target.value)}
-          className="w-28 shrink-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs text-fg-muted hover:border-border focus:border-border focus:outline-none"
+          onBlur={(e) => (e.target.value !== dueValue ? changeDue(e.target.value) : undefined)}
+          suppressHydrationWarning
+          className={cn(
+            "w-44 shrink-0 rounded border border-transparent bg-transparent px-1 py-0.5 text-xs hover:border-border focus:border-border focus:outline-none",
+            late ? "text-danger" : today ? "text-warn" : "text-fg-muted",
+          )}
         />
       ) : (
         <span
-          className="w-28 shrink-0 text-xs text-fg-muted"
-          title={task.dueDate ? fmtDMY(task.dueDate) : undefined}
+          className={cn("w-28 shrink-0 text-xs", late ? "text-danger" : today ? "text-warn" : "text-fg-muted")}
+          title={task.dueDate ? fmtDueStamp(task.dueDate, timeZone) : undefined}
           suppressHydrationWarning
         >
           {task.dueDate ? fmtRelative(task.dueDate) : ""}
