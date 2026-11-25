@@ -55,6 +55,24 @@ export interface DroppedFile {
   asFile: boolean;
 }
 
+interface DropTargetLike {
+  closest?: (selector: string) => { getAttribute: (name: string) => string | null } | null;
+  parentElement?: DropTargetLike | null;
+}
+
+/**
+ * What a drop on the two zones means: the zone the files were let go on, and the files. Null outside the zones or with no files. Read AT ONCE, inside the drop event
+ * (the browser empties the event's files when it ends). A drop's target can be a text node, which has no `closest`: its parent is asked.
+ */
+export function dropOnZone(target: unknown, files: ArrayLike<File> | null | undefined): { zone: "media" | "files"; files: File[] } | null {
+  const hit = target as DropTargetLike | null | undefined;
+  const element = hit?.closest ? hit : hit?.parentElement;
+  const zone = element?.closest?.("[data-drop-zone]")?.getAttribute("data-drop-zone");
+  if (zone !== "media" && zone !== "files") return null;
+  const list = Array.from(files ?? []);
+  return list.length ? { zone, files: list } : null;
+}
+
 export function forDropMode(files: ArrayLike<File>, mode: DropMode): DroppedFile[] {
   return Array.from(files).map((file) => ({ file, asFile: mode === "files" }));
 }
