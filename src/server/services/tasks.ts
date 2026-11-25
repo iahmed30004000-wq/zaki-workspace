@@ -153,11 +153,13 @@ async function positionAt(
   columnId: string,
   index: number | undefined,
   tx: Tx,
+  /** the task being moved: the index counts the OTHER tasks of the column (what the board sends), so the task itself is not one of them */
+  movingId?: string,
 ): Promise<Prisma.Decimal | number> {
   // task-visibility: every route that gets here passed requireTaskAccess / requireTeamWork(…, task) first
   const rows = await tx.$queryRaw<PositionRow[]>`
     SELECT "position"::text FROM "Task"
-    WHERE "columnId" = ${columnId} AND archived = false
+    WHERE "columnId" = ${columnId} AND archived = false AND id <> ${movingId ?? ""}
     ORDER BY "position" ASC, id ASC`;
   const n = rows.length;
   if (n === 0) return 1000;
@@ -418,7 +420,7 @@ export async function moveTask(
       where: { id: taskId },
       data: {
         columnId: column.id,
-        position: await positionAt(column.id, input.index, tx),
+        position: await positionAt(column.id, input.index, tx, taskId),
         /* `completedAt` is the day the work was FINISHED, and every counter reads it (Today's «أُنجز
            اليوم», analytics, the open count). So it moves on the transition only: a task dragged
            around inside the done column keeps the day it was finished, and one dragged out of it is

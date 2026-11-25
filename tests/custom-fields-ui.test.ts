@@ -286,7 +286,9 @@ describe("«حقول مخصصة»: chips on the rows and the picker", () => {
     expect(read("src/components/task-row.tsx")).toContain("<FieldChips cells={task.fields} />");
     expect(read("src/components/board-view.tsx")).toContain("<FieldChips cells={task.fields} block />");
     expect(read("src/components/board-view.tsx")).toContain("<FieldChipPicker defs={fieldDefs} />");
-    expect(read("src/app/(app)/boards/[id]/page.tsx")).toContain("fieldCellsFor(");
+    // M2 N3: the board page reads its cards through `boardScreenFor` (shared with the phone's door), so the rule lives there
+    expect(read("src/app/(app)/boards/[id]/page.tsx")).toContain("boardScreenFor(");
+    expect(read("src/server/services/work-app.ts")).toContain("fieldCellsFor(");
     expect(read("src/app/(app)/list/page.tsx")).toContain("fieldCellsFor(");
   });
 });

@@ -4,12 +4,13 @@ import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { actorCanWork } from "@/server/policy/actor";
 import { redirect } from "next/navigation";
-import { db } from "@/server/db";
+
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
-import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskParticipantWhere } from "@/server/services/team-scope";
+import { loadWorkScope, narrowScope, scopeSpaceIds } from "@/server/services/team-scope";
 import { currentSpace } from "@/server/services/current-space";
-import { actorFeatureOn, isFeatureOn } from "@/server/services/features";
-import { INSTANT_PROJECT_KEY } from "@/server/services/instant-work";
+import { actorFeatureOn } from "@/server/services/features";
+import { projectsScreenFor } from "@/server/services/work-app";
+
 import { goHref } from "@/lib/space-link";
 import { Card, CardBody } from "@/components/ui/card";
 import { PROJECT_TONE, QuietEmpty, StateChip } from "@/components/work/look";
@@ -37,9 +38,11 @@ export default async function ProjectsPage({
   // a space that is not theirs is ignored (it says nothing about it)
   const named = searchParams.workspace;
   if (named && space && named !== space.id && scopeSpaceIds(everything).includes(named)) redirect(goHref(named, "/projects"));
-  // the projects of the space the person is in — and inside a space with «مقاطع» only its own and theirs
-  const scope = narrowScope(everything, space?.id);
-  const accessible = scopeSpaceIds(scope);
+  // the projects of the space the person is in — and inside a space with «مقاطع» only its own and theirs. M2 N3: read by
+  // `projectsScreenFor`, the same function the phone's door `GET /api/work/projects` answers with, so the two cannot drift
+  const screen = await projectsScreenFor(actor, searchParams.sort === "created" ? { sort: "created" } : {});
+  if (screen.kind !== "ok") return <SectionOffNotice />;
+  const accessible = scopeSpaceIds(narrowScope(everything, space?.id));
   if (accessible.length === 0) {
     return (
       <div className="mx-auto max-w-5xl space-y-4 p-4 md:p-6">
@@ -52,45 +55,18 @@ export default async function ProjectsPage({
     );
   }
   // one space: the one the person is in (`accessible` holds it alone)
-  const wsFilter: string | { in: string[] } = accessible.length === 1 ? (accessible[0] as string) : { in: accessible };
-  const projects = await db.project.findMany({
-    where: {
-      workspaceId: typeof wsFilter === "string" ? wsFilter : { in: wsFilter.in },
-      status: { not: "ARCHIVED" },
-      AND: [projectVisibleWhere(scope)],
-    },
-    orderBy: searchParams.sort === "created" ? { createdAt: "desc" } : { updatedAt: "desc" },
-    select: {
-      createdAt: true,
-      createdById: true,
-      id: true,
-      name: true,
-      systemKey: true,
-      description: true,
-      status: true,
-      priority: true,
-      targetDate: true,
-      workspace: { select: { name: true } },
-      _count: { select: { tasks: { where: { archived: false, AND: [taskParticipantWhere(everything)] } }, boards: true } },
-    },
-  });
   // «صندوق المهام» (W1.2, switch `workInbox`): the space's quick-task project is drawn once, pinned on top with its own icon, and is not
   // in the ordinary list again. Off: it is an ordinary card, as it was.
-  const inboxes = (await isFeatureOn(actor.orgId, "workInbox")) ? projects.filter((p) => p.systemKey === INSTANT_PROJECT_KEY) : [];
-  const ordinary = inboxes.length > 0 ? projects.filter((p) => p.systemKey !== INSTANT_PROJECT_KEY) : projects;
-  const wsInfo =
-    typeof wsFilter === "string"
-      ? await db.workspace.findUnique({ where: { id: wsFilter }, select: { name: true, description: true } })
-      : null;
+  const { inboxes, projects: ordinary } = screen.data;
+  const wsInfo = screen.data.space;
+  const wsFilter = wsInfo?.id ?? "";
   const wsName = wsInfo?.name ?? "";
   const byCreated = searchParams.sort === "created";
   const zone = await orgTimeZone(actor.orgId);
-  const creatorIds = [...new Set(projects.flatMap((p) => (p.createdById ? [p.createdById] : [])))];
-  const creators = new Map((creatorIds.length ? await db.user.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } }) : []).map((u) => [u.id, u.name] as const));
-  const createdLine = (p: { createdAt: Date; createdById: string | null }) => {
-    const name = p.createdById ? creators.get(p.createdById) : undefined;
+  // who made each project and when: the names are read once by `projectsScreenFor`
+  const createdLine = (p: { createdAt: string; createdByName: string | null }) => {
     const when = fmtStamp(p.createdAt, zone);
-    return name ? t("task.created_line", { name, when }) : t("task.created_at", { when });
+    return p.createdByName ? t("task.created_line", { name: p.createdByName, when }) : t("task.created_at", { when });
   };
   const sortLink = (on: boolean) => `rounded-full px-3 py-1.5 text-[13px] ${on ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2"}`;
   // A2.2: with the switch `controlPanelV2` ON the buttons of the space (its people, its «المقاطع») are links to the space's ONE settings page; an external partner
@@ -135,12 +111,12 @@ export default async function ProjectsPage({
                 <p className="text-[15.5px] font-bold text-fg">{p.name === t("instant.project") ? t("work.inbox.name") : p.name}</p>
                 <p className="mt-0.5 text-[13px] text-fg-muted">
                   {t("work.inbox.hint")}
-                  {inboxes.length > 1 ? ` · ${p.workspace.name}` : ""}
+                  {inboxes.length > 1 ? ` · ${p.workspaceName}` : ""}
                 </p>
               </div>
               <div className="flex shrink-0 flex-col items-end gap-1">
                 <StateChip tone="accent">{t("work.inbox.pinned")}</StateChip>
-                <span className="text-[13px] text-fg-muted">{t("work.inbox.line", { tasks: p._count.tasks })}</span>
+                <span className="text-[13px] text-fg-muted">{t("work.inbox.line", { tasks: p.tasks })}</span>
               </div>
             </CardBody>
           </Card>
@@ -174,7 +150,7 @@ export default async function ProjectsPage({
                     <p className="mt-1 line-clamp-2 text-[13px] text-fg-muted">{p.description}</p>
                   ) : null}
                   <p className="mt-2 text-[13px] text-fg-muted">
-                    {t("proj.cardLine", { tasks: p._count.tasks, boards: p._count.boards })}
+                    {t("proj.cardLine", { tasks: p.tasks, boards: p.boards })}
                     {p.targetDate ? ` · ${t("proj.dueLine", { date: fmtDMY(p.targetDate) })}` : ""}
                   </p>
                   <p data-project-created className="mt-1 text-xs text-fg-muted">

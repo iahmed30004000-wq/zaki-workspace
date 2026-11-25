@@ -1,24 +1,12 @@
-import { resolveTimeZone } from "@/lib/zoned-time";
-import { fmtDueStamp, fmtStamp } from "@/lib/work/stamp";
-import { isDueOverdue, isDueToday, dueTimeText, dueWallOfInstant } from "@/lib/due-day";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/server/auth";
-import { actorCanWork, requireActor } from "@/server/policy/actor";
+import { requireActor } from "@/server/policy/actor";
 import { SectionOffNotice } from "@/app/(app)/_access";
 import { keepInSpace } from "@/server/services/current-space";
-import { db } from "@/server/db";
-import { loadWorkScope, projectVisibleWhere, taskVisibleWhere } from "@/server/services/team-scope";
-import { TASK_INCLUDE } from "@/server/services/tasks";
-import { canWriteInWorkspace } from "@/server/workspace-role";
-import { BoardView, type TaskCardData } from "@/components/board-view";
+import { BoardView } from "@/components/board-view";
 import { actorFeatureOn } from "@/server/services/features";
-import { stepProgressFor } from "@/server/services/task-steps";
-import { rewardLensFor } from "@/server/services/rewards";
-import { listBadgeStatus } from "@/lib/rewards";
-import { myRunningTaskId } from "@/server/services/time-tracking";
-import { recurringTaskIds } from "@/server/services/task-recurrence";
-import { fieldCellsFor } from "@/server/services/custom-fields";
 import { boardTrail } from "@/components/work/project/crumbs";
+import { boardScreenFor } from "@/server/services/work-app";
 
 /**
  * A board opens for whoever may open its space (`accessibleWorkspaceIds`: a row in the space, or the owner) and is
@@ -29,102 +17,22 @@ import { boardTrail } from "@/components/work/project/crumbs";
  * W1.5: with the switch `navV2` ON the board wears the trail «المساحة › المشروع › اللوحة» (the way back) and - when «مهامي» (`workMyTasks`) is on too - a
  * card opens in a side panel over the board instead of leaving it. With it OFF the board is the page it always was. Every card is read through the
  * task-visibility rule (`taskVisibleWhere`, P0.2). The project page's board tab draws this same screen (`project-page.tsx` calls this page).
+ *
+ * M2 N3: what the board shows is read by `boardScreenFor` (src/server/services/work-app.ts), the same function the phone's door
+ * `GET /api/work/boards/[id]` answers with, so the two cannot drift.
  */
 export default async function BoardPage({ params }: { params: { id: string } }) {
   const user = await pageUser();
   if (!user) return null;
-
-  // its project's space and team: another team's board is «not found»
-  const scope = await loadWorkScope(user.id);
-  const board = await db.board.findFirst({
-    where: { id: params.id, project: projectVisibleWhere(scope) },
-    include: {
-      project: {
-        select: {
-          id: true,
-          name: true,
-          workspace: { select: { id: true, name: true, organizationId: true } },
-        },
-      },
-    },
-  });
-  if (!board) notFound();
-  // a thing of another space of theirs: enter that space first, so the name at the top says where it is
   const actor = await requireActor();
+  const screen = await boardScreenFor(actor, params.id);
+  // its project's space and team: another team's board is «not found»
+  if (screen.kind === "notFound") notFound();
   // the projects row of the person's grid
-  if (!actorCanWork(actor, "projects.view")) return <SectionOffNotice />;
-  await keepInSpace(actor, board.project.workspace.id, `/boards/${board.id}`);
-
-  const member = await db.organizationMember.findFirst({
-    where: { organizationId: board.project.workspace.organizationId, userId: user.id, status: "ACTIVE" },
-    select: { role: true },
-  });
-  if (!member) notFound();
-  const wsRow = await db.workspaceMember.findUnique({
-    where: { workspaceId_userId: { workspaceId: board.project.workspace.id, userId: user.id } },
-    select: { role: true },
-  });
-
-  const [columns, tasks, org] = await Promise.all([
-    db.boardColumn.findMany({
-      where: { boardId: board.id },
-      orderBy: { position: "asc" },
-      select: { id: true, name: true, color: true, position: true, done: true },
-    }),
-    db.task.findMany({
-      where: { boardId: board.id, archived: false, AND: [taskVisibleWhere(scope)] },
-      orderBy: [{ position: "asc" }, { id: "asc" }],
-      include: TASK_INCLUDE,
-    }),
-    db.organization.findUnique({
-      where: { id: board.project.workspace.organizationId },
-      select: { keyPrefix: true, timezone: true },
-    }),
-  ]);
-  const zone = resolveTimeZone(org?.timezone);
-  const creators = new Map(
-    (await db.user.findMany({ where: { id: { in: [...new Set(tasks.map((t) => t.creatorId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name] as const),
-  );
-
-  // «٣ من ٥» on the cards: one grouped read for the whole board, and only while the company's switch is on
-  const progress = (await actorFeatureOn(actor, "taskSteps")) ? await stepProgressFor(tasks.map((t) => t.id)) : new Map();
-  // «الوقت شغّال» on the card of the task the person's own timer runs on
-  const runningTaskId = await myRunningTaskId(actor);
-
-  const lens = await rewardLensFor(actor, board.project.workspace.id);
-  // «🔁 متكررة» on the cards: one read for the whole board, and only while the company's switch is on
-  const recurring = (await actorFeatureOn(actor, "recurringTasks")) ? await recurringTaskIds(tasks.map((t) => t.id)) : new Set<string>();
-
-  // «حقول مخصصة» on the cards: one read for the whole board; `null` while the switch is off and for an external partner
-  const fieldCells = await fieldCellsFor({ orgId: actor.orgId, userId: user.id, orgRole: member.role }, board.project.workspace.id, tasks.map((t) => ({ id: t.id, projectId: t.projectId })));
-
-  const taskData: TaskCardData[] = tasks.map((t) => ({
-    id: t.id,
-    key: `${org?.keyPrefix ?? "ZW"}-${t.number}`,
-    title: t.title,
-    priority: t.priority,
-    columnId: t.columnId,
-    dueDate: t.dueDate ? t.dueDate.toISOString() : null,
-    dueTone: !t.dueDate || t.completedAt ? null : isDueOverdue(t.dueDate, zone) ? "late" : isDueToday(t.dueDate, zone) ? "today" : null,
-    dueText: t.dueDate ? fmtDueStamp(t.dueDate, zone) : null,
-    dueTime: t.dueDate ? dueTimeText(dueWallOfInstant(t.dueDate, zone)) : "",
-    createdBy: creators.get(t.creatorId),
-    createdText: fmtStamp(t.createdAt, zone),
-    labels: t.labels.map((l) => ({ id: l.label.id, name: l.label.name, color: l.label.color })),
-    assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
-    assigneeNames: [...(t.assignee ? [t.assignee.name] : []), ...t.coAssignees.map((r) => r.user.name)],
-    commentCount: t._count.comments,
-    completed: t.completedAt != null,
-    steps: progress.get(t.id),
-    // «مهمة بمكافأة» / «تثبيت»: for a viewer who may see them, while the company's switch is on
-    reward: lens.rewards && listBadgeStatus(t.rewardStatus) && t.rewardAmountMinor != null && t.rewardCurrency
-      ? { status: t.rewardStatus as string, amountMinor: t.rewardAmountMinor, currency: t.rewardCurrency }
-      : null,
-    pinned: lens.pins && t.pinnedAt != null,
-    running: t.id === runningTaskId,
-    recurring: recurring.has(t.id),
-    ...(fieldCells?.cells[t.id] ? { fields: fieldCells.cells[t.id] } : {}),
-  }));
+  if (screen.kind === "off") return <SectionOffNotice />;
+  const { board, columns, tasks, fieldDefs, canEdit } = screen.data;
+  // a thing of another space of theirs: enter that space first, so the name at the top says where it is
+  await keepInSpace(actor, board.workspaceId, `/boards/${board.id}`);
 
   // W1.5: the new map's dress (the trail, the side panel); the old board has none of it
   const v2 = await actorFeatureOn(actor, "navV2");
@@ -132,20 +40,13 @@ export default async function BoardPage({ params }: { params: { id: string } }) 
 
   return (
     <BoardView
-      board={{
-        id: board.id,
-        workspaceId: board.project.workspace.id,
-        projectId: board.project.id,
-        name: board.name,
-        projectName: board.project.name,
-      }}
+      board={{ id: board.id, workspaceId: board.workspaceId, projectId: board.projectId, name: board.name, projectName: board.projectName }}
       columns={columns}
-      tasks={taskData}
-      fieldDefs={fieldCells?.defs ?? []}
-      // the space's rule, and the tasks row's «يضيف ويعدّل» box of the section grid (add, drag, edit)
-      canEdit={canWriteInWorkspace(member.role, wsRow?.role) && actorCanWork(actor, "tasks.edit")}
+      tasks={tasks}
+      fieldDefs={fieldDefs}
+      canEdit={canEdit}
       {...(v2
-        ? { view: { crumbs: boardTrail({ spaceName: board.project.workspace.name, projectId: board.project.id, projectName: board.project.name }, board.name), panel, embedded: false } }
+        ? { view: { crumbs: boardTrail({ spaceName: board.workspaceName, projectId: board.projectId, projectName: board.projectName }, board.name), panel, embedded: false } }
         : {})}
     />
   );

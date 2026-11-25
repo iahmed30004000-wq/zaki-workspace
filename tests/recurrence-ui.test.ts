@@ -55,7 +55,9 @@ describe("«🔁 متكررة»: the badge on a card and a row", () => {
   it("the board card and the list row both draw it, and the pages hand it over only while the company's switch is on", () => {
     expect(read("src/components/board-view.tsx")).toContain("<RecurringBadge recurring={task.recurring} />");
     expect(read("src/components/task-row.tsx")).toContain("<RecurringBadge recurring={task.recurring} />");
-    expect(read("src/app/(app)/boards/[id]/page.tsx")).toMatch(/actorFeatureOn\(actor, "recurringTasks"\)/);
+    // M2 N3: the board page reads its cards through `boardScreenFor` (shared with the phone's door), so the rule lives there
+    expect(read("src/app/(app)/boards/[id]/page.tsx")).toContain("boardScreenFor(");
+    expect(read("src/server/services/work-app.ts")).toMatch(/actorFeatureOn\(actor, "recurringTasks"\)/);
     expect(read("src/app/(app)/list/page.tsx")).toMatch(/actorFeatureOn\(actor, "recurringTasks"\)/);
     expect(read("src/app/(app)/tasks/[id]/page.tsx")).toMatch(/actorFeatureOn\(actor, "recurringTasks"\)/);
   });
