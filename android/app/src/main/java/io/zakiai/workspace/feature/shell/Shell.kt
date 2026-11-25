@@ -89,6 +89,20 @@ import io.zakiai.workspace.feature.chat.ChatListScreen
 import io.zakiai.workspace.feature.chat.ConversationScreen
 import io.zakiai.workspace.feature.chat.NewChatScreen
 import io.zakiai.workspace.feature.chat.SpaceTopicsScreen
+import io.zakiai.workspace.ui.components.BarTab
+import io.zakiai.workspace.ui.components.FloatingTabBar
+import io.zakiai.workspace.ui.components.RoundIcon
+import io.zakiai.workspace.ui.components.ZkBar
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.unit.sp
+import io.zakiai.workspace.feature.work.MyWorkScreen
+import io.zakiai.workspace.feature.work.TaskScreen
+import io.zakiai.workspace.feature.work.TodayScreen
 import io.zakiai.workspace.feature.notifications.NotificationsScreen
 import io.zakiai.workspace.feature.settings.SettingsScreen
 import io.zakiai.workspace.feature.web.WebBridge
@@ -114,6 +128,7 @@ class ShellViewModel @Inject constructor(
     val session: Session,
     val connectivity: Connectivity,
     private val crashes: CrashStore,
+    private val http: okhttp3.OkHttpClient,
 ) : ViewModel() {
     private val _spaces = MutableStateFlow<Spaces?>(null)
     val spaces: StateFlow<Spaces?> = _spaces.asStateFlow()
@@ -145,8 +160,16 @@ class ShellViewModel @Inject constructor(
         (apiCall { api.notifications() } as? ApiResult.Ok)?.let { _notesUnread.value = it.value.unreadCount }
     }
 
+    /**
+     * Enters a space: the site's own switch (`/go` sets the space's cookie). The redirect it answers with is NOT followed — it leads to a
+     * whole page of the site, and the cookie is all the app needs; then the shell and the screens that read the current space reload.
+     */
     fun enter(spaceId: String) = viewModelScope.launch {
-        apiCall { api.enterSpace(spaceId).also { it.body()?.close() } }
+        val url = Config.BASE.trimEnd('/') + "/go?space=" + Uri.encode(spaceId) + "&next=%2F"
+        val noRedirect = http.newBuilder().followRedirects(false).followSslRedirects(false).build()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { noRedirect.newCall(okhttp3.Request.Builder().url(url).build()).execute().close() }
+        }
         refresh()
     }
 
@@ -164,9 +187,13 @@ private object Routes {
     const val CHAT_INFO = "chat-info/{id}"
     const val NEW_CHAT = "new-chat?group={group}"
     const val SITE = "site?path={path}"
-    val TABS = setOf(CHATS, NOTIFICATIONS, SETTINGS)
+    const val TODAY = "today"
+    const val MY_WORK = "my-work"
+    const val TASK = "task/{id}"
+    val TABS = setOf(TODAY, CHATS, MY_WORK, NOTIFICATIONS, SETTINGS)
+    fun task(id: String) = "task/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -178,8 +205,6 @@ private object Routes {
 private data class SiteItem(val label: String, val path: String, val icon: ImageVector)
 
 private val SITE_ITEMS = listOf(
-    SiteItem(T.today, "/", Icons.Filled.Today),
-    SiteItem(T.myWork, "/my-work", Icons.Filled.TaskAlt),
     SiteItem(T.projects, "/projects", Icons.Filled.ViewKanban),
     SiteItem(T.calendar, "/calendar", Icons.Filled.CalendarMonth),
     SiteItem(T.files, "/files", Icons.Filled.Folder),
@@ -198,6 +223,9 @@ fun NavHostController.open(dest: Destination) {
         Destination.Chats -> navigate(Routes.CHATS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Notifications -> navigate(Routes.NOTIFICATIONS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Settings -> navigate(Routes.SETTINGS) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        Destination.Today -> navigate(Routes.TODAY) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        Destination.MyWork -> navigate(Routes.MY_WORK) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
 }
@@ -223,6 +251,8 @@ fun Shell(
     val chatUnread by vm.chatUnread.collectAsStateWithLifecycle()
     val notesUnread by vm.notesUnread.collectAsStateWithLifecycle()
     val online by vm.connectivity.online.collectAsStateWithLifecycle()
+    // the chat search lives in the bar, as on the site's phone: null = the bar shows its title
+    var chatQuery by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf<String?>(null) }
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route ?: Routes.CHATS
     WhileOnScreen(30_000) { vm.refresh() }
@@ -297,36 +327,38 @@ fun Shell(
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 if (onTab) {
-                    TopAppBar(
-                        navigationIcon = { IconButton(onClick = { scope.launch { drawer.open() } }) { Icon(Icons.Filled.Menu, contentDescription = T.menu) } },
-                        title = {
-                            Text(
-                                when (route) {
-                                    Routes.NOTIFICATIONS -> T.notifications
-                                    Routes.SETTINGS -> T.settings
-                                    else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
-                                },
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Zk.colors.surface1),
-                    )
+                    // the site's phone bar: 56 high on the surface, ☰, the title, and on the chats the search, which takes the bar's place
+                    val query = chatQuery
+                    if (route == Routes.CHATS && query != null) {
+                        ChatSearchBar(query, onChange = { chatQuery = it }, onClose = { chatQuery = null })
+                    } else {
+                        ZkBar(
+                            title = when (route) {
+                                Routes.NOTIFICATIONS -> T.notifications
+                                Routes.MY_WORK -> io.zakiai.workspace.feature.work.W.myWork
+                                Routes.SETTINGS -> T.settings
+                                else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
+                            },
+                            start = { RoundIcon(Icons.Filled.Menu, T.menu, size = 24.dp) { scope.launch { drawer.open() } } },
+                            actions = { if (route == Routes.CHATS) RoundIcon(Icons.Filled.Search, io.zakiai.workspace.feature.chat.C.search) { chatQuery = "" } },
+                        )
+                    }
                 } else if (route == Routes.SITE) {
-                    TopAppBar(
-                        navigationIcon = { IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = T.back) } },
-                        title = { Text(T.appName) },
-                        colors = TopAppBarDefaults.topAppBarColors(containerColor = Zk.colors.surface1),
-                    )
+                    ZkBar(title = T.appName, start = { RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, T.back) { nav.popBackStack() } })
                 }
             },
             bottomBar = {
                 if (onTab) {
-                    NavigationBar(containerColor = Zk.colors.surface1) {
-                        TabItem(T.chats, route == Routes.CHATS, chatUnread, Icons.Filled.ChatBubble) { nav.open(Destination.Chats) }
-                        TabItem(T.notifications, route == Routes.NOTIFICATIONS, notesUnread, Icons.Filled.Notifications) { nav.open(Destination.Notifications) }
-                        TabItem(T.settings, route == Routes.SETTINGS, 0, Icons.Filled.Settings) { nav.open(Destination.Settings) }
-                    }
+                    // the floating tab bar of «شكل تيليجرام»
+                    FloatingTabBar(
+                        listOf(
+                            BarTab(T.today, Icons.Filled.Today, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
+                            BarTab(T.chats, Icons.Filled.ChatBubble, route == Routes.CHATS, chatUnread) { nav.open(Destination.Chats) },
+                            BarTab(T.myWork, Icons.Filled.TaskAlt, route == Routes.MY_WORK, 0) { nav.open(Destination.MyWork) },
+                            BarTab(T.notifications, Icons.Filled.Notifications, route == Routes.NOTIFICATIONS, notesUnread) { nav.open(Destination.Notifications) },
+                            BarTab(T.settings, Icons.Filled.Settings, route == Routes.SETTINGS, 0) { nav.open(Destination.Settings) },
+                        ),
+                    )
                 }
             },
         ) { padding ->
@@ -336,12 +368,19 @@ fun Shell(
                 NavHost(nav, startDestination = Routes.CHATS, modifier = Modifier.weight(1f)) {
                     composable(Routes.CHATS) {
                         ChatListScreen(
-                            onOpen = { id, at -> nav.open(Destination.Conversation(id, at)) },
+                            query = chatQuery.orEmpty(),
+                            onOpen = { id, at -> chatQuery = null; nav.open(Destination.Conversation(id, at)) },
                             onOpenSpace = { nav.navigate(Routes.space(it)) { launchSingleTop = true } },
                             onNewChat = { group -> nav.navigate(Routes.newChat(group)) { launchSingleTop = true } },
                         )
                     }
                     composable(Routes.NOTIFICATIONS) { NotificationsScreen(onOpenPath = openPath) }
+                    // both read the space the person is in: entering another one reloads them
+                    composable(Routes.TODAY) { TodayScreen(onOpenTask = { nav.open(Destination.Task(it)) }, onOpenPath = openPath, onOpenSite = { nav.open(Destination.Site(it)) }, spaceKey = spaces?.currentSpaceId) }
+                    composable(Routes.MY_WORK) { MyWorkScreen(onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) }, spaceKey = spaces?.currentSpaceId) }
+                    composable(Routes.TASK, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        TaskScreen(onBack = { nav.popBackStack() })
+                    }
                     composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications) }
                     composable(
                         Routes.CONVERSATION,
@@ -393,4 +432,33 @@ private fun androidx.compose.foundation.layout.RowScope.TabItem(label: String, s
             unselectedTextColor = Zk.colors.fgMuted,
         ),
     )
+}
+
+/** The search of the chats in the bar's place (the site's phone): â†گ, the field (16sp, no border), âœ• while it holds text. */
+@Composable
+private fun ChatSearchBar(query: String, onChange: (String) -> Unit, onClose: () -> Unit) {
+    val focus = androidx.compose.runtime.remember { androidx.compose.ui.focus.FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
+    androidx.activity.compose.BackHandler(onBack = onClose)
+    Column(Modifier.fillMaxWidth().background(Zk.colors.surface).windowInsetsPadding(WindowInsets.statusBars)) {
+        Row(Modifier.fillMaxWidth().height(56.dp).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, T.back, onClick = onClose)
+            androidx.compose.foundation.text.BasicTextField(
+                value = query,
+                onValueChange = onChange,
+                singleLine = true,
+                textStyle = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = Zk.colors.fg, fontFamily = io.zakiai.workspace.ui.theme.Plex),
+                cursorBrush = androidx.compose.ui.graphics.SolidColor(Zk.colors.accent),
+                modifier = Modifier.weight(1f).padding(horizontal = 8.dp).focusRequester(focus),
+                decorationBox = { inner ->
+                    Box(contentAlignment = Alignment.CenterStart) {
+                        if (query.isEmpty()) Text(io.zakiai.workspace.feature.chat.C.search, fontSize = 16.sp, color = Zk.colors.fgMuted)
+                        inner()
+                    }
+                },
+            )
+            if (query.isNotEmpty()) RoundIcon(Icons.Filled.Close, io.zakiai.workspace.feature.chat.C.cancel) { onChange("") }
+        }
+        HorizontalDivider(color = Zk.colors.border, thickness = 1.dp)
+    }
 }

@@ -181,6 +181,63 @@ interface WorkspaceApi {
     @POST("api/chat/spaces/{spaceId}/topics")
     suspend fun newTopic(@Path("spaceId") spaceId: String, @Body body: NewTopicBody): IdAnswer
 
+    // ── «اليوم», «مهامي» and one task (N2) ──────────────────────────────────────────────────────────────────
+
+    @GET("api/today")
+    suspend fun today(@Header("Cache-Control") cache: String = "no-cache"): TodayAnswer
+
+    @GET("api/my-work")
+    suspend fun myWork(@Query("tab") tab: String, @Header("Cache-Control") cache: String = "no-cache"): MyWorkAnswer
+
+    @GET("api/tasks/{id}/sheet")
+    suspend fun taskSheet(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): TaskSheet
+
+    @POST("api/tasks/{id}/complete")
+    suspend fun complete(@Path("id") id: String, @Body body: CompleteBody): TaskAnswer
+
+    @POST("api/tasks/{id}/move")
+    suspend fun move(@Path("id") id: String, @Body body: MoveBody): TaskAnswer
+
+    @PATCH("api/tasks/{id}")
+    suspend fun patchTask(@Path("id") id: String, @Body body: TaskPatch): TaskAnswer
+
+    /** A due date set («YYYY-MM-DD») or cleared (`null` written out). */
+    @PATCH("api/tasks/{id}")
+    suspend fun patchTaskRaw(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject): TaskAnswer
+
+    @POST("api/tasks")
+    suspend fun newTask(@Body body: NewTaskBody): TaskAnswer
+
+    @POST("api/tasks/{id}/steps")
+    suspend fun addStep(@Path("id") id: String, @Body body: StepTitle): kotlinx.serialization.json.JsonObject
+
+    @PATCH("api/tasks/{id}/steps/{step}")
+    suspend fun patchStep(@Path("id") id: String, @Path("step") step: String, @Body body: StepPatch): kotlinx.serialization.json.JsonObject
+
+    @DELETE("api/tasks/{id}/steps/{step}")
+    suspend fun deleteStep(@Path("id") id: String, @Path("step") step: String): Ok
+
+    @POST("api/tasks/{id}/comments")
+    suspend fun addComment(@Path("id") id: String, @Body body: CommentBody): kotlinx.serialization.json.JsonObject
+
+    @DELETE("api/tasks/{id}/comments/{comment}")
+    suspend fun deleteComment(@Path("id") id: String, @Path("comment") comment: String): Ok
+
+    @POST("api/tasks/{id}/request/accept")
+    suspend fun acceptRequest(@Path("id") id: String, @Body body: AcceptBody2): kotlinx.serialization.json.JsonObject
+
+    @POST("api/tasks/{id}/request/return")
+    suspend fun returnRequest(@Path("id") id: String, @Body body: ReturnBody): kotlinx.serialization.json.JsonObject
+
+    @GET("api/reminders")
+    suspend fun reminders(@Header("Cache-Control") cache: String = "no-cache"): Reminders
+
+    @POST("api/reminders")
+    suspend fun addReminder(@Body body: NewReminder): kotlinx.serialization.json.JsonObject
+
+    @DELETE("api/reminders/{id}")
+    suspend fun dismissReminder(@Path("id") id: String): Ok
+
     @GET("api/chat/directory")
     suspend fun directory(@Query("scope") scope: String? = null): Directory
 

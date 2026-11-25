@@ -72,8 +72,18 @@ class LinksTest {
     }
 
     @Test fun `a section not native yet opens the site's page, with its query`() {
-        assertEquals(Destination.Site("/tasks/t1?tab=steps"), Links.destinationOf("$BASE/tasks/t1?tab=steps", BASE))
+        assertEquals(Destination.Site("/projects/p1?tab=board"), Links.destinationOf("$BASE/projects/p1?tab=board", BASE))
         assertEquals(Destination.Site("/calls/k2"), Links.destinationOf("/calls/k2", BASE))
+    }
+
+    @Test fun `the day, my work and a task open natively, a task from any space`() {
+        assertEquals(Destination.Today, Links.destinationOf("/", BASE))
+        assertEquals(Destination.Today, Links.destinationOf("$BASE/?view=today", BASE))
+        assertEquals(Destination.MyWork, Links.destinationOf("/my-work?tab=overdue", BASE))
+        assertEquals(Destination.Task("t1"), Links.destinationOf("$BASE/tasks/t1?tab=steps", BASE))
+        assertEquals(Destination.Task("t9"), Links.destinationOf("/go?space=s2&next=%2Ftasks%2Ft9", BASE))
+        // a deeper page of a task is the site's
+        assertEquals(Destination.Site("/tasks/t1/history"), Links.destinationOf("/tasks/t1/history", BASE))
     }
 
     @Test fun `another site, a protocol-relative address and nothing are never opened inside the app`() {

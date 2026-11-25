@@ -16,6 +16,9 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -79,139 +82,157 @@ class BubbleActions(
 
 fun absolute(url: String): String = if (url.startsWith("/")) Config.BASE + url else url
 
-/** A system line: the site's sentence, centred, small. */
+/** A system line: the site's sentence in a surface-2 pill, centred, 12sp. */
 @Composable
 fun SystemLine(m: Message) {
     val p = m.system?.p.orEmpty().mapValues { it.value.contentOrNull.orEmpty() }
-    Box(Modifier.fillMaxWidth().padding(vertical = 6.dp), contentAlignment = Alignment.Center) {
-        Text(
-            C.systemLine(m.system?.k, p, m.authorName),
-            color = Zk.colors.fgMuted,
-            style = MaterialTheme.typography.labelMedium,
-            modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.surface1.copy(alpha = 0.8f)).padding(horizontal = 10.dp, vertical = 3.dp),
-        )
-    }
+    io.zakiai.workspace.ui.components.CenterPill(C.systemLine(m.system?.k, p, m.authorName))
 }
 
-/** The day between two messages of different days: «اليوم», «مبارح», or the date. */
+/** The day between two messages of different days: a surface-1 pill, 12sp semibold, the quiet colour. */
 @Composable
 fun DayLine(label: String) {
     Box(Modifier.fillMaxWidth().padding(vertical = 8.dp), contentAlignment = Alignment.Center) {
-        Text(label, color = Zk.colors.fg, style = MaterialTheme.typography.labelMedium, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.surface1.copy(alpha = 0.85f)).padding(horizontal = 12.dp, vertical = 4.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Zk.colors.fgMuted, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.surface1).padding(horizontal = 12.dp, vertical = 4.dp))
     }
 }
 
-/** «رسائل جديدة»: where the unread part of the conversation begins. */
+/** «رسائل جديدة»: the accent's words in the middle, a thin accent line on both sides (not a band). */
 @Composable
 fun UnreadLine() {
-    Box(Modifier.fillMaxWidth().padding(vertical = 6.dp).background(Zk.colors.surface1.copy(alpha = 0.7f)).padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
-        Text(C.newMessages, color = Zk.colors.accent, style = MaterialTheme.typography.labelLarge)
+    Row(Modifier.fillMaxWidth().padding(vertical = 8.dp, horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Box(Modifier.weight(1f).height(1.dp).background(Zk.colors.accent.copy(alpha = 0.3f)))
+        Text(C.newMessages, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Zk.colors.accent)
+        Box(Modifier.weight(1f).height(1.dp).background(Zk.colors.accent.copy(alpha = 0.3f)))
     }
 }
 
+/**
+ * ONE BUBBLE, as the site's «شكل تيليجرام» draws it (bubble-model.ts, bubble-parts.tsx): radius 17 everywhere except the LAST bubble of a run,
+ * whose bottom corner on its own side is 2 (mine: the bottom end — the left; the others': the bottom start — the right); padding 12/6; at most
+ * 85% of the width; 14sp text; the time (and my ticks) on their own line at the end; in a shared chat the sender's name (its category colour)
+ * on the FIRST bubble of a run and their 32 picture beside the LAST.
+ */
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-fun Bubble(line: Line, showAuthor: Boolean, readers: List<Reader>, act: BubbleActions, playing: String? = null) {
+fun Bubble(line: Line, firstOfRun: Boolean, lastOfRun: Boolean, group: Boolean, readers: List<Reader>, act: BubbleActions, playing: String? = null) {
     val m = line.message
     val c = Zk.colors
     val mine = m.mine
-    // right to left: my bubbles sit at the start (the right), the others' at the end — as on the site
-    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp), horizontalAlignment = if (mine) Alignment.Start else Alignment.End) {
+    val maxWidth = (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.85f).dp
+    val big = 17.dp
+    val tail = 2.dp
+    val shape = RoundedCornerShape(
+        topStart = big,
+        topEnd = big,
+        // the tail sits on the outer edge: mine hug the start (right, in Arabic), the others the end (left)
+        bottomStart = if (mine && lastOfRun) tail else big,
+        bottomEnd = if (!mine && lastOfRun) tail else big,
+    )
+    val fg = if (mine) c.bubbleOutFg else c.bubbleInFg
+    val quiet = fg.copy(alpha = 0.62f)
+    val showSender = group && !mine
+    Column(
+        Modifier.fillMaxWidth().padding(top = 2.dp, bottom = if (lastOfRun) 8.dp else 2.dp),
+        horizontalAlignment = if (mine) Alignment.Start else Alignment.End,
+    ) {
         Row(verticalAlignment = Alignment.Bottom) {
-            if (!mine && showAuthor) {
-                Avatar(m.authorName, url = m.authorAvatar, size = 30.dp)
+            if (showSender) {
+                if (lastOfRun) Avatar(m.authorName, url = m.authorAvatar, size = 32.dp) else Spacer(Modifier.width(32.dp))
                 Spacer(Modifier.width(6.dp))
-            } else if (!mine) Spacer(Modifier.width(36.dp))
-            val fg = if (mine) c.bubbleOutFg else c.bubbleInFg
+            }
             Column(
-                Modifier.widthIn(max = 300.dp)
-                    .clip(RoundedCornerShape(topStart = 16.dp, topEnd = 16.dp, bottomStart = if (mine) 4.dp else 16.dp, bottomEnd = if (mine) 16.dp else 4.dp))
-                    .background(if (mine) c.bubbleOut else c.bubbleIn)
+                Modifier.widthIn(max = maxWidth)
+                    .shadow(1.dp, shape, ambientColor = Color.Black.copy(alpha = 0.05f), spotColor = Color.Black.copy(alpha = 0.05f))
+                    .clip(shape)
+                    .background(if (line.outbox == "refused") c.danger.copy(alpha = 0.10f) else if (mine) c.bubbleOut else c.bubbleIn)
                     .combinedClickable(onClick = {}, onLongClick = { if (line.outbox == null && !m.id.startsWith("outbox-")) act.onLong(m) })
-                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
             ) {
-                if (showAuthor && !mine && m.authorName.isNotBlank()) Text(m.authorName, color = c.accent, style = MaterialTheme.typography.labelLarge)
-                m.forwardedFrom?.let { Text("${C.forwardedFrom} ${it.name}", color = fg.copy(alpha = 0.75f), style = MaterialTheme.typography.labelMedium, fontStyle = FontStyle.Italic) }
+                if (showSender && firstOfRun && m.authorName.isNotBlank()) {
+                    Text(m.authorName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = io.zakiai.workspace.ui.components.nameColor(m.authorName), maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(bottom = 2.dp))
+                }
+                m.forwardedFrom?.let { Text("${C.forwardedFrom} ${it.name}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = c.accent, modifier = Modifier.padding(bottom = 4.dp)) }
                 m.replyTo?.let { r ->
+                    // the site's reply block: a 3px accent bar at the start, surface-2 at 60%, the end corners rounded 6
                     Row(
-                        Modifier.padding(vertical = 3.dp).clip(RoundedCornerShape(6.dp)).background(fg.copy(alpha = 0.08f)).clickable { act.onReplyTap(r.id) }.padding(end = 8.dp),
+                        Modifier.padding(bottom = 6.dp).clip(RoundedCornerShape(topEnd = 6.dp, bottomEnd = 6.dp)).background(c.surface2.copy(alpha = 0.6f)).clickable { act.onReplyTap(r.id) },
                     ) {
-                        // on my own bubble (the accent's colour) the quote takes the bubble's text colour, or it would not be seen
-                        val mark = if (mine) fg else c.accent
-                        Box(Modifier.width(3.dp).height(36.dp).background(mark))
-                        Column(Modifier.padding(start = 6.dp, top = 2.dp, bottom = 2.dp)) {
-                            Text(r.authorName, color = mark, style = MaterialTheme.typography.labelMedium, maxLines = 1)
-                            Text(if (r.deleted) C.deletedPreview else (r.quote ?: r.preview).orEmpty(), color = fg.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Box(Modifier.width(3.dp).height(40.dp).background(c.accent))
+                        Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                            Text(r.authorName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = c.accent, maxLines = 1)
+                            Text(if (r.deleted) C.deletedPreview else (r.quote ?: r.preview).orEmpty(), fontSize = 12.sp, color = c.fgMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         }
                     }
                 }
                 when {
-                    m.deleted -> Text(T.deletedMessage, color = fg.copy(alpha = 0.7f), style = MaterialTheme.typography.bodyMedium, fontStyle = FontStyle.Italic)
+                    m.deleted -> Text(T.deletedMessage, fontSize = 14.sp, fontStyle = FontStyle.Italic, color = quiet)
                     else -> {
                         val media = m.media()
                         if (media.isNotEmpty()) Album(media) { i -> act.onMedia(media, i) }
                         for (a in m.files()) FileRow(a, fg, if (mine) fg else c.accent, voice = m.kind == "VOICE", playing = playing == a.id) { act.onFile(a) }
                         m.poll?.let { PollCard(m, it, fg, if (mine) fg else c.accent) { ids -> act.onVote(m, ids) } }
                         m.checklist?.let { ChecklistCard(m, it, fg, if (mine) fg else c.accent) { item, done -> act.onTick(m, item, done) } }
-                        if (!m.body.isNullOrBlank()) {
-                            val title = m.kind == "POLL" || m.kind == "CHECKLIST"
-                            if (!title) Text(m.body, color = fg, style = MaterialTheme.typography.bodyLarge)
+                        val title = m.kind == "POLL" || m.kind == "CHECKLIST"
+                        if (!m.body.isNullOrBlank() && !title) {
+                            val emojiOnly = m.body.length <= 8 && m.body.none { it.isLetterOrDigit() }
+                            Text(m.body, color = fg, fontSize = if (emojiOnly) 36.sp else 14.sp, lineHeight = if (emojiOnly) 44.sp else 22.sp)
                         }
                         m.preview?.let { p ->
-                            Column(Modifier.padding(top = 4.dp).clip(RoundedCornerShape(6.dp)).background(fg.copy(alpha = 0.07f)).padding(6.dp)) {
-                                p.siteName?.let { Text(it, color = c.accent, style = MaterialTheme.typography.labelMedium) }
-                                p.title?.let { Text(it, color = fg, style = MaterialTheme.typography.titleSmall, maxLines = 2) }
-                                p.description?.let { Text(it, color = fg.copy(alpha = 0.8f), style = MaterialTheme.typography.bodySmall, maxLines = 3) }
+                            Row(Modifier.padding(top = 4.dp)) {
+                                Box(Modifier.width(3.dp).height(48.dp).background(c.accent))
+                                Column(Modifier.padding(start = 8.dp)) {
+                                    p.siteName?.let { Text(it, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = c.accent) }
+                                    p.title?.let { Text(it, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = fg, maxLines = 2) }
+                                    p.description?.let { Text(it, fontSize = 12.sp, color = quiet, maxLines = 3) }
+                                }
                             }
                         }
                     }
                 }
-                Row(Modifier.align(Alignment.End).padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                    if (m.pinned) Icon(Icons.Filled.PushPin, contentDescription = C.pinned, tint = fg.copy(alpha = 0.6f), modifier = Modifier.size(11.dp))
-                    if (m.edited && !m.deleted) Text(C.edited + " ", color = fg.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
-                    Text(clock(m.createdAt), color = fg.copy(alpha = 0.7f), style = MaterialTheme.typography.labelSmall)
-                    if (mine) {
-                        Spacer(Modifier.width(3.dp))
-                        when {
-                            line.outbox == "waiting" -> Icon(Icons.Filled.Schedule, contentDescription = T.waitingToSend, tint = fg.copy(alpha = 0.7f), modifier = Modifier.size(13.dp))
-                            line.outbox == "refused" -> Icon(Icons.Filled.ErrorOutline, contentDescription = T.refusedToSend, tint = c.danger, modifier = Modifier.size(13.dp))
-                            m.status == "read" -> Icon(Icons.Filled.DoneAll, contentDescription = null, tint = c.accent2, modifier = Modifier.size(14.dp))
-                            m.status == "delivered" -> Icon(Icons.Filled.DoneAll, contentDescription = null, tint = fg.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
-                            m.status == "sent" || m.status == null -> Icon(Icons.Filled.Done, contentDescription = null, tint = fg.copy(alpha = 0.7f), modifier = Modifier.size(14.dp))
+                if (m.reactions.isNotEmpty() && !m.deleted) {
+                    // the chips inside the bubble: the accent at 15%, 28 high, the count 13sp bold; mine ringed by the accent
+                    FlowRow(Modifier.padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        for (r in m.reactions) {
+                            Row(
+                                Modifier.heightIn(min = 28.dp).clip(RoundedCornerShape(50)).background(c.accent.copy(alpha = 0.15f))
+                                    .then(if (r.mine) Modifier.border(1.5.dp, c.accent, RoundedCornerShape(50)) else Modifier)
+                                    .clickable { act.onReact(m, r.emoji) }.padding(horizontal = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            ) {
+                                Text(r.emoji.takeIf { !it.startsWith(":") } ?: "⭐", fontSize = 16.sp)
+                                Text("${r.count}", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = c.accent)
+                            }
                         }
+                    }
+                }
+                // the footer on its own line at the end: «معدّلة», the pin, the time, my ticks
+                Row(Modifier.align(Alignment.End).padding(top = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    if (m.edited && !m.deleted) Text(C.edited, fontSize = 12.sp, color = quiet)
+                    if (m.pinned) Icon(Icons.Filled.PushPin, contentDescription = C.pinned, tint = quiet, modifier = Modifier.size(12.dp))
+                    Text(clock(m.createdAt), fontSize = 12.sp, color = quiet)
+                    if (mine) when {
+                        line.outbox == "waiting" -> Icon(Icons.Filled.Schedule, contentDescription = T.waitingToSend, tint = quiet, modifier = Modifier.size(13.dp))
+                        line.outbox == "refused" -> Icon(Icons.Filled.ErrorOutline, contentDescription = T.refusedToSend, tint = c.danger, modifier = Modifier.size(14.dp))
+                        m.status == "read" -> Text("✓✓", fontSize = 12.sp, color = c.info, fontWeight = FontWeight.Bold)
+                        m.status == "delivered" -> Text("✓✓", fontSize = 12.sp, color = quiet)
+                        else -> Text("✓", fontSize = 12.sp, color = quiet)
                     }
                 }
                 if (line.outbox == "refused") {
                     Row {
-                        TextButton(onClick = { act.onRetry(line.id.removePrefix("outbox-")) }) { Text(T.retrySend, color = fg) }
+                        TextButton(onClick = { act.onRetry(line.id.removePrefix("outbox-")) }) { Text(T.retrySend, color = c.danger) }
                         TextButton(onClick = { act.onDiscard(line.id.removePrefix("outbox-")) }) { Text(T.deleteUnsent, color = fg) }
                     }
                 }
             }
         }
-        if (m.reactions.isNotEmpty() && !m.deleted) {
-            FlowRow(Modifier.padding(top = 2.dp, start = if (mine) 0.dp else 36.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                for (r in m.reactions) {
-                    Row(
-                        Modifier.clip(RoundedCornerShape(50))
-                            .background(if (r.mine) c.accent.copy(alpha = 0.25f) else c.surface1)
-                            .border(1.dp, if (r.mine) c.accent else c.border, RoundedCornerShape(50))
-                            .clickable { act.onReact(m, r.emoji) }
-                            .padding(horizontal = 8.dp, vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(r.emoji.takeIf { !it.startsWith(":") } ?: "⭐", style = MaterialTheme.typography.bodyMedium)
-                        Spacer(Modifier.width(4.dp))
-                        Text("${r.count}", style = MaterialTheme.typography.labelMedium, color = c.fg)
-                    }
-                }
-            }
-        }
-        // a topic or a group: the faces of who read up to here
+        // a topic or a group: the faces of who read up to here, 24 each, under the bubble at its end
         if (readers.isNotEmpty()) {
             Row(Modifier.padding(top = 2.dp), horizontalArrangement = Arrangement.spacedBy((-6).dp)) {
-                for (r in readers.take(5)) Avatar(r.name, url = r.avatarUrl, size = 16.dp)
-                if (readers.size > 5) Text(" +${readers.size - 5}", style = MaterialTheme.typography.labelSmall, color = c.fgMuted)
+                for (r in readers.take(5)) Avatar(r.name, url = r.avatarUrl, size = 20.dp)
+                if (readers.size > 5) Text(" +${readers.size - 5}", fontSize = 11.sp, color = c.fgMuted)
             }
         }
     }

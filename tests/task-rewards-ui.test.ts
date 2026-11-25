@@ -214,11 +214,14 @@ describe("«مثبّتة»: the strip of a project and the compact card of «ا�
 
 describe("where the screens mount it", () => {
   it("the task page asks the server what the person may see and hands a partner nothing", () => {
+    // the page and the phone read one sheet (src/server/services/task-sheet.ts): the lens decides there, the page only draws it
+    const sheet = read("src/server/services/task-sheet.ts");
+    expect(sheet).toMatch(/rewardLensFor\(actor, task\.workspaceId\)/);
+    expect(sheet).toMatch(/lens\.rewards && rewardStatus/);
+    expect(sheet).toMatch(/lockedFields/);
     const page = read("src/app/(app)/tasks/[id]/page.tsx");
-    expect(page).toMatch(/rewardLensFor\(actor, task\.workspaceId\)/);
-    expect(page).toMatch(/lens\.rewards && rewardStatus/);
-    expect(page).toMatch(/lockedFields/);
-    expect(page).toMatch(/lens\.canPin \?/);
+    expect(page).toMatch(/sheet\.lens\.canPin \?/);
+    expect(page).toMatch(/lockedFields=\{sheet\.lockedFields\}/);
   });
 
   it("the list, My Work, the board, the project page and «اليوم» ask the same lens before they draw a reward or a pin", () => {

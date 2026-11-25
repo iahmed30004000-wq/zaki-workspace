@@ -168,6 +168,21 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(live).toContain("if (!dirty) return");
   });
 
+  it("«اليوم», «مهامي» and a task are native and read the site's own doors; a higher rank is only asked", () => {
+    const api = read(SRC + "core/net/WorkspaceApi.kt");
+    for (const door of ['@GET("api/today")', '@GET("api/my-work")', '@GET("api/tasks/{id}/sheet")', '@POST("api/tasks/{id}/request/accept")', '@POST("api/tasks/{id}/request/return")']) expect(api, door).toContain(door);
+    const vm = read(SRC + "feature/work/WorkViewModels.kt");
+    // the server decides a request upward; the phone only says it was sent
+    expect(vm).toContain("if (r.value.task.assignRequest != null || r.value.task.coRequests.isNotEmpty()) _notice.value = W.requestSent");
+    // a task the person can no longer read is forgotten on the phone
+    expect(vm).toContain("cache.remove(key)");
+    // an older site without the doors: the section opens on the site's page, marked ⚠️ with its 🔧
+    expect(read(SRC + "feature/work/TodayScreens.kt")).toContain("WarnFix(WorkWarn.oldSite, WorkWarn.oldSiteFix)");
+    const links = read(SRC + "feature/shell/Links.kt");
+    expect(links).toContain('"/my-work" -> Destination.MyWork');
+    expect(links).toContain("TASK.find(path.substringBefore('?'))");
+  });
+
   it("a chat file is fetched by the app into its private cache: the session never goes to a system download, nothing lands in a public folder", () => {
     const files = read(SRC + "feature/chat/ChatFiles.kt");
     expect(files).not.toContain("DownloadManager");
