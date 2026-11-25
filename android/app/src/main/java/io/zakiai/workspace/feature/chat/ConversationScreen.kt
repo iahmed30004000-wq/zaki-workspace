@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Videocam
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -198,7 +199,7 @@ fun ConversationScreen(
         containerColor = Zk.colors.surface,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snack) },
-        topBar = { Header(header, typingAll[vm.id].orEmpty().filter { it.until > System.currentTimeMillis() }, calling, onBack, onInfo = { onInfo(vm.id) }, onCall = { vm.startCall { onOpenPath("/calls/$it") } }) },
+        topBar = { Header(header, typingAll[vm.id].orEmpty().filter { it.until > System.currentTimeMillis() }, calling, onBack, onInfo = { onInfo(vm.id) }, onCall = { vm.startCall { onOpenPath("/calls/$it") } }, onVideo = { vm.startCall(video = true) { onOpenPath("/calls/$it") } }) },
         bottomBar = {
             val h = header
             when {
@@ -378,7 +379,7 @@ sealed interface Entry {
  * subtitle 12sp (the typing line in the accent), the call.
  */
 @Composable
-private fun Header(h: ConversationHeader?, typing: List<Typist>, calling: Boolean, onBack: () -> Unit, onInfo: () -> Unit, onCall: () -> Unit) {
+private fun Header(h: ConversationHeader?, typing: List<Typist>, calling: Boolean, onBack: () -> Unit, onInfo: () -> Unit, onCall: () -> Unit, onVideo: () -> Unit = {}) {
     GlassHeader {
         RoundIcon(Icons.AutoMirrored.Filled.ArrowBack, T.back, onClick = onBack)
         Row(Modifier.weight(1f).clip(RoundedCornerShape(12.dp)).clickable(enabled = h != null, onClick = onInfo).padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -397,6 +398,8 @@ private fun Header(h: ConversationHeader?, typing: List<Typist>, calling: Boolea
             }
         }
         val canCall = h != null && h.calls != false && h.me.canCall != false && h.kind != "TOPIC" || (h?.kind == "TOPIC" && h.me.canCall == true)
+        // the site's call menu, as two buttons: آ«ظ…ظƒط§ظ„ظ…ط© ظپظٹط¯ظٹظˆآ» and آ«ظ…ظƒط§ظ„ظ…ط© طµظˆطھآ»
+        if (canCall) RoundIcon(Icons.Filled.Videocam, io.zakiai.workspace.feature.calls.K.video, tint = Zk.colors.accent, enabled = !calling, onClick = onVideo)
         if (canCall) RoundIcon(Icons.Filled.Call, T.call, tint = Zk.colors.accent, enabled = !calling, onClick = onCall)
     }
 }

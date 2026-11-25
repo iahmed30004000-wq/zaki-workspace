@@ -17,7 +17,7 @@ import android.widget.TextView;
 
 /**
  * The call screen: over the lock screen, the screen switched on, who is calling and two big buttons. «Answer» opens the call in the site;
- * «Decline» only stops the ring (the caller sees it ring out). It closes by itself when the 45 seconds of a ring pass.
+ * «Decline» stops the ring and tells the site, so the caller stops ringing at once (M2 N5). It closes by itself when the 45 seconds of a ring pass.
  */
 public class CallActivity extends Activity {
     private final Handler handler = new Handler(Looper.getMainLooper());
@@ -69,6 +69,8 @@ public class CallActivity extends Activity {
         decline.setTextColor(Color.WHITE);
         decline.setOnClickListener(v -> {
             Notifier.cancelRing(this);
+            // the site is told, so the caller stops ringing at once (M2 N5)
+            io.zakiai.workspace.feature.calls.CallBridge.decline(this, url);
             finish();
         });
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, (int) (64 * getResources().getDisplayMetrics().density));

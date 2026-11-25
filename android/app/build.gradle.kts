@@ -64,6 +64,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = true
+            // the calls' engine (WebRTC) ships per processor: a phone is ARM, the emulators' x86 copies stay out of the phone build (~half the size)
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = if (zakiSigns) signingConfigs.getByName("zaki") else signingConfigs.getByName("debug")
@@ -127,6 +129,7 @@ dependencies {
     implementation(libs.coroutines.android)
 
     implementation(libs.coil.compose)
+    implementation(libs.livekit.android)
     implementation(libs.security.crypto)
     implementation(libs.biometric)
     implementation(libs.splashscreen)

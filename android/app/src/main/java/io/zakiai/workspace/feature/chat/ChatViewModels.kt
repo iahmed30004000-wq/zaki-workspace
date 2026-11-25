@@ -384,11 +384,16 @@ class ConversationViewModel @Inject constructor(
     private val _calling = MutableStateFlow(false)
     val calling: StateFlow<Boolean> = _calling.asStateFlow()
 
-    fun startCall(onStarted: (String) -> Unit) {
+    /**
+     * Starts (or joins) the conversation's call. As on the site's call button: a DM always rings, a group or a topic rings everybody only
+     * when asked (`ring`), else people see the join bar.
+     */
+    fun startCall(video: Boolean = false, ring: Boolean? = null, onStarted: (String) -> Unit) {
         if (_calling.value) return
         _calling.value = true
+        val dm = header.value?.kind == "DM"
         viewModelScope.launch {
-            when (val r = apiCall { api.startCall(id) }) {
+            when (val r = apiCall { api.startCall(id, io.zakiai.workspace.core.net.StartCallBody(video = video, ring = dm || ring == true)) }) {
                 is ApiResult.Ok -> onStarted(r.value.id)
                 is ApiResult.Err -> _notice.value = r.failure.message
             }

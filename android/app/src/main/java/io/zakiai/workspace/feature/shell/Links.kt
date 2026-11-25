@@ -22,6 +22,8 @@ sealed interface Destination {
     data object Library : Destination
     data class Document(val id: String) : Destination
     data class Sheet(val id: String) : Destination
+    /** a call, native (M2 N5): the site's LiveKit room joined from the phone */
+    data class Call(val id: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -40,6 +42,7 @@ object Links {
     private val BOARD = Regex("^/boards/([A-Za-z0-9_-]+)/?$")
     private val DOCUMENT = Regex("^/documents/([A-Za-z0-9_-]+)/?$")
     private val SHEET = Regex("^/knowledge/([A-Za-z0-9_-]+)/?$")
+    private val CALL = Regex("^/calls/([A-Za-z0-9_-]+)/?$")
 
     fun pathOf(url: String?, base: String): String? {
         if (url.isNullOrBlank()) return null
@@ -54,7 +57,7 @@ object Links {
         if (path.startsWith("/go?")) {
             val next = path.removePrefix("/go?").split("&").firstOrNull { it.startsWith("next=") }?.removePrefix("next=")
                 ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
-            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET).any { it.matches(next.substringBefore('?')) }) path = next
+            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET, CALL).any { it.matches(next.substringBefore('?')) }) path = next
         }
         // a task opens natively in any space: its sheet is read by id (the site's own scope rules decide)
         TASK.find(path.substringBefore('?'))?.let { return Destination.Task(it.groupValues[1]) }
@@ -62,6 +65,7 @@ object Links {
         BOARD.find(path.substringBefore('?'))?.let { return Destination.Board(it.groupValues[1]) }
         DOCUMENT.find(path.substringBefore('?'))?.let { return Destination.Document(it.groupValues[1]) }
         SHEET.find(path.substringBefore('?'))?.let { return Destination.Sheet(it.groupValues[1]) }
+        CALL.find(path.substringBefore('?'))?.let { return Destination.Call(it.groupValues[1]) }
         CHAT.find(path.substringBefore('?'))?.let { match ->
             val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
                 ?.takeIf { ID.matches(it) }
