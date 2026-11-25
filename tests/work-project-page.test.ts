@@ -364,9 +364,13 @@ describe("the board never reloads the page (W1.5)", () => {
 
   it("the board page reads every card through taskVisibleWhere (P0.2), keeps its notFound answers, and dresses the board only on the new map", () => {
     const page = read("src/app/(app)/boards/[id]/page.tsx");
-    expect(page).toContain("AND: [taskVisibleWhere(scope)]");
-    expect(page).not.toContain("taskParticipantFilter");
-    expect(page.match(/if \(!\w+\) notFound\(\);/g)?.length).toBe(2);
+    // M2 N3: the cards are read by `boardScreenFor` (shared with the phone's door): the visibility rule and both «not found» answers live there
+    const screen = read("src/server/services/work-app.ts");
+    expect(page).toContain("boardScreenFor(actor, params.id)");
+    expect(screen).toContain("AND: [taskVisibleWhere(scope)]");
+    expect(screen).not.toContain("taskParticipantFilter");
+    expect(screen.match(/if \(!(board|member)\) return \{ kind: "notFound" \};/g)?.length).toBe(2);
+    expect(page).toContain('if (screen.kind === "notFound") notFound();');
     expect(page).toContain('const v2 = await actorFeatureOn(actor, "navV2");');
     expect(page).toContain('const panel = v2 && (await actorFeatureOn(actor, "workMyTasks"));');
     expect(page).toContain("...(v2");
