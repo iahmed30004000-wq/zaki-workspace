@@ -197,6 +197,8 @@ class Session @Inject constructor(
         withContext(Dispatchers.IO) {
             db.cache().clear()
             if (!keepOutbox) db.outbox().clear()
+            // the chat's pictures (avatars, photos) kept by the picture loader belong to this person too
+            runCatching { coil.Coil.imageLoader(context).let { it.memoryCache?.clear(); it.diskCache?.clear() } }
         }
         _me.value = null
         _endedBecause.value = reason

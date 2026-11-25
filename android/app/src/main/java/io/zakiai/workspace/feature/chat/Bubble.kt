@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.CheckBoxOutlineBlank
 import androidx.compose.material.icons.filled.Done
 import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.filled.RadioButtonChecked
@@ -110,7 +111,7 @@ fun UnreadLine() {
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-fun Bubble(line: Line, showAuthor: Boolean, readers: List<Reader>, act: BubbleActions) {
+fun Bubble(line: Line, showAuthor: Boolean, readers: List<Reader>, act: BubbleActions, playing: String? = null) {
     val m = line.message
     val c = Zk.colors
     val mine = m.mine
@@ -149,7 +150,7 @@ fun Bubble(line: Line, showAuthor: Boolean, readers: List<Reader>, act: BubbleAc
                     else -> {
                         val media = m.media()
                         if (media.isNotEmpty()) Album(media) { i -> act.onMedia(media, i) }
-                        for (a in m.files()) FileRow(a, fg, if (mine) fg else c.accent, voice = m.kind == "VOICE") { act.onFile(a) }
+                        for (a in m.files()) FileRow(a, fg, if (mine) fg else c.accent, voice = m.kind == "VOICE", playing = playing == a.id) { act.onFile(a) }
                         m.poll?.let { PollCard(m, it, fg, if (mine) fg else c.accent) { ids -> act.onVote(m, ids) } }
                         m.checklist?.let { ChecklistCard(m, it, fg, if (mine) fg else c.accent) { item, done -> act.onTick(m, item, done) } }
                         if (!m.body.isNullOrBlank()) {
@@ -244,10 +245,10 @@ private fun MediaCell(a: Attachment, modifier: Modifier, onClick: () -> Unit) {
 
 /** A file or a voice note: its name and size, a tap opens it (a voice note plays). */
 @Composable
-private fun FileRow(a: Attachment, fg: Color, mark: Color, voice: Boolean, onClick: () -> Unit) {
+private fun FileRow(a: Attachment, fg: Color, mark: Color, voice: Boolean, playing: Boolean, onClick: () -> Unit) {
     Row(Modifier.padding(vertical = 3.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onClick).padding(4.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(Modifier.size(38.dp).clip(CircleShape).background(mark), contentAlignment = Alignment.Center) {
-            Icon(if (voice || a.kind == "AUDIO") Icons.Filled.PlayArrow else Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = if (mark == fg) Zk.colors.bubbleOut else Zk.colors.accentFg)
+            Icon(if (playing) Icons.Filled.Pause else if (voice || a.kind == "AUDIO") Icons.Filled.PlayArrow else Icons.AutoMirrored.Filled.InsertDriveFile, contentDescription = null, tint = if (mark == fg) Zk.colors.bubbleOut else Zk.colors.accentFg)
         }
         Spacer(Modifier.width(8.dp))
         Column {

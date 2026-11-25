@@ -118,6 +118,21 @@ object ChatMerge {
         else w.copy(messages = merged, hasNewer = p.hasNewer, readers = p.readers.ifEmpty { w.readers }, loaded = true)
     }
 
+    /**
+     * The newest page asked for again (the timer while the live line is down, a return to the screen) folded into the window: the older
+     * pages already scrolled to stay. A window opened on an old message (`hasNewer`, a jump) is left alone; a window that the page does not
+     * meet (more new messages than one page while away) is replaced, so no hole is ever drawn.
+     */
+    fun newest(w: ConvWindow, p: MessagesPage): ConvWindow {
+        if (!w.loaded || w.messages.isEmpty()) return fresh(p)
+        if (w.hasNewer) return w
+        val pageFirst = p.messages.firstOrNull() ?: return w.copy(readers = p.readers.ifEmpty { w.readers })
+        if (p.hasOlder && w.messages.last().createdAt < pageFirst.createdAt) return fresh(p)
+        val merged = window(w, p.messages).messages
+        val hasOlder = if (w.messages.first().createdAt >= pageFirst.createdAt) p.hasOlder else w.hasOlder
+        return w.copy(messages = merged, hasOlder = hasOlder, readers = p.readers.ifEmpty { w.readers })
+    }
+
     /** The newest window, fetched fresh: it replaces the phone's (an answer of the server is the truth). */
     fun fresh(p: MessagesPage): ConvWindow =
         ConvWindow(p.messages.sortedWith(byTime), p.hasOlder, p.hasNewer, p.readers, p.firstUnreadId, loaded = true)
@@ -139,7 +154,9 @@ object ChatMerge {
             if (last == null) w.readers
             else {
                 val old = w.readers.firstOrNull { it.userId == userId }
-                val mine = (old ?: Reader(userId = userId, name = name.orEmpty())).copy(messageId = last.id, readAt = at)
+                // a reader not on the phone yet: their name from their own messages here (never a blank face)
+                val known = name ?: w.messages.lastOrNull { it.authorId == userId }?.authorName
+                val mine = (old ?: Reader(userId = userId, name = known.orEmpty())).copy(messageId = last.id, readAt = at)
                 w.readers.filter { it.userId != userId } + mine
             }
         }

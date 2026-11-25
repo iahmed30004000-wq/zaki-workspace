@@ -34,6 +34,12 @@ class Cache @Inject constructor(private val dao: CacheDao, private val json: Jso
         if (startedIn == generation) dao.put(CacheEntry(key, json.encodeToString(serializer, value), System.currentTimeMillis()))
     }
 
+    /** Keeps a value the app built itself (the list after a live change), unless a sign-out happened since [startedIn]. */
+    suspend fun <T> keep(key: String, serializer: KSerializer<T>, value: T, startedIn: Long) = write(key, serializer, value, startedIn)
+
+    /** Forgets one answer (a conversation the person can no longer read). */
+    suspend fun remove(key: String) = withContext(Dispatchers.IO) { dao.delete(key) }
+
     /** Fetches, keeps the answer (only if no sign-out happened meanwhile), and hands back the result. */
     suspend fun <T> refresh(key: String, serializer: KSerializer<T>, fetch: suspend () -> ApiResult<T>): ApiResult<T> {
         val startedIn = generation

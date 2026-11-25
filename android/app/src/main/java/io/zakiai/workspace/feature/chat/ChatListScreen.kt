@@ -278,8 +278,10 @@ private fun Row_(r: ChatRow, onClick: () -> Unit, onLong: () -> Unit) {
 private fun RowMenu(r: ChatRow, personal: Boolean, vm: ChatListViewModel, close: () -> Unit) {
     Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
         Text(r.title, style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp), maxLines = 1, overflow = TextOverflow.Ellipsis)
+        // a space's row is not one conversation (its id is the space's): «مقروءة» and my own state belong to its topics, inside it
+        if (r.kind == "SPACE") return@Column
         if (ChatFilter.hasUnread(r)) MenuItem(C.markRead, Icons.Filled.MarkChatRead) { vm.markRead(r); close() }
-        if (!personal || r.kind == "SPACE") return@Column
+        if (!personal) return@Column
         if (!ChatFilter.hasUnread(r)) MenuItem(C.markUnread, Icons.Filled.MarkChatUnread) { vm.setState(r, MyChatState(markedUnread = true)); close() }
         MenuItem(if (r.pinnedByMe) C.unpin else C.pin, Icons.Filled.PushPin) { vm.setState(r, MyChatState(pinned = !r.pinnedByMe)); close() }
         MenuItem(if (r.archivedByMe) C.fromArchive else C.toArchive, if (r.archivedByMe) Icons.Filled.Unarchive else Icons.Filled.Archive) { vm.setState(r, MyChatState(archived = !r.archivedByMe)); close() }

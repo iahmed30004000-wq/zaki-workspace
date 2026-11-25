@@ -67,6 +67,9 @@ interface CacheDao {
 
     @Query("DELETE FROM cache")
     suspend fun clear()
+
+    @Query("DELETE FROM cache WHERE `key` = :key")
+    suspend fun delete(key: String)
 }
 
 @Dao

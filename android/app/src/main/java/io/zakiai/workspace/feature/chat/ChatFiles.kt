@@ -1,6 +1,5 @@
 package io.zakiai.workspace.feature.chat
 
-import android.app.DownloadManager
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -9,7 +8,6 @@ import android.media.MediaPlayer
 import android.media.MediaRecorder
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
 import android.provider.OpenableColumns
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.zakiai.workspace.Config
@@ -55,7 +53,8 @@ data class Upload(
 /**
  * THE CHAT'S FILES ON THE PHONE: what is picked is uploaded at once (`POST /api/chat/uploads`, the bytes sniffed again by the server),
  * pictures made smaller first as the site does (1600 px on the long side, JPEG); a voice note is recorded here (AAC in MP4) with its
- * loudness line; a tapped file is downloaded through the system's downloads with the session; a voice note plays here.
+ * loudness line; a tapped file or voice note is fetched by the app itself into its private cache (the session never leaves the app's own
+ * client, and nothing lands in a public folder), then opened with the phone's app for it or played here. A sign-out empties all of it.
  *
  * ⚠️ A file is uploaded when it is picked, so without a network it fails (it says so, with «جرّب كمان مرة»); the MESSAGE that carries it
  * goes through the outbox like any other. 🔧 A queue of files that waits for the network is a later step.
@@ -65,8 +64,14 @@ class ChatFiles @Inject constructor(
     @ApplicationContext private val context: Context,
     private val api: WorkspaceApi,
     private val jar: EncryptedCookieJar,
+    private val http: okhttp3.OkHttpClient,
+    session: io.zakiai.workspace.core.Session,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    init {
+        scope.launch { session.gate.collect { if (it == io.zakiai.workspace.core.Gate.SIGNED_OUT) clear() } }
+    }
     private val byConversation = ConcurrentHashMap<String, MutableStateFlow<List<Upload>>>()
 
     fun ready(conversationId: String): StateFlow<List<Upload>> = flowOf(conversationId).asStateFlow()
@@ -154,14 +159,19 @@ class ChatFiles @Inject constructor(
     private var recordFile: File? = null
     private var recordStart = 0L
     private var sampler: Job? = null
-    private val levels = ArrayList<Int>()
+    private val levels = java.util.Collections.synchronizedList(ArrayList<Int>())
 
-    private val _recording = MutableStateFlow(false)
-    val recording: StateFlow<Boolean> = _recording.asStateFlow()
+    /** The conversation the running recording belongs to (null: none). A recording is only ever sent where it was started. */
+    private val _recording = MutableStateFlow<String?>(null)
+    val recording: StateFlow<String?> = _recording.asStateFlow()
 
-    fun startRecording(): Boolean {
-        if (recorder != null) return true
-        val file = File(context.cacheDir, "voice-${System.currentTimeMillis()}.m4a")
+    @Synchronized
+    fun startRecording(conversationId: String): Boolean {
+        if (recorder != null) {
+            if (_recording.value == conversationId) return true
+            abandonRecording(_recording.value)
+        }
+        val file = File(voiceDir().apply { mkdirs() }, "voice-${System.currentTimeMillis()}.m4a")
         val r = (if (Build.VERSION.SDK_INT >= 31) MediaRecorder(context) else @Suppress("DEPRECATION") MediaRecorder()).apply {
             setAudioSource(MediaRecorder.AudioSource.MIC)
             setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
@@ -172,7 +182,7 @@ class ChatFiles @Inject constructor(
         }
         return runCatching { r.prepare(); r.start() }.fold(
             onSuccess = {
-                recorder = r; recordFile = file; recordStart = System.currentTimeMillis(); levels.clear(); _recording.value = true
+                recorder = r; recordFile = file; recordStart = System.currentTimeMillis(); levels.clear(); _recording.value = conversationId
                 sampler = scope.launch { while (isActive) { levels.add(runCatching { r.maxAmplitude }.getOrDefault(0)); delay(100) } }
                 true
             },
@@ -180,18 +190,36 @@ class ChatFiles @Inject constructor(
         )
     }
 
-    /** Stops; `send` uploads it as a VOICE file and the message goes with `voice: true`. Under a second is dropped (a slipped tap). */
-    fun stopRecording(conversationId: String, send: Boolean, then: (String) -> Unit) {
+    /** The screen of the conversation went away (or another one starts recording): the microphone stops and nothing is sent. */
+    @Synchronized
+    fun abandonRecording(conversationId: String?) {
+        if (recorder == null || (conversationId != null && _recording.value != conversationId)) return
         val r = recorder ?: return
         recorder = null
         sampler?.cancel()
-        _recording.value = false
+        _recording.value = null
+        runCatching { r.stop() }
+        r.release()
+        recordFile?.delete()
+        recordFile = null
+    }
+
+    /** Stops; `send` uploads it as a VOICE file and the message goes with `voice: true`. Under a second is dropped (a slipped tap). */
+    @Synchronized
+    fun stopRecording(conversationId: String, send: Boolean, then: (String) -> Unit) {
+        val r = recorder ?: return
+        // a recording started in another conversation is never sent here
+        if (_recording.value != conversationId) { abandonRecording(null); return }
+        recorder = null
+        sampler?.cancel()
+        _recording.value = null
         val file = recordFile ?: return
+        recordFile = null
         val durationMs = System.currentTimeMillis() - recordStart
         runCatching { r.stop() }
         r.release()
         if (!send || durationMs < 1_000) { file.delete(); return }
-        val peaks = Peaks.of(levels)
+        val peaks = Peaks.of(synchronized(levels) { levels.toList() })
         scope.launch {
             val part = MultipartBody.Part.createFormData("file", file.name, file.readBytes().toRequestBody("audio/mp4".toMediaTypeOrNull()))
             val r2 = apiCall { api.upload(part, "VOICE".toRequestBody(), durationMs.coerceAtMost(300_000).toString().toRequestBody(), peaks.joinToString(",", "[", "]").toRequestBody()) }
@@ -203,27 +231,72 @@ class ChatFiles @Inject constructor(
 
     // ── opening what arrived ──────────────────────────────────────────────────────────────────────────────
 
-    /** The session as a header, for the system's own players and downloads (they do not share the app's cookie store). */
+    /**
+     * The session as a header, for the one system component that must stream (the video player: a video can be large). It is handed
+     * over for that one request and kept nowhere; files and voice notes are fetched by the app itself ([fetch]).
+     */
     fun headers(url: String): Map<String, String> {
         val u = absolute(url).toHttpUrlOrNull() ?: return emptyMap()
+        // only the site's own address ever carries the session
+        if (u.host != Uri.parse(Config.BASE).host) return emptyMap()
         val cookie = jar.cookiesFor(u).joinToString("; ") { "${it.name}=${it.value}" }
         return if (cookie.isEmpty()) emptyMap() else mapOf("Cookie" to cookie)
     }
 
-    /** A file: the system's downloads, with the session; the notification opens it when it is done. */
-    fun download(a: Attachment, started: () -> Unit) {
+    private fun chatDir() = File(context.cacheDir, "chat")
+    private fun voiceDir() = File(context.cacheDir, "voice")
+
+    /**
+     * An attachment, fetched by the app itself (its client carries the session; no system component ever keeps it) into the app's own
+     * private cache — never a public folder — then offered to the phone's apps through a temporary read grant.
+     */
+    private suspend fun fetch(a: Attachment): File? = withContext(Dispatchers.IO) {
+        val safe = a.name.ifBlank { "file" }.replace(Regex("[\\\\/:*?\"<>|]"), "_").take(120)
+        val target = File(File(chatDir(), a.id.replace(Regex("[^A-Za-z0-9_-]"), "_")).apply { mkdirs() }, safe)
+        if (target.exists() && target.length() > 0) return@withContext target
         runCatching {
-            val req = DownloadManager.Request(Uri.parse(absolute(a.url)))
-                .setTitle(a.name.ifBlank { "file" })
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setMimeType(a.mime.ifBlank { null })
-            headers(a.url).forEach { (k, v) -> req.addRequestHeader(k, v) }
-            val safe = a.name.ifBlank { "file" }.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            // Android 10 and up write to «التنزيلات» without a permission; before that the app's own folder (no storage permission asked)
-            if (Build.VERSION.SDK_INT >= 29) req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Zaki/$safe")
-            else req.setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS, safe)
-            (context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager).enqueue(req)
-            started()
+            http.newCall(okhttp3.Request.Builder().url(absolute(a.url)).build()).execute().use { res ->
+                if (!res.isSuccessful) return@use null
+                val part = File(target.parentFile, "$safe.part")
+                res.body?.byteStream()?.use { input -> part.outputStream().use { input.copyTo(it) } }
+                if (part.renameTo(target)) target else null
+            }
+        }.getOrNull()
+    }
+
+    private val _busy = MutableStateFlow<String?>(null)
+    /** the attachment being fetched now (its row shows a spinner) */
+    val busy: StateFlow<String?> = _busy.asStateFlow()
+
+    /** A file: fetched, then opened with the phone's own app for it (or offered to share / save when none opens it). */
+    fun open(a: Attachment, failed: (String) -> Unit) {
+        scope.launch {
+            _busy.value = a.id
+            val f = fetch(a)
+            _busy.value = null
+            if (f == null) { withContext(Dispatchers.Main) { failed(C.downloadFailed) }; return@launch }
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", f)
+            val mime = a.mime.ifBlank { context.contentResolver.getType(uri) ?: "application/octet-stream" }
+            val view = android.content.Intent(android.content.Intent.ACTION_VIEW).setDataAndType(uri, mime)
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION or android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+            val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType(mime).putExtra(android.content.Intent.EXTRA_STREAM, uri)
+                .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            withContext(Dispatchers.Main) {
+                runCatching { context.startActivity(view) }.onFailure {
+                    runCatching { context.startActivity(android.content.Intent.createChooser(send, C.share).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+                }
+            }
+        }
+    }
+
+    /** «شارك / احفظ»: the file handed to the phone's share sheet (save to files, send to another app). */
+    fun share(a: Attachment, failed: (String) -> Unit) {
+        scope.launch {
+            val f = fetch(a) ?: return@launch withContext(Dispatchers.Main) { failed(C.downloadFailed) }
+            val uri = androidx.core.content.FileProvider.getUriForFile(context, context.packageName + ".files", f)
+            val send = android.content.Intent(android.content.Intent.ACTION_SEND).setType(a.mime.ifBlank { "application/octet-stream" })
+                .putExtra(android.content.Intent.EXTRA_STREAM, uri).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            withContext(Dispatchers.Main) { runCatching { context.startActivity(android.content.Intent.createChooser(send, C.share).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } }
         }
     }
 
@@ -232,20 +305,40 @@ class ChatFiles @Inject constructor(
     /** the attachment playing now */
     val playing: StateFlow<String?> = _playing.asStateFlow()
 
-    /** A voice note or a sound: plays here; the same one again stops it. */
+    /** A voice note or a sound: fetched by the app, then played here from the phone's own copy; the same one again stops it. */
     fun play(a: Attachment) {
         val was = _playing.value
-        player?.release(); player = null; _playing.value = null
+        stopPlaying()
         if (was == a.id) return
-        runCatching {
-            player = MediaPlayer().apply {
-                setDataSource(context, Uri.parse(absolute(a.url)), headers(a.url))
-                setOnPreparedListener { it.start() }
-                setOnCompletionListener { it.release(); if (player === it) { player = null; _playing.value = null } }
-                prepareAsync()
+        _playing.value = a.id
+        scope.launch {
+            val f = fetch(a) ?: run { _playing.value = null; return@launch }
+            withContext(Dispatchers.Main) {
+                if (_playing.value != a.id) return@withContext
+                runCatching {
+                    player = MediaPlayer().apply {
+                        setDataSource(f.absolutePath)
+                        setOnPreparedListener { it.start() }
+                        setOnCompletionListener { it.release(); if (player === it) { player = null; _playing.value = null } }
+                        prepareAsync()
+                    }
+                }.onFailure { _playing.value = null }
             }
-            _playing.value = a.id
         }
+    }
+
+    private fun stopPlaying() {
+        runCatching { player?.release() }
+        player = null
+        _playing.value = null
+    }
+
+    /** A sign-out: nothing of the last person stays — the files on their way, a recording, a sound playing, the fetched copies. */
+    private fun clear() {
+        abandonRecording(null)
+        stopPlaying()
+        byConversation.clear()
+        scope.launch(Dispatchers.IO) { chatDir().deleteRecursively(); voiceDir().deleteRecursively() }
     }
 
     companion object {

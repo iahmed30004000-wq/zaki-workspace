@@ -227,7 +227,7 @@ class ConversationViewModel @Inject constructor(
         open()
     }
 
-    private val headerKey get() = "chat-header:$id"
+    private val headerKey get() = ChatStore.headerKey(id)
 
     private fun open() = viewModelScope.launch {
         launch { refreshHeader() }
@@ -238,7 +238,12 @@ class ConversationViewModel @Inject constructor(
     fun refreshHeader() = viewModelScope.launch {
         when (val r = cache.refresh(headerKey, ConversationHeader.serializer()) { apiCall { api.header(id) } }) {
             is ApiResult.Ok -> _header.value = r.value
-            is ApiResult.Err -> if (r.failure.signedOut) session.expired(r.failure) else if (_header.value == null) _failure.value = r.failure
+            is ApiResult.Err -> when {
+                r.failure.signedOut -> session.expired(r.failure)
+                // the person can no longer read it (left, made private): what the phone kept of it goes, the screen says why
+                r.failure.status == 403 || r.failure.status == 404 -> { store.forget(id); _header.value = null; _failure.value = r.failure }
+                _header.value == null -> _failure.value = r.failure
+            }
         }
     }
 
@@ -430,7 +435,12 @@ object ChatLines {
             val draft = draftOf(o.payload)
             val m = Message(
                 id = "outbox-${o.clientId}",
-                body = draft?.body,
+                // a message with no words still says what it carries while it waits (never an empty bubble)
+                body = draft?.body ?: when {
+                    draft?.voice == true -> "🎤 " + C.voiceNote
+                    !draft?.attachmentIds.isNullOrEmpty() -> "📎 " + C.attachments
+                    else -> null
+                },
                 mine = true,
                 authorId = me,
                 createdAt = Instant.ofEpochMilli(o.createdAt).toString(),

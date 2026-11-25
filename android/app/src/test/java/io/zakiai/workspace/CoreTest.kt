@@ -166,6 +166,12 @@ class ChatLinesTest {
         assertEquals("p-k2", lines.last().message.body)
     }
 
+    @Test fun `a waiting voice note or file says what it carries, never an empty bubble`() {
+        val voice: (String) -> io.zakiai.workspace.core.net.ChatSend? = { io.zakiai.workspace.core.net.ChatSend(clientId = "x", attachmentIds = listOf("f1"), voice = true) }
+        val line = io.zakiai.workspace.feature.chat.ChatLines.of(emptyList(), listOf(row("k5")), "me", voice).single()
+        assertTrue(line.message.body!!.contains(io.zakiai.workspace.feature.chat.C.voiceNote))
+    }
+
     @Test fun `waiting and refused rows say so`() {
         val lines = io.zakiai.workspace.feature.chat.ChatLines.of(messages, listOf(row("k3"), row("k4", refused = "forbidden")), "me", draft)
         assertEquals(listOf("waiting", "refused"), lines.drop(1).map { it.outbox })

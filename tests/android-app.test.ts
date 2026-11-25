@@ -139,6 +139,26 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(store).toContain("if (it == Gate.SIGNED_OUT) clear()");
     // pictures and the session: the site's own addresses are fetched with the app's client (its cookie), never handed to a browser
     expect(read(SRC + "ZakiApplication.kt")).toContain(".callFactory { http.get() }");
+    // stopping (or signing out) closes the open connection itself: a blocking read hears no cancelled coroutine
+    expect(live).toMatch(/fun stop\(\) \{[\s\S]*?call\?\.cancel\(\)/);
+    // a dead line (no ping for a minute) fails and comes back instead of hanging «connected»
+    expect(live).toContain("readTimeout(READ_TIMEOUT_S, TimeUnit.SECONDS)");
+    // a frame during a catch-up runs it once more
+    expect(live).toContain("if (!dirty) return");
+  });
+
+  it("a chat file is fetched by the app into its private cache: the session never goes to a system download, nothing lands in a public folder", () => {
+    const files = read(SRC + "feature/chat/ChatFiles.kt");
+    expect(files).not.toContain("DownloadManager");
+    expect(files).not.toContain("setDestinationInExternalPublicDir");
+    expect(files).toContain('File(context.cacheDir, "chat")');
+    // the only folder another app may be lent a file from
+    const paths = read("android/app/src/main/res/xml/file_paths.xml");
+    expect([...paths.matchAll(/<(\w+-path)\b/g)].map((m) => m[1])).toEqual(["cache-path"]);
+    expect(paths).toContain('path="chat/"');
+    // a sign-out empties the files on their way, a recording, the fetched copies — and the picture loader's cache
+    expect(files).toMatch(/private fun clear\(\) \{[\s\S]*?abandonRecording\(null\)[\s\S]*?byConversation\.clear\(\)[\s\S]*?deleteRecursively/);
+    expect(read(SRC + "core/Session.kt")).toContain("it.memoryCache?.clear(); it.diskCache?.clear()");
   });
 
   it("an expired session keeps the person's own unsent messages; signing out on purpose removes them", () => {

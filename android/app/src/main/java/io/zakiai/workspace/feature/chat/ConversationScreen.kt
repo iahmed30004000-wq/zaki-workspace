@@ -57,6 +57,7 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -119,6 +120,7 @@ fun ConversationScreen(
     vm: ConversationViewModel = hiltViewModel(),
 ) {
     val files = vm.files
+    val playing by files.playing.collectAsStateWithLifecycle()
     val window by vm.window.collectAsStateWithLifecycle()
     val header by vm.header.collectAsStateWithLifecycle()
     val failure by vm.failure.collectAsStateWithLifecycle()
@@ -164,7 +166,8 @@ fun ConversationScreen(
             val maxIndex = list.layoutInfo.visibleItemsInfo.maxOfOrNull { it.index } ?: 0
             if (last > 0 && maxIndex >= last - 5) vm.older()
             if (list.firstVisibleItemIndex == 0 && window.hasNewer) vm.newer()
-            keys.firstOrNull { it is String && !(it as String).startsWith("day-") && it != "unread" }?.let { vm.seen(it as String) }
+            // the newest SERVER message on screen (an outbox line of mine at the bottom is skipped, never a reason to stop)
+            keys.firstOrNull { it is String && !(it as String).startsWith("day-") && !it.startsWith("outbox-") && it != "unread" }?.let { vm.seen(it as String) }
         }
     }
 
@@ -217,7 +220,7 @@ fun ConversationScreen(
                             onReplyTap = { vm.jumpTo(it) },
                             onReact = { m, e -> vm.react(m, e) },
                             onMedia = { media, i -> viewer = media to i },
-                            onFile = { a -> if (a.kind == "AUDIO") files.play(a) else files.download(a) { scope.launch { snack.showSnackbar(C.downloadStarted) } } },
+                            onFile = { a -> if (a.kind == "AUDIO") files.play(a) else files.open(a) { msg -> scope.launch { snack.showSnackbar(msg) } } },
                             onVote = { m, ids -> vm.vote(m, ids) },
                             onTick = { m, item, done -> vm.tick(m, item, done) },
                             onRetry = { vm.retry(it) },
@@ -234,7 +237,7 @@ fun ConversationScreen(
                                         else {
                                             val older = e.older
                                             val showAuthor = multi && !line.message.mine && (older == null || older.authorId != line.message.authorId || older.kind == "SYSTEM")
-                                            Bubble(line, showAuthor, if (multi) readersAt[line.id].orEmpty().filter { it.userId != vm.me } else emptyList(), act)
+                                            Bubble(line, showAuthor, if (multi) readersAt[line.id].orEmpty().filter { it.userId != vm.me } else emptyList(), act, playing)
                                         }
                                     }
                                 }
@@ -370,7 +373,21 @@ private fun Header(h: ConversationHeader?, typing: List<Typist>, calling: Boolea
 /** The composer: the reply / edit bar, the attachments, the field, send (or the microphone when empty). Only the field redraws while typing. */
 @Composable
 private fun Composer(vm: ConversationViewModel, mode: ComposeMode, files: ChatFiles) {
-    var text by rememberSaveable(mode) { mutableStateOf(if (mode is ComposeMode.Edit) mode.of.body.orEmpty() else "") }
+    // the draft belongs to the conversation: a reply keeps what was typed; an edit puts it aside and gives it back afterwards
+    var text by rememberSaveable { mutableStateOf("") }
+    var draft by rememberSaveable { mutableStateOf("") }
+    var editing by rememberSaveable { mutableStateOf<String?>(null) }
+    LaunchedEffect(mode) {
+        if (mode is ComposeMode.Edit && editing != mode.of.id) {
+            if (editing == null) draft = text
+            text = mode.of.body.orEmpty()
+            editing = mode.of.id
+        } else if (mode !is ComposeMode.Edit && editing != null) {
+            text = draft
+            draft = ""
+            editing = null
+        }
+    }
     Column(Modifier.background(Zk.colors.surface1).windowInsetsPadding(WindowInsets.navigationBars.union(WindowInsets.ime))) {
         HorizontalDivider(color = Zk.colors.border)
         val target = when (mode) { is ComposeMode.Reply -> mode.to; is ComposeMode.Edit -> mode.of; else -> null }
@@ -386,6 +403,8 @@ private fun Composer(vm: ConversationViewModel, mode: ComposeMode, files: ChatFi
             }
         }
         Uploads(vm, files)
+        // leaving the conversation stops a recording that was started here (it is never sent anywhere else)
+        DisposableEffect(vm.id) { onDispose { files.abandonRecording(vm.id) } }
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             if (mode !is ComposeMode.Edit) AttachButton(vm, files)
             TextField(
@@ -410,9 +429,10 @@ private fun Composer(vm: ConversationViewModel, mode: ComposeMode, files: ChatFi
             if (text.isBlank() && ups.isEmpty() && mode !is ComposeMode.Edit && header?.voiceNotes != false) {
                 VoiceButton(vm, files)
             } else {
-                IconButton(enabled = !busy && (text.isNotBlank() || done.isNotEmpty()), onClick = {
-                    vm.send(text, done.map { it.uploadedId })
-                    files.consumed(vm.id)
+                val edit = mode is ComposeMode.Edit
+                IconButton(enabled = if (edit) text.isNotBlank() else !busy && (text.isNotBlank() || done.isNotEmpty()), onClick = {
+                    // an edit changes the words only: the files waiting for the next message stay where they are
+                    if (edit) vm.send(text) else { vm.send(text, done.map { it.uploadedId }); files.consumed(vm.id) }
                     text = ""
                 }) {
                     Icon(Icons.AutoMirrored.Filled.Send, contentDescription = T.send, tint = Zk.colors.accent)

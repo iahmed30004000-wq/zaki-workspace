@@ -65,8 +65,10 @@ class ChatStore @Inject constructor(
     // ── the list ──────────────────────────────────────────────────────────────────────────────────────────
 
     suspend fun refreshList(): ApiResult<ChatList> {
+        val gen = cache.generation
         val r = cache.refresh(LIST_KEY, ChatList.serializer()) { apiCall { api.chatList() } }
-        if (r is ApiResult.Ok) lock.withLock { _list.value = r.value }
+        // an answer that arrives after a sign-out belongs to the last person: it is never drawn
+        if (r is ApiResult.Ok) lock.withLock { if (gen == cache.generation) _list.value = r.value }
         return r
     }
 
@@ -91,20 +93,41 @@ class ChatStore @Inject constructor(
         cache.read(windowKey(id), MessagesPage.serializer())?.let { p -> flowOf(id).compareAndSet(ConvWindow(), ChatMerge.fresh(p).copy(loaded = false)) }
     }
 
-    /** The newest window, fresh from the server (kept for an offline opening). */
-    suspend fun loadNewest(id: String): ApiResult<MessagesPage> {
+    /**
+     * The newest page, fresh from the server (kept for an offline opening). It is MERGED into the window ([ChatMerge.newest]): the older
+     * pages the person scrolled to stay, and a window opened on an old message (a jump) is left alone. `replace` (the live line lost too
+     * much) takes the page as it is. A conversation the server refuses now (left, made private) is forgotten on the phone.
+     */
+    suspend fun loadNewest(id: String, replace: Boolean = false): ApiResult<MessagesPage> {
+        val gen = cache.generation
         val r = cache.refresh(windowKey(id), MessagesPage.serializer()) { apiCall { api.messages(id) } }
-        if (r is ApiResult.Ok) lock.withLock { flowOf(id).value = ChatMerge.fresh(r.value) }
+        lock.withLock {
+            if (gen != cache.generation) return r
+            when (r) {
+                is ApiResult.Ok -> flowOf(id).update { if (replace) ChatMerge.fresh(r.value) else ChatMerge.newest(it, r.value) }
+                is ApiResult.Err -> if (r.failure.status == 403 || r.failure.status == 404) forgetLocked(id)
+            }
+        }
         return r
     }
+
+    /** Nothing of a conversation the person can no longer read stays on the phone: its window, its kept page, its header. */
+    private suspend fun forgetLocked(id: String) {
+        windows[id]?.value = ConvWindow(loaded = true)
+        cache.remove(windowKey(id))
+        cache.remove(headerKey(id))
+    }
+
+    suspend fun forget(id: String) = lock.withLock { forgetLocked(id) }
 
     /** Scrolling up: the page before the oldest message on the phone. */
     suspend fun loadOlder(id: String): ApiResult<MessagesPage>? {
         val w = flowOf(id).value
         val first = w.messages.firstOrNull() ?: return null
         if (!w.hasOlder) return null
+        val gen = cache.generation
         val r = apiCall { api.messages(id, before = first.id) }
-        if (r is ApiResult.Ok) lock.withLock { flowOf(id).update { ChatMerge.page(it, r.value, older = true) } }
+        if (r is ApiResult.Ok) lock.withLock { if (gen == cache.generation) flowOf(id).update { ChatMerge.page(it, r.value, older = true) } }
         return r
     }
 
@@ -112,9 +135,10 @@ class ChatStore @Inject constructor(
     suspend fun loadNewer(id: String) {
         repeat(4) {
             val last = flowOf(id).value.messages.lastOrNull() ?: return
+            val gen = cache.generation
             val r = apiCall { api.messages(id, after = last.id) }
             if (r !is ApiResult.Ok) return
-            lock.withLock { flowOf(id).update { ChatMerge.page(it, r.value, older = false) } }
+            lock.withLock { if (gen != cache.generation) return; flowOf(id).update { ChatMerge.page(it, r.value, older = false) } }
             if (!r.value.hasNewer || r.value.messages.isEmpty()) return
         }
     }
@@ -141,9 +165,12 @@ class ChatStore @Inject constructor(
      */
     suspend fun apply(s: SyncAnswer, placed: Map<String, String>) {
         val catchUp = HashSet<String>()
+        val gen = cache.generation
         lock.withLock {
+            // a sign-out since the answer was asked for: nothing of it is drawn or kept
+            if (gen != cache.generation) return
             val removed = s.removed.toHashSet()
-            for (id in removed) windows.remove(id)
+            for (id in removed) { windows.remove(id); cache.remove(windowKey(id)); cache.remove(headerKey(id)) }
             val index = HashMap<String, String>()
             for ((conv, flow) in windows) for (m in flow.value.messages) index[m.id] = conv
             val hidden = s.hidden.toHashSet()
@@ -162,21 +189,27 @@ class ChatStore @Inject constructor(
             if (authors.isNotEmpty()) _typing.update { t -> t.mapValues { (_, list) -> list.filter { it.userId !in authors } } }
         }
         for (id in catchUp) loadNewer(id)
-        _list.value?.let { l -> if (s.rows.isNotEmpty() || s.removed.isNotEmpty()) cache.refresh(LIST_KEY, ChatList.serializer()) { ApiResult.Ok(l) } }
+        _list.value?.let { l -> if (s.rows.isNotEmpty() || s.removed.isNotEmpty()) cache.keep(LIST_KEY, ChatList.serializer(), l, gen) }
     }
 
     /** The live line lost too much (`reload`, or a catch-up `reset`): the list and the conversations on screen are fetched again. */
     suspend fun reloadAll() {
         refreshList()
-        for (id in open.toList()) loadNewest(id)
+        for (id in open.toList()) loadNewest(id, replace = true)
     }
 
     fun typing(conversationId: String, userId: String, name: String) {
         if (userId == me) return
-        val until = System.currentTimeMillis() + 6_000
+        val until = System.currentTimeMillis() + TYPING_MS
         _typing.update { t ->
             val list = t[conversationId].orEmpty().filter { it.userId != userId && it.until > System.currentTimeMillis() } + Typist(userId, name, until)
             t + (conversationId to list)
+        }
+        // «… عم يكتب» goes by itself when nothing more comes (the person stopped without sending)
+        scope.launch {
+            kotlinx.coroutines.delay(TYPING_MS + 100)
+            val now = System.currentTimeMillis()
+            _typing.update { t -> t.mapValues { (_, list) -> list.filter { it.until > now } }.filterValues { it.isNotEmpty() } }
         }
     }
 
@@ -189,6 +222,8 @@ class ChatStore @Inject constructor(
 
     companion object {
         const val LIST_KEY = "chat-list"
+        const val TYPING_MS = 6_000L
         fun windowKey(id: String) = "chat-window:$id"
+        fun headerKey(id: String) = "chat-header:$id"
     }
 }

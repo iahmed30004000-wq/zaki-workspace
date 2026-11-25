@@ -50,6 +50,20 @@ class ChatMergeTest {
         assertTrue(!older.hasOlder)
     }
 
+    @Test fun `asking for the newest page again keeps the older pages and never overwrites a jump`() {
+        val scrolled = ConvWindow((1..5).map { msg("m$it", "2026-11-25T10:0$it:00.000Z") }, hasOlder = true, loaded = true)
+        val page = MessagesPage(listOf(msg("m4", "2026-11-25T10:04:00.000Z"), msg("m5", "2026-11-25T10:05:00.000Z"), msg("m6", "2026-11-25T10:06:00.000Z")), hasOlder = true)
+        val after = ChatMerge.newest(scrolled, page)
+        assertEquals(listOf("m1", "m2", "m3", "m4", "m5", "m6"), after.messages.map { it.id })
+        assertTrue(after.hasOlder)
+        // a window opened on an old message stays as it is
+        val jumped = scrolled.copy(hasNewer = true)
+        assertEquals(jumped, ChatMerge.newest(jumped, page))
+        // more new messages than one page while away: the page replaces the window, no hole is drawn
+        val far = MessagesPage(listOf(msg("z1", "2026-11-25T12:00:00.000Z")), hasOlder = true)
+        assertEquals(listOf("z1"), ChatMerge.newest(scrolled, far).messages.map { it.id })
+    }
+
     @Test fun `my messages turn read up to the moment the other person read, never back`() {
         val mine = ConvWindow(listOf(msg("a", "2026-11-25T10:00:00.000Z", mine = true, status = "sent"), msg("b", "2026-11-25T10:05:00.000Z", mine = true, status = "sent")))
         val read = ChatMerge.marks(mine, "peer", "P", "2026-11-25T10:01:00.000Z", read = true, me = "me")

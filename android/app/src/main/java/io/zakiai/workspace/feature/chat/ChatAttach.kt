@@ -139,8 +139,10 @@ fun AttachButton(vm: ConversationViewModel, files: ChatFiles) {
 @Composable
 fun VoiceButton(vm: ConversationViewModel, files: ChatFiles) {
     val context = LocalContext.current
-    val recording by files.recording.collectAsStateWithLifecycle()
-    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) files.startRecording() }
+    val recordingIn by files.recording.collectAsStateWithLifecycle()
+    // only a recording started HERE is this button's: one started elsewhere was stopped when its screen went away
+    val recording = recordingIn == vm.id
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted -> if (granted) files.startRecording(vm.id) }
     Row(verticalAlignment = Alignment.CenterVertically) {
         if (recording) {
             IconButton(onClick = { files.stopRecording(vm.id, send = false) {} }) { Icon(Icons.Filled.Close, contentDescription = C.cancel, tint = Zk.colors.danger) }
@@ -148,7 +150,7 @@ fun VoiceButton(vm: ConversationViewModel, files: ChatFiles) {
         IconButton(onClick = {
             when {
                 recording -> files.stopRecording(vm.id, send = true) { uploaded -> vm.send("", listOf(uploaded), voice = true) }
-                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> files.startRecording()
+                ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED -> files.startRecording(vm.id)
                 else -> ask.launch(Manifest.permission.RECORD_AUDIO)
             }
         }) {
@@ -199,7 +201,7 @@ fun MediaViewer(media: List<Attachment>, start: Int, files: ChatFiles, onClose: 
                 Spacer(Modifier.weight(1f))
                 if (media.size > 1) Text("${pager.currentPage + 1} / ${media.size}", color = Color.White, modifier = Modifier.align(Alignment.CenterVertically))
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = { files.download(media[pager.currentPage]) {} }) { Icon(Icons.Filled.Download, contentDescription = C.download, tint = Color.White) }
+                IconButton(onClick = { files.share(media[pager.currentPage]) {} }) { Icon(Icons.Filled.Download, contentDescription = C.share, tint = Color.White) }
             }
         }
     }
@@ -257,7 +259,7 @@ private fun ChecklistDialog(onClose: () -> Unit, send: (String, List<String>) ->
     )
 }
 
-/** The fields of a poll or a list: one line each, آ«ط§ظ„طھط§ظ„ظٹآ» moves to the next one. */
+/** The fields of a poll or a list: one line each, «التالي» moves to the next one. */
 private fun oneLine(s: String) = s.replace('\n', ' ').replace('\t', ' ')
 
 private val NEXT =androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Next)

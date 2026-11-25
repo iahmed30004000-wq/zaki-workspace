@@ -193,7 +193,8 @@ private val SITE_ITEMS = listOf(
 
 fun NavHostController.open(dest: Destination) {
     when (dest) {
-        is Destination.Conversation -> navigate(Routes.conversation(dest.id, dest.at)) { launchSingleTop = true }
+        // never «single top» here: another conversation (or another message of this one) must get a screen of its own, not the open one
+        is Destination.Conversation -> navigate(Routes.conversation(dest.id, dest.at))
         Destination.Chats -> navigate(Routes.CHATS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Notifications -> navigate(Routes.NOTIFICATIONS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Settings -> navigate(Routes.SETTINGS) { popUpTo(Routes.CHATS); launchSingleTop = true }
