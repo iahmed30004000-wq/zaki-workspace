@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "zaki-workspace-android"
-include ':app'
+include(":app")

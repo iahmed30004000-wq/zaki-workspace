@@ -12,7 +12,7 @@ import android.media.RingtoneManager;
 import android.net.Uri;
 
 /** Everything the app shows: the quiet «connected» line, the notifications, and the ring of a call (full screen when the phone is locked). */
-final class Notifier {
+public final class Notifier {
     static final String CH_STATUS = "status";
     static final String CH_NOTES = "notes";
     static final String CH_CALLS = "calls";
@@ -25,7 +25,7 @@ final class Notifier {
         return (NotificationManager) c.getSystemService(Context.NOTIFICATION_SERVICE);
     }
 
-    static void channels(Context c) {
+    public static void channels(Context c) {
         NotificationManager nm = manager(c);
         NotificationChannel status = new NotificationChannel(CH_STATUS, c.getString(R.string.channel_status), NotificationManager.IMPORTANCE_MIN);
         status.setShowBadge(false);
@@ -59,7 +59,7 @@ final class Notifier {
         return PendingIntent.getActivity(c, requestCode, i, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
     }
 
-    static void note(Context c, String title, String body, String path, String tag) {
+    public static void note(Context c, String title, String body, String path, String tag) {
         int id = 100 + (Math.abs((tag == null ? title : tag).hashCode()) % 1_000_000);
         Notification n = new Notification.Builder(c, CH_NOTES)
                 .setSmallIcon(R.drawable.ic_stat)
@@ -99,7 +99,7 @@ final class Notifier {
         manager(c).notify(RING_ID, n);
     }
 
-    static void cancelRing(Context c) {
+    public static void cancelRing(Context c) {
         manager(c).cancel(RING_ID);
     }
 }

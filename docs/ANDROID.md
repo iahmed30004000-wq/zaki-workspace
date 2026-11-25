@@ -1,20 +1,41 @@
 # The Android app
 
-`android/` is a **native app** (Kotlin + Jetpack Compose) for `https://workspace.zakiai.io`. It talks to the site's own API with the same session
-cookie the website uses (kept on the phone), so nothing of the site is duplicated on the server.
+`android/` is a **fully native app** (Kotlin + Jetpack Compose) for `https://workspace.zakiai.io` — the owner's decision of 2026-11-24
+(D-M1, `docs/restructure/M2-native-app.md`): every section becomes a native screen, phase by phase, built like the OMS app «Zaki Orders».
+It talks to the site's own API with the same session cookie the website uses, so nothing of the site is duplicated on the server.
 
-- **Native screens:** sign-in, the chat (list, conversation, send, read marks, calls start), the notifications.
-- **Inside the app, in a web view** (same session, microphone/camera/file picker handled by the app): everything not native yet: «اليوم»،
-  «المهام»، المشاريع، الملفات… and the call page. A new feature of the website appears here by itself when the site is deployed; only a
-  new NATIVE screen or a change to a native one needs a new APK.
-- **The live line** (`StreamService`, `/api/device/stream`): notifications and the full-screen ring of a call arrive even when the app is closed.
-  Signing in registers the phone as a device of the person (`/api/me/app-devices`); signing out removes it.
+**How it is built (N0, the foundation):**
 
-Making a page native is adding a screen in `android/app/src/main/java/io/zakiai/workspace/` that calls the page's API route.
+| Piece | Where | What it does |
+|---|---|---|
+| Hilt | `ZakiApplication.kt`, `core/**/…Module` | one graph: network, database, session, workers |
+| Network | `core/net/` | Retrofit + OkHttp + kotlinx.serialization on the site's routes; the `Origin` header the site's guard wants; every failure as an Arabic sentence (`ApiResult.kt`) |
+| Session | `core/net/EncryptedCookieJar.kt`, `core/Session.kt` | the site's cookie, **encrypted** on the phone (the plain file of the app before 4.0 is moved in once, nobody is signed out); sign-in, onboarding, sign-out wipes everything |
+| Cache | `core/db/Db.kt` (Room) | each screen opens with its last answer, even offline |
+| Outbox | `core/db/Db.kt`, `core/sync/Workers.kt` | a message written offline waits and is sent later with its `clientId` — the server's idempotency key — so it never arrives twice |
+| Crash reports | `core/crash/Crash.kt` → `POST /api/client-errors` | crashes and frozen screens are kept on the phone and sent to the server's log once somebody is signed in |
+| Look | `ui/theme/Palettes.kt` (**generated** from the site's palettes: `npx tsx scripts/build-android-palettes.mjs`), `ui/theme/Theme.kt` | the site's eight themes, Plex / Reem Kufi, right to left |
+| Lock | `core/Platform.kt` (`AppLock`) | optional fingerprint lock (cold start, and after five minutes away) |
+| Shell | `feature/shell/` | drawer with the person and the spaces (switching = the site's own `/go`), three tabs, the «بدون اتصال» bar, links from notifications |
+| The live line | `StreamService`, `Notifier`, `CallActivity` (Java) | notifications and the full-screen ring of a call even when the app is closed (`/api/device/stream`, the key from `/api/me/app-devices`) |
+
+- **Native screens now:** sign-in, the onboarding (own password + transparency notice), the shell, the chat list and conversation (with the
+  outbox), the notifications, the settings (theme, lock, the ringing phone's permissions, the app's health, sign-out).
+- ⚠️ **Not native yet** — «اليوم», «مهامي», المشاريع، التقويم، الملفات… and the call page open the site's page INSIDE the app, with a line on
+  screen that says so (`feature/web/WebBridge.kt`). 🔧 Each phase of M2 makes its sections native and removes them from the bridge; the bridge
+  itself is deleted with the last phase. Nothing the team uses today disappears in between.
+
+**Flavors:** `prod` talks to `https://workspace.zakiai.io` (the APK the phones get); `staging` talks to a local copy of the site at
+`http://10.0.2.2:3100` (the emulator's address of the build machine; `npm run dev -- -p 3100`), has its own id (`io.zakiai.workspace.staging`,
+installed beside the real app) and is the only build allowed plain HTTP (`src/staging/res/xml/network_security_config.xml`).
+
+Making a page native is adding a screen under `android/app/src/main/java/io/zakiai/workspace/feature/` that calls the page's API route, and
+removing its path from the bridge.
 
 ## How it is built
 
-`.github/workflows/android.yml` builds it on a GitHub runner (JDK 17, Gradle 8.9, the runner's Android SDK):
+`.github/workflows/android.yml` runs its unit tests and builds it on a GitHub runner (JDK 17, Gradle 8.9, the runner's Android SDK):
+`gradle -p android testStagingDebugUnitTest assembleProdRelease` (the release is shrunk by R8, `app/proguard-rules.pro`).
 
 - on a pull request that touches `android/`, `public/icons/` or the workflow: builds, publishes nothing;
 - on `main` (same paths) or by hand: builds, keeps `zaki-workspace.apk` as a run artifact and publishes it as the release
@@ -41,4 +62,6 @@ account is ever used), so the screens after sign-in are checked by hand.
 ## Changing it
 
 The package name is `io.zakiai.workspace` and must never change (it identifies the app on the phone). Raise `versionCode` and
-`versionName` in `android/app/build.gradle` when the wrapper itself changes.
+`versionName` in `android/app/build.gradle.kts` with every build that is handed out. Versions of the libraries live once, in
+`android/gradle/libs.versions.toml`. After a palette of the site changes, run `npx tsx scripts/build-android-palettes.mjs`
+(`tests/android-palettes.test.ts` fails until you do).

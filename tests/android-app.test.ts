@@ -1,24 +1,43 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-/** The Android wrapper: what must never drift (the address it opens, its identity, its icon) and that it carries no secret. */
+/**
+ * The Android app (docs/ANDROID.md, docs/restructure/M2-native-app.md): what must never drift — the address it talks to, its identity,
+ * its permissions, how it keeps the session, the live line and the call ring — and that it carries no secret.
+ */
 
 const read = (p: string) => readFileSync(join(process.cwd(), p), "utf8");
+const SRC = "android/app/src/main/java/io/zakiai/workspace/";
+const GRADLE = "android/app/build.gradle.kts";
 
-describe("the Android app (native: Kotlin + Compose)", () => {
-  it("talks to exactly the production site, opens its links, and is named «زاكي»", () => {
+function kotlinFiles(dir: string): string[] {
+  const out: string[] = [];
+  for (const name of readdirSync(join(process.cwd(), dir))) {
+    const p = `${dir}/${name}`;
+    if (statSync(join(process.cwd(), p)).isDirectory()) out.push(...kotlinFiles(p));
+    else if (/\.(kt|java)$/.test(name)) out.push(p);
+  }
+  return out;
+}
+
+describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManager)", () => {
+  it("the real app talks to exactly the production site, opens its links, and is named «زاكي»", () => {
     const manifest = read("android/app/src/main/AndroidManifest.xml");
     expect(manifest).toContain('android:host="workspace.zakiai.io"');
     expect(manifest).toContain('android:name=".MainActivity"');
-    expect(read("android/app/src/main/java/io/zakiai/workspace/Config.java")).toContain('BASE = "https://workspace.zakiai.io"');
-    expect(read("android/app/src/main/res/values/strings.xml")).toContain("<string name=\"app_name\">زاكي</string>");
+    const gradle = read(GRADLE);
+    expect(gradle).toMatch(/create\("prod"\)[\s\S]*?BASE_URL", "\\"https:\/\/workspace\.zakiai\.io\\""/);
+    // the local test copy has its own id: it installs beside the real app and never replaces it
+    expect(gradle).toMatch(/create\("staging"\)[\s\S]*?applicationIdSuffix = "\.staging"/);
+    expect(read(SRC + "Config.java")).toContain("BASE = BuildConfig.BASE_URL");
+    expect(read("android/app/src/main/res/values/strings.xml")).toContain('<string name="app_name">زاكي</string>');
   });
 
-  it("keeps one stable identity and asks only for what the live line and the call screen need", () => {
-    const gradle = read("android/app/build.gradle");
-    expect(gradle).toContain("applicationId 'io.zakiai.workspace'");
-    expect(gradle).toContain("namespace 'io.zakiai.workspace'");
+  it("keeps one stable identity and asks only for what the live line and the calls need", () => {
+    const gradle = read(GRADLE);
+    expect(gradle).toContain('applicationId = "io.zakiai.workspace"');
+    expect(gradle).toContain('namespace = "io.zakiai.workspace"');
     const manifest = read("android/app/src/main/AndroidManifest.xml");
     const permissions = [...manifest.matchAll(/uses-permission android:name="([^"]+)"/g)].map((m) => m[1]);
     expect(permissions.sort()).toEqual([
@@ -33,54 +52,102 @@ describe("the Android app (native: Kotlin + Compose)", () => {
       "android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS",
       "android.permission.USE_FULL_SCREEN_INTENT",
     ]);
-    // no backup: the key of the pairing must never be copied off the phone
+    // no backup of any kind: the session, the pairing key and the cached chats never leave the phone
     expect(manifest).toContain('android:allowBackup="false"');
+    expect(manifest).toContain('android:dataExtractionRules="@xml/data_extraction_rules"');
+    const rules = read("android/app/src/main/res/xml/data_extraction_rules.xml");
+    for (const domain of ["root", "file", "database", "sharedpref"]) expect(rules.match(new RegExp(`domain="${domain}"`, "g"))).toHaveLength(2);
   });
 
-  it("is a real app: native screens, a live line, a call screen, and it only ever opens addresses of the site", () => {
+  it("speaks HTTPS only; plain HTTP to the local copy exists in the staging flavor alone", () => {
+    const main = read("android/app/src/main/res/xml/network_security_config.xml");
+    expect(main).toContain('cleartextTrafficPermitted="false"');
+    expect(main).not.toContain("10.0.2.2");
+    expect(main).not.toContain('cleartextTrafficPermitted="true"');
+    expect(read("android/app/src/staging/res/xml/network_security_config.xml")).toContain("10.0.2.2");
+  });
+
+  it("keeps the session encrypted on the phone, and moves the old plain one in without signing anybody out", () => {
+    const jar = read(SRC + "core/net/EncryptedCookieJar.kt");
+    expect(jar).toContain("EncryptedSharedPreferences.create(");
+    expect(jar).toContain('LEGACY_FILE = "zaki-cookies"');
+    expect(jar).toContain("context.deleteSharedPreferences(LEGACY_FILE)");
+    // no other file keeps a cookie or the session in plain prefs
+    for (const f of kotlinFiles("android/app/src/main/java")) {
+      if (f.endsWith("EncryptedCookieJar.kt")) continue;
+      expect(read(f), f).not.toMatch(/getSharedPreferences\("zaki-cookies"/);
+    }
+  });
+
+  it("is a real app: a live line, a call screen, and every write carries the site's own origin", () => {
     const manifest = read("android/app/src/main/AndroidManifest.xml");
-    for (const name of [".StreamService", ".CallActivity", ".BootReceiver", ".DeclineReceiver"]) expect(manifest, name).toContain(`android:name="${name}"`);
+    for (const name of [".StreamService", ".CallActivity", ".BootReceiver", ".DeclineReceiver", ".ZakiApplication"]) expect(manifest, name).toContain(`android:name="${name}"`);
     expect(manifest).toContain('android:foregroundServiceType="remoteMessaging"');
-    const dir = "android/app/src/main/java/io/zakiai/workspace/";
-    for (const f of ["MainActivity.kt", "LoginScreen.kt", "ChatScreens.kt", "OtherScreens.kt", "Api.kt", "WebHost.kt"]) expect(existsSync(join(process.cwd(), dir + f)), f).toBe(true);
-    // the app's own web view keeps every address that is not the site out of its window
-    expect(read(dir + "WebHost.kt")).toContain("Config.BASE");
-    const config = read(dir + "Config.java");
+    const config = read(SRC + "Config.java");
     expect(config).toContain('path.startsWith("//")');
-    const service = read(dir + "StreamService.java");
+    const service = read(SRC + "StreamService.java");
     expect(service).toContain("/api/device/stream");
     expect(service).toContain("Authorization");
-    // writes carry the site's own origin, as the website's pages do (the server's origin guard)
-    expect(read(dir + "Api.kt")).toContain('.header("Origin", Config.BASE)');
+    const net = read(SRC + "core/net/NetworkModule.kt");
+    expect(net).toContain('.header("Origin", origin())');
+    expect(net).toContain("fun origin(): String = Config.BASE");
   });
 
-  it("stays smooth: answers are parsed off the screen's thread, typing redraws only the box, and a web page exists only while it is open", () => {
-    const dir = "android/app/src/main/java/io/zakiai/workspace/";
-    const api = read(dir + "Api.kt");
-    expect(api).toContain("withContext(Dispatchers.Default) { json.decodeFromString<T>(text) }");
-    // no answer is decoded anywhere else (that would put the parsing back on the screen's thread)
-    expect(api.match(/json.decodeFromString/g)).toHaveLength(1);
-    const chat = read(dir + "ChatScreens.kt");
-    expect(chat).toContain("private fun Composer(");
-    expect(chat).not.toContain("imePadding()");
-    expect(read(dir + "Models.kt").match(/@Immutable/g)?.length).toBeGreaterThanOrEqual(10);
-    // three tabs only; the web view is made by MainActivity.webHost() on demand and destroyed on release
-    expect(read(dir + "AppState.kt")).toContain("enum class Tab { CHAT, NOTES, MORE }");
-    const main = read(dir + "MainActivity.kt");
-    expect(main).toContain("private fun webHost(): WebHost =");
-    expect(main).toContain("web?.destroy()");
-    expect(main).not.toContain("web = WebHost(");
+  it("is native: one activity of Compose screens; the site's page survives only in the marked, temporary bridge", () => {
+    for (const f of ["MainActivity.kt", "ZakiApplication.kt", "ui/Root.kt", "feature/shell/Shell.kt", "feature/chat/ChatScreens.kt", "feature/auth/Auth.kt", "feature/settings/Settings.kt", "core/db/Db.kt", "core/sync/Workers.kt", "core/crash/Crash.kt"]) {
+      expect(existsSync(join(process.cwd(), SRC + f)), f).toBe(true);
+    }
+    const withWebView = kotlinFiles("android/app/src/main/java").filter((f) => /\bWebView\(/.test(read(f)));
+    expect(withWebView).toEqual([`${SRC}feature/web/WebBridge.kt`]);
+    const bridge = read(SRC + "feature/web/WebBridge.kt");
+    expect(bridge).toContain("⚠️ TEMPORARY");
+    expect(bridge).toContain("🔧");
+    expect(bridge).toContain("uri.host == Uri.parse(Config.BASE).host");
+    // the page says so on screen, the warning and its fix together
+    expect(bridge).toContain("WarnFix(T.webWarn, T.webFix)");
   });
 
-  it("has its icons, and its colour is the site's theme colour", () => {
+  it("sends a message through the outbox with the server's idempotency key, so a retry never doubles it, and only in its writer's name", () => {
+    const workers = read(SRC + "core/sync/Workers.kt");
+    // the write runs on the application's scope (leaving the screen never loses it), with the clientId the server honours
+    expect(workers).toContain("SendBody(body, clientId)");
+    expect(workers).toContain("ownerId = user.id.orEmpty()");
+    // a new message never waits behind an old run's retry delay
+    expect(workers).toContain("ExistingWorkPolicy.REPLACE");
+    // rows another person wrote on this phone are dropped, never sent
+    expect(workers).toContain("outbox.dropOthers(me)");
+    expect(read(SRC + "feature/chat/ChatViewModels.kt")).toContain("outbox.sendChat(id, body)");
+    const db = read(SRC + "core/db/Db.kt");
+    expect(db).toContain("@PrimaryKey val clientId: String");
+    expect(db).toContain("val sentAt: Long? = null");
+  });
+
+  it("an expired session keeps the person's own unsent messages; signing out on purpose removes them", () => {
+    const session = read(SRC + "core/Session.kt");
+    expect(session).toContain("wipe(failure.message, keepOutbox = true)");
+    expect(session).toContain("wipe(null, keepOutbox = false)");
+    // an answer still on its way never refills the cache after a sign-out
+    expect(session).toContain("cache.bump()");
+    expect(read(SRC + "core/Cache.kt")).toContain("if (startedIn == generation)");
+  });
+
+  it("a crash report never carries an exception's message (it can hold what the person typed)", () => {
+    const crash = read(SRC + "core/crash/Crash.kt");
+    expect(crash).toContain("SafeTrace.headline(error, thread.name), SafeTrace.stack(error)");
+    expect(crash).not.toMatch(/error\.message/);
+    expect(crash).not.toContain("stackTraceToString()");
+  });
+
+  it("has its icons, its colour is the site's theme colour, and its release is shrunk", () => {
     for (const d of ["mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi"]) expect(existsSync(join(process.cwd(), `android/app/src/main/res/${d}/ic_launcher.png`)), d).toBe(true);
-    const colors = read("android/app/src/main/res/values/colors.xml");
-    expect(colors).toContain("#050F1F");
+    expect(read("android/app/src/main/res/values/colors.xml")).toContain("#050F1F");
+    expect(read(GRADLE)).toMatch(/release \{[\s\S]*?isMinifyEnabled = true/);
   });
 
-  it("is built by its own workflow and publishes only from main", () => {
+  it("is built and unit-tested by its own workflow and publishes only from main", () => {
     const wf = read(".github/workflows/android.yml");
-    expect(wf).toContain("gradle -p android assembleRelease");
+    expect(wf).toContain("gradle -p android testStagingDebugUnitTest assembleProdRelease");
+    expect(wf).toContain("android/app/build/outputs/apk/prod/release/app-prod-release.apk");
     expect(wf).toContain("if: github.ref == 'refs/heads/main'");
     expect(wf).toContain("android-latest");
     // the key lives in the gradle file and the repository, never in the workflow, and no private key is pasted anywhere as text
@@ -88,13 +155,12 @@ describe("the Android app (native: Kotlin + Compose)", () => {
     expect(read("docs/ANDROID.md")).toContain("android-latest");
   });
 
-  it("signs every build with ONE fixed key and the site proves it owns the app (so Chrome hides its bar)", () => {
-    // the key itself is never in git: the workflow writes it from a repository secret
+  it("signs every build with ONE fixed key and the site proves it owns the app", () => {
     expect(existsSync(join(process.cwd(), "android/zaki.p12"))).toBe(false);
     expect(read(".gitignore")).toContain("android/zaki.p12");
     expect(read(".github/workflows/android.yml")).toContain("secrets.ANDROID_KEYSTORE_B64");
-    const gradle = read("android/app/build.gradle");
-    expect(gradle).toContain("signingConfigs.zaki");
+    const gradle = read(GRADLE);
+    expect(gradle).toContain('signingConfigs.getByName("zaki")');
     const links = JSON.parse(read("public/.well-known/assetlinks.json"));
     expect(links).toHaveLength(1);
     expect(links[0].relation).toEqual(["delegate_permission/common.handle_all_urls"]);
@@ -106,12 +172,13 @@ describe("the Android app (native: Kotlin + Compose)", () => {
 
   it("never builds a debug-signed APK over the real one: a key file without both passwords stops the workflow, and the passwords come from the environment", () => {
     const flow = read(".github/workflows/android.yml");
-    const keyStep = flow.slice(flow.indexOf("Put the signing key in place"), flow.indexOf("Build the signed APK"));
+    const keyStep = flow.slice(flow.indexOf("Put the signing key in place"), flow.indexOf("Build and test"));
     expect(keyStep).toContain("secrets.ANDROID_KEYSTORE_PASSWORD");
     expect(keyStep).toContain("secrets.ANDROID_KEY_PASSWORD");
     expect(keyStep).toMatch(/-z "\$KEYSTORE_PASSWORD"[\s\S]*exit 1/);
-    const gradle = read("android/app/build.gradle");
-    expect(gradle).toContain("System.getenv('ANDROID_KEYSTORE_PASSWORD')");
-    expect(gradle).toContain("System.getenv('ANDROID_KEY_PASSWORD')");
+    const gradle = read(GRADLE);
+    expect(gradle).toContain('System.getenv("ANDROID_KEYSTORE_PASSWORD")');
+    expect(gradle).toContain('System.getenv("ANDROID_KEY_PASSWORD")');
+    expect(gradle).not.toMatch(/(store|key)Password = "/);
   });
 });

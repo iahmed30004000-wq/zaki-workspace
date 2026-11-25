@@ -35,8 +35,8 @@ jobs:
       - name: Accept the Android SDK licences
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
 
-      - name: Build the debug APK
-        run: gradle -p android assembleDebug --no-daemon --stacktrace
+      - name: Build the debug APK (the real site's flavor)
+        run: gradle -p android assembleProdDebug --no-daemon --stacktrace
 
       - name: Enable KVM
         run: |

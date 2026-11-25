@@ -27,7 +27,7 @@ public class StreamService extends Service {
     private volatile HttpURLConnection connection;
     private Thread thread;
 
-    static void start(Context c) {
+    public static void start(Context c) {
         if (Config.token(c).isEmpty()) return;
         try {
             c.startForegroundService(new Intent(c, StreamService.class));
