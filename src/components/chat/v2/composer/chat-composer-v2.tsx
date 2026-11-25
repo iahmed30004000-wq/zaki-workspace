@@ -5,6 +5,7 @@ import { PollDialog } from "@/components/chat/composer/poll-dialog";
 import { RecallDialog } from "@/components/chat/composer/recall-dialog";
 import { FeedbackDialog } from "@/components/chat/v2/feedback/feedback-dialog";
 import { ComposerSurface } from "@/components/chat/v2/composer/composer-surface";
+import { BotFatherBar } from "@/components/chat/v2/composer/botfather-bar";
 import { DropOverlay } from "@/components/chat/v2/composer/drop-overlay";
 import { PasteSendDialog } from "@/components/chat/v2/composer/paste-dialog";
 import { loadRecentEmoji, rememberEmoji } from "@/lib/chat/v2/composer/recent-emoji";
@@ -26,6 +27,7 @@ export function ChatComposerV2(props: ComposerParams) {
   const recording = c.voice.mode !== "idle";
   return (
     <>
+      {detail.botFather && !editing ? <BotFatherBar text={c.body} started={detail.botFather.started} busy={c.busy} onSend={c.sendText} onType={c.onTextChange} /> : null}
       <ComposerSurface
         c={c}
         me={detail.me}

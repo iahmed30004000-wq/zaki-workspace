@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
+import { assertBotsMayJoin } from "@/server/chat/bot-membership";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { canModerate, isSpaceAdmin, loadOrgFacts } from "@/server/policy/conversation";
 import { emitRealtime } from "@/server/realtime/emit";
@@ -121,9 +122,10 @@ function peopleOf(named: readonly string[] | undefined, actorId: string): string
 
 /** Restricts every topic of the group to exactly these people (the one door of «من يقدر يقرأ»). */
 async function restrictTopics(tx: Prisma.TransactionClient, groupId: string, people: readonly string[]): Promise<void> {
-  const topics = await tx.conversation.findMany({ where: { groupId }, select: { id: true } });
+  const topics = await tx.conversation.findMany({ where: { groupId }, select: { id: true, orgId: true } });
   const ids = topics.map((t) => t.id);
   if (!ids.length) return;
+  await assertBotsMayJoin(tx, topics[0]!.orgId, people, ids);
   await tx.conversation.updateMany({ where: { id: { in: ids } }, data: { restricted: true } });
   await tx.conversationMember.deleteMany({ where: { conversationId: { in: ids }, userId: { notIn: [...people] } } });
   await tx.conversationMember.createMany({ data: ids.flatMap((conversationId) => people.map((userId) => ({ conversationId, userId }))), skipDuplicates: true });
@@ -237,6 +239,8 @@ export async function resolvePlacement(ctx: OrgAccessContext, spaceId: string, g
 export async function applyPlacement(tx: Prisma.TransactionClient, conversationId: string, placement: Placement): Promise<void> {
   await tx.conversation.update({ where: { id: conversationId }, data: { groupId: placement.groupId, ...(placement.restrictTo ? { restricted: true } : {}) } });
   if (placement.restrictTo) {
+    const topic = await tx.conversation.findUniqueOrThrow({ where: { id: conversationId }, select: { orgId: true } });
+    await assertBotsMayJoin(tx, topic.orgId, placement.restrictTo, [conversationId]);
     await tx.conversationMember.deleteMany({ where: { conversationId, userId: { notIn: placement.restrictTo } } });
     await tx.conversationMember.createMany({ data: placement.restrictTo.map((userId) => ({ conversationId, userId })), skipDuplicates: true });
   }

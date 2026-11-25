@@ -7,6 +7,8 @@ import { Hash, Megaphone, MessageSquare, UserRound } from "lucide-react";
 import type { ChatHitDto, ChatListSearchDto, PersonHitDto } from "@/server/chat/search";
 import type { MessageHitDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
+import { BotFatherFound } from "@/components/chat/botfather-find";
+import { asksForBotFather } from "@/lib/chat/botfather";
 import { ct } from "@/lib/chat/text";
 import { chatHitHref, hasListResults, messageHitHref, personHitHref, personOpensChat } from "@/lib/chat/v2/info/list-search";
 import { useListSearch } from "@/lib/chat/v2/info/use-list-search";
@@ -163,10 +165,14 @@ export function ListSearchPanel({ query, onPick }: { query: string; onPick: () =
       </div>
     );
   }
-  if (!data || !hasListResults(data)) return null;
+  const results = data && hasListResults(data) ? data : null;
+  const botFather = asksForBotFather(query);
+  if (!results && !botFather) return null;
   return (
-    <div data-list-search-panel role="region" aria-label={ct("chatls.panel")} className="absolute inset-x-0 top-full z-20 max-h-[70vh] overflow-y-auto overscroll-contain border-b border-border bg-surface shadow-lg">
-      <ListSearchResults data={data} onPick={onPick} />
+    // `empty:hidden`: while «بوت فاذر» is being asked about (or is not offered to me) and nothing else was found, there is no panel
+    <div data-list-search-panel role="region" aria-label={ct("chatls.panel")} className="absolute inset-x-0 top-full z-20 max-h-[70vh] overflow-y-auto overscroll-contain border-b border-border bg-surface shadow-lg empty:hidden">
+      {botFather ? <BotFatherFound onPick={onPick} /> : null}
+      {results ? <ListSearchResults data={results} onPick={onPick} /> : null}
     </div>
   );
 }

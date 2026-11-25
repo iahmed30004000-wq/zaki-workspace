@@ -350,6 +350,8 @@ export interface ConversationDto {
     problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }>;
     id?: string;
   };
+  /** MY chat with «بوت فاذر» (absent anywhere else): the «ابدأ» button, the «/» menu and the check mark; `started`: something was written here already */
+  botFather?: { started: boolean };
   /** the pinned messages, newest first (the bar on top of the conversation) */
   pinnedMessages?: { id: string; authorName: string; preview: string | null }[];
   members?: MemberDto[];
