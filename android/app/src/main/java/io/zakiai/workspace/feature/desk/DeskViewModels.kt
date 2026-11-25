@@ -17,6 +17,7 @@ import io.zakiai.workspace.core.net.NewIdeaBody
 import io.zakiai.workspace.core.net.WorkspaceApi
 import io.zakiai.workspace.core.net.apiCall
 import io.zakiai.workspace.feature.work.Screen
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -40,10 +41,23 @@ abstract class DeskViewModel<T>(protected val session: Session) : ViewModel() {
         }
     }
 
+    private val _busy = MutableStateFlow(false)
+    /** an action is on its way: its buttons wait (a double tap never sends a decision twice) */
+    val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
     protected suspend fun act(call: suspend () -> Any, then: () -> Unit) {
-        when (val r = apiCall { call() }) {
-            is ApiResult.Ok -> then()
-            is ApiResult.Err -> _notice.value = r.failure.message
+        if (_busy.value) return
+        _busy.value = true
+        try {
+            when (val r = apiCall { call() }) {
+                is ApiResult.Ok -> then()
+                is ApiResult.Err -> {
+                    if (r.failure.signedOut) session.expired(r.failure)
+                    _notice.value = r.failure.message
+                }
+            }
+        } finally {
+            _busy.value = false
         }
     }
 
@@ -60,7 +74,10 @@ class OpenerViewModel @Inject constructor(val opener: io.zakiai.workspace.featur
 @HiltViewModel
 class IdeasViewModel @Inject constructor(private val api: WorkspaceApi, session: Session) : DeskViewModel<IdeasAnswer>(session) {
     fun refresh() = viewModelScope.launch { load { api.ideas() } }
-    fun add(title: String, description: String?) = viewModelScope.launch { act({ api.newIdea(NewIdeaBody(title.trim(), description?.trim()?.ifBlank { null })) }) { refresh() } }
+    /** the form closes only once the idea is saved: a refusal keeps what was typed */
+    fun add(title: String, description: String?, done: () -> Unit) = viewModelScope.launch {
+        act({ api.newIdea(NewIdeaBody(title.trim(), description?.trim()?.ifBlank { null })) }) { done(); refresh() }
+    }
     fun vote(id: String) = viewModelScope.launch {
         // drawn at once, the site's answer then read again
         _state.value.data?.let { d ->
@@ -76,30 +93,58 @@ class IdeasViewModel @Inject constructor(private val api: WorkspaceApi, session:
 class CheckinsViewModel @Inject constructor(private val api: WorkspaceApi, session: Session) : DeskViewModel<CheckinToday>(session) {
     private var space: String? = null
     fun refresh(spaceId: String?) = viewModelScope.launch { space = spaceId; load { api.checkinToday(spaceId) } }
-    fun answer(answers: List<String>) = viewModelScope.launch { act({ api.checkinAnswer(CheckinAnswerBody(space, answers)) }) { refresh(space) } }
+    /** the tasks attached on the site go back untouched (the phone does not attach any yet): an edit never drops them */
+    fun answer(answers: List<String>, taskIds: List<String>) = viewModelScope.launch {
+        if (answers.none { it.isNotBlank() }) { say(D.answerEmpty); return@launch }
+        act({ api.checkinAnswer(CheckinAnswerBody(space, answers, taskIds)) }) { refresh(space) }
+    }
     fun excuse(on: Boolean) = viewModelScope.launch { act({ api.checkinExcuse(CheckinExcuseBody(space, on)) }) { refresh(space) } }
 }
 
 /** «الموافقات» (`GET /api/approvals?view=`, the space the person is in): «طلباتي», «بانتظاري», and «كل الطلبات» while the site allows it. */
 @HiltViewModel
 class ApprovalsViewModel @Inject constructor(private val api: WorkspaceApi, session: Session) : DeskViewModel<ApprovalsAnswer>(session) {
-    private val _allowAll = MutableStateFlow(true)
-    /** «كل الطلبات» is offered until the site refuses it (owner and space managers only) */
-    val allowAll: StateFlow<Boolean> = _allowAll.asStateFlow()
+    private val _allowAll = MutableStateFlow<Boolean?>(null)
+    /**
+     * «كل الطلبات» (the owner and space managers only, approvals/page.tsx `canAll`): null until known. The phone does not know who manages a
+     * space, so it asks the site once (`view=all`, a read that leaves no trace) and offers the pill only when the site answers.
+     */
+    val allowAll: StateFlow<Boolean?> = _allowAll.asStateFlow()
     private val _waiting = MutableStateFlow(0)
     val waiting: StateFlow<Int> = _waiting.asStateFlow()
+    private var job: Job? = null
+    private var shown: String? = null
 
-    fun refresh(view: String, spaceId: String?) = viewModelScope.launch {
-        when (val r = apiCall { api.approvals(view, spaceId) }) {
-            is ApiResult.Ok -> { _state.value = Screen(r.value); if (view == "waiting") _waiting.value = r.value.approvals.size }
-            is ApiResult.Err -> {
-                if (r.failure.signedOut) session.expired(r.failure)
-                if (view == "all" && r.failure.status == 403) _allowAll.value = false
-                _state.value = _state.value.copy(failure = r.failure, closed = r.failure.status == 404)
+    /**
+     * One view's list. [narrowTo] is the site's `narrowTo`: the space the person is in, or null inside «الشركة» (every space); «كل الطلبات» is
+     * never narrowed. A newer call cancels the older one, and another view starts empty, so a slow answer never lands under the wrong pill.
+     */
+    fun refresh(view: String, narrowTo: String?) {
+        job?.cancel()
+        if (shown != view) { shown = view; _state.value = Screen() }
+        job = viewModelScope.launch {
+            val all = view == "all"
+            if (!all && _allowAll.value == null) {
+                when (val p = apiCall { api.approvals("all", null) }) {
+                    is ApiResult.Ok -> _allowAll.value = true
+                    is ApiResult.Err -> if (p.failure.status == 403) _allowAll.value = false
+                }
             }
+            when (val r = apiCall { api.approvals(view, if (all) null else narrowTo) }) {
+                is ApiResult.Ok -> {
+                    _state.value = Screen(r.value)
+                    if (all) _allowAll.value = true
+                    if (view == "waiting") _waiting.value = r.value.approvals.size
+                }
+                is ApiResult.Err -> {
+                    if (r.failure.signedOut) session.expired(r.failure)
+                    if (all && r.failure.status == 403) _allowAll.value = false
+                    _state.value = _state.value.copy(failure = r.failure, closed = r.failure.status == 404)
+                }
+            }
+            // the badge of «بانتظاري» (the site's waitingCount, narrowed the same way), read from that list
+            if (view != "waiting") (apiCall { api.approvals("waiting", narrowTo) } as? ApiResult.Ok)?.let { _waiting.value = it.value.approvals.size }
         }
-        // the badge of «بانتظاري» (the site's waitingCount), read from that list
-        if (view != "waiting") (apiCall { api.approvals("waiting", spaceId) } as? ApiResult.Ok)?.let { _waiting.value = it.value.approvals.size }
     }
 }
 
@@ -110,6 +155,7 @@ class ApprovalViewModel @Inject constructor(private val api: WorkspaceApi, sessi
     fun refresh() = viewModelScope.launch { load { api.approval(id).approval } }
     /** «وافق» / «اطلب تعديل» / «ارفض»: a refusal and a change need a reason (the site says so if missing). */
     fun decide(decision: String, reason: String?) = viewModelScope.launch {
+        D.reasonProblem(decision, reason.orEmpty())?.let { say(it); return@launch }
         act({ api.decideApproval(id, DecideBody(decision, reason?.trim()?.ifBlank { null })) }) { refresh() }
     }
     fun cancel() = viewModelScope.launch { act({ api.cancelApproval(id) }) { refresh() } }

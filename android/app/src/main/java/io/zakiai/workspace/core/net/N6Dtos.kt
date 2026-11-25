@@ -25,6 +25,7 @@ data class Idea(
     val creatorJobTitle: String? = null,
     val voteCount: Int = 0,
     val votedByMe: Boolean = false,
+    val workspaceId: String? = null,
     val spaceName: String? = null,
     val shared: Boolean = false,
 )
@@ -49,6 +50,8 @@ data class CheckinMe(
     val answered: Boolean = false,
     val excused: Boolean = false,
     val answers: List<String> = emptyList(),
+    /** the tasks attached on the site: sent back untouched with an edit, or the server would drop them */
+    val taskIds: List<String> = emptyList(),
     val canEdit: Boolean = false,
 )
 
@@ -73,7 +76,7 @@ data class CheckinToday(
 )
 
 @Serializable
-data class CheckinAnswerBody(val workspaceId: String? = null, val answers: List<String>)
+data class CheckinAnswerBody(val workspaceId: String? = null, val answers: List<String>, val taskIds: List<String> = emptyList())
 
 @Serializable
 data class CheckinExcuseBody(val workspaceId: String? = null, val on: Boolean)

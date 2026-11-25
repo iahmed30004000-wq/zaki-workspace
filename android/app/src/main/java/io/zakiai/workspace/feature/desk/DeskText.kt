@@ -11,7 +11,22 @@ object D {
     const val shared = "مشتركة مع الشركة"
     const val converted = "تحوّلت لمهمة"
     const val vote = "تصويت"
-    val IDEA_FILTERS = listOf("ALL" to "الكل", "NEW" to "جديدة", "UNDER_REVIEW" to "تحت المراجعة", "PLANNING" to "بالتخطيط", "LAUNCHED" to "انطلقت", "REJECTED" to "مرفوضة", "MINE" to "أفكاري")
+    val IDEA_FILTERS = listOf("ALL" to "الكل", "NEW" to "جديدة", "UNDER_REVIEW" to "تحت المراجعة", "PLANNING" to "بالتخطيط", "LAUNCHED" to "انطلقت", "REJECTED" to "مرفوضة", "SHARED" to "المشتركة مع الشركة", "MINE" to "أفكاري")
+    /** ideas.from_space: in «الشركة», a shared idea says which space it comes from */
+    fun fromSpace(space: String) = "من $space"
+
+    /**
+     * The line under an idea, the site's rule (ideas-view.tsx): in «الشركة» a shared idea of ANOTHER space says where it comes from; outside
+     * «الشركة» a shared idea says «مشتركة مع الشركة»; nothing else names the space. Pure (tested).
+     */
+    fun ideaLine(creator: String, job: String?, shared: Boolean, spaceName: String?, ideaSpace: String?, isHq: Boolean, here: String?, converted: Boolean): String =
+        listOfNotNull(
+            creator.ifBlank { null },
+            job?.ifBlank { null },
+            if (isHq && shared && !spaceName.isNullOrBlank() && ideaSpace != here) fromSpace(spaceName) else null,
+            if (shared && !isHq) D.shared else null,
+            if (converted) D.converted else null,
+        ).joinToString(" · ")
     fun ideaStatus(s: String) = when (s) {
         "UNDER_REVIEW" -> "تحت المراجعة"
         "ACCEPTED" -> "معتمدة"
@@ -24,11 +39,34 @@ object D {
     // check-ins (checkins.*)
     const val checkins = "التسجيل اليومي"
     const val checkinsOff = "التسجيل اليومي غير مفعّل في هذه المساحة."
-    fun waiting(time: String) = "تُفتح جولة اليوم في الساعة $time."
+    const val checkinsOffTitle = "التسجيل اليومي غير مفعّل في هذه المساحة."
+    private val WEEKDAYS_LONG = listOf("الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت")
+    /** «الأحد، الاثنين، …» (src/lib/checkins-client.ts weekdaysLabel; 0 = الأحد) */
+    fun weekdaysLabel(days: List<Int>) = days.sorted().joinToString("، ") { WEEKDAYS_LONG[((it % 7) + 7) % 7] }
+
+    /** The day of the week of a company day `YYYY-MM-DD`, 0 = الأحد as the site counts; null when unreadable. */
+    fun weekdayOf(day: String): Int? = runCatching { java.time.LocalDate.parse(day).dayOfWeek.value % 7 }.getOrNull()
+
+    /**
+     * Before today's round opens (checkins-view.tsx): no schedule → off; a check-in day → «تُفتح جولة اليوم في الساعة X (الأيام)»; any other day →
+     * «ليس اليوم يوم تسجيل». Pure (tested).
+     */
+    fun waitingLine(day: String, timeOfDay: String?, weekdays: List<Int>?): String {
+        if (timeOfDay == null || weekdays == null) return checkinsOffTitle
+        val days = weekdaysLabel(weekdays)
+        val working = weekdayOf(day)?.let { it in weekdays } ?: true
+        return if (working) "تُفتح جولة اليوم في الساعة $timeOfDay ($days)." else "ليس اليوم يوم تسجيل في هذه المساحة. الأيام: $days."
+    }
+    const val notParticipant = "لست ضمن المشاركين في جولة اليوم."
+    const val roundClosed = "أُغلقت جولة هذا اليوم، ولم يعد التسجيل ممكنًا."
+    const val excusedOn = "أنت في إجازة اليوم، ولا يُحتسب غيابك."
+    const val answerEmpty = "اكتب جوابًا واحدًا على الأقل."
     const val submit = "إرسال التسجيل"
     const val update = "حفظ التعديل"
     const val excuse = "إجازة اليوم"
     const val unexcuse = "إلغاء الإجازة"
+    const val checkinsSiteWarn = "⚠️ سجلّ الأيام السابقة وإعدادات التسجيل وربط المهام بالجواب لسا مش بالتطبيق."
+    const val checkinsSiteFix = "🔧 افتحهم من صفحة الموقع."
     const val teamLocked = "تظهر أجوبة زملائك بعد أن ترسل جوابك أنت."
     fun rosterStatus(s: String) = when (s) {
         "answered" -> "سجّل"
@@ -42,6 +80,8 @@ object D {
     const val viewMine = "طلباتي"
     const val viewWaiting = "بانتظاري"
     const val viewAll = "كل الطلبات"
+    /** `?v=` of a link (src/lib/approvals/shared.ts viewOf): waiting · all · anything else is «طلباتي», as on the site. Pure (tested). */
+    fun viewOf(v: String?): String = when (v) { "waiting", "all" -> v; else -> "mine" }
     const val emptyMine = "ما طلبت أي موافقة بعد"
     const val emptyWaiting = "ما في شي بانتظارك"
     const val emptyAll = "ما في طلبات بعد"
@@ -49,6 +89,24 @@ object D {
     fun waitingOn(name: String) = "بانتظار $name"
     fun version(n: Int) = "النسخة $n"
     const val amountHidden = "المبلغ مخفي عنك"
+    const val amountHiddenFix = "🔧 المبلغ بيظهر لمن عنده «رؤية الأسعار» أو «بطاقة الصندوق». اطلب من المالك يمنحك وحدة منهم."
+    const val oversight = "أنت بتقرأ هذا الطلب كإشراف فقط، وما بتقدر تقرر فيه لأنك مش المعتمد المسمّى."
+    const val allDenied = "قائمة كل الطلبات للمالك ولمديري المساحات فقط."
+    const val reasonRequired = "اكتب سبب الرفض."
+    const val changesRequired = "اكتب ما المطلوب تعديله."
+    const val newRequest = "طلب موافقة"
+    const val openSite = "افتح على الموقع"
+    const val approvalsSiteWarn = "⚠️ طلب موافقة جديد والنماذج لسا مش بالتطبيق."
+    const val resubmitWarn = "⚠️ تعديل الطلب وإعادة إرساله لسا مش بالتطبيق."
+    const val siteFix = "🔧 افتحه من صفحة الموقع."
+
+    /** «ارفض» needs a reason, «اطلب تعديل» what to change (the site's reasonProblem); null when the decision may go. Pure (tested). */
+    fun reasonProblem(decision: String, reason: String): String? = when {
+        reason.isNotBlank() -> null
+        decision == "REJECT" -> reasonRequired
+        decision == "CHANGES" -> changesRequired
+        else -> null
+    }
     const val moneyNote = "⚠️ الموافقة هون قرار مسجّل بس: التطبيق ما بيحوّل ولا بيصرف أي مبلغ."
     const val moneyFix = "🔧 الصرف بيتم خارج هالصفحة بعد القرار، ومن شخص مسؤول عن الدفع."
     const val decisionTitle = "قرارك"

@@ -25,7 +25,7 @@ sealed interface Destination {
     /** a call, native (M2 N5): the site's LiveKit room joined from the phone */
     data class Call(val id: String) : Destination
     /** a tab of «الشغل» (M2 N6): ideas · approvals · checkins */
-    data class Work(val tab: String) : Destination
+    data class Work(val tab: String, val view: String? = null) : Destination
     data class Approval(val id: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
@@ -90,7 +90,12 @@ object Links {
             "/goals" -> Destination.Goals
             "/files", "/documents", "/knowledge" -> Destination.Library
             "/ideas" -> Destination.Work("ideas")
-            "/approvals" -> Destination.Work("approvals")
+            // a new request and a form («?new=1», «?fill=») are still the site's page; «?v=» picks the tab, as on the site
+            "/approvals" -> {
+                val q = path.substringAfter('?', "").split("&")
+                if (q.any { it.startsWith("new=") || it.startsWith("fill=") || it.startsWith("link=") }) Destination.Site(path)
+                else Destination.Work("approvals", q.firstOrNull { it.startsWith("v=") }?.removePrefix("v="))
+            }
             "/checkins" -> Destination.Work("checkins")
             else -> Destination.Site(path)
         }

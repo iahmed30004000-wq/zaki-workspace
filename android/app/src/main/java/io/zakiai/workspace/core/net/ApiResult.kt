@@ -86,5 +86,28 @@ object Sentences {
         "password.letter" to "كلمة المرور لازم تكون فيها حرف إنجليزي واحد على الأقل.",
         "password.digit" to "كلمة المرور لازم تكون فيها رقم واحد على الأقل.",
         "client_errors.too_many" to "وصل تطبيق الجوال تقارير أعطال كتير هالساعة. رح يبعت الباقي بعدين.",
+        // «الموافقات» (ar.approvals.json)
+        "approvals.e.all_denied" to "قائمة كل الطلبات للمالك ولمديري المساحات فقط.",
+        "approvals.e.already_decided" to "تم اتخاذ قرار في هذه الخطوة من قبل.",
+        "approvals.e.not_approver" to "لست أحد المعتمدين المسمَّين على هذا الطلب.",
+        "approvals.e.not_cancellable" to "لا يمكن إلغاء هذا الطلب في حالته الحالية.",
+        "approvals.e.not_pending" to "لم يعد الطلب بانتظار القرار.",
+        "approvals.e.not_your_turn" to "لم يصل دورك بعد: ينتظر الطلب معتمدًا قبلك.",
+        "approvals.e.reason_long" to "السبب أطول من الحد المسموح (1000 حرف).",
+        "approvals.e.reason_required" to "اكتب سبب الرفض.",
+        "approvals.e.changes_required" to "اكتب ما المطلوب تعديله.",
+        "approvals.e.requester_only" to "هذا الإجراء لصاحب الطلب وحده.",
+        "approvals.e.space_archived" to "هذه المساحة مؤرشفة.",
+        // «التسجيل اليومي» (ar.checkins.json)
+        "checkins.e.guest_denied" to "هذه الميزة غير متاحة للشركاء الخارجيين.",
+        "checkins.e.no_round" to "لم تُفتح جولة هذا اليوم بعد.",
+        "checkins.e.closed" to "أُغلقت جولة هذا اليوم، ولم يعد التسجيل ممكنًا.",
+        "checkins.e.not_participant" to "لست من المشاركين في جولة هذا اليوم.",
+        "checkins.e.answer_long" to "يجب ألا يتجاوز الجواب الواحد 1000 حرف.",
+        "checkins.e.answer_empty" to "اكتب جوابًا واحدًا على الأقل.",
+        "checkins.e.answer_count" to "عدد الأجوبة لا يطابق عدد الأسئلة.",
+        "checkins.e.tasks_invalid" to "إحدى المهام المختارة غير متاحة لك أو لم تعد مفتوحة.",
+        "checkins.e.already_answered" to "أرسلت جوابك اليوم، فلا يمكن اعتبارك في إجازة.",
+        "checkins.e.failed" to "تعذّر تنفيذ الطلب. حاول مرة أخرى.",
     )
 }

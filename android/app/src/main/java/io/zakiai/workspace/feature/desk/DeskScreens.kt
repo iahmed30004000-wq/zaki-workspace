@@ -37,7 +37,6 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -88,6 +87,15 @@ private fun Chip(label: String, on: Boolean, onClick: () -> Unit) {
     )
 }
 
+/** A part the phone does not hold yet, marked (⚠️ with its 🔧) with the way to the site's own page. */
+@Composable
+private fun SiteLine(warn: String, fix: String, onOpen: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp))) {
+        WarnFix(warn, fix)
+        TextButton(onClick = onOpen, modifier = Modifier.padding(horizontal = 4.dp)) { Text(D.openSite, color = Zk.colors.accent, fontWeight = FontWeight.SemiBold) }
+    }
+}
+
 // ── «الأفكار» ─────────────────────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -95,9 +103,10 @@ private fun Chip(label: String, on: Boolean, onClick: () -> Unit) {
  * voted), the title, the description, who and where, the status pill; «إضافة فكرة» is the round button.
  */
 @Composable
-fun IdeasScreen(spaceKey: String?, meId: String?, vm: IdeasViewModel = hiltViewModel()) {
+fun IdeasScreen(spaceKey: String?, meId: String?, isHq: Boolean = false, vm: IdeasViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
     WhileOnScreen(60_000, spaceKey) { vm.refresh() }
     val snack = remember { SnackbarHostState() }
     Notices(notice, vm::consumeNotice, snack)
@@ -112,7 +121,7 @@ fun IdeasScreen(spaceKey: String?, meId: String?, vm: IdeasViewModel = hiltViewM
             data == null -> Failure(state.failure!!.message, onRetry = { vm.refresh() })
             else -> {
                 val shown = data.ideas.filter { i ->
-                    when (filter) { "ALL" -> true; "MINE" -> i.creatorId == me; else -> i.status == filter }
+                    when (filter) { "ALL" -> true; "MINE" -> i.creatorId == me; "SHARED" -> i.shared; else -> i.status == filter }
                 }
                 Column(Modifier.fillMaxSize()) {
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -120,7 +129,7 @@ fun IdeasScreen(spaceKey: String?, meId: String?, vm: IdeasViewModel = hiltViewM
                     }
                     if (shown.isEmpty()) QuietEmpty(D.ideasEmpty, "")
                     else LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 112.dp)) {
-                        items(shown, key = { it.id }) { IdeaCard(it) { vm.vote(it.id) } }
+                        items(shown, key = { it.id }) { IdeaCard(it, isHq, spaceKey) { vm.vote(it.id) } }
                     }
                 }
             }
@@ -142,7 +151,7 @@ fun IdeasScreen(spaceKey: String?, meId: String?, vm: IdeasViewModel = hiltViewM
                 }
             },
             // the site's rule: three letters at least
-            confirmButton = { TextButton(enabled = title.trim().length >= 3, onClick = { adding = false; vm.add(title, desc) }) { Text(D.addIdea) } },
+            confirmButton = { TextButton(enabled = title.trim().length >= 3 && !busy, onClick = { vm.add(title, desc) { adding = false } }) { Text(D.addIdea) } },
             dismissButton = { TextButton(onClick = { adding = false }) { Text(io.zakiai.workspace.feature.projects.P.cancel) } },
         )
     }
@@ -158,7 +167,7 @@ private fun ideaTone(s: String): Color = when (s) {
 }
 
 @Composable
-private fun IdeaCard(i: Idea, onVote: () -> Unit) {
+private fun IdeaCard(i: Idea, isHq: Boolean, here: String?, onVote: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Row(
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp).cardShadow(shape, Zk.theme.dark).clip(shape).background(Zk.colors.surface1)
@@ -183,7 +192,7 @@ private fun IdeaCard(i: Idea, onVote: () -> Unit) {
             }
             i.description?.takeIf { it.isNotBlank() }?.let { Text(it, fontSize = 13.sp, lineHeight = 19.sp, color = Zk.colors.fgMuted, maxLines = 3, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 4.dp)) }
             Text(
-                listOfNotNull(i.creatorName, i.creatorJobTitle, i.spaceName, if (i.shared) D.shared else null, if (i.taskId != null) D.converted else null).joinToString(" · "),
+                D.ideaLine(i.creatorName, i.creatorJobTitle, i.shared, i.spaceName, i.workspaceId, isHq, here, i.taskId != null),
                 fontSize = 12.sp,
                 color = Zk.colors.fgMuted,
                 modifier = Modifier.padding(top = 6.dp),
@@ -199,9 +208,10 @@ private fun IdeaCard(i: Idea, onVote: () -> Unit) {
  * «حفظ التعديل», «إجازة اليوم»), or excused («إلغاء الإجازة»); then who answered, then the team's answers (shown after one's own).
  */
 @Composable
-fun CheckinsScreen(spaceId: String?, vm: CheckinsViewModel = hiltViewModel()) {
+fun CheckinsScreen(spaceId: String?, onOpenSite: (String) -> Unit = {}, vm: CheckinsViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
     WhileOnScreen(60_000, spaceId) { vm.refresh(spaceId) }
     val snack = remember { SnackbarHostState() }
     Notices(notice, vm::consumeNotice, snack)
@@ -215,27 +225,40 @@ fun CheckinsScreen(spaceId: String?, vm: CheckinsViewModel = hiltViewModel()) {
             else -> Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(bottom = 96.dp)) {
                 val round = data.round
                 val me = data.me
+                // the site's own states (checkins-view.tsx): waiting · closed · excused (undo only while open) · the form · not a participant
                 when {
-                    round == null -> data.schedule?.let { QuietEmpty(D.waiting(it.timeOfDay), "") }
-                    me?.excused == true -> SoftCard {
-                        Text(D.excuse, fontSize = 15.sp, color = Zk.colors.info)
-                        TextButton(onClick = { vm.excuse(false) }) { Text(D.unexcuse, color = Zk.colors.accent) }
+                    round == null -> QuietEmpty(D.waitingLine(data.day, data.schedule?.timeOfDay, data.schedule?.weekdays), "")
+                    !round.open -> Text(D.roundClosed, fontSize = 13.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp))
+                    me == null -> {}
+                    !me.participant -> Text(D.notParticipant, fontSize = 13.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp))
+                    me.excused -> SoftCard {
+                        Text(D.excusedOn, fontSize = 15.sp, color = Zk.colors.info)
+                        TextButton(enabled = !busy, onClick = { vm.excuse(false) }) { Text(D.unexcuse, color = Zk.colors.accent) }
                     }
-                    me?.participant == true && round.open -> {
-                        val answers = remember(round.id, me.answers) { mutableStateListOf<String>().apply { addAll(round.questions.indices.map { me.answers.getOrElse(it) { "" } }) } }
+                    else -> {
+                        // kept across a turn of the phone; re-read when the server's answer changes
+                        var answers by rememberSaveable(round.id, me.answered, me.answers.joinToString("\u0001")) {
+                            mutableStateOf(ArrayList(round.questions.indices.map { me.answers.getOrElse(it) { "" } }))
+                        }
                         SoftCard(D.checkins) {
                             round.questions.forEachIndexed { qi, q ->
                                 Text(q, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Zk.colors.fg, modifier = Modifier.padding(top = if (qi > 0) 10.dp else 0.dp))
-                                OutlinedTextField(answers[qi], { answers[qi] = it.take(1000) }, minLines = 2, maxLines = 6, modifier = Modifier.fillMaxWidth(), enabled = !me.answered || me.canEdit)
+                                OutlinedTextField(
+                                    answers.getOrElse(qi) { "" },
+                                    { v -> answers = ArrayList(answers).also { it[qi] = v.take(1000) } },
+                                    minLines = 2,
+                                    maxLines = 6,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    enabled = !me.answered || me.canEdit,
+                                )
                             }
                             Spacer(Modifier.height(10.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                TextButton(enabled = answers.any { it.isNotBlank() } && (!me.answered || me.canEdit), onClick = { vm.answer(answers.toList()) }) { Text(if (me.answered) D.update else D.submit, color = Zk.colors.accent, fontWeight = FontWeight.SemiBold) }
-                                if (!me.answered) TextButton(onClick = { vm.excuse(true) }) { Text(D.excuse, color = Zk.colors.fgMuted) }
+                                TextButton(enabled = !busy && answers.any { it.isNotBlank() } && (!me.answered || me.canEdit), onClick = { vm.answer(answers.toList(), me.taskIds) }) { Text(if (me.answered) D.update else D.submit, color = Zk.colors.accent, fontWeight = FontWeight.SemiBold) }
+                                if (!me.answered) TextButton(enabled = !busy, onClick = { vm.excuse(true) }) { Text(D.excuse, color = Zk.colors.fgMuted) }
                             }
                         }
                     }
-                    else -> {}
                 }
                 if (data.roster.isNotEmpty()) SoftCard(count = data.roster.size) {
                     data.roster.forEach { r ->
@@ -254,6 +277,8 @@ fun CheckinsScreen(spaceId: String?, vm: CheckinsViewModel = hiltViewModel()) {
                         Text(ans, fontSize = 14.5.sp, lineHeight = 22.sp, color = Zk.colors.fg, modifier = Modifier.padding(bottom = 6.dp))
                     }
                 }
+                // ⚠️/🔧 what the site's page still holds alone (history, settings, tasks linked to an answer)
+                SiteLine(D.checkinsSiteWarn, D.checkinsSiteFix) { onOpenSite("/checkins") }
             }
         }
         SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
@@ -276,26 +301,42 @@ private fun approvalTone(s: String): Color = when (s) {
  * request — the title, the status, who asked, the amount exactly as the server gives it (or «المبلغ مخفي عنك»), who it waits on, the chain.
  */
 @Composable
-fun ApprovalsScreen(spaceId: String?, onOpen: (String) -> Unit, vm: ApprovalsViewModel = hiltViewModel()) {
+fun ApprovalsScreen(
+    spaceId: String?,
+    onOpen: (String) -> Unit,
+    /** the site's `narrowTo`: the space the person is in, or null inside «الشركة» */
+    narrowTo: String? = spaceId,
+    initialView: String? = null,
+    onOpenSite: (String) -> Unit = {},
+    vm: ApprovalsViewModel = hiltViewModel(),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val allowAll by vm.allowAll.collectAsStateWithLifecycle()
     val waiting by vm.waiting.collectAsStateWithLifecycle()
-    var view by rememberSaveable { mutableStateOf("waiting") }
-    WhileOnScreen(60_000, spaceId, view) { vm.refresh(view, spaceId) }
+    var view by rememberSaveable(initialView) { mutableStateOf(D.viewOf(initialView)) }
+    // the site refused «كل الطلبات»: back to «بانتظاري», as the site's page does
+    LaunchedEffect(allowAll) { if (allowAll == false && view == "all") view = "waiting" }
+    WhileOnScreen(60_000, spaceId, narrowTo, view) { vm.refresh(view, narrowTo) }
     val data = state.data
     Column(Modifier.fillMaxSize()) {
         PillStrip {
-            PillTab(D.viewWaiting, waiting, view == "waiting") { view = "waiting" }
+            // the site's order: «طلباتي» · «بانتظاري (n)» · «كل الطلبات»
             PillTab(D.viewMine, 0, view == "mine") { view = "mine" }
-            if (allowAll) PillTab(D.viewAll, 0, view == "all") { view = "all" }
+            PillTab(D.viewWaiting, waiting, view == "waiting") { view = "waiting" }
+            if (allowAll == true) PillTab(D.viewAll, 0, view == "all") { view = "all" }
         }
+        val site: @Composable () -> Unit = { SiteLine(D.approvalsSiteWarn, D.siteFix) { onOpenSite("/approvals?new=1") } }
         when {
             data == null && state.failure == null -> Loading()
             data == null && state.closed -> Empty(state.failure?.message ?: W.sectionOff)
-            data == null -> Failure(state.failure!!.message, onRetry = { vm.refresh(view, spaceId) })
-            data.approvals.isEmpty() -> QuietEmpty(when (view) { "mine" -> D.emptyMine; "all" -> D.emptyAll; else -> D.emptyWaiting }, "")
+            data == null -> Failure(state.failure!!.message, onRetry = { vm.refresh(view, narrowTo) })
+            data.approvals.isEmpty() -> Column(Modifier.fillMaxSize()) {
+                QuietEmpty(when (view) { "mine" -> D.emptyMine; "all" -> D.emptyAll; else -> D.emptyWaiting }, "")
+                site()
+            }
             else -> LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 112.dp)) {
                 items(data.approvals, key = { it.id }) { a -> ApprovalCard(a, showSpace = view == "all") { onOpen(a.id) } }
+                item(key = "site") { site() }
             }
         }
     }
@@ -336,10 +377,11 @@ private fun ApprovalCard(a: ApprovalItem, showSpace: Boolean, onClick: () -> Uni
  * «اطلب تعديل», «ارفض», a reason required with the last two), «ألغِ الطلب» for the requester.
  */
 @Composable
-fun ApprovalScreen(onBack: () -> Unit, vm: ApprovalViewModel = hiltViewModel(), files: OpenerViewModel = hiltViewModel()) {
+fun ApprovalScreen(onBack: () -> Unit, onOpenSite: (String) -> Unit = {}, vm: ApprovalViewModel = hiltViewModel(), files: OpenerViewModel = hiltViewModel()) {
     LaunchedEffect(vm.id) { vm.refresh() }
     val state by vm.state.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
+    val busy by vm.busy.collectAsStateWithLifecycle()
     val snack = remember { SnackbarHostState() }
     Notices(notice, vm::consumeNotice, snack)
     var reason by rememberSaveable { mutableStateOf("") }
@@ -367,7 +409,11 @@ fun ApprovalScreen(onBack: () -> Unit, vm: ApprovalViewModel = hiltViewModel(), 
                             WarnFix(D.moneyNote, D.moneyFix)
                         }
                     }
-                    if (a.amountHidden) Text(D.amountHidden, fontSize = 13.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                    if (a.amountHidden) Column(Modifier.padding(horizontal = 16.dp, vertical = 6.dp)) {
+                        Text(D.amountHidden, fontSize = 13.sp, color = Zk.colors.fgMuted)
+                        Text(D.amountHiddenFix, fontSize = 12.sp, color = Zk.colors.fgMuted)
+                    }
+                    if (a.you.oversight) Text(D.oversight, fontSize = 12.5.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                     a.details?.takeIf { it.isNotBlank() }?.let { SoftCard { Text(it, fontSize = 15.sp, lineHeight = 23.sp, color = Zk.colors.fg) } }
                     if (a.attachments.isNotEmpty()) SoftCard(D.attachments, count = a.attachments.size) {
                         a.attachments.forEach { f ->
@@ -389,13 +435,16 @@ fun ApprovalScreen(onBack: () -> Unit, vm: ApprovalViewModel = hiltViewModel(), 
                             Text(D.decisionTitle, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = Zk.colors.fg)
                             OutlinedTextField(reason, { reason = it.take(1000) }, label = { Text(D.reason) }, minLines = 2, maxLines = 5, modifier = Modifier.fillMaxWidth().padding(top = 6.dp))
                             Row(Modifier.padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(D.approve, color = Zk.colors.accentFg, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.accent).clickable { vm.decide("APPROVE", reason) }.padding(horizontal = 16.dp, vertical = 9.dp))
-                                Text(D.changes, color = Zk.colors.info, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.info.copy(alpha = 0.12f)).clickable { vm.decide("CHANGES", reason) }.padding(horizontal = 14.dp, vertical = 9.dp))
-                                Text(D.reject, color = Zk.colors.danger, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.danger.copy(alpha = 0.12f)).clickable { vm.decide("REJECT", reason) }.padding(horizontal = 14.dp, vertical = 9.dp))
+                                // one decision at a time: the buttons wait while it is on its way
+                                Text(D.approve, color = Zk.colors.accentFg, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.accent.copy(alpha = if (busy) 0.5f else 1f)).clickable(enabled = !busy) { vm.decide("APPROVE", reason) }.padding(horizontal = 16.dp, vertical = 9.dp))
+                                Text(D.changes, color = Zk.colors.info, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.info.copy(alpha = 0.12f)).clickable(enabled = !busy) { vm.decide("CHANGES", reason) }.padding(horizontal = 14.dp, vertical = 9.dp))
+                                Text(D.reject, color = Zk.colors.danger, fontWeight = FontWeight.SemiBold, modifier = Modifier.clip(RoundedCornerShape(50)).background(Zk.colors.danger.copy(alpha = 0.12f)).clickable(enabled = !busy) { vm.decide("REJECT", reason) }.padding(horizontal = 14.dp, vertical = 9.dp))
                             }
                         }
                     }
-                    if (a.you.canCancel) TextButton(onClick = { askCancel = true }, modifier = Modifier.padding(horizontal = 8.dp)) { Text(D.cancel, color = Zk.colors.danger) }
+                    if (a.you.canCancel) TextButton(enabled = !busy, onClick = { askCancel = true }, modifier = Modifier.padding(horizontal = 8.dp)) { Text(D.cancel, color = Zk.colors.danger) }
+                    // ⚠️/🔧 resubmitting after «اطلب تعديل» is still the site's page
+                    if (a.you.canResubmit) SiteLine(D.resubmitWarn, D.siteFix) { onOpenSite("/approvals/" + a.id) }
                     Spacer(Modifier.height(24.dp))
                 }
             }
