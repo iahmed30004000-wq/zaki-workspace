@@ -89,6 +89,9 @@ import io.zakiai.workspace.feature.chat.ChatListScreen
 import io.zakiai.workspace.feature.chat.ConversationScreen
 import io.zakiai.workspace.feature.chat.NewChatScreen
 import io.zakiai.workspace.feature.chat.SpaceTopicsScreen
+import io.zakiai.workspace.feature.work.MyWorkScreen
+import io.zakiai.workspace.feature.work.TaskScreen
+import io.zakiai.workspace.feature.work.TodayScreen
 import io.zakiai.workspace.feature.notifications.NotificationsScreen
 import io.zakiai.workspace.feature.settings.SettingsScreen
 import io.zakiai.workspace.feature.web.WebBridge
@@ -114,6 +117,7 @@ class ShellViewModel @Inject constructor(
     val session: Session,
     val connectivity: Connectivity,
     private val crashes: CrashStore,
+    private val http: okhttp3.OkHttpClient,
 ) : ViewModel() {
     private val _spaces = MutableStateFlow<Spaces?>(null)
     val spaces: StateFlow<Spaces?> = _spaces.asStateFlow()
@@ -145,8 +149,16 @@ class ShellViewModel @Inject constructor(
         (apiCall { api.notifications() } as? ApiResult.Ok)?.let { _notesUnread.value = it.value.unreadCount }
     }
 
+    /**
+     * Enters a space: the site's own switch (`/go` sets the space's cookie). The redirect it answers with is NOT followed — it leads to a
+     * whole page of the site, and the cookie is all the app needs; then the shell and the screens that read the current space reload.
+     */
     fun enter(spaceId: String) = viewModelScope.launch {
-        apiCall { api.enterSpace(spaceId).also { it.body()?.close() } }
+        val url = Config.BASE.trimEnd('/') + "/go?space=" + Uri.encode(spaceId) + "&next=%2F"
+        val noRedirect = http.newBuilder().followRedirects(false).followSslRedirects(false).build()
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            runCatching { noRedirect.newCall(okhttp3.Request.Builder().url(url).build()).execute().close() }
+        }
         refresh()
     }
 
@@ -164,9 +176,13 @@ private object Routes {
     const val CHAT_INFO = "chat-info/{id}"
     const val NEW_CHAT = "new-chat?group={group}"
     const val SITE = "site?path={path}"
-    val TABS = setOf(CHATS, NOTIFICATIONS, SETTINGS)
+    const val TODAY = "today"
+    const val MY_WORK = "my-work"
+    const val TASK = "task/{id}"
+    val TABS = setOf(TODAY, CHATS, MY_WORK, NOTIFICATIONS, SETTINGS)
+    fun task(id: String) = "task/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -178,8 +194,6 @@ private object Routes {
 private data class SiteItem(val label: String, val path: String, val icon: ImageVector)
 
 private val SITE_ITEMS = listOf(
-    SiteItem(T.today, "/", Icons.Filled.Today),
-    SiteItem(T.myWork, "/my-work", Icons.Filled.TaskAlt),
     SiteItem(T.projects, "/projects", Icons.Filled.ViewKanban),
     SiteItem(T.calendar, "/calendar", Icons.Filled.CalendarMonth),
     SiteItem(T.files, "/files", Icons.Filled.Folder),
@@ -198,6 +212,9 @@ fun NavHostController.open(dest: Destination) {
         Destination.Chats -> navigate(Routes.CHATS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Notifications -> navigate(Routes.NOTIFICATIONS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Settings -> navigate(Routes.SETTINGS) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        Destination.Today -> navigate(Routes.TODAY) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        Destination.MyWork -> navigate(Routes.MY_WORK) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
 }
@@ -303,6 +320,7 @@ fun Shell(
                             Text(
                                 when (route) {
                                     Routes.NOTIFICATIONS -> T.notifications
+                                    Routes.MY_WORK -> io.zakiai.workspace.feature.work.W.myWork
                                     Routes.SETTINGS -> T.settings
                                     else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
                                 },
@@ -323,7 +341,9 @@ fun Shell(
             bottomBar = {
                 if (onTab) {
                     NavigationBar(containerColor = Zk.colors.surface1) {
+                        TabItem(T.today, route == Routes.TODAY, 0, Icons.Filled.Today) { nav.open(Destination.Today) }
                         TabItem(T.chats, route == Routes.CHATS, chatUnread, Icons.Filled.ChatBubble) { nav.open(Destination.Chats) }
+                        TabItem(T.myWork, route == Routes.MY_WORK, 0, Icons.Filled.TaskAlt) { nav.open(Destination.MyWork) }
                         TabItem(T.notifications, route == Routes.NOTIFICATIONS, notesUnread, Icons.Filled.Notifications) { nav.open(Destination.Notifications) }
                         TabItem(T.settings, route == Routes.SETTINGS, 0, Icons.Filled.Settings) { nav.open(Destination.Settings) }
                     }
@@ -342,6 +362,12 @@ fun Shell(
                         )
                     }
                     composable(Routes.NOTIFICATIONS) { NotificationsScreen(onOpenPath = openPath) }
+                    // both read the space the person is in: entering another one reloads them
+                    composable(Routes.TODAY) { TodayScreen(onOpenTask = { nav.open(Destination.Task(it)) }, onOpenPath = openPath, onOpenSite = { nav.open(Destination.Site(it)) }, spaceKey = spaces?.currentSpaceId) }
+                    composable(Routes.MY_WORK) { MyWorkScreen(onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) }, spaceKey = spaces?.currentSpaceId) }
+                    composable(Routes.TASK, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        TaskScreen(onBack = { nav.popBackStack() })
+                    }
                     composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications) }
                     composable(
                         Routes.CONVERSATION,

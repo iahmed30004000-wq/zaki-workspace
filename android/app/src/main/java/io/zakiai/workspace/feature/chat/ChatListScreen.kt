@@ -216,6 +216,8 @@ fun previewOf(r: ChatRow): String {
         m.preview == null -> C.deletedPreview
         m.kind == "CHECKLIST" -> "☑️ ${m.preview}" + (m.checklist?.let { " (${it.done}/${it.total})" } ?: "")
         m.kind == "POLL" -> "📊 ${m.preview}"
+        // a message with no words (a voice note, a picture, a file) still says what it is
+        m.preview.isBlank() -> if (m.kind == "VOICE") "🎤 ${C.voiceNote}" else "📎 ${C.attachments}"
         else -> m.preview
     }
     val who = when {
