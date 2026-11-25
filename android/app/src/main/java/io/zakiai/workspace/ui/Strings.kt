@@ -39,6 +39,11 @@ object T {
 
     // the shell
     const val chats = "الدردشات"
+    // the site's phone places (src/lib/i18n/ar.shell.json `nav.place.*`)
+    const val chat = "الدردشة"
+    const val library = "المكتبة"
+    const val watch = "نتفرّج سوا"
+    const val admin = "الإدارة"
     const val notifications = "الإشعارات"
     const val settings = "الإعدادات"
     const val menu = "القائمة"
