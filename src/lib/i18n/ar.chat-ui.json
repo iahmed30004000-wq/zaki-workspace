@@ -209,6 +209,7 @@
   "chatui.attachsheet.title": "المرفقات",
   "chatui.attachsheet.chosen": "المختار: {n}",
   "chatui.attachsheet.gallery": "معرض",
+  "chatui.attachsheet.drop_hint": "أو اسحب الملفات من الكمبيوتر وأفلتها هون",
   "chatui.attachsheet.pick": "اختر صور أو فيديو",
   "chatui.attachsheet.empty": "اختار صور أو فيديو من جهازك، وبتطلع هون قبل ما تنبعت.",
   "chatui.attachsheet.caption": "أضف تعليق…",

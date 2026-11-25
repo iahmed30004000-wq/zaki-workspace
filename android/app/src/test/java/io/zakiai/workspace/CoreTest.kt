@@ -11,6 +11,7 @@ import io.zakiai.workspace.core.sync.OutboxStep
 import io.zakiai.workspace.feature.auth.PasswordRule
 import io.zakiai.workspace.feature.shell.Destination
 import io.zakiai.workspace.feature.shell.Links
+import io.zakiai.workspace.feature.web.FilePick
 import io.zakiai.workspace.ui.T
 import okhttp3.Cookie
 import org.junit.Assert.assertEquals
@@ -20,6 +21,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 private const val BASE = "https://workspace.zakiai.io"
+
+class FilePickTest {
+    @Test fun `every kind the page accepts is asked for, not only the first`() {
+        assertEquals(listOf("image/*", "video/*"), FilePick.mimeTypes(arrayOf("image/*,video/*")))
+        assertEquals(listOf("image/*", "video/*"), FilePick.mimeTypes(arrayOf(" image/* ", "video/*")))
+    }
+
+    @Test fun `no kind, or a kind given by its ending only, means any file`() {
+        assertEquals(listOf("*/*"), FilePick.mimeTypes(null))
+        assertEquals(listOf("*/*"), FilePick.mimeTypes(arrayOf("")))
+        assertEquals(listOf("*/*"), FilePick.mimeTypes(arrayOf(".pdf,image/*")))
+    }
+
+    @Test fun `several picked files all come back, once each`() {
+        assertEquals(listOf("a", "b"), FilePick.picked(listOf("a", "b", "a"), "a"))
+    }
+
+    @Test fun `one picked file comes back when there is no list, and nothing picked is nothing`() {
+        assertEquals(listOf("a"), FilePick.picked(emptyList(), "a"))
+        assertEquals(emptyList<String>(), FilePick.picked(emptyList<String>(), null))
+    }
+}
 
 class LinksTest {
     @Test fun `a chat address opens the conversation natively`() {

@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
+import { BotFatherRow } from "@/components/chat/botfather-row";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { useI18n } from "@/lib/i18n";
 import { filterContacts, sortContacts, type ContactPerson } from "@/lib/contacts";
@@ -14,7 +15,7 @@ import { lastSeenLabel } from "@/lib/last-seen";
  * name), a tap opens that person's page (`/u/{id}`, where «رسالة» is). The people are the chat directory's (the server already hides what a person chose to hide). `now` is the
  * server's clock, so the first paint says the same thing on both sides.
  */
-export function ContactsScreen({ people, now }: { people: ContactPerson[]; now: string }) {
+export function ContactsScreen({ people, now, botFather = false }: { people: ContactPerson[]; now: string; /** «بوت فاذر» is offered to me (the owner and the admins, its switch on) */ botFather?: boolean }) {
   const { t } = useI18n();
   const [query, setQuery] = React.useState("");
   const instant = React.useMemo(() => new Date(now), [now]);
@@ -35,6 +36,7 @@ export function ContactsScreen({ people, now }: { people: ContactPerson[]; now: 
           className="min-w-0 flex-1 bg-transparent text-base text-fg outline-none placeholder:text-fg-muted"
         />
       </label>
+      {botFather ? <BotFatherRow className="overflow-hidden rounded-2xl border border-border/60 bg-surface-1 shadow-card" /> : null}
       {shown.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border bg-surface-1 p-6 text-center text-sm text-fg-muted">{people.length === 0 ? t("contacts.empty") : t("contacts.no_match")}</p>
       ) : (

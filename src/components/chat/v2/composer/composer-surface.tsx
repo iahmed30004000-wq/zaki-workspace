@@ -35,7 +35,7 @@ export type SurfaceEngine = Pick<
   /** «نص مباشر أثناء التسجيل»: the live words of the recorder bar; an engine without it (a test's, or the switch off) draws none */
   Partial<Pick<ComposerEngine, "live">> &
   /** S6.2: the attach sheet's edit and «جودة عالية» buttons; an engine without them (a test's) draws neither */
-  Partial<Pick<ComposerEngine, "replaceFile" | "setHd">> &
+  Partial<Pick<ComposerEngine, "replaceFile" | "setHd" | "addDropped">> &
   /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
   Partial<Pick<ComposerEngine, "scheduling" | "scheduledCount" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
 
@@ -205,6 +205,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
             onEdit={c.replaceFile}
             onHd={c.setHd}
             onSend={() => c.submit()}
+            onDropFiles={(files) => c.addDropped?.(files, false)}
             onPick={(id) => (id === "media" ? c.mediaInput.current?.click() : id === "file" ? c.fileInput.current?.click() : c.setPollOpen(true))}
           />
         ) : null}

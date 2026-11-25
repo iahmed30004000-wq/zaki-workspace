@@ -24,6 +24,9 @@ It talks to the site's own API with the same session cookie the website uses, so
 - ⚠️ **Not native yet** — «اليوم», «مهامي», المشاريع، التقويم، الملفات… and the call page open the site's page INSIDE the app, with a line on
   screen that says so (`feature/web/WebBridge.kt`). 🔧 Each phase of M2 makes its sections native and removes them from the bridge; the bridge
   itself is deleted with the last phase. Nothing the team uses today disappears in between.
+- ⚠️ **Attachments are not native yet** (N1): the paperclip of a native conversation opens the SAME conversation of the site through the bridge
+  (files, several pictures at once, the photo editor, polls). A page's file input gets every kind it accepts and, when it takes several, the
+  picker allows several (`chooserIntent` / `pickedUris` in `WebBridge.kt`, the two decisions in `FilePick.kt`). 🔧 N1 removes the paperclip's detour.
 
 **Flavors:** `prod` talks to `https://workspace.zakiai.io` (the APK the phones get); `staging` talks to a local copy of the site at
 `http://10.0.2.2:3100` (the emulator's address of the build machine; `npm run dev -- -p 3100`), has its own id (`io.zakiai.workspace.staging`,

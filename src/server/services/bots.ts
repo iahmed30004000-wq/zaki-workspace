@@ -9,7 +9,7 @@ import { parseLocalBaseUrl } from "@/server/ai/local-host";
 import { assertFeatureOn } from "@/server/services/features";
 import { setAvatar } from "@/server/services/avatars";
 import { isOfSpace } from "@/server/chat/space-people";
-import { BOT_DESCRIPTION_MAX, BOT_NAME_MAX, isBotUsername, normalizeBotUsername, type BotCommandDef } from "@/lib/chat/botfather";
+import { BOT_ABOUT_MAX, BOT_DESCRIPTION_MAX, BOT_NAME_MAX, isBotUsername, normalizeBotUsername, type BotCommandDef } from "@/lib/chat/botfather";
 
 /**
  * «بوت فاذر» — the bots of a company (docs/contracts/bots.md).
@@ -36,9 +36,13 @@ export interface BotDto {
   /** the public part of the live token, `zws_ab12…`, or null when it was revoked */
   tokenHint: string | null;
   createdAt: Date;
+  /** «/setjoingroups»: may it be added to a topic of chosen people */
+  joinGroups: boolean;
+  /** «/setprivacy»: ON, only the messages that address it reach its webhook */
+  privacyMode: boolean;
 }
 
-const BOT_SELECT = { id: true, username: true, name: true, description: true, commands: true, webhookUrl: true, workspaceId: true, tokenId: true, createdAt: true } satisfies Prisma.BotSelect;
+const BOT_SELECT = { id: true, username: true, name: true, description: true, commands: true, webhookUrl: true, workspaceId: true, tokenId: true, createdAt: true, joinGroups: true, privacyMode: true } satisfies Prisma.BotSelect;
 
 function commandsOf(value: unknown): BotCommandDef[] {
   if (!Array.isArray(value)) return [];
@@ -70,6 +74,8 @@ async function toDto(row: Prisma.BotGetPayload<{ select: typeof BOT_SELECT }>): 
     workspaceId: row.workspaceId,
     tokenHint: token && !token.revokedAt ? `zws_${token.prefix}…` : null,
     createdAt: row.createdAt,
+    joinGroups: row.joinGroups,
+    privacyMode: row.privacyMode,
   };
 }
 
@@ -192,9 +198,50 @@ export async function setBotDescription(ctx: OrgAccessContext, handle: string, d
   const bot = await botOf(ctx, handle);
   const text = description.trim();
   if ([...text].length > BOT_DESCRIPTION_MAX) throw new ValidationError([{ path: "description", message: "bots.description_too_long" }]);
+  // the profile's line follows the description until «/setabouttext» gives it words of its own
+  const account = await db.user.findUnique({ where: { id: bot.userId }, select: { bio: true } });
+  const follows = !account?.bio || account.bio === bot.description;
   await db.$transaction([
     db.bot.update({ where: { id: bot.id }, data: { description: text === "" ? null : text } }),
-    db.user.update({ where: { id: bot.userId }, data: { bio: text === "" ? null : text } }),
+    ...(follows ? [db.user.update({ where: { id: bot.userId }, data: { bio: text === "" ? null : text } })] : []),
+  ]);
+  return toDto(await db.bot.findUniqueOrThrow({ where: { id: bot.id }, select: BOT_SELECT }));
+}
+
+/** «/setabouttext»: the line of the bot's profile (empty: the profile shows the description again). */
+export async function setBotAbout(ctx: OrgAccessContext, handle: string, about: string): Promise<BotDto> {
+  await assertMaker(ctx);
+  await assertFeatureOn(ctx.orgId, "botFather");
+  const bot = await botOf(ctx, handle);
+  const text = about.trim();
+  if ([...text].length > BOT_ABOUT_MAX) throw new ValidationError([{ path: "about", message: "bots.about_too_long" }]);
+  await db.user.update({ where: { id: bot.userId }, data: { bio: text === "" ? bot.description : text } });
+  return toDto(await db.bot.findUniqueOrThrow({ where: { id: bot.id }, select: BOT_SELECT }));
+}
+
+/** «/setname»: the bot's name, on its account and its live token (the handle stays). */
+export async function setBotName(ctx: OrgAccessContext, handle: string, raw: string): Promise<BotDto> {
+  await assertMaker(ctx);
+  await assertFeatureOn(ctx.orgId, "botFather");
+  const bot = await botOf(ctx, handle);
+  const name = raw.trim().replace(/\s+/g, " ");
+  if (name.length === 0 || [...name].length > BOT_NAME_MAX) throw new ValidationError([{ path: "name", message: "bots.name_invalid" }]);
+  await db.$transaction([
+    db.bot.update({ where: { id: bot.id }, data: { name } }),
+    db.user.update({ where: { id: bot.userId }, data: { name } }),
+    db.apiToken.updateMany({ where: { organizationId: ctx.orgId, createdById: bot.userId, revokedAt: null }, data: { name } }),
+  ]);
+  return toDto(await db.bot.findUniqueOrThrow({ where: { id: bot.id }, select: BOT_SELECT }));
+}
+
+/** «/setjoingroups» and «/setprivacy»: the two switches of a bot, written in the record. */
+export async function setBotFlag(ctx: OrgAccessContext, handle: string, flag: "joinGroups" | "privacyMode", on: boolean): Promise<BotDto> {
+  await assertMaker(ctx);
+  await assertFeatureOn(ctx.orgId, "botFather");
+  const bot = await botOf(ctx, handle);
+  await db.$transaction([
+    db.bot.update({ where: { id: bot.id }, data: { [flag]: on } }),
+    db.auditLog.create({ data: { action: "bot.flag_set", actorId: ctx.userId, orgId: ctx.orgId, target: bot.id, meta: { flag, on } } }),
   ]);
   return toDto(await db.bot.findUniqueOrThrow({ where: { id: bot.id }, select: BOT_SELECT }));
 }

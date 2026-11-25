@@ -197,6 +197,12 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
               <span className="truncate">{header.title}</span>
               <VerifiedBadge />
             </h1>
+          ) : header.botFather ? (
+            // «بوت فاذر»'s check mark, as Telegram's
+            <h1 className="flex min-w-0 items-center gap-1 font-semibold leading-tight">
+              <span className="truncate">{header.title}</span>
+              <VerifiedBadge />
+            </h1>
           ) : (
             <h1 className="truncate font-semibold leading-tight">{header.title}</h1>
           )}

@@ -61,12 +61,109 @@ export const BOTFATHER_WORDS: Readonly<Record<string, string>> = {
   c_setavatar: "/setavatar",
   c_deletebot: "/deletebot",
   c_start: "/start",
+  c_setname: "/setname",
+  c_setabouttext: "/setabouttext",
+  c_setuserpic: "/setuserpic",
+  c_setjoingroups: "/setjoingroups",
+  c_setprivacy: "/setprivacy",
+  c_cancel: "/cancel",
+  c_empty: "/empty",
+  c_help: "/help",
+  c_enable: "enable",
+  c_disable: "disable",
   c_confirm: "confirm",
   c_bot: "bot",
 };
 
-export const BOTFATHER_COMMANDS = ["newbot", "mybots", "token", "revoke", "setdescription", "setcommands", "setwebhook", "setavatar", "deletebot", "help"] as const;
+export const BOTFATHER_COMMANDS = ["newbot", "mybots", "setname", "setdescription", "setabouttext", "setuserpic", "setavatar", "setcommands", "setjoingroups", "setprivacy", "setwebhook", "token", "revoke", "deletebot", "cancel", "help", "start"] as const;
 export type BotFatherCommand = (typeof BOTFATHER_COMMANDS)[number];
+
+/** «/setabouttext»'s longest line (the profile's own limit is longer; Telegram's about text is this short). */
+export const BOT_ABOUT_MAX = 120;
+
+/** The commands that work ON a bot: without a handle they ask «which one?». */
+export const BOT_TARGET_COMMANDS = ["setname", "setdescription", "setabouttext", "setuserpic", "setavatar", "setcommands", "setjoingroups", "setprivacy", "setwebhook", "token", "revoke", "deletebot"] as const;
+export type BotTargetCommand = (typeof BOT_TARGET_COMMANDS)[number];
+export const isBotTargetCommand = (value: string): value is BotTargetCommand => (BOT_TARGET_COMMANDS as readonly string[]).includes(value);
+
+/** Is the chat list's search looking for the bot maker? («بوت», «فاذر», «botfather»…, three letters at least). Pure. */
+export function asksForBotFather(query: string): boolean {
+  const q = query.trim().replace(/^@/, "").toLowerCase();
+  if (q.length < 3) return false;
+  return ["بوت", "فاذر", "بوت فاذر", "botfather"].some((word) => word.startsWith(q) || q.startsWith(word));
+}
+
+/** What the «/» menu of the chat lists, in order (the words that say what each does are the dictionary's `botfather.cmd.<name>`). */
+export const BOTFATHER_MENU = ["newbot", "mybots", "setname", "setdescription", "setabouttext", "setuserpic", "setcommands", "setjoingroups", "setprivacy", "setwebhook", "token", "revoke", "deletebot", "cancel", "help"] as const;
+
+/** The «/» menu for what is typed: only while the box holds one word that starts with a slash. Pure. */
+export function botFatherSuggestions(text: string): (typeof BOTFATHER_MENU)[number][] {
+  const m = /^\/([A-Za-z]*)$/.exec(text);
+  if (!m) return [];
+  const typed = m[1]!.toLowerCase();
+  return BOTFATHER_MENU.filter((c) => c.startsWith(typed) && c !== typed);
+}
+
+/** A button under a line of «بوت فاذر»: what it says, and what a press asks for. */
+export interface BotButton {
+  t: string;
+  d: string;
+}
+export type BotKeyboard = BotButton[][];
+
+/** A line's words are strings and numbers only (`SystemMeta`), so the keyboard travels as one string. */
+export const encodeKeyboard = (kb: BotKeyboard): string => JSON.stringify(kb.map((row) => row.map((b) => [b.t, b.d])));
+export function decodeKeyboard(raw: unknown): BotKeyboard {
+  if (typeof raw !== "string" || raw === "") return [];
+  try {
+    const rows: unknown = JSON.parse(raw);
+    if (!Array.isArray(rows)) return [];
+    return rows.flatMap((row) => {
+      if (!Array.isArray(row)) return [];
+      const buttons = row.flatMap((b) => (Array.isArray(b) && typeof b[0] === "string" && typeof b[1] === "string" ? [{ t: b[0], d: b[1] }] : []));
+      return buttons.length ? [buttons] : [];
+    });
+  } catch {
+    return [];
+  }
+}
+
+/** What a line is waiting to hear: the next message of the person answers it. */
+export interface BotAsk {
+  /** the command being filled in */
+  c: BotFatherCommand;
+  /** «which name?», «which handle for the new bot?», «which of your bots?», «the new value?» */
+  s: "name" | "username" | "bot" | "value";
+  /** the bot the value is for */
+  u?: string;
+  /** «/newbot»: the name already given */
+  n?: string;
+}
+export const encodeAsk = (ask: BotAsk): string => JSON.stringify(ask);
+export function decodeAsk(raw: unknown): BotAsk | null {
+  if (typeof raw !== "string" || raw === "") return null;
+  try {
+    const a = JSON.parse(raw) as Partial<BotAsk> | null;
+    if (!a || typeof a.c !== "string" || !(BOTFATHER_COMMANDS as readonly string[]).includes(a.c)) return null;
+    if (a.s !== "name" && a.s !== "username" && a.s !== "bot" && a.s !== "value") return null;
+    return { c: a.c as BotFatherCommand, s: a.s, ...(typeof a.u === "string" ? { u: a.u } : {}), ...(typeof a.n === "string" ? { n: a.n } : {}) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Does this message leave the question and start a new command? Every known command does, except while the LIST of commands is being asked for: its lines start with a
+ * slash too («/start - …»), so there only a message that is not a valid list can interrupt.
+ */
+export function interruptsAsk(body: string, ask: BotAsk): boolean {
+  if (parseBotFatherCall(body).command === null) return false;
+  if (ask.c === "setcommands" && ask.s === "value") {
+    const list = parseBotCommands(body);
+    return !(list.ok && list.commands.length > 0);
+  }
+  return true;
+}
 
 export interface BotFatherCall {
   command: BotFatherCommand | null;

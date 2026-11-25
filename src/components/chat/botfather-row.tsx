@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Bot } from "lucide-react";
+import { BadgeCheck, Bot } from "lucide-react";
 import { ct } from "@/lib/chat/text";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +41,13 @@ export function BotFatherRow({ onOpened, className }: { onOpened?: () => void; c
           <Bot className="size-4" />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-semibold text-fg">{ct("botfather.label")}</span>
+          <span className="flex items-center gap-1 text-sm font-semibold text-fg">
+            <span className="truncate">{ct("botfather.label")}</span>
+            <span role="img" aria-label={ct("botfather.verified")} title={ct("botfather.verified")} className="inline-flex shrink-0 text-accent">
+              <BadgeCheck className="size-4" aria-hidden="true" />
+            </span>
+          </span>
+          <span className="block truncate text-xs text-fg-muted">{ct("botfather.row_hint")}</span>
         </span>
       </button>
       {error ? (

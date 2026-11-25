@@ -2,6 +2,7 @@ package io.zakiai.workspace.feature.web
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -103,10 +104,10 @@ class WebBridge(
                 fileCallback?.onReceiveValue(null)
                 fileCallback = callback
                 return try {
-                    pickFiles(params.createIntent()) { result ->
+                    pickFiles(chooserIntent(params)) { result ->
                         val cb = fileCallback
                         fileCallback = null
-                        cb?.onReceiveValue(FileChooserParams.parseResult(result.resultCode, result.data))
+                        cb?.onReceiveValue(pickedUris(result))
                     }
                     true
                 } catch (e: Exception) {
@@ -115,6 +116,25 @@ class WebBridge(
                 }
             }
         }
+    }
+
+    /** The system's picker for a page's file input: all the kinds it accepts, and several files when the input takes several. */
+    private fun chooserIntent(params: WebChromeClient.FileChooserParams): Intent {
+        val kinds = FilePick.mimeTypes(params.acceptTypes)
+        return Intent(Intent.ACTION_GET_CONTENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = kinds.singleOrNull() ?: "*/*"
+            if (kinds.size > 1) putExtra(Intent.EXTRA_MIME_TYPES, kinds.toTypedArray())
+            if (params.mode == WebChromeClient.FileChooserParams.MODE_OPEN_MULTIPLE) putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true)
+        }
+    }
+
+    /** Several files come back in the answer's clipData, one in its data; null tells the page nothing was picked. */
+    private fun pickedUris(result: ActivityResult): Array<Uri>? {
+        if (result.resultCode != Activity.RESULT_OK) return null
+        val clip = result.data?.clipData
+        val several = if (clip == null) emptyList() else (0 until clip.itemCount).mapNotNull { clip.getItemAt(it).uri }
+        return FilePick.picked(several, result.data?.data).takeIf { it.isNotEmpty() }?.toTypedArray()
     }
 
     /** Gives the web view the cookies of the session, so the page opens already signed in. */

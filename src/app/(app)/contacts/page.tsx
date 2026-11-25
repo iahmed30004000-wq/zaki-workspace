@@ -1,6 +1,7 @@
 import { pageActor, SectionOffNotice } from "@/app/(app)/_access";
 import { actorCan } from "@/server/policy/actor";
 import { chatDirectory } from "@/server/chat/directory";
+import { botFatherOffered } from "@/server/services/botfather";
 import { getServerT } from "@/lib/i18n/server";
 import { ContactsScreen } from "@/components/contacts/contacts-screen";
 
@@ -24,7 +25,8 @@ export default async function ContactsPage() {
   if (!actorCan(actor, "directory.view")) return <SectionOffNotice />;
   const everyone = await chatDirectory(actor.orgId, undefined, actor.userId, actor.role);
   const people = everyone.filter((p) => p.userId !== actor.userId);
-  return <ContactsScreen people={people} now={new Date().toISOString()} />;
+  const botFather = await botFatherOffered(actor.orgId, actor.role);
+  return <ContactsScreen people={people} now={new Date().toISOString()} botFather={botFather} />;
 }
 
 export const dynamic = "force-dynamic";

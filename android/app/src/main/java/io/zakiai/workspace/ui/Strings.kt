@@ -74,6 +74,7 @@ object T {
     const val systemMessage = "حدث بالمحادثة"
     const val deletedMessage = "رسالة محذوفة"
     const val attachment = "مرفق"
+    const val attachFiles = "إرفاق ملفات وصور"
     const val waitingToSend = "بيستنى النت ليتبعت"
     const val refusedToSend = "ما انبعتت"
     const val retrySend = "ابعتها كمان مرة"

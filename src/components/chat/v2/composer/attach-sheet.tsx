@@ -7,6 +7,7 @@ import { ChecklistFromMenu } from "@/components/chat/v2/composer/attach-menu";
 import { PhotoEditor } from "@/components/chat/v2/composer/photo-editor";
 import { COMPOSER_ICON_BUTTON, ROUND_BUTTON } from "@/components/chat/v2/composer/composer-styles";
 import { ct } from "@/lib/chat/text";
+import { dragHasFiles } from "@/lib/chat/v2/composer/clipboard-files";
 import type { AttachItemId } from "@/lib/chat/v2/composer/attach-items";
 import type { PendingFile } from "@/lib/chat/v2/composer/types";
 
@@ -97,6 +98,9 @@ export function AttachSheetPanel({ items, files, busy, caption, canSend, onCapti
           <div className="flex flex-col items-center gap-3 px-4 py-8 text-center">
             <Paperclip aria-hidden="true" className="size-10 text-fg-muted" />
             <p className="text-sm text-fg-muted">{ct("chatui.attachsheet.empty")}</p>
+            <p data-attach-drop-hint className="hidden text-xs text-fg-muted md:block">
+              {ct("chatui.attachsheet.drop_hint")}
+            </p>
             <button type="button" data-attach-pick onClick={() => onPick("media")} className="min-h-11 rounded-full bg-accent px-6 text-sm font-semibold text-accent-fg shadow-card hover:bg-accent/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent">
               {ct("chatui.attachsheet.pick")}
             </button>
@@ -177,14 +181,30 @@ export interface AttachSheetProps {
   onEdit?: (index: number, file: File) => void;
   onHd?: (index: number, on: boolean) => void;
   onSend: () => void;
+  /** files dragged from the computer and let go on the open sheet (it covers the pane, so the pane's two zones never hear of them) */
+  onDropFiles?: (files: File[]) => void;
 }
 
 /**
  * The paperclip with the sheet it opens (in place of the little menu while «شكل تيليجرام» is on): a bottom sheet on a phone, a side panel on a wide screen. The picker of the
  * system is opened by the surface's own hidden inputs (`onPick`), so the sheet stays open while the picks arrive. «استطلاع» and «قائمة مهام» close it and go on in their own dialogs.
  */
-export function AttachSheet({ items, disabled, files, busy, caption, canSend, onCaption, onPick, onRemove, onEdit, onHd, onSend }: AttachSheetProps) {
+export function AttachSheet({ items, disabled, files, busy, caption, canSend, onCaption, onPick, onRemove, onEdit, onHd, onSend, onDropFiles }: AttachSheetProps) {
   const [open, setOpen] = React.useState(false);
+  const [dragOver, setDragOver] = React.useState(false);
+  const takeDrag = (event: React.DragEvent) => {
+    if (!dragHasFiles(event.dataTransfer.types)) return;
+    // claimed even while busy, so the browser never opens the file
+    event.preventDefault();
+    if (!busy) setDragOver(true);
+  };
+  const dropFiles = (event: React.DragEvent) => {
+    if (!dragHasFiles(event.dataTransfer.types)) return;
+    event.preventDefault();
+    setDragOver(false);
+    const dropped = Array.from(event.dataTransfer.files);
+    if (!busy && dropped.length) onDropFiles?.(dropped);
+  };
   const [checklistOpen, setChecklistOpen] = React.useState(false);
   return (
     <>
@@ -192,7 +212,17 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
         <Paperclip aria-hidden="true" className="size-6" />
       </button>
       <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent className="min-h-[55dvh] gap-0 bg-surface-1/95 pt-3 backdrop-blur-md" hideClose>
+        <SheetContent
+          className={`min-h-[55dvh] gap-0 bg-surface-1/95 pt-3 backdrop-blur-md${dragOver ? " outline-dashed outline-2 -outline-offset-8 outline-accent" : ""}`}
+          hideClose
+          data-drag-over={dragOver ? "" : undefined}
+          onDragOver={takeDrag}
+          onDragLeave={(event) => {
+            // leaving for a child of the sheet is not leaving
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false);
+          }}
+          onDrop={dropFiles}
+        >
           <SheetTitle className="sr-only">{ct("chatui.attachsheet.title")}</SheetTitle>
           <SheetDescription className="sr-only">{ct("chatui.attachsheet.empty")}</SheetDescription>
           <AttachSheetPanel

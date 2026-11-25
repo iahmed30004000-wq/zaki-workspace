@@ -107,6 +107,27 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(bridge).toContain("WarnFix(T.webWarn, T.webFix)");
   });
 
+  it("a page inside the app lets the person pick SEVERAL files, of every kind the page accepts, and hands all of them back", () => {
+    const bridge = read(SRC + "feature/web/WebBridge.kt");
+    expect(bridge).toContain("FileChooserParams.MODE_OPEN_MULTIPLE");
+    expect(bridge).toContain("Intent.EXTRA_ALLOW_MULTIPLE");
+    expect(bridge).toContain("Intent.EXTRA_MIME_TYPES");
+    expect(bridge).toContain("clipData");
+    // the system's two shortcuts ask for ONE file of the FIRST kind only, and read one file back
+    expect(bridge).not.toContain("createIntent()");
+    expect(bridge).not.toContain("parseResult(");
+  });
+
+  it("the native conversation has a paperclip, and it is native: pictures, files, polls and lists, never the site's page", () => {
+    const attach = read(SRC + "feature/chat/ChatAttach.kt");
+    expect(attach).toContain("Icons.Filled.AttachFile");
+    expect(attach).toContain("ActivityResultContracts.PickMultipleVisualMedia(ChatFiles.MAX)");
+    expect(attach).toContain("ActivityResultContracts.GetMultipleContents()");
+    expect(read(SRC + "feature/chat/ConversationScreen.kt")).toContain("if (mode !is ComposeMode.Edit) AttachButton(vm, files)");
+    // the stopgap of 4.0 (the paperclip opened the conversation on the site's page) is gone with N1
+    expect(read(SRC + "feature/shell/Shell.kt")).not.toContain('Destination.Site("/chat/$id")');
+  });
+
   it("sends a message through the outbox with the server's idempotency key, so a retry never doubles it, and only in its writer's name", () => {
     const workers = read(SRC + "core/sync/Workers.kt");
     // the write runs on the application's scope (leaving the screen never loses it), with the clientId the server honours

@@ -1,6 +1,8 @@
 import { z } from "zod";
 import { memberCan } from "@/server/policy/actor";
 import { db } from "@/server/db";
+import { isBotFatherChatOf } from "@/lib/chat/botfather";
+import { assertBotsMayJoin } from "@/server/chat/bot-membership";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
 import { canModerate, canPost, canRead, hasOversight, loadConversationFacts, loadOrgFacts, type ConversationFacts, type OrgFacts } from "@/server/policy/conversation";
@@ -78,6 +80,13 @@ async function recallOffer(orgId: string, staff: boolean, mayPost: boolean, feat
   return { canRecall: recallKinds.length > 0, recallKinds, canOrderState: orderOn };
 }
 
+/** «بوت فاذر»: said only of MY chat with the bot maker (one cheap look for a first message). */
+async function botFatherFacts(conversationId: string, dmKey: string | null, userId: string): Promise<{ botFather?: { started: boolean }; calls?: boolean }> {
+  if (!isBotFatherChatOf(dmKey, userId)) return {};
+  // nobody rings a bot maker: no call button here
+  return { botFather: { started: (await db.chatMessage.findFirst({ where: { conversationId }, select: { id: true } })) !== null }, calls: false };
+}
+
 /** «🎫 مشكلة» (Q1.5): the kinds of problem for staff while `autoTickets` is on, and the rules of an OPEN topic so the screen can offer «بدك تعمليها تذكرة؟» (a private conversation has none: only by hand). */
 async function problemOffer(orgId: string, staff: boolean, facts: { kind: string; restricted?: boolean | null; teamId?: string | null; spaceId?: string | null }, feature: (key: FeatureKey) => Promise<boolean> = (key) => isFeatureOn(orgId, key), settingsOf?: () => Promise<unknown>): Promise<{ problemKinds?: Array<{ key: string; label: string; needsFollowUp?: boolean; needsRecording?: boolean }>; problemRules?: Array<{ id: string; type: "topic" | "content"; spaceId: string; conversationId?: string; kindKey: string; mode: "suggest" | "auto"; problemWords?: string[] }> }> {
   if (!staff || !(await feature("autoTickets"))) return {};
@@ -112,6 +121,7 @@ export async function createTopic(ctx: OrgAccessContext, input: z.infer<typeof c
   const restricted = input.restricted ?? false;
   const named = restricted ? [...new Set(input.memberIds ?? [])].filter((id) => id !== ctx.userId) : [];
   await assertPeopleOfSpace(ctx.orgId, input.spaceId, named);
+  await assertBotsMayJoin(db, ctx.orgId, named, []);
 
   const topicType = input.topicType ?? "DISCUSSION";
   const topic = await db.$transaction(async (tx) => {
@@ -160,6 +170,7 @@ export async function updateTopic(ctx: OrgAccessContext, conversationId: string,
   const { memberIds, ...fields } = input;
   const named = fields.restricted && memberIds ? [...new Set([...memberIds, ctx.userId])] : null;
   if (named && facts.spaceId) await assertPeopleOfSpace(ctx.orgId, facts.spaceId, named.filter((id) => id !== ctx.userId));
+  if (named) await assertBotsMayJoin(db, ctx.orgId, named, [conversationId]);
   await db.$transaction(async (tx) => {
     await tx.conversation.update({ where: { id: conversationId }, data: { ...fields } });
     if (named) {
@@ -205,6 +216,7 @@ export async function addMember(ctx: OrgAccessContext, conversationId: string, u
     select: { status: true },
   });
   if (!target || target.status !== "ACTIVE") throw new NotFoundError("chat.e.not_found");
+  await assertBotsMayJoin(db, ctx.orgId, [userId], [conversationId]);
   await db.$transaction(async (tx) => {
     await tx.conversationMember.upsert({
       where: { conversationId_userId: { conversationId, userId } },
@@ -496,7 +508,8 @@ export async function conversationDetail(
       // «قائمة مهام» (C3c.1): any conversation where a non-guest may post, while the company's switch is on
       canChecklist: org!.role !== "GUEST" && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }) && (await isFeatureOn(ctx.orgId, "chatChecklists")),
       // «/» (Q1.3): staff who may post here, while the two switches are on (the doors decide again)
-      ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
+      // (not in «بوت فاذر»'s chat: «/» there is the bot maker's own menu)
+      ...(await recallOffer(ctx.orgId, org!.role !== "GUEST", !isBotFatherChatOf(conv.dmKey, ctx.userId) && canPost(facts, org!, { ownerJoined: facts.viewerIsMember }))),
       ...(await problemOffer(ctx.orgId, org!.role !== "GUEST", facts)),
       orderHints: org!.role !== "GUEST" && (await isFeatureOn(ctx.orgId, "orderTemplateHint")),
       canMustRead: org!.role !== "GUEST" && (await isFeatureOn(ctx.orgId, "mustRead")) && (await canMark(ctx, facts, org!)),
@@ -539,6 +552,7 @@ export async function conversationDetail(
     assistantCall: org!.role === "OWNER" /* oversight-ok: the owner's own assistant, not reading */ && isAssistantChatOf(conv.dmKey, ctx.userId) && (await isFeatureOn(ctx.orgId, "siteGuide")) && (await isFeatureOn(ctx.orgId, "ownerAssistant")),
     digest: org!.role !== "GUEST" && facts.kind === "TOPIC" && conv.dmKey === null && (await digestOffered(ctx.orgId)),
     tgLook: await isFeatureOn(ctx.orgId, "tgLook"),
+    ...(await botFatherFacts(conversationId, conv.dmKey, ctx.userId)),
   };
 }
 
@@ -699,7 +713,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
   // «جدول الإرسال» (C3c.3): the person's OWN waiting messages here, asked only where they may use it (the switch is on and they may write; the silent eye cannot schedule)
   const scheduled = scheduledOn && mayPost ? await db.scheduledChatMessage.count({ where: { conversationId, authorId: ctx.userId, orgId: ctx.orgId, status: { in: ["PENDING", "FAILED"] } } }) : undefined;
   const [recall, problem, canTranslate, hasGuest] = await Promise.all([
-    recallOffer(ctx.orgId, staff, mayPost, feature),
+    recallOffer(ctx.orgId, staff, mayPost && !isBotFatherChatOf(conv.dmKey, ctx.userId), feature),
     problemOffer(ctx.orgId, staff, facts, feature, () => scope.settings()),
     translateOn ? translateOffered({ orgId: ctx.orgId, role: org.role, facts, conversationId }) : Promise.resolve(false),
     imageOcrOn && staff ? conversationHasGuest(facts, conversationId, ctx.orgId) : Promise.resolve(true),
@@ -782,6 +796,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     assistantCall: org.role === "OWNER" /* oversight-ok: the owner's own assistant, not reading */ && isAssistantChatOf(conv.dmKey, ctx.userId) && siteGuide && (await feature("ownerAssistant")),
     digest,
     tgLook: await feature("tgLook"),
+    ...(await botFatherFacts(conversationId, conv.dmKey, ctx.userId)),
   };
 }
 
