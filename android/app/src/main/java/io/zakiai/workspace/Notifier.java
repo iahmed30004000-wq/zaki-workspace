@@ -80,7 +80,7 @@ public final class Notifier {
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_NO_USER_ACTION);
         PendingIntent full = PendingIntent.getActivity(c, RING_ID, screen, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         PendingIntent answer = open(c, url, RING_ID + 1);
-        PendingIntent decline = PendingIntent.getBroadcast(c, RING_ID + 2, new Intent(c, DeclineReceiver.class).setPackage(c.getPackageName()), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        PendingIntent decline = PendingIntent.getBroadcast(c, RING_ID + 2, new Intent(c, DeclineReceiver.class).setPackage(c.getPackageName()).putExtra("url", url), PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         Notification n = new Notification.Builder(c, CH_CALLS)
                 .setSmallIcon(R.drawable.ic_stat)
                 .setContentTitle(title)
