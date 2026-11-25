@@ -44,6 +44,10 @@ export interface TaskDetailData {
   boardId: string;
   boardName: string;
   dueDate: string | null;
+  /** The due date on the company's clock (`YYYY-MM-DDTHH:mm`) and as words; when it was made, as words. */
+  dueWall?: string | null;
+  dueText?: string | null;
+  createdText?: string;
   creatorName: string;
   /** «مين بيشوفها؟»: SPACE or PARTICIPANTS. */
   visibility: string;
@@ -167,7 +171,8 @@ export function TaskDetail({
   const [description, setDescription] = useState(task.description ?? "");
   const [priority, setPriority] = useState(task.priority);
   const [visibility, setVisibility] = useState(task.visibility);
-  const [dueDate, setDueDate] = useState(task.dueDate?.slice(0, 10) ?? "");
+  const dueSaved = task.dueWall ?? (task.dueDate ? `${task.dueDate.slice(0, 10)}T12:00` : "");
+  const [dueDate, setDueDate] = useState(dueSaved);
   const [assigneeIds, setAssigneeIds] = useState<string[]>(
     task.assigneeIds ?? (task.assigneeId ? [task.assigneeId] : []),
   );
@@ -273,7 +278,7 @@ export function TaskDetail({
     if (title !== task.title && title.trim()) patch.title = title.trim();
     if (description !== (task.description ?? "")) patch.description = description || null;
     if (priority !== task.priority) patch.priority = priority;
-    if (dueDate !== (task.dueDate?.slice(0, 10) ?? "")) patch.dueDate = dueDate || null;
+    if (dueDate !== dueSaved) patch.dueDate = dueDate || null;
     // «لمين»: the whole list, the first is the primary — one person works exactly like before
     const before = task.assigneeIds ?? (task.assigneeId ? [task.assigneeId] : []);
     if (assigneeIds.join(",") !== before.join(",")) patch.assigneeIds = assigneeIds;
@@ -328,6 +333,11 @@ export function TaskDetail({
           ) : (
             <h1 className="text-lg font-semibold text-fg">{task.title}</h1>
           )}
+          {task.createdText ? (
+            <p data-task-created className="!mt-1 text-xs text-fg-muted">
+              {task.creatorName ? t("task.created_line", { name: task.creatorName, when: task.createdText }) : t("task.created_at", { when: task.createdText })}
+            </p>
+          ) : null}
 
           <div className="grid gap-3 md:grid-cols-2">
             <div>
@@ -412,14 +422,14 @@ export function TaskDetail({
               </span>
               {fieldsEdit ? (
                 <Input
-                  type="date"
+                  type="datetime-local"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
                   onBlur={saveIfChanged}
                   className="h-8"
                 />
               ) : (
-                <p className="text-sm text-fg">{task.dueDate ? fmtDMY(task.dueDate) : "—"}</p>
+                <p className="text-sm text-fg">{task.dueDate ? (task.dueText ?? fmtDMY(task.dueDate)) : "—"}</p>
               )}
             </div>
             {milestones && milestones.length > 0 ? (

@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { dayKeyOf } from "@/lib/owner-board";
-import { dayOfInstant } from "@/lib/due-day";
+import { dayOfInstant, overdueDueFilter } from "@/lib/due-day";
 import { zonedDayStart } from "@/lib/zoned-time";
 import type { BoardAccess } from "@/server/policy/board";
 import { loadOverview, type BoardQuery } from "@/server/services/owner-board";
@@ -75,7 +75,7 @@ export async function loadScope(access: BoardAccess, query: BoardQuery, now: Dat
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.task.groupBy({ by: ["workspaceId"], where: { ...taskWhere, workspaceId: { in: spaceIds } }, _count: { _all: true } }),
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
-    db.task.groupBy({ by: ["workspaceId"], where: { ...taskWhere, workspaceId: { in: spaceIds }, dueDate: { lt: todayStart } }, _count: { _all: true } }),
+    db.task.groupBy({ by: ["workspaceId"], where: { ...taskWhere, workspaceId: { in: spaceIds }, dueDate: overdueDueFilter(now, tz) }, _count: { _all: true } }),
     spaceIds.length
       ? db.project.findMany({
           where: { workspaceId: { in: spaceIds }, systemKey: null, boards: { some: { archived: false } } },

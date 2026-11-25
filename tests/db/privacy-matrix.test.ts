@@ -157,6 +157,8 @@ async function world() {
   expect(made.status).toBe(201);
   const tasks: Record<string, string> = { public: publicTask.id, private: privateTask.id, fromPrivate: made.json?.["taskId"] as string };
   await db.task.update({ where: { id: publicTask.id }, data: { visibility: "SPACE" } });
+  // the counts below are read off the «بدون موعد» chip, so none of the three carries the company's default date
+  await db.task.updateMany({ where: { id: { in: Object.values(tasks) } }, data: { dueDate: null } });
 
   const roleOf = async (userId: string) => (await db.organizationMember.findFirstOrThrow({ where: { organizationId: orgId, userId } })).role;
   return { orgId, space, people, ids, tasks, roleOf };

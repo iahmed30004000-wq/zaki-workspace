@@ -10,6 +10,7 @@ import { StepProgressChip } from "@/components/task-steps/step-progress";
 import { RunningChip } from "@/components/time/running-chip";
 import { RecurringBadge } from "@/components/recurrence/recurring-badge";
 import { DueDayChip } from "@/components/work/my-tasks/due-chip";
+import { dueTimeText } from "@/lib/due-day";
 import { AutoMark } from "@/components/work/stale/auto-mark";
 import { PRIORITY_STYLES, fmtDMY, fmtRelative } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -49,7 +50,10 @@ export function WorkRow({
   const done = task.completedAt !== null;
   const priorityColor = PRIORITY_STYLES[task.priority]?.color ?? "rgb(var(--border))";
   const parts = [task.key, ...(showSpace ? [task.spaceName] : []), ...(showProject ? [task.projectName] : [])];
-  const overdue = !done && !!todayIso && !!task.dueDay && task.dueDay < todayIso;
+  // late: an earlier day, or today with an hour that has passed (src/lib/due-day.ts); amber: due today and not late
+  const hourPassed = !!task.dueWall && !!dueTimeText(task.dueWall) && !!task.dueDate && Date.parse(task.dueDate) < Date.now();
+  const overdue = !done && !!todayIso && !!task.dueDay && (task.dueDay < todayIso || (task.dueDay === todayIso && hourPassed));
+  const dueToday = !done && !overdue && !!todayIso && task.dueDay === todayIso;
   const assignee = task.assigneeNames.length > 1 ? `${task.assigneeNames[0]} +${task.assigneeNames.length - 1}` : (task.assigneeName ?? "");
 
   return (
@@ -90,6 +94,7 @@ export function WorkRow({
         </a>
       }
       subtitle={
+        <span className="flex min-w-0 flex-col">
         <span className="flex min-w-0 items-center gap-2">
           <span dir="auto" className="truncate">
             {parts.join(" · ")}
@@ -100,6 +105,12 @@ export function WorkRow({
           {task.pinnedAt ? <PinMark /> : null}
           <RewardBadge reward={task.reward as RewardBadgeData | null | undefined} />
           {task.automated ? <AutoMark /> : null}
+        </span>
+        {task.createdText ? (
+          <span data-task-created className="whitespace-normal text-xs leading-5" suppressHydrationWarning>
+            {task.creatorName ? t("task.created_line", { name: task.creatorName, when: task.createdText }) : t("task.created_at", { when: task.createdText })}
+          </span>
+        ) : null}
         </span>
       }
       trailing={
@@ -114,7 +125,7 @@ export function WorkRow({
           {showStage ? <StateChip tone={STAGE_TONE[task.columnStage] ?? "neutral"} className="max-md:hidden">{enumLabel("WorkStage", task.columnStage)}</StateChip> : null}
           {task.editable ? (
             // P2.3: a short Arabic label (اليوم · بكرا · 23 تشرين الثاني) over the invisible native box: a tap opens the picker, `mm/dd/yyyy` is never drawn
-            <DueDayChip day={task.dueDay} todayIso={todayIso} overdue={overdue} onChange={(day) => onDue(task.id, day)} />
+            <DueDayChip day={task.dueDay} wall={task.dueWall} todayIso={todayIso} overdue={overdue} dueToday={dueToday} onChange={(due) => onDue(task.id, due)} />
           ) : (
             <span className={cn("w-28 text-[13px]", overdue ? "text-danger" : "text-fg-muted")} title={task.dueDate ? fmtDMY(task.dueDate) : undefined} suppressHydrationWarning>
               {task.dueDate ? fmtRelative(task.dueDate) : ""}

@@ -6,7 +6,7 @@ import { taskVisibleWhere, type WorkScope } from "@/server/services/team-scope";
  * THE per-space task numbers — ONE function (B4): «كل المساحات» (`/spaces`), the control panel's report «حسب المساحة», the overview's insight about late work,
  * the number beside every space on the drawer and «اليوم» inside «الشركة» all ask it, so a space can never show one number here and another there.
  *
- *  - `open`: not finished, not archived. `overdue`: of those, due before `todayStart` (the START of the company's day: the caller knows the zone).
+ *  - `open`: not finished, not archived. `overdue`: of those, late by `overdue` (`overdueDueFilter` of src/lib/due-day.ts: the caller knows the zone and the moment).
  *  - `done`: finished since `since` (0 when `since` is not given).
  *  - `scope`: the viewer's own visibility (`taskVisibleWhere`): a task they may not open is in no number. Left out, it is the owner-level aggregate the control
  *    panel has always been (its audience is narrowed by `policy/board.ts`, not here).
@@ -22,7 +22,7 @@ export interface SpaceFigure {
 export interface SpaceFiguresInput {
   orgId: string;
   spaceIds: readonly string[];
-  todayStart: Date;
+  overdue: { lt: Date; not: Date };
   since?: Date;
   scope?: WorkScope;
   assigneeId?: string;
@@ -39,7 +39,7 @@ export async function spaceFigures(input: SpaceFiguresInput): Promise<Map<string
   const count = (where: Prisma.TaskWhereInput) => db.task.groupBy({ by: ["workspaceId"], where, _count: { _all: true } });
   const [open, overdue, done] = await Promise.all([
     count(live),
-    count({ ...live, dueDate: { lt: input.todayStart } }),
+    count({ ...live, dueDate: input.overdue }),
     input.since ? count({ ...base, completedAt: { gte: input.since } }) : Promise.resolve([] as { workspaceId: string; _count: { _all: number } }[]),
   ]);
   for (const row of open) (out.get(row.workspaceId) as SpaceFigure).open = row._count._all;

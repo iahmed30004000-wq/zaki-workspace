@@ -100,7 +100,7 @@ describe("a row (D1's list row)", () => {
     // where it lives is the second line; the stage is a state, so it is a CHIP at the end (the Telegram-like look), not a word of that line
     expect(markup).toContain("ZK-1 · ألفا · مشروع أ<");
     expect(markup).toMatch(/rounded-full[^>]*>للتنفيذ<\/span>/);
-    expect(markup).toContain('value="2026-11-20"');
+    expect(markup).toContain('value="2026-11-20T12:00"');
     expect(markup).toContain("إكمال");
     expect(markup).toContain("سارة");
     // the D1 row (min height, divider), not a card
@@ -121,7 +121,7 @@ describe("a row (D1's list row)", () => {
     expect(row(task({ id: "1", completedAt: "2026-11-19T09:00:00.000Z" }))).toContain("line-through");
     expect(row(task({ id: "1", visibility: "PARTICIPANTS" }))).toContain("مهمة خاصة");
     const readOnly = row(task({ id: "1", editable: false, dueDate: "2026-11-20T09:00:00.000Z" }));
-    expect(readOnly).not.toContain('type="date"');
+    expect(readOnly).not.toContain('type="date');
     expect(readOnly).toMatch(/<button[^>]*disabled/);
   });
 

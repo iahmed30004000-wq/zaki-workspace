@@ -22,7 +22,7 @@ import { saveCompanySettingsAction } from "./actions";
  */
 
 export interface CompanySettingsProps {
-  initial: { timezone: string; landing: string; workTabs: string[]; menuOrder: NavOrder | null; personalOrders: number };
+  initial: { timezone: string; landing: string; workTabs: string[]; dueHour: number | null; menuOrder: NavOrder | null; personalOrders: number };
 }
 
 const WORK = PLACES_V2.find((place) => place.key === "work");
@@ -53,6 +53,8 @@ export function CompanySettingsForm({ initial }: CompanySettingsProps) {
   const [timezone, setTimezone] = useState(initial.timezone);
   const [landing, setLanding] = useState(initial.landing);
   const [pins, setPins] = useState<string[]>(initial.workTabs);
+  // "" is «no default date»
+  const [dueHour, setDueHour] = useState(initial.dueHour === null ? "" : String(initial.dueHour));
 
   const defaultPlaces = PLACES_V2.map((place) => place.key as string);
   const startPlaces = orderKeys(defaultPlaces, saved.menuOrder?.places, (key) => key);
@@ -72,7 +74,7 @@ export function CompanySettingsForm({ initial }: CompanySettingsProps) {
     try {
       const result = await saveCompanySettingsAction(input);
       if (result.ok) {
-        setSaved({ timezone: result.view.timezone, landing: result.view.landing, workTabs: result.view.workTabs, menuOrder: result.view.menuOrder, personalOrders: result.view.personalOrders });
+        setSaved({ timezone: result.view.timezone, landing: result.view.landing, workTabs: result.view.workTabs, dueHour: result.view.dueHour, menuOrder: result.view.menuOrder, personalOrders: result.view.personalOrders });
         toast(t("cpv2.company.saved"), "success");
         router.refresh();
       } else setError(t(result.key) === result.key ? t("common.error") : t(result.key));
@@ -112,6 +114,31 @@ export function CompanySettingsForm({ initial }: CompanySettingsProps) {
             ))}
           </Select>
           <Button type="button" size="sm" disabled={busy !== null || timezone === saved.timezone} onClick={() => void save("timezone", { timezone })}>
+            {t("cpv2.company.save")}
+          </Button>
+        </div>
+      </section>
+
+      <section className={section} aria-labelledby="cs-due" data-block="duehour">
+        <h3 id="cs-due" className="text-sm font-semibold">
+          {t("cpv2.company.due.title")}
+        </h3>
+        <p className="mt-0.5 text-xs leading-5 text-fg-muted">{t("cpv2.company.due.hint")}</p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Select aria-labelledby="cs-due" value={dueHour} onChange={(e) => setDueHour(e.target.value)} className="w-auto min-w-48">
+            <option value="">{t("cpv2.company.due.none")}</option>
+            {Array.from({ length: 24 }, (_, hour) => (
+              <option key={hour} value={String(hour)}>
+                {`${String(hour).padStart(2, "0")}:00`}
+              </option>
+            ))}
+          </Select>
+          <Button
+            type="button"
+            size="sm"
+            disabled={busy !== null || dueHour === (saved.dueHour === null ? "" : String(saved.dueHour))}
+            onClick={() => void save("duehour", { defaultDueHour: dueHour === "" ? null : Number(dueHour) })}
+          >
             {t("cpv2.company.save")}
           </Button>
         </div>

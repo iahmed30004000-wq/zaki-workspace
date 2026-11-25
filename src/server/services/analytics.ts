@@ -1,3 +1,4 @@
+import { notLateWhere, overdueDueFilter } from "@/lib/due-day";
 import type { Prisma } from "@prisma/client";
 import { projectVisibleWhere, taskVisibleWhere, type WorkScope } from "@/server/services/team-scope";
 import { db } from "@/server/db";
@@ -20,7 +21,7 @@ import { resolveTimeZone, zonedDayStart } from "@/lib/zoned-time";
  */
 export async function loadAnalytics(orgId: string, wsIds: string[], now: Date = new Date(), teams?: WorkScope, ideasWhere: Prisma.IdeaWhereInput = {}) {
   const org = await db.organization.findUnique({ where: { id: orgId }, select: { timezone: true } });
-  const todayStart = zonedDayStart(now, resolveTimeZone(org?.timezone));
+  const zone = resolveTimeZone(org?.timezone);
   const since30 = new Date(now.getTime() - 30 * 24 * 3600 * 1000);
   const in7 = new Date(now.getTime() + 7 * 24 * 3600 * 1000);
   // `teams`: inside a space with teams, only the space's own work and the caller's teams' are counted
@@ -30,10 +31,10 @@ export async function loadAnalytics(orgId: string, wsIds: string[], now: Date = 
       db.task.count({ where: scope }),
       db.task.count({ where: { ...scope, completedAt: null } }),
       db.task.count({ where: { ...scope, completedAt: { not: null } } }),
-      db.task.count({ where: { ...scope, completedAt: null, dueDate: { lt: todayStart } } }),
+      db.task.count({ where: { ...scope, completedAt: null, dueDate: overdueDueFilter(now, zone) } }),
       db.task.count({ where: { ...scope, createdAt: { gte: since30 } } }),
       db.task.count({ where: { ...scope, completedAt: { gte: since30 } } }),
-      db.task.count({ where: { ...scope, completedAt: null, dueDate: { gte: todayStart, lte: in7 } } }),
+      db.task.count({ where: { AND: [scope, notLateWhere(now, zone), { completedAt: null, dueDate: { lte: in7 } }] } }),
       db.task.groupBy({ by: ["priority"], where: { ...scope, completedAt: null }, _count: { _all: true } }),
       db.idea.groupBy({ by: ["status"], where: { orgId, ...ideasWhere }, _count: { _all: true } }),
       db.task.groupBy({

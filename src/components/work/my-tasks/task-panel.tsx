@@ -99,7 +99,7 @@ export function TaskPanel({
                 <dt className="text-fg-muted">{t("task.due")}</dt>
                 <dd>
                   {task.editable ? (
-                    <DueDayChip day={task.dueDay} todayIso={todayIso} onChange={(day) => onDue(task.id, day)} className="border border-border text-fg" />
+                    <DueDayChip day={task.dueDay} wall={task.dueWall} todayIso={todayIso} onChange={(due) => onDue(task.id, due)} className="border border-border text-fg" />
                   ) : (
                     <span suppressHydrationWarning>{task.dueDate ? fmtDMY(task.dueDate) : t("mytasks.due.none")}</span>
                   )}
@@ -107,7 +107,14 @@ export function TaskPanel({
                 <dt className="text-fg-muted">{t("mytasks.panel.people")}</dt>
                 <dd>{task.assigneeNames.length ? task.assigneeNames.join("، ") : t("mytasks.panel.nobody")}</dd>
                 <dt className="text-fg-muted">{t("mytasks.panel.creator")}</dt>
-                <dd>{detail.creatorName}</dd>
+                <dd>
+                  {detail.creatorName}
+                  {task.createdText ? (
+                    <span className="ms-2 text-fg-muted" suppressHydrationWarning>
+                      {task.createdText}
+                    </span>
+                  ) : null}
+                </dd>
               </dl>
 
               <div>

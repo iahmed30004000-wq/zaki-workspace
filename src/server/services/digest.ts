@@ -1,4 +1,4 @@
-import { dayOfInstant } from "@/lib/due-day";
+import { dayOfInstant, overdueDueFilter } from "@/lib/due-day";
 import { zonedDayStart } from "@/lib/zoned-time";
 import { dayKeyOf } from "@/lib/owner-board";
 import { AR } from "@/lib/i18n/dict";
@@ -225,7 +225,7 @@ async function taskSection(actor: Actor, p: Prepared, now: Date): Promise<{ line
       orgId: actor.orgId,
       archived: false,
       workspaceId: { in: spaces },
-      AND: [mine, noReward, { OR: [{ completedAt: null, dueDate: { lt: todayStart } }, { updatedAt: { gte: since } }] }],
+      AND: [mine, noReward, { OR: [{ completedAt: null, dueDate: overdueDueFilter(now, tz) }, { updatedAt: { gte: since } }] }],
     },
     select: { title: true, priority: true, dueDate: true, completedAt: true, creatorId: true, createdAt: true },
     orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
