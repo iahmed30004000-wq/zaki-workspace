@@ -1,3 +1,4 @@
+import { overdueDueFilter } from "@/lib/due-day";
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { ForbiddenError } from "@/server/auth";
@@ -14,7 +15,7 @@ import { loadCard } from "./cards";
 import { bannerInsteadOfSwitch, currentSpace, spacesOf } from "./current-space";
 import { panelFactsOf } from "./control-panel";
 import { spaceOfApproval } from "./approvals";
-import { orgDayStart } from "./org-day";
+import { orgTimeZone } from "./org-day";
 import { spaceFigures } from "./space-figures";
 import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "./team-scope";
 
@@ -80,7 +81,7 @@ export async function overdueBySpace(userId: string, orgIds: readonly string[], 
   await Promise.all(
     orgIds.map(async (orgId) => {
       // B4: the per-space numbers come from `spaceFigures`, the one source (the same query «كل المساحات», the report and the overview use)
-      const figures = await spaceFigures({ orgId, spaceIds, todayStart: await orgDayStart(orgId, now), scope, assigneeId: userId });
+      const figures = await spaceFigures({ orgId, spaceIds, overdue: overdueDueFilter(now, await orgTimeZone(orgId)), scope, assigneeId: userId });
       for (const [spaceId, figure] of figures) if (figure.overdue > 0) out[spaceId] = figure.overdue;
     }),
   );

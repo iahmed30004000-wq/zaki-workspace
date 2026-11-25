@@ -71,8 +71,9 @@ describe("the date chip: a short Arabic label, the native picker only on a tap",
     expect(textOf(markup)).toBe("23 تشرين الثاني");
     expect(markup).not.toMatch(/mm\/dd\/yyyy|\d{2}\/\d{2}\/\d{4}/);
     expect(markup).toMatch(/<label[^>]*class="[^"]*\brelative\b/);
-    expect(markup).toMatch(/<input[^>]*type="date"[^>]*class="[^"]*\babsolute\b[^"]*\binset-0\b[^"]*\bopacity-0\b/);
-    expect(markup).toContain('value="2026-11-23"');
+    expect(markup).toMatch(/<input[^>]*type="datetime-local"[^>]*class="[^"]*\babsolute\b[^"]*\binset-0\b[^"]*\bopacity-0\b/);
+    // no hour picked: the box holds noon, «the whole day», and the chip says no hour
+    expect(markup).toContain('value="2026-11-23T12:00"');
     expect(markup).toContain('aria-label="تاريخ الاستحقاق"');
   });
 
@@ -80,6 +81,13 @@ describe("the date chip: a short Arabic label, the native picker only on a tap",
     expect(textOf(chip({ day: "2026-11-21" }))).toBe("اليوم");
     expect(textOf(chip({ day: "2026-11-22" }))).toBe("بكرا");
     expect(textOf(chip({ day: null }))).toBe("بدون موعد");
+  });
+
+  it("an hour that was picked is said beside the day, and a task due today wears amber", () => {
+    const markup = chip({ day: "2026-11-21", wall: "2026-11-21T18:00", dueToday: true });
+    expect(textOf(markup).replace(/\s+/g, "")).toBe("اليوم18:00");
+    expect(markup).toContain('value="2026-11-21T18:00"');
+    expect(markup).toMatch(/<label[^>]*class="[^"]*\btext-warn\b/);
   });
 
   it("an overdue day wears the danger colour on the label, a plain one the quiet colour", () => {
@@ -126,20 +134,20 @@ describe("the row and the panel use the chip", () => {
   it("a row says بكرا in words and has no bare date box", () => {
     const markup = row(task({ dueDay: "2026-11-22", dueDate: "2026-11-22T09:00:00.000Z" }), "2026-11-21");
     expect(textOf(markup)).toContain("بكرا");
-    expect(markup).not.toMatch(/<input[^>]*type="date"[^>]*class="[^"]*\bw-(24|28)\b/);
-    expect(markup).toMatch(/<input[^>]*type="date"[^>]*\bopacity-0\b/);
+    expect(markup).not.toMatch(/<input[^>]*type="datetime-local"[^>]*class="[^"]*\bw-(24|28|44)\b/);
+    expect(markup).toMatch(/<input[^>]*type="datetime-local"[^>]*\bopacity-0\b/);
   });
 
   it("a row with no day says «بدون موعد»; a read-only one has no date input at all", () => {
     expect(textOf(row(task({}), "2026-11-21"))).toContain("بدون موعد");
-    expect(row(task({ editable: false, dueDate: "2026-11-22T09:00:00.000Z" }), "2026-11-21")).not.toContain('type="date"');
+    expect(row(task({ editable: false, dueDate: "2026-11-22T09:00:00.000Z" }), "2026-11-21")).not.toContain('type="datetime-local"');
   });
 
   it("the row and the side panel both draw the chip, neither a raw date input", () => {
     for (const file of ["work-row", "task-panel"]) {
       const src = read(`src/components/work/my-tasks/${file}.tsx`);
       expect(src, file).toContain("<DueDayChip");
-      expect(src, file).not.toContain('type="date"');
+      expect(src, file).not.toContain('type="date');
     }
   });
 });

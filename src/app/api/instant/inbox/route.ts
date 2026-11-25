@@ -1,3 +1,5 @@
+import { parseDueInput } from "@/lib/due-day";
+import { dueTextSchema } from "@/lib/due-input";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ForbiddenError, requireWorkspace } from "@/server/auth";
@@ -8,7 +10,6 @@ import { currentSpace } from "@/server/services/current-space";
 import { assertFeatureOn } from "@/server/services/features";
 import { createInboxTask, inboxInfo, inboxSpaceFor } from "@/server/services/instant-work";
 import { orgTimeZone } from "@/server/services/org-day";
-import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 
 const schema = z.object({
   title: z.string().trim().min(1, "title.required").max(280),
@@ -21,7 +22,7 @@ const schema = z.object({
   description: z.string().max(10_000).nullable().optional(),
   priority: z.enum(["URGENT", "HIGH", "NORMAL", "LOW"]).default("NORMAL"),
   // a day ("2026-11-05") or a full instant: a day is noon in the COMPANY's zone, never the browser's (review B5)
-  dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
+  dueDate: dueTextSchema.nullable().optional(),
 });
 
 /**
@@ -40,11 +41,8 @@ export async function POST(req: Request) {
     const space = await inboxSpaceFor(subject, input.spaceId ?? current?.id);
     if (!space) throw new ForbiddenError("instant.no_space");
     const ctx = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
-    const dueDate = !input.dueDate
-      ? null
-      : parseDayText(input.dueDate)
-        ? dueInstantForDay(input.dueDate, await orgTimeZone(ctx.orgId))
-        : new Date(input.dueDate);
+    // absent: the company's default (today at its hour); null: no date
+    const dueDate = input.dueDate === undefined ? undefined : input.dueDate ? parseDueInput(input.dueDate, await orgTimeZone(ctx.orgId)) : null;
     const task = await createInboxTask(ctx, space.id, {
       title: input.title,
       assigneeIds: input.assigneeIds?.length ? input.assigneeIds : input.assigneeId ? [input.assigneeId] : undefined,

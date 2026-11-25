@@ -87,6 +87,7 @@ export async function POST(req: Request) {
         targetDate: input.targetDate ?? null,
         status: "PLANNING",
         sourceMessageId: source?.id ?? null,
+        createdById: ctx.userId,
       },
       select: { id: true, name: true, status: true },
     });

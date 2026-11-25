@@ -1,3 +1,4 @@
+import { projectCreatedLine } from "@/server/services/project-created";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { db } from "@/server/db";
@@ -109,6 +110,7 @@ export default async function ProjectPage({ params, searchParams }: { params: { 
     : 0;
   const open = project._count.tasks;
   const pct = open + doneCount > 0 ? Math.round((doneCount / (open + doneCount)) * 100) : 0;
+  const createdLine = await projectCreatedLine(actor.orgId, project, t);
 
   return (
     <div className="mx-auto max-w-5xl space-y-5 p-4 md:p-6">
@@ -130,6 +132,9 @@ export default async function ProjectPage({ params, searchParams }: { params: { 
         </div>
         {project.description ? <p className="max-w-2xl text-sm text-fg-muted">{project.description}</p> : null}
         <ProjectTeamPicker projectId={project.id} workspaceId={project.workspace.id} teamId={project.teamId} />
+        <p data-project-created className="text-xs text-fg-muted">
+          {createdLine}
+        </p>
       </header>
 
       <PinnedStrip tasks={pinned} />

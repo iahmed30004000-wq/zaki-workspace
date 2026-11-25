@@ -1,3 +1,4 @@
+import { dueLaterTodayWhere, overdueDueFilter } from "@/lib/due-day";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { chatList } from "@/server/chat/list";
@@ -102,8 +103,8 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
     const mine = { ...open, assigneeId: actor.userId } satisfies Prisma.TaskWhereInput;
     const [nOpen, nOverdue, nToday, nDone, nLeft] = await Promise.all([
       db.task.count({ where: mine }),
-      db.task.count({ where: { ...mine, dueDate: { lt: todayStart } } }),
-      db.task.count({ where: { ...mine, dueDate: { gte: todayStart, lt: tomorrowStart } } }),
+      db.task.count({ where: { ...mine, dueDate: overdueDueFilter(now, timeZone) } }),
+      db.task.count({ where: { ...mine, AND: [...open.AND, dueLaterTodayWhere(now, timeZone)] } }),
       db.task.count({ where: { ...doneThisWeek, assigneeId: actor.userId } }),
       // what is still to do this week: late, today, or due before the week ends
       db.task.count({ where: { ...mine, dueDate: { lt: weekEnd } } }),
@@ -126,10 +127,10 @@ export async function getTodayDashboard(actor: Actor, opts: DashboardOptions = {
     if (teamSpaces.length === 0) return null;
     const teamVisible = { orgId: actor.orgId, workspaceId: { in: teamSpaces }, archived: false, AND: [taskVisibleWhere(teamScope), teamTaskWhere(people)] } satisfies Prisma.TaskWhereInput;
     const teamOpen = { ...teamVisible, completedAt: null } satisfies Prisma.TaskWhereInput;
-    const teamLate = { ...teamOpen, dueDate: { lt: todayStart } } satisfies Prisma.TaskWhereInput;
+    const teamLate = { ...teamOpen, dueDate: overdueDueFilter(now, timeZone) } satisfies Prisma.TaskWhereInput;
     const [nDone, nToday, late, lateShared] = await Promise.all([
       db.task.count({ where: { ...teamVisible, completedAt: { gte: weekStart, lt: weekEnd } } }),
-      db.task.count({ where: { ...teamOpen, dueDate: { gte: todayStart, lt: tomorrowStart } } }),
+      db.task.count({ where: { ...teamOpen, AND: [...teamVisible.AND, dueLaterTodayWhere(now, timeZone)] } }),
       db.task.groupBy({
         by: ["assigneeId"],
         where: {
@@ -240,7 +241,7 @@ export async function getTodayBySpace(actor: Actor, now: Date = new Date()): Pro
     unreadBySpace({ userId: actor.userId, orgId: actor.orgId, orgRole: actor.role }),
   ]);
   const figures = actorCanWork(actor, "tasks.view")
-    ? await spaceFigures({ orgId: actor.orgId, spaceIds: spaces.map((s) => s.id), todayStart: zonedDayStart(now, resolveTimeZone(org?.timezone)), scope, assigneeId: actor.userId })
+    ? await spaceFigures({ orgId: actor.orgId, spaceIds: spaces.map((s) => s.id), overdue: overdueDueFilter(now, resolveTimeZone(org?.timezone)), scope, assigneeId: actor.userId })
     : null;
   return spaces.map((s) => ({ id: s.id, name: s.name, emoji: s.emoji, open: figures?.get(s.id)?.open ?? 0, overdue: figures?.get(s.id)?.overdue ?? 0, unread: unread[s.id] ?? 0 }));
 }

@@ -1,8 +1,10 @@
+import { resolveTimeZone } from "@/lib/zoned-time";
+import { defaultDueDate, overdueDueFilter } from "@/lib/due-day";
 import { Prisma, type Task } from "@prisma/client";
 import { assertMemberCan } from "@/server/policy/actor";
 import { featureOn } from "@/lib/features";
 import { loadWorkScope, reportsOfSpace, taskParticipantFilter, userSeesProject, type TaskVisibility } from "./team-scope";
-import { orgDayStart } from "./org-day";
+import { orgTimeZone } from "./org-day";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError } from "@/server/auth";
 import { AR } from "@/lib/i18n/dict";
@@ -258,6 +260,12 @@ export async function notifyCreatedRequests(made: TaskWithRequest, actor: ActorC
  * the section grid's `tasks.edit` door and sends the bell for a request AFTER its commit (`notifyCreatedRequests`).
  * Every rule (the project chain, the team, the labels, the rank judge) is here, once.
  */
+/** Today at the company's hour, or null when the company chose «no default date» (src/lib/due-day.ts). */
+async function defaultDueFor(tx: Tx, orgId: string): Promise<Date | null> {
+  const row = await tx.organization.findUnique({ where: { id: orgId }, select: { settings: true, timezone: true } });
+  return defaultDueDate(row?.settings, resolveTimeZone(row?.timezone));
+}
+
 /** The company's default for a new task that has somebody assigned: the switch «المعنيين بس» (the owner's answer to D-P2 turns it on). */
 async function privateByDefault(tx: Tx, orgId: string): Promise<boolean> {
   const row = await tx.organization.findUnique({ where: { id: orgId }, select: { settings: true } });
@@ -265,6 +273,8 @@ async function privateByDefault(tx: Tx, orgId: string): Promise<boolean> {
 }
 
 export async function createTaskInTx(tx: Tx, actor: ActorContext, input: CreateTaskInput): Promise<TaskWithRequest> {
+  // a due date NOT GIVEN is today at the company's hour (the owner, 2026-11-25); an explicit null stays «بدون موعد»
+  const dueDate = input.dueDate === undefined ? await defaultDueFor(tx, actor.orgId) : input.dueDate;
   // «مهمة بمكافأة»: the owner only, with a due date and an amount: refused BEFORE anything is written
   const rewardData = input.reward ? await prepareReward(actor, input.reward, input.dueDate ?? null, tx) : null;
   // integrity: ids must chain to the actor's organization
@@ -343,7 +353,7 @@ export async function createTaskInTx(tx: Tx, actor: ActorContext, input: CreateT
       priority: input.priority ?? "NORMAL",
       type: input.type ?? "TASK",
       assigneeId,
-      dueDate: input.dueDate ?? null,
+      dueDate,
       startDate: input.startDate ?? null,
       creatorId: actor.userId,
       position: await positionAt(column.id, undefined, tx),
@@ -719,9 +729,8 @@ export async function listTasks(actor: ActorContext, filters: ListFilters): Prom
     ...(filters.assigneeId ? assignedTo(filters.assigneeId) : {}),
   };
   if (filters.overdue) {
-    // the same line as My Work, Today and the reports: due strictly before the START of the company's today,
-    // never before "this very moment" (a task due today at 09:00 is not late at 15:00)
-    where.dueDate = { lt: await orgDayStart(actor.orgId, filters.now) };
+    // the same line as My Work, Today and the reports (src/lib/due-day.ts): a whole-day task is late after its day, a task with an hour once the hour passes
+    where.dueDate = overdueDueFilter(filters.now ?? new Date(), await orgTimeZone(actor.orgId));
     where.completedAt = null;
   }
   if (filters.cursor) {

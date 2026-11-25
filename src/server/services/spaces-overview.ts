@@ -1,3 +1,4 @@
+import { overdueDueFilter } from "@/lib/due-day";
 import type { WorkspaceKind } from "@prisma/client";
 import { db } from "@/server/db";
 import type { Actor } from "@/server/policy/actor";
@@ -54,7 +55,7 @@ export async function spacesOverview(actor: Actor, now: Date = new Date()): Prom
       },
       _count: { _all: true },
     }),
-    spaceFigures({ orgId: actor.orgId, spaceIds: ids, todayStart, scope }),
+    spaceFigures({ orgId: actor.orgId, spaceIds: ids, overdue: overdueDueFilter(now, resolveTimeZone(org?.timezone)), scope }),
   ]);
   const m = new Map(members.map((r) => [r.workspaceId, r._count._all] as const));
   return spaces.map((s) => ({

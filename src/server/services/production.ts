@@ -504,7 +504,7 @@ export async function convertRoutineToTask(ctx: { orgId: string; userId: string 
 			}
 			const task = await createTask(
 				{ userId: ctx.userId, orgId: ctx.orgId },
-				{ ...place, title: routine.title.slice(0, 280), description: routine.description, assigneeId: holder ? routine.assigneeId : null },
+				{ ...place, title: routine.title.slice(0, 280), description: routine.description, assigneeId: holder ? routine.assigneeId : null, dueDate: null },
 			);
 			id = task.id;
 			await audit(ROUTINE_CONVERTED, { actorId: ctx.userId, orgId: ctx.orgId, target: routine.id, meta: { taskId: id } });

@@ -1,11 +1,14 @@
+import { redirect } from "next/navigation";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
+import { db } from "@/server/db";
+import { withSavedFilters } from "@/lib/work/saved-filters";
 import { LegacyMyWorkPage } from "@/app/(app)/my-work/legacy-page";
 import { MyTasksView } from "@/components/work/my-tasks/my-tasks-view";
 import { actorCanWork } from "@/server/policy/actor";
 import { isFeatureOn } from "@/server/services/features";
 import { workScreenFor } from "@/server/services/my-work";
 import { managedSpacesOf } from "@/server/services/stale-tasks";
-import { myTasksApiQuery, parseMyTasksParams } from "@/lib/work/my-tasks";
+import { myTasksApiQuery, myTasksHref, parseMyTasksParams } from "@/lib/work/my-tasks";
 
 /**
  * «مهامي» — /my-work. With the owner's switch `workMyTasks` ON (W1.1) this is the ONE screen of a person's tasks: three views (قائمة · لوحة · تقويم), three
@@ -23,6 +26,10 @@ export default async function MyWorkPage({ searchParams }: { searchParams: Recor
   // the tasks row of the person's grid (a guest works in their shared spaces by the space's rules)
   if (!actorCanWork(actor, "tasks.view")) return <SectionOffNotice />;
   if (!(await isFeatureOn(actor.orgId, "workMyTasks"))) return LegacyMyWorkPage({ searchParams: { tab: firstOf(searchParams?.["tab"]) } });
+
+  // a plain visit opens with the filters this person keeps; an address that asks for something itself is left as it is
+  const kept = withSavedFilters(searchParams ?? {}, (await db.user.findUnique({ where: { id: actor.userId }, select: { taskFilters: true } }))?.taskFilters);
+  if (kept) redirect(myTasksHref(kept));
 
   const requested = parseMyTasksParams(searchParams ?? {});
   const now = new Date();

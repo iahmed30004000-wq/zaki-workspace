@@ -13,10 +13,10 @@ import { put, todayFor, world as todayWorld } from "./today-helpers";
  * task due at 09:00 today was "today" on one screen and "overdue" on the next after noon.
  */
 describe("overdue is the company's day on every path, not the wall clock", () => {
-  it("a task due at 09:00 today is not overdue at 15:00 — the list, the views, My Work and Today agree", async () => {
+  it("a whole-day task of today is not overdue at 15:00 — the list, the views, My Work and Today agree", async () => {
     const w = await todayWorld("Asia/Damascus");
     const now = new Date("2026-03-16T12:00:00Z"); // 15:00 on the 16th in Damascus
-    const dueToday = await put(w, "in", { assigneeId: w.member.id, due: new Date("2026-03-16T06:00:00Z") }); // 09:00 the 16th
+    const dueToday = await put(w, "in", { assigneeId: w.member.id, due: new Date("2026-03-16T09:00:00Z") }); // the 16th, no hour picked (noon)
     const dueYesterday = await put(w, "in", { assigneeId: w.member.id, due: new Date("2026-03-15T06:00:00Z") }); // 09:00 the 15th
     const actor = { userId: w.member.id, orgId: w.org.id };
 

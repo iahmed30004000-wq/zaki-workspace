@@ -1,5 +1,7 @@
 "use client";
 
+import { apiPut } from "@/lib/api-client";
+import { savedFiltersOf, touchesFilters } from "@/lib/work/saved-filters";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { fmtNumber } from "@/lib/format";
@@ -51,6 +53,8 @@ export function MyTasksView({
     const next: MyTasksParams = { ...latest.current, ...change };
     setParams(next);
     window.history[mode === "push" ? "pushState" : "replaceState"](null, "", myTasksHref(next));
+    // the person's filters are kept for their next visit; a failure only means they are not (the list on screen is right either way)
+    if (touchesFilters(change)) void apiPut("/api/me/task-filters", savedFiltersOf(next)).catch(() => undefined);
   }, []);
 
   const query = useWorkTasks(params, { data: initial, query: initialQuery, at: initialAt });

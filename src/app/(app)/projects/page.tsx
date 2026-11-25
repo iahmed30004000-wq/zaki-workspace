@@ -1,3 +1,5 @@
+import { orgTimeZone } from "@/server/services/org-day";
+import { fmtStamp } from "@/lib/work/stamp";
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { actorCanWork } from "@/server/policy/actor";
@@ -24,7 +26,7 @@ import { getServerT } from "@/lib/i18n/server";
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: { workspace?: string };
+  searchParams: { workspace?: string; sort?: string };
 }) {
   const { t } = getServerT();
   const { user, actor } = await pageActor();
@@ -38,7 +40,7 @@ export default async function ProjectsPage({
   if (named && space && named !== space.id && scopeSpaceIds(everything).includes(named)) redirect(goHref(named, "/projects"));
   // the projects of the space the person is in — and inside a space with «مقاطع» only its own and theirs. M2 N3: read by
   // `projectsScreenFor`, the same function the phone's door `GET /api/work/projects` answers with, so the two cannot drift
-  const screen = await projectsScreenFor(actor);
+  const screen = await projectsScreenFor(actor, searchParams.sort === "created" ? { sort: "created" } : {});
   if (screen.kind !== "ok") return <SectionOffNotice />;
   const accessible = scopeSpaceIds(narrowScope(everything, space?.id));
   if (accessible.length === 0) {
@@ -59,6 +61,14 @@ export default async function ProjectsPage({
   const wsInfo = screen.data.space;
   const wsFilter = wsInfo?.id ?? "";
   const wsName = wsInfo?.name ?? "";
+  const byCreated = searchParams.sort === "created";
+  const zone = await orgTimeZone(actor.orgId);
+  // who made each project and when: the names are read once by `projectsScreenFor`
+  const createdLine = (p: { createdAt: string; createdByName: string | null }) => {
+    const when = fmtStamp(p.createdAt, zone);
+    return p.createdByName ? t("task.created_line", { name: p.createdByName, when }) : t("task.created_at", { when });
+  };
+  const sortLink = (on: boolean) => `rounded-full px-3 py-1.5 text-[13px] ${on ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2"}`;
   // A2.2: with the switch `controlPanelV2` ON the buttons of the space (its people, its «المقاطع») are links to the space's ONE settings page; an external partner
   // is not offered that page and keeps the dialogs
   const settingsPage = !actor.isExternal && (await actorFeatureOn(actor, "controlPanelV2"));
@@ -112,6 +122,16 @@ export default async function ProjectsPage({
           </Card>
         </Link>
       ))}
+      {ordinary.length > 1 ? (
+        <nav aria-label={t("mytasks.sort.label")} className="flex items-center gap-1">
+          <Link href="/projects" aria-current={byCreated ? undefined : "true"} className={sortLink(!byCreated)}>
+            {t("proj.sort.updated")}
+          </Link>
+          <Link href="/projects?sort=created" aria-current={byCreated ? "true" : undefined} className={sortLink(byCreated)}>
+            {t("mytasks.sort.created")}
+          </Link>
+        </nav>
+      ) : null}
       {ordinary.length === 0 ? (
         <QuietEmpty title={t("proj.emptyTitle")} hint={t("proj.emptyHint")} />
       ) : (
@@ -132,6 +152,9 @@ export default async function ProjectsPage({
                   <p className="mt-2 text-[13px] text-fg-muted">
                     {t("proj.cardLine", { tasks: p.tasks, boards: p.boards })}
                     {p.targetDate ? ` · ${t("proj.dueLine", { date: fmtDMY(p.targetDate) })}` : ""}
+                  </p>
+                  <p data-project-created className="mt-1 text-xs text-fg-muted">
+                    {createdLine(p)}
                   </p>
                 </CardBody>
               </Card>
