@@ -35,8 +35,11 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
 
-/** Where the person stands: not signed in · signed in but owing the onboarding · in. */
-enum class Gate { SIGNED_OUT, ONBOARDING, IN }
+/**
+ * Where the person stands: the session not read from the phone yet (the splash stays) · not signed in · signed in but owing the
+ * onboarding · in.
+ */
+enum class Gate { STARTING, SIGNED_OUT, ONBOARDING, IN }
 
 /**
  * WHO IS SIGNED IN, and everything that follows from it. The session is the site's own cookie ([EncryptedCookieJar]); the
@@ -60,8 +63,16 @@ class Session @Inject constructor(
     /** one pairing at a time: two screens asking at once must not register the phone twice */
     private val pairing = Mutex()
 
-    private val _gate = MutableStateFlow(if (jar.hasSession()) Gate.IN else Gate.SIGNED_OUT)
+    private val _gate = MutableStateFlow(Gate.STARTING)
     val gate: StateFlow<Gate> = _gate.asStateFlow()
+
+    init {
+        // the encrypted session is read off the main thread; the gate opens once it is known (unless a sign-in got there first)
+        scope.launch {
+            val signedIn = jar.hasSession()
+            _gate.compareAndSet(Gate.STARTING, if (signedIn) Gate.IN else Gate.SIGNED_OUT)
+        }
+    }
 
     private val _me = MutableStateFlow<Me?>(null)
     val me: StateFlow<Me?> = _me.asStateFlow()
@@ -112,7 +123,7 @@ class Session @Inject constructor(
         if (r is ApiResult.Err) return@async r
         _endedBecause.value = null
         refresh()
-        if (_gate.value == Gate.SIGNED_OUT) _gate.value = Gate.IN
+        if (_gate.value == Gate.SIGNED_OUT || _gate.value == Gate.STARTING) _gate.value = Gate.IN
         pairPhone()
         ApiResult.Ok(Unit)
     }.await()
@@ -150,7 +161,7 @@ class Session @Inject constructor(
 
     /** Re-pairs a phone that was signed in by the app before 4.0 but never paired, or whose pairing was removed. */
     fun ensurePaired() {
-        if (_gate.value == Gate.SIGNED_OUT) return
+        if (_gate.value == Gate.SIGNED_OUT || _gate.value == Gate.STARTING) return
         if (Config.token(context).isEmpty()) scope.launch { pairPhone() } else StreamService.start(context)
     }
 

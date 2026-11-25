@@ -13,7 +13,11 @@ import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.fragment.app.FragmentActivity
 import dagger.hilt.android.AndroidEntryPoint
+import androidx.lifecycle.lifecycleScope
 import io.zakiai.workspace.core.AppLock
+import io.zakiai.workspace.core.Gate
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import io.zakiai.workspace.core.LookSettings
 import io.zakiai.workspace.core.Session
 import io.zakiai.workspace.core.net.EncryptedCookieJar
@@ -53,12 +57,15 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        // the splash stays while the encrypted session is read on its own thread (a slow phone's Keystore never freezes a frame)
+        installSplashScreen().setKeepOnScreenCondition { session.gate.value == Gate.STARTING }
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         Notifier.cancelRing(this)
-        session.ensurePaired()
-        if (session.gate.value != io.zakiai.workspace.core.Gate.SIGNED_OUT) schedules.ensure()
+        lifecycleScope.launch {
+            // pairing and the background work start once the gate is known (Root re-checks the pairing on every gate change)
+            if (session.gate.first { it != Gate.STARTING } != Gate.SIGNED_OUT) schedules.ensure()
+        }
         // the address the app was opened with, once: a rotation re-creates the activity with the same intent, and must not
         // push the same screen a second time
         if (savedInstanceState == null) link.value = intent?.dataString

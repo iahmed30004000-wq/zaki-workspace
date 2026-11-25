@@ -24,17 +24,39 @@ class EncryptedCookieJar @Inject constructor(@ApplicationContext context: Contex
      * null when the phone's Keystore cannot be used at all (a vendor bug): the session then lives in memory only — the person signs
      * in again at the next start — rather than the app crashing on every start, and it is never written in plain text.
      */
-    private val prefs: SharedPreferences? = runCatching { open(context) }.getOrElse {
-        // a Keystore that lost its key (a restored phone): start clean
-        context.deleteSharedPreferences(FILE)
-        runCatching { open(context) }.getOrNull()
-    }
+    @Volatile private var prefs: SharedPreferences? = null
     private val cookies = linkedMapOf<String, Cookie>()
 
+    /**
+     * Opening the Keystore and decrypting the file takes hundreds of milliseconds on a slow phone: it runs on a thread of its own,
+     * started as soon as the jar exists, so the first frame never waits for it (the splash stays until the gate is known). Every
+     * reader waits for it ([ready]) — a request is never sent without the session it should carry.
+     */
+    private val loaded = java.util.concurrent.CountDownLatch(1)
+
     init {
-        prefs?.all?.forEach { (key, value) -> decode(value as? String)?.let { cookies[key] = it } }
-        migrateLegacy(context)
+        Thread({ load(context) }, "zaki-cookies").start()
     }
+
+    private fun load(context: Context) {
+        try {
+            val store = runCatching { open(context) }.getOrElse {
+                // a Keystore that lost its key (a restored phone): start clean
+                context.deleteSharedPreferences(FILE)
+                runCatching { open(context) }.getOrNull()
+            }
+            synchronized(this) {
+                prefs = store
+                store?.all?.forEach { (key, value) -> decode(value as? String)?.let { cookies[key] = it } }
+                migrateLegacy(context)
+            }
+        } finally {
+            loaded.countDown()
+        }
+    }
+
+    /** Waits until the session is read from the phone (at once after the first start). */
+    fun ready() = loaded.await()
 
     private fun migrateLegacy(context: Context) {
         val store = prefs ?: return // nowhere safe to move them: the old file stays until there is
@@ -55,8 +77,14 @@ class EncryptedCookieJar @Inject constructor(@ApplicationContext context: Contex
 
     private fun keyOf(c: Cookie) = "${c.name}|${c.domain}|${c.path}"
 
-    @Synchronized
+    // every reader waits for the load OUTSIDE the lock (the loading thread takes the lock to fill the map)
+
     override fun saveFromResponse(url: HttpUrl, cookies: List<Cookie>) {
+        ready()
+        synchronized(this) { save(cookies) }
+    }
+
+    private fun save(cookies: List<Cookie>) {
         val editor = prefs?.edit()
         for (c in cookies) {
             val key = keyOf(c)
@@ -71,23 +99,26 @@ class EncryptedCookieJar @Inject constructor(@ApplicationContext context: Contex
         editor?.apply()
     }
 
-    @Synchronized
     override fun loadForRequest(url: HttpUrl): List<Cookie> = cookiesFor(url)
 
-    @Synchronized
     fun cookiesFor(url: HttpUrl): List<Cookie> {
+        ready()
         val now = System.currentTimeMillis()
-        return cookies.values.filter { it.expiresAt > now && it.matches(url) }
+        return synchronized(this) { cookies.values.filter { it.expiresAt > now && it.matches(url) } }
     }
 
     /** Whether a session cookie is on the phone (the person signed in before). The session cookie is the http-only one. */
-    @Synchronized
-    fun hasSession(): Boolean = cookies.values.any { it.expiresAt > System.currentTimeMillis() && it.httpOnly }
+    fun hasSession(): Boolean {
+        ready()
+        return synchronized(this) { cookies.values.any { it.expiresAt > System.currentTimeMillis() && it.httpOnly } }
+    }
 
-    @Synchronized
     fun clear() {
-        cookies.clear()
-        prefs?.edit()?.clear()?.apply()
+        ready()
+        synchronized(this) {
+            cookies.clear()
+            prefs?.edit()?.clear()?.apply()
+        }
     }
 
     companion object {

@@ -52,13 +52,15 @@ fun Root(activity: MainActivity) {
                 activity.enableEdgeToEdge(statusBarStyle = style, navigationBarStyle = style)
             }
             LaunchedEffect(gate) {
-                if (gate != Gate.SIGNED_OUT) {
+                if (gate != Gate.SIGNED_OUT && gate != Gate.STARTING) {
                     activity.session.refresh()
                     activity.session.ensurePaired()
                     activity.askNotificationPermission()
                 }
             }
             when {
+                // the splash is still on screen: nothing to draw under it yet
+                gate == Gate.STARTING -> Unit
                 gate == Gate.SIGNED_OUT -> SignInScreen(activity.session, ended)
                 locked -> LockScreen(activity)
                 gate == Gate.ONBOARDING -> OnboardingScreen(activity.session)

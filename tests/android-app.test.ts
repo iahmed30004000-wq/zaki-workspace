@@ -131,6 +131,19 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(read(SRC + "core/Cache.kt")).toContain("if (startedIn == generation)");
   });
 
+  it("the encrypted session is opened off the main thread: the splash stays until the gate is known", () => {
+    const jar = read(SRC + "core/net/EncryptedCookieJar.kt");
+    // the Keystore and the decryption run on a thread of their own, started at once; every reader waits for it
+    expect(jar).toContain('Thread({ load(context) }, "zaki-cookies")');
+    expect(jar).toContain("loaded.await()");
+    expect(jar).not.toMatch(/private val prefs: SharedPreferences\? = runCatching \{ open\(context\) \}/);
+    const session = read(SRC + "core/Session.kt");
+    expect(session).toContain("MutableStateFlow(Gate.STARTING)");
+    expect(session).not.toContain("MutableStateFlow(if (jar.hasSession())");
+    const main = read(SRC + "MainActivity.kt");
+    expect(main).toContain("setKeepOnScreenCondition { session.gate.value == Gate.STARTING }");
+  });
+
   it("a crash report never carries an exception's message (it can hold what the person typed)", () => {
     const crash = read(SRC + "core/crash/Crash.kt");
     expect(crash).toContain("SafeTrace.headline(error, thread.name), SafeTrace.stack(error)");
