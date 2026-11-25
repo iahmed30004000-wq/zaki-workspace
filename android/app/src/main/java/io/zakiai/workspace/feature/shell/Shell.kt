@@ -206,13 +206,14 @@ private object Routes {
     const val LIBRARY = "library"
     const val DOCUMENT = "document/{id}"
     const val SHEET = "sheet/{id}"
+    const val CALL = "call/{id}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
     fun task(id: String) = "task/$id"
     fun work(tab: String) = "work?tab=$tab"
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -248,6 +249,7 @@ fun NavHostController.open(dest: Destination) {
         Destination.Library -> navigate(Routes.LIBRARY) { popUpTo(Routes.CHATS); launchSingleTop = true }
         is Destination.Document -> navigate("document/" + dest.id)
         is Destination.Sheet -> navigate("sheet/" + dest.id)
+        is Destination.Call -> navigate("call/" + dest.id) { launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -434,6 +436,9 @@ fun Shell(
                     }
                     composable(Routes.DOCUMENT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.library.DocumentScreen(onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.CALL, arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
+                        io.zakiai.workspace.feature.calls.CallScreen(callId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
                     }
                     composable(Routes.SHEET, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.library.SheetScreen(onBack = { nav.popBackStack() })

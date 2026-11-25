@@ -321,4 +321,26 @@ interface WorkspaceApi {
 
     @DELETE("api/notifications/{id}")
     suspend fun deleteNotification(@Path("id") id: String): Ok
+
+    // ── calls (M2 N5): the site's own call routes; the media goes to the site's LiveKit room ──
+    @GET("api/calls/{id}")
+    suspend fun callDetail(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): CallDetail
+
+    @POST("api/calls/{id}/token")
+    suspend fun callToken(@Path("id") id: String, @Body body: CallTokenBody = CallTokenBody()): CallPass
+
+    @POST("api/calls/{id}/joined")
+    suspend fun callJoined(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/leave")
+    suspend fun callLeave(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/decline")
+    suspend fun callDecline(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/end")
+    suspend fun callEnd(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/mute")
+    suspend fun callMute(@Path("id") id: String, @Body body: CallUserBody): Ok
 }

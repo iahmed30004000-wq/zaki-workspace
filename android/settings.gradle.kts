@@ -11,6 +11,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // LiveKit's audio routing (earpiece, speaker, Bluetooth) is published on JitPack only, as its own setup guide says
+        maven { url = uri("https://jitpack.io"); content { includeGroup("com.github.davidliu") } }
     }
 }
 
