@@ -228,7 +228,9 @@ describe("where the screens mount it", () => {
     expect(read("src/app/(app)/list/page.tsx")).toMatch(/rewardLensFor\(actor, ctx\.workspaceId\)/);
     expect(read("src/app/(app)/list/page.tsx")).toMatch(/data-reward-totals/);
     expect(read("src/server/services/my-work.ts")).toMatch(/featureOn\(settingsByOrg\.get\(m\.organizationId\), "taskRewards"\) && m\.role !== "GUEST"/);
-    expect(read("src/app/(app)/boards/[id]/page.tsx")).toMatch(/lens\.rewards && listBadgeStatus/);
+    // M2 N3: the board page reads its cards through `boardScreenFor` (shared with the phone's door), so the rule lives there
+    expect(read("src/app/(app)/boards/[id]/page.tsx")).toContain("boardScreenFor(");
+    expect(read("src/server/services/work-app.ts")).toMatch(/lens\.rewards && listBadgeStatus/);
     expect(read("src/app/(app)/projects/[id]/page.tsx")).toMatch(/<PinnedStrip tasks=\{pinned\} \/>/);
     expect(read("src/app/(app)/page.tsx")).toMatch(/<PinnedStrip tasks=\{pinned\} variant="card" \/>/);
     expect(read("src/components/board-view.tsx")).toContain("<RewardBadge reward={task.reward} />");
