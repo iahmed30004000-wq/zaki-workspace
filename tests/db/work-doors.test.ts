@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { GET as projectsGET } from "@/app/api/work/projects/route";
 import { GET as projectGET } from "@/app/api/work/projects/[id]/route";
 import { GET as boardGET } from "@/app/api/work/boards/[id]/route";
+import * as moveRoute from "@/app/api/tasks/[id]/move/route";
 import { call, db, loginAs, logout, makeProject, makeTask, makeTeam, makeUser, makeWorkspace } from "./helpers";
 
 /**
@@ -119,12 +120,36 @@ describe("GET /api/work/boards/[id] — one board as the Kanban draws it", () =>
     expect(body.canEdit).toBe(true);
   });
 
-  it("a partner reads the board but never adds or drags, and is handed no reward", async () => {
+  it("a partner reads the board but never adds or drags, and is handed no reward the owner sees", async () => {
     const w = await world();
+    await db.task.update({ where: { id: w.task.id }, data: { rewardStatus: "OPEN", rewardAmountMinor: 15050, rewardCurrency: "JOD" } });
+    // the owner's lens shows it: the reward is really there
+    await loginAs(w.owner.id);
+    const seen = (await boardOf(w.board.id)).json as { tasks: { id: string; reward: { amountMinor: number } | null }[] };
+    expect(seen.tasks.find((t) => t.id === w.task.id)?.reward?.amountMinor).toBe(15050);
+    // the partner's never does
     await loginAs(w.guest.id);
-    const body = (await boardOf(w.board.id)).json as { canEdit: boolean; tasks: { reward: unknown }[] };
+    const body = (await boardOf(w.board.id)).json as { canEdit: boolean; tasks: { id: string; reward: unknown }[] };
     expect(body.canEdit).toBe(false);
+    expect(body.tasks.find((t) => t.id === w.task.id)).toBeDefined();
     for (const t of body.tasks) expect(t.reward ?? null).toBeNull();
+  });
+
+  it("a card moved down inside its own column lands at the place it was dropped (the index counts the OTHER cards)", async () => {
+    const w = await world();
+    const more = async (title: string) =>
+      makeTask({ orgId: w.org.id, workspaceId: w.ws.id, projectId: w.project.id, boardId: w.board.id, columnId: w.todo.id, creatorId: w.member.id, title });
+    const b = await more("B");
+    const c = await more("C");
+    await db.task.update({ where: { id: w.task.id }, data: { position: 1000 } });
+    await db.task.update({ where: { id: b.id }, data: { position: 2000 } });
+    await db.task.update({ where: { id: c.id }, data: { position: 3000 } });
+    await loginAs(w.member.id);
+    // the first card between B and C: index 1 among [B, C]
+    const r = await call(moveRoute.POST, { params: { id: w.task.id }, method: "POST", body: { columnId: w.todo.id, index: 1 }, url: `http://localhost/api/tasks/${w.task.id}/move` });
+    expect(r.status).toBe(200);
+    const body = (await boardOf(w.board.id)).json as { tasks: { id: string; columnId: string }[] };
+    expect(body.tasks.filter((t) => t.columnId === w.todo.id).map((t) => t.id)).toEqual([b.id, w.task.id, c.id]);
   });
 
   it("a private task of somebody else is not on the board", async () => {

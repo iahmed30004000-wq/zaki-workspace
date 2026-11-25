@@ -4,9 +4,9 @@ import { withApi } from "@/server/api";
 import { requireActor } from "@/server/policy/actor";
 import { projectScreenFor } from "@/server/services/work-app";
 /**
- * GET â€” ONE PROJECT AS ITS PAGE SHOWS IT, for the phone (M2 N3): the same `projectScreenFor` the project page reads â€” its head, its boards
+ * GET — ONE PROJECT AS ITS PAGE SHOWS IT, for the phone (M2 N3): the same `projectScreenFor` the project page reads — its head, its boards
  * with the tasks the person may open, the progress, what the person may do there (`projectCardAccess`) and the pinned strip.
- * Read-only: boards, milestones and the team still change through their own routes. Another team's project is آ«not foundآ».
+ * Read-only: boards, milestones and the team still change through their own routes. Another team's project is «not found».
  */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   return withApi(async () => {
