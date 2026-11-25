@@ -35,7 +35,9 @@ class Connectivity @Inject constructor(@ApplicationContext context: Context) {
         runCatching {
             cm?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
                 override fun onAvailable(network: Network) { _online.value = true }
-                override fun onLost(network: Network) { _online.value = now() }
+                // the default network is gone: asking «which network now?» at this moment can still answer with the lost one, so the
+                // line says «offline» at once; another network that becomes the default calls onAvailable
+                override fun onLost(network: Network) { _online.value = false }
                 override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                     _online.value = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 }

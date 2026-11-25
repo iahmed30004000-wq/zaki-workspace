@@ -50,6 +50,13 @@ class LinksTest {
         assertEquals(Destination.Conversation("abc"), Links.destinationOf("$BASE/chat/abc/", BASE))
     }
 
+    @Test fun `a link to one message opens the conversation on that message`() {
+        assertEquals(Destination.Conversation("c1", "m9"), Links.destinationOf("/chat/c1?m=m9", BASE))
+        assertEquals(Destination.Conversation("c1", "m9"), Links.destinationOf("/go?space=s1&next=%2Fchat%2Fc1%3Fm%3Dm9", BASE))
+        // a message id that is not an id is ignored, the conversation still opens
+        assertEquals(Destination.Conversation("c1", null), Links.destinationOf("/chat/c1?m=..%2Fx", BASE))
+    }
+
     @Test fun `a space switch that leads to a chat opens the chat`() {
         assertEquals(Destination.Conversation("c9"), Links.destinationOf("/go?space=s1&next=%2Fchat%2Fc9", BASE))
     }
@@ -65,8 +72,18 @@ class LinksTest {
     }
 
     @Test fun `a section not native yet opens the site's page, with its query`() {
-        assertEquals(Destination.Site("/tasks/t1?tab=steps"), Links.destinationOf("$BASE/tasks/t1?tab=steps", BASE))
+        assertEquals(Destination.Site("/projects/p1?tab=board"), Links.destinationOf("$BASE/projects/p1?tab=board", BASE))
         assertEquals(Destination.Site("/calls/k2"), Links.destinationOf("/calls/k2", BASE))
+    }
+
+    @Test fun `the day, my work and a task open natively, a task from any space`() {
+        assertEquals(Destination.Today, Links.destinationOf("/", BASE))
+        assertEquals(Destination.Today, Links.destinationOf("$BASE/?view=today", BASE))
+        assertEquals(Destination.MyWork, Links.destinationOf("/my-work?tab=overdue", BASE))
+        assertEquals(Destination.Task("t1"), Links.destinationOf("$BASE/tasks/t1?tab=steps", BASE))
+        assertEquals(Destination.Task("t9"), Links.destinationOf("/go?space=s2&next=%2Ftasks%2Ft9", BASE))
+        // a deeper page of a task is the site's
+        assertEquals(Destination.Site("/tasks/t1/history"), Links.destinationOf("/tasks/t1/history", BASE))
     }
 
     @Test fun `another site, a protocol-relative address and nothing are never opened inside the app`() {
@@ -167,21 +184,29 @@ class ChatLinesTest {
     private fun msg(id: String, clientId: String?) = io.zakiai.workspace.core.net.Message(id = id, body = "b-$id", mine = true, clientId = clientId)
     private fun row(clientId: String, sentAt: Long? = null, refused: String? = null) =
         io.zakiai.workspace.core.db.OutboxItem(clientId, "chat.send", "c1", "p-$clientId", 1_000, refusedKey = refused, sentAt = sentAt)
-    private val conv = io.zakiai.workspace.core.net.Conversation(id = "c1", messages = listOf(msg("m1", "k1")))
+    private val messages = listOf(msg("m1", "k1"))
+    private val draft: (String) -> io.zakiai.workspace.core.net.ChatSend? = { io.zakiai.workspace.core.net.ChatSend(body = it, clientId = "x") }
 
     @Test fun `a message the server already shows is drawn once, never with its outbox copy`() {
-        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(conv, listOf(row("k1", sentAt = 5)), { it })
+        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(messages, listOf(row("k1", sentAt = 5)), "me", draft)
         assertEquals(listOf("m1"), lines.map { it.id })
     }
 
     @Test fun `a sent message the server does not show yet stays on screen as a plain message`() {
-        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(conv, listOf(row("k2", sentAt = 5)), { it })
+        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(messages, listOf(row("k2", sentAt = 5)), "me", draft)
         assertEquals(listOf("m1", "outbox-k2"), lines.map { it.id })
         assertNull(lines.last().outbox)
+        assertEquals("p-k2", lines.last().message.body)
+    }
+
+    @Test fun `a waiting voice note or file says what it carries, never an empty bubble`() {
+        val voice: (String) -> io.zakiai.workspace.core.net.ChatSend? = { io.zakiai.workspace.core.net.ChatSend(clientId = "x", attachmentIds = listOf("f1"), voice = true) }
+        val line = io.zakiai.workspace.feature.chat.ChatLines.of(emptyList(), listOf(row("k5")), "me", voice).single()
+        assertTrue(line.message.body!!.contains(io.zakiai.workspace.feature.chat.C.voiceNote))
     }
 
     @Test fun `waiting and refused rows say so`() {
-        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(conv, listOf(row("k3"), row("k4", refused = "forbidden")), { it })
+        val lines = io.zakiai.workspace.feature.chat.ChatLines.of(messages, listOf(row("k3"), row("k4", refused = "forbidden")), "me", draft)
         assertEquals(listOf("waiting", "refused"), lines.drop(1).map { it.outbox })
     }
 }

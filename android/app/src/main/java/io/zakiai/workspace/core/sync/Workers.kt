@@ -20,7 +20,7 @@ import io.zakiai.workspace.core.db.OutboxDao
 import io.zakiai.workspace.core.db.OutboxItem
 import io.zakiai.workspace.core.net.ApiResult
 import io.zakiai.workspace.core.net.ClientErrorBatch
-import io.zakiai.workspace.core.net.SendBody
+import io.zakiai.workspace.core.net.ChatSend
 import io.zakiai.workspace.core.net.WorkspaceApi
 import io.zakiai.workspace.core.net.apiCall
 import kotlinx.coroutines.CoroutineScope
@@ -65,6 +65,7 @@ class OutboxWorker @AssistedInject constructor(
     private val api: WorkspaceApi,
     private val json: Json,
     private val user: UserMark,
+    private val store: io.zakiai.workspace.feature.chat.ChatStore,
 ) : CoroutineWorker(context, params) {
     override suspend fun doWork(): Result {
         val me = user.id ?: return Result.success() // nobody known on this phone yet: the sign-in flushes again
@@ -83,7 +84,9 @@ class OutboxWorker @AssistedInject constructor(
     }
 
     private suspend fun send(item: OutboxItem): ApiResult<*> = when (item.kind) {
-        KIND_CHAT_SEND -> apiCall { api.send(item.target, json.decodeFromString(SendBody.serializer(), item.payload)) }
+        // a row written by 4.0.0 holds `{body, clientId}`: the same JSON reads as a ChatSend
+        KIND_CHAT_SEND -> apiCall { api.sendMessage(item.target, json.decodeFromString(ChatSend.serializer(), item.payload)) }
+            .also { r -> if (r is ApiResult.Ok) store.put(item.target, r.value) } // drawn at once, before the live line's catch-up
         else -> ApiResult.Ok(Unit) // a kind this build does not know (written by a newer one): dropped rather than stuck
     }
 
@@ -115,21 +118,24 @@ class Outbox @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
-    fun sendChat(conversationId: String, body: String) {
+    /** A message (its text, the message it answers, the files already uploaded, a poll or a list) — sent once, whatever the network does. */
+    fun sendChat(conversationId: String, draft: (clientId: String) -> ChatSend): String {
         val clientId = UUID.randomUUID().toString()
+        val send = draft(clientId).copy(clientId = clientId)
         scope.launch {
             dao.add(
                 OutboxItem(
                     clientId = clientId,
                     kind = OutboxWorker.KIND_CHAT_SEND,
                     target = conversationId,
-                    payload = json.encodeToString(SendBody.serializer(), SendBody(body, clientId)),
+                    payload = json.encodeToString(ChatSend.serializer(), send),
                     createdAt = System.currentTimeMillis(),
                     ownerId = user.id.orEmpty(),
                 ),
             )
             schedules.flushOutbox()
         }
+        return clientId
     }
 
     fun retry(clientId: String) = scope.launch { dao.retry(clientId); schedules.flushOutbox() }

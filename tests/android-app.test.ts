@@ -94,7 +94,7 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
   });
 
   it("is native: one activity of Compose screens; the site's page survives only in the marked, temporary bridge", () => {
-    for (const f of ["MainActivity.kt", "ZakiApplication.kt", "ui/Root.kt", "feature/shell/Shell.kt", "feature/chat/ChatScreens.kt", "feature/auth/Auth.kt", "feature/settings/Settings.kt", "core/db/Db.kt", "core/sync/Workers.kt", "core/crash/Crash.kt"]) {
+    for (const f of ["MainActivity.kt", "ZakiApplication.kt", "ui/Root.kt", "feature/shell/Shell.kt", "feature/chat/ChatListScreen.kt", "feature/chat/ConversationScreen.kt", "feature/auth/Auth.kt", "feature/settings/Settings.kt", "core/db/Db.kt", "core/sync/Workers.kt", "core/crash/Crash.kt"]) {
       expect(existsSync(join(process.cwd(), SRC + f)), f).toBe(true);
     }
     const withWebView = kotlinFiles("android/app/src/main/java").filter((f) => /\bWebView\(/.test(read(f)));
@@ -118,29 +118,83 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(bridge).not.toContain("parseResult(");
   });
 
-  it("the native conversation has a paperclip: until attachments are native it opens the same conversation of the site", () => {
-    const chat = read(SRC + "feature/chat/ChatScreens.kt");
-    expect(chat).toContain("Icons.Filled.AttachFile");
-    expect(chat).toContain("contentDescription = T.attachFiles");
-    expect(chat).toContain("Composer(onSend = vm::send, onAttach = { onAttach(vm.id) })");
-    const shell = read(SRC + "feature/shell/Shell.kt");
-    // straight to the bridge: Links.destinationOf would send «/chat/{id}» back to the native screen
-    expect(shell).toContain('onAttach = { id -> nav.open(Destination.Site("/chat/$id")) }');
+  it("the native conversation has a paperclip, and it is native: pictures, files, polls and lists, never the site's page", () => {
+    const attach = read(SRC + "feature/chat/ChatAttach.kt");
+    expect(attach).toContain("Icons.Filled.AttachFile");
+    expect(attach).toContain("ActivityResultContracts.PickMultipleVisualMedia(ChatFiles.MAX)");
+    expect(attach).toContain("ActivityResultContracts.GetMultipleContents()");
+    expect(read(SRC + "feature/chat/ConversationScreen.kt")).toContain("if (mode !is ComposeMode.Edit) AttachButton(vm, files)");
+    // the stopgap of 4.0 (the paperclip opened the conversation on the site's page) is gone with N1
+    expect(read(SRC + "feature/shell/Shell.kt")).not.toContain('Destination.Site("/chat/$id")');
   });
 
   it("sends a message through the outbox with the server's idempotency key, so a retry never doubles it, and only in its writer's name", () => {
     const workers = read(SRC + "core/sync/Workers.kt");
     // the write runs on the application's scope (leaving the screen never loses it), with the clientId the server honours
-    expect(workers).toContain("SendBody(body, clientId)");
+    expect(workers).toContain("val send = draft(clientId).copy(clientId = clientId)");
+    expect(workers).toContain("api.sendMessage(item.target, json.decodeFromString(ChatSend.serializer(), item.payload))");
     expect(workers).toContain("ownerId = user.id.orEmpty()");
     // a new message never waits behind an old run's retry delay
     expect(workers).toContain("ExistingWorkPolicy.REPLACE");
     // rows another person wrote on this phone are dropped, never sent
     expect(workers).toContain("outbox.dropOthers(me)");
-    expect(read(SRC + "feature/chat/ChatViewModels.kt")).toContain("outbox.sendChat(id, body)");
+    // every message of the composer (a reply, files, a voice note, a poll, a list) goes through the outbox
+    const vms = read(SRC + "feature/chat/ChatViewModels.kt");
+    expect(vms).toContain("outbox.sendChat(id) { clientId ->");
+    expect(vms).toContain("fun sendRich(draft: (String) -> ChatSend) { outbox.sendChat(id, draft) }");
     const db = read(SRC + "core/db/Db.kt");
     expect(db).toContain("@PrimaryKey val clientId: String");
     expect(db).toContain("val sentAt: Long? = null");
+  });
+
+  it("the chat follows the site's live line with ids only, catches up through the sync feed, and stops at a sign-out", () => {
+    const live = read(SRC + "core/live/LiveLine.kt");
+    expect(live).toContain('"/api/rt?tab=android"');
+    expect(live).toContain('header("Last-Event-ID", it)');
+    expect(live).toContain("api.sync(after = after)");
+    // a sign-out ends the line and forgets where it was
+    expect(live).toMatch(/if \(gate == Gate\.SIGNED_OUT\) \{[\s\S]*?cursor = null[\s\S]*?lastEventId = null/);
+    // a frame's words are never read: only its kind and ids
+    expect(live).not.toMatch(/str\("body"\)|str\("preview"\)/);
+    const store = read(SRC + "feature/chat/ChatStore.kt");
+    expect(store).toContain("if (it == Gate.SIGNED_OUT) clear()");
+    // pictures and the session: the site's own addresses are fetched with the app's client (its cookie), never handed to a browser
+    expect(read(SRC + "ZakiApplication.kt")).toContain(".callFactory { http.get() }");
+    // stopping (or signing out) closes the open connection itself: a blocking read hears no cancelled coroutine
+    expect(live).toMatch(/fun stop\(\) \{[\s\S]*?call\?\.cancel\(\)/);
+    // a dead line (no ping for a minute) fails and comes back instead of hanging «connected»
+    expect(live).toContain("readTimeout(READ_TIMEOUT_S, TimeUnit.SECONDS)");
+    // a frame during a catch-up runs it once more
+    expect(live).toContain("if (!dirty) return");
+  });
+
+  it("«اليوم», «مهامي» and a task are native and read the site's own doors; a higher rank is only asked", () => {
+    const api = read(SRC + "core/net/WorkspaceApi.kt");
+    for (const door of ['@GET("api/today")', '@GET("api/my-work")', '@GET("api/tasks/{id}/sheet")', '@POST("api/tasks/{id}/request/accept")', '@POST("api/tasks/{id}/request/return")']) expect(api, door).toContain(door);
+    const vm = read(SRC + "feature/work/WorkViewModels.kt");
+    // the server decides a request upward; the phone only says it was sent
+    expect(vm).toContain("if (r.value.task.assignRequest != null || r.value.task.coRequests.isNotEmpty()) _notice.value = W.requestSent");
+    // a task the person can no longer read is forgotten on the phone
+    expect(vm).toContain("cache.remove(key)");
+    // an older site without the doors: the section opens on the site's page, marked ⚠️ with its 🔧
+    expect(read(SRC + "feature/work/TodayScreens.kt")).toContain("WarnFix(WorkWarn.oldSite, WorkWarn.oldSiteFix)");
+    const links = read(SRC + "feature/shell/Links.kt");
+    expect(links).toContain('"/my-work" -> Destination.MyWork');
+    expect(links).toContain("TASK.find(path.substringBefore('?'))");
+  });
+
+  it("a chat file is fetched by the app into its private cache: the session never goes to a system download, nothing lands in a public folder", () => {
+    const files = read(SRC + "feature/chat/ChatFiles.kt");
+    expect(files).not.toContain("DownloadManager");
+    expect(files).not.toContain("setDestinationInExternalPublicDir");
+    expect(files).toContain('File(context.cacheDir, "chat")');
+    // the only folder another app may be lent a file from
+    const paths = read("android/app/src/main/res/xml/file_paths.xml");
+    expect([...paths.matchAll(/<(\w+-path)\b/g)].map((m) => m[1])).toEqual(["cache-path"]);
+    expect(paths).toContain('path="chat/"');
+    // a sign-out empties the files on their way, a recording, the fetched copies — and the picture loader's cache
+    expect(files).toMatch(/private fun clear\(\) \{[\s\S]*?abandonRecording\(null\)[\s\S]*?byConversation\.clear\(\)[\s\S]*?deleteRecursively/);
+    expect(read(SRC + "core/Session.kt")).toContain("it.memoryCache?.clear(); it.diskCache?.clear()");
   });
 
   it("an expired session keeps the person's own unsent messages; signing out on purpose removes them", () => {
@@ -150,6 +204,19 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     // an answer still on its way never refills the cache after a sign-out
     expect(session).toContain("cache.bump()");
     expect(read(SRC + "core/Cache.kt")).toContain("if (startedIn == generation)");
+  });
+
+  it("the encrypted session is opened off the main thread: the splash stays until the gate is known", () => {
+    const jar = read(SRC + "core/net/EncryptedCookieJar.kt");
+    // the Keystore and the decryption run on a thread of their own, started at once; every reader waits for it
+    expect(jar).toContain('Thread({ load(context) }, "zaki-cookies")');
+    expect(jar).toContain("loaded.await()");
+    expect(jar).not.toMatch(/private val prefs: SharedPreferences\? = runCatching \{ open\(context\) \}/);
+    const session = read(SRC + "core/Session.kt");
+    expect(session).toContain("MutableStateFlow(Gate.STARTING)");
+    expect(session).not.toContain("MutableStateFlow(if (jar.hasSession())");
+    const main = read(SRC + "MainActivity.kt");
+    expect(main).toContain("setKeepOnScreenCondition { session.gate.value == Gate.STARTING }");
   });
 
   it("a crash report never carries an exception's message (it can hold what the person typed)", () => {

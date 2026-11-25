@@ -372,7 +372,9 @@ describe("«حقول مخصصة»: the pages are wired behind the switch and the
     const page = read("src/app/(app)/tasks/[id]/page.tsx");
     expect(page).toContain("taskFieldsCard(");
     expect(page).toContain("customFieldsSlot=");
-    expect(page).toMatch(/canEdit=\{canEdit && !lockedFields && !\(membership\?\.role === "OWNER" && !spaceRow\)\}/);
+    expect(page).toMatch(/canEdit=\{sheet\.canEdit && !sheet\.lockedFields && !ownerOutsideSpace\}/);
+    // the sheet's rule (src/server/services/task-sheet.ts, shared with the phone): the owner reading a space he is not in never writes
+    expect(read("src/server/services/task-sheet.ts")).toContain('const ownerOutsideSpace = membership?.role === "OWNER" && !spaceRow;');
     expect(read("src/server/services/custom-fields.ts")).toMatch(/if \(!\(await isFeatureOn\(ctx\.orgId, FEATURE\)\)\) return null;\s+if \(await isPartnerIn\(ctx, task\.workspaceId\)\) return EMPTY_CARD;/);
   });
 

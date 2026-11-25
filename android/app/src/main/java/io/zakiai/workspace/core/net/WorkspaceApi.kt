@@ -4,7 +4,11 @@ import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.Multipart
+import retrofit2.http.PATCH
 import retrofit2.http.POST
+import retrofit2.http.PUT
+import retrofit2.http.Part
 import retrofit2.http.Path
 import retrofit2.http.Query
 
@@ -67,6 +71,175 @@ interface WorkspaceApi {
 
     @GET("api/chat/unread")
     suspend fun chatUnread(): UnreadTotal
+
+    // ── the chat, as the site's v2 chat reads it (N1) ─────────────────────────────────────────────────────
+
+    @GET("api/chat/list")
+    suspend fun chatList(@Header("Cache-Control") cache: String = "no-cache"): ChatList
+
+    @PUT("api/chat/conversations/{id}/me")
+    suspend fun myState(@Path("id") id: String, @Body body: MyChatState): MyChatStateAnswer
+
+    @PUT("api/chat/conversations/{id}/me")
+    suspend fun myStateRaw(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject): MyChatStateAnswer
+
+    @GET("api/me/chat-prefs")
+    suspend fun chatPrefs(): ChatPrefsAnswer
+
+    @GET("api/chat/conversations/{id}/header")
+    suspend fun header(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): ConversationHeader
+
+    /** One window, oldest first: no cursor = the newest; at most one of `before` / `after` / `around`. */
+    @GET("api/chat/conversations/{id}/messages")
+    suspend fun messages(
+        @Path("id") id: String,
+        @Query("before") before: String? = null,
+        @Query("after") after: String? = null,
+        @Query("around") around: String? = null,
+        @Query("limit") limit: Int = 50,
+        @Header("Cache-Control") cache: String = "no-cache",
+    ): MessagesPage
+
+    @GET("api/chat/conversations/{id}")
+    suspend fun people(@Path("id") id: String, @Query("limit") limit: Int = 1): ConversationPeople
+
+    @POST("api/chat/conversations/{id}/messages")
+    suspend fun sendMessage(@Path("id") id: String, @Body body: ChatSend): Message
+
+    /** The read mark moves up to `upTo` (never back) and clears my «علّم كغير مقروء». */
+    @POST("api/chat/conversations/{id}/read")
+    suspend fun readUpTo(@Path("id") id: String, @Query("upTo") upTo: String, @Body body: Map<String, String> = emptyMap()): Ok
+
+    @PATCH("api/chat/messages/{id}")
+    suspend fun edit(@Path("id") id: String, @Body body: EditBody): Message
+
+    @DELETE("api/chat/messages/{id}")
+    suspend fun deleteForAll(@Path("id") id: String): Ok
+
+    @POST("api/chat/messages/{id}/hide")
+    suspend fun hideForMe(@Path("id") id: String, @Body body: Map<String, String> = emptyMap()): Ok
+
+    /** A toggle: the same emoji again takes it back. */
+    @POST("api/chat/messages/{id}/react")
+    suspend fun react(@Path("id") id: String, @Body body: ReactBody): ReactAnswer
+
+    @POST("api/chat/messages/{id}/pin")
+    suspend fun pin(@Path("id") id: String, @Body body: Map<String, String> = emptyMap()): PinAnswer
+
+    @POST("api/chat/messages/{id}/forward")
+    suspend fun forward(@Path("id") id: String, @Body body: ForwardBody): IdAnswer
+
+    @GET("api/chat/forward-targets")
+    suspend fun forwardTargets(): ForwardTargets
+
+    @PUT("api/chat/messages/{id}/poll/vote")
+    suspend fun vote(@Path("id") id: String, @Body body: VoteBody): Message
+
+    @POST("api/chat/messages/{id}/poll/close")
+    suspend fun closePoll(@Path("id") id: String, @Body body: Map<String, String> = emptyMap()): Message
+
+    @POST("api/chat/messages/{id}/checklist/items")
+    suspend fun addItem(@Path("id") id: String, @Body body: ItemText): Message
+
+    @PUT("api/chat/messages/{id}/checklist/items/{item}")
+    suspend fun tick(@Path("id") id: String, @Path("item") item: String, @Body body: TickBody): Message
+
+    @POST("api/rt/typing")
+    suspend fun typing(@Body body: TypingBody): retrofit2.Response<Unit>
+
+    /** Everything that changed after `after` (no `after`: only the current cursor). */
+    @GET("api/chat/sync")
+    suspend fun sync(@Query("after") after: String? = null, @Query("limit") limit: Int = 200, @Header("Cache-Control") cache: String = "no-cache"): SyncAnswer
+
+    @Multipart
+    @POST("api/chat/uploads")
+    suspend fun upload(
+        @Part file: okhttp3.MultipartBody.Part,
+        @Part("kind") kind: okhttp3.RequestBody,
+        @Part("durationMs") durationMs: okhttp3.RequestBody? = null,
+        @Part("peaks") peaks: okhttp3.RequestBody? = null,
+    ): Uploaded
+
+    @GET("api/search")
+    suspend fun search(@Query("q") q: String, @Query("scope") scope: String = "chat", @Query("conversationId") conversationId: String? = null): SearchAnswer
+
+    @POST("api/chat/dm")
+    suspend fun openDm(@Body body: DmBody): IdAnswer
+
+    @POST("api/chat/conversations")
+    suspend fun newGroup(@Body body: NewGroupBody): IdAnswer
+
+    @PATCH("api/chat/conversations/{id}")
+    suspend fun changeGroup(@Path("id") id: String, @Body body: GroupChange): Ok
+
+    @DELETE("api/chat/conversations/{id}")
+    suspend fun leave(@Path("id") id: String): Ok
+
+    @GET("api/chat/spaces/{spaceId}/topics")
+    suspend fun spaceTopics(@Path("spaceId") spaceId: String, @Header("Cache-Control") cache: String = "no-cache"): SpaceTopics
+
+    @POST("api/chat/spaces/{spaceId}/topics")
+    suspend fun newTopic(@Path("spaceId") spaceId: String, @Body body: NewTopicBody): IdAnswer
+
+    // ── «اليوم», «مهامي» and one task (N2) ──────────────────────────────────────────────────────────────────
+
+    @GET("api/today")
+    suspend fun today(@Header("Cache-Control") cache: String = "no-cache"): TodayAnswer
+
+    @GET("api/my-work")
+    suspend fun myWork(@Query("tab") tab: String, @Header("Cache-Control") cache: String = "no-cache"): MyWorkAnswer
+
+    @GET("api/tasks/{id}/sheet")
+    suspend fun taskSheet(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): TaskSheet
+
+    @POST("api/tasks/{id}/complete")
+    suspend fun complete(@Path("id") id: String, @Body body: CompleteBody): TaskAnswer
+
+    @POST("api/tasks/{id}/move")
+    suspend fun move(@Path("id") id: String, @Body body: MoveBody): TaskAnswer
+
+    @PATCH("api/tasks/{id}")
+    suspend fun patchTask(@Path("id") id: String, @Body body: TaskPatch): TaskAnswer
+
+    /** A due date set («YYYY-MM-DD») or cleared (`null` written out). */
+    @PATCH("api/tasks/{id}")
+    suspend fun patchTaskRaw(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject): TaskAnswer
+
+    @POST("api/tasks")
+    suspend fun newTask(@Body body: NewTaskBody): TaskAnswer
+
+    @POST("api/tasks/{id}/steps")
+    suspend fun addStep(@Path("id") id: String, @Body body: StepTitle): kotlinx.serialization.json.JsonObject
+
+    @PATCH("api/tasks/{id}/steps/{step}")
+    suspend fun patchStep(@Path("id") id: String, @Path("step") step: String, @Body body: StepPatch): kotlinx.serialization.json.JsonObject
+
+    @DELETE("api/tasks/{id}/steps/{step}")
+    suspend fun deleteStep(@Path("id") id: String, @Path("step") step: String): Ok
+
+    @POST("api/tasks/{id}/comments")
+    suspend fun addComment(@Path("id") id: String, @Body body: CommentBody): kotlinx.serialization.json.JsonObject
+
+    @DELETE("api/tasks/{id}/comments/{comment}")
+    suspend fun deleteComment(@Path("id") id: String, @Path("comment") comment: String): Ok
+
+    @POST("api/tasks/{id}/request/accept")
+    suspend fun acceptRequest(@Path("id") id: String, @Body body: AcceptBody2): kotlinx.serialization.json.JsonObject
+
+    @POST("api/tasks/{id}/request/return")
+    suspend fun returnRequest(@Path("id") id: String, @Body body: ReturnBody): kotlinx.serialization.json.JsonObject
+
+    @GET("api/reminders")
+    suspend fun reminders(@Header("Cache-Control") cache: String = "no-cache"): Reminders
+
+    @POST("api/reminders")
+    suspend fun addReminder(@Body body: NewReminder): kotlinx.serialization.json.JsonObject
+
+    @DELETE("api/reminders/{id}")
+    suspend fun dismissReminder(@Path("id") id: String): Ok
+
+    @GET("api/chat/directory")
+    suspend fun directory(@Query("scope") scope: String? = null): Directory
 
     @GET("api/notifications")
     suspend fun notifications(): Notifications
