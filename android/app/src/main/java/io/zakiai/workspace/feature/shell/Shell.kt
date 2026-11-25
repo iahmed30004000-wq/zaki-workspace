@@ -84,8 +84,11 @@ import io.zakiai.workspace.core.net.ApiResult
 import io.zakiai.workspace.core.net.Spaces
 import io.zakiai.workspace.core.net.WorkspaceApi
 import io.zakiai.workspace.core.net.apiCall
+import io.zakiai.workspace.feature.chat.ChatInfoScreen
 import io.zakiai.workspace.feature.chat.ChatListScreen
 import io.zakiai.workspace.feature.chat.ConversationScreen
+import io.zakiai.workspace.feature.chat.NewChatScreen
+import io.zakiai.workspace.feature.chat.SpaceTopicsScreen
 import io.zakiai.workspace.feature.notifications.NotificationsScreen
 import io.zakiai.workspace.feature.settings.SettingsScreen
 import io.zakiai.workspace.feature.web.WebBridge
@@ -156,10 +159,18 @@ private object Routes {
     const val CHATS = "chats"
     const val NOTIFICATIONS = "notifications"
     const val SETTINGS = "settings"
-    const val CONVERSATION = "conversation/{id}"
+    const val CONVERSATION = "conversation/{id}?at={at}"
+    const val SPACE = "space/{id}"
+    const val CHAT_INFO = "chat-info/{id}"
+    const val NEW_CHAT = "new-chat?group={group}"
     const val SITE = "site?path={path}"
     val TABS = setOf(CHATS, NOTIFICATIONS, SETTINGS)
-    fun conversation(id: String) = "conversation/$id"
+    /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT)
+    fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
+    fun space(id: String) = "space/$id"
+    fun chatInfo(id: String) = "chat-info/$id"
+    fun newChat(group: Boolean) = "new-chat?group=$group"
     fun site(path: String) = "site?path=${Uri.encode(path)}"
 }
 
@@ -182,7 +193,7 @@ private val SITE_ITEMS = listOf(
 
 fun NavHostController.open(dest: Destination) {
     when (dest) {
-        is Destination.Conversation -> navigate(Routes.conversation(dest.id)) { launchSingleTop = true }
+        is Destination.Conversation -> navigate(Routes.conversation(dest.id, dest.at)) { launchSingleTop = true }
         Destination.Chats -> navigate(Routes.CHATS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Notifications -> navigate(Routes.NOTIFICATIONS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Settings -> navigate(Routes.SETTINGS) { popUpTo(Routes.CHATS); launchSingleTop = true }
@@ -320,13 +331,42 @@ fun Shell(
         ) { padding ->
             Column(Modifier.padding(padding).fillMaxSize()) {
                 // a conversation has no shell bar above it: it draws the line under its own top bar
-                OfflineBar(!online && route != Routes.CONVERSATION)
+                OfflineBar(!online && route !in Routes.OWN_BAR)
                 NavHost(nav, startDestination = Routes.CHATS, modifier = Modifier.weight(1f)) {
-                    composable(Routes.CHATS) { ChatListScreen(onOpen = { nav.open(Destination.Conversation(it)) }) }
+                    composable(Routes.CHATS) {
+                        ChatListScreen(
+                            onOpen = { id, at -> nav.open(Destination.Conversation(id, at)) },
+                            onOpenSpace = { nav.navigate(Routes.space(it)) { launchSingleTop = true } },
+                            onNewChat = { group -> nav.navigate(Routes.newChat(group)) { launchSingleTop = true } },
+                        )
+                    }
                     composable(Routes.NOTIFICATIONS) { NotificationsScreen(onOpenPath = openPath) }
                     composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications) }
-                    composable(Routes.CONVERSATION, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
-                        ConversationScreen(offline = !online, onBack = { nav.popBackStack() }, onOpenPath = openPath)
+                    composable(
+                        Routes.CONVERSATION,
+                        arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("at") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                    ) {
+                        ConversationScreen(
+                            offline = !online,
+                            onBack = { nav.popBackStack() },
+                            onOpenPath = openPath,
+                            onInfo = { nav.navigate(Routes.chatInfo(it)) { launchSingleTop = true } },
+                        )
+                    }
+                    composable(Routes.SPACE, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        SpaceTopicsScreen(onBack = { nav.popBackStack() }, onOpen = { nav.open(Destination.Conversation(it)) })
+                    }
+                    composable(Routes.CHAT_INFO, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        ChatInfoScreen(
+                            onBack = { nav.popBackStack() },
+                            onLeft = { nav.navigate(Routes.CHATS) { popUpTo(Routes.CHATS) { inclusive = true } } },
+                            onOpen = { nav.open(Destination.Conversation(it)) },
+                        )
+                    }
+                    composable(Routes.NEW_CHAT, arguments = listOf(navArgument("group") { type = NavType.BoolType; defaultValue = false })) {
+                        NewChatScreen(onBack = { nav.popBackStack() }, onOpen = { id ->
+                            nav.navigate(Routes.conversation(id)) { popUpTo(Routes.CHATS) }
+                        })
                     }
                     composable(Routes.SITE, arguments = listOf(navArgument("path") { type = NavType.StringType; defaultValue = "/" })) { e ->
                         WebPage(e.arguments?.getString("path") ?: "/", makeBridge) { nav.popBackStack() }

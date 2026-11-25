@@ -5,7 +5,8 @@ import java.net.URLDecoder
 
 /** Where an address of the site opens in the app. */
 sealed interface Destination {
-    data class Conversation(val id: String) : Destination
+    /** `at`: the message to open it on (a notification of a mention, a search hit: `/chat/<id>?m=<messageId>`) */
+    data class Conversation(val id: String, val at: String? = null) : Destination
     data object Chats : Destination
     data object Notifications : Destination
     data object Settings : Destination
@@ -20,6 +21,7 @@ sealed interface Destination {
  */
 object Links {
     private val CHAT = Regex("^/chat/([A-Za-z0-9_-]+)/?$")
+    private val ID = Regex("^[A-Za-z0-9_-]{1,64}$")
 
     fun pathOf(url: String?, base: String): String? {
         if (url.isNullOrBlank()) return null
@@ -34,9 +36,13 @@ object Links {
         if (path.startsWith("/go?")) {
             val next = path.removePrefix("/go?").split("&").firstOrNull { it.startsWith("next=") }?.removePrefix("next=")
                 ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
-            if (next != null && CHAT.matches(next)) path = next
+            if (next != null && CHAT.matches(next.substringBefore('?'))) path = next
         }
-        CHAT.find(path)?.let { return Destination.Conversation(it.groupValues[1]) }
+        CHAT.find(path.substringBefore('?'))?.let { match ->
+            val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
+                ?.takeIf { ID.matches(it) }
+            return Destination.Conversation(match.groupValues[1], at)
+        }
         val bare = path.substringBefore('?').trimEnd('/')
         // «/settings…» stays the site's page: the profile, the password and the company's settings live there, not in the
         // native tab (which holds only what belongs to the phone: theme, lock, permissions)

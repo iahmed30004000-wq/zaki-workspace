@@ -124,33 +124,69 @@ data class Dm(val id: String, val peer: Peer = Peer(), val unread: Int = 0, val 
 @Serializable
 data class ChatHome(val spaces: List<ChatSpace> = emptyList(), val dms: List<Dm> = emptyList())
 
+/** `AttachmentDto`: `id` is the attachment's own row (its `url` is `/api/chat/attachments/<id>`, streamed after the same permission check). */
 @Immutable
 @Serializable
-data class Attachment(val id: String = "", val kind: String = "FILE", val name: String = "", val url: String = "")
+data class Attachment(
+    val id: String = "",
+    val kind: String = "FILE", // IMAGE · VIDEO · AUDIO · FILE
+    val name: String = "",
+    val mime: String = "",
+    val size: Long = 0,
+    val width: Int? = null,
+    val height: Int? = null,
+    val durationMs: Long? = null,
+    val peaks: List<Int>? = null,
+    val url: String = "",
+)
 
+/** `MessageDto` (src/server/chat/dto.ts): one message as the server presents it to THIS person. */
 @Immutable
 @Serializable
 data class Message(
     val id: String,
-    val kind: String = "TEXT",
+    val kind: String = "TEXT", // TEXT · VOICE · SYSTEM · POLL · CARD · CHECKLIST
     val body: String? = null,
     val deleted: Boolean = false,
+    val edited: Boolean = false,
+    val pinned: Boolean = false,
     val mine: Boolean = false,
+    val authorId: String = "",
     val authorName: String = "",
+    val authorAvatar: String? = null,
+    val authorVerified: Boolean = false,
     val createdAt: String = "",
     /** the sender's idempotency key: lets the app drop its outbox copy once the server has the message */
     val clientId: String? = null,
+    val replyTo: ReplyRef? = null,
+    val forwardedFrom: ForwardRef? = null,
+    val mentions: List<String> = emptyList(),
     val attachments: List<Attachment> = emptyList(),
+    val reactions: List<Reaction> = emptyList(),
+    /** a private chat, my own message: sent · delivered · read */
+    val status: String? = null,
+    val system: SystemMeta? = null,
+    val poll: Poll? = null,
+    val checklist: Checklist? = null,
+    val preview: LinkPreview? = null,
+    val silent: Boolean = false,
+    val mustRead: MustRead? = null,
 )
 
 @Immutable
 @Serializable
 data class ConversationMe(
     val canPost: Boolean = true,
+    val canModerate: Boolean = false,
+    val muted: Boolean = false,
     val canCall: Boolean? = null,
     /** the OWNER in silent oversight of an open topic may join it to post («شارك بالمحادثة») */
     val canJoin: Boolean = false,
     val oversight: Boolean = false,
+    val canMentionAll: Boolean = false,
+    val canPoll: Boolean = false,
+    val canChecklist: Boolean = false,
+    val id: String? = null,
 )
 
 @Immutable

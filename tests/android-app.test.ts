@@ -94,7 +94,7 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
   });
 
   it("is native: one activity of Compose screens; the site's page survives only in the marked, temporary bridge", () => {
-    for (const f of ["MainActivity.kt", "ZakiApplication.kt", "ui/Root.kt", "feature/shell/Shell.kt", "feature/chat/ChatScreens.kt", "feature/auth/Auth.kt", "feature/settings/Settings.kt", "core/db/Db.kt", "core/sync/Workers.kt", "core/crash/Crash.kt"]) {
+    for (const f of ["MainActivity.kt", "ZakiApplication.kt", "ui/Root.kt", "feature/shell/Shell.kt", "feature/chat/ChatListScreen.kt", "feature/chat/ConversationScreen.kt", "feature/auth/Auth.kt", "feature/settings/Settings.kt", "core/db/Db.kt", "core/sync/Workers.kt", "core/crash/Crash.kt"]) {
       expect(existsSync(join(process.cwd(), SRC + f)), f).toBe(true);
     }
     const withWebView = kotlinFiles("android/app/src/main/java").filter((f) => /\bWebView\(/.test(read(f)));
@@ -110,16 +110,35 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
   it("sends a message through the outbox with the server's idempotency key, so a retry never doubles it, and only in its writer's name", () => {
     const workers = read(SRC + "core/sync/Workers.kt");
     // the write runs on the application's scope (leaving the screen never loses it), with the clientId the server honours
-    expect(workers).toContain("SendBody(body, clientId)");
+    expect(workers).toContain("val send = draft(clientId).copy(clientId = clientId)");
+    expect(workers).toContain("api.sendMessage(item.target, json.decodeFromString(ChatSend.serializer(), item.payload))");
     expect(workers).toContain("ownerId = user.id.orEmpty()");
     // a new message never waits behind an old run's retry delay
     expect(workers).toContain("ExistingWorkPolicy.REPLACE");
     // rows another person wrote on this phone are dropped, never sent
     expect(workers).toContain("outbox.dropOthers(me)");
-    expect(read(SRC + "feature/chat/ChatViewModels.kt")).toContain("outbox.sendChat(id, body)");
+    // every message of the composer (a reply, files, a voice note, a poll, a list) goes through the outbox
+    const vms = read(SRC + "feature/chat/ChatViewModels.kt");
+    expect(vms).toContain("outbox.sendChat(id) { clientId ->");
+    expect(vms).toContain("fun sendRich(draft: (String) -> ChatSend) { outbox.sendChat(id, draft) }");
     const db = read(SRC + "core/db/Db.kt");
     expect(db).toContain("@PrimaryKey val clientId: String");
     expect(db).toContain("val sentAt: Long? = null");
+  });
+
+  it("the chat follows the site's live line with ids only, catches up through the sync feed, and stops at a sign-out", () => {
+    const live = read(SRC + "core/live/LiveLine.kt");
+    expect(live).toContain('"/api/rt?tab=android"');
+    expect(live).toContain('header("Last-Event-ID", it)');
+    expect(live).toContain("api.sync(after = after)");
+    // a sign-out ends the line and forgets where it was
+    expect(live).toMatch(/if \(gate == Gate\.SIGNED_OUT\) \{[\s\S]*?cursor = null[\s\S]*?lastEventId = null/);
+    // a frame's words are never read: only its kind and ids
+    expect(live).not.toMatch(/str\("body"\)|str\("preview"\)/);
+    const store = read(SRC + "feature/chat/ChatStore.kt");
+    expect(store).toContain("if (it == Gate.SIGNED_OUT) clear()");
+    // pictures and the session: the site's own addresses are fetched with the app's client (its cookie), never handed to a browser
+    expect(read(SRC + "ZakiApplication.kt")).toContain(".callFactory { http.get() }");
   });
 
   it("an expired session keeps the person's own unsent messages; signing out on purpose removes them", () => {

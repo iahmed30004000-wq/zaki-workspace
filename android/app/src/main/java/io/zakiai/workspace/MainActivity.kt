@@ -38,6 +38,7 @@ class MainActivity : FragmentActivity() {
     @Inject lateinit var look: LookSettings
     @Inject lateinit var jar: EncryptedCookieJar
     @Inject lateinit var schedules: Schedules
+    @Inject lateinit var live: io.zakiai.workspace.core.live.LiveLine
 
     /** The address to open (a notification's, a call's, a link's), until the shell has opened it. */
     val link = MutableStateFlow<String?>(null)
@@ -70,6 +71,17 @@ class MainActivity : FragmentActivity() {
         // push the same screen a second time
         if (savedInstanceState == null) link.value = intent?.dataString
         setContent { Root(this) }
+    }
+
+    // the chat's live line runs while the app is on screen; a closed app hears its notifications through StreamService
+    override fun onStart() {
+        super.onStart()
+        live.start()
+    }
+
+    override fun onStop() {
+        live.stop()
+        super.onStop()
     }
 
     override fun onNewIntent(intent: Intent) {
