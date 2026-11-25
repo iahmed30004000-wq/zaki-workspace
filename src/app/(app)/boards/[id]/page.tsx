@@ -1,3 +1,6 @@
+import { resolveTimeZone } from "@/lib/zoned-time";
+import { fmtDueStamp, fmtStamp } from "@/lib/work/stamp";
+import { isDueOverdue, isDueToday, dueTimeText, dueWallOfInstant } from "@/lib/due-day";
 import { notFound } from "next/navigation";
 import { pageUser } from "@/server/auth";
 import { actorCanWork, requireActor } from "@/server/policy/actor";
@@ -75,9 +78,13 @@ export default async function BoardPage({ params }: { params: { id: string } }) 
     }),
     db.organization.findUnique({
       where: { id: board.project.workspace.organizationId },
-      select: { keyPrefix: true },
+      select: { keyPrefix: true, timezone: true },
     }),
   ]);
+  const zone = resolveTimeZone(org?.timezone);
+  const creators = new Map(
+    (await db.user.findMany({ where: { id: { in: [...new Set(tasks.map((t) => t.creatorId))] } }, select: { id: true, name: true } })).map((u) => [u.id, u.name] as const),
+  );
 
   // «٣ من ٥» on the cards: one grouped read for the whole board, and only while the company's switch is on
   const progress = (await actorFeatureOn(actor, "taskSteps")) ? await stepProgressFor(tasks.map((t) => t.id)) : new Map();
@@ -98,6 +105,11 @@ export default async function BoardPage({ params }: { params: { id: string } }) 
     priority: t.priority,
     columnId: t.columnId,
     dueDate: t.dueDate ? t.dueDate.toISOString() : null,
+    dueTone: !t.dueDate || t.completedAt ? null : isDueOverdue(t.dueDate, zone) ? "late" : isDueToday(t.dueDate, zone) ? "today" : null,
+    dueText: t.dueDate ? fmtDueStamp(t.dueDate, zone) : null,
+    dueTime: t.dueDate ? dueTimeText(dueWallOfInstant(t.dueDate, zone)) : "",
+    createdBy: creators.get(t.creatorId),
+    createdText: fmtStamp(t.createdAt, zone),
     labels: t.labels.map((l) => ({ id: l.label.id, name: l.label.name, color: l.label.color })),
     assignee: t.assignee ? { id: t.assignee.id, name: t.assignee.name } : null,
     assigneeNames: [...(t.assignee ? [t.assignee.name] : []), ...t.coAssignees.map((r) => r.user.name)],

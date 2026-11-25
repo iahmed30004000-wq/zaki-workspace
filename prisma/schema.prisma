@@ -1334,6 +1334,8 @@ enum ProjectStatus {
 model Project {
   id           String        @id @default(cuid())
   workspaceId  String
+  /// Who made it (said on the card). No foreign key: it is history and outlives the person's row. Null: made before this was kept, or by the system.
+  createdById  String?
   name         String
   description  String?
   status       ProjectStatus @default(PLANNING)

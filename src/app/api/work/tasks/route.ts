@@ -1,3 +1,5 @@
+import { parseDueInput } from "@/lib/due-day";
+import { dueTextSchema } from "@/lib/due-input";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ForbiddenError, requireWorkspace } from "@/server/auth";
@@ -10,7 +12,6 @@ import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { createInboxTask, createInstantTask, inboxSpaceFor } from "@/server/services/instant-work";
 import { workScreenFor } from "@/server/services/my-work";
 import { orgTimeZone } from "@/server/services/org-day";
-import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 import { parseMyTasksParams } from "@/lib/work/my-tasks";
 
 /**
@@ -33,7 +34,7 @@ const quickSchema = z.object({
   /** B4: the space the screen is showing (one of the person's); left out, the space they are in. */
   spaceId: z.string().min(1).max(64).optional(),
   /** A day ("2026-11-05") or a full instant: a day is noon in the COMPANY's zone, never the browser's. */
-  dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
+  dueDate: dueTextSchema.nullable().optional(),
 });
 
 /**
@@ -49,7 +50,7 @@ export async function POST(req: Request) {
     const space = await inboxSpaceFor(subject, input.spaceId ?? (await currentSpace(subject))?.id);
     if (!space) throw new ForbiddenError("instant.no_space");
     const ctx = await requireWorkspace(space.id, ["ADMIN", "MEMBER"]);
-    const dueDate = !input.dueDate ? null : parseDayText(input.dueDate) ? dueInstantForDay(input.dueDate, await orgTimeZone(ctx.orgId)) : new Date(input.dueDate);
+    const dueDate = input.dueDate === undefined ? undefined : input.dueDate ? parseDueInput(input.dueDate, await orgTimeZone(ctx.orgId)) : null;
     const made = { title: input.title, priority: "NORMAL" as const, dueDate };
     const task = (await isFeatureOn(ctx.orgId, "workInbox"))
       ? await createInboxTask(ctx, space.id, made)

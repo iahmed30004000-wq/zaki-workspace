@@ -1,4 +1,4 @@
-import { dayOfInstant } from "@/lib/due-day";
+import { dayOfInstant, overdueDueFilter } from "@/lib/due-day";
 import { zonedDayStart } from "@/lib/zoned-time";
 import { db } from "@/server/db";
 import { LOCAL_CONTEXT_LIMITS } from "@/server/ai/local-transport";
@@ -88,7 +88,7 @@ async function ownWork(
     // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
     db.task.count({ where: open }),
     // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
-    db.task.count({ where: { ...open, dueDate: { lt: todayStart } } }),
+    db.task.count({ where: { ...open, dueDate: overdueDueFilter(now, tz) } }),
     // task-visibility: the person's own tasks (assignee, co-assignee or creator) are theirs to see
     db.task.count({ where: { orgId: who.orgId, completedAt: { gte: new Date(now.getTime() - WEEK_MS) }, AND: [mine, noReward] } }),
   ]);

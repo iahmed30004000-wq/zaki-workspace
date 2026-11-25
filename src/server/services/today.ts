@@ -1,3 +1,4 @@
+import { dueLaterTodayWhere, overdueDueFilter, defaultDueHourOf } from "@/lib/due-day";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { actorCan, actorCanWork, type Actor } from "@/server/policy/actor";
@@ -99,7 +100,7 @@ export async function getToday(actor: Actor, opts: TodayOptions = {}): Promise<S
   const now = opts.now ?? new Date();
 
   const [org, me, accessible, people] = await Promise.all([
-    db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true } }),
+    db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true, settings: true } }),
     db.user.findUnique({ where: { id: actor.userId }, select: { name: true } }),
     loadWorkScope(actor.userId),
     loadPeopleScope(actor),
@@ -173,8 +174,8 @@ export async function getToday(actor: Actor, opts: TodayOptions = {}): Promise<S
     ...open,
     AND: [taskVisibleWhere(scope), assignedTo(actor.userId)],
   } satisfies Prisma.TaskWhereInput;
-  const overdueWhere = { ...mine, dueDate: { lt: todayStart } } satisfies Prisma.TaskWhereInput;
-  const todayWhere = { ...mine, dueDate: { gte: todayStart, lt: tomorrowStart } } satisfies Prisma.TaskWhereInput;
+  const overdueWhere = { ...mine, dueDate: overdueDueFilter(now, timeZone) } satisfies Prisma.TaskWhereInput;
+  const todayWhere = { ...mine, AND: [...mine.AND, dueLaterTodayWhere(now, timeZone)] } satisfies Prisma.TaskWhereInput;
   const laterWhere = { ...mine, OR: [{ dueDate: null }, { dueDate: { gte: tomorrowStart } }] } satisfies Prisma.TaskWhereInput;
 
   // ---------- the person's own tasks, in three groups ----------
@@ -241,11 +242,11 @@ export async function getToday(actor: Actor, opts: TodayOptions = {}): Promise<S
     } satisfies Prisma.TaskWhereInput;
     const [openCount, overdueCount, worst] = await Promise.all([
       db.task.count({ where: teamOpen }),
-      db.task.count({ where: { ...teamOpen, dueDate: { lt: todayStart } } }),
+      db.task.count({ where: { ...teamOpen, dueDate: overdueDueFilter(now, timeZone) } }),
       db.task.findMany({
         where: {
           ...teamOpen,
-          dueDate: { lt: todayStart },
+          dueDate: overdueDueFilter(now, timeZone),
           // somebody who still works here: a suspended or offboarded person is not named, and neither is a task nobody holds
           assignee: { memberships: { some: { organizationId: actor.orgId, status: "ACTIVE" } } },
           // and the person named is OF THE TEAM: a task an outsider holds that merely shares a team-mate is counted above but never names the outsider
@@ -304,7 +305,7 @@ export async function getToday(actor: Actor, opts: TodayOptions = {}): Promise<S
     }
     // "today" and "tomorrow" for the form, as noon of the company's day: no clock maths in the browser
     const noon = (dayOffset: number): string => zonedWallTime({ year: clock.year, month: clock.month, day: clock.day + dayOffset, hour: 12 }, timeZone).toISOString();
-    return { assigneeId: actor.userId, targets, dueToday: noon(0), dueTomorrow: noon(1) };
+    return { assigneeId: actor.userId, targets, dueToday: noon(0), dueTomorrow: noon(1), dueHour: defaultDueHourOf(org?.settings) };
   }
 
   // ---------- put together ----------

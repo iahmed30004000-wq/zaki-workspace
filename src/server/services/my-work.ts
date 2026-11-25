@@ -1,3 +1,4 @@
+import { fmtStamp } from "@/lib/work/stamp";
 import { db } from "@/server/db";
 import { loadWorkScope, narrowScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
 import {
@@ -14,7 +15,7 @@ import { calendarView } from "@/server/services/calendar";
 import { resolveTimeZone } from "@/lib/zoned-time";
 import { canWriteInWorkspace } from "@/server/workspace-role";
 import { featureOn } from "@/lib/features";
-import { dayOfInstant } from "@/lib/due-day";
+import { dayOfInstant, notLateWhere, overdueDueFilter, dueWallOfInstant } from "@/lib/due-day";
 import { actorCanWork, type Actor } from "@/server/policy/actor";
 import { currentSpace } from "@/server/services/current-space";
 import { actorFeatureOn } from "@/server/services/features";
@@ -82,14 +83,16 @@ export type MyWorkData = Record<MyWorkTab, MyWorkRow[]>;
 
 /** Per-tab filters, before the org and the workspace allow-list are applied. */
 function tabFilters(userId: string, timeZone: string, now: Date): Record<MyWorkTab, Omit<ViewQuery, "orgId" | "workspaceIds">> {
+  const late = overdueDueFilter(now, timeZone);
+  const stillDue = notLateWhere(now, timeZone);
   // "today" is the company's day (Organization.timezone), not the server's
   const day = dayWindow(now, timeZone);
   const dayAfter = new Date(day.to.getTime() + 1);
   return {
-    today: { assigneeId: userId, dueFrom: day.from, dueTo: day.to, openOnly: true },
+    today: { assigneeId: userId, dueFrom: day.from, dueTo: day.to, stillDue, openOnly: true },
     upcoming: { assigneeId: userId, dueFrom: dayAfter, openOnly: true },
-    // overdue = due before the START of the company's today: a task due earlier today is in "today" only
-    overdue: { assigneeId: userId, overdueOnly: true, overdueBefore: day.from },
+    // overdue (src/lib/due-day.ts): a task whose hour today has passed is here and no longer in "today"
+    overdue: { assigneeId: userId, overdueOnly: true, overdueFilter: late },
     completed: { assigneeId: userId, completedOnly: true, limit: 100 },
     mine: { assigneeId: userId, openOnly: true },
     created: { creatorId: userId, openOnly: true },
@@ -197,12 +200,12 @@ const DAY_MS = 24 * 3600 * 1000;
 const BOARD_DONE_DAYS = 14;
 
 /** What a chip (or no chip) asks of the query, cut on the company's day. `view` decides the open/done shape of «no chip». */
-function chipQuery(chip: MyTaskChip | null, view: MyTasksParams["view"], userId: string, day: { from: Date; to: Date }, now: Date): Partial<ViewQuery> {
+function chipQuery(chip: MyTaskChip | null, view: MyTasksParams["view"], userId: string, day: { from: Date; to: Date }, now: Date, timeZone: string): Partial<ViewQuery> {
   switch (chip) {
     case "today":
-      return { dueFrom: day.from, dueTo: day.to, openOnly: true };
+      return { dueFrom: day.from, dueTo: day.to, stillDue: notLateWhere(now, timeZone), openOnly: true };
     case "overdue":
-      return { overdueOnly: true, overdueBefore: day.from };
+      return { overdueOnly: true, overdueFilter: overdueDueFilter(now, timeZone) };
     case "week":
       return { dueFrom: day.from, dueTo: new Date(day.to.getTime() + 6 * DAY_MS), openOnly: true };
     case "nodate":
@@ -350,7 +353,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
       const lensOn = featureOn(orgById.get(b.orgId)?.settings, "taskRewards") && roleOfOrg.get(b.orgId) !== "GUEST";
       const shape: Partial<ViewQuery> = calendar
         ? { dueFrom: cal.win.from, dueTo: cal.win.to, openOnly: true }
-        : chipQuery(chip, params.view, userId, day, now);
+        : chipQuery(chip, params.view, userId, day, now, zone);
       const rows = await queryTasksForView({
         orgId: b.orgId,
         workspaceIds: b.workspaceIds,
@@ -380,6 +383,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
         priority: task.priority,
         dueDate: task.dueDate?.toISOString() ?? null,
         dueDay: task.dueDate ? dayOfInstant(task.dueDate, zone) : null,
+        dueWall: task.dueDate ? dueWallOfInstant(task.dueDate, zone) : null,
         completedAt: task.completedAt?.toISOString() ?? null,
         columnId: task.columnId,
         columnName: task.columnName,
@@ -394,6 +398,9 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
         assigneeIds: task.assigneeIds,
         assigneeNames: task.assigneeNames,
         creatorId: task.creatorId,
+        creatorName: task.creatorName,
+        createdAt: task.createdAt?.toISOString(),
+        createdText: task.createdAt ? fmtStamp(task.createdAt, zone, now) : undefined,
         visibility: task.visibility,
         updatedAt: task.updatedAt.toISOString(),
         editable: canWriteInWorkspace(roleOfOrg.get(b.orgId), wsRoleById.get(task.workspaceId)),
@@ -420,7 +427,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
             workspaceIds: b.workspaceIds,
             visible,
             ...scopedBy(b, chip),
-            ...chipQuery(chip, "list", userId, day, now),
+            ...chipQuery(chip, "list", userId, day, now, zoneOf(b.orgId)),
             ...(params.stage ? { stage: params.stage } : {}),
           });
         }),
@@ -502,6 +509,7 @@ export async function getWorkTaskDetail(userId: string, taskId: string): Promise
       priority: row.priority,
       dueDate: row.dueDate?.toISOString() ?? null,
       dueDay: row.dueDate ? dayOfInstant(row.dueDate, zone) : null,
+      dueWall: row.dueDate ? dueWallOfInstant(row.dueDate, zone) : null,
       completedAt: row.completedAt?.toISOString() ?? null,
       columnId: row.column.id,
       columnName: row.column.name,
@@ -516,6 +524,9 @@ export async function getWorkTaskDetail(userId: string, taskId: string): Promise
       assigneeIds: [...(row.assignee ? [row.assignee.id] : []), ...co.map((u) => u.id)],
       assigneeNames: [...(row.assignee ? [row.assignee.name] : []), ...co.map((u) => u.name)],
       creatorId: row.creatorId,
+      creatorName: row.creator.name,
+      createdAt: row.createdAt.toISOString(),
+      createdText: fmtStamp(row.createdAt, zone),
       visibility: row.visibility,
       updatedAt: row.updatedAt.toISOString(),
       editable: member ? canWriteInWorkspace(member.role, spaceRow?.role) : false,

@@ -1,3 +1,4 @@
+import { isDueOverdue, overdueDueFilter } from "@/lib/due-day";
 import { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { NotFoundError, ValidationError } from "@/server/auth";
@@ -188,7 +189,7 @@ interface OpenStat {
   overdue: number;
 }
 
-async function loadOpenStats(c: Ctx, ids: Ids, todayStart: Date): Promise<OpenStat[]> {
+async function loadOpenStats(c: Ctx, ids: Ids, late: { lt: Date; not: Date }): Promise<OpenStat[]> {
   // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
   return db.$queryRaw<OpenStat[]>(Prisma.sql`
     WITH open AS (
@@ -200,7 +201,7 @@ async function loadOpenStats(c: Ctx, ids: Ids, todayStart: Date): Promise<OpenSt
       UNION
       SELECT o."id", co."userId", o."dueDate" FROM open o JOIN "TaskCoAssignee" co ON co."taskId" = o."id"
     )
-    SELECT "userId", count(*)::int AS "open", (count(*) FILTER (WHERE "dueDate" < ${ts(todayStart)}))::int AS "overdue"
+    SELECT "userId", count(*)::int AS "open", (count(*) FILTER (WHERE "dueDate" < ${ts(late.lt)} AND "dueDate" <> ${ts(late.not)}))::int AS "overdue"
     FROM held WHERE TRUE ${onlyIds('"userId"', ids)} GROUP BY 1`);
 }
 
@@ -214,7 +215,7 @@ interface CompanyTotals {
 }
 
 /** The company-wide cards: over TASKS (a task counts once, whoever holds it, even nobody) and over every message. */
-async function loadCompanyTotals(c: Ctx, todayStart: Date): Promise<CompanyTotals> {
+async function loadCompanyTotals(c: Ctx, late: { lt: Date; not: Date }): Promise<CompanyTotals> {
   const [done, open, msgs] = await Promise.all([
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ completed: number; late: number; avgDays: number | null }[]>(Prisma.sql`
@@ -225,7 +226,7 @@ async function loadCompanyTotals(c: Ctx, todayStart: Date): Promise<CompanyTotal
       WHERE t."orgId" = ${c.orgId} AND t."completedAt" >= ${ts(c.win.start)} AND t."completedAt" < ${ts(c.win.end)} ${taskScope("t", c.scope)}`),
     // task-visibility: an owner-level aggregate (numbers or names the owner board already shows); its audience is narrowed in A1.3 (policy/board.ts)
     db.$queryRaw<{ open: number; overdue: number }[]>(Prisma.sql`
-      SELECT count(*)::int AS "open", (count(*) FILTER (WHERE t."dueDate" < ${ts(todayStart)}))::int AS "overdue"
+      SELECT count(*)::int AS "open", (count(*) FILTER (WHERE t."dueDate" < ${ts(late.lt)} AND t."dueDate" <> ${ts(late.not)}))::int AS "overdue"
       FROM "Task" t WHERE t."orgId" = ${c.orgId} AND t."completedAt" IS NULL AND NOT t."archived" ${taskScope("t", c.scope)}`),
     db.$queryRaw<{ n: number }[]>(Prisma.sql`
       SELECT count(*)::int AS "n" FROM "ChatMessage" m
@@ -456,8 +457,7 @@ interface Assembled {
 
 /** Builds the people rows from the four grouped reads. `candidates` are the people to list; people with data in scope are added. */
 async function assemble(access: BoardAccess, c: Ctx, ids: Ids, candidates: MemberInfo[], now: Date, onlyCandidates: boolean): Promise<Assembled> {
-  const todayStart = zonedDayStart(now, c.tz);
-  const [facts, doneStats, openStats, online] = await Promise.all([loadFacts(c, ids), loadDoneStats(c, ids), loadOpenStats(c, ids, todayStart), onlineUserIds(c.orgId)]);
+  const [facts, doneStats, openStats, online] = await Promise.all([loadFacts(c, ids), loadDoneStats(c, ids), loadOpenStats(c, ids, overdueDueFilter(now, c.tz)), onlineUserIds(c.orgId)]);
 
   const known = new Map(candidates.map((m) => [m.userId, m]));
   if (!onlyCandidates) {
@@ -568,7 +568,7 @@ export async function loadOverview(access: BoardAccess, query: BoardQuery, opts:
   const activeOf = (r: PersonRow) => r.completed + r.steps + r.messages > 0;
   const live = people.filter((r) => r.status === "ACTIVE");
   if (access.companyWide && !person) {
-    const totals = await loadCompanyTotals(c, zonedDayStart(now, tz));
+    const totals = await loadCompanyTotals(c, overdueDueFilter(now, tz));
     cards = { ...totals, activePeople: live.filter(activeOf).length, idlePeople: live.filter((r) => !activeOf(r)).length };
   } else if (access.companyWide && person && people[0]) {
     const r = people[0];
@@ -760,7 +760,7 @@ export async function loadPerson(access: BoardAccess, userId: string, query: Boa
     window: windowInfo(win, tz),
     person,
     days,
-    open: openRows.map((o) => ({ id: o.id, number: o.number, title: o.title, dueDate: o.dueDate ? o.dueDate.toISOString() : null, overdue: o.dueDate !== null && o.dueDate < todayStart, space: o.space })),
+    open: openRows.map((o) => ({ id: o.id, number: o.number, title: o.title, dueDate: o.dueDate ? o.dueDate.toISOString() : null, overdue: o.dueDate !== null && isDueOverdue(o.dueDate, tz, now), space: o.space })),
     openTotal: openCount,
     spaces: spaceRows,
     sections: sectionLoad.columns,

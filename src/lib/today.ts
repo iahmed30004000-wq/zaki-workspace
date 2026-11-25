@@ -150,6 +150,8 @@ export interface TodayQuickAddData {
   /** Noon today and noon tomorrow in the company's zone, as ISO instants. */
   dueToday: string;
   dueTomorrow: string;
+  /** The company's hour for a new task's due date; null (or absent): the whole day. */
+  dueHour?: number | null;
 }
 
 export interface TodayData {
@@ -227,7 +229,8 @@ export interface QuickTaskBody {
   title: string;
   assigneeId: string;
   description?: string;
-  dueDate?: string;
+  /** Null: «بدون موعد» (an ABSENT date would take the company's default). */
+  dueDate?: string | null;
 }
 
 /** The longest specification the quick add sends (the server accepts 10 000; a quick task is not a document). */
@@ -247,11 +250,11 @@ function cutAt(text: string, max: number): string {
   return last >= 0xd800 && last <= 0xdbff ? cut.slice(0, -1) : cut;
 }
 
-/** Noon of the wanted day in the company's zone as an ISO instant; undefined for «no date». */
-function quickDueAt(due: QuickDue, timeZone: string, now?: Date): string | undefined {
-  if (due === "none") return undefined;
+/** The wanted day at the company's hour (noon, «the whole day», when it has none) as an ISO instant; null for «no date». */
+function quickDueAt(due: QuickDue, timeZone: string, now?: Date, hour?: number | null): string | null {
+  if (due === "none") return null;
   const p = zonedParts(now ?? new Date(), timeZone);
-  return zonedWallTime({ year: p.year, month: p.month, day: due === "today" ? p.day : p.day + 1, hour: NOON_HOUR }, timeZone).toISOString();
+  return zonedWallTime({ year: p.year, month: p.month, day: due === "today" ? p.day : p.day + 1, hour: hour ?? NOON_HOUR }, timeZone).toISOString();
 }
 
 /**
@@ -272,7 +275,7 @@ export function quickTaskBody(
   if (title === "") return null;
   const target = quickAdd.targets.find((x) => x.projectId === input.projectId);
   if (!target) return null;
-  const dueDate = quickDueAt(input.due, input.timeZone, input.now);
+  const dueDate = quickDueAt(input.due, input.timeZone, input.now, quickAdd.dueHour);
   return {
     workspaceId: target.workspaceId,
     projectId: target.projectId,
@@ -280,7 +283,7 @@ export function quickTaskBody(
     title,
     assigneeId: input.assigneeId || quickAdd.assigneeId,
     ...quickDescription(input.description),
-    ...(dueDate ? { dueDate } : {}),
+    dueDate,
   };
 }
 
@@ -318,7 +321,7 @@ export interface QuickInboxBody {
   assigneeId: string;
   /** What the task needs (its specification), when the person wrote it. */
   description?: string;
-  dueDate?: string;
+  dueDate?: string | null;
 }
 
 export function quickInboxBody(
@@ -327,8 +330,8 @@ export function quickInboxBody(
 ): QuickInboxBody | null {
   const title = cutAt(input.title.trim(), TASK_TITLE_MAX).trimEnd();
   if (title === "") return null;
-  const dueDate = quickDueAt(input.due, input.timeZone, input.now);
-  return { title, ...(input.spaceId ? { spaceId: input.spaceId } : {}), assigneeId: input.assigneeId || quickAdd.assigneeId, ...quickDescription(input.description), ...(dueDate ? { dueDate } : {}) };
+  const dueDate = quickDueAt(input.due, input.timeZone, input.now, quickAdd.dueHour);
+  return { title, ...(input.spaceId ? { spaceId: input.spaceId } : {}), assigneeId: input.assigneeId || quickAdd.assigneeId, ...quickDescription(input.description), dueDate };
 }
 
 /** One line of «اليوم» inside «الشركة»: the person's own numbers in one space (`getTodayBySpace`). */

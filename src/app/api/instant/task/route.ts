@@ -1,3 +1,5 @@
+import { parseDueInput } from "@/lib/due-day";
+import { dueTextSchema } from "@/lib/due-input";
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { ForbiddenError, NotFoundError, requireWorkspace } from "@/server/auth";
@@ -8,7 +10,6 @@ import { currentSpace } from "@/server/services/current-space";
 import { isFeatureOn } from "@/server/services/features";
 import { createInstantTask, inboxSpaceFor } from "@/server/services/instant-work";
 import { orgTimeZone } from "@/server/services/org-day";
-import { dueInstantForDay, parseDayText } from "@/lib/due-day";
 import { rewardBodySchema, toRewardRequest } from "@/server/services/reward-input";
 
 const schema = z
@@ -20,7 +21,7 @@ const schema = z
     assigneeIds: z.array(z.string().min(1)).max(50).optional(),
     priority: z.enum(["URGENT", "HIGH", "NORMAL", "LOW"]).default("NORMAL"),
     // a day ("2026-11-05") or a full instant: a day is noon in the COMPANY's zone, never the browser's (review B5)
-    dueDate: z.string().datetime({ offset: true }).or(z.string().date()).nullable().optional(),
+    dueDate: dueTextSchema.nullable().optional(),
     /** «مهمة بمكافأة»: the OWNER's alone, with a due date (403 `reward.owner_only` otherwise). */
     reward: rewardBodySchema.optional(),
   })
@@ -44,11 +45,8 @@ export async function POST(req: Request) {
       spaceId = inbox.id;
     }
     const ctx = await requireWorkspace(spaceId, ["ADMIN", "MEMBER"]);
-    const dueDate = !input.dueDate
-      ? null
-      : parseDayText(input.dueDate)
-        ? dueInstantForDay(input.dueDate, await orgTimeZone(ctx.orgId))
-        : new Date(input.dueDate);
+    // absent: the company's default (today at its hour); null: no date
+    const dueDate = input.dueDate === undefined ? undefined : input.dueDate ? parseDueInput(input.dueDate, await orgTimeZone(ctx.orgId)) : null;
     const task = await createInstantTask(ctx, spaceId, {
       title: input.title,
       description: input.description ?? null,

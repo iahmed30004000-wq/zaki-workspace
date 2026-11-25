@@ -1,3 +1,5 @@
+import { fmtDueStamp, fmtStamp } from "@/lib/work/stamp";
+import { dueWallOfInstant } from "@/lib/due-day";
 import { notFound, redirect } from "next/navigation";
 import { pageUser } from "@/server/auth";
 import { db } from "@/server/db";
@@ -16,6 +18,7 @@ import { recurrenceOfTask } from "@/server/services/task-recurrence";
 import { taskFieldsCard } from "@/server/services/custom-fields";
 import { TaskFieldsCard } from "@/components/custom-fields/task-fields-card";
 import { approvalsLinkedTo } from "@/server/services/approvals";
+import { orgTimeZone } from "@/server/services/org-day";
 import { LinkedApprovals } from "@/components/approvals/linked-approvals";
 
 /**
@@ -76,6 +79,7 @@ export default async function TaskPage({ params }: { params: { id: string } }) {
         take: 200,
       })
     : [];
+  const zone = await orgTimeZone(orgId);
 
   return (
     <TaskDetail
@@ -91,6 +95,9 @@ export default async function TaskPage({ params }: { params: { id: string } }) {
         boardId: task.boardId,
         boardName: task.boardName,
         dueDate: task.dueDate,
+        dueWall: task.dueDate ? dueWallOfInstant(task.dueDate, zone) : null,
+        dueText: task.dueDate ? fmtDueStamp(task.dueDate, zone) : null,
+        createdText: fmtStamp(task.createdAt, zone),
         creatorName: task.creatorName,
         visibility: task.visibility,
         assigneeId: task.assigneeId,

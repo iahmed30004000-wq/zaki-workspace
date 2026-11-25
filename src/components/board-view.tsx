@@ -64,6 +64,14 @@ export interface TaskCardData {
   priority: string;
   columnId: string;
   dueDate: string | null;
+  /** The colour of the due date, judged on the company's clock when the board was read: late (red), today (amber). */
+  dueTone?: "late" | "today" | null;
+  /** The due date as words, with the hour when one was picked (the hover), and the hour alone (beside «بعد يومين»); empty for a whole day. */
+  dueText?: string | null;
+  dueTime?: string;
+  /** «أنشأها فلان · …», already words. */
+  createdBy?: string;
+  createdText?: string;
   labels: { id: string; name: string; color: string }[];
   assignee: { id: string; name: string } | null;
   /** Every person the task is for («لمين» with more than one), the primary first; absent means one. */
@@ -598,7 +606,8 @@ function TaskCard({ task, onOpen }: { task: TaskCardData; onOpen?: (id: string) 
 
 function TaskCardContent({ task }: { task: TaskCardData }) {
   const { t } = useI18n();
-  const overdue = task.dueDate && isOverdue(task.dueDate) && !task.completed;
+  const overdue = task.dueDate && !task.completed && (task.dueTone === undefined ? isOverdue(task.dueDate) : task.dueTone === "late");
+  const dueToday = !task.completed && task.dueTone === "today";
   return (
     <div className="rounded-[10px] bg-surface-1 px-2.5 py-2 shadow-card transition-shadow hover:shadow-card-hover">
       <div className="flex items-center gap-1.5">
@@ -630,15 +639,16 @@ function TaskCardContent({ task }: { task: TaskCardData }) {
         </span>
         {task.dueDate ? (
           <span
-            title={fmtDMY(task.dueDate)}
+            title={task.dueText ?? fmtDMY(task.dueDate)}
             suppressHydrationWarning
             className={cn(
               "flex shrink-0 items-center gap-1",
-              overdue ? "text-danger" : undefined,
+              overdue ? "text-danger" : dueToday ? "text-warn" : undefined,
             )}
           >
             <CalendarDays className="h-3 w-3" />
             {fmtRelative(task.dueDate)}
+            {task.dueTime ? <bdi className="tabular-nums">{task.dueTime}</bdi> : null}
           </span>
         ) : null}
         {task.commentCount > 0 ? (
@@ -652,6 +662,11 @@ function TaskCardContent({ task }: { task: TaskCardData }) {
         <RecurringBadge recurring={task.recurring} />
       </div>
       <FieldChips cells={task.fields} block />
+      {task.createdText ? (
+        <p data-task-created className="mt-1.5 truncate text-xs text-fg-muted">
+          {task.createdBy ? t("task.created_line", { name: task.createdBy, when: task.createdText }) : t("task.created_at", { when: task.createdText })}
+        </p>
+      ) : null}
     </div>
   );
 }

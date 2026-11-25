@@ -3,7 +3,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient, type QueryClient, type QueryKey } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { apiGet, apiPatch, apiPost, ApiError } from "@/lib/api-client";
-import { dueInstantForDay } from "@/lib/due-day";
+import { parseDueInput } from "@/lib/due-day";
 import { FIELDS_ANCHOR, requiredFieldsOf } from "@/lib/custom-fields";
 import { useI18n } from "@/lib/i18n";
 import { rt } from "@/lib/reminders/client";
@@ -111,10 +111,10 @@ export function workActionOptions(qc: QueryClient, deps: { timeZone: string; fai
       onSettled: () => settleChange(qc),
     },
     due: {
-      // the day as picked (`YYYY-MM-DD`): the server makes it noon in the COMPANY's zone, never the browser's
+      // what was picked (`YYYY-MM-DDTHH:mm`): the server reads it on the COMPANY's clock, never the browser's
       mutationFn: ({ id, day }: { id: string; day: string | null }) => apiPatch(`/api/tasks/${id}`, { dueDate: day }),
       onMutate: async ({ id, day }: { id: string; day: string | null }): Promise<ChangeContext> => ({
-        previous: await optimisticChange(qc, (tasks) => withDueDay(tasks, id, day, (d) => dueInstantForDay(d, deps.timeZone)?.toISOString() ?? null)),
+        previous: await optimisticChange(qc, (tasks) => withDueDay(tasks, id, day, (picked) => parseDueInput(picked, deps.timeZone)?.toISOString() ?? null)),
       }),
       onError: (err: unknown, { id }: { id: string; day: string | null }, context: ChangeContext | undefined) => {
         restoreChange(qc, context?.previous);

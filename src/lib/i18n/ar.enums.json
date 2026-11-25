@@ -134,6 +134,7 @@
   "proj.emptyHint": "أنشئ مشروعًا لتبدأ بتنظيم العمل.",
   "proj.cardLine": "المهام: {tasks} · لوحات المشروع: {boards}",
   "proj.dueLine": "الموعد: {date}",
+  "proj.sort.updated": "آخر تحديث",
   "proj.progressLine": "المفتوحة: {open} · المنجزة: {done} · {pct}%",
   "proj.tasksCount": "المهام: {n}",
 

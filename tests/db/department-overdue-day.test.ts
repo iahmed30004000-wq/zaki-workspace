@@ -38,9 +38,9 @@ async function world(timezone: string) {
 }
 
 describe("a department's «متأخرة» is the company's day", () => {
-  it("at 15:00 a task due 09:00 today is not late; yesterday's is", async () => {
+  it("at 15:00 a whole-day task of today is not late; yesterday's is", async () => {
     const w = await world("Asia/Damascus");
-    await w.due("2026-03-16T06:00:00Z"); // 09:00 today in Damascus
+    await w.due("2026-03-16T09:00:00Z"); // today in Damascus, no hour picked (noon = the whole day)
     await w.due("2026-03-15T06:00:00Z"); // 09:00 yesterday
     const row = await card({ ...w, now: new Date("2026-03-16T12:00:00Z") }); // 15:00 on the 16th in Damascus
     expect(row?.overdueTasks).toBe(1);
@@ -56,8 +56,8 @@ describe("a department's «متأخرة» is the company's day", () => {
 
   it("the same instant in a company behind UTC: that task is still today there, so nothing is late", async () => {
     const w = await world("America/New_York");
-    await w.due("2026-03-15T21:00:00Z"); // 17:00 on the 15th in New York
-    // 22:30 UTC on the 15th is 18:30 in New York: the task is due later today, not late
+    await w.due("2026-03-15T16:00:00Z"); // the whole of the 15th in New York (noon there)
+    // 22:30 UTC on the 15th is 18:30 in New York: a whole-day task is not late until the day ends
     const row = await card({ ...w, now: new Date("2026-03-15T22:30:00Z") });
     expect(row?.overdueTasks).toBe(0);
   });

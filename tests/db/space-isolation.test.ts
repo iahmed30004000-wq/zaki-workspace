@@ -36,7 +36,7 @@ import { getToday } from "@/server/services/today";
 import { getTodayBySpace } from "@/server/services/today-dashboard";
 import { call, db, loginAs, makeProject, makeTask, makeTeam, makeWorkspace } from "./helpers";
 import { makeDepartment, makeTicket } from "./guest-helpers";
-import { actorOf, html, put, world as todayWorld } from "./today-helpers";
+import { actorOf, html, put, world as todayWorld, todayNoon } from "./today-helpers";
 
 const jar = () => (globalThis as { __zkCookieJar?: Map<string, string> }).__zkCookieJar as Map<string, string>;
 afterEach(() => jar().delete(SPACE_COOKIE));
@@ -121,7 +121,8 @@ describe("B4.6 — «اليوم»", () => {
     await setFeatures(w.org.id, { navV2: true, workInbox: true });
     const now = Date.now();
     await put(w, "in", { title: "متأخرة عندي", assigneeId: w.member.id, due: new Date(now - 3 * DAY) });
-    await put(w, "in", { title: "اليوم عندي", assigneeId: w.member.id, due: new Date(now) });
+    // the whole of today (noon, no hour): an hour of «now» would be late a moment later
+    await put(w, "in", { title: "اليوم عندي", assigneeId: w.member.id, due: todayNoon("UTC", new Date(now)) });
     await put(w, "in", { title: "لاحقًا عندي", assigneeId: w.member.id, due: new Date(now + 4 * DAY) });
     // the member is in a second space too
     const wsTwo = await makeWorkspace(w.org.id, [{ userId: w.member.id }], "مساحة ثانية");

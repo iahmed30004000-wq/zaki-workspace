@@ -463,6 +463,8 @@ export interface CompanySettingsInput {
   menuOrder?: NavOrder | null;
   /** The company's time zone (`Organization.timezone`): a valid IANA name. */
   timezone?: string;
+  /** The hour (0–23) of the due date a task gets when none is chosen; null: no default date. */
+  defaultDueHour?: number | null;
 }
 
 export type CompanySettingsCheck = { ok: true; value: CompanySettingsInput } | { ok: false; key: string };
@@ -475,7 +477,7 @@ const isObj = (value: unknown): value is Record<string, unknown> => typeof value
  */
 export function checkCompanySettings(raw: unknown): CompanySettingsCheck {
   if (!isObj(raw)) return { ok: false, key: "cpv2.company.e.invalid" };
-  for (const key of Object.keys(raw)) if (key !== "landing" && key !== "workTabs" && key !== "menuOrder" && key !== "timezone") return { ok: false, key: "cpv2.company.e.unknown_key" };
+  for (const key of Object.keys(raw)) if (key !== "landing" && key !== "workTabs" && key !== "menuOrder" && key !== "timezone" && key !== "defaultDueHour") return { ok: false, key: "cpv2.company.e.unknown_key" };
   const value: CompanySettingsInput = {};
   if ("landing" in raw) {
     if (typeof raw["landing"] !== "string" || !(LANDINGS as readonly string[]).includes(raw["landing"])) return { ok: false, key: "cpv2.company.e.landing" };
@@ -491,6 +493,11 @@ export function checkCompanySettings(raw: unknown): CompanySettingsCheck {
   if ("timezone" in raw) {
     if (typeof raw["timezone"] !== "string" || !isValidTimeZone(raw["timezone"])) return { ok: false, key: "cpv2.company.e.timezone" };
     value.timezone = raw["timezone"];
+  }
+  if ("defaultDueHour" in raw) {
+    const hour = raw["defaultDueHour"];
+    if (hour !== null && !(typeof hour === "number" && Number.isInteger(hour) && hour >= 0 && hour <= 23)) return { ok: false, key: "cpv2.company.e.due_hour" };
+    value.defaultDueHour = hour;
   }
   if ("menuOrder" in raw) {
     if (raw["menuOrder"] === null) value.menuOrder = null;

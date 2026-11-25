@@ -458,7 +458,7 @@ describe("the numbers: the company's day, who is credited, and what is left out"
   it("open and overdue are measured against the company's today", async () => {
     const w = await world();
     await w.task("a", "متأخرة", { assigneeId: w.member.id, dueDate: at("2026-10-29T10:00:00Z") });
-    await w.task("a", "اليوم", { assigneeId: w.member.id, dueDate: at("2026-10-29T21:30:00Z") }); // Oct 30 00:30: due today, not overdue
+    await w.task("a", "اليوم", { assigneeId: w.member.id, dueDate: at("2026-10-30T09:00:00Z") }); // Oct 30, no hour picked (noon): due today, not overdue
     await w.task("a", "بلا موعد", { assigneeId: w.member.id });
     const o = await overviewAs(w.owner.id);
     expect(row(o, w.member.id)).toMatchObject({ openTasks: 3, overdue: 1 });

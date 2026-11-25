@@ -131,15 +131,15 @@ describe("the three groups: overdue, today, later — counted by the company's d
 
     const data = await todayFor(w.member.id, NOW);
     // the most overdue first
-    expect(idsOf(data.tasks.overdue)).toEqual([o2.id, o1.id, oEdge.id]);
-    expect(data.tasks.overdue.map((t) => t.dueLabel)).toEqual(["قبل يومين", "أمس", "أمس"]);
-    // a task due earlier today is still today's (the group is the day, not "before now")
-    expect(idsOf(data.tasks.today)).toEqual([tEarly.id, tLate.id]);
-    expect(data.tasks.today.map((t) => t.dueLabel)).toEqual(["اليوم", "اليوم"]);
+    expect(idsOf(data.tasks.overdue)).toEqual([o2.id, o1.id, oEdge.id, tEarly.id]);
+    expect(data.tasks.overdue.map((t) => t.dueLabel)).toEqual(["قبل يومين", "أمس", "أمس", "اليوم"]);
+    // a task whose hour today has passed is late (the owner, 2026-11-25); what is left of the day is «اليوم»
+    expect(idsOf(data.tasks.today)).toEqual([tLate.id]);
+    expect(data.tasks.today.map((t) => t.dueLabel)).toEqual(["اليوم"]);
     // the next days first, the undated last
     expect(idsOf(data.tasks.later)).toEqual([lEdge.id, lFar.id, lNone.id]);
     expect(data.tasks.later.map((t) => t.dueLabel)).toEqual(["بكرا", "بعد 8 أيام", ""]);
-    expect(data.tasks.counts).toEqual({ open: 8, overdue: 3, today: 2, later: 3, doneToday: 0 });
+    expect(data.tasks.counts).toEqual({ open: 8, overdue: 4, today: 1, later: 3, doneToday: 0 });
   });
 
   it("carries what a row shows: the title, the project, the priority in Arabic, and whether the person may finish it", async () => {
@@ -202,12 +202,13 @@ describe("the three groups: overdue, today, later — counted by the company's d
 
     await setZone(w.org.id, "America/Phoenix");
     let data = await todayFor(w.member.id, now);
-    expect(idsOf(data.tasks.today).sort()).toEqual([phoenixLate.id, tokyoLate.id].sort());
-    expect(data.tasks.counts).toMatchObject({ overdue: 0, today: 2, later: 0 });
+    // 07:30 in Phoenix was this morning: its hour has passed
+    expect(idsOf(data.tasks.today)).toEqual([phoenixLate.id]);
+    expect(data.tasks.counts).toMatchObject({ overdue: 1, today: 1, later: 0 });
 
     await setZone(w.org.id, "UTC");
     data = await todayFor(w.member.id, now);
-    expect(idsOf(data.tasks.today)).toEqual([tokyoLate.id]);
+    expect(idsOf(data.tasks.overdue)).toEqual([tokyoLate.id]);
     expect(idsOf(data.tasks.later)).toEqual([phoenixLate.id]);
     expect(data.tasks.later[0]?.dueLabel).toBe("بكرا");
 
@@ -223,7 +224,7 @@ describe("the three groups: overdue, today, later — counted by the company's d
     // Tokyo's 23rd begins at 2026-10-22T15:00:00Z
     const before = await put(w, "in", { assigneeId: w.member.id, title: "قبل", due: at("2026-10-22T14:59:59.999Z") });
     const exactly = await put(w, "in", { assigneeId: w.member.id, title: "تماما", due: at("2026-10-22T15:00:00.000Z") });
-    const data = await todayFor(w.member.id, at("2026-10-22T20:00:00Z"));
+    const data = await todayFor(w.member.id, at("2026-10-22T15:00:00.000Z"));
     expect(idsOf(data.tasks.overdue)).toEqual([before.id]);
     expect(idsOf(data.tasks.today)).toEqual([exactly.id]);
   });
@@ -552,6 +553,7 @@ describe("«إضافة سريعة»: where a task can be added from Today", () =
       targets: [],
       dueToday: expect.any(String),
       dueTomorrow: expect.any(String),
+      dueHour: 18,
     });
   });
 

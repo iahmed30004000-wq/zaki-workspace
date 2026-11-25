@@ -1,3 +1,5 @@
+import { orgTimeZone } from "@/server/services/org-day";
+import { dueInstantForDay } from "@/lib/due-day";
 import { z } from "zod";
 import type { CampaignStatus } from "@prisma/client";
 import { db } from "@/server/db";
@@ -208,7 +210,8 @@ export async function campaignItemToTask(
         ...place,
         title: item.title.slice(0, 280),
         description: interpolate(AR["work.convert.from_campaign"] ?? "{title}", { title: item.campaign.title }),
-        dueDate: item.dueDate,
+        // an item has a DAY (kept as noon UTC): the task gets that whole day on the company's clock, never an hour
+        dueDate: item.dueDate ? dueInstantForDay(item.dueDate.toISOString().slice(0, 10), await orgTimeZone(ctx.orgId)) : null,
         assigneeId: input.assigneeId === undefined ? ctx.userId : input.assigneeId,
         ...(input.visibility ? { visibility: input.visibility } : {}),
       },

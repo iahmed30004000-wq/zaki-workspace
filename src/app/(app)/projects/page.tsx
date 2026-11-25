@@ -1,3 +1,5 @@
+import { orgTimeZone } from "@/server/services/org-day";
+import { fmtStamp } from "@/lib/work/stamp";
 import Link from "next/link";
 import { Inbox } from "lucide-react";
 import { actorCanWork } from "@/server/policy/actor";
@@ -23,7 +25,7 @@ import { getServerT } from "@/lib/i18n/server";
 export default async function ProjectsPage({
   searchParams,
 }: {
-  searchParams: { workspace?: string };
+  searchParams: { workspace?: string; sort?: string };
 }) {
   const { t } = getServerT();
   const { user, actor } = await pageActor();
@@ -57,8 +59,10 @@ export default async function ProjectsPage({
       status: { not: "ARCHIVED" },
       AND: [projectVisibleWhere(scope)],
     },
-    orderBy: { updatedAt: "desc" },
+    orderBy: searchParams.sort === "created" ? { createdAt: "desc" } : { updatedAt: "desc" },
     select: {
+      createdAt: true,
+      createdById: true,
       id: true,
       name: true,
       systemKey: true,
@@ -79,6 +83,16 @@ export default async function ProjectsPage({
       ? await db.workspace.findUnique({ where: { id: wsFilter }, select: { name: true, description: true } })
       : null;
   const wsName = wsInfo?.name ?? "";
+  const byCreated = searchParams.sort === "created";
+  const zone = await orgTimeZone(actor.orgId);
+  const creatorIds = [...new Set(projects.flatMap((p) => (p.createdById ? [p.createdById] : [])))];
+  const creators = new Map((creatorIds.length ? await db.user.findMany({ where: { id: { in: creatorIds } }, select: { id: true, name: true } }) : []).map((u) => [u.id, u.name] as const));
+  const createdLine = (p: { createdAt: Date; createdById: string | null }) => {
+    const name = p.createdById ? creators.get(p.createdById) : undefined;
+    const when = fmtStamp(p.createdAt, zone);
+    return name ? t("task.created_line", { name, when }) : t("task.created_at", { when });
+  };
+  const sortLink = (on: boolean) => `rounded-full px-3 py-1.5 text-[13px] ${on ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2"}`;
   // A2.2: with the switch `controlPanelV2` ON the buttons of the space (its people, its «المقاطع») are links to the space's ONE settings page; an external partner
   // is not offered that page and keeps the dialogs
   const settingsPage = !actor.isExternal && (await actorFeatureOn(actor, "controlPanelV2"));
@@ -132,6 +146,16 @@ export default async function ProjectsPage({
           </Card>
         </Link>
       ))}
+      {ordinary.length > 1 ? (
+        <nav aria-label={t("mytasks.sort.label")} className="flex items-center gap-1">
+          <Link href="/projects" aria-current={byCreated ? undefined : "true"} className={sortLink(!byCreated)}>
+            {t("proj.sort.updated")}
+          </Link>
+          <Link href="/projects?sort=created" aria-current={byCreated ? "true" : undefined} className={sortLink(byCreated)}>
+            {t("mytasks.sort.created")}
+          </Link>
+        </nav>
+      ) : null}
       {ordinary.length === 0 ? (
         <QuietEmpty title={t("proj.emptyTitle")} hint={t("proj.emptyHint")} />
       ) : (
@@ -152,6 +176,9 @@ export default async function ProjectsPage({
                   <p className="mt-2 text-[13px] text-fg-muted">
                     {t("proj.cardLine", { tasks: p._count.tasks, boards: p._count.boards })}
                     {p.targetDate ? ` · ${t("proj.dueLine", { date: fmtDMY(p.targetDate) })}` : ""}
+                  </p>
+                  <p data-project-created className="mt-1 text-xs text-fg-muted">
+                    {createdLine(p)}
                   </p>
                 </CardBody>
               </Card>

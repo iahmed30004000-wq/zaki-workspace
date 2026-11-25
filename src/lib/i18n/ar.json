@@ -310,6 +310,7 @@
   "goal.bad_date": "التاريخ غير صحيح",
   "column.not_empty": "انقل مهام هذا العمود أو احذفها أولًا، ثم احذف العمود",
   "validation.failed": "تحقق من البيانات المُدخلة.",
+  "validation.invalid_date": "التاريخ أو الساعة مش مفهومين.",
   "auth.required": "انتهت جلستك. سجّل الدخول من جديد.",
   "google.errorToast": "تعذّر ربط Google — تحقق من المفاتيح",
   "google.disconnected": "تمت إزالة ربط Google",
