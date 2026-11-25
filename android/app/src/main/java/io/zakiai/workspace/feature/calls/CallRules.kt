@@ -26,6 +26,12 @@ object K {
     const val speaker = "مكبّر الصوت"
     const val flip = "اقلب الكاميرا"
     const val inCall = "مكالمة شغّالة"
+    const val pageTitle = "المكالمة" // calls.page_title
+    const val failed = "ما قدرنا نوصل لخادم المكالمات. جرّب كمان شوي." // calls.failed
+    // calls.no_media, with «إعدادات التلفون» for the phone where the site says «المتصفح»
+    const val noMedia = "ما قدرنا نوصل للمايك أو الكاميرا. اسمحلهم من إعدادات التلفون وجرّب مرة تانية."
+    /** the same person took their seat on another device (the site sends them back to the chat; the call goes on there) */
+    const val elsewhere = "كمّلت المكالمة على جهازك التاني."
 }
 
 /** The site's call rules (src/lib/calls/session.ts), pure (unit-tested). */

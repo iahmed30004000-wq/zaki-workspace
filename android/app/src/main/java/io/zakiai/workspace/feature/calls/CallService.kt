@@ -28,18 +28,25 @@ class CallService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    private var foreground = false
+
+    private fun quit() {
+        if (foreground) ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
+        foreground = false
+        stopSelf()
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_LEAVE) {
-            engine.leave()
-            stopSelf()
-            return START_NOT_STICKY
-        }
+        // started with startForegroundService: it becomes a foreground service FIRST, whatever the command (stopping before that crashes)
         val granted = { p: String -> ContextCompat.checkSelfPermission(this, p) == PackageManager.PERMISSION_GRANTED }
         var types = 0
         if (granted(Manifest.permission.RECORD_AUDIO)) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
         if (granted(Manifest.permission.CAMERA)) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
-        if (types == 0) { stopSelf(); return START_NOT_STICKY }
-        runCatching { ServiceCompat.startForeground(this, ID, notification(), types) }.onFailure { stopSelf() }
+        if (!foreground && types != 0) foreground = runCatching { ServiceCompat.startForeground(this, ID, notification(), types) }.isSuccess
+        when (intent?.action) {
+            ACTION_LEAVE -> { engine.leave(); quit() }
+            ACTION_STOP -> quit()
+        }
         return START_NOT_STICKY
     }
 
@@ -71,13 +78,16 @@ class CallService : Service() {
         private const val ID = 7301
         private const val CHANNEL = "call-ongoing"
         private const val ACTION_LEAVE = "io.zakiai.workspace.call.LEAVE"
+        private const val ACTION_STOP = "io.zakiai.workspace.call.STOP"
 
         fun start(context: Context) {
             runCatching { ContextCompat.startForegroundService(context, Intent(context, CallService::class.java)) }
         }
 
+        /** Through the service's own command: it is a foreground service by then, so it may stop (stopService before that would crash). */
         fun stop(context: Context) {
-            runCatching { context.stopService(Intent(context, CallService::class.java)) }
+            runCatching { context.startService(Intent(context, CallService::class.java).setAction(ACTION_STOP)) }
+                .onFailure { runCatching { context.stopService(Intent(context, CallService::class.java)) } }
         }
     }
 }

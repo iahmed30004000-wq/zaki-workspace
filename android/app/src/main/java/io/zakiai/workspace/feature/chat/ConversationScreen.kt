@@ -398,7 +398,7 @@ private fun Header(h: ConversationHeader?, typing: List<Typist>, calling: Boolea
             }
         }
         val canCall = h != null && h.calls != false && h.me.canCall != false && h.kind != "TOPIC" || (h?.kind == "TOPIC" && h.me.canCall == true)
-        // the site's call menu, as two buttons: آ«ظ…ظƒط§ظ„ظ…ط© ظپظٹط¯ظٹظˆآ» and آ«ظ…ظƒط§ظ„ظ…ط© طµظˆطھآ»
+        // the site's call menu, as two buttons: the video call and the voice call
         if (canCall) RoundIcon(Icons.Filled.Videocam, io.zakiai.workspace.feature.calls.K.video, tint = Zk.colors.accent, enabled = !calling, onClick = onVideo)
         if (canCall) RoundIcon(Icons.Filled.Call, T.call, tint = Zk.colors.accent, enabled = !calling, onClick = onCall)
     }
