@@ -13,6 +13,8 @@ import { webhookSecretOf } from "@/server/services/bots";
  *   WHICH   a text message in a conversation the bot is part of (a private chat with it; a topic of the space it belongs to, or a restricted topic it was added to), that either
  *           mentions it («@username») or starts with a slash command («/start» or «/start@username»). Never a message the bot wrote itself, never for a deleted bot, never while the
  *           switch \`botFather\` is off.
+ *   PRIVACY with the bot's privacy switched OFF («/setprivacy») it also gets every text of a RESTRICTED topic it was added to by name; an open topic of its space still
+ *           sends only what addresses it (nobody added it there).
  *   WHAT    \`{ event: "message", delivery, bot, conversation, message, from, command?, mentioned }\`: the text of THAT message and who wrote it, nothing of the rest of the conversation.
  *           ⚠️ The text of a message is whatever the person typed: the address is the owner's own, typed in «بوت فاذر».
  *   HOW     one POST, five seconds at most, no retry. Headers: \`x-zaki-event\`, \`x-zaki-delivery\`, \`x-zaki-timestamp\` (seconds) and \`x-zaki-signature: sha256=<hex>\`, the HMAC-SHA256 of
@@ -43,7 +45,7 @@ export function addressedTo(body: string, username: string): { mentioned: boolea
 
 async function deliver(input: BotMessageInput): Promise<void> {
   if (!(await isFeatureOn(input.orgId, "botFather"))) return;
-  const bots = await db.bot.findMany({ where: { orgId: input.orgId, deletedAt: null, webhookUrl: { not: null }, userId: { not: input.authorId } }, select: { id: true, userId: true, username: true, name: true, workspaceId: true, webhookUrl: true, webhookSecretCipher: true } });
+  const bots = await db.bot.findMany({ where: { orgId: input.orgId, deletedAt: null, webhookUrl: { not: null }, userId: { not: input.authorId } }, select: { id: true, userId: true, username: true, name: true, workspaceId: true, webhookUrl: true, webhookSecretCipher: true, privacyMode: true } });
   if (bots.length === 0) return;
   const conv = await db.conversation.findUnique({ where: { id: input.conversationId }, select: { kind: true, spaceId: true, restricted: true, title: true, archivedAt: true, members: { select: { userId: true } } } });
   if (!conv || conv.archivedAt) return;
@@ -55,7 +57,8 @@ async function deliver(input: BotMessageInput): Promise<void> {
     if (!inside) continue;
     const { mentioned, command } = addressedTo(input.body, bot.username);
     // a private chat with the bot is addressed to it whatever is written
-    if (!mentioned && !command && conv.kind !== "DM") continue;
+    const hearsAll = !bot.privacyMode && conv.kind === "TOPIC" && conv.restricted && memberIds.has(bot.userId);
+    if (!mentioned && !command && conv.kind !== "DM" && !hearsAll) continue;
     await send(bot, { orgId: input.orgId, conversationId: input.conversationId, messageId: input.messageId, kind: conv.kind, title: conv.title, spaceId: conv.spaceId }, author, input.body, mentioned, command);
   }
 }

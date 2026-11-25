@@ -3563,6 +3563,10 @@ model Bot {
   webhookUrl          String?
   webhookSecretCipher String?
   tokenId             String?
+  // «/setjoingroups»: may it be added to a topic of chosen people
+  joinGroups          Boolean   @default(true)
+  // «/setprivacy»: ON, only the messages that address it reach its webhook
+  privacyMode         Boolean   @default(true)
   deletedAt           DateTime?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt

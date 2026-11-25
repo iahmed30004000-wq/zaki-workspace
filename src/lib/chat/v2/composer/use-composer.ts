@@ -798,6 +798,13 @@ export function useComposer(p: ComposerParams) {
     hint: composerHintOf(body, detail, editing !== null),
     pollOpen, setPollOpen, recall, setRecall, feedback, setFeedback, pasted, setPasted, noPreview, setNoPreview,
     textRef, mediaInput, fileInput,
+    // «بوت فاذر»'s «/» menu and «ابدأ»: these words go as a message of their own, and the box is emptied of what was typed to find them
+    sendText: (text: string) => {
+      if (busy) return;
+      setBody("");
+      keepDraft("", []);
+      void sendNow(text, [], messageClientId());
+    },
     addFiles, addDropped: (list: ArrayLike<File>, asFile: boolean) => addFiles(forDropMode(list, asFile ? "files" : "media")), removeFile, replaceFile, setHd, selectMention, insertAtCaret,
     onTextChange, onKeyDown, onPaste, submit, submitSilent, silentSendOn: detail.silentSend !== false, sendPasted,
     // C3c.3: the send menu's «جدول الإرسال» (only where the person may write and the company's switch is on), the dialogs and the list
