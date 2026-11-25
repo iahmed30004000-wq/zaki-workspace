@@ -72,8 +72,19 @@ class LinksTest {
     }
 
     @Test fun `a section not native yet opens the site's page, with its query`() {
-        assertEquals(Destination.Site("/projects/p1?tab=board"), Links.destinationOf("$BASE/projects/p1?tab=board", BASE))
+        assertEquals(Destination.Site("/ideas?view=board"), Links.destinationOf("$BASE/ideas?view=board", BASE))
         assertEquals(Destination.Site("/calls/k2"), Links.destinationOf("/calls/k2", BASE))
+    }
+
+    @Test fun `projects, a project, its timeline, a board and the goals open natively (N3)`() {
+        assertEquals(Destination.Projects, Links.destinationOf("/projects", BASE))
+        assertEquals(Destination.Project("p1"), Links.destinationOf("$BASE/projects/p1?tab=board", BASE))
+        assertEquals(Destination.Project("p1"), Links.destinationOf("/projects/p1/timeline", BASE))
+        assertEquals(Destination.Board("b_2"), Links.destinationOf("/boards/b_2", BASE))
+        assertEquals(Destination.Board("b2"), Links.destinationOf("/go?space=s1&next=%2Fboards%2Fb2", BASE))
+        assertEquals(Destination.Goals, Links.destinationOf("/goals", BASE))
+        // a deeper page of a project is not the project
+        assertEquals(Destination.Site("/projects/p1/fields"), Links.destinationOf("/projects/p1/fields", BASE))
     }
 
     @Test fun `the day, my work and a task open natively, a task from any space`() {

@@ -228,7 +228,7 @@ data class TaskSheet(
 data class CompleteBody(val complete: Boolean)
 
 @Serializable
-data class MoveBody(val columnId: String)
+data class MoveBody(val columnId: String, val index: Int? = null)
 
 /** `PATCH /api/tasks/[id]`: only the fields sent change. A due date is a plain day «YYYY-MM-DD» (noon in the company's zone). */
 @Serializable
@@ -260,6 +260,8 @@ data class NewTaskBody(
     val projectId: String,
     val boardId: String,
     val title: String,
+    /** a card added inside one column of the board (the board's own آ«+آ»); left out: the board's first column */
+    val columnId: String? = null,
     val assigneeId: String? = null,
     val dueDate: String? = null,
 )
