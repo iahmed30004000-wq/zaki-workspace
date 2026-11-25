@@ -3,7 +3,7 @@ import { db } from "@/server/db";
 import { pageUser } from "@/server/auth";
 import { requireActor } from "@/server/policy/actor";
 import { keepInSpace } from "@/server/services/current-space";
-import { canSeeProject, loadWorkScope } from "@/server/services/team-scope";
+import { canSeeProject, projectVisibleWhere, loadWorkScope } from "@/server/services/team-scope";
 import { getProjectTimeline } from "@/server/services/timeline";
 import { actorFeatureOn } from "@/server/services/features";
 import { TimelineGantt } from "@/components/timeline-gantt";
@@ -27,7 +27,9 @@ export default async function TimelinePage({ params }: { params: { id: string } 
   const project = await db.project
     .findUnique({ where: { id: params.id }, select: { workspaceId: true, teamId: true, name: true, workspace: { select: { name: true, organizationId: true } } } })
     .catch(() => null);
-  const inScope = project && canSeeProject(scope, project) ? await getProjectTimeline(params.id, user.id).catch(() => null) : null;
+  // «كل واحد بيشوف مهامه بس»: the project must also be one the list rule offers them
+  const offered = project && canSeeProject(scope, project) && (await db.project.count({ where: { id: params.id, AND: [projectVisibleWhere(scope)] } })) > 0;
+  const inScope = offered ? await getProjectTimeline(params.id, user.id).catch(() => null) : null;
   const actor = inScope && project ? await requireActor() : null;
   if (actor && project) await keepInSpace(actor, project.workspaceId, `/projects/${params.id}/timeline`);
   if (!inScope || !project || !actor) return <div className="p-6 text-sm text-fg-muted">{t("timeline.not_found")}</div>;

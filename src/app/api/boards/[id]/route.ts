@@ -23,7 +23,7 @@ export async function GET(
       include: { project: { select: { id: true, name: true, workspaceId: true, teamId: true, workspace: { select: { name: true } } } } },
     });
     if (!board) throw new NotFoundError("board.not_found");
-    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, undefined, "board.not_found");
+    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, undefined, "board.not_found", undefined, board.project.id);
     await assertMemberCan(access, "projects.view", "section.view_denied", { spaceGuestsPass: true });
 
     const [columns, tasks] = await Promise.all([
@@ -80,10 +80,10 @@ export async function PATCH(
     const input = await parseJson(patchSchema, req);
     const board = await db.board.findFirst({
       where: { id: params.id },
-      select: { id: true, projectId: true, project: { select: { workspaceId: true, teamId: true } } },
+      select: { id: true, projectId: true, project: { select: { id: true, workspaceId: true, teamId: true } } },
     });
     if (!board) throw new NotFoundError("board.not_found");
-    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found");
+    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found", undefined, board.project.id);
     await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
     const updated = await db.board.update({
       where: { id: board.id },
@@ -110,10 +110,10 @@ export async function POST(
     const { order } = await parseJson(columnsSchema, req);
     const board = await db.board.findFirst({
       where: { id: params.id },
-      select: { id: true, project: { select: { workspaceId: true, teamId: true } } },
+      select: { id: true, project: { select: { id: true, workspaceId: true, teamId: true } } },
     });
     if (!board) throw new NotFoundError("board.not_found");
-    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found");
+    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found", undefined, board.project.id);
     await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
     const txs = order.map((columnId, position) =>
       db.boardColumn.updateMany({

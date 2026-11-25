@@ -3,6 +3,7 @@ import { db } from "@/server/db";
 import { isSpaceManager } from "@/server/workspace-role";
 import { effectiveCapabilities } from "@/server/policy/capabilities";
 import { loadReportIds } from "@/server/services/reporting-line";
+import { assignedOnlyInSpace, heldBy, heldProjects, seesAssignedOnly } from "@/server/policy/assigned-only";
 
 /**
  * TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see.
@@ -22,6 +23,9 @@ import { loadReportIds } from "@/server/services/reporting-line";
  * A TASK can also be private to the people it concerns (`Task.visibility = "PARTICIPANTS"`, «المعنيين بس»): then, on
  * top of the space and the team, only its creator, its assignees, their managers up the reporting line, the managers
  * of its space, and whoever holds silent oversight (`archive.view`) see it. A raw-SQL reader uses `taskVisibleSql`.
+ *
+ * «كل واحد بيشوف مهامه بس» (the switch `assignedTasksOnly`, src/server/policy/assigned-only.ts) takes more away on top of
+ * both, for everybody but the company's OWNER and ADMINs: only the tasks they hold, and the projects those are in.
  */
 
 /** The two values of `Task.visibility`. */
@@ -49,20 +53,23 @@ export interface WorkScope {
   spaceOrg: ReadonlyMap<string, string>;
   /** Spaces of the companies where the person holds silent oversight (`archive.view`): every task, private ones included. */
   oversightSpaces: ReadonlySet<string>;
+  /** The companies where the person sees ONLY the tasks they hold, and the projects of those (`assignedTasksOnly`). */
+  assignedOnlyOrgs: ReadonlySet<string>;
 }
 
 /** Everything a person may open, with the teams taken into account. Three queries. */
 export async function loadWorkScope(userId: string): Promise<WorkScope> {
   const memberships = await db.organizationMember.findMany({
     where: { userId, status: "ACTIVE" },
-    select: { role: true, organizationId: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
+    select: { role: true, organizationId: true, capabilities: true, revokedCapabilities: true, primaryOwner: true, organization: { select: { settings: true } } },
   });
+  const assignedOnlyOrgs = new Set(memberships.filter((m) => seesAssignedOnly(m.role, m.organization.settings)).map((m) => m.organizationId));
   const full = new Set<string>();
   const partial = new Set<string>();
   const teamIds = new Set<string>();
   const managedSpaces = new Set<string>();
   const oversightSpaces = new Set<string>();
-  if (memberships.length === 0) return { full, partial, teamIds, userId, managedSpaces, reportIds: new Map(), spaceOrg: new Map(), oversightSpaces };
+  if (memberships.length === 0) return { full, partial, teamIds, userId, managedSpaces, reportIds: new Map(), spaceOrg: new Map(), oversightSpaces, assignedOnlyOrgs };
 
   const orgRole = new Map(memberships.map((m) => [m.organizationId, m.role]));
   // silent oversight is the capability archive.view, held by an OWNER-rank person only (P0.1: the rank alone is not enough)
@@ -108,7 +115,7 @@ export async function loadWorkScope(userId: string): Promise<WorkScope> {
     for (const id of candidates) (withTeams.has(id) ? partial : full).add(id);
     for (const t of teams) if (t.members.length) teamIds.add(t.id);
   }
-  return { full, partial, teamIds, userId, managedSpaces, reportIds, spaceOrg, oversightSpaces };
+  return { full, partial, teamIds, userId, managedSpaces, reportIds, spaceOrg, oversightSpaces, assignedOnlyOrgs };
 }
 
 /** The people below the person in the company that owns `workspaceId` (empty for a space the person is not in). */
@@ -139,7 +146,9 @@ export function projectVisibleWhere(scope: WorkScope): Prisma.ProjectWhereInput 
   if (scope.partial.size) {
     or.push({ workspaceId: { in: [...scope.partial] }, OR: [{ teamId: null }, ...(scope.teamIds.size ? [{ teamId: { in: [...scope.teamIds] } }] : [])] });
   }
-  return or.length ? { OR: or } : { id: { in: [] } };
+  if (!or.length) return { id: { in: [] } };
+  if (!scope.assignedOnlyOrgs.size) return { OR: or };
+  return { AND: [{ OR: or }, { OR: [{ workspace: { organizationId: { notIn: [...scope.assignedOnlyOrgs] } } }, ...heldProjects(scope.userId)] }] };
 }
 
 /**
@@ -174,7 +183,9 @@ export function taskParticipantWhere(scope: WorkScope): Prisma.TaskWhereInput {
     const reports = [...ids];
     or.push({ orgId, assigneeId: { in: reports } }, { orgId, coAssignees: { some: { userId: { in: reports } } } });
   }
-  return { OR: or };
+  if (!scope.assignedOnlyOrgs.size) return { OR: or };
+  // where the person is held to their own: whatever let them in above, they must also HOLD the task
+  return { AND: [{ OR: or }, { OR: [{ orgId: { notIn: [...scope.assignedOnlyOrgs] } }, ...heldBy(scope.userId)] }] };
 }
 
 /** The participants rule for a caller that has only the person's id (a few queries: use `loadWorkScope` once when several readers share a request). */
@@ -193,10 +204,16 @@ export function canSeeTask(
 }
 
 /** Only the participants half (when the space and team were already checked, as `requireTaskAccess` does). */
-export function canSeeTaskParticipants(
-  scope: WorkScope,
-  task: { workspaceId: string; visibility: string; creatorId: string; assigneeId: string | null; coAssigneeIds?: readonly string[] },
-): boolean {
+export function canSeeTaskParticipants(scope: WorkScope, task: ParticipantRow): boolean {
+  const org = scope.spaceOrg.get(task.workspaceId);
+  if (org && scope.assignedOnlyOrgs.has(org) && task.assigneeId !== scope.userId && !(task.coAssigneeIds ?? []).includes(scope.userId)) return false;
+  return concernsPerson(scope, task);
+}
+
+type ParticipantRow = { workspaceId: string; visibility: string; creatorId: string; assigneeId: string | null; coAssigneeIds?: readonly string[] };
+
+/** The private-task rule alone («المعنيين بس»): a public task, or one that concerns the person. */
+export function concernsPerson(scope: WorkScope, task: ParticipantRow): boolean {
   if (task.visibility !== "PARTICIPANTS") return true;
   const me = scope.userId;
   if (task.creatorId === me || task.assigneeId === me) return true;
@@ -220,12 +237,19 @@ export function taskVisibleSql(scope: WorkScope, alias = "t"): Prisma.Sql {
     ([orgId, ids]) => Prisma.sql`OR (${a}."orgId" = ${orgId} AND (${a}."assigneeId" = ANY(${[...ids]}::text[])
       OR EXISTS (SELECT 1 FROM "TaskCoAssignee" cb WHERE cb."taskId" = ${a}."id" AND cb."userId" = ANY(${[...ids]}::text[]))))`,
   );
-  return Prisma.sql`(${a}."visibility" = 'SPACE'
+  const held = [...scope.assignedOnlyOrgs];
+  const ownOnly = held.length
+    ? Prisma.sql`AND (NOT (${a}."orgId" = ANY(${held}::text[]))
+      OR ${a}."assigneeId" = ${scope.userId}
+      OR EXISTS (SELECT 1 FROM "TaskCoAssignee" ch WHERE ch."taskId" = ${a}."id" AND ch."userId" = ${scope.userId})
+      OR EXISTS (SELECT 1 FROM "TaskAssignRequest" rq WHERE rq."taskId" = ${a}."id" AND rq."toUserId" = ${scope.userId} AND rq."status" = 'PENDING'))`
+    : Prisma.empty;
+  return Prisma.sql`((${a}."visibility" = 'SPACE'
     OR ${a}."creatorId" = ${scope.userId}
     OR ${a}."assigneeId" = ${scope.userId}
     OR EXISTS (SELECT 1 FROM "TaskCoAssignee" ca WHERE ca."taskId" = ${a}."id" AND ca."userId" = ${scope.userId})
     OR ${a}."workspaceId" = ANY(${managed}::text[])
-    ${lines.length ? Prisma.join(lines, " ") : Prisma.empty})`;
+    ${lines.length ? Prisma.join(lines, " ") : Prisma.empty}) ${ownOnly})`;
 }
 
 /** One project (or anything that hangs off one) against the scope. */
@@ -250,9 +274,11 @@ export async function seesTeam(userId: string, teamId: string | null, manager: b
  * (`{}`); anybody else the space's own projects (no team) and their teams'. Use it as a `project` filter.
  */
 export async function teamFilterInSpace(userId: string, workspaceId: string, manager: boolean): Promise<Prisma.ProjectWhereInput> {
-  if (manager) return {};
+  const own = (await assignedOnlyInSpace(userId, workspaceId)) ? { OR: heldProjects(userId) } : null;
+  if (manager) return own ?? {};
   const mine = await db.teamMember.findMany({ where: { userId, team: { workspaceId } }, select: { teamId: true } });
-  return { OR: [{ teamId: null }, ...(mine.length ? [{ teamId: { in: mine.map((m) => m.teamId) } }] : [])] };
+  const teams = { OR: [{ teamId: null }, ...(mine.length ? [{ teamId: { in: mine.map((m) => m.teamId) } }] : [])] };
+  return own ? { AND: [teams, own] } : teams;
 }
 
 /**

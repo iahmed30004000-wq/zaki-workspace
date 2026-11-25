@@ -19,10 +19,10 @@ import { deleteMilestone, updateMilestone, milestonePatch } from "@/server/servi
 async function doorFor(milestoneId: string) {
   const row = await db.milestone.findUnique({
     where: { id: milestoneId },
-    select: { id: true, project: { select: { workspaceId: true, teamId: true } } },
+    select: { id: true, project: { select: { id: true, workspaceId: true, teamId: true } } },
   });
   if (!row) throw new NotFoundError("milestone.not_found");
-  const access = await requireTeamWork(row.project.workspaceId, row.project.teamId, ["ADMIN", "MEMBER"], "milestone.not_found");
+  const access = await requireTeamWork(row.project.workspaceId, row.project.teamId, ["ADMIN", "MEMBER"], "milestone.not_found", undefined, row.project.id);
   await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
   await assertFeatureOn(access.orgId, "milestones");
   return access;

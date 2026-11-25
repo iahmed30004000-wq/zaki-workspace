@@ -12,7 +12,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
       select: { id: true, workspaceId: true, teamId: true },
     });
     if (!project) throw new NotFoundError("project.not_found");
-    const access = await requireTeamWork(project.workspaceId, project.teamId, undefined, "project.not_found");
+    const access = await requireTeamWork(project.workspaceId, project.teamId, undefined, "project.not_found", undefined, params.id);
     await assertMemberCan(access, "projects.view", "section.view_denied", { spaceGuestsPass: true });
     const boards = await db.board.findMany({
       where: { projectId: project.id },

@@ -3,6 +3,7 @@ import { defaultDueDate, overdueDueFilter } from "@/lib/due-day";
 import { Prisma, type Task } from "@prisma/client";
 import { assertMemberCan } from "@/server/policy/actor";
 import { featureOn } from "@/lib/features";
+import { assignedOnlyInCompany } from "@/server/policy/assigned-only";
 import { loadWorkScope, reportsOfSpace, taskParticipantFilter, userSeesProject, type TaskVisibility } from "./team-scope";
 import { orgTimeZone } from "./org-day";
 import { db } from "@/server/db";
@@ -333,6 +334,9 @@ export async function createTaskInTx(tx: Tx, actor: ActorContext, input: CreateT
   );
   for (const userId of [...others.direct, ...others.request]) await assertInTeam(userId);
   const coIds = others.direct;
+
+  // «كل واحد بيشوف مهامه بس»: made with NOBODY named by somebody held to their own, it is theirs - otherwise it would vanish from under them
+  if (!assigneeId && !requestTo && coIds.length === 0 && others.request.length === 0 && !input.door && (await assignedOnlyInCompany(actor.userId, actor.orgId, tx))) assigneeId = actor.userId;
 
   // «مين بيشوفها؟»: what the caller said; else the company's default (private when somebody holds it, once the owner turns it on)
   const visibility: TaskVisibility = input.visibility ?? ((await privateByDefault(tx, actor.orgId)) && (assigneeId || requestTo) ? "PARTICIPANTS" : "SPACE");
