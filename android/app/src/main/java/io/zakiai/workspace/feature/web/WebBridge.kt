@@ -55,7 +55,7 @@ object SiteKept {
 }
 
 /**
- * ⚠️ The one place the app shows the site: a section that is not native YET opens its page here, signed in with the app's own
+ * ⚠️ TEMPORARY for what is not native yet — the one place the app shows the site: a section that is not native YET opens its page here, signed in with the app's own
  * session, so nothing the team uses today goes missing while the app becomes native phase by phase (docs/restructure/M2-native-app.md),
  * and so do the pages kept on the site on purpose ([SiteKept]). 🔧 Each phase removes its paths from here; what remains is [SiteKept].
  *
