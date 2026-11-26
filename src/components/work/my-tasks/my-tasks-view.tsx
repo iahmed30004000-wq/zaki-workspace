@@ -28,6 +28,7 @@ export function MyTasksView({
   initialQuery,
   initialAt,
   staleHref = null,
+  routinesHref = null,
 }: {
   requested: MyTasksParams;
   initial: WorkTasksResult;
@@ -35,6 +36,8 @@ export function MyTasksView({
   initialAt: number;
   /** W1.9: the review list of old tasks, for somebody who manages a space (the page decides; null draws nothing). */
   staleHref?: string | null;
+  /** «الروتين اليومي»: for whoever may have routines while «مهمة متكررة» is on. */
+  routinesHref?: string | null;
 }) {
   const { t } = useI18n();
   const searchParams = useSearchParams();
@@ -95,7 +98,7 @@ export function MyTasksView({
     <div className="flex h-full min-w-0 flex-col overflow-y-auto">
       <Header count={data.tasks.length} spaceName={data.space.name} />
       <div className="mx-auto w-full max-w-6xl px-4 md:px-5">
-        <Toolbar params={params} data={data} onChange={go} staleHref={staleHref} />
+        <Toolbar params={params} data={data} onChange={go} staleHref={staleHref} routinesHref={routinesHref} />
         {data.canAdd ? <QuickAdd onAdd={(title) => actions.add.mutateAsync({ title, spaceId: data.space.id })} pending={actions.add.isPending} /> : null}
       </div>
 

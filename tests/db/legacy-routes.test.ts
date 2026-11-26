@@ -34,6 +34,7 @@ import OwnerAssistantSettingsPage from "@/app/(app)/owner/assistant/settings/pag
 import ApprovalsPage from "@/app/(app)/approvals/page";
 import RequestsPage from "@/app/(app)/requests/page";
 import StalePage from "@/app/(app)/my-work/stale/page";
+import RoutinesPage from "@/app/(app)/my-work/routines/page";
 import ApprovalPage from "@/app/(app)/approvals/[id]/page";
 import ApprovalFormsPage from "@/app/(app)/approvals/forms/page";
 import StructurePage from "@/app/(app)/structure/page";
@@ -135,7 +136,7 @@ const APP_DIR = path.resolve(__dirname, "../../src/app");
  * conversation's whiteboard (`/chat/[id]/whiteboard`), both 2026-10-25, and «نتفرّج سوا» (`/watch`, `/watch/[id]`, the owner's
  * sixth place, 2026-10-26) and `/spaces/current` («الإدارة» > «المساحة»: edit the space, its people; 2026-10-30), and `/cards` («اللوحات») with the page inside a card (`/cards/[id]`), and `/time` («تقرير الوقت», 2026-10-30: owned by «الشغل», linked from a task and from «وقتي اليوم»).
  */
-const SHELL_PAGES_SINCE_PHASE_2 = ["/contacts", "/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/spaces/[id]/settings", "/tickets", "/campaigns", "/calls/[id]", "/calls/[id]/minutes", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]"] as const;
+const SHELL_PAGES_SINCE_PHASE_2 = ["/contacts", "/app-link", "/guide", "/guide/[slug]", "/chat/[id]", "/archive", "/spaces", "/spaces/current", "/spaces/[id]/settings", "/tickets", "/campaigns", "/calls/[id]", "/calls/[id]/minutes", "/chat/[id]/whiteboard", "/chat/[id]/info", "/chat/s/[spaceId]", "/watch", "/watch/[id]", "/cards", "/cards/[id]", "/time", "/owner", "/owner/people/[id]", "/owner/assistant", "/owner/assistant/settings", "/approvals", "/approvals/[id]", "/approvals/forms", "/requests", "/my-work/stale", "/structure", "/development", "/development/skills", "/development/settings", "/development/people/[id]", "/checkins", "/knowledge", "/knowledge/[cardId]", "/theme-gallery", "/documents/[id]", "/manufacturing", "/manufacturing/materials/[id]", "/manufacturing/recipes", "/manufacturing/orders", "/manufacturing/reports", "/settings/me", "/settings/me/[section]", "/my-work/routines"] as const;
 /**
  * The pages outside the shell: sign-in, opening a new company (the form, «شوف بريدك» and the mailed
  * link's confirmation), the one-time onboarding and «ابعت لـ…» (`/share`, M1a: where the phone's share sheet lands;
@@ -209,6 +210,8 @@ const PAGES: Record<string, PageCall> = {
   "/my-work": ({ searchParams }) => MyWorkPage({ searchParams }),
   // W1.9 «مهام قديمة»: a page of its own under /my-work (workStaleSweep, OFF: not-found)
   "/my-work/stale": ({ searchParams }) => StalePage({ searchParams }),
+  // «روتين المهام»: a page of its own under /my-work (the company's «مهمة متكررة» switch, ON by default)
+  "/my-work/routines": () => RoutinesPage(),
   "/time": ({ searchParams }) => TimeReportPage({ searchParams }),
   "/checkins": () => CheckinsPage(),
   "/theme-gallery": () => ThemeGalleryPage(),
