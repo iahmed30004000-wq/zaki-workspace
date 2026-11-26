@@ -6,6 +6,10 @@ import { Copy, EyeOff, Forward, ListChecks, Trash2, X } from "lucide-react";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { useOptionalToast } from "@/components/ui/toast";
 import { DeleteManyDialog, ForwardManyDialog, TaskFromSelectionDialog } from "@/components/chat/v2/menu/selection-dialogs";
+import { TgConfirm } from "@/components/chat/v2/menu/tg-confirm";
+import { TgSelectionBar, singleOffer } from "@/components/chat/v2/menu/tg-selection-bar";
+import { useTgPhone } from "@/components/shell/tg-phone";
+import { announceRemoval } from "@/lib/chat/v2/phone/removals";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
@@ -145,7 +149,9 @@ export function SelectionBarHost({ header }: { header: ConversationHeaderDto }) 
   const selection = useSelection();
   const { messages } = useChatMessages(header.id);
   const parity = useParityActions();
-  const [dialog, setDialog] = React.useState<"forward" | "delete" | "hide" | "task" | null>(null);
+  const [dialog, setDialog] = React.useState<"forward" | "delete" | "hide" | "pin" | "task" | null>(null);
+  // «تيليجرام على التلفون»: another header (تعديل · تثبيت · نسخ · حذف), reply and forward at the bottom, and Telegram's confirmations
+  const tg = useTgPhone();
   const [busy, setBusy] = React.useState(false);
   const picked = React.useMemo(() => orderedSelection(selection.ids, messages), [selection.ids, messages]);
   const makeTask = Boolean(header.me.canMakeWork) && header.me.canMakeTask !== false;
@@ -205,37 +211,111 @@ export function SelectionBarHost({ header }: { header: ConversationHeaderDto }) 
     scheduleSync(qc);
   };
 
+  const hide = () => {
+    const ids = picked.map((m) => m.id);
+    setBusy(true);
+    // they leave the list for me only: say so, so the log can turn them to dust
+    announceRemoval(ids);
+    void (parity?.hide(ids) ?? Promise.resolve({ ok: 0, total: 0 })).then((r) => {
+      setBusy(false);
+      setDialog(null);
+      if (r.ok > 0) selectionStore.end();
+    });
+  };
+
+  const one = tg ? singleOffer(picked, header) : null;
+  const togglePin = () => {
+    if (!one) return;
+    const unpinning = one.message.pinned;
+    setDialog(null);
+    selectionStore.end();
+    void commands.pin(one.message).then((ok) => {
+      if (!ok) return;
+      if (!unpinning) toast?.toast(ct("tgmsg.pin.done"), "success");
+      else toast?.toast(ct("tgmsg.pin.unpinned"), "success", { label: ct("tgmsg.undo"), onClick: () => void commands.pin(one.message) });
+    });
+  };
+  const mayDelete = deletableOf(picked, header.me.canModerate).length;
+
   return (
     <>
-      <SelectionBar
-        count={picked.length}
-        can={can}
-        busy={busy}
-        hideForward={isSavedHeader(header)}
-        onForward={() => setDialog("forward")}
-        onCopy={() => void copy()}
-        onDelete={() => setDialog("delete")}
-        {...(parity ? { onHide: () => setDialog("hide") } : {})}
-        onTask={() => setDialog("task")}
-        onClose={selectionStore.end}
-      />
+      {tg ? (
+        <TgSelectionBar
+          count={picked.length}
+          pinned={one?.message.pinned ?? false}
+          busy={busy}
+          canCopy={can.copy}
+          canDelete={can.delete}
+          canTask={can.task}
+          {...(one?.edit
+            ? {
+                onEdit: () => {
+                  selectionStore.end();
+                  commands.startEdit(one.message);
+                },
+              }
+            : {})}
+          {...(one?.pin ? { onPin: () => setDialog("pin") } : {})}
+          onCopy={() => void copy()}
+          onDelete={() => setDialog("delete")}
+          {...(parity ? { onHide: () => setDialog("hide") } : {})}
+          onTask={() => setDialog("task")}
+          onClose={selectionStore.end}
+        />
+      ) : (
+        <SelectionBar
+          count={picked.length}
+          can={can}
+          busy={busy}
+          hideForward={isSavedHeader(header)}
+          onForward={() => setDialog("forward")}
+          onCopy={() => void copy()}
+          onDelete={() => setDialog("delete")}
+          {...(parity ? { onHide: () => setDialog("hide") } : {})}
+          onTask={() => setDialog("task")}
+          onClose={selectionStore.end}
+        />
+      )}
       <ForwardManyDialog open={dialog === "forward"} from={header.id} count={forwardableOf(picked).forward.length} skipped={forwardableOf(picked).skipped} busy={busy} onClose={() => setDialog(null)} onSend={(ids, hide) => void forward(ids, hide)} />
-      <DeleteManyDialog open={dialog === "delete"} count={deletableOf(picked, header.me.canModerate).length} skipped={picked.length - deletableOf(picked, header.me.canModerate).length} busy={busy} onClose={() => setDialog(null)} onConfirm={() => void remove()} />
-      <HideManyDialog
-        open={dialog === "hide"}
-        count={picked.length}
-        busy={busy}
-        onClose={() => setDialog(null)}
-        onConfirm={() => {
-          const ids = picked.map((m) => m.id);
-          setBusy(true);
-          void (parity?.hide(ids) ?? Promise.resolve({ ok: 0, total: 0 })).then((r) => {
-            setBusy(false);
-            setDialog(null);
-            if (r.ok > 0) selectionStore.end();
-          });
-        }}
-      />
+      {tg ? (
+        <>
+          <TgConfirm
+            open={dialog === "delete"}
+            onOpenChange={(next) => (next ? undefined : setDialog(null))}
+            title={ctCount("tgmsg.del.title", mayDelete)}
+            body={ctCount("tgmsg.del.body", mayDelete)}
+            {...(picked.length > mayDelete && mayDelete > 0 ? { note: ct("chatsel.del.some_yours", { ok: mayDelete, total: picked.length }) } : {})}
+            confirmLabel={ct("tgmsg.del.confirm")}
+            danger
+            busy={busy || mayDelete === 0}
+            onConfirm={() => void remove()}
+          />
+          <TgConfirm
+            open={dialog === "hide"}
+            onOpenChange={(next) => (next ? undefined : setDialog(null))}
+            title={ct("chatparity.hide.title")}
+            body={picked.length > 1 ? ct("chatparity.hide.body_many", { n: picked.length }) : ct("chatparity.hide.body")}
+            confirmLabel={ct("chatparity.hide.confirm")}
+            danger
+            busy={busy}
+            onConfirm={hide}
+          />
+          <TgConfirm
+            open={dialog === "pin" && one !== null}
+            onOpenChange={(next) => (next ? undefined : setDialog(null))}
+            title={ct(one?.message.pinned ? "tgmsg.pin.unpin_title" : "tgmsg.pin.title")}
+            body={ct(one?.message.pinned ? "tgmsg.pin.unpin_body" : "tgmsg.pin.body")}
+            confirmLabel={ct(one?.message.pinned ? "tgmsg.pin.unpin_confirm" : "tgmsg.pin.confirm")}
+            danger={one?.message.pinned ?? false}
+            onConfirm={togglePin}
+          />
+        </>
+      ) : (
+        <>
+          <DeleteManyDialog open={dialog === "delete"} count={mayDelete} skipped={picked.length - mayDelete} busy={busy} onClose={() => setDialog(null)} onConfirm={() => void remove()} />
+          <HideManyDialog open={dialog === "hide"} count={picked.length} busy={busy} onClose={() => setDialog(null)} onConfirm={hide} />
+        </>
+      )}
       <TaskFromSelectionDialog
         open={dialog === "task"}
         messages={picked}

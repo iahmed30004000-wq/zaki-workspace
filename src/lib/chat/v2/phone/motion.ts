@@ -110,6 +110,14 @@ export const TG_MOTION = {
   deleteSettleMs: 300,
   deleteDustMs: 360,
   composerMorphMs: 150,
+  /** one row of the reaction card fading in; the rows are staggered so the whole card is full by `reactionCardFillMs` */
+  cardRowFadeMs: 160,
+  /** the check circle of selection mode growing in */
+  selectionCheckMs: 150,
+  /** the tint over the original after a tap on a quote (inside the jump's 2 s highlight) */
+  quoteFlashMs: 1600,
+  /** one breath of the big single emoji while it sits in the chat */
+  emojiIdleMs: 2600,
   // voice
   recordMorphMs: 200,
   micToSendMs: 120,

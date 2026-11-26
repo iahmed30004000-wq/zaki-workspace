@@ -19,16 +19,41 @@ import { ReactionPop } from "@/components/chat/v2/phone/reaction-pop";
 import { ReactorsSheet } from "@/components/chat/v2/menu/reactors-sheet";
 import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { useOpenForwardSource } from "@/components/chat/v2/forward/use-open-forward-source";
+import "@/components/chat/v2/phone/tg-messages.css";
+import { flyReaction } from "@/components/chat/v2/phone/message-fx";
+import { useTgPhone, useTgPhoneOn } from "@/components/shell/tg-phone";
+import { selectionStore, useSelectionEnabled } from "@/lib/chat/selection";
 import { ct } from "@/lib/chat/text";
+import type { Rect } from "@/lib/chat/v2/menu/phone-menu";
+import { longPressDoes, opensMenuOnTap } from "@/lib/chat/v2/phone/message-gestures";
+import { withPendingReaction } from "@/lib/chat/v2/phone/reaction-flight";
+import { requestSettle } from "@/lib/chat/v2/phone/removals";
+import { hapticTick } from "@/lib/chat/v2/phone/swipe-reply";
+import { effectOn } from "@/lib/motion/effects";
 import { replyOnDoubleClick } from "@/lib/chat/v2/menu/gestures";
-import { isFreshArrival } from "@/lib/chat/v2/phone/motion";
+import { TG_MOTION, isFreshArrival, tgMotionVars } from "@/lib/chat/v2/phone/motion";
 import { touchTap, type TapPoint } from "@/lib/chat/v2/menu/quick-reactions";
 import { pressInlineButton, type InlineKind } from "@/lib/chat/v2/menu/inline-press";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
-import { bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
+import { bigEmojiAlone, bubbleClass, bubbleRun, mentionsMeOf, nameTone, showsSender } from "@/lib/chat/v2/pane/bubble-model";
 import { cn } from "@/lib/utils";
 
+/** «تيليجرام على التلفون»: what the tap menu asks of the bubble it opens from. */
+export interface BubblePhoneApi {
+  anchorRect: () => Rect | null;
+  openedBy: () => TapPoint | null;
+  doubleTap: () => void;
+  /** a new reaction of mine is on its way: its pill is drawn at once, the bubble grows and the emoji flies in from `from`; returns the way back (the server refused) */
+  expectReaction: (emoji: string, from: Rect | null) => () => void;
+}
+
+/** A pill drawn ahead of the server is taken back if no answer shows it. */
+const PENDING_REACTION_MS = 8000;
+const useBrowserLayoutEffect = typeof window !== "undefined" ? React.useLayoutEffect : React.useEffect;
+
 export interface MessageMenuSlotApi {
+  /** only while «تيليجرام على التلفون» is on and the screen is a phone's */
+  phone?: BubblePhoneApi;
   message: MessageDto;
   /** the phone's long press opened the menu as a sheet */
   sheetOpen: boolean;
@@ -120,14 +145,73 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const canAct = !facts.oversight && !message.deleted && message.kind !== "SYSTEM";
   // C3b.5: while selecting, a press anywhere on the row picks it: the bubble takes no pointer (so its long press and double-click gestures never start) and draws no menu or hover buttons
   const selecting = select?.on === true && canAct;
-  const longPress = useLongPress(canAct, () => setSheetOpen(true));
+  // «تيليجرام على التلفون» (`tgPhone`): `tgLook` is the switch alone (markup the server draws too, paired with `max-md:`), `tg` the switch on a phone (gestures)
+  const tgLook = useTgPhoneOn();
+  const tg = useTgPhone();
+  const canSelect = useSelectionEnabled();
+  const longFired = React.useRef(false);
+  const downSpot = React.useRef<{ x: number; y: number } | null>(null);
+  const openedBy = React.useRef<TapPoint | null>(null);
+  const longPress = useLongPress(canAct, () => {
+    // the click of the finger lifting after a long press is not a tap
+    longFired.current = true;
+    openedBy.current = null;
+    if (longPressDoes({ phone: tg, canSelect }) === "select") {
+      hapticTick();
+      selectionStore.begin(message.id);
+    } else setSheetOpen(true);
+  });
+  // a bubble that was on screen when the selection began shows its circle growing in (one that scrolls into view later is simply there)
+  const [enteredPlain] = React.useState(() => !selecting);
+  // the reaction on its way: its pill is drawn before the server answers, and the bubble grows to hold it
+  const [pending, setPending] = React.useState<string | null>(null);
+  const grownFrom = React.useRef(0);
+  React.useEffect(() => {
+    if (pending === null) return;
+    if (message.reactions.some((r) => r.mine && r.emoji === pending)) return setPending(null);
+    const giveUp = setTimeout(() => setPending(null), PENDING_REACTION_MS);
+    return () => clearTimeout(giveUp);
+  }, [pending, message.reactions]);
+  useBrowserLayoutEffect(() => {
+    const article = articleRef.current;
+    const from = grownFrom.current;
+    grownFrom.current = 0;
+    if (!article || !from || pending === null || article.offsetHeight <= from || !effectOn("transitions") || typeof article.animate !== "function") return;
+    // never squeezed by more than a little: the words must not look stretched while the bubble grows
+    article.animate(
+      [
+        { transform: `scaleY(${Math.max(from / article.offsetHeight, 0.85)})`, transformOrigin: "50% 0" },
+        { transform: "scaleY(1)", transformOrigin: "50% 0" },
+      ],
+      { duration: TG_MOTION.bubbleGrowMs, easing: "ease-out" },
+    );
+  }, [pending]);
+  const reactions = pending === null || message.deleted ? message.reactions : withPendingReaction(message.reactions, pending);
+  const shownMessage = reactions === message.reactions ? message : { ...message, reactions };
+  const phone: BubblePhoneApi | undefined = tg
+    ? {
+        anchorRect: () => articleRef.current?.getBoundingClientRect() ?? null,
+        openedBy: () => openedBy.current,
+        doubleTap: () => gestures?.quickReact?.(message, facts),
+        expectReaction: (emoji, from) => {
+          grownFrom.current = articleRef.current?.offsetHeight ?? 0;
+          requestSettle(TG_MOTION.bubbleGrowMs);
+          setPending(emoji);
+          const start = from ?? articleRef.current?.getBoundingClientRect();
+          if (start) flyReaction(emoji, start, () => articleRef.current?.querySelector<HTMLElement>(`[data-reaction-chip="${emoji}"]`) ?? null);
+          return () => setPending(null);
+        },
+      }
+    : undefined;
+  // a single emoji by itself is not put in a bubble on the phone: it stands big, with its time on a small pill
+  const bare = tgLook && bigEmojiAlone(message);
   const mine = message.mine;
   const mentionsMe = mentionsMeOf(message, facts.meId);
   const sender = showsSender(mine, facts.conversationKind);
   const chips = facts.canOrderState && message.kind === "TEXT";
   const suggestKind = suggestedProblemKind(message, { canProblem: facts.canProblem, problemRules: facts.problemRules, conversationId });
   const hint = customerHintOf(message, { orderHints: facts.orderHints, canModerate: facts.canModerate, canProblem: facts.canProblem });
-  const menuNode = canAct && !selecting && menu ? menu({ message, sheetOpen, setSheetOpen, translate: () => void translation.ask(), menuOpen, setMenuOpen, readers, pressInline: (kind) => pressInlineButton(articleRef.current, kind) }) : null;
+  const menuNode = canAct && !selecting && menu ? menu({ message, sheetOpen, setSheetOpen, translate: () => void translation.ask(), menuOpen, setMenuOpen, readers, pressInline: (kind) => pressInlineButton(articleRef.current, kind), ...(phone ? { phone } : {}) }) : null;
   const hoverNode = canAct && !selecting && hover ? hover : null;
 
   return (
@@ -135,6 +219,20 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
       className={cn("group relative flex", mine ? "justify-end" : "justify-start", selecting && "cursor-pointer rounded-lg ps-9", selecting && select?.selected && "bg-accent/[0.08]")}
       data-message-row={mine ? "mine" : "other"}
       data-run={bubbleRun(start, end)}
+      {...(tg
+        ? {
+            onPointerDownCapture: () => {
+              longFired.current = false;
+            },
+            onClickCapture: (e: React.MouseEvent) => {
+              if (!longFired.current) return;
+              longFired.current = false;
+              e.preventDefault();
+              e.stopPropagation();
+            },
+          }
+        : {})}
+      {...(tg && selecting ? { style: tgMotionVars(["selectionCheckMs"]) as React.CSSProperties } : {})}
       {...(selecting ? { onClick: () => select?.toggle(message.id), ...(select?.selected ? { "data-selected": "" } : {}) } : {})}
     >
       {selecting ? (
@@ -144,12 +242,12 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
           aria-checked={select?.selected === true}
           aria-label={ct("chatsel.check")}
           data-select-check
-          className={cn("absolute inset-y-0 start-1.5 my-auto grid size-6 place-items-center rounded-full border-2", select?.selected ? "border-accent bg-accent text-accent-fg" : "border-muted bg-surface")}
+          className={cn("absolute inset-y-0 start-1.5 my-auto grid size-6 place-items-center rounded-full border-2", select?.selected ? "border-accent bg-accent text-accent-fg" : "border-muted bg-surface", tg && enteredPlain && "zk-tg-check")}
         >
           {select?.selected ? <Check aria-hidden="true" className="size-4" /> : null}
         </button>
       ) : null}
-      <div className={cn("flex min-w-0 max-w-full items-end gap-1.5", mine ? "flex-row-reverse" : "flex-row", selecting && "pointer-events-none")}>
+      <div className={cn("flex min-w-0 max-w-full items-end gap-1.5", mine ? "flex-row-reverse" : "flex-row", selecting && "pointer-events-none", tg && selecting && enteredPlain && !mine && "zk-tg-make-room")}>
         {sender ? end ? <Avatar name={message.authorName} src={message.authorAvatar} className="mb-1 size-8 text-xs" /> : <span aria-hidden="true" className="size-8 shrink-0" /> : null}
         <div className={cn("flex min-w-0 flex-col", mine ? "items-end" : "items-start")}>
           <div className={cn("flex min-w-0 max-w-full items-end gap-1", mine ? "flex-row-reverse" : "flex-row")}>
@@ -159,6 +257,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               data-message-id={message.id}
               onPointerDown={(e) => {
                 pointer.current = e.pointerType;
+                downSpot.current = { x: e.clientX, y: e.clientY };
                 downAt.current = Date.now();
                 longPress.onPointerDown(e);
               }}
@@ -170,8 +269,25 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
                 longPress.onPointerUp();
               }}
               onPointerCancel={longPress.onPointerCancel}
+              {...(tg && menuNode
+                ? {
+                    // «تيليجرام على التلفون»: a TAP opens the menu (at once: a double tap's second half is caught by the menu's own layer)
+                    onClick: (e: React.MouseEvent<HTMLElement>) => {
+                      const from = downSpot.current;
+                      const open = opensMenuOnTap({
+                        inside: e.currentTarget.contains(e.target as Node),
+                        target: e.target,
+                        movedPx: from ? Math.hypot(e.clientX - from.x, e.clientY - from.y) : 0,
+                        hasSelection: window.getSelection()?.isCollapsed === false,
+                      });
+                      if (!open) return;
+                      openedBy.current = { at: Date.now(), x: e.clientX, y: e.clientY };
+                      setSheetOpen(true);
+                    },
+                  }
+                : {})}
               onContextMenu={(e) => {
-                if (sheetOpen || longPress.pressing()) e.preventDefault();
+                if (sheetOpen || longPress.pressing() || (tg && longFired.current)) e.preventDefault();
                 // the right button on a computer (and the keyboard's menu key) opens the menu where the message is; a finger's long press is the sheet's, and
                 // the browser's own menu stays for text that is selected
                 else if (menuNode && pointer.current !== "touch" && !window.getSelection()?.toString()) {
@@ -182,7 +298,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               onDoubleClick={(e) => {
                 if (canAct && gestures && replyOnDoubleClick({ pointerType: pointer.current, target: e.target })) gestures.reply(message, facts);
               }}
-              className={cn(bubbleClass({ mine, mentionsMe, tail: end, highlighted }), fresh && "animate-fade-up motion-reduce:animate-none")}
+              {...(bare ? { "data-tg-bare": "" } : {})}
+              className={cn(bubbleClass({ mine, mentionsMe, tail: end, highlighted }), fresh && "animate-fade-up motion-reduce:animate-none", bare && "max-md:border-transparent max-md:bg-transparent max-md:px-0 max-md:text-fg max-md:shadow-none", tgLook && "max-md:max-w-[min(82vw,100%)]")}
             >
               {sender && start ? (
                 <p data-sender className={cn("mb-0.5 truncate text-xs font-semibold", nameTone(message.authorName))}>
@@ -208,10 +325,10 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               <MustReadBlock message={message} onAck={onAck} />
               <CustomerHint hint={hint} canProblem={facts.canProblem} onTicket={onHintTicket ? () => onHintTicket(message) : undefined} />
               {suggestKind && onSuggestProblem ? <ProblemSuggestion onSuggest={() => onSuggestProblem(message, suggestKind)} /> : null}
-              <ReactionPop reactions={message.reactions}>
-                <ReactionChips message={message} canAct={canAct} onReact={onReact} onWho={(emoji) => setWho({ emoji })} />
+              <ReactionPop reactions={reactions}>
+                <ReactionChips message={shownMessage} canAct={canAct} onReact={onReact} onWho={(emoji) => setWho({ emoji })} />
               </ReactionPop>
-              <BubbleFooter message={message} singleTick={facts.saved} />
+              <BubbleFooter message={message} singleTick={facts.saved} pill={bare} />
             </article>
             {hoverNode}
             {menuNode}

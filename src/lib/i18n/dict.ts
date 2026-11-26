@@ -109,6 +109,7 @@ import verifiedBadge from "./ar.verified-badge.json";
 import chatParity from "./ar.chat-parity.json";
 import meetingMinutes from "./ar.meeting-minutes.json";
 import chatSounds from "./ar.chat-sounds.json";
+import tgMessages from "./ar.tg-messages.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -229,4 +230,5 @@ export const AR: Record<string, string> = {
   ...chatParity,
   ...meetingMinutes,
   ...chatSounds,
+  ...tgMessages,
 };

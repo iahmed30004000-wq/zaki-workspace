@@ -199,7 +199,7 @@ function SeenDialog({ readers, onClose }: { readers: ReaderDto[]; onClose: () =>
 }
 
 /** The menu of ONE message: hover actions, «⋯» and the right click on a computer, the sheet of a long press on a phone. Nothing for a message that has none. */
-function MessageMenuSlot({ message, facts, sheetOpen, setSheetOpen, menuOpen, setMenuOpen, translate, readers, pressInline }: MessageMenuSlotApi & { facts: BubbleFacts }) {
+function MessageMenuSlot({ message, facts, sheetOpen, setSheetOpen, menuOpen, setMenuOpen, translate, readers, pressInline, phone }: MessageMenuSlotApi & { facts: BubbleFacts }) {
   const { act, askKind } = useMenuDialogs();
   const commands = usePaneCommands();
   const [seen, setSeen] = React.useState(false);
@@ -227,6 +227,16 @@ function MessageMenuSlot({ message, facts, sheetOpen, setSheetOpen, menuOpen, se
         onSheetOpenChange={setSheetOpen}
         menuOpen={menuOpen}
         onMenuOpenChange={setMenuOpen}
+        {...(phone
+          ? {
+              phone: {
+                ...phone,
+                chosen: new Set(message.reactions.filter((r) => r.mine).map((r) => r.emoji)),
+                sendReaction: (emoji: string) => commands.react(message, emoji),
+                togglePin: () => commands.pin(message),
+              },
+            }
+          : {})}
       />
       {seen ? <SeenDialog readers={readers} onClose={() => setSeen(false)} /> : null}
     </>

@@ -5,6 +5,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import type { ConversationHeaderDto } from "@/server/chat/dto";
 import { ChatComposerV2 } from "@/components/chat/v2/composer/chat-composer-v2";
 import { OutboxStatusLine } from "@/components/chat/composer/outbox-status";
+import { SelectionBottomBarHost } from "@/components/chat/v2/menu/tg-selection-bar";
+import { useTgPhone } from "@/components/shell/tg-phone";
+import { useSelection } from "@/lib/chat/selection";
 import { usePaneActions, usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { Button } from "@/components/ui/button";
 import { chatKeys } from "@/lib/chat/cache/keys";
@@ -50,6 +53,10 @@ export function ComposerHost({ header, people, onSent }: { header: ConversationH
   const waiting = mine.filter((i) => !i.failed).length;
   const failed = mine.length - waiting;
   const [joining, setJoining] = React.useState(false);
+  // «تيليجرام على التلفون»: while messages are picked, «رد» · «تحويل» stand where the box stood
+  const tg = useTgPhone();
+  const selection = useSelection();
+  const picking = tg && selection.active && selection.conversationId === conversationId;
 
   // «↑» in an empty box: my last text message (the registry's edit rule), read from the cache when the key is pressed
   const canPost = header.me.canPost;
@@ -62,7 +69,9 @@ export function ComposerHost({ header, people, onSent }: { header: ConversationH
   if (bar !== "composer") {
     return (
       <footer data-composer-host={bar} className={FOOTER_CLASS + " text-center text-sm"}>
-        {bar === "join" ? (
+        {picking ? (
+          <SelectionBottomBarHost header={header} />
+        ) : bar === "join" ? (
           <div className="flex flex-col items-center gap-1">
             <Button
               type="button"
@@ -89,6 +98,9 @@ export function ComposerHost({ header, people, onSent }: { header: ConversationH
 
   return (
     <footer data-composer-host="composer" className={FOOTER_CLASS}>
+      {picking ? <SelectionBottomBarHost header={header} /> : null}
+      {/* hidden, never unmounted, while messages are picked: the words, the files and a recording are still there afterwards */}
+      <div data-composer-body="" className={picking ? "hidden" : "contents"}>
       {liveElsewhere && (
         <p role="status" className="px-3 pb-1 text-xs text-fg-muted">
           {ct("chatc.live_elsewhere")}
@@ -117,6 +129,7 @@ export function ComposerHost({ header, people, onSent }: { header: ConversationH
           replaceMessage(qc, conversationId, updated);
         }}
       />
+      </div>
     </footer>
   );
 }
