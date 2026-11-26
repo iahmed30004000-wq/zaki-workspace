@@ -48,7 +48,7 @@ function stopPreview(preview: { current: { stop: () => void; timer: ReturnType<t
  * `sub`: one kind's own page (a phone with Telegram's look, `?type=`). With the switch `tgPhone` on, a phone-wide screen draws the card of kinds (or the
  * kind's page) in place of the five blocks, by CSS (`md:hidden` / `max-md:hidden`); a computer and the switch off draw the page exactly as before.
  */
-export function NotificationsSection({ sub = null }: { sub?: NotifyType | null } = {}) {
+export function NotificationsSection({ sub = null }: { sub?: NotifyType | null }) {
   const tg = useTgPhoneOn();
   const { t } = useI18n();
   const { toast } = useToast();
@@ -213,7 +213,7 @@ function useMutedRows(): ChatRowDto[] {
 }
 
 /** «استثناءات»: the chats the person muted, each with «ألغِ الكتم» (the same personal door the chat list uses). */
-export function MutedChats({ kind }: { /** only the exceptions of one kind's page */ kind?: ExceptionKind } = {}) {
+export function MutedChats({ kind }: { /** only the exceptions of one kind's page */ kind?: ExceptionKind }) {
   const { t } = useI18n();
   const all = useMutedRows();
   const muted = kind ? all.filter((row) => isExceptionOf(kind, row)) : all;

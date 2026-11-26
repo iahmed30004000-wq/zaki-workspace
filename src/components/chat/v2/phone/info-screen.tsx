@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight } from "lucide-react";
 import { InfoPanel } from "@/components/chat/v2/info/info-panel";
+import { useTgPhone } from "@/components/shell/tg-phone";
 import { PaneUnavailable } from "@/components/chat/v2/pane/conversation-pane";
 import { useOptionalToast } from "@/components/ui/toast";
 import { chatKeys } from "@/lib/chat/cache/keys";
@@ -33,6 +34,9 @@ export function PhoneInfoScreen({ conversationId }: { conversationId: string }) 
   const qc = useQueryClient();
   const toast = useOptionalToast();
   const desktop = useIsDesktop();
+  // «تيليجرام على التلفون»: the cards, the phone's tabs, and a bar whose second line follows the active tab
+  const tg = useTgPhone();
+  const [counter, setCounter] = React.useState<string | null>(null);
   const headerQuery = useChatHeader(conversationId);
   const header = headerQuery.data;
   const people = usePeople(conversationId, header?.memberCount);
@@ -69,15 +73,38 @@ export function PhoneInfoScreen({ conversationId }: { conversationId: string }) 
 
   return (
     <section data-chat-info-screen="ready" aria-label={ct("chatui.phone.info.label")} className="flex h-full min-h-0 flex-col bg-surface">
-      <InfoBar back={back} onBack={onLinkClick(back)} />
+      {tg ? <TgInfoBar back={back} onBack={onLinkClick(back)} title={header.title} line={counter} /> : <InfoBar back={back} onBack={onLinkClick(back)} />}
       <div className="flex min-h-0 flex-1 flex-col pb-[env(safe-area-inset-bottom)]">
-        <InfoPanel header={header} people={people} onSearch={() => {
+        <InfoPanel header={header} people={people} {...(tg ? { phone: true, onMessage: () => go(back), onCounter: setCounter } : {})} onSearch={() => {
             // the search lives in the conversation: leave a note for its pane and go back to it
             markPendingSearch(conversationId);
             go(back);
           }} onTopic={topicCall} onSettingsSaved={refreshHeader} />
       </div>
     </section>
+  );
+}
+
+/** The bar of «تيليجرام على التلفون»: a round back button, the conversation's name and, under it, what the active tab holds. */
+function TgInfoBar({ back, onBack, title, line }: { back: string; onBack: (event: React.MouseEvent) => void; title: string; line: string | null }) {
+  return (
+    <header data-chat-info-bar="" className="shrink-0 bg-surface-2 pt-[env(safe-area-inset-top)]">
+      <div className="flex min-h-14 items-center gap-2 px-2 py-1">
+        <Link href={back} aria-label={ct("chatc.back")} onClick={onBack} className="grid size-11 shrink-0 place-items-center rounded-full bg-surface-1 text-fg shadow-card focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent">
+          <ArrowRight aria-hidden="true" className="size-5" />
+        </Link>
+        <div className="min-w-0 flex-1 text-center">
+          <h1 className="truncate text-[17px] font-semibold leading-6">
+            <bdi>{title}</bdi>
+          </h1>
+          <p data-info-counter="" aria-live="polite" className="min-h-4 truncate text-xs leading-4 text-fg-muted">
+            {line}
+          </p>
+        </div>
+        {/* the same width as the button, so the name sits in the middle */}
+        <span aria-hidden="true" className="size-11 shrink-0" />
+      </div>
+    </header>
   );
 }
 

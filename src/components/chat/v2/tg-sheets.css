@@ -31,6 +31,57 @@
   }
 }
 
+/* the info page: a tab's content slides in from the side its pill lies on (right-to-left: the next tab is on the left) */
+@keyframes tg-tab-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tg-tab-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-fx-off~="transitions"]) .tg-tab-in[data-from="next"] {
+    animation: tg-tab-in-next var(--tg-tab-switch-ms, 120ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-tab-in[data-from="prev"] {
+    animation: tg-tab-in-prev var(--tg-tab-switch-ms, 120ms) ease-out both;
+  }
+}
+
+/* the forum: «موضوع جديد» steps aside while the list scrolls down */
+.tg-forum-fab[data-hidden] {
+  opacity: 0;
+  transform: translateY(96px);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-fx-off~="transitions"]) .tg-forum-fab {
+    transition:
+      transform var(--tg-bar-slide-ms, 150ms) ease-out,
+      opacity var(--tg-bar-slide-ms, 150ms) ease-out;
+  }
+}
+
+/* the forum's second line on a phone: the sender's name in the accent (a draft keeps its own red word) */
+@media (max-width: 767px) {
+  [data-tg-forum] [data-row-preview] > span:not(.text-danger) {
+    color: rgb(var(--accent));
+  }
+}
+
 /* the option being dragged by its handle stands out */
 .tg-poll-row[data-dragging] {
   background-color: rgb(var(--surface-2));
