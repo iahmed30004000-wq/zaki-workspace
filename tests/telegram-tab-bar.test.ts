@@ -71,6 +71,12 @@ describe("the shell", () => {
     expect(SRC("app/(app)/layout.tsx")).toContain("tgTabBar={on.tgTabBar && !actor.isExternal}");
   });
 
+  it("takes that room back while the bar is hidden: inside a conversation nothing is left empty under the composer", () => {
+    // the bar hides on `data-frame-bars="hide-all"`, so the room `main` keeps for it must go with it (below `md` only)
+    const css = SRC("app/globals.css");
+    expect(css).toMatch(/@media not all and \(min-width: 768px\) \{[^@]*\.group\\\/frame:has\(\[data-frame-bars="hide-all"\]\) #zk-main \{\s*padding-bottom: 0;\s*\}/);
+  });
+
   it("the switch is OFF by default (it changes how people move around), in the chat group, with its words and the ⚠️ and the 🔧", () => {
     expect(FEATURE_DEFAULTS.tgTabBar).toBe(false);
     expect(FEATURE_META.tgTabBar).toEqual({ group: "chat", dependsOn: ["chatLayoutV2"] });

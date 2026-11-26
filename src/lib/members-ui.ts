@@ -85,6 +85,8 @@ export interface ContractMember {
   verified?: boolean;
   /** «محصور بمساحة»: `true` only for such an account (absent otherwise). */
   spaceOnly?: boolean;
+  /** «حساب وكيل» 🤖: `true` only for such an account (absent otherwise). */
+  agent?: boolean;
 }
 
 export interface ContractSpace {
@@ -166,6 +168,7 @@ export function normalizeMember(raw: Partial<ContractMember> & { id: string }): 
       : {}),
     ...(raw.verified === true ? { verified: true } : {}),
     ...(raw.spaceOnly === true ? { spaceOnly: true } : {}),
+    ...(raw.agent === true ? { agent: true } : {}),
   };
 }
 
@@ -767,6 +770,8 @@ export interface AddFormValues {
   templateId: string;
   /** «محصور بمساحة وحدة» (offered for the rank «موظف»). */
   spaceOnly: boolean;
+  /** «حساب وكيل» 🤖 (a program, not a person; not offered for a guest). */
+  agent: boolean;
 }
 
 export const EMPTY_ADD_FORM: AddFormValues = {
@@ -781,6 +786,7 @@ export const EMPTY_ADD_FORM: AddFormValues = {
   password: "",
   templateId: "",
   spaceOnly: false,
+  agent: false,
 };
 
 /** Is the new person «محصور بمساحة وحدة»? The mark means something for the rank «موظف» only. */
@@ -843,6 +849,7 @@ export interface CreatePayload {
   password?: string;
   templateId?: string;
   spaceOnly?: boolean;
+  agent?: boolean;
 }
 
 /** `POST /api/organizations/[id]/members` body: optional fields are left out when blank, the password only when typed. */
@@ -861,6 +868,7 @@ export function buildCreatePayload(v: AddFormValues): CreatePayload {
   if (!v.autoPassword) payload.password = v.password;
   if (v.templateId) payload.templateId = v.templateId;
   if (limitedToOneSpace(v)) payload.spaceOnly = true;
+  if (v.agent && v.role !== "GUEST") payload.agent = true;
   return payload;
 }
 

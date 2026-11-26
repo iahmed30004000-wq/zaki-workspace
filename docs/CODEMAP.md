@@ -541,8 +541,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `tasks` | 750 | 26 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 608 | 25 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `control-panel` | 514 | 23 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
+| `access` | 76 | 20 | Workspace-level isolation — the company's master switch. |
 | `owner-assistant-settings` | 389 | 20 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
-| `access` | 76 | 19 | Workspace-level isolation — the company's master switch. |
 | `rewards` | 355 | 19 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
 | `cards` | 631 | 18 | «اللوحات» — the cards of a space. |
 | `owner-assistant-access` | 29 | 18 | «مساعد المالك» — WHO MAY OPEN IT, in one place. |
@@ -567,8 +567,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-assistant-proposals` | 400 | 9 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
-| `accounts` | 970 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
-| `api-door` | 453 | 8 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
+| `accounts` | 989 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
+| `api-door` | 458 | 8 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
 | `assistant-provider` | 78 | 8 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
 | `google` | 360 | 8 | Only the files the app itself creates (the library's): a non-sensitive scope, so Google asks for no review and the owner's published app keeps its connection. |
@@ -592,7 +592,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `my-work` | 604 | 6 | The company's zone as the person's My Work page reads it: the first company they are an ACTIVE member of. |
 | `pinned` | 70 | 6 | «مثبّتة» — the pinned tasks a person may be shown, for the strip at the top of a project and the compact card of «اليوم». |
 | `spaces-overview` | 72 | 6 | «كل المساحات» — the owner's and the admins' one look over every space they can open (the owner's decision, 2026-10-25): each space stays a separate site, and this page only coun… |
-| `api-tokens` | 204 | 5 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
+| `users` | 354 | 6 | no header comment — exports `isAgentAccount`, `updateProfile`, `getProfileForViewer`, `getPublicProfile`, `memberDirectory` |
+| `api-tokens` | 220 | 5 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `avatars` | 118 | 5 | A PERSON'S PICTURE (the owner's ask, 2026-10-29: «خيار إن المستخدم يحط صورة بروفايل»). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
 | `must-read` | 232 | 5 | «لازم ينقرأ» (Q1.6): an instruction post that people must acknowledge. |
@@ -606,7 +607,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `team-reviews` | 209 | 5 | «التقييمات» — what the owner and the supervisors write about a person for a period. |
 | `teams` | 234 | 5 | TEAMS INSIDE A SPACE — who is in which team, and which project belongs to which (the reading rule is in team-scope.ts). |
 | `telegram` | 299 | 5 | Validates a bot token by calling getMe. |
-| `users` | 347 | 5 | no header comment — exports `updateProfile`, `getProfileForViewer`, `getPublicProfile`, `memberDirectory` |
 | `views` | 589 | 5 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
 | `work-app` | 291 | 5 | M2 N3 — what the projects pages show, read ONCE for the page and for the phone's doors (the way `taskSheetFor` serves the task page and `/api/tasks/[id]/sheet`). |
 | `calendar-feed` | 331 | 4 | «اشتراك التقويم» — a person's private calendar feed. |
@@ -628,14 +628,14 @@ high count is a wide surface: changing its signature reaches all of them.
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
 | `member-rules` | 184 | 3 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
 | `order-state` | 120 | 3 | AN ORDER'S STATE (Q1.4): what the chip and the «/طلب» card show. |
-| `org-members` | 300 | 3 | Organization members: the rank rules of account management and the roster. |
+| `org-members` | 304 | 3 | Organization members: the rank rules of account management and the roster. |
 | `owner-assistant-names` | 85 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
 | `sessions` | 159 | 3 | C4.2 — the person's signed-in devices (`UserSession`), the one place that reads and writes them. |
 | `space-figures` | 50 | 3 | THE per-space task numbers — ONE function (B4): «كل المساحات» (`/spaces`), the control panel's report «حسب المساحة», the overview's insight about late work, the number beside ev… |
 | `space-manage` | 61 | 3 | MANAGING THE SPACES FROM «كل المساحات» (the owner's asks, 2026-10-26): put them in order by dragging, archive one (it leaves every list — the switcher, the overview, search by s… |
 | `stale-tasks` | 369 | 3 | W1.9 «مهام قديمة» — the review list of open tasks nobody touched for N days, for the people who run a space, with bulk actions that go through the services that already exist (`… |
-| `system-tokens` | 59 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
+| `system-tokens` | 72 | 3 | «الإعدادات ← توكنات الأنظمة» (W1): the OWNER's page for the tokens of the systems that call Zaki Workspace (first: «الميديا باير»). |
 | `team-score-io` | 28 | 3 | `?kind=` as a period kind (anything else: the month). |
 | `today` | 339 | 3 | «اليوم» — everything the Today page shows, in one call (`getToday(actor)`), so the page decides nothing. |
 | `analytics` | 67 | 2 | Numbers behind the analytics page. |

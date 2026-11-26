@@ -844,7 +844,7 @@ describe("the tokens screen (/api/integrations/api-tokens)", () => {
     expect(list.text).not.toContain(token);
     expect(list.text).not.toContain(row.tokenHash);
     const item = (list.json?.["tokens"] as Record<string, unknown>[])[0] as Record<string, unknown>;
-    expect(Object.keys(item).sort()).toEqual(["createdAt", "createdBy", "expiresAt", "hint", "id", "lastUsedAt", "name", "permissions", "revokedAt", "revokedReason", "space", "status", "system"]);
+    expect(Object.keys(item).sort()).toEqual(["actsAs", "createdAt", "createdBy", "expiresAt", "hint", "id", "lastUsedAt", "name", "permissions", "revokedAt", "revokedReason", "space", "status", "system"]);
     expect(item["hint"]).toBe(`zws_${row.prefix}…`);
     expect(await db.auditLog.count({ where: { action: "door.token.created", target: id, actorId: w.owner.id } })).toBe(1);
   });

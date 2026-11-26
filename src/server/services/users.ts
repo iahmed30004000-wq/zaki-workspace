@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { spacePeopleWhere } from "@/server/chat/space-people";
 import { db } from "@/server/db";
+import { agentName } from "@/lib/agent-name";
 import { mayMeet, reachableWhere } from "@/server/policy/space-only";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import { assignedTo } from "@/server/services/tasks";
@@ -19,10 +20,16 @@ export interface ProfilePatch {
   locale?: string;
 }
 
+/** Is this a 🤖 account (in whichever company it belongs to)? */
+export async function isAgentAccount(userId: string): Promise<boolean> {
+  return (await db.organizationMember.count({ where: { userId, agent: true } })) > 0; // all-statuses: what the account IS does not change with its status
+}
+
 /** Self-service profile update. Locale/theme are constrained at the API layer. */
 export async function updateProfile(userId: string, patch: ProfilePatch): Promise<void> {
   const data: Prisma.UserUpdateInput = {};
-  if (patch.name !== undefined) data.name = patch.name;
+  // «حساب وكيل»: the 🤖 stays in the name whoever types it, the account itself included
+  if (patch.name !== undefined) data.name = (await isAgentAccount(userId)) ? agentName(patch.name) : patch.name;
   if (patch.jobTitle !== undefined) data.jobTitle = patch.jobTitle;
   if (patch.bio !== undefined) data.bio = patch.bio;
   if (patch.locale !== undefined) data.locale = patch.locale;

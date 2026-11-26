@@ -227,6 +227,7 @@ export function avatarHue(name: string): number {
 }
 
 export function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p.charAt(0)).join("") || "?";
+  // the first letter or digit of each word: a word with none (the 🤖 of an agent, a bracket) gives no half of a character
+  const letters = name.trim().split(/\s+/).flatMap((p) => p.match(/[\p{L}\p{N}]/u)?.[0] ?? []);
+  return letters.slice(0, 2).join("") || "?";
 }
