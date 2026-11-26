@@ -196,7 +196,9 @@ describe("S3.1 · the place «الإدارة» leaves the map of an admin who ho
 
 describe("S3.1 · the sections of «إعدادات الشركة»", () => {
   it("the twelve sections of «إعداداتي» are untouched; the four company sections are the panel's own, one to one", () => {
-    expect([...SECTION_KEYS]).toHaveLength(12);
+    // a thirteenth key, «تحويل الكلام لنص», is listed only while the switch `tgPhone` is on
+    expect([...SECTION_KEYS]).toHaveLength(13);
+    expect(visibleSections({ foldersOn: true, speechOn: true })).toHaveLength(13);
     expect([...COMPANY_SECTION_KEYS]).toEqual(["company", "features", "integrations", "spaces"]);
     for (const key of COMPANY_SECTION_KEYS) {
       expect(PANEL_V2_SECTIONS as readonly string[], key).toContain(PANEL_SECTION_OF[key]);

@@ -369,6 +369,8 @@ describe("every motion of phase 4 can be switched off", () => {
     const screens = ["src/components/chat/v2/composer/tg-record-bar.tsx", "src/components/chat/v2/composer/composer-surface.tsx", "src/components/chat/message/voice-transcript.tsx", "src/components/chat/v2/pane/tg-voice-bar.tsx"].map(read).join("\n");
     const names = [...new Set([...css.matchAll(/var\(--tg-([a-z-]+)\)/g)].map((m) => m[1]!.replace(/-([a-z])/g, (_, c: string) => c.toUpperCase())))];
     expect(names.length).toBeGreaterThanOrEqual(10);
+    // no length is written into the stylesheet itself
+    expect(css.replace(/\/\*[\s\S]*?\*\//g, "")).not.toMatch(/(animation|transition):[^;]*\b\d*\.?\d+m?s\b/);
     for (const name of names) {
       expect(TG_MOTION, name).toHaveProperty(name);
       expect(screens, name).toContain(`"${name}"`);

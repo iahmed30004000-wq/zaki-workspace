@@ -132,6 +132,8 @@ export const TG_MOTION = {
   speedHoldMs: 500,
   /** one turn of the ring around the transcribe button */
   transcriptSpinMs: 900,
+  /** one breath of the glow around the live words' field */
+  dictationGlowMs: 1600,
   // sheets
   sheetMs: 180,
 } as const;

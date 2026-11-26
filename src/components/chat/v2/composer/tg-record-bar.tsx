@@ -39,7 +39,7 @@ export interface TgRecordBarProps {
   onSend: () => void;
 }
 
-const MOTION_VARS = ["recordMorphMs", "recordBlinkMs", "micLevelMs", "micToSendMs", "dictationFadeMs", "languageMenuMs", "voiceDustMs", "composerReturnMs", "bubbleGrowMs"] as const;
+const MOTION_VARS = ["recordMorphMs", "recordBlinkMs", "micLevelMs", "micToSendMs", "dictationFadeMs", "languageMenuMs", "voiceDustMs", "composerReturnMs", "bubbleGrowMs", "dictationGlowMs"] as const;
 
 const ROUND = "flex shrink-0 items-center justify-center rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent";
 
@@ -60,7 +60,7 @@ function Bin({ open = false }: { open?: boolean }) {
 function LivePanel({ live, tg, onSettings }: { live: LiveView; tg: TgVoiceView; onSettings: () => void }) {
   const [menu, setMenu] = React.useState(false);
   const chosen = SPEECH_LANGS.find((l) => l.code === live.lang) ?? SPEECH_LANGS[0];
-  const status = live.error ? liveStatus(live) : "";
+  const problem = live.error ? liveStatus(live) : "";
   return (
     // the end side is left free for the pause button above the circle
     <div data-live-text className="tg-rec-strip flex flex-col gap-1.5 pe-14">
@@ -117,9 +117,9 @@ function LivePanel({ live, tg, onSettings }: { live: LiveView; tg: TgVoiceView; 
           {live.text || ct("tgvoice.listening")}
         </p>
       </div>
-      {status ? (
+      {problem ? (
         <p role="status" className="text-xs text-fg-muted">
-          {status}
+          {problem}
         </p>
       ) : null}
     </div>
