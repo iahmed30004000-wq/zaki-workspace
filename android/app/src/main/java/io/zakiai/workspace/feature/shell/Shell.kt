@@ -451,6 +451,7 @@ fun Shell(
                             onOpenApproval = { nav.open(Destination.Approval(it)) },
                             onOpenTicket = { nav.open(Destination.Ticket(it)) },
                             orgRole = (spaces?.organizations?.firstOrNull { o -> o.workspaces.any { it.id == spaces?.currentSpaceId } } ?: spaces?.organizations?.firstOrNull())?.role,
+                            onOpenPath = openPath,
                         )
                     }
                     composable(Routes.PROJECT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
@@ -599,6 +600,8 @@ private fun WorkHub(
     onOpenTicket: (String) -> Unit = {},
     /** the person's rank in the company of the space they are in (what the site's tabs and marks depend on) */
     orgRole: String? = null,
+    /** a site address, opened natively where the app has the page */
+    onOpenPath: (String) -> Unit = onOpenSite,
 ) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable(initial) { androidx.compose.runtime.mutableStateOf(initial) }
     Column(Modifier.fillMaxSize()) {
@@ -608,6 +611,7 @@ private fun WorkHub(
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.calendar, 0, tab == "calendar") { tab = "calendar" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.goals, 0, false) { onOpenGoals() }
             // M2 N6: the site's other work tabs, native
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.requests.R.title, 0, tab == "requests") { tab = "requests" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.approvals, 0, tab == "approvals") { tab = "approvals" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.ideas, 0, tab == "ideas") { tab = "ideas" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.checkins, 0, tab == "checkins") { tab = "checkins" }
@@ -623,6 +627,14 @@ private fun WorkHub(
                 io.zakiai.workspace.feature.desk.IdeasScreen(spaceKey = spaceKey, meId = meId, isHq = isHq)
             } else if (tab == "checkins") {
                 io.zakiai.workspace.feature.desk.CheckinsScreen(spaceId = spaceKey, onOpenSite = onOpenSite)
+            } else if (tab == "requests") {
+                io.zakiai.workspace.feature.requests.RequestsScreen(
+                    spaceKey = spaceKey,
+                    onOpenPath = onOpenPath,
+                    approvalsFallback = {
+                        io.zakiai.workspace.feature.desk.ApprovalsScreen(spaceId = spaceKey, onOpen = onOpenApproval, narrowTo = if (isHq) null else spaceKey, initialView = initialView, onOpenSite = onOpenSite)
+                    },
+                )
             } else if (tab == "calendar") {
                 io.zakiai.workspace.feature.office.CalendarScreen(spaceKey = spaceKey, onOpenTask = onOpenTask, onOpenSite = onOpenSite, guest = orgRole == "GUEST")
             } else if (tab == "tickets") {

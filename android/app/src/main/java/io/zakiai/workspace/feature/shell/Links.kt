@@ -104,6 +104,7 @@ object Links {
             }
             "/checkins" -> Destination.Work("checkins")
             "/calendar" -> Destination.Work("calendar")
+            "/requests" -> Destination.Work("requests")
             // a report narrowed by the site (a task's «تقرير الوقت»: ?taskId=, a range) stays the site's page: the phone has the week and the month only
             "/time" -> if (path.contains('?')) Destination.Site(path) else Destination.Work("time")
             // «?ticket=<id>» opens that ticket (the site opens its sheet over the desk)

@@ -414,6 +414,16 @@ interface WorkspaceApi {
     @PATCH("api/tickets/{id}")
     suspend fun patchTicket(@Path("id") id: String, @Body body: TicketPatch): kotlinx.serialization.json.JsonObject
 
+    // ── M2 N6 batch 3: «الطلبات» (the person's own inbox) and the two decisions it adds ──
+    @GET("api/work/requests")
+    suspend fun requests(@Query("tab") tab: String, @Header("Cache-Control") cache: String = "no-store"): RequestsAnswer
+
+    @PUT("api/cards/{id}/status")
+    suspend fun cardStatus(@Path("id") id: String, @Body body: StatusBody): kotlinx.serialization.json.JsonObject
+
+    @PUT("api/knowledge/{id}/status")
+    suspend fun sheetStatus(@Path("id") id: String, @Body body: StatusBody): kotlinx.serialization.json.JsonObject
+
     @POST("api/tickets/{id}/detail")
     suspend fun commentTicket(@Path("id") id: String, @Body body: CommentBody): kotlinx.serialization.json.JsonObject
 }
