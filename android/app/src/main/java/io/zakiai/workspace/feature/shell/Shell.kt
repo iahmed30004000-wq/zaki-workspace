@@ -208,6 +208,9 @@ private object Routes {
     const val SHEET = "sheet/{id}"
     const val CALL = "call/{id}"
     const val APPROVAL = "approval/{id}"
+    const val PEOPLE = "people"
+    const val PERSON = "person/{id}"
+    const val TICKET = "ticket/{id}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -215,7 +218,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -254,6 +257,9 @@ fun NavHostController.open(dest: Destination) {
         is Destination.Call -> navigate("call/" + dest.id) { launchSingleTop = true }
         is Destination.Work -> navigate(Routes.work(dest.tab, dest.view)) { popUpTo(Routes.CHATS); launchSingleTop = true }
         is Destination.Approval -> navigate("approval/" + dest.id)
+        Destination.People -> navigate(Routes.PEOPLE) { launchSingleTop = true }
+        is Destination.Person -> navigate("person/" + dest.id)
+        is Destination.Ticket -> navigate("ticket/" + dest.id)
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -341,7 +347,15 @@ fun Shell(
                             icon = { Icon(item.icon, contentDescription = null) },
                             selected = false,
                             // a section that became native opens natively (the same rule as a link): «الأفكار» since N6
-                            onClick = { nav.open(if (item.path == "/ideas") Destination.Work("ideas") else Destination.Site(item.path)); scope.launch { drawer.close() } },
+                            onClick = {
+                                val native = when (item.path) {
+                                    "/ideas" -> Destination.Work("ideas")
+                                    "/calendar" -> Destination.Work("calendar")
+                                    "/teams" -> Destination.People
+                                    else -> null
+                                }
+                                nav.open(native ?: Destination.Site(item.path)); scope.launch { drawer.close() }
+                            },
                             colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Zk.colors.surface1),
                             modifier = Modifier.padding(horizontal = 8.dp),
                         )
@@ -435,6 +449,7 @@ fun Shell(
                             spaceKey = spaces?.currentSpaceId,
                             meId = me?.id,
                             onOpenApproval = { nav.open(Destination.Approval(it)) },
+                            onOpenTicket = { nav.open(Destination.Ticket(it)) },
                         )
                     }
                     composable(Routes.PROJECT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
@@ -456,6 +471,22 @@ fun Shell(
                     }
                     composable(Routes.APPROVAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.desk.ApprovalScreen(onBack = { nav.popBackStack() }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    // M2 N6 batch 2: «الناس», a person, one ticket
+                    composable(Routes.PEOPLE) {
+                        val org = spaces?.organizations?.firstOrNull { o -> o.workspaces.any { it.id == spaces?.currentSpaceId } } ?: spaces?.organizations?.firstOrNull()
+                        io.zakiai.workspace.feature.office.PeopleScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenPerson = { nav.open(Destination.Person(it)) },
+                            manager = org?.role == "OWNER" || org?.role == "ADMIN",
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.office.ProfileScreen(onBack = { nav.popBackStack() }, onOpenChat = { nav.open(Destination.Conversation(it, null)) }, meId = me?.id)
+                    }
+                    composable(Routes.TICKET, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.office.TicketScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
                     }
                     composable(Routes.CALL, arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
                         io.zakiai.workspace.feature.calls.CallScreen(callId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
@@ -564,17 +595,21 @@ private fun WorkHub(
     initialView: String? = null,
     isHq: Boolean = false,
     onOpenApproval: (String) -> Unit = {},
+    onOpenTicket: (String) -> Unit = {},
 ) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable(initial) { androidx.compose.runtime.mutableStateOf(initial) }
     Column(Modifier.fillMaxSize()) {
         io.zakiai.workspace.ui.components.PillStrip {
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.myWork, 0, tab == "mine") { tab = "mine" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.projects, 0, tab == "projects") { tab = "projects" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.calendar, 0, tab == "calendar") { tab = "calendar" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.goals, 0, false) { onOpenGoals() }
             // M2 N6: the site's other work tabs, native
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.approvals, 0, tab == "approvals") { tab = "approvals" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.ideas, 0, tab == "ideas") { tab = "ideas" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.checkins, 0, tab == "checkins") { tab = "checkins" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.tickets, 0, tab == "tickets") { tab = "tickets" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.time, 0, tab == "time") { tab = "time" }
         }
         Box(Modifier.weight(1f)) {
             if (tab == "projects") {
@@ -585,6 +620,12 @@ private fun WorkHub(
                 io.zakiai.workspace.feature.desk.IdeasScreen(spaceKey = spaceKey, meId = meId, isHq = isHq)
             } else if (tab == "checkins") {
                 io.zakiai.workspace.feature.desk.CheckinsScreen(spaceId = spaceKey, onOpenSite = onOpenSite)
+            } else if (tab == "calendar") {
+                io.zakiai.workspace.feature.office.CalendarScreen(spaceKey = spaceKey, onOpenTask = onOpenTask)
+            } else if (tab == "tickets") {
+                io.zakiai.workspace.feature.office.TicketsScreen(onOpenTicket = onOpenTicket, onOpenSite = onOpenSite)
+            } else if (tab == "time") {
+                io.zakiai.workspace.feature.office.TimeScreen(spaceKey = spaceKey, onOpenTask = onOpenTask)
             } else {
                 MyWorkScreen(onOpenTask = onOpenTask, onOpenSite = onOpenSite, spaceKey = spaceKey)
             }

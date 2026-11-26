@@ -89,7 +89,7 @@ private fun Chip(label: String, on: Boolean, onClick: () -> Unit) {
 
 /** A part the phone does not hold yet, marked (⚠️ with its 🔧) with the way to the site's own page. */
 @Composable
-private fun SiteLine(warn: String, fix: String, onOpen: () -> Unit) {
+internal fun SiteLine(warn: String, fix: String, onOpen: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).clip(RoundedCornerShape(12.dp))) {
         WarnFix(warn, fix)
         TextButton(onClick = onOpen, modifier = Modifier.padding(horizontal = 4.dp)) { Text(D.openSite, color = Zk.colors.accent, fontWeight = FontWeight.SemiBold) }

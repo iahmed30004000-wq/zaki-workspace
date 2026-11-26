@@ -374,4 +374,46 @@ interface WorkspaceApi {
 
     @POST("api/approvals/{id}/cancel")
     suspend fun cancelApproval(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): kotlinx.serialization.json.JsonObject
+
+    // ── M2 N6 batch 2: «التقويم», «الناس», a profile, «تقرير الوقت», «التذاكر» ──
+    @GET("api/calendar")
+    suspend fun calendar(@Query("month") month: String?, @Query("mine") mine: String?, @Header("Cache-Control") cache: String = "no-cache"): CalendarAnswer
+
+    @GET("api/people")
+    suspend fun staff(@Header("Cache-Control") cache: String = "no-cache"): PeopleAnswer
+
+    @GET("api/users/{id}")
+    suspend fun profile(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): ProfileAnswer
+
+    @GET("api/time/report")
+    suspend fun timeReport(
+        @Query("from") from: String?,
+        @Query("to") to: String?,
+        @Query("userId") userId: String?,
+        @Query("projectId") projectId: String?,
+        @Query("workspaceId") workspaceId: String?,
+        @Query("format") format: String = "json",
+        @Header("Cache-Control") cache: String = "no-cache",
+    ): TimeReport
+
+    @GET("api/tickets/mine")
+    suspend fun myTickets(@Header("Cache-Control") cache: String = "no-cache"): TicketsAnswer
+
+    @GET("api/departments")
+    suspend fun departments(@Header("Cache-Control") cache: String = "no-cache"): DepartmentsAnswer
+
+    @GET("api/departments/{id}/tickets")
+    suspend fun departmentTickets(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): TicketsAnswer
+
+    @POST("api/departments/{id}/tickets")
+    suspend fun newTicket(@Path("id") id: String, @Body body: NewTicketBody): kotlinx.serialization.json.JsonObject
+
+    @GET("api/tickets/{id}/detail")
+    suspend fun ticket(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-store"): TicketDetailAnswer
+
+    @PATCH("api/tickets/{id}")
+    suspend fun patchTicket(@Path("id") id: String, @Body body: TicketPatch): kotlinx.serialization.json.JsonObject
+
+    @POST("api/tickets/{id}/detail")
+    suspend fun commentTicket(@Path("id") id: String, @Body body: CommentBody): kotlinx.serialization.json.JsonObject
 }

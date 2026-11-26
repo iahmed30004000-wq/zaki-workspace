@@ -109,5 +109,13 @@ object Sentences {
         "checkins.e.tasks_invalid" to "إحدى المهام المختارة غير متاحة لك أو لم تعد مفتوحة.",
         "checkins.e.already_answered" to "أرسلت جوابك اليوم، فلا يمكن اعتبارك في إجازة.",
         "checkins.e.failed" to "تعذّر تنفيذ الطلب. حاول مرة أخرى.",
+        // «الناس», a profile, «التذاكر» (ar.json)
+        "chat.dm_not_in_space" to "هالشخص مش معك بهالمساحة. الرسائل الخاصة بين ناس المساحة الوحدة.",
+        "chat.dm_self" to "لا محادثة مع نفسك",
+        "ticket.not_found" to "التذكرة غير موجودة",
+        "ticket.admin_only" to "لا تملك صلاحية على هذه التذكرة",
+        "ticket.assignee_not_member" to "المُعيَّن يجب أن يكون من أعضاء القسم",
+        "ticket.bad_transition" to "انتقال حالة غير مسموح",
+        "ticket.no_change" to "لا تغيير",
     )
 }
