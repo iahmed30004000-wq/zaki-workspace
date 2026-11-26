@@ -42,4 +42,29 @@ class RequestsTest {
     @Test fun `the inbox link opens natively`() {
         assertEquals(Destination.Work("requests"), Links.destinationOf("/requests", "https://workspace.zakiai.io"))
     }
+
+    @Test fun `the stale sweep and the contacts open natively`() {
+        assertEquals(Destination.Stale, Links.destinationOf("/my-work/stale", "https://workspace.zakiai.io"))
+        assertEquals(Destination.Contacts, Links.destinationOf("/contacts", "https://workspace.zakiai.io"))
+    }
+
+    @Test fun `the pages kept on the site on purpose are exactly the ones holding secrets (the owner's decision)`() {
+        val kept = io.zakiai.workspace.feature.web.SiteKept
+        for (p in listOf("/settings", "/settings/company", "/automation", "/automation/tokens", "/telegram", "/owner/assistant/settings", "/theme-gallery", "/approvals/forms", "/approvals/forms/f1", "/settings?tab=x")) {
+            org.junit.Assert.assertTrue(p, kept.isKept(p))
+        }
+        // the person's own settings are ported phase by phase: not kept
+        for (p in listOf("/settings/me", "/settings/me/account", "/owner", "/owner/assistant", "/approvals", "/automationx", "/watch")) {
+            org.junit.Assert.assertFalse(p, kept.isKept(p))
+        }
+    }
+
+    @Test fun `a sweep's result says what was done, requested and refused, as the site`() {
+        val s = io.zakiai.workspace.feature.stale.S
+        assertEquals("تمّت 3 مهمة", s.result(io.zakiai.workspace.feature.stale.SweepResult(done = 3)))
+        assertEquals(
+            "تمّت 2 مهمة\n1 مهمة انرفضت، والباقي تنفّذ",
+            s.result(io.zakiai.workspace.feature.stale.SweepResult(done = 2, refused = 1)),
+        )
+    }
 }

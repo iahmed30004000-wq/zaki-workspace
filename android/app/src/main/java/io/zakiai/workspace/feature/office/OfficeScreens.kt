@@ -49,6 +49,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -207,36 +208,47 @@ fun CalendarScreen(
 /** «غيّر اليوم»: the site's month (Sunday first, its month names), the previous and next month; a tap on a day picks it. */
 @Composable
 private fun DayPicker(start: String, today: String?, onDismiss: () -> Unit, onPick: (String) -> Unit) {
-    var ym by rememberSaveable { mutableStateOf(start.take(7)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = Zk.colors.surface1,
         title = { Text(O.moveDay) },
-        text = {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RoundIcon(Icons.Filled.ChevronRight, O.prev) { ym = O.shiftMonth(ym, -1) }
-                    Text(O.monthTitle(ym), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Zk.colors.fg, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
-                    RoundIcon(Icons.Filled.ChevronLeft, O.next) { ym = O.shiftMonth(ym, 1) }
-                }
-                Row(Modifier.fillMaxWidth()) {
-                    for (d in O.WEEKDAYS_SHORT) Text(d, fontSize = 10.sp, color = Zk.colors.fgMuted, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
-                }
-                O.monthCells(ym).chunked(7).forEach { week ->
-                    Row(Modifier.fillMaxWidth()) {
-                        for (i in 0 until 7) {
-                            val day = week.getOrNull(i)
-                            Box(Modifier.weight(1f).aspectRatio(1f).padding(2.dp)) {
-                                if (day != null) DayCell(day, 0, today = day == today, selected = day == start) { onPick(day) }
-                            }
+        text = { MonthDayPicker(start = start, today = today, onPick = onPick) },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(P.cancel) } },
+    )
+}
+
+/**
+ * A day picked on the site's month (Sunday first, its month names, 0-9 whatever the phone's language): the app's own date picker, used
+ * wherever a day is chosen (the system's picker speaks the phone's language). A day before [earliest] ("YYYY-MM-DD") cannot be picked.
+ */
+@Composable
+fun MonthDayPicker(start: String, today: String? = null, earliest: String? = null, onPick: (String) -> Unit) {
+    var ym by rememberSaveable { mutableStateOf(start.take(7)) }
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RoundIcon(Icons.Filled.ChevronRight, O.prev) { ym = O.shiftMonth(ym, -1) }
+            Text(O.monthTitle(ym), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Zk.colors.fg, textAlign = TextAlign.Center, modifier = Modifier.weight(1f))
+            RoundIcon(Icons.Filled.ChevronLeft, O.next) { ym = O.shiftMonth(ym, 1) }
+        }
+        Row(Modifier.fillMaxWidth()) {
+            for (d in O.WEEKDAYS_SHORT) Text(d, fontSize = 10.sp, color = Zk.colors.fgMuted, textAlign = TextAlign.Center, maxLines = 1, modifier = Modifier.weight(1f))
+        }
+        O.monthCells(ym).chunked(7).forEach { week ->
+            Row(Modifier.fillMaxWidth()) {
+                for (i in 0 until 7) {
+                    val day = week.getOrNull(i)
+                    Box(Modifier.weight(1f).aspectRatio(1f).padding(2.dp)) {
+                        // "YYYY-MM-DD" strings compare as days
+                        val allowed = day != null && (earliest == null || day >= earliest)
+                        if (day != null) Box(Modifier.fillMaxSize().alpha(if (allowed) 1f else 0.35f)) {
+                            DayCell(day, 0, today = day == (today ?: earliest), selected = day == start) { if (allowed) onPick(day) }
                         }
                     }
                 }
             }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text(P.cancel) } },
-    )
+        }
+    }
 }
 
 @Composable

@@ -31,6 +31,9 @@ sealed interface Destination {
     data object People : Destination
     data class Person(val id: String) : Destination
     data class Ticket(val id: String) : Destination
+    /** «مهام قديمة» (the stale-tasks sweep) and the contacts (the native new-chat list) (M2 N6 batch 3) */
+    data object Stale : Destination
+    data object Contacts : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -105,6 +108,8 @@ object Links {
             "/checkins" -> Destination.Work("checkins")
             "/calendar" -> Destination.Work("calendar")
             "/requests" -> Destination.Work("requests")
+            "/my-work/stale" -> Destination.Stale
+            "/contacts" -> Destination.Contacts
             // a report narrowed by the site (a task's «تقرير الوقت»: ?taskId=, a range) stays the site's page: the phone has the week and the month only
             "/time" -> if (path.contains('?')) Destination.Site(path) else Destination.Work("time")
             // «?ticket=<id>» opens that ticket (the site opens its sheet over the desk)

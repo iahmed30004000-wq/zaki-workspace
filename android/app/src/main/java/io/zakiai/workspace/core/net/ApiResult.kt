@@ -117,5 +117,18 @@ object Sentences {
         "ticket.assignee_not_member" to "المُعيَّن يجب أن يكون من أعضاء القسم",
         "ticket.bad_transition" to "انتقال حالة غير مسموح",
         "ticket.no_change" to "لا تغيير",
+        // «مهام قديمة» (ar.work-v2.json)
+        "stale.managers_only" to "هاي الصفحة لمالك الشركة ولمدراء المساحات بس",
+        "stale.not_manager" to "هاي المهمة بمساحة ما بتديرها",
+        "stale.not_open" to "المهمة ما عادت مفتوحة",
+        "stale.pick_tasks" to "اختر مهمة وحدة عالأقل",
+        "stale.too_many" to "مهام كتير بمرة وحدة: اختر أقل",
+        "stale.day_required" to "اختر التاريخ",
+        "stale.day_past" to "التاريخ لازم يكون اليوم أو بعده",
+        "stale.pick_person" to "اختر الشخص",
+        // «الطلبات»: an assignment answered elsewhere (ar.json taskreq.*)
+        "taskreq.already_answered" to "سبق الرد على هذا الطلب",
+        "taskreq.not_addressee" to "الرد على هذا الطلب للشخص الموجّه إليه أو للمالك فقط",
+        "taskreq.reason_required" to "اكتب سبب الإرجاع",
     )
 }

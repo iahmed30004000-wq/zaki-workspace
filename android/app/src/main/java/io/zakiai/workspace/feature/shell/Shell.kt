@@ -211,6 +211,7 @@ private object Routes {
     const val PEOPLE = "people"
     const val PERSON = "person/{id}"
     const val TICKET = "ticket/{id}"
+    const val STALE = "stale"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -218,7 +219,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -260,6 +261,9 @@ fun NavHostController.open(dest: Destination) {
         Destination.People -> navigate(Routes.PEOPLE) { launchSingleTop = true }
         is Destination.Person -> navigate("person/" + dest.id)
         is Destination.Ticket -> navigate("ticket/" + dest.id)
+        Destination.Stale -> navigate(Routes.STALE) { launchSingleTop = true }
+        // the site's «جهات الاتصال» is the list of colleagues to message: the app's own new-chat list
+        Destination.Contacts -> navigate(Routes.newChat(false)) { launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -487,6 +491,9 @@ fun Shell(
                     composable(Routes.PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.office.ProfileScreen(onBack = { nav.popBackStack() }, onOpenChat = { nav.open(Destination.Conversation(it, null)) }, meId = me?.id, onOpenSite = { nav.open(Destination.Site(it)) })
                     }
+                    composable(Routes.STALE) {
+                        io.zakiai.workspace.feature.stale.StaleScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) })
+                    }
                     composable(Routes.TICKET, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.office.TicketScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
                     }
@@ -617,6 +624,8 @@ private fun WorkHub(
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.checkins, 0, tab == "checkins") { tab = "checkins" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.tickets, 0, tab == "tickets") { tab = "tickets" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.time, 0, tab == "time") { tab = "time" }
+            // the owner and the admins run spaces: «مهام قديمة» (the server decides who may; a space manager reaches it by its link too)
+            if (orgRole == "OWNER" || orgRole == "ADMIN") io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.stale.S.title, 0, false) { onOpenPath("/my-work/stale") }
         }
         Box(Modifier.weight(1f)) {
             if (tab == "projects") {
