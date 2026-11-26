@@ -121,14 +121,14 @@ describe("the people picker and the quick chat", () => {
 
 describe("the staff directory page", () => {
   it("`staffDirectory` marks the verified ACTIVE staff for a staff viewer, nothing for a guest, nothing while the switch is off", async () => {
-    const rows = await staffDirectory(w.orgId, "MEMBER");
+    const rows = await staffDirectory(w.orgId, "MEMBER", w.member.id);
     expect(verifiedIds(rows)).toEqual([w.star.id, w.admin.id].sort());
     expect(rows.find((p) => p.id === w.plain.id)).not.toHaveProperty("verified");
     // ACTIVE only: the suspended person is not there; the same list as before for everything else
     expect(rows.some((p) => p.id === w.gone.id)).toBe(false);
     expect(JSON.stringify(rows)).not.toContain("verifiedAt");
-    expect(noKey(await staffDirectory(w.orgId, "GUEST"))).toBe(true);
-    await withSwitchOff(async () => expect(noKey(await staffDirectory(w.orgId, "MEMBER"))).toBe(true));
+    expect(noKey(await staffDirectory(w.orgId, "GUEST", w.member.id))).toBe(true);
+    await withSwitchOff(async () => expect(noKey(await staffDirectory(w.orgId, "MEMBER", w.member.id))).toBe(true));
   });
 });
 

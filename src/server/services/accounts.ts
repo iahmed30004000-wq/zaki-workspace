@@ -9,6 +9,7 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/server/db";
+import { isSpaceOnly } from "@/server/policy/space-only";
 import { ForbiddenError, NotFoundError, ValidationError, audit, hashPassword } from "@/server/auth";
 import { assertCan, requireActor, type Actor } from "@/server/policy/actor";
 import { CAPABILITIES, isCapability } from "@/server/policy/capabilities";
@@ -123,6 +124,8 @@ export const createAccountSchema = z.object({
   role: roleSchema.default("MEMBER"),
   managerId: z.preprocess(blankToNull, idSchema.nullable().optional()),
   workspaceIds: z.array(idSchema).max(500).optional(),
+  /** «محصور بمساحة»: a MEMBER put in exactly one space, never in «الشركة» (src/server/policy/space-only.ts). */
+  spaceOnly: z.boolean().optional(),
   capabilities: capabilityListSchema.optional(),
   jobTitle: z.preprocess(blankToUndefined, jobTitleSchema.optional()),
   /**
@@ -404,6 +407,8 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
     await assertManager(db, actor.orgId, managerId, null);
   }
   const workspaceIds = await checkedWorkspaces(actor, input.workspaceIds ?? []);
+  const spaceOnly = input.spaceOnly === true;
+  if (spaceOnly) await assertOneSpaceAccount(role, workspaceIds);
   await assertNamesFree({ username: input.username, email: input.email });
 
   const temporaryPassword = input.password === undefined ? generateTemporaryPassword() : undefined;
@@ -422,7 +427,7 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
           passwordHash,
           mustChangePassword: true,
           memberships: {
-            create: { organizationId: actor.orgId, role, capabilities: caps.next, revokedCapabilities, managerId },
+            create: { organizationId: actor.orgId, role, capabilities: caps.next, revokedCapabilities, managerId, spaceOnly },
           },
         },
         select: { id: true },
@@ -443,7 +448,7 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
     actorId: actor.userId,
     orgId: actor.orgId,
     target: userId,
-    meta: { role, username: input.username },
+    meta: { role, username: input.username, ...(spaceOnly ? { spaceOnly: true, workspaceIds } : {}) },
   });
   if (template) {
     await audit("org.template_applied", { actorId: actor.userId, orgId: actor.orgId, target: userId, meta: appliedMeta(template, role, caps.next, revokedCapabilities) });
@@ -460,6 +465,13 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
     organizationId: actor.orgId,
   });
   return { userId, username: input.username, ...(temporaryPassword ? { temporaryPassword } : {}) };
+}
+
+/** «محصور بمساحة»: rank «موظف», exactly one space, and that space is not «الشركة». */
+async function assertOneSpaceAccount(role: OrgRole, workspaceIds: readonly string[]): Promise<void> {
+  if (role !== "MEMBER") throw invalid("spaceOnly", "accounts.space_only_rank");
+  const hq = await db.workspace.count({ where: { id: { in: [...workspaceIds] }, kind: "HQ" } });
+  if (workspaceIds.length !== 1 || hq > 0) throw invalid("workspaceIds", "accounts.space_only_one");
 }
 
 // ---------- update ----------
@@ -499,6 +511,8 @@ export async function updateAccount(
   const role = input.role ?? target.role;
   const roleChanged = role !== target.role;
   if (roleChanged && !canChangeRoleOf(rankedActor(actor), target, role)) throw new ForbiddenError("orgm.role_denied");
+  // «محصور بمساحة» is a MEMBER's mark: another rank would carry it into places it does not mean anything
+  if (roleChanged && (await isSpaceOnly(userId, actor.orgId))) throw invalid("role", "accounts.space_only_rank");
 
   // a partner (an OWNER who is not the primary owner) holds everything but what is taken away: no extras, and any
   // capability may be taken away — only by the primary owner, the only one who administers him

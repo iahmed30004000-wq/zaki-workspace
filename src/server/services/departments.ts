@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { assertNotGuest, assertCanWrite } from "@/server/services/guest-guard";
+import { assertNotSpaceOnly } from "@/server/policy/space-only";
 import { assertMemberCan } from "@/server/policy/actor";
 import { createTask } from "@/server/services/tasks";
 import { canReadTicket } from "@/server/services/tickets";
@@ -102,6 +103,7 @@ export async function createDepartment(ctx: OrgAccessContext, input: z.infer<typ
  */
 export async function listDepartments(ctx: OrgAccessContext, now: Date = new Date()) {
   assertNotGuest(ctx);
+  await assertNotSpaceOnly(ctx.userId, ctx.orgId);
   await assertCapability(ctx, "directory.view");
   const [scope, org] = await Promise.all([
     loadWorkScope(ctx.userId),
@@ -145,6 +147,7 @@ export async function listDepartments(ctx: OrgAccessContext, now: Date = new Dat
 
 export async function getDepartment(ctx: OrgAccessContext, id: string) {
   assertNotGuest(ctx);
+  await assertNotSpaceOnly(ctx.userId, ctx.orgId);
   await assertCapability(ctx, "directory.view");
   const d = await db.department.findFirst({ where: { id, orgId: ctx.orgId } });
   if (!d) throw new NotFoundError("dept.not_found");

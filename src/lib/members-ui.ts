@@ -12,6 +12,7 @@ import type { MemberTemplate } from "@/lib/permission-templates";
 import {
   CAPABILITIES,
   RANK_DEFAULTS,
+  SPACE_ONLY_WITHHELD,
   SECTIONS,
   SECTION_CAPABILITIES,
   WIRED_CAPABILITIES,
@@ -82,11 +83,15 @@ export interface ContractMember {
   template?: MemberTemplate;
   /** S5.5 (switch `verifiedBadge`): `true` only when the OWNER gave the person the check badge; absent otherwise (never `false`, never the time). */
   verified?: boolean;
+  /** «محصور بمساحة»: `true` only for such an account (absent otherwise). */
+  spaceOnly?: boolean;
 }
 
 export interface ContractSpace {
   id: string;
   name: string;
+  /** «الشركة» (absent otherwise): never the space of a «محصور بمساحة» account. */
+  hq?: boolean;
 }
 
 export interface MembersResponse {
@@ -151,7 +156,7 @@ export function normalizeMember(raw: Partial<ContractMember> & { id: string }): 
     primaryOwner: role === "OWNER" ? raw.primaryOwner !== false : false,
     effectiveCapabilities: Array.isArray(raw.effectiveCapabilities)
       ? asStringArray(raw.effectiveCapabilities)
-      : [...effectiveCapabilities({ role, capabilities, revokedCapabilities, primaryOwner: role === "OWNER" && raw.primaryOwner !== false })],
+      : [...effectiveCapabilities({ role, capabilities, revokedCapabilities, primaryOwner: role === "OWNER" && raw.primaryOwner !== false, spaceOnly: raw.spaceOnly === true })],
     lastLoginAt: raw.lastLoginAt ?? null,
     mustChangePassword: raw.mustChangePassword === true,
     openWork: typeof raw.openWork === "number" && raw.openWork > 0 ? raw.openWork : 0,
@@ -160,6 +165,7 @@ export function normalizeMember(raw: Partial<ContractMember> & { id: string }): 
       ? { template: { id: raw.template.id, name: raw.template.name, modified: raw.template.modified === true } }
       : {}),
     ...(raw.verified === true ? { verified: true } : {}),
+    ...(raw.spaceOnly === true ? { spaceOnly: true } : {}),
   };
 }
 
@@ -296,6 +302,8 @@ function holderOf(actor: ActorInfo): CapabilityHolder {
 
 export interface CapabilityTarget {
   role: OrgRoleName;
+  /** «محصور بمساحة»: the company-wide boxes are never its. */
+  spaceOnly?: boolean;
   capabilities: readonly string[];
   revokedCapabilities: readonly string[];
   /** OWNER rows: false for a partner, whose capabilities the primary owner switches off one by one. */
@@ -372,6 +380,7 @@ function rowBuilder(member: CapabilityTarget, actor: ActorInfo, editable: boolea
       const problem = capabilityChangeProblem(holder, member.role, capability, partnerOf(member));
       if (problem === "accounts.cap_not_held") locked = "actor_lacks";
       else if (problem) locked = "not_grantable";
+      else if (member.spaceOnly && SPACE_ONLY_WITHHELD.includes(capability)) locked = "not_grantable";
     }
     return {
       capability,
@@ -605,7 +614,7 @@ export function capabilityListsAfterRankChange(actor: ActorInfo, member: Capabil
 export function capabilityPatch(member: Pick<ContractMember, "role">, lists: CapabilityLists): Pick<ContractMember, "capabilities" | "revokedCapabilities" | "effectiveCapabilities"> {
   return {
     ...lists,
-    effectiveCapabilities: inCatalogueOrder(effectiveCapabilities({ role: member.role, primaryOwner: (member as { primaryOwner?: boolean }).primaryOwner, ...lists })),
+    effectiveCapabilities: inCatalogueOrder(effectiveCapabilities({ role: member.role, primaryOwner: (member as { primaryOwner?: boolean }).primaryOwner, spaceOnly: (member as { spaceOnly?: boolean }).spaceOnly, ...lists })),
   };
 }
 
@@ -756,6 +765,8 @@ export interface AddFormValues {
   password: string;
   /** A1.1: the company's template for the new person (its rank is theirs); "" = none. */
   templateId: string;
+  /** «محصور بمساحة وحدة» (offered for the rank «موظف»). */
+  spaceOnly: boolean;
 }
 
 export const EMPTY_ADD_FORM: AddFormValues = {
@@ -769,9 +780,13 @@ export const EMPTY_ADD_FORM: AddFormValues = {
   autoPassword: true,
   password: "",
   templateId: "",
+  spaceOnly: false,
 };
 
-export type AddFormField = "name" | "username" | "email" | "password";
+/** Is the new person «محصور بمساحة وحدة»? The mark means something for the rank «موظف» only. */
+export const limitedToOneSpace = (v: Pick<AddFormValues, "spaceOnly" | "role">): boolean => v.spaceOnly && v.role === "MEMBER";
+
+export type AddFormField = "name" | "username" | "email" | "password" | "spaces";
 
 /** The server's limits for a name and a job title (accounts.ts). */
 export const NAME_MAX = 80;
@@ -813,6 +828,7 @@ export function validateAddForm(v: AddFormValues): FormProblem | null {
     const problem = passwordProblem(v.password);
     if (problem) return { field: "password", key: problem };
   }
+  if (limitedToOneSpace(v) && v.workspaceIds.length !== 1) return { field: "spaces", key: "accounts.space_only_one" };
   return null;
 }
 
@@ -826,6 +842,7 @@ export interface CreatePayload {
   managerId?: string;
   password?: string;
   templateId?: string;
+  spaceOnly?: boolean;
 }
 
 /** `POST /api/organizations/[id]/members` body: optional fields are left out when blank, the password only when typed. */
@@ -843,6 +860,7 @@ export function buildCreatePayload(v: AddFormValues): CreatePayload {
   if (v.managerId && v.role !== "GUEST") payload.managerId = v.managerId;
   if (!v.autoPassword) payload.password = v.password;
   if (v.templateId) payload.templateId = v.templateId;
+  if (limitedToOneSpace(v)) payload.spaceOnly = true;
   return payload;
 }
 

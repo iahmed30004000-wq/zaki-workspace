@@ -19,6 +19,8 @@ export interface Actor {
   isPrimaryOwner?: boolean;
   /** An external partner: sees only what is shared with them, no prices, no staff directory. */
   isExternal: boolean;
+  /** «محصور بمساحة»: works only in the spaces it was put in (src/server/policy/space-only.ts). Absent: not limited. */
+  spaceOnly?: boolean;
 }
 
 /**
@@ -37,6 +39,7 @@ const actorOf = perRequest(async (userId: string): Promise<Actor> => {
       capabilities: true,
       revokedCapabilities: true,
       primaryOwner: true,
+      spaceOnly: true,
       organization: { select: { settings: true } },
     },
   });
@@ -50,6 +53,7 @@ const actorOf = perRequest(async (userId: string): Promise<Actor> => {
     isOwner: member.role === "OWNER",
     isPrimaryOwner: member.role === "OWNER" && member.primaryOwner,
     isExternal: member.role === "GUEST",
+    ...(member.spaceOnly ? { spaceOnly: true } : {}),
   };
 });
 
@@ -97,6 +101,7 @@ export async function memberCan(
       capabilities: true,
       revokedCapabilities: true,
       primaryOwner: true,
+      spaceOnly: true,
       organization: { select: { settings: true } },
     },
   });

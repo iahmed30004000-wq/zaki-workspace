@@ -3,6 +3,7 @@ import { assertMemberCan, memberCan } from "@/server/policy/actor";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import { db } from "@/server/db";
 import { isOfSpace } from "@/server/chat/space-people";
+import { mayAllMeet } from "@/server/policy/space-only";
 import { isSelfDmKey } from "@/server/chat/dm";
 import { writeSystemMessage } from "@/server/chat/system";
 import { emitRealtime } from "@/server/realtime/emit";
@@ -465,6 +466,10 @@ export async function inviteToCall(ctx: OrgAccessContext, callId: string, userId
   if (!canInviteToCall(facts, org)) throw new ForbiddenError("calls.e.cannot_invite");
   const ofSpace = facts.spaceId ? await isOfSpace(ctx.orgId, facts.spaceId, userId) : await isCompanyStaff(ctx.orgId, userId);
   if (!ofSpace) throw new ForbiddenError("calls.e.not_in_space");
+  // «محصور بمساحة»: nobody is rung into a call where somebody limited would meet a person outside their space
+  const seats = await db.call.findUnique({ where: { id: callId }, select: { people: { where: { removedAt: null }, select: { userId: true } }, conversation: { select: { members: { select: { userId: true } } } } } });
+  const together = [ctx.userId, userId, ...(seats?.people ?? []).map((p) => p.userId), ...(seats?.conversation?.members ?? []).map((m) => m.userId)];
+  if (!(await mayAllMeet(ctx.orgId, together))) throw new ForbiddenError("calls.e.not_in_space");
   await db.$transaction(async (tx) => {
     // ringing back somebody who was taken out gives them their seat again: the caller decided
     await tx.callPerson.upsert({

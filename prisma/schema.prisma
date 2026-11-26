@@ -1154,6 +1154,9 @@ model OrganizationMember {
   // The company's first OWNER: the only one who makes or unmakes another OWNER (a partner, «شريك») and takes a
   // permission away from one. Nobody administers him. Other OWNERs are partners with everything he leaves them.
   primaryOwner        Boolean  @default(false)
+  // «محصور بمساحة»: a MEMBER account that works ONLY in the spaces it was put in: never in «الشركة», and it meets nobody and nothing
+  // outside those spaces (src/server/policy/space-only.ts). False for every account made before, which stays as it was.
+  spaceOnly           Boolean  @default(false)
   // Who escalations go to (the person's manager); null = the owner.
   managerId      String?
   // The same person's reference in the OMS (staff, penalties, cash custody), for later integration.

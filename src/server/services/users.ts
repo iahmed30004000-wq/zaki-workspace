@@ -1,6 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { spacePeopleWhere } from "@/server/chat/space-people";
 import { db } from "@/server/db";
+import { mayMeet, reachableWhere } from "@/server/policy/space-only";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import { assignedTo } from "@/server/services/tasks";
 import { can } from "@/server/policy/capabilities";
@@ -82,7 +83,7 @@ export type ProfileView =
 export async function getProfileForViewer(viewerId: string, targetId: string): Promise<ProfileView> {
   const viewMemberships = await db.organizationMember.findMany({
     where: { userId: viewerId, status: "ACTIVE" },
-    select: { organizationId: true, role: true, capabilities: true, revokedCapabilities: true },
+    select: { organizationId: true, role: true, capabilities: true, revokedCapabilities: true, spaceOnly: true },
   });
   const visibleOrgIds = viewMemberships.map((m) => m.organizationId);
   if (visibleOrgIds.length === 0) throw new ForbiddenError("not_org_member");
@@ -107,6 +108,11 @@ export async function getProfileForViewer(viewerId: string, targetId: string): P
   });
   if (!target) throw new NotFoundError("user.not_found");
   if (target.memberships.length === 0) throw new NotFoundError("user.not_found"); // no shared org
+  // «محصور بمساحة»: a colleague outside the viewer's spaces is not there to be looked at
+  for (const v of viewMemberships) {
+    if (!v.spaceOnly || target.id === viewerId || !target.memberships.some((m) => m.organization.id === v.organizationId)) continue;
+    if (!(await mayMeet(v.organizationId, viewerId, target.id))) throw new NotFoundError("user.not_found");
+  }
 
   const sharedStaff = target.memberships.filter((m) => staffOrgIds.includes(m.organization.id));
   const firstShared = sharedStaff[0];
@@ -299,13 +305,14 @@ export async function memberDirectory(viewerId: string, space?: { orgId: string;
         };
       }
       if (!can(m, "directory.view")) return "refused";
+      const reach = await reachableWhere(m.organizationId, viewerId);
       const canManage = can(m, "users.manage");
       const inSpace =
         space && space.orgId === m.organizationId
           ? { AND: [space.spaceId ? spacePeopleWhere(m.organizationId, space.spaceId) : { userId: { in: [] as string[] } }] }
           : {};
       const rows = await db.organizationMember.findMany({
-        where: { organizationId: m.organizationId, status: "ACTIVE", ...inSpace },
+        where: { organizationId: m.organizationId, status: "ACTIVE", ...inSpace, ...(reach ? { AND: [reach, ...(inSpace.AND ?? [])] } : {}) },
         select: {
           role: true,
           user: { select: { id: true, name: true, jobTitle: true, email: true, avatarUrl: true } },
