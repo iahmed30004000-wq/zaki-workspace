@@ -99,6 +99,20 @@ describe("GET /api/workspaces: who sees which space", () => {
     expect(Object.keys(org.workspaces[0]!).sort()).toEqual(["emoji", "holdsProjects", "id", "name", "overdue", "slug", "unread"]);
   });
 
+  it("marks a space that opens on its cards (`cards: true`) and leaves every other space's shape as it was", async () => {
+    const w = await listWorld();
+    await db.workspace.update({ where: { id: w.b.id }, data: { layout: "CARDS" } });
+    const mfg = await makeWorkspace(w.org.id, [{ userId: w.member.id }], "M space");
+    await db.workspace.update({ where: { id: mfg.id }, data: { layout: "MANUFACTURING" } });
+    await loginAs(w.member.id);
+    const rows = (await list()).body.organizations[0]!.workspaces as Array<{ id: string; cards?: boolean }>;
+    expect(rows.find((s) => s.id === w.b.id)?.cards).toBe(true);
+    expect(rows.find((s) => s.id === mfg.id)?.cards).toBe(true);
+    const plain = rows.find((s) => s.id === w.a.id)!;
+    expect("cards" in plain).toBe(false);
+    expect(Object.keys(plain).sort()).toEqual(["emoji", "holdsProjects", "id", "name", "overdue", "slug", "unread"]);
+  });
+
   it("never lists another organization's spaces, and a person in two organizations gets each one by its own rule", async () => {
     const w = await listWorld();
     const other = await listWorld();

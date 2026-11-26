@@ -34,6 +34,9 @@ sealed interface Destination {
     /** «مهام قديمة» (the stale-tasks sweep) and the contacts (the native new-chat list) (M2 N6 batch 3) */
     data object Stale : Destination
     data object Contacts : Destination
+    /** the cards of the space the person is in, and one card (M2 N6 batch 4) */
+    data object Cards : Destination
+    data class Card(val id: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -55,6 +58,7 @@ object Links {
     private val CALL = Regex("^/calls/([A-Za-z0-9_-]+)/?$")
     private val APPROVAL = Regex("^/approvals/([A-Za-z0-9_-]+)/?$")
     private val PERSON = Regex("^/u/([A-Za-z0-9_-]+)/?$")
+    private val CARD = Regex("^/cards/([A-Za-z0-9_-]+)/?$")
 
     fun pathOf(url: String?, base: String): String? {
         if (url.isNullOrBlank()) return null
@@ -69,7 +73,7 @@ object Links {
         if (path.startsWith("/go?")) {
             val next = path.removePrefix("/go?").split("&").firstOrNull { it.startsWith("next=") }?.removePrefix("next=")
                 ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
-            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET, CALL, APPROVAL, PERSON).any { it.matches(next.substringBefore('?')) }) path = next
+            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET, CALL, APPROVAL, PERSON, CARD).any { it.matches(next.substringBefore('?')) }) path = next
         }
         // a task opens natively in any space: its sheet is read by id (the site's own scope rules decide)
         TASK.find(path.substringBefore('?'))?.let { return Destination.Task(it.groupValues[1]) }
@@ -81,6 +85,7 @@ object Links {
         // «/approvals/forms» is still the site's page
         APPROVAL.find(path.substringBefore('?'))?.takeIf { it.groupValues[1] != "forms" }?.let { return Destination.Approval(it.groupValues[1]) }
         PERSON.find(path.substringBefore('?'))?.let { return Destination.Person(it.groupValues[1]) }
+        CARD.find(path.substringBefore('?'))?.let { return Destination.Card(it.groupValues[1]) }
         CHAT.find(path.substringBefore('?'))?.let { match ->
             val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
                 ?.takeIf { ID.matches(it) }
@@ -110,6 +115,8 @@ object Links {
             "/requests" -> Destination.Work("requests")
             "/my-work/stale" -> Destination.Stale
             "/contacts" -> Destination.Contacts
+            // آ«/cards?new=taskآ» is the site's task sheet over the cards (W1.8): still its page
+            "/cards" -> if (path.contains("new=")) Destination.Site(path) else Destination.Cards
             // a report narrowed by the site (a task's «تقرير الوقت»: ?taskId=, a range) stays the site's page: the phone has the week and the month only
             "/time" -> if (path.contains('?')) Destination.Site(path) else Destination.Work("time")
             // «?ticket=<id>» opens that ticket (the site opens its sheet over the desk)

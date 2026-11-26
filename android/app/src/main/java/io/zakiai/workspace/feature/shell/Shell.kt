@@ -22,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Groups
@@ -212,14 +213,18 @@ private object Routes {
     const val PERSON = "person/{id}"
     const val TICKET = "ticket/{id}"
     const val STALE = "stale"
-    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
+    /** the cards of the space: a tab of the bar in a space of cards, a screen of its own elsewhere */
+    const val CARDS = "cards"
+    const val CARDS_OPENED = "cards-opened"
+    const val CARD = "card/{id}"
+    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
     fun work(tab: String, view: String? = null) = "work?tab=$tab" + (view?.let { "&v=${Uri.encode(it)}" } ?: "")
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -231,6 +236,8 @@ private object Routes {
 private data class SiteItem(val label: String, val path: String, val icon: ImageVector)
 
 private val SITE_ITEMS = listOf(
+    // «اللوحات» opens in every space (the site's /cards); in a space of cards it is also the first tab
+    SiteItem(io.zakiai.workspace.feature.cards.K.title, "/cards", Icons.Filled.Dashboard),
     SiteItem(T.calendar, "/calendar", Icons.Filled.CalendarMonth),
     SiteItem(T.ideas, "/ideas", Icons.Filled.Lightbulb),
     SiteItem(T.teams, "/teams", Icons.Filled.Groups),
@@ -264,6 +271,8 @@ fun NavHostController.open(dest: Destination) {
         Destination.Stale -> navigate(Routes.STALE) { launchSingleTop = true }
         // the site's «جهات الاتصال» is the list of colleagues to message: the app's own new-chat list
         Destination.Contacts -> navigate(Routes.newChat(false)) { launchSingleTop = true }
+        Destination.Cards -> navigate(Routes.CARDS_OPENED) { launchSingleTop = true }
+        is Destination.Card -> navigate("card/" + dest.id)
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -356,6 +365,7 @@ fun Shell(
                                     "/ideas" -> Destination.Work("ideas")
                                     "/calendar" -> Destination.Work("calendar")
                                     "/teams" -> Destination.People
+                                    "/cards" -> Destination.Cards
                                     else -> null
                                 }
                                 nav.open(native ?: Destination.Site(item.path)); scope.launch { drawer.close() }
@@ -386,6 +396,7 @@ fun Shell(
                                 Routes.WORK -> io.zakiai.workspace.feature.projects.P.work
                                 Routes.LIBRARY -> T.library
                                 Routes.SETTINGS -> T.settings
+                                Routes.CARDS -> io.zakiai.workspace.feature.cards.K.title
                                 else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
                             },
                             start = { RoundIcon(Icons.Filled.Menu, T.menu, size = 24.dp) { scope.launch { drawer.open() } } },
@@ -407,7 +418,10 @@ fun Shell(
                         listOf(
                             // the site's phone places, in the site's order (src/lib/nav/places.ts): «المكتبة» and «نتفرّج سوا» are still the
                             // site's pages (⚠️ until their phase), «الإدارة» opens the phone's own settings and the site's panels from there
-                            BarTab(T.today, Icons.Filled.Home, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
+                            // a space of cards opens on «اللوحات» (the site's menu puts it first there, `CARDS_PLACE`), in «اليوم»'s place
+                            if (currentSpace?.cards == true) BarTab(io.zakiai.workspace.feature.cards.K.title, Icons.Filled.Dashboard, route == Routes.CARDS, 0) {
+                                nav.navigate(Routes.CARDS) { popUpTo(Routes.CHATS); launchSingleTop = true }
+                            } else BarTab(T.today, Icons.Filled.Home, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
                             BarTab(T.chat, Icons.Filled.ChatBubbleOutline, route == Routes.CHATS, chatUnread) { nav.open(Destination.Chats) },
                             BarTab(io.zakiai.workspace.feature.projects.P.work, Icons.Filled.TaskAlt, route == Routes.WORK, 0) { nav.open(Destination.MyWork) },
                             BarTab(T.library, Icons.Filled.LocalLibrary, route == Routes.LIBRARY, 0) { nav.open(Destination.Library) },
@@ -490,6 +504,23 @@ fun Shell(
                     }
                     composable(Routes.PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.office.ProfileScreen(onBack = { nav.popBackStack() }, onOpenChat = { nav.open(Destination.Conversation(it, null)) }, meId = me?.id, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    // M2 N6 batch 4: «اللوحات» (a tab in a space of cards, a screen of its own from the drawer or a link) and one card
+                    composable(Routes.CARDS) {
+                        io.zakiai.workspace.feature.cards.CardsScreen(spaceId = spaces?.currentSpaceId, onBack = null, onOpenCard = { nav.open(Destination.Card(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    composable(Routes.CARDS_OPENED) {
+                        io.zakiai.workspace.feature.cards.CardsScreen(spaceId = spaces?.currentSpaceId, onBack = { nav.popBackStack() }, onOpenCard = { nav.open(Destination.Card(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    composable(Routes.CARD, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.cards.CardScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenCard = { nav.open(Destination.Card(it)) },
+                            onOpenTask = { nav.open(Destination.Task(it)) },
+                            onOpenChat = { id, at -> nav.open(Destination.Conversation(id, at)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            meId = me?.id,
+                        )
                     }
                     composable(Routes.STALE) {
                         io.zakiai.workspace.feature.stale.StaleScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) })

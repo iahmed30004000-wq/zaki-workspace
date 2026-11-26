@@ -59,6 +59,8 @@ data class SpaceEntry(
     val unread: Int = 0,
     val overdue: Int = 0,
     val waiting: Int? = null,
+    /** the space opens on its cards («لوحات», «تصنيع»): «اللوحات» comes first there, as on the site's menu */
+    val cards: Boolean = false,
 )
 
 @Immutable
