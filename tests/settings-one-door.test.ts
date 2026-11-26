@@ -195,7 +195,7 @@ describe("S3.1 · the place «الإدارة» leaves the map of an admin who ho
 // ───────────────────────────────────── the frame's sections ─────────────────────────────────────
 
 describe("S3.1 · the sections of «إعدادات الشركة»", () => {
-  it("the eleven sections of «إعداداتي» are untouched; the four company sections are the panel's own, one to one", () => {
+  it("the thirteen sections of «إعداداتي» are untouched; the four company sections are the panel's own, one to one", () => {
     expect([...SECTION_KEYS]).toHaveLength(13);
     expect([...COMPANY_SECTION_KEYS]).toEqual(["company", "features", "integrations", "spaces"]);
     for (const key of COMPANY_SECTION_KEYS) {
