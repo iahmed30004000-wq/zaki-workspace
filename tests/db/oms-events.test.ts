@@ -543,10 +543,26 @@ describe("the ticket rule by EVENT (the fourth kind of autoTicketRules)", () => 
 });
 
 describe("the daily numbers card", () => {
+  /**
+   * The test's clock, pinned: minute 59 of an hour between 00 and 21 in the company's zone, at most a few hours ahead (the events received now stay inside the
+   * day the card counts). One tick later is the NEXT hour, the case that once made a second card on CI (2026-11-25), and no step of a test crosses midnight, so
+   * the result no longer depends on when the suite runs.
+   */
+  function pinnedNow(tz: string): Date {
+    let t = Math.ceil((Date.now() + 60_000) / 60_000) * 60_000;
+    for (;;) {
+      const p = zonedParts(new Date(t), tz);
+      if (p.minute === 59 && p.hour <= 21) return new Date(t);
+      t += 60_000;
+    }
+  }
+
   async function dailyWorld(hourOffset = 0) {
     const w = await world();
-    const now = new Date(Date.now() + 60_000);
+    // the job walks every receiver: an earlier world of the SAME test (an hour later, or switched off) must not add its card to this one's run
+    await db.integration.updateMany({ where: { type: "OMS_EVENTS", orgId: { not: w.org.id } }, data: { connected: false } });
     const tz = (await db.organization.findUniqueOrThrow({ where: { id: w.org.id }, select: { timezone: true } })).timezone;
+    const now = pinnedNow(tz ?? "Asia/Damascus");
     const hour = zonedParts(now, tz ?? "Asia/Damascus").hour;
     await loginAs(w.owner.id);
     const put = await call(settingsRoute.PUT, { method: "PUT", url: "http://localhost/x", body: { dailyCard: { hour: Math.min(23, hour + hourOffset), conversationId: w.reports.id } } });
@@ -582,7 +598,9 @@ describe("the daily numbers card", () => {
 
   it("nothing before the hour, nothing while the switch is off, and a failure gives the day back and shows under «التكاملات»", async () => {
     const early = await dailyWorld(1);
-    if (early.hour < 23) expect(await runOmsDailyCard(early.now)).toEqual({ sent: 0, failed: 0 });
+    // the pinned hour is 21 at most, so «an hour later» is always a later hour
+    expect(early.hour).toBeLessThan(23);
+    expect(await runOmsDailyCard(early.now)).toEqual({ sent: 0, failed: 0 });
     const off = await dailyWorld();
     await setFeatures(off.org.id, { omsEvents: false });
     expect((await runOmsDailyCard(off.now)).sent).toBe(0);
