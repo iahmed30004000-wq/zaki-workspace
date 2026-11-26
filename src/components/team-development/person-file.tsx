@@ -5,7 +5,7 @@ import { NotFoundError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { orgTimeZone } from "@/server/services/org-day";
 import { dayKeyOf } from "@/lib/owner-board";
-import { pickerPeriods } from "@/lib/team-score";
+import { periodChoices, pickerPeriods } from "@/lib/team-score";
 import { loadPersonHeader } from "@/server/services/team-people";
 import { listSkills, loadPersonSkills, loadSkillHistory } from "@/server/services/team-skills";
 import { listCriteria } from "@/server/services/team-criteria";
@@ -113,7 +113,7 @@ async function ScoreTab({ actor, userId, basePath, period, t, miss }: { actor: A
 async function ReviewsTab({ actor, userId, canEnter, isSelf, t, miss }: { actor: Actor; userId: string; canEnter: boolean; isSelf: boolean; t: ServerT; miss: Miss }) {
   const [reviews, criteria] = await Promise.all([listReviews(actor, userId).catch(miss), listCriteria(actor, { all: true }).catch(miss)]);
   const tz = await orgTimeZone(actor.orgId);
-  const periods = pickerPeriods(dayKeyOf(new Date(), tz)).map((p) => ({ key: p.key, label: periodLabel(p, t) }));
+  const periods = periodChoices(dayKeyOf(new Date(), tz), t);
   return <ReviewsPanel userId={userId} reviews={reviews} criteria={criteria} periods={periods} canWrite={canEnter} selfView={isSelf} />;
 }
 

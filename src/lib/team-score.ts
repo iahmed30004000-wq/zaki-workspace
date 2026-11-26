@@ -24,6 +24,7 @@
  */
 
 import { addDays, daysBetween, dayKeyOf, parseDayKey } from "./owner-board";
+import { monthName } from "./format";
 
 // ───────────────────────────────────────── periods ─────────────────────────────────────────
 
@@ -263,4 +264,16 @@ export function recentPeriods(current: Period, count: number): Period[] {
 /** What a period picker offers on this company day: the last 12 months, then the last 5 quarters, newest first. */
 export function pickerPeriods(today: string): Period[] {
   return [...recentPeriods(periodOfDay(today, "month"), 12), ...recentPeriods(periodOfDay(today, "quarter"), 5)];
+}
+
+type Say = (key: string, params?: Record<string, string | number>) => string;
+
+/** A period as the screens name it: «تشرين الأول 2026» or «الربع 4 2026». */
+export function periodLabel(p: Period, t: Say): string {
+  return p.kind === "month" ? `${monthName(p.index - 1)} ${p.year}` : `${t("teamdev.period.quarter_n", { n: p.index })} ${p.year}`;
+}
+
+/** The periods a picker offers (`pickerPeriods`), each with its name: what the review form and the phone list. */
+export function periodChoices(today: string, t: Say): { key: string; kind: PeriodKind; label: string }[] {
+  return pickerPeriods(today).map((p) => ({ key: p.key, kind: p.kind, label: periodLabel(p, t) }));
 }

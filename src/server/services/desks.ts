@@ -6,6 +6,8 @@ import { sectionMay, type SectionMay } from "@/lib/section-may";
 import { resolveTimeZone, zonedParts } from "@/lib/zoned-time";
 import { boardAccess, type BoardMode } from "@/server/policy/board";
 import { controlPanelAccess } from "@/server/services/control-panel";
+import { actorFeatureOn } from "@/server/services/features";
+import { mayOverview } from "@/server/services/spaces-overview";
 
 /**
  * The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns,
@@ -37,6 +39,10 @@ export interface DeskFacts {
   board: BoardMode | null;
   /** «لوحة التحكم»: the owner's panel (its switch on and the board company-wide) */
   panel: boolean;
+  /** the performance and development section exists for this person: its switch on, and not an external partner (the pages decide reach) */
+  development: boolean;
+  /** the look over every space: OWNER or ADMIN by rank */
+  spaces: boolean;
 }
 
 /** «not found» from the board's or the panel's gate means «not theirs»; anything else (the database down) is not swallowed. */
@@ -72,5 +78,7 @@ export async function deskFactsFor(actor: Actor, now: Date = new Date()): Promis
     // the board and the panel say «not found» to whoever they are not for: here that is simply «not theirs»
     board: await boardAccess(actor).then((a) => a.mode, notTheirs(null)),
     panel: await controlPanelAccess(actor).then(() => true, notTheirs(false)),
+    development: !actor.isExternal && (await actorFeatureOn(actor, "teamDevelopment")),
+    spaces: mayOverview(actor),
   };
 }

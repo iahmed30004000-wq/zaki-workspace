@@ -233,6 +233,9 @@ private object Routes {
     const val MFG = "mfg"
     const val MFG_MATERIAL = "mfg-material/{id}"
     const val MFG_PART = "mfg-part/{tab}"
+    const val DEV = "development"
+    const val DEV_PERSON = "dev-person/{id}?tab={tab}"
+    const val STRUCTURE = "structure"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -240,7 +243,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -303,6 +306,9 @@ fun NavHostController.open(dest: Destination) {
         // the ledger's four parts replace one another (back leaves the ledger, not the last tab)
         Destination.Mfg -> if (!popBackStack(Routes.MFG, inclusive = false)) navigate(Routes.MFG) { launchSingleTop = true }
         is Destination.MfgMaterial -> navigate("mfg-material/" + dest.id)
+        Destination.Development -> navigate(Routes.DEV) { launchSingleTop = true }
+        is Destination.DevPerson -> navigate("dev-person/" + dest.id + (dest.tab?.let { "?tab=$it" } ?: ""))
+        Destination.Structure -> navigate(Routes.STRUCTURE) { launchSingleTop = true }
         is Destination.MfgPart -> navigate("mfg-part/" + dest.tab) { popUpTo(Routes.MFG_PART) { inclusive = true }; launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
@@ -590,7 +596,7 @@ fun Shell(
                             askNotifications = askNotifications,
                             onOpenMe = { nav.open(Destination.Me(it)) },
                             onOpenSite = { nav.open(Destination.Site(it)) },
-                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; else -> Destination.Crm }) },
+                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; "development" -> Destination.Development; "structure" -> Destination.Structure; "spaces" -> Destination.Site("/spaces"); else -> Destination.Crm }) },
                         )
                     }
                     // M2 N6 batch 7: آ«ط§ظ„ط¹ظ…ظ„ط§ط،آ», آ«ط§ظ„طھظ‚ط§ط±ظٹط±آ», the owner's board / panel and one person of it
@@ -616,6 +622,25 @@ fun Shell(
                     }
                     composable(Routes.MFG_MATERIAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.mfg.MaterialScreen(onBack = { nav.popBackStack() })
+                    }
+                    // M2 N6 batch 9: آ«ط§ظ„ط£ط¯ط§ط، ظˆط§ظ„طھط·ظˆظٹط±آ», one person's file, آ«ط§ظ„ظ‡ظٹظƒظ„آ»
+                    composable(Routes.DEV) {
+                        io.zakiai.workspace.feature.dev.DevHomeScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenPerson = { id, tab -> nav.open(Destination.DevPerson(id, tab)) },
+                            onSelf = { id -> nav.navigate("dev-person/" + id) { popUpTo(Routes.DEV) { inclusive = true } } },
+                            onOpenStructure = { nav.open(Destination.Structure) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(
+                        Routes.DEV_PERSON,
+                        arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("tab") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                    ) {
+                        io.zakiai.workspace.feature.dev.DevPersonScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it)) })
+                    }
+                    composable(Routes.STRUCTURE) {
+                        io.zakiai.workspace.feature.dev.StructureScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it)) })
                     }
                     composable(Routes.CRM) { io.zakiai.workspace.feature.panel.CrmScreen(onBack = { nav.popBackStack() }) }
                     composable(Routes.REPORTS) { io.zakiai.workspace.feature.panel.ReportsScreen(onBack = { nav.popBackStack() }) }

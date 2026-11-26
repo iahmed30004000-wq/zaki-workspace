@@ -23,6 +23,13 @@ export const ANDROID_STRINGS: readonly AndroidStringsFile[] = [
     pkg: "io.zakiai.workspace.feature.mfg",
     name: "MfgWords",
   },
+  {
+    source: "ar.team-development.json",
+    target: "android/app/src/main/java/io/zakiai/workspace/feature/dev/DevWords.kt",
+    pkg: "io.zakiai.workspace.feature.dev",
+    name: "DevWords",
+    keep: (key) => key.startsWith("teamdev.") || key === "nav.tab.myFile",
+  },
 ];
 
 /** A Kotlin string literal: backslash, quote and `$` escaped, a line break kept as `\n`. */

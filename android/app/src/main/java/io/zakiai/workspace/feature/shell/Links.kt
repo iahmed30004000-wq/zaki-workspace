@@ -56,6 +56,10 @@ sealed interface Destination {
     data class MfgMaterial(val id: String) : Destination
     /** its orders, recipes and reports */
     data class MfgPart(val tab: String) : Destination
+    /** the performance section, one person's file (a tab of it), the reporting lines (M2 N6 batch 9) */
+    data object Development : Destination
+    data class DevPerson(val id: String, val tab: String? = null) : Destination
+    data object Structure : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -84,6 +88,7 @@ object Links {
     private val BOARD_PERSON = Regex("^/owner/people/([A-Za-z0-9_-]+)/?$")
     private val MFG_MATERIAL = Regex("^/manufacturing/materials/([A-Za-z0-9_-]+)/?$")
     private val MFG_PART = Regex("^/manufacturing/(orders|recipes|reports)/?$")
+    private val DEV_PERSON = Regex("^/development/people/([A-Za-z0-9_-]+)/?$")
     /** the sections of آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» the phone draws itself; the others (folders, menu, shortcuts, data, the company's) stay the site's */
     val NATIVE_ME = setOf("account", "notifications", "privacy", "chat", "devices", "language", "help")
 
@@ -119,6 +124,10 @@ object Links {
         BOARD_PERSON.find(path.substringBefore('?'))?.let { return Destination.OwnerBoardPerson(it.groupValues[1]) }
         MFG_MATERIAL.find(path.substringBefore('?'))?.let { return Destination.MfgMaterial(it.groupValues[1]) }
         MFG_PART.find(path.substringBefore('?'))?.let { return Destination.MfgPart(it.groupValues[1]) }
+        DEV_PERSON.find(path.substringBefore('?'))?.let { m ->
+            val tab = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("tab=") }?.removePrefix("tab=")?.takeIf { it.matches(Regex("^[a-z]{1,12}$")) }
+            return Destination.DevPerson(m.groupValues[1], tab)
+        }
         CHAT.find(path.substringBefore('?'))?.let { match ->
             val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
                 ?.takeIf { ID.matches(it) }
@@ -157,6 +166,8 @@ object Links {
             "/departments" -> Destination.Departments
             "/crm" -> Destination.Crm
             "/manufacturing" -> Destination.Mfg
+            "/development" -> Destination.Development
+            "/structure" -> Destination.Structure
             "/analytics" -> Destination.Reports
             // the panel's numbers, people and reports are native; its other sections (?s=accounts, ?v=ai ...) stay the site's
             "/owner" -> {

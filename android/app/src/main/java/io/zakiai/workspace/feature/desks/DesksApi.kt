@@ -39,6 +39,10 @@ data class DeskFacts(
     /** owner · team · self, or null when the board is not theirs */
     val board: String? = null,
     val panel: Boolean = false,
+    /** «الأداء والتطوير» exists for this person (its switch on, not a partner) */
+    val development: Boolean = false,
+    /** «كل المساحات»: the owner and the admins */
+    val spaces: Boolean = false,
 )
 
 // ── departments ──
