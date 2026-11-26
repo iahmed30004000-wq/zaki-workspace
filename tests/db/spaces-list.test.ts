@@ -108,6 +108,9 @@ describe("GET /api/workspaces: who sees which space", () => {
     const rows = (await list()).body.organizations[0]!.workspaces as Array<{ id: string; cards?: boolean }>;
     expect(rows.find((s) => s.id === w.b.id)?.cards).toBe(true);
     expect(rows.find((s) => s.id === mfg.id)?.cards).toBe(true);
+    // only the space of «تصنيع» carries the manufacturing mark; a space of «لوحات» does not
+    expect((rows.find((s) => s.id === mfg.id) as { mfg?: boolean }).mfg).toBe(true);
+    expect("mfg" in (rows.find((s) => s.id === w.b.id) as object)).toBe(false);
     const plain = rows.find((s) => s.id === w.a.id)!;
     expect("cards" in plain).toBe(false);
     expect(Object.keys(plain).sort()).toEqual(["emoji", "holdsProjects", "id", "name", "overdue", "slug", "unread"]);

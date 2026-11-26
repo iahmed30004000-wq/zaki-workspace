@@ -11,10 +11,17 @@ import java.net.UnknownHostException
 
 /** The site's error body: `{ error, message?, details? }` (src/server/api.ts) — `error` is the kind, `message` the precise key. */
 @Serializable
-data class ApiErrorBody(val error: String? = null, val message: String? = null)
+data class ApiErrorDetail(val path: String? = null, val message: String? = null)
 
-/** A failure the screens can show as it is: an Arabic sentence, the server's key, the status, and whether it was the network. */
-data class ApiFailure(val message: String, val key: String? = null, val status: Int? = null, val offline: Boolean = false) {
+@Serializable
+data class ApiErrorBody(val error: String? = null, val message: String? = null, val details: List<ApiErrorDetail>? = null)
+
+/**
+ * A failure the screens can show as it is: an Arabic sentence, the server's key, the status, and whether it was the network. [detail]
+ * is the precise key of a refused field (`details[0].message` of a validation error, e.g. «not enough stock»): a screen that knows the
+ * feature's own words says that instead of the general «تحقق من البيانات».
+ */
+data class ApiFailure(val message: String, val key: String? = null, val status: Int? = null, val offline: Boolean = false, val detail: String? = null) {
     /** The session is gone (expired, signed out everywhere, the person suspended): back to the sign-in screen. */
     val signedOut: Boolean get() = status == 401
     /** A temporary password or the transparency notice is owed first. */
@@ -51,8 +58,9 @@ suspend fun <T> apiCall(block: suspend () -> T): ApiResult<T> = try {
 fun failureOf(status: Int, rawBody: String?): ApiFailure {
     val body = rawBody?.let { runCatching { errorJson.decodeFromString<ApiErrorBody>(it) }.getOrNull() }
     val key = body?.message?.takeIf { it.isNotBlank() && !it.contains(' ') } ?: body?.error
-    val sentence = (body?.message?.let { Sentences.byKey[it] }) ?: (body?.error?.let { Sentences.byKey[it] }) ?: statusSentence(status)
-    return ApiFailure(sentence, key, status)
+    val detail = body?.details?.firstOrNull()?.message?.takeIf { it.isNotBlank() && !it.contains(' ') }
+    val sentence = (detail?.let { Sentences.byKey[it] }) ?: (body?.message?.let { Sentences.byKey[it] }) ?: (body?.error?.let { Sentences.byKey[it] }) ?: statusSentence(status)
+    return ApiFailure(sentence, key, status, detail = detail)
 }
 
 fun statusSentence(status: Int): String = when (status) {

@@ -23,6 +23,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChatBubble
 import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Groups
@@ -229,6 +230,9 @@ private object Routes {
     const val REPORTS = "reports"
     const val OWNER_BOARD = "owner-board"
     const val OWNER_PERSON = "board-person/{id}"
+    const val MFG = "mfg"
+    const val MFG_MATERIAL = "mfg-material/{id}"
+    const val MFG_PART = "mfg-part/{tab}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -236,7 +240,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -296,6 +300,10 @@ fun NavHostController.open(dest: Destination) {
         Destination.Reports -> navigate(Routes.REPORTS) { launchSingleTop = true }
         Destination.OwnerBoard -> navigate(Routes.OWNER_BOARD) { launchSingleTop = true }
         is Destination.OwnerBoardPerson -> navigate("board-person/" + dest.id)
+        // the ledger's four parts replace one another (back leaves the ledger, not the last tab)
+        Destination.Mfg -> if (!popBackStack(Routes.MFG, inclusive = false)) navigate(Routes.MFG) { launchSingleTop = true }
+        is Destination.MfgMaterial -> navigate("mfg-material/" + dest.id)
+        is Destination.MfgPart -> navigate("mfg-part/" + dest.tab) { popUpTo(Routes.MFG_PART) { inclusive = true }; launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -338,6 +346,11 @@ fun Shell(
     val openPath: (String) -> Unit = { path -> Links.destinationOf(path, Config.BASE)?.let { nav.open(it) } }
 
     val currentSpace = spaces?.organizations?.flatMap { it.workspaces }?.firstOrNull { it.id == spaces?.currentSpaceId }
+    // the manufacturing space the ledger opens on: the one the person is in, else the company's first one
+    val mfgSpace: () -> String? = {
+        val all = spaces?.organizations?.flatMap { it.workspaces }.orEmpty()
+        (all.firstOrNull { it.id == spaces?.currentSpaceId && it.mfg } ?: all.firstOrNull { it.mfg })?.id
+    }
 
     // «رجوع» with the drawer open closes the drawer, never the app
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
@@ -377,6 +390,15 @@ fun Shell(
                         }
                     }
                     HorizontalDivider(color = Zk.colors.border, modifier = Modifier.padding(vertical = 8.dp))
+                    // آ«ظ…ط®ط²ظˆظ† ط§ظ„طھطµظ†ظٹط¹آ»: only where the company has a space of آ«طھطµظ†ظٹط¹آ» (the ledger decides again who may open it)
+                    if (spaces?.organizations?.any { o -> o.workspaces.any { it.mfg } } == true) NavigationDrawerItem(
+                        label = { Text(io.zakiai.workspace.feature.mfg.w("mfg.title")) },
+                        icon = { Icon(Icons.Filled.Inventory2, contentDescription = null) },
+                        selected = false,
+                        onClick = { nav.open(Destination.Mfg); scope.launch { drawer.close() } },
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Zk.colors.surface1),
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
                     for (item in SITE_ITEMS) {
                         NavigationDrawerItem(
                             label = { Text(item.label) },
@@ -572,6 +594,29 @@ fun Shell(
                         )
                     }
                     // M2 N6 batch 7: آ«ط§ظ„ط¹ظ…ظ„ط§ط،آ», آ«ط§ظ„طھظ‚ط§ط±ظٹط±آ», the owner's board / panel and one person of it
+                    // M2 N6 batch 8: آ«ظ…ط®ط²ظˆظ† ط§ظ„طھطµظ†ظٹط¹آ» of the manufacturing space (the space the person is in, else the company's first one)
+                    composable(Routes.MFG) {
+                        io.zakiai.workspace.feature.mfg.MfgHomeScreen(
+                            spaceId = mfgSpace(),
+                            onBack = { nav.popBackStack() },
+                            onOpenMaterial = { nav.open(Destination.MfgMaterial(it)) },
+                            onTab = { tab -> nav.open(Destination.MfgPart(tab)) },
+                        )
+                    }
+                    composable(Routes.MFG_PART, arguments = listOf(navArgument("tab") { type = NavType.StringType })) { entry ->
+                        val space = mfgSpace()
+                        val back: () -> Unit = { if (!nav.popBackStack(Routes.MFG, inclusive = false)) nav.popBackStack() }
+                        val tab: (String) -> Unit = { t -> nav.open(if (t == "materials") Destination.Mfg else Destination.MfgPart(t)) }
+                        val material: (String) -> Unit = { nav.open(Destination.MfgMaterial(it)) }
+                        when (entry.arguments?.getString("tab")) {
+                            "orders" -> io.zakiai.workspace.feature.mfg.MfgOrdersScreen(space, back, tab, material)
+                            "recipes" -> io.zakiai.workspace.feature.mfg.MfgRecipesScreen(space, back, tab, material)
+                            else -> io.zakiai.workspace.feature.mfg.MfgReportsScreen(space, back, tab, material)
+                        }
+                    }
+                    composable(Routes.MFG_MATERIAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.mfg.MaterialScreen(onBack = { nav.popBackStack() })
+                    }
                     composable(Routes.CRM) { io.zakiai.workspace.feature.panel.CrmScreen(onBack = { nav.popBackStack() }) }
                     composable(Routes.REPORTS) { io.zakiai.workspace.feature.panel.ReportsScreen(onBack = { nav.popBackStack() }) }
                     composable(Routes.OWNER_BOARD) {

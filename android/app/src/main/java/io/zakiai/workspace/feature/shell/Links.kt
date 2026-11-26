@@ -51,6 +51,11 @@ sealed interface Destination {
     data object Reports : Destination
     data object OwnerBoard : Destination
     data class OwnerBoardPerson(val id: String) : Destination
+    /** آ«ظ…ط®ط²ظˆظ† ط§ظ„طھطµظ†ظٹط¹آ»: its materials and one material (M2 N6 batch 8) */
+    data object Mfg : Destination
+    data class MfgMaterial(val id: String) : Destination
+    /** its orders, recipes and reports */
+    data class MfgPart(val tab: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -77,6 +82,8 @@ object Links {
     private val GUIDE = Regex("^/guide/([A-Za-z0-9_-]+)/?$")
     private val WATCH = Regex("^/watch/([A-Za-z0-9_-]+)/?$")
     private val BOARD_PERSON = Regex("^/owner/people/([A-Za-z0-9_-]+)/?$")
+    private val MFG_MATERIAL = Regex("^/manufacturing/materials/([A-Za-z0-9_-]+)/?$")
+    private val MFG_PART = Regex("^/manufacturing/(orders|recipes|reports)/?$")
     /** the sections of آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» the phone draws itself; the others (folders, menu, shortcuts, data, the company's) stay the site's */
     val NATIVE_ME = setOf("account", "notifications", "privacy", "chat", "devices", "language", "help")
 
@@ -110,6 +117,8 @@ object Links {
         GUIDE.find(path.substringBefore('?'))?.let { return Destination.GuideArticle(it.groupValues[1]) }
         WATCH.find(path.substringBefore('?'))?.let { return Destination.WatchSession(it.groupValues[1]) }
         BOARD_PERSON.find(path.substringBefore('?'))?.let { return Destination.OwnerBoardPerson(it.groupValues[1]) }
+        MFG_MATERIAL.find(path.substringBefore('?'))?.let { return Destination.MfgMaterial(it.groupValues[1]) }
+        MFG_PART.find(path.substringBefore('?'))?.let { return Destination.MfgPart(it.groupValues[1]) }
         CHAT.find(path.substringBefore('?'))?.let { match ->
             val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
                 ?.takeIf { ID.matches(it) }
@@ -147,6 +156,7 @@ object Links {
             "/production" -> Destination.Work("production")
             "/departments" -> Destination.Departments
             "/crm" -> Destination.Crm
+            "/manufacturing" -> Destination.Mfg
             "/analytics" -> Destination.Reports
             // the panel's numbers, people and reports are native; its other sections (?s=accounts, ?v=ai ...) stay the site's
             "/owner" -> {

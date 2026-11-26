@@ -61,6 +61,8 @@ data class SpaceEntry(
     val waiting: Int? = null,
     /** the space opens on its cards («لوحات», «تصنيع»): «اللوحات» comes first there, as on the site's menu */
     val cards: Boolean = false,
+    /** a space of آ«طھطµظ†ظٹط¹آ»: آ«ظ…ط®ط²ظˆظ† ط§ظ„طھطµظ†ظٹط¹آ» lives there */
+    val mfg: Boolean = false,
 )
 
 @Immutable
