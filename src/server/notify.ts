@@ -5,6 +5,7 @@ import { goHref } from "@/lib/space-link";
 import { db } from "./db";
 import { log } from "./log";
 import { pushTo } from "./calls/push";
+import { mayHearOfTask } from "./policy/assigned-only";
 
 /**
  * THE BELL ON THE PHONE AND THE LAPTOP (the owner's first feature after the research, 2026-10-26): every notification
@@ -196,7 +197,8 @@ export async function notifyComment(input: {
   /** the task's space (null: personal) */
   workspaceId: string | null;
 }): Promise<void> {
-  await pushNotificationToMany(input.watcherIds.filter((id) => id !== input.authorId), {
+  const watchers = await mayHearOfTask(input.watcherIds.filter((id) => id !== input.authorId), input.taskId);
+  await pushNotificationToMany(watchers, {
     type: "comment",
     title: AR["notif.type.comment"] ?? "إشعار",
     body: `${input.authorName}: ${input.body.slice(0, 140)}`,  // the task label rides in the link

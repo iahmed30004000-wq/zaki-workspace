@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { assertNotSpaceOnly } from "@/server/policy/space-only";
 import { NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { assertFeatureOn } from "@/server/services/features";
@@ -76,6 +77,7 @@ export function clearOrderNegativeCache(): void {
 
 export async function lookupOrderState(ctx: OrgAccessContext, actor: Actor, input: { number: string; conversationId: string }, now: Date = new Date()): Promise<OrderStateDto> {
   assertStaff(actor);
+  await assertNotSpaceOnly(actor.userId, actor.orgId); // any order number of the company would be answered
   await assertOrderStatusOn(actor.orgId);
   if (!isOrderNumber(input.number)) throw new ValidationError([{ path: "number", message: "orders.e.number" }]);
   // the same rule as reading the conversation: a person who cannot read it is told it does not exist

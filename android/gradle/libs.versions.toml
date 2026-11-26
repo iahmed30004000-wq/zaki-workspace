@@ -17,6 +17,8 @@ okhttp = "4.12.0"
 serialization = "1.7.3"
 coroutines = "1.8.1"
 coil = "2.7.0"
+# M2 N5: the calls are a LiveKit room (the site's own SFU): the official Android SDK joins the very same rooms
+livekit = "2.31.0"
 securityCrypto = "1.1.0-alpha06"
 biometric = "1.1.0"
 splashscreen = "1.0.1"
@@ -53,6 +55,7 @@ serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-jso
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 coil-compose = { module = "io.coil-kt:coil-compose", version.ref = "coil" }
+livekit-android = { module = "io.livekit:livekit-android", version.ref = "livekit" }
 security-crypto = { module = "androidx.security:security-crypto", version.ref = "securityCrypto" }
 biometric = { module = "androidx.biometric:biometric", version.ref = "biometric" }
 splashscreen = { module = "androidx.core:core-splashscreen", version.ref = "splashscreen" }

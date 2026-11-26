@@ -350,7 +350,7 @@ export async function getWorkTasks(userId: string, params: MyTasksParams, opts: 
   // the space this list is cut for (for the heading, the select and the filters): «المساحة» is the current one, «مشروع» that project's, «أنا» the picked one or all
   const cutSpaceId = scopeKind === "space" ? (cur?.id ?? null) : scopeKind === "project" ? (project?.workspaceId ?? null) : pickedSpace;
   // «لمين» is for whoever manages what is on screen: the company's owner and admins, and the space's own admin. «أنا» is already one person
-  const mayFilterPeople = scopeKind !== "me" && cutSpaceId !== null && (["OWNER", "ADMIN"].includes(roleOfOrg.get(wsById.get(cutSpaceId)!.organizationId) ?? "") || wsRoleById.get(cutSpaceId) === "ADMIN");
+  const mayFilterPeople = scopeKind !== "me" && cutSpaceId !== null && !scope.assignedOnlyOrgs.has(wsById.get(cutSpaceId)!.organizationId) && (["OWNER", "ADMIN"].includes(roleOfOrg.get(wsById.get(cutSpaceId)!.organizationId) ?? "") || wsRoleById.get(cutSpaceId) === "ADMIN");
   const who = mayFilterPeople ? params.who : null;
   // the filter «المشروع» (the SCOPE «مشروع» already is one project)
   const inProject = scopeKind !== "project" && params.inProject && projectRows.some((p) => p.id === params.inProject) ? params.inProject : null;

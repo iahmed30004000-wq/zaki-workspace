@@ -31,11 +31,12 @@ import { loadWorkScope, projectVisibleWhere, scopeSpaceIds, taskVisibleWhere } f
  * Who the map is drawn for — the one place that turns an actor into a `NavSubject`, shared by the (app) layout and by
  * the save below, so «what the person may see» is decided the same way in both.
  */
-export function navSubjectOf(actor: Pick<Actor, "role" | "caps" | "isExternal">, orgSettings: unknown, space: { manager: boolean; layout?: SpaceLayout } | null, supervisor = false, panel = false): NavSubject {
+export function navSubjectOf(actor: Pick<Actor, "role" | "caps" | "isExternal" | "spaceOnly">, orgSettings: unknown, space: { manager: boolean; layout?: SpaceLayout } | null, supervisor = false, panel = false): NavSubject {
   return {
     role: actor.role,
     caps: [...actor.caps],
     off: featuresOff(orgSettings),
+    ...(actor.spaceOnly ? { spaceOnly: true } : {}),
     spaceManager: !actor.isExternal && space?.manager === true,
     // somebody answers to this person («الهيكل»): read by the callers that have the database at hand
     supervisor: !actor.isExternal && supervisor,

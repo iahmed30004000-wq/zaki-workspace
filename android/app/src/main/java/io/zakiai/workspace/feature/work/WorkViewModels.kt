@@ -42,8 +42,8 @@ import javax.inject.Inject
 /** One screen's state: what it shows (the phone's copy first), why the last fetch failed, whether the section is closed to the person. */
 data class Screen<T>(val data: T? = null, val failure: ApiFailure? = null, val closed: Boolean = false)
 
-/** A 404 from one of the phone's new doors: the site this app talks to does not have it yet (an older server). */
-fun ApiFailure.missingDoor() = status == 404
+/** A 404 WITHOUT the site error key: the door itself is missing (an older server). A real not-found of the site carries its key (task.not_found, ...). */
+fun ApiFailure.missingDoor() = status == 404 && key == null
 
 /**
  * «اليوم»: the site's own day for the space the person is in (`GET /api/today`), opened with the phone's last copy. A tick closes a task

@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.Done
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -76,6 +79,16 @@ class NotificationsViewModel @Inject constructor(
 
     fun readOne(id: String) = viewModelScope.launch { apiCall { api.readOne(ReadOne(id)) } }
 
+    /** the row's own âœ“: read, without opening it (the site's panel) */
+    fun markRead(id: String) = viewModelScope.launch { if (apiCall { api.readOne(ReadOne(id)) } is ApiResult.Ok) refresh() }
+
+    /** the row's ًں—‘: the site's DELETE /api/notifications/[id] (one's own only) */
+    fun delete(id: String) = viewModelScope.launch {
+        _state.value.data?.let { d -> _state.value = _state.value.copy(data = d.copy(items = d.items.filter { it.id != id })) }
+        apiCall { api.deleteNotification(id) }
+        refresh()
+    }
+
     companion object { const val KEY = "notifications" }
 }
 
@@ -98,20 +111,26 @@ fun NotificationsScreen(onOpenPath: (String) -> Unit, vm: NotificationsViewModel
             else -> LazyColumn(Modifier.fillMaxSize()) {
                 items(d.items, key = { it.id }) { n ->
                     val unread = n.readAt == null
-                    Column(
+                    // the site's panel row: unread on the accent at 5% with a bold title, the time «قبل …», and its own ✓ and 🗑 (44 each)
+                    Row(
                         Modifier.fillMaxWidth()
-                            .background(if (unread) Zk.colors.selectedRow else Zk.colors.surface)
+                            .background(if (unread) Zk.colors.accent.copy(alpha = 0.06f) else Zk.colors.surface)
                             .clickable {
                                 vm.readOne(n.id)
                                 n.linkUrl?.let(onOpenPath)
                             }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(start = 16.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(n.title, style = MaterialTheme.typography.titleSmall, fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal)
-                        if (!n.body.isNullOrBlank()) Text(n.body, style = MaterialTheme.typography.bodyMedium, color = Zk.colors.fgMuted, modifier = Modifier.padding(top = 2.dp))
-                        Text(shortTime(n.createdAt), style = MaterialTheme.typography.labelSmall, color = Zk.colors.fgMuted, modifier = Modifier.padding(top = 4.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(n.title, fontSize = 15.sp, color = Zk.colors.fg, fontWeight = if (unread) FontWeight.Bold else FontWeight.Normal, maxLines = 2)
+                            if (!n.body.isNullOrBlank()) Text(n.body, fontSize = 13.sp, lineHeight = 19.sp, color = Zk.colors.fgMuted, maxLines = 2, modifier = Modifier.padding(top = 2.dp))
+                            Text(io.zakiai.workspace.ui.components.Ago.of(n.createdAt), fontSize = 12.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(top = 4.dp))
+                        }
+                        if (unread) io.zakiai.workspace.ui.components.RoundIcon(androidx.compose.material.icons.Icons.Filled.Done, T.markRead, tint = Zk.colors.accent) { vm.markRead(n.id) }
+                        io.zakiai.workspace.ui.components.RoundIcon(androidx.compose.material.icons.Icons.Filled.DeleteOutline, T.delete, tint = Zk.colors.fgMuted) { vm.delete(n.id) }
                     }
-                    HorizontalDivider(color = Zk.colors.border)
+                    HorizontalDivider(color = Zk.colors.border.copy(alpha = 0.6f))
                 }
             }
         }

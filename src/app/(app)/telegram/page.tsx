@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { pageActor } from "@/app/(app)/_access";
+import { pageActor, SectionOffNotice } from "@/app/(app)/_access";
 import { getServerT } from "@/lib/i18n/server";
 import { TelegramBody } from "@/components/control-panel/sections/integrations-bodies";
 import { panelRedirectFor } from "@/server/services/control-panel";
@@ -14,6 +14,9 @@ export default async function TelegramPage({ searchParams }: { searchParams?: Re
     const { t } = getServerT();
     return <div className="mx-auto max-w-2xl p-10 text-center text-sm text-muted">{t("guest.no_access")}</div>;
   }
+
+  // «محصور بمساحة»: the same conversations are the company's, not the space's: the list is never fetched
+  if (actor.spaceOnly) return <SectionOffNotice />;
 
   // A2.1: with the switch `controlPanelV2` ON the Telegram bot is a part of the section «التكاملات» for whoever holds `integrations.manage` (the same view, moved)
   const inPanel = await panelRedirectFor(actor, "/telegram", carriedQuery(searchParams));

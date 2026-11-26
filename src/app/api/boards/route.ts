@@ -22,7 +22,7 @@ export async function POST(req: Request) {
       select: { id: true, workspaceId: true, teamId: true, workspace: { select: { organizationId: true } } },
     });
     if (!project) throw new NotFoundError("project.not_found");
-    const access = await requireTeamWork(project.workspaceId, project.teamId, ["ADMIN", "MEMBER"], "project.not_found");
+    const access = await requireTeamWork(project.workspaceId, project.teamId, ["ADMIN", "MEMBER"], "project.not_found", undefined, project.id);
     await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
 
     const board = await db.board.create({

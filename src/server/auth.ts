@@ -11,6 +11,7 @@ import type { OrgRole, WorkspaceRole } from "@prisma/client";
 import { headers } from "next/headers";
 import { Prisma } from "@prisma/client";
 import { onboardingStateOf } from "./policy/org-settings";
+import { assignedOnlyInSpace, heldProjects } from "./policy/assigned-only";
 import { isSpaceManager, workspaceRoleOf } from "./workspace-role";
 
 export { clearSessionCookie, setSessionCookie };
@@ -313,6 +314,7 @@ export async function requireProjectAccess(
   if (!project) throw new NotFoundError("project.not_found");
   const ctx = await requireWorkspace(project.workspaceId, roles);
   if (!(await seesTeamOf(ctx.userId, project.teamId, ctx.spaceManager === true))) throw new NotFoundError("project.not_found");
+  await assertProjectHeld(ctx.userId, project.id, project.workspaceId);
   return { ...ctx, project };
 }
 
@@ -344,6 +346,7 @@ export async function requireTaskAccess(
 
 /** What the private-task check needs about one task (`visibility` is `Task.visibility`). */
 export interface TaskParticipantFacts {
+  id: string;
   workspaceId: string;
   visibility: string;
   creatorId: string;
@@ -354,14 +357,27 @@ export interface TaskParticipantFacts {
 /**
  * A private task («المعنيين بس»): only the people it concerns, their managers up the reporting line, the space's managers
  * and whoever holds silent oversight pass; everybody else gets "not found" — the existence of the task is private too.
- * A public task costs nothing here (the scope is loaded only for a private one).
+ *
+ * Then «كل واحد بيشوف مهامه بس» (`assignedTasksOnly`): somebody held to their own, who does not hold this one (and was not
+ * asked to take it), is refused with 403, whoever they are to it. Somebody who holds the task costs nothing here.
  */
 export async function assertTaskParticipant(userId: string, task: TaskParticipantFacts, notFound = "task.not_found"): Promise<void> {
-  if (task.visibility !== "PARTICIPANTS") return;
-  const { loadWorkScope, canSeeTaskParticipants } = await import("@/server/services/team-scope");
-  const scope = await loadWorkScope(userId);
-  const allowed = canSeeTaskParticipants(scope, { ...task, coAssigneeIds: (task.coAssignees ?? []).map((c) => c.userId) });
-  if (!allowed) throw new NotFoundError(notFound);
+  const coAssigneeIds = (task.coAssignees ?? []).map((c) => c.userId);
+  if (task.assigneeId === userId || coAssigneeIds.includes(userId)) return;
+  if (task.visibility === "PARTICIPANTS") {
+    const { loadWorkScope, concernsPerson } = await import("@/server/services/team-scope");
+    if (!concernsPerson(await loadWorkScope(userId), { ...task, coAssigneeIds })) throw new NotFoundError(notFound);
+  }
+  if (!(await assignedOnlyInSpace(userId, task.workspaceId))) return;
+  const asked = await db.taskAssignRequest.findFirst({ where: { taskId: task.id, toUserId: userId, status: "PENDING" }, select: { id: true } });
+  if (!asked) throw new ForbiddenError("task.not_assigned");
+}
+
+/** «كل واحد بيشوف مهامه بس»: somebody held to their own opens only a project where they hold a task (403). */
+async function assertProjectHeld(userId: string, projectId: string, workspaceId: string): Promise<void> {
+  if (!(await assignedOnlyInSpace(userId, workspaceId))) return;
+  const row = await db.project.findFirst({ where: { id: projectId, OR: heldProjects(userId) }, select: { id: true } });
+  if (!row) throw new ForbiddenError("project.not_assigned");
 }
 
 /**
@@ -376,10 +392,13 @@ export async function requireTeamWork(
   notFound = "not_found",
   /** when the thing opened is a TASK: its private-task facts (the check of «المعنيين بس» runs too) */
   task?: TaskParticipantFacts,
+  /** when the thing opened is a PROJECT or hangs off one (a board, a column, a milestone): «مهامه بس» runs on it */
+  projectId?: string,
 ): Promise<OrgAccessContext> {
   const ctx = await requireWorkspace(workspaceId, roles);
   if (!(await seesTeamOf(ctx.userId, teamId ?? null, ctx.spaceManager === true))) throw new NotFoundError(notFound);
   if (task) await assertTaskParticipant(ctx.userId, task, notFound);
+  if (projectId) await assertProjectHeld(ctx.userId, projectId, workspaceId);
   return ctx;
 }
 

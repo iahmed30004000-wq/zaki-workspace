@@ -66,6 +66,8 @@ export interface NavSubject {
   supervisor?: boolean;
   /** The company's switched-off features (src/lib/features.ts): their places are not drawn. */
   off?: readonly FeatureKey[];
+  /** «محصور بمساحة» (`navSubjectOf` sets it, only when true): what reaches the whole company is not drawn. */
+  spaceOnly?: boolean;
   /**
    * The layout of the space the person is in (`currentSpace(actor).layout`, read on the server by the layout). A space of
    * «لوحات» or «تصنيع» is «فقط لوحات» (the owner's ask, 2026-10-30): its menu offers «اللوحات» and «الإدارة» and nothing
@@ -237,7 +239,8 @@ export const PLACES_V1: readonly PlaceDef[] = [
       // W1.8 — HONEST TABS (D-W3 is pending, so no page is relaxed yet): the three department pages refuse a person whose `directory.view` is off (the «not enabled for you» notice),
       // so their tabs say the same. «التذاكر» and «الحملات» also need their own section box. When the owner answers D-W3 («آه للموظفين»): drop `directory.view` here AND in the
       // three pages, and flip tests/db/work-tabs-honest.test.ts, in ONE commit (recorded in docs/restructure/DECISIONS.md).
-      { key: "departments", href: "/departments", labelKey: "nav.departments", requires: { capability: "directory.view" } },
+      // the departments are the whole company's: not offered to an account that works only in its spaces
+      { key: "departments", href: "/departments", labelKey: "nav.departments", requires: { capability: "directory.view" }, hideFor: (subject) => subject.spaceOnly === true },
       // a department's tickets and campaigns, each a page of its own (the owner's ask, 2026-10-25)
       { key: "tickets", href: "/tickets", labelKey: "nav.tickets", requires: { allOf: [{ capability: "directory.view" }, { capability: "tickets.view" }] } },
       { key: "campaigns", href: "/campaigns", labelKey: "nav.campaigns", requires: { allOf: [{ capability: "directory.view" }, { capability: "campaigns.view" }] } },
