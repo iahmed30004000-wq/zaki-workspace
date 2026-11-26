@@ -121,14 +121,22 @@ private fun ListRow(onClick: (() -> Unit)?, content: @Composable () -> Unit) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CalendarScreen(spaceKey: String?, onOpenTask: (String) -> Unit, vm: CalendarViewModel = hiltViewModel()) {
+fun CalendarScreen(
+    spaceKey: String?,
+    onOpenTask: (String) -> Unit,
+    onOpenSite: (String) -> Unit = {},
+    /** an external partner has no calendar feed on the site either */
+    guest: Boolean = false,
+    vm: CalendarViewModel = hiltViewModel(),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     var month by rememberSaveable { mutableStateOf<String?>(null) }
     var mine by rememberSaveable { mutableStateOf(false) }
     var picked by rememberSaveable { mutableStateOf<String?>(null) }
-    var moving by remember { mutableStateOf<String?>(null) }
+    // saveable: a turn of the phone keeps the dialog open
+    var moving by rememberSaveable { mutableStateOf<String?>(null) }
     WhileOnScreen(60_000, spaceKey, month, mine) { vm.refresh(month, mine) }
     val snack = remember { SnackbarHostState() }
     Notices(notice, vm::consumeNotice, snack)
@@ -180,6 +188,8 @@ fun CalendarScreen(spaceKey: String?, onOpenTask: (String) -> Unit, vm: Calendar
                             }
                         }
                     }
+                    // ⚠️/🔧 the page's «اشتراك التقويم» card stays the site's
+                    if (!guest) SiteLine(O.feedWarn, O.feedFix) { onOpenSite("/calendar") }
                 }
             }
         }
@@ -301,7 +311,7 @@ private fun PersonRow(p: StaffPerson, onClick: () -> Unit) {
 
 /** A person (src/components/profile-card.tsx): avatar, name, title, company · rank, last seen, «راسله», about, since, shared spaces, the four counts. */
 @Composable
-fun ProfileScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, meId: String?, vm: ProfileViewModel = hiltViewModel()) {
+fun ProfileScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, meId: String?, onOpenSite: (String) -> Unit = {}, vm: ProfileViewModel = hiltViewModel()) {
     LaunchedEffect(vm.id) { vm.refresh() }
     val state by vm.state.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
@@ -324,8 +334,12 @@ fun ProfileScreen(onBack: () -> Unit, onOpenChat: (String) -> Unit, meId: String
                     when {
                         p.online == true -> Text(O.online, fontSize = 12.5.sp, color = Zk.colors.ok)
                         p.lastSeenAt != null -> Text("${O.lastSeen} ${Ago.of(p.lastSeenAt)}", fontSize = 12.5.sp, color = Zk.colors.fgMuted)
+                        // the fields are there (another person, the switch on) but no time is known: the site's «غير معروف»
+                        p.online == false -> Text("${O.lastSeen} ${O.unknown}", fontSize = 12.5.sp, color = Zk.colors.fgMuted)
                     }
                     if (p.id != meId && p.stats != null) TextButton(onClick = { vm.message(onOpenChat) }) { Text(O.message, color = Zk.colors.accent, fontWeight = FontWeight.SemiBold) }
+                    // one's own card: the site's «تعديل ملفي» stays the site's
+                    if (p.id == meId) SiteLine(O.profileWarn, O.profileFix) { onOpenSite("/profile") }
                     p.bio?.takeIf { it.isNotBlank() }?.let { SoftCard(O.about) { Text(it, fontSize = 14.5.sp, lineHeight = 22.sp, color = Zk.colors.fg) } }
                     p.createdAt?.let { P.dmy(it) }?.let { Text(O.since(it), fontSize = 12.5.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(top = 6.dp)) }
                     p.stats?.let { s ->
@@ -363,7 +377,7 @@ private fun Stat(label: String, n: Int, modifier: Modifier) {
  * space the person is in, as the page.
  */
 @Composable
-fun TimeScreen(spaceKey: String?, onOpenTask: (String) -> Unit, vm: TimeViewModel = hiltViewModel()) {
+fun TimeScreen(spaceKey: String?, onOpenTask: (String) -> Unit, onOpenSite: (String) -> Unit = {}, vm: TimeViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
     val q by vm.query.collectAsStateWithLifecycle()
     WhileOnScreen(120_000, spaceKey) { vm.refresh(spaceKey) }
@@ -390,6 +404,7 @@ fun TimeScreen(spaceKey: String?, onOpenTask: (String) -> Unit, vm: TimeViewMode
                         Text(O.both(data.totalSeconds), fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Zk.colors.fg)
                     }
                     WarnFix(O.timeWarn, O.timeFix)
+                    SiteLine(O.reportSiteWarn, O.reportSiteFix) { onOpenSite("/time") }
                 }
                 if (data.rows.isEmpty()) item(key = "empty") { QuietEmpty(O.timeEmpty, "") }
                 else {
@@ -469,13 +484,20 @@ private fun priorityTone(p: String): Color = when (p) {
  * its tickets and «تذكرة جديدة» (title, details, priority, who it goes to). A ticket opens its sheet.
  */
 @Composable
-fun TicketsScreen(onOpenTicket: (String) -> Unit, onOpenSite: (String) -> Unit, vm: TicketsViewModel = hiltViewModel()) {
+fun TicketsScreen(
+    onOpenTicket: (String) -> Unit,
+    onOpenSite: (String) -> Unit,
+    /** an owner or an admin: the site gives them «التذاكر الفورية», marked here (⚠️/🔧) */
+    manager: Boolean = false,
+    vm: TicketsViewModel = hiltViewModel(),
+) {
     val state by vm.state.collectAsStateWithLifecycle()
     val depts by vm.departments.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
     val busy by vm.busy.collectAsStateWithLifecycle()
     var dept by rememberSaveable { mutableStateOf<String?>(null) }
-    var adding by remember { mutableStateOf(false) }
+    // saveable: a turn of the phone keeps the form open with what was typed
+    var adding by rememberSaveable { mutableStateOf(false) }
     WhileOnScreen(60_000, dept) { vm.refresh(dept) }
     val snack = remember { SnackbarHostState() }
     Notices(notice, vm::consumeNotice, snack)
@@ -486,6 +508,7 @@ fun TicketsScreen(onOpenTicket: (String) -> Unit, onOpenSite: (String) -> Unit, 
                 PillTab(O.myTickets.substringBefore(':'), 0, dept == null) { dept = null }
                 depts?.departments?.forEach { d -> PillTab(listOfNotNull(d.emoji, d.name).joinToString(" "), d.openTickets, dept == d.id) { dept = d.id } }
             }
+            if (manager && dept == null) SiteLine(O.instantWarn, O.instantFix) { onOpenSite("/tickets") }
             when {
                 data == null && state.failure == null -> Loading()
                 data == null && state.closed -> Empty(state.failure?.message ?: W.sectionOff)
@@ -582,7 +605,8 @@ fun TicketScreen(onBack: () -> Unit, onOpenTask: (String) -> Unit, onOpenSite: (
                     Text(listOfNotNull(t.creator.name, P.dmy(t.createdAt)).joinToString(" · "), fontSize = 12.5.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(O.statusLabel, fontSize = 12.sp, color = Zk.colors.fgMuted)
-                        O.STATUSES.forEach { s -> Chip(O.status(s), t.status == s) { if (!busy && t.status != s) vm.patch(TicketPatch(status = s)) } }
+                        // only the moves the server allows from here (canTransition)
+                        O.STATUSES.filter { O.canMove(t.status, it) }.forEach { s -> Chip(O.status(s), t.status == s) { if (!busy && t.status != s) vm.patch(TicketPatch(status = s)) } }
                     }
                     Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 2.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(O.priorityLabel, fontSize = 12.sp, color = Zk.colors.fgMuted)
@@ -591,6 +615,7 @@ fun TicketScreen(onBack: () -> Unit, onOpenTask: (String) -> Unit, onOpenSite: (
                     Text(t.assignee?.let { "${O.to} ${it.name}" } ?: O.unassigned, fontSize = 13.sp, color = Zk.colors.fg, modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                     t.description?.takeIf { it.isNotBlank() }?.let { SoftCard { Text(it, fontSize = 15.sp, lineHeight = 23.sp, color = Zk.colors.fg) } }
                     t.customerNumber?.takeIf { it.isNotBlank() }?.let { Text("${O.customerNumber}: $it", fontSize = 13.sp, color = Zk.colors.fg, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+                    if (t.task?.state == "hidden") Text(O.linkedHidden, fontSize = 13.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
                     if (t.task?.state == "visible" && t.task.id != null) {
                         Text("${O.linkedTask}: ${listOfNotNull(t.task.key, t.task.title).joinToString(" ")}", fontSize = 13.5.sp, color = Zk.colors.accent, modifier = Modifier.fillMaxWidth().clickable { onOpenTask(t.task.id) }.padding(horizontal = 16.dp, vertical = 8.dp))
                     }

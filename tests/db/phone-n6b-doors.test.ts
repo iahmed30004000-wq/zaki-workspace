@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GET as calendarGET } from "@/app/api/calendar/route";
 import { GET as peopleGET } from "@/app/api/people/route";
+import { resolveTimeZone, zonedParts } from "@/lib/zoned-time";
 import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorkspace } from "./helpers";
 
 /**
@@ -10,11 +11,15 @@ import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorks
  * `directory.view` was switched off.
  */
 
-/** The company's month of an instant, "YYYY-MM" (the test's tasks sit mid-month, far from any zone's edge). */
+/**
+ * The COMPANY's month (the route cuts it in the company's zone, `Asia/Damascus` by default): a UTC month would be a different month for
+ * the last hours of every month. The tasks sit on the 15th at 09:00 UTC, far from any zone's edge.
+ */
+const ZONE = resolveTimeZone(null);
 const monthOf = (d: Date) => d.toISOString().slice(0, 7);
 function midMonth(offset = 0): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + offset, 15, 9, 0, 0));
+  const p = zonedParts(new Date(), ZONE);
+  return new Date(Date.UTC(p.year, p.month - 1 + offset, 15, 9, 0, 0));
 }
 
 async function world() {
@@ -78,6 +83,15 @@ describe("GET /api/calendar — «التقويم» of the space the person is in
     expect((await calendarOf("?month=2026-13-01")).status).toBe(422);
   });
 
+  it("without the tasks row of the grid the door is refused, as the page shows its «section off» notice", async () => {
+    const w = await world();
+    await db.organizationMember.update({ where: { organizationId_userId: { organizationId: w.org.id, userId: w.member.id } }, data: { revokedCapabilities: ["tasks.view"] } });
+    await loginAs(w.member.id);
+    const r = await calendarOf();
+    expect(r.status).toBe(403);
+    expect(JSON.stringify(r.json)).not.toContain(w.mineTask.id);
+  });
+
   it("an external partner reads the space they share but may not move a task to another day", async () => {
     const w = await world();
     await loginAs(w.guest.id);
@@ -102,6 +116,19 @@ describe("GET /api/people — the staff directory", () => {
     expect(ids).toEqual(expect.arrayContaining([w.owner.id, w.admin.id, w.member.id]));
     expect(ids).not.toContain(w.outsider.id);
     expect(body.people[0]?.id).toBe(w.owner.id);
+  });
+
+  it("a «محصور بمساحة» person meets only the people of their own spaces", async () => {
+    const w = await world();
+    // the outsider works in the other space only, and is made space-only
+    await db.organizationMember.update({ where: { organizationId_userId: { organizationId: w.org.id, userId: w.outsider.id } }, data: { spaceOnly: true } });
+    await loginAs(w.outsider.id);
+    const r = await peopleOf();
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    const ids = (r.json as People).people.map((p) => p.id);
+    expect(ids).toContain(w.outsider.id);
+    expect(ids).not.toContain(w.member.id);
+    expect(ids).not.toContain(w.admin.id);
   });
 
   it("an external partner is refused, and so is a member whose directory.view was switched off", async () => {

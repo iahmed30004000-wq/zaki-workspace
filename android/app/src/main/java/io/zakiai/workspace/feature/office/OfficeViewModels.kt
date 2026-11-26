@@ -56,10 +56,19 @@ class PeopleViewModel @Inject constructor(private val api: WorkspaceApi, session
 class ProfileViewModel @Inject constructor(private val api: WorkspaceApi, session: Session, handle: SavedStateHandle) : DeskViewModel<Profile>(session) {
     val id: String = checkNotNull(handle["id"])
     fun refresh() = viewModelScope.launch { load { api.profile(id).profile } }
+    private var opening = false
+
+    /** one conversation per tap: a double tap never pushes two chat screens */
     fun message(then: (String) -> Unit) = viewModelScope.launch {
-        when (val r = apiCall { api.openDm(DmBody(userId = id)) }) {
-            is ApiResult.Ok -> then(r.value.id)
-            is ApiResult.Err -> say(r.failure.message)
+        if (opening) return@launch
+        opening = true
+        try {
+            when (val r = apiCall { api.openDm(DmBody(userId = id)) }) {
+                is ApiResult.Ok -> then(r.value.id)
+                is ApiResult.Err -> say(r.failure.message)
+            }
+        } finally {
+            opening = false
         }
     }
 }
@@ -77,7 +86,12 @@ class TimeViewModel @Inject constructor(private val api: WorkspaceApi, session: 
     val query: StateFlow<TimeQuery> = _query.asStateFlow()
     private var job: Job? = null
 
-    fun set(q: TimeQuery, spaceId: String?) { _query.value = q; refresh(spaceId) }
+    /** another filter starts empty: the old report never shows under the new person or project */
+    fun set(q: TimeQuery, spaceId: String?) {
+        if (q != _query.value) _state.value = io.zakiai.workspace.feature.work.Screen()
+        _query.value = q
+        refresh(spaceId)
+    }
 
     fun refresh(spaceId: String?) {
         job?.cancel()
@@ -92,10 +106,12 @@ class TicketsViewModel @Inject constructor(private val api: WorkspaceApi, sessio
     private val _departments = MutableStateFlow<DepartmentsAnswer?>(null)
     val departments: StateFlow<DepartmentsAnswer?> = _departments.asStateFlow()
     private var job: Job? = null
+    private var shown: String? = "\u0000"
 
-    /** [department] null: «تذاكري» (`/api/tickets/mine`); else that department's desk. */
+    /** [department] null: «تذاكري» (`/api/tickets/mine`); else that department's desk. Another desk starts empty (never the old list under its pill). */
     fun refresh(department: String?) {
         job?.cancel()
+        if (shown != department) { shown = department; _state.value = io.zakiai.workspace.feature.work.Screen() }
         job = viewModelScope.launch {
             // read again each time: a department added (or a person added to one) shows at the next refresh
             (apiCall { api.departments() } as? ApiResult.Ok)?.let { _departments.value = it.value }

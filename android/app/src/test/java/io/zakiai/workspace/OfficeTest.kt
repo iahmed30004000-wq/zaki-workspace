@@ -75,6 +75,33 @@ class OfficeTest {
         assertEquals(Destination.Person("u1"), Links.destinationOf("/go?space=s1&next=%2Fu%2Fu1", base))
     }
 
+    @Test fun `on a phone set to Arabic the month, the days and the hours stay in 0-9 (the server's regex, the grid's keys)`() {
+        val before = java.util.Locale.getDefault()
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag("ar-JO"))
+            assertEquals("2026-12", O.shiftMonth("2026-11", 1))
+            assertEquals("2026-11-01", O.monthCells("2026-11").first())
+            assertEquals("01:30", O.hm(5400))
+            assertEquals("1.50", O.decimal(5400))
+        } finally {
+            java.util.Locale.setDefault(before)
+        }
+    }
+
+    @Test fun `only the ticket moves the server allows are offered (canTransition)`() {
+        assertTrue(O.canMove("OPEN", "IN_PROGRESS"))
+        assertTrue(O.canMove("CLOSED", "OPEN"))
+        assertFalse(O.canMove("CLOSED", "RESOLVED"))
+        assertFalse(O.canMove("RESOLVED", "OPEN"))
+        assertTrue(O.canMove("RESOLVED", "IN_PROGRESS"))
+        assertTrue(O.canMove("IN_PROGRESS", "IN_PROGRESS"))
+    }
+
+    @Test fun `a narrowed time report and the new-person form stay the site's pages`() {
+        assertEquals(Destination.Site("/time?taskId=t1"), Links.destinationOf("/time?taskId=t1", base))
+        assertEquals(Destination.Site("/members?new=person"), Links.destinationOf("/members?new=person", base))
+    }
+
     @Test fun `statuses and priorities read as the site's words`() {
         assertEquals("قيد العمل", O.status("IN_PROGRESS"))
         assertEquals("مفتوحة", O.status("OPEN"))

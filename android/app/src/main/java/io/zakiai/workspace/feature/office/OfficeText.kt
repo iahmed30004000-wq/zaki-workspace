@@ -3,6 +3,7 @@ package io.zakiai.workspace.feature.office
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
+import java.util.Locale
 
 /**
  * The words of «التقويم», «الناس», a profile, «تقرير الوقت» and «التذاكر» (the site's own Arabic, src/lib/i18n, keys beside each), and the site's
@@ -16,7 +17,9 @@ object O {
     const val mineOnly = "مهامي فقط"
     const val calEmpty = "لا مهام مفتوحة بموعد في هذا الشهر. حدّد موعدًا لمهمة من صفحتها لتظهر هنا."
     const val noSpace = "لا توجد مساحة لعرض مهامها بعد. اطلب من مدير المساحة أو المالك أن يضيفك إلى مساحة."
-    const val dayEmpty = "ما في مهام مفتوحة بموعدها بهاليوم."
+    const val feedWarn = "⚠️ «اشتراك التقويم» (ربط مهامك بتقويم جوالك) لسا مش بالتطبيق."
+    const val feedFix = "🔧 افتحه من صفحة «التقويم» بالموقع."
+    const val dayEmpty ="ما في مهام مفتوحة بموعدها بهاليوم."
     const val moveDay = "غيّر اليوم"
     const val moved = "انتقلت المهمة"
 
@@ -36,7 +39,7 @@ object O {
         val y = ym.take(4).toIntOrNull() ?: return ym
         val m = ym.drop(5).take(2).toIntOrNull() ?: return ym
         val d = LocalDate.of(y, m, 1).plusMonths(delta.toLong())
-        return "%04d-%02d".format(d.year, d.monthValue)
+        return "%04d-%02d".format(Locale.ROOT, d.year, d.monthValue)
     }
 
     /**
@@ -48,7 +51,7 @@ object O {
         val m = ym.drop(5).take(2).toIntOrNull() ?: return emptyList()
         val first = LocalDate.of(y, m, 1)
         val offset = first.dayOfWeek.value % 7 // Sunday = 0
-        return List(offset) { null } + (1..first.lengthOfMonth()).map { "%04d-%02d-%02d".format(y, m, it) }
+        return List(offset) { null } + (1..first.lengthOfMonth()).map { "%04d-%02d-%02d".format(Locale.ROOT, y, m, it) }
     }
 
     /** The company's day of an instant (the grid's `dayOfInstant`): the due date falls on the day of the company's zone. */
@@ -75,6 +78,9 @@ object O {
     const val statDone = "مهام مكتملة"
     const val online = "متصل الآن"
     const val lastSeen = "آخر ظهور"
+    const val unknown = "غير معروف"
+    const val profileWarn = "⚠️ تعديل ملفك (الاسم والصورة والنبذة) لسا مش بالتطبيق."
+    const val profileFix = "🔧 افتحه من «حسابي» بالموقع."
     fun role(r: String?) = when (r) {
         "OWNER" -> "مالك"
         "ADMIN" -> "مشرف"
@@ -105,7 +111,9 @@ object O {
     const val allProjects = "كل المشاريع"
     const val timeWarn = "⚠️ المؤقّتات الشغّالة ما بتنحسب بالتقرير إلا بعد ما توقف."
     const val timeFix = "🔧 وقّف المؤقّت أو انتظر يتسكّر لحاله بعد 12 ساعة."
-    const val autoStopped = "أُوقف تلقائيًا بعد 12 ساعة"
+    const val reportSiteWarn = "⚠️ فترة تختارها بنفسك، و«كل مساحاتي»، وتنزيل ملف إكسل، وتعديل السجلات وحذفها، لسا مش بالتطبيق."
+    const val reportSiteFix = "🔧 افتحها من صفحة «تقرير الوقت» بالموقع."
+    const val autoStopped ="أُوقف تلقائيًا بعد 12 ساعة"
     fun source(s: String) = if (s == "MANUAL") "يدوي" else "مؤقّت"
 
     private fun whole(seconds: Long) = if (seconds > 0) seconds else 0
@@ -113,13 +121,13 @@ object O {
     /** `hh:mm`, rounded to the nearest minute (src/lib/time-tracking.ts formatHM). Pure. */
     fun hm(seconds: Long): String {
         val minutes = (whole(seconds) + 30) / 60
-        return "%02d:%02d".format(minutes / 60, minutes % 60)
+        return "%02d:%02d".format(Locale.ROOT, minutes / 60, minutes % 60)
     }
 
     /** Hours with two digits, rounded half up by integer arithmetic (formatDecimal). Pure. */
     fun decimal(seconds: Long): String {
         val hundredths = (whole(seconds) * 100 + 1800) / 3600
-        return "${hundredths / 100}.%02d".format(hundredths % 100)
+        return "${hundredths / 100}.%02d".format(Locale.ROOT, hundredths % 100)
     }
 
     /** `hh:mm · 1.50` (src/lib/time-client.ts bothText). */
@@ -159,8 +167,20 @@ object O {
     const val updated = "حُدّثت التذكرة"
     const val customerNumber = "رقم الزبون"
     const val linkedTask = "المهمة المرتبطة"
-    const val ticketsSiteWarn = "⚠️ تعديل نص التذكرة وحذفها وتحويلها لمهمة لسا مش بالتطبيق."
+    const val linkedHidden = "مرتبطة بمهمة ما بتقدر تفتحها."
+    const val ticketsSiteWarn = "⚠️ تعديل نص التذكرة وتغيير المسؤول عنها وحذفها وتحويلها لمهمة، وتعديل التعليقات وحذفها وسجلّ الحركات، لسا مش بالتطبيق."
     const val ticketsSiteFix = "🔧 افتحها من صفحة الموقع."
+    const val instantWarn = "⚠️ التذاكر الفورية لسا مش بالتطبيق."
+    const val instantFix = "🔧 افتحها من صفحة «التذاكر» بالموقع."
+
+    /** The moves the server allows (src/server/services/tickets.ts canTransition): only these are offered. Pure (tested). */
+    fun canMove(from: String, to: String): Boolean = when {
+        from == to -> true
+        from == "OPEN" -> to == "IN_PROGRESS" || to == "RESOLVED" || to == "CLOSED"
+        from == "IN_PROGRESS" -> to == "RESOLVED" || to == "CLOSED" || to == "OPEN"
+        from == "RESOLVED" -> to == "CLOSED" || to == "IN_PROGRESS"
+        else -> to == "OPEN" // CLOSED reopens
+    }
     fun openCount(n: Int) = "مفتوحة: $n"
     fun status(s: String) = when (s) {
         "IN_PROGRESS" -> "قيد العمل"

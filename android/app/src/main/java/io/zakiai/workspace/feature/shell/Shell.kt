@@ -450,6 +450,7 @@ fun Shell(
                             meId = me?.id,
                             onOpenApproval = { nav.open(Destination.Approval(it)) },
                             onOpenTicket = { nav.open(Destination.Ticket(it)) },
+                            orgRole = (spaces?.organizations?.firstOrNull { o -> o.workspaces.any { it.id == spaces?.currentSpaceId } } ?: spaces?.organizations?.firstOrNull())?.role,
                         )
                     }
                     composable(Routes.PROJECT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
@@ -483,7 +484,7 @@ fun Shell(
                         )
                     }
                     composable(Routes.PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
-                        io.zakiai.workspace.feature.office.ProfileScreen(onBack = { nav.popBackStack() }, onOpenChat = { nav.open(Destination.Conversation(it, null)) }, meId = me?.id)
+                        io.zakiai.workspace.feature.office.ProfileScreen(onBack = { nav.popBackStack() }, onOpenChat = { nav.open(Destination.Conversation(it, null)) }, meId = me?.id, onOpenSite = { nav.open(Destination.Site(it)) })
                     }
                     composable(Routes.TICKET, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.office.TicketScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
@@ -596,6 +597,8 @@ private fun WorkHub(
     isHq: Boolean = false,
     onOpenApproval: (String) -> Unit = {},
     onOpenTicket: (String) -> Unit = {},
+    /** the person's rank in the company of the space they are in (what the site's tabs and marks depend on) */
+    orgRole: String? = null,
 ) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable(initial) { androidx.compose.runtime.mutableStateOf(initial) }
     Column(Modifier.fillMaxSize()) {
@@ -621,11 +624,11 @@ private fun WorkHub(
             } else if (tab == "checkins") {
                 io.zakiai.workspace.feature.desk.CheckinsScreen(spaceId = spaceKey, onOpenSite = onOpenSite)
             } else if (tab == "calendar") {
-                io.zakiai.workspace.feature.office.CalendarScreen(spaceKey = spaceKey, onOpenTask = onOpenTask)
+                io.zakiai.workspace.feature.office.CalendarScreen(spaceKey = spaceKey, onOpenTask = onOpenTask, onOpenSite = onOpenSite, guest = orgRole == "GUEST")
             } else if (tab == "tickets") {
-                io.zakiai.workspace.feature.office.TicketsScreen(onOpenTicket = onOpenTicket, onOpenSite = onOpenSite)
+                io.zakiai.workspace.feature.office.TicketsScreen(onOpenTicket = onOpenTicket, onOpenSite = onOpenSite, manager = orgRole == "OWNER" || orgRole == "ADMIN")
             } else if (tab == "time") {
-                io.zakiai.workspace.feature.office.TimeScreen(spaceKey = spaceKey, onOpenTask = onOpenTask)
+                io.zakiai.workspace.feature.office.TimeScreen(spaceKey = spaceKey, onOpenTask = onOpenTask, onOpenSite = onOpenSite)
             } else {
                 MyWorkScreen(onOpenTask = onOpenTask, onOpenSite = onOpenSite, spaceKey = spaceKey)
             }

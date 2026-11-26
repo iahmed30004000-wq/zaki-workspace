@@ -104,11 +104,13 @@ object Links {
             }
             "/checkins" -> Destination.Work("checkins")
             "/calendar" -> Destination.Work("calendar")
-            "/time" -> Destination.Work("time")
+            // a report narrowed by the site (a task's «تقرير الوقت»: ?taskId=, a range) stays the site's page: the phone has the week and the month only
+            "/time" -> if (path.contains('?')) Destination.Site(path) else Destination.Work("time")
             // «?ticket=<id>» opens that ticket (the site opens its sheet over the desk)
             "/tickets" -> path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("ticket=") }?.removePrefix("ticket=")
                 ?.takeIf { ID.matches(it) }?.let { Destination.Ticket(it) } ?: Destination.Work("tickets")
-            "/members", "/teams" -> Destination.People
+            // «جديد» → a person (?new=) is the site's account form
+            "/members", "/teams" -> if (path.contains("new=")) Destination.Site(path) else Destination.People
             else -> Destination.Site(path)
         }
     }
