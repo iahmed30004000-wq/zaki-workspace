@@ -10,6 +10,7 @@
  */
 import { playLoop, RING_PATTERN_PERIOD_MS, RING_PATTERNS, RINGBACK_NOTES, RINGBACK_PERIOD_MS } from "./tones";
 import { loadRingTone, type RingTone } from "./ring-prefs";
+import { startChosenLoop } from "@/lib/sound-library/play";
 
 export const RING_SOUND_URL = "/sounds/ring.mp3";
 /** The pause between two rings. */
@@ -41,7 +42,9 @@ export function ringbackFor(opts: {
 
 /** The caller's own soft two-note ringback (see `RINGBACK_NOTES`); returns its stop. It is never the incoming ringtone. */
 export function startRingback(): () => void {
-  return playLoop(RINGBACK_NOTES, RINGBACK_PERIOD_MS);
+  const usual = () => playLoop(RINGBACK_NOTES, RINGBACK_PERIOD_MS);
+  // «رنة الاتصال الصادر» of the sounds library, when the person chose one (a phone); nothing chosen: the soft ringback, as before
+  return startChosenLoop("ringback", usual) ?? usual();
 }
 
 /** A soft two-beat ring drawn by the browser itself (no sound file); returns its stop. */
@@ -81,6 +84,12 @@ function startBeeps(): () => void {
  * The recorded tone is the file below; the two others are drawn by the browser (src/lib/calls/tones.ts).
  */
 export function startRing(opts: { tone?: RingTone } = {}): () => void {
+  // «رنة المكالمة الواردة» of the sounds library (a phone): the person's own choice wins over the device's ringtone; a caller that names a tone (the
+  // settings' «جرّبها») hears exactly that one
+  if (opts.tone === undefined) {
+    const own = startChosenLoop("ring", startBeeps);
+    if (own) return own;
+  }
   const tone = opts.tone ?? loadRingTone();
   if (tone === "soft" || tone === "bell") return playLoop(RING_PATTERNS[tone], RING_PATTERN_PERIOD_MS[tone]);
   if (typeof Audio === "undefined") return startBeeps();

@@ -537,8 +537,11 @@ function privacyHtml(): string {
 
 describe("C4.1 · the sections", () => {
   it("eleven sections in the order of the spec; «المجلدات» only while the company's switch is on; an address belongs to one section", () => {
-    expect([...SECTION_KEYS]).toEqual(["account", "notifications", "privacy", "chat", "effects", "folders", "data", "devices", "language", "menu", "shortcuts", "help"]);
-    expect(visibleSections({ foldersOn: true })).toHaveLength(12);
+    expect([...SECTION_KEYS]).toEqual(["account", "notifications", "sounds", "privacy", "chat", "effects", "folders", "data", "devices", "language", "menu", "shortcuts", "help"]);
+    expect(visibleSections({ foldersOn: true })).toHaveLength(13);
+    // «الأصوات» is a part of «تيليجرام على التلفون»: with the switch off it is not listed
+    expect(visibleSections({ foldersOn: true, soundsOn: false })).toHaveLength(12);
+    expect(visibleSections({ foldersOn: true, soundsOn: false })).not.toContain("sounds");
     expect(visibleSections({ foldersOn: false })).not.toContain("folders");
     expect(isSectionKey("chat")).toBe(true);
     expect(isSectionKey("gone")).toBe(false);
@@ -589,7 +592,7 @@ describe("C4.1 · the sections", () => {
     where.pathname = "/settings/me/chat";
     const frame = render(createElement(SettingsFrame, { header: { name: "أحمد", username: null, jobTitle: null, avatarUrl: null }, sections: visibleSections({ foldersOn: true }) }, createElement("p", null, "x")));
     expect(frame).toMatch(/bg-surface-1 md:rounded-\[14px\]/);
-    expect(frame.match(/data-section-tile/g)).toHaveLength(12);
+    expect(frame.match(/data-section-tile/g)).toHaveLength(13);
     expect(frame).toMatch(/bg-accent\/15 text-accent/);
     expect(frame).not.toMatch(/bg-selected-row/);
     where.pathname = "/settings/me";

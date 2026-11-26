@@ -389,7 +389,7 @@ export async function ingest(
   ctx: OrgAccessContext,
   input: IngestFile,
   familyOf?: { familyId: string; latestVersion: number },
-  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" = "LIBRARY",
+  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" | "SOUND" = "LIBRARY",
   meta?: Record<string, unknown>,
   /**
    * `sniffedMime`: the chat's own sniffing (`sniffChatMedia`) already read the bytes WITH the declared
@@ -460,7 +460,8 @@ export async function ingest(
   let target: string | null = null;
   let updated: { id: string; version: number; mimeType: string };
   try {
-    space = purpose !== "AVATAR" && (await storageTarget(ctx.orgId)).target === "drive" ? { of: purpose === "LIBRARY" ? await driveSpaceOf(workspaceId) : chatDriveSpace(ctx.orgId) } : null;
+    // a picture of a person and a person's own sound stay on the server's disk: they are theirs, not the company's files
+    space = purpose !== "AVATAR" && purpose !== "SOUND" && (await storageTarget(ctx.orgId)).target === "drive" ? { of: purpose === "LIBRARY" ? await driveSpaceOf(workspaceId) : chatDriveSpace(ctx.orgId) } : null;
     steppingDown = space && familyOf ? await previousHeadPath(ctx.orgId, finalFamilyId) : null;
     if (space) {
       path = await uploadToDrive(ctx.orgId, {

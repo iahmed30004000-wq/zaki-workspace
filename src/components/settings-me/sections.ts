@@ -4,7 +4,7 @@ import type { PanelSectionKey } from "@/lib/control-panel";
  * C4.1 — the sections of «إعداداتي» (C4 §3), in the order they are listed. Pure: the route, the list and the tests share it.
  * A section that does not apply is not listed and its address is «not found»: «المجلدات» needs the company's switch `chatFolders`.
  */
-export const SECTION_KEYS = ["account", "notifications", "privacy", "chat", "effects", "folders", "data", "devices", "language", "menu", "shortcuts", "help"] as const;
+export const SECTION_KEYS = ["account", "notifications", "sounds", "privacy", "chat", "effects", "folders", "data", "devices", "language", "menu", "shortcuts", "help"] as const;
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
 export function isSectionKey(value: unknown): value is SectionKey {
@@ -15,10 +15,12 @@ export function isSectionKey(value: unknown): value is SectionKey {
 export interface SectionFacts {
   /** the company's switch `chatFolders` */
   foldersOn: boolean;
+  /** «الأصوات», the sounds library: a part of «تيليجرام على التلفون» (`chatLayoutV2` and `tgPhone`); absent: listed */
+  soundsOn?: boolean;
 }
 
 export function visibleSections(facts: SectionFacts): SectionKey[] {
-  return SECTION_KEYS.filter((key) => key !== "folders" || facts.foldersOn);
+  return SECTION_KEYS.filter((key) => (key !== "folders" || facts.foldersOn) && (key !== "sounds" || facts.soundsOn !== false));
 }
 
 export const SETTINGS_ME_HREF = "/settings/me";

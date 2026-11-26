@@ -1,0 +1,45 @@
+/*
+ * The settings pages of «تيليجرام على التلفون»: the bar on top of a section, the radio's dot and the rows of «خيارات أكثر». No colour is written here:
+ * only the theme's tokens. Every movement is off when the «الانتقالات السلسة» effect is off or the device asks for less motion.
+ */
+
+/* «الأصوات» is a part of the phone's look: a computer's list of sections is exactly what it was */
+@media (min-width: 768px) {
+  [data-settings-sections] li:has(> a[data-section="sounds"]) {
+    display: none;
+  }
+}
+
+.tg-set-head {
+  background-color: rgb(var(--surface) / 0.82);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+}
+/* «التغبيش» switched off, or the company's saving mode: a plain bar */
+html[data-fx-off~="blur"] .tg-set-head,
+html[data-decor-economy] .tg-set-head {
+  background-color: rgb(var(--surface));
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+
+@keyframes tg-rows-in {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-fx-off~="transitions"]) .tg-rows-in {
+    animation: tg-rows-in var(--tg-more-rows-ms, 150ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-radio-dot,
+  html:not([data-fx-off~="transitions"]) .tg-chevron {
+    transition: transform 150ms ease-out;
+  }
+}

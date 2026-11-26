@@ -15,6 +15,8 @@ import { usePersonalCall } from "@/components/chat/v2/row-menu";
 import { Group, WarnFix } from "@/components/settings-me/parts";
 import { ChatSoundBlock } from "@/components/settings-me/chat-sound-block";
 import { useSavePatch, usePersonPrefs } from "@/components/settings-me/use-person-prefs";
+import { NotifyTypeList, NotifyTypePage, SoundLibraryRow, exceptionKindOf, isExceptionOf, type ExceptionKind } from "@/components/settings-me/notify-types";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
 
 /**
  * C4.1 — «الإشعارات والأصوات». Five kinds (a private chat, a topic, a mention, a reply to me, a call), each with its own switch and, except calls, the preview
@@ -42,7 +44,12 @@ function stopPreview(preview: { current: { stop: () => void; timer: ReturnType<t
   preview.current = null;
 }
 
-export function NotificationsSection() {
+/**
+ * `sub`: one kind's own page (a phone with Telegram's look, `?type=`). With the switch `tgPhone` on, a phone-wide screen draws the card of kinds (or the
+ * kind's page) in place of the five blocks, by CSS (`md:hidden` / `max-md:hidden`); a computer and the switch off draw the page exactly as before.
+ */
+export function NotificationsSection({ sub = null }: { sub?: NotifyType | null } = {}) {
+  const tg = useTgPhoneOn();
   const { t } = useI18n();
   const { toast } = useToast();
   const person = usePersonPrefs();
@@ -77,42 +84,54 @@ export function NotificationsSection() {
     toast(ok ? t("settingsMe.n.reset.done") : t("settingsMe.failed"), ok ? "success" : "error");
   }
 
-  return (
+  const toggleSounds = (next: boolean) => {
+    setSounds(next);
+    setSoundsEnabled(next);
+  };
+  const typeBlocks = NOTIFY_TYPES.map((type) => {
+    const rule = notifyRuleOf(person.prefs, type);
+    const on = rule.on !== false;
+    return (
+      <Group key={type} id={`n-${type}`} rows>
+        <SwitchRow
+          checked={on}
+          disabled={!person.loaded}
+          onChange={(next) => void change(type, { ...rule, on: next })}
+          title={t(`settingsMe.n.type.${type}`)}
+          hint={t(`settingsMe.n.type.${type}.hint`)}
+        />
+        {on && type !== "calls" ? (
+          <SwitchRow
+            checked={rule.preview !== false}
+            disabled={!person.loaded}
+            onChange={(next) => void change(type, { ...rule, preview: next })}
+            title={t("settingsMe.n.preview")}
+            hint={t("settingsMe.n.preview.hint")}
+          />
+        ) : null}
+        {!on && WARNED[type] ? <WarnFix warn={t(`settingsMe.n.warn.${type}`)} fix={t(`settingsMe.n.fix.${type}`)} className="m-3" /> : null}
+      </Group>
+    );
+  });
+
+  const body = (
     <div data-section-body="notifications">
       <p className="px-3 pb-3 text-[13px] leading-[1.45] text-fg-muted md:px-0">{t("settingsMe.n.intro")}</p>
-      {NOTIFY_TYPES.map((type) => {
-        const rule = notifyRuleOf(person.prefs, type);
-        const on = rule.on !== false;
-        return (
-          <Group key={type} id={`n-${type}`} rows>
-            <SwitchRow
-              checked={on}
-              disabled={!person.loaded}
-              onChange={(next) => void change(type, { ...rule, on: next })}
-              title={t(`settingsMe.n.type.${type}`)}
-              hint={t(`settingsMe.n.type.${type}.hint`)}
-            />
-            {on && type !== "calls" ? (
-              <SwitchRow
-                checked={rule.preview !== false}
-                disabled={!person.loaded}
-                onChange={(next) => void change(type, { ...rule, preview: next })}
-                title={t("settingsMe.n.preview")}
-                hint={t("settingsMe.n.preview.hint")}
-              />
-            ) : null}
-            {!on && WARNED[type] ? <WarnFix warn={t(`settingsMe.n.warn.${type}`)} fix={t(`settingsMe.n.fix.${type}`)} className="m-3" /> : null}
-          </Group>
-        );
-      })}
+      {tg ? (
+        <>
+          <div className="md:hidden" data-notify-phone="">
+            <PhoneNotifyList prefs={person.prefs} loaded={person.loaded} onRule={(type, rule) => void change(type, rule)} />
+          </div>
+          <div className="max-md:hidden">{typeBlocks}</div>
+        </>
+      ) : (
+        typeBlocks
+      )}
 
       <Group rows>
         <SwitchRow
           checked={sounds}
-          onChange={(next) => {
-            setSounds(next);
-            setSoundsEnabled(next);
-          }}
+          onChange={toggleSounds}
           title={t("settingsMe.n.sounds")}
           hint={t("settingsMe.n.sounds.hint")}
         />
@@ -154,13 +173,50 @@ export function NotificationsSection() {
       </Group>
     </div>
   );
+
+  if (!tg || !sub) return body;
+  const kind = exceptionKindOf(sub);
+  return (
+    <>
+      <div className="md:hidden">
+        <NotifyTypePage
+          type={sub}
+          prefs={person.prefs}
+          loaded={person.loaded}
+          onRule={(type, rule) => void change(type, rule)}
+          masterSounds={sounds}
+          onMasterSounds={toggleSounds}
+          exceptionList={kind ? <MutedChats kind={kind} /> : undefined}
+        />
+      </div>
+      {/* a computer has no page of one kind: it draws the whole section, as ever */}
+      <div className="max-md:hidden">{body}</div>
+    </>
+  );
+}
+
+/** The card of kinds and the door to the sounds library. The chat list is read here for the number of exceptions of each kind. */
+function PhoneNotifyList({ prefs, loaded, onRule }: { prefs: ChatPrefs; loaded: boolean; onRule: (type: NotifyType, rule: NotifyRule) => void }) {
+  const muted = useMutedRows();
+  const count = (kind: ExceptionKind) => muted.filter((row) => isExceptionOf(kind, row)).length;
+  return (
+    <>
+      <NotifyTypeList prefs={prefs} loaded={loaded} onRule={onRule} exceptions={{ private: count("private"), topics: count("topics") }} />
+      <SoundLibraryRow />
+    </>
+  );
+}
+
+function useMutedRows(): ChatRowDto[] {
+  const list = useChatList("all");
+  return [...list.rows, ...list.archivedRows].filter((row, at, all) => row.muted && all.findIndex((r) => r.id === row.id) === at);
 }
 
 /** «استثناءات»: the chats the person muted, each with «ألغِ الكتم» (the same personal door the chat list uses). */
-export function MutedChats() {
+export function MutedChats({ kind }: { /** only the exceptions of one kind's page */ kind?: ExceptionKind } = {}) {
   const { t } = useI18n();
-  const list = useChatList("all");
-  const muted = [...list.rows, ...list.archivedRows].filter((row, at, all) => row.muted && all.findIndex((r) => r.id === row.id) === at);
+  const all = useMutedRows();
+  const muted = kind ? all.filter((row) => isExceptionOf(kind, row)) : all;
   if (muted.length === 0) return <p className="text-sm text-fg-muted">{t("settingsMe.n.exceptions.none")}</p>;
   return (
     <ul data-muted-chats className="-mx-3.5 -my-3 divide-y divide-border">
