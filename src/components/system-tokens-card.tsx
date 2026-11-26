@@ -30,13 +30,17 @@ export function SystemTokensCard() {
   const [system, setSystem] = useState("");
   const [spaceId, setSpaceId] = useState("");
   const [expiry, setExpiry] = useState<(typeof EXPIRY)[number]>("90");
+  const [agentId, setAgentId] = useState("");
   const [shown, setShown] = useState<string | null>(null);
 
   const systems = list.data?.systems ?? [];
   const chosen = systems.find((s) => s.key === (system || systems[0]?.key)) ?? null;
+  // «باسم مين»: only the 🤖 accounts of the chosen space; a choice that the space does not hold is dropped
+  const agents = (list.data?.agents ?? []).filter((a) => a.spaceIds.includes(spaceId));
+  const actsAsId = agents.some((a) => a.id === agentId) ? agentId : null;
 
   const create = useMutation({
-    mutationFn: () => apiPost<{ token: string }>("/api/system-tokens", { system: chosen?.key, workspaceId: spaceId, expiresInDays: expiry === "never" ? null : Number(expiry) }),
+    mutationFn: () => apiPost<{ token: string }>("/api/system-tokens", { system: chosen?.key, workspaceId: spaceId, expiresInDays: expiry === "never" ? null : Number(expiry), actsAsId }),
     onSuccess: (res) => {
       setShown(res.token);
       toast(t("systok.created"), "success");
@@ -145,6 +149,20 @@ export function SystemTokensCard() {
               </Select>
             </label>
           </div>
+          {spaceId ? (
+            <label className="block space-y-1 text-xs">
+              <span className="font-medium text-fg">{t("systok.acts_as")}</span>
+              <Select value={actsAsId ?? ""} onChange={(e) => setAgentId(e.target.value)}>
+                <option value="">{t("systok.acts_as_me")}</option>
+                {agents.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+              <span className="block leading-5 text-muted">{t(agents.length ? "systok.acts_as_hint" : "systok.acts_as_none")}</span>
+            </label>
+          ) : null}
           {chosen ? (
             <p className="text-xs text-muted">
               {t("systok.scopes")}: {chosen.permissions.map((p) => t(`systok.perm.${p}`)).join("، ")}
@@ -178,6 +196,7 @@ export function SystemTokensCard() {
                   <code dir="ltr" className="font-mono text-muted">
                     {tk.hint}
                   </code>
+                  {tk.actsAs ? <span className="block text-fg">{t("systok.acts_as_line", { name: tk.actsAs.name })}</span> : null}
                 </td>
                 <td className="px-2 py-1.5">{tk.space.name}</td>
                 <td className="px-2 py-1.5">{tk.permissions.map((p) => t(`systok.perm.${p}`)).join("، ")}</td>
