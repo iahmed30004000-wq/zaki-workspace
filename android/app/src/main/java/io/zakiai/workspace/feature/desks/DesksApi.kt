@@ -33,6 +33,12 @@ data class DeskFacts(
     val departmentId: String? = null,
     val timeZone: String = "",
     val today: String = "",
+    val crm: May = May(),
+    val prices: Boolean = false,
+    val reports: Boolean = false,
+    /** owner · team · self, or null when the board is not theirs */
+    val board: String? = null,
+    val panel: Boolean = false,
 )
 
 // ── departments ──

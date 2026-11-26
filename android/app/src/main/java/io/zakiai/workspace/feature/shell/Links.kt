@@ -46,6 +46,11 @@ sealed interface Destination {
     data class WatchSession(val id: String) : Destination
     /** the company's departments (campaigns and the daily routine are tabs of آ«ط§ظ„ط´ط؛ظ„آ») */
     data object Departments : Destination
+    /** the customers, the reports, the owner's board / panel and one person of it (M2 N6 batch 7) */
+    data object Crm : Destination
+    data object Reports : Destination
+    data object OwnerBoard : Destination
+    data class OwnerBoardPerson(val id: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -71,6 +76,7 @@ object Links {
     private val ME = Regex("^/settings/me/([a-z]+)/?$")
     private val GUIDE = Regex("^/guide/([A-Za-z0-9_-]+)/?$")
     private val WATCH = Regex("^/watch/([A-Za-z0-9_-]+)/?$")
+    private val BOARD_PERSON = Regex("^/owner/people/([A-Za-z0-9_-]+)/?$")
     /** the sections of آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» the phone draws itself; the others (folders, menu, shortcuts, data, the company's) stay the site's */
     val NATIVE_ME = setOf("account", "notifications", "privacy", "chat", "devices", "language", "help")
 
@@ -103,6 +109,7 @@ object Links {
         ME.find(path.substringBefore('?'))?.let { m -> return if (m.groupValues[1] in NATIVE_ME) Destination.Me(m.groupValues[1]) else Destination.Site(path) }
         GUIDE.find(path.substringBefore('?'))?.let { return Destination.GuideArticle(it.groupValues[1]) }
         WATCH.find(path.substringBefore('?'))?.let { return Destination.WatchSession(it.groupValues[1]) }
+        BOARD_PERSON.find(path.substringBefore('?'))?.let { return Destination.OwnerBoardPerson(it.groupValues[1]) }
         CHAT.find(path.substringBefore('?'))?.let { match ->
             val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
                 ?.takeIf { ID.matches(it) }
@@ -139,6 +146,18 @@ object Links {
             "/campaigns" -> Destination.Work("campaigns")
             "/production" -> Destination.Work("production")
             "/departments" -> Destination.Departments
+            "/crm" -> Destination.Crm
+            "/analytics" -> Destination.Reports
+            // the panel's numbers, people and reports are native; its other sections (?s=accounts, ?v=ai ...) stay the site's
+            "/owner" -> {
+                val q = path.substringAfter('?', "").split("&").filter { it.isNotEmpty() }
+                val section = q.firstOrNull { it.startsWith("s=") || it.startsWith("v=") }?.substringAfter('=')
+                when (section) {
+                    null, "overview", "people" -> Destination.OwnerBoard
+                    "reports" -> Destination.Reports
+                    else -> Destination.Site(path)
+                }
+            }
             // آ«/cards?new=taskآ» is the site's task sheet over the cards (W1.8): still its page
             "/cards" -> if (path.contains("new=")) Destination.Site(path) else Destination.Cards
             // a report narrowed by the site (a task's «تقرير الوقت»: ?taskId=, a range) stays the site's page: the phone has the week and the month only

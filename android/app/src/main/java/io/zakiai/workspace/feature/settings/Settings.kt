@@ -121,7 +121,7 @@ private fun ThemeSwatch(t: ZkTheme, selected: Boolean, onClick: () -> Unit) {
 
 /** The person, the look, the lock, what the ringing phone needs, the app's own health, and sign-out. */
 @Composable
-fun SettingsScreen(vm: SettingsViewModel = hiltViewModel(), askNotifications: () -> Unit, onOpenMe: (String) -> Unit = {}, onOpenSite: (String) -> Unit = {}) {
+fun SettingsScreen(vm: SettingsViewModel = hiltViewModel(), askNotifications: () -> Unit, onOpenMe: (String) -> Unit = {}, onOpenSite: (String) -> Unit = {}, onOpenAdmin: (String) -> Unit = {}) {
     val context = LocalContext.current
     val me by vm.session.me.collectAsStateWithLifecycle()
     val theme by vm.theme.collectAsStateWithLifecycle()
@@ -152,6 +152,9 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel(), askNotifications: ()
         // آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» (the site's /settings/me), its sections natively
         SectionLabel(io.zakiai.workspace.feature.me.M.title)
         io.zakiai.workspace.feature.me.MeSectionRows(onOpen = onOpenMe, onOpenSite = onOpenSite)
+
+        // the board / panel, the reports, the customers: each only for who may open it (the server decides again)
+        io.zakiai.workspace.feature.panel.AdminRows(onOpen = onOpenAdmin)
 
         SectionLabel(T.theme)
         Row(Modifier.fillMaxWidth().horizontalScrollRow().padding(horizontal = 8.dp)) {

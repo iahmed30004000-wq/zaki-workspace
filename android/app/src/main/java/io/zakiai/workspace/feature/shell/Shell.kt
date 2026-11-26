@@ -225,6 +225,10 @@ private object Routes {
     const val WATCH = "watch"
     const val WATCH_SESSION = "watch/{id}"
     const val DEPARTMENTS = "departments"
+    const val CRM = "crm"
+    const val REPORTS = "reports"
+    const val OWNER_BOARD = "owner-board"
+    const val OWNER_PERSON = "board-person/{id}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -232,7 +236,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -288,6 +292,10 @@ fun NavHostController.open(dest: Destination) {
         Destination.Watch -> navigate(Routes.WATCH) { popUpTo(Routes.CHATS); launchSingleTop = true }
         is Destination.WatchSession -> navigate("watch/" + dest.id)
         Destination.Departments -> navigate(Routes.DEPARTMENTS) { launchSingleTop = true }
+        Destination.Crm -> navigate(Routes.CRM) { launchSingleTop = true }
+        Destination.Reports -> navigate(Routes.REPORTS) { launchSingleTop = true }
+        Destination.OwnerBoard -> navigate(Routes.OWNER_BOARD) { launchSingleTop = true }
+        is Destination.OwnerBoardPerson -> navigate("board-person/" + dest.id)
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -556,7 +564,28 @@ fun Shell(
                     composable(Routes.TASK, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         TaskScreen(onBack = { nav.popBackStack() })
                     }
-                    composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications, onOpenMe = { nav.open(Destination.Me(it)) }, onOpenSite = { nav.open(Destination.Site(it)) }) }
+                    composable(Routes.SETTINGS) { SettingsScreen(
+                            askNotifications = askNotifications,
+                            onOpenMe = { nav.open(Destination.Me(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; else -> Destination.Crm }) },
+                        )
+                    }
+                    // M2 N6 batch 7: آ«ط§ظ„ط¹ظ…ظ„ط§ط،آ», آ«ط§ظ„طھظ‚ط§ط±ظٹط±آ», the owner's board / panel and one person of it
+                    composable(Routes.CRM) { io.zakiai.workspace.feature.panel.CrmScreen(onBack = { nav.popBackStack() }) }
+                    composable(Routes.REPORTS) { io.zakiai.workspace.feature.panel.ReportsScreen(onBack = { nav.popBackStack() }) }
+                    composable(Routes.OWNER_BOARD) {
+                        io.zakiai.workspace.feature.panel.BoardScreen(
+                            meId = me?.id,
+                            onBack = { nav.popBackStack() },
+                            onOpenPerson = { nav.navigate("board-person/" + it) { if (it == me?.id) popUpTo(Routes.OWNER_BOARD) { inclusive = true } } },
+                            onOpenPath = openPath,
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.OWNER_PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.panel.BoardPersonScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) })
+                    }
                     // M2 N6 batch 5: آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» and آ«ط¯ظ„ظٹظ„ ط²ط§ظƒظٹآ»
                     composable(Routes.ME, arguments = listOf(navArgument("section") { type = NavType.StringType })) { e ->
                         io.zakiai.workspace.feature.me.MeSectionScreen(

@@ -1,8 +1,11 @@
 import { db } from "@/server/db";
+import { NotFoundError } from "@/server/auth";
 import { actorCan, type Actor } from "@/server/policy/actor";
 import { currentSpace } from "@/server/services/current-space";
 import { sectionMay, type SectionMay } from "@/lib/section-may";
 import { resolveTimeZone, zonedParts } from "@/lib/zoned-time";
+import { boardAccess, type BoardMode } from "@/server/policy/board";
+import { controlPanelAccess } from "@/server/services/control-panel";
 
 /**
  * The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns,
@@ -25,7 +28,22 @@ export interface DeskFacts {
   /** the company's zone and its today («YYYY-MM-DD»): the routine's day is cut there */
   timeZone: string;
   today: string;
+  /** «العملاء»: the person's row of the grid, and whether an opportunity's amount is theirs to see (`prices.view`) */
+  crm: SectionMay;
+  prices: boolean;
+  /** «التقارير»: the reports box of the person's grid */
+  reports: boolean;
+  /** «لوحة المالك»: owner / team / self, or null when the board is not theirs (switched off, a partner, neither switch) */
+  board: BoardMode | null;
+  /** «لوحة التحكم»: the owner's panel (its switch on and the board company-wide) */
+  panel: boolean;
 }
+
+/** «not found» from the board's or the panel's gate means «not theirs»; anything else (the database down) is not swallowed. */
+const notTheirs = <T,>(value: T) => (err: unknown): T => {
+  if (err instanceof NotFoundError) return value;
+  throw err;
+};
 
 export async function deskFactsFor(actor: Actor, now: Date = new Date()): Promise<DeskFacts> {
   const [space, org] = await Promise.all([
@@ -48,5 +66,11 @@ export async function deskFactsFor(actor: Actor, now: Date = new Date()): Promis
     departmentId: here?.departmentId ?? null,
     timeZone,
     today: `${p.year}-${pad(p.month)}-${pad(p.day)}`,
+    crm: sectionMay(actor.caps, "crm"),
+    prices: actorCan(actor, "prices.view"),
+    reports: actorCan(actor, "reports.view") && !actor.isExternal,
+    // the board and the panel say «not found» to whoever they are not for: here that is simply «not theirs»
+    board: await boardAccess(actor).then((a) => a.mode, notTheirs(null)),
+    panel: await controlPanelAccess(actor).then(() => true, notTheirs(false)),
   };
 }

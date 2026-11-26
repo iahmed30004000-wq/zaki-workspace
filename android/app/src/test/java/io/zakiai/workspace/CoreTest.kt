@@ -72,7 +72,9 @@ class LinksTest {
     }
 
     @Test fun `a section not native yet opens the site's page, with its query`() {
-        assertEquals(Destination.Site("/crm?view=board"), Links.destinationOf("$BASE/crm?view=board", BASE))
+        assertEquals(Destination.Site("/development?view=board"), Links.destinationOf("$BASE/development?view=board", BASE))
+        // «العملاء» is native since N6 batch 7
+        assertEquals(Destination.Crm, Links.destinationOf("$BASE/crm?view=board", BASE))
         assertEquals(Destination.Site("/crm/k2"), Links.destinationOf("/crm/k2", BASE))
         // آ«ظ†طھظپط±ظ‘ط¬ ط³ظˆط§آ» and a session of it are native since N6 batch 6
         assertEquals(Destination.WatchSession("k2"), Links.destinationOf("/watch/k2", BASE))

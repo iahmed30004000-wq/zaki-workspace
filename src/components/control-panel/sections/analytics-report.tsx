@@ -1,11 +1,8 @@
 import type { TaskPriority, IdeaStatus } from "@prisma/client";
 import { getServerT } from "@/lib/i18n/server";
-import { loadWorkScope, narrowScope, scopeSpaceIds } from "@/server/services/team-scope";
-import { loadAnalytics } from "@/server/services/analytics";
-import { ideaPlaceWhere } from "@/server/services/ideas";
+import { analyticsFor } from "@/server/services/analytics-scope";
 import { fmtNumber } from "@/lib/format";
 import { enumLabel } from "@/lib/i18n/enums";
-import { currentSpace } from "@/server/services/current-space";
 import type { Actor } from "@/server/policy/actor";
 
 /**
@@ -19,12 +16,9 @@ export async function AnalyticsReport({ userId, actor, heading = "h1" }: { userI
   const Title = heading;
   // numbers for the active org (oldest ACTIVE membership), over the workspaces the user can open
   // …inside the space they are in (src/server/services/current-space.ts)
-  const teams = narrowScope(await loadWorkScope(userId), (await currentSpace(actor))?.id);
-  // the space's ideas (and in «الشركة» the shared ones)
-  const here = await currentSpace(actor);
-  const data = await loadAnalytics(actor.orgId, scopeSpaceIds(teams), undefined, teams, {
-    AND: [ideaPlaceWhere({ spaceId: here?.id ?? null, isHq: here?.kind === "HQ" })],
-  });
+  // the space's ideas (and in «الشركة» the shared ones): the same read the phone's door makes (GET /api/analytics)
+  void userId;
+  const data = await analyticsFor(actor);
   const byPriority = new Map(data.byPriority.map((row) => [row.priority, row._count._all]));
   const byStatus = new Map(data.byStatus30.map((row) => [row.status, row._count._all]));
   const maxWorkload = Math.max(1, ...data.assignees.map((a) => a._count._all));
