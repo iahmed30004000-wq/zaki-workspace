@@ -36,6 +36,7 @@ import { useChatUnread } from "@/lib/chat/use-chat-unread";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
 import { FrameBridgeContext, type FrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
 
 /**
  * F1.3 — the two floating helpers are their own chunks, fetched after the page is up and only by somebody who may have them
@@ -134,6 +135,7 @@ export function AppShell(props: AppShellProps) {
 }
 
 function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience, isGuest = false, defaultCollapsed = false, newActions = [], orgName, space: initialSpace = null, canOverview = false, peopleDock = true, quickChat = true, tgTabBar = false, siteGuide = false, economy = false, navV2 = false, orderLocked = false, noWorkSpace = false, chatBare = false, listSlot, children }: AppShellProps) {
+  const tgPhone = useTgPhoneOn();
   // set while rendering, on purpose: the shell renders before its children, so every timer below reads the right period
   setEconomy(economy);
   const { t } = useI18n();
@@ -242,7 +244,7 @@ function AppShellFrame({ user, nav: defaultNav, navOrder = null, rank, audience,
   return (
     <FrameBridgeContext.Provider value={bridge}>
     {/* `group/frame` (C2.8): a page can ask the frame to hide its bars on a phone with `data-frame-bars` ("hide-top": the top bar; "hide-all": also the bottom bar and the people row), through `group-has-*` classes. Nothing here knows who asks (the chat's phone screens do). */}
-    <div className="group/frame relative flex h-dvh overflow-clip bg-surface">
+    <div className="group/frame relative flex h-dvh overflow-clip bg-surface" data-tg-phone={tgPhone ? "" : undefined}>
       <a
         href="#zk-main"
         className="sr-only focus:not-sr-only focus:fixed focus:start-2 focus:top-2 focus:z-[100] focus:rounded-xl focus:bg-surface-1 focus:px-4 focus:py-3 focus:text-sm focus:font-semibold focus:text-fg focus:shadow-lg"

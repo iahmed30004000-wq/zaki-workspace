@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 419 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 210 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 212 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -965,6 +965,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/away.ts` |
 | `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
+| `tgPhone` | 0 —  |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
 | `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
 | `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts`, `server/services/task-sheet.ts` |
@@ -1070,6 +1071,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/away.ts` |
+| `tgPhone` | 0 —  |
 
 ## 9. What this map noticed
 

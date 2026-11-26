@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Building2, ChevronLeft, Database, Folder, Keyboard, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, ListOrdered, Lock, MessageCircle, Plug, Smartphone, ToggleRight, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, Building2, ChevronLeft, Database, Folder, Keyboard, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, ListOrdered, Lock, MessageCircle, Plug, Smartphone, Sparkles, ToggleRight, UserRound, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,7 @@ const ICONS: Record<SectionKey, LucideIcon> = {
   notifications: Bell,
   privacy: Lock,
   chat: MessageCircle,
+  effects: Sparkles,
   folders: Folder,
   data: Database,
   devices: Smartphone,

@@ -13,6 +13,7 @@ import { parseSidebarCookie, SIDEBAR_COOKIE } from "@/components/shell/sidebar-c
 import { currentSpace, spacesOf } from "@/server/services/current-space";
 import { hasActiveReports, navSubjectOf, oneDoorPanelFor } from "@/server/services/nav-order";
 import { CallRing } from "@/components/calls/call-ring";
+import { TgPhoneProvider } from "@/components/shell/tg-phone";
 import { ChatSoundsHost } from "@/components/chat/chime/chat-sounds-host";
 import { CallProvider } from "@/components/calls/call-provider";
 import { SWITCH_COOKIE } from "@/lib/themes/switch-fx";
@@ -62,6 +63,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const ownOrder = readNavOrder(me?.navOrder);
   const menu = menuOrderFor(readCompanyMenuOrder(org?.settings), ownOrder);
   return (
+    // «تيليجرام على التلفون» (`tgPhone`, a part of the new chat screen): the frame and the chat read it from here
+    <TgPhoneProvider on={on.chatLayoutV2 && on.tgPhone}>
     <AppShell
       // the shell draws a name, a username and an e-mail; session facts (tv, locale, onboarding
       // flags) are the server's business and never cross to the browser
@@ -101,5 +104,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <ChatSoundsHost enabled={on.chatSounds} />
       </CallProvider>
     </AppShell>
+    </TgPhoneProvider>
   );
 }
