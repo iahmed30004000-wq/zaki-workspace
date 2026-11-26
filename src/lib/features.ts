@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation", "assignedTasksOnly"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -434,6 +434,11 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   groupPictures: true,
   // «أتمتة المحادثة»: a person may set work hours and an away line; a person who writes to them in a private chat outside the hours sees the line, labelled as automatic (src/server/chat/away.ts)
   chatAutomation: false,
+  // «كل واحد بيشوف مهامه بس» (src/server/policy/assigned-only.ts): ON, a task is seen by the people assigned to it (and the one asked to take it) and by the
+  // company's owner and admins only - not by whoever made it, not by the space's supervisor - and a person's projects are those they hold a task in; the API
+  // answers 403. OFF by default (the owner turns it on after his own check): off, every member of a space reads its public tasks and projects, as before.
+  // ⚠️ People stop seeing tasks they made for others. Nothing is stored or changed by it, so switching it off gives everything back.
+  assignedTasksOnly: false,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
@@ -578,6 +583,7 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   taskRules: { group: "work" },
   approvals: { group: "work" },
   taskPrivacy: { group: "work" },
+  assignedTasksOnly: { group: "work" },
   mfgLedger: { group: "work" },
   workInbox: { group: "work" },
   workRequests: { group: "work" },

@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 417 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 208 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 210 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -416,7 +416,7 @@ Doors in use: `requireActor` 184 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 | GET, POST | `/api/system-tokens` | requireActor | `system-tokens`: createSystemToken, listSystemTokens<br>`api-tokens`: TOKEN_EXPIRY_DAYS |
 | DELETE | `/api/system-tokens/[id]` | requireActor | `system-tokens`: revokeSystemToken |
 | GET, POST | `/api/tasks` | requireWorkspace | `team-scope`: teamFilterInSpace<br>`tasks`: createTask, listTasks<br>`org-day`: orgTimeZone<br>`n8n`: dispatchEvent<br>`rewards`: rewardsVisibleTo<br>`reward-input`: rewardBodySchema, toRewardRequest |
-| GET, PATCH, DELETE | `/api/tasks/[id]` | requireTaskAccess | `team-scope`: userSeesProject<br>`tasks`: updateTask, deleteTask<br>`active-people`: assertActiveAssignee<br>`org-day`: orgTimeZone<br>`rewards`: rewardsVisibleTo, setReward<br>`reward-input`: rewardBodySchema, toRewardRequest |
+| GET, PATCH, DELETE | `/api/tasks/[id]` | requireTaskAccess | `team-scope`: loadWorkScope, taskVisibleWhere, userSeesProject<br>`tasks`: updateTask, deleteTask<br>`active-people`: assertActiveAssignee<br>`org-day`: orgTimeZone<br>`rewards`: rewardsVisibleTo, setReward<br>`reward-input`: rewardBodySchema, toRewardRequest |
 | POST, GET | `/api/tasks/[id]/comments` | requireTeamWork ‡ | `n8n`: dispatchEvent |
 | PATCH, DELETE | `/api/tasks/[id]/comments/[commentId]` | requireTeamWork ‡ | — |
 | POST | `/api/tasks/[id]/complete` | requireTeamWork | `tasks`: setTaskCompletion<br>`n8n`: dispatchEvent |
@@ -535,10 +535,10 @@ high count is a wide surface: changing its signature reaches all of them.
 | `features` | 87 | 181 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 138 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 77 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
-| `team-scope` | 273 | 49 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
+| `team-scope` | 299 | 50 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 39 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
-| `tasks` | 746 | 26 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
+| `tasks` | 750 | 26 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 608 | 25 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `control-panel` | 514 | 23 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
 | `owner-assistant-settings` | 389 | 20 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
@@ -567,7 +567,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-assistant-proposals` | 400 | 9 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
-| `accounts` | 956 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
+| `accounts` | 970 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
 | `api-door` | 453 | 8 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
 | `assistant-provider` | 78 | 8 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
@@ -576,11 +576,11 @@ high count is a wide surface: changing its signature reaches all of them.
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
 | `owner-board-io` | 78 | 8 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
-| `workspaces` | 394 | 8 | Spaces (workspaces): who is in one, who may change it. |
+| `workspaces` | 396 | 8 | Spaces (workspaces): who is in one, who may change it. |
 | `approval-forms` | 297 | 7 | «نموذج» — reusable forms that create approval requests. |
 | `campaigns` | 310 | 7 | Campaigns live inside a department (marketing calendars). |
 | `card-guards` | 45 | 7 | The questions the page inside a card asks about its viewer, answered in one place. |
-| `departments` | 330 | 7 | The departments area is the company's staff directory (who works where, with which job title), so org GUESTs get 403 on every function here, read or write. |
+| `departments` | 333 | 7 | The departments area is the company's staff directory (who works where, with which job title), so org GUESTs get 403 on every function here, read or write. |
 | `knowledge-media` | 236 | 7 | Product photos and feedback pictures (Q1.2). |
 | `last-seen` | 124 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
 | `task-steps` | 160 | 7 | «خطوات» — the short checklist inside a task. |
@@ -602,12 +602,12 @@ high count is a wide surface: changing its signature reaches all of them.
 | `search-embeddings` | 278 | 5 | «بحث بالمعنى» — the connector and the pure rules. |
 | `task-assign` | 272 | 5 | GIVING A TASK BY RANK (the owner's decision, 2026-10-30; the pure rule is `policy/assign-rank.ts`). |
 | `task-rules` | 306 | 5 | «القواعد التلقائية» — the if-then rules of a project: who defines them, what a saved rule may name, and the log. |
-| `team-lines` | 156 | 5 | «الهيكل» — who answers to whom. |
+| `team-lines` | 157 | 5 | «الهيكل» — who answers to whom. |
 | `team-reviews` | 209 | 5 | «التقييمات» — what the owner and the supervisors write about a person for a period. |
 | `teams` | 234 | 5 | TEAMS INSIDE A SPACE — who is in which team, and which project belongs to which (the reading rule is in team-scope.ts). |
 | `telegram` | 299 | 5 | Validates a bot token by calling getMe. |
-| `users` | 340 | 5 | no header comment — exports `updateProfile`, `getProfileForViewer`, `getPublicProfile`, `memberDirectory` |
-| `views` | 586 | 5 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
+| `users` | 347 | 5 | no header comment — exports `updateProfile`, `getProfileForViewer`, `getPublicProfile`, `memberDirectory` |
+| `views` | 589 | 5 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
 | `work-app` | 291 | 5 | M2 N3 — what the projects pages show, read ONCE for the page and for the phone's doors (the way `taskSheetFor` serves the task page and `/api/tasks/[id]/sheet`). |
 | `calendar-feed` | 331 | 4 | «اشتراك التقويم» — a person's private calendar feed. |
 | `crm` | 228 | 4 | no header comment — exports `OPPORTUNITY_STAGES`, `createCustomerSchema`, `updateCustomerSchema`, `createOpportunitySchema`, `updateOpportunitySchema`, … |
@@ -615,7 +615,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `digest` | 403 | 4 | «شو فاتني؟» — a short catch-up written by the owner's assistant for ONE person, on «اليوم», and «لخّصلي» inside a topic. |
 | `gateway-address` | 24 | 4 | The address of the OpenAI-compatible gateway, judged with the owner's switch «بوابة نموذج خارجية» (`externalGateway`, off by default). |
 | `milestones` | 178 | 4 | «المعالم» — the milestones of a project (the owner, 2026-10-30: the table, the project page's list and the timeline's diamonds all existed and nothing in the repository ever cre… |
-| `nav-order` | 171 | 4 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
+| `nav-order` | 172 | 4 | «ترتيبي» — the person's own order of the menu, kept on the account (`User.navOrder`, one nullable JSON column). |
 | `okr` | 489 | 4 | «الأهداف والنتائج» — the key results of an objective (src/lib/okr.ts holds the arithmetic). |
 | `problem-settings` | 136 | 4 | The kinds of problem, the rules and the working hours of «المشاكل تصير تذاكر» (Q1.5): who edits them is «ضبط التصعيد» (`escalation.configure`), a capability that was checked now… |
 | `problem-tickets` | 271 | 4 | «🎫 مشكلة» (Q1.5): a ticket made where the message is. |
@@ -627,8 +627,8 @@ high count is a wide surface: changing its signature reaches all of them.
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
 | `member-rules` | 184 | 3 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
-| `order-state` | 118 | 3 | AN ORDER'S STATE (Q1.4): what the chip and the «/طلب» card show. |
-| `org-members` | 296 | 3 | Organization members: the rank rules of account management and the roster. |
+| `order-state` | 120 | 3 | AN ORDER'S STATE (Q1.4): what the chip and the «/طلب» card show. |
+| `org-members` | 300 | 3 | Organization members: the rank rules of account management and the roster. |
 | `owner-assistant-names` | 85 | 3 | «مساعد المالك» — PUTTING THE REAL NAMES BACK, for the owner's eyes only. |
 | `registration` | 145 | 3 | Opening a company is open to anyone (owner's decision 23/10), behind three guards: The address is checked. |
 | `sessions` | 159 | 3 | C4.2 — the person's signed-in devices (`UserSession`), the one place that reads and writes them. |
@@ -673,7 +673,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `ai-settings` | 30 | 1 | THE AI CONNECTION — ONE PLACE (A2.1). |
 | `assistant-work` | 107 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
 | `bot-webhooks` | 136 | 1 | «بوت فاذر» — the webhook of a bot (docs/contracts/bots.md): the messages that ADDRESS a bot are sent to its address, signed. |
-| `bulk-assign` | 142 | 1 | «نقل أو فكّ المهام المفتوحة»: when a person leaves, their OPEN cards (not archived, not completed, not in a finished column) are listed and handed to somebody else, or unassigne… |
+| `bulk-assign` | 145 | 1 | «نقل أو فكّ المهام المفتوحة»: when a person leaves, their OPEN cards (not archived, not completed, not in a finished column) are listed and handed to somebody else, or unassigne… |
 | `card-log` | 92 | 1 | «السجل»: a read-only timeline made of the AuditLog rows written about this card. |
 | `card-status` | 32 | 1 | «حالة الاعتماد» (the second of the two systems): مسودة → قيد المراجعة → معتمدة → مؤرشفة, set by a moderator of the space or the OWNER. |
 | `checkins-section` | 27 | 1 | «التسجيل اليومي» as a section of the team score: how many days a person answered in the period and the run of answered days. |
@@ -686,7 +686,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `manufacturing-proof` | 36 | 1 | The gate of the file routes for a proof photo of a receipt: it opens ONLY for the people who may read the receipt, that is to say the ledger's own rule and nothing looser than i… |
 | `meeting-model-env` | 51 | 1 | «نموذج الاجتماعات» — a FAST model for the meeting assistant only, fixed by VARIABLES of the server (like `gateway-env.ts`). |
 | `owner-assistant-key-check` | 25 | 1 | «افحص المفتاح»: asks the provider, with the key already saved, whether it still accepts it — ONE request of a few tokens, never counted against the owner's limits. |
-| `presence-roster` | 101 | 1 | THE PEOPLE DOCK — who works here and who is at their screen right now (the owner's ask, 2026-10-29: «المستخدمين ظاهرين على زاوية الموقع تحت وكل واحد جنبه علامة خضراء أونلاين»). |
+| `presence-roster` | 104 | 1 | THE PEOPLE DOCK — who works here and who is at their screen right now (the owner's ask, 2026-10-29: «المستخدمين ظاهرين على زاوية الموقع تحت وكل واحد جنبه علامة خضراء أونلاين»). |
 | `recurrence-spawn` | 227 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |
 | `reporting-line` | 31 | 1 | Everybody BELOW a person in the reporting line of ONE company (`OrganizationMember.managerId`, transitive, ACTIVE people only), as user ids. |
 | `search-semantic` | 191 | 1 | «بحث بالمعنى» — THE QUESTION. |
@@ -694,7 +694,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `site-guide` | 140 | 1 | «المرشد» — ONE STEP of the guide. |
 | `space-delete` | 94 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
 | `task-privacy-bulk` | 38 | 1 | «خلّي المهام المسندة المفتوحة خاصة»: one click for the whole space (P0.2). |
-| `task-rules-run` | 298 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
+| `task-rules-run` | 301 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
 | `ticket-escalation` | 73 | 1 | Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). |
 | `approval-notify` | 128 | 0 | The bell of «طلبات الموافقة». |
@@ -958,6 +958,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/away.ts` |
+| `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
 | `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
 | `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts`, `server/services/task-sheet.ts` |
@@ -973,6 +974,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `taskRules` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
 | `approvals` | 9 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
 | `taskPrivacy` | 1 — `server/services/tasks.ts` |
+| `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
 | `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
 | `workInbox` | 8 — `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts`, `server/services/work-app.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |

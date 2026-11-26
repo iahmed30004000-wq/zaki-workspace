@@ -14,6 +14,7 @@ import {
   NAME_MAX,
   USERNAME_MAX,
   creatableRoles,
+  limitedToOneSpace,
   managerCandidates,
   normalizeUsername,
   type ActorInfo,
@@ -68,6 +69,9 @@ export function AddMemberSheet({
   const fieldId = (name: string) => `${uid}-${name}`;
   const set = <K extends keyof AddFormValues>(key: K, value: AddFormValues[K]) => setValues((v) => ({ ...v, [key]: value }));
   const managers = managerCandidates(members, "");
+  // «محصور بمساحة وحدة»: one space is picked, and «الشركة» is not among the choices
+  const limited = limitedToOneSpace(values);
+  const offered = limited ? spaces.filter((s) => !s.hq) : spaces;
   const allSpaces = spaces.length > 0 && spaces.every((s) => values.workspaceIds.includes(s.id));
   const secretOnScreen = created !== null && created.password !== null;
   const started = Boolean(
@@ -97,11 +101,21 @@ export function AddMemberSheet({
   function addAnother() {
     setCreated(null);
     setError(null);
-    setValues({ ...EMPTY_ADD_FORM, role: values.role, workspaceIds: values.workspaceIds, templateId: values.templateId });
+    setValues({ ...EMPTY_ADD_FORM, role: values.role, workspaceIds: values.workspaceIds, templateId: values.templateId, spaceOnly: values.spaceOnly });
   }
 
   function toggleSpace(id: string, on: boolean) {
-    set("workspaceIds", on ? [...values.workspaceIds, id] : values.workspaceIds.filter((x) => x !== id));
+    if (limited) set("workspaceIds", on ? [id] : []);
+    else set("workspaceIds", on ? [...values.workspaceIds, id] : values.workspaceIds.filter((x) => x !== id));
+  }
+
+  /** Turning the limit on keeps the choice only when it already is one space that may be it. */
+  function setLimited(next: boolean) {
+    setValues((v) => ({
+      ...v,
+      spaceOnly: next,
+      workspaceIds: next && !(v.workspaceIds.length === 1 && spaces.some((s) => s.id === v.workspaceIds[0] && !s.hq)) ? [] : v.workspaceIds,
+    }));
   }
 
   return (
@@ -166,7 +180,7 @@ export function AddMemberSheet({
             />
           ) : null}
 
-          <Field id={fieldId("role")} label={t("members.f_rank")} hint={values.templateId ? t("ptemplates.rank_from_template") : rankHint(values.role, t)}>
+          <Field id={fieldId("role")} label={t("members.f_rank")} hint={values.templateId ? t("ptemplates.rank_from_template") : limitedToOneSpace(values) ? undefined : rankHint(values.role, t)}>
             <Select
               id={fieldId("role")}
               value={values.role}
@@ -220,14 +234,20 @@ export function AddMemberSheet({
             </div>
           </details>
 
-          <fieldset className="space-y-2">
+          {values.role === "MEMBER" ? (
+            <div className="rounded-xl border border-border bg-surface">
+              <SwitchRow checked={values.spaceOnly} onChange={setLimited} title={t("members.space_only_title")} hint={t("members.space_only_hint")} />
+            </div>
+          ) : null}
+
+          <fieldset id={fieldId("spaces")} tabIndex={-1} className="space-y-2">
             <legend className="text-sm font-medium text-fg">{t("members.f_spaces")}</legend>
-            <p className="text-xs leading-5 text-fg-muted">{t("members.f_spaces_hint")}</p>
-            {spaces.length === 0 ? (
+            <p className="text-xs leading-5 text-fg-muted">{t(limited ? "members.space_only_pick" : "members.f_spaces_hint")}</p>
+            {offered.length === 0 ? (
               <p className="rounded-lg bg-surface-2 p-3 text-xs text-fg-muted">{t("members.spaces_empty")}</p>
             ) : (
               <>
-                {spaces.length > 1 ? (
+                {!limited && spaces.length > 1 ? (
                   <button
                     type="button"
                     onClick={() => set("workspaceIds", allSpaces ? [] : spaces.map((s) => s.id))}
@@ -237,7 +257,7 @@ export function AddMemberSheet({
                   </button>
                 ) : null}
                 <div className="grid grid-cols-1 gap-2">
-                  {spaces.map((space) => {
+                  {offered.map((space) => {
                     const on = values.workspaceIds.includes(space.id);
                     return (
                       <label
@@ -245,7 +265,8 @@ export function AddMemberSheet({
                         className="flex min-h-11 cursor-pointer items-center gap-3 rounded-lg border border-border bg-surface px-3 text-sm text-fg hover:bg-surface-1"
                       >
                         <input
-                          type="checkbox"
+                          type={limited ? "radio" : "checkbox"}
+                          name={limited ? fieldId("one-space") : undefined}
                           checked={on}
                           onChange={(e) => toggleSpace(space.id, e.target.checked)}
                           className="size-5 shrink-0 accent-accent"

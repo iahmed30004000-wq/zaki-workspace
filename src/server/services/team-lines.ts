@@ -96,6 +96,7 @@ function nodesOf(access: DevAccess, ids: Iterable<string>): StructureNode[] {
 }
 
 export async function loadStructure(actor: Actor): Promise<Structure> {
+  if (actor.spaceOnly) throw new NotFoundError("teamdev.not_found"); // «الهيكل» is the company's reporting line
   const access = await devAccess(actor);
   const lines = drawnLines(access);
   const myManager = lines.get(access.viewerId) ?? null;

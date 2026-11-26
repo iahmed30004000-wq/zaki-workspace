@@ -106,7 +106,7 @@ export async function authenticateDoor(req: Request, requestId: string, needed: 
   // the person it acts for, read now: rank, status and capabilities are never remembered
   const issuer = await db.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: row.organizationId, userId: row.createdById } },
-    select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
+    select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true, spaceOnly: true },
   });
   if (!issuer || issuer.status !== "ACTIVE" || issuer.role === "GUEST" || !can(issuer, "integrations.manage")) {
     return refuse("issuer_inactive", row.id);

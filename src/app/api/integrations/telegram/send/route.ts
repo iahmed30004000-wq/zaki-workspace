@@ -4,6 +4,7 @@ import { withApi } from "@/server/api";
 import { parseJson } from "@/server/validation";
 import { activeOrgCtx } from "@/server/services/integrations";
 import { assertNotGuest } from "@/server/services/guest-guard";
+import { assertNotSpaceOnly } from "@/server/policy/space-only";
 import { sendMessage } from "@/server/services/telegram";
 
 const sendSchema = z.object({
@@ -16,6 +17,7 @@ export async function POST(req: Request) {
   return withApi(async () => {
     const ctx = await activeOrgCtx();
     assertNotGuest(ctx);
+    await assertNotSpaceOnly(ctx.userId, ctx.orgId); // the customers' conversations are the company's
     const input = await parseJson(sendSchema, req);
     const result = await sendMessage(ctx.orgId, input.chatId, input.text);
     if (!result.ok) {

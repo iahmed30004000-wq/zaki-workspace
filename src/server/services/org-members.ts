@@ -77,6 +77,8 @@ export interface RosterMember {
   managerName: string | null;
   capabilities: string[];
   revokedCapabilities: string[];
+  /** «محصور بمساحة»: `true` only for such an account (absent otherwise). */
+  spaceOnly?: boolean;
   /** An OWNER who is the company's primary owner (false for a partner and for everybody else). */
   primaryOwner: boolean;
   effectiveCapabilities: string[];
@@ -107,8 +109,8 @@ export interface Roster {
   actorPrimaryOwner: boolean;
   /** «صلاحيات الأقسام» is on in «الميزات»: the sheet shows the section grid (off: the customers' two switches instead). */
   sectionGrid: boolean;
-  /** The spaces the caller may put people into: every space for the OWNER, otherwise their own. */
-  spaces: { id: string; name: string }[];
+  /** The spaces the caller may put people into: every space for the OWNER, otherwise their own. `hq`: «الشركة» (absent otherwise). */
+  spaces: { id: string; name: string; hq?: boolean }[];
 }
 
 /** The template each person was LAST given: the newest `org.template_applied` audit row about them. */
@@ -157,6 +159,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
       capabilities: true,
       revokedCapabilities: true,
       primaryOwner: true,
+      spaceOnly: true,
       verifiedAt: true,
       managerId: true,
       manager: { select: { name: true } },
@@ -198,7 +201,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
       select: { userId: true, role: true, workspace: { select: { id: true, name: true } } },
       orderBy: { workspace: { name: "asc" } },
     }),
-    db.workspace.findMany({ where: { organizationId: orgId }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
+    db.workspace.findMany({ where: { organizationId: orgId }, select: { id: true, name: true, kind: true }, orderBy: { name: "asc" } }),
     actor.isOwner ? Promise.resolve(null) : accessibleWorkspaceIds(actor.userId),
   ]);
 
@@ -238,6 +241,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     openWork: openWork.get(r.user.id) ?? 0,
     workspaces: spacesOf.get(r.user.id) ?? [],
     ...templateOf(r.user.id, r, applied, templateNames),
+    ...(r.spaceOnly ? { spaceOnly: true } : {}),
     ...(verifiedOn && r.verifiedAt !== null && r.status === "ACTIVE" && r.role !== "GUEST" ? { verified: true } : {}),
   }));
   members.sort(
@@ -250,7 +254,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     actorRole: actor.role,
     actorPrimaryOwner: actor.isPrimaryOwner === true,
     sectionGrid,
-    spaces: visible ? orgSpaces.filter((s) => visible.has(s.id)) : orgSpaces,
+    spaces: (visible ? orgSpaces.filter((s) => visible.has(s.id)) : orgSpaces).map((s) => ({ id: s.id, name: s.name, ...(s.kind === "HQ" ? { hq: true } : {}) })),
   };
 }
 

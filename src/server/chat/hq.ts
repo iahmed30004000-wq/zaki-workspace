@@ -12,7 +12,7 @@ import type { Prisma } from "@prisma/client";
  * name is never overwritten here (an owner's own choice must stay).
  *
  *   space: key "hq", slug "hq", kind HQ — every ACTIVE non-owner non-guest person (an ADMIN as
- *          space ADMIN);
+ *          space ADMIN), except an account that works only in its spaces (`spaceOnly`);
  *   topics: التنبيهات (announcements, ADMINS post) · المتابعة (followup, ADMINS post) · عام ·
  *          الأفكار · الأرشيف (restricted, nobody in it: only the OWNER reads it).
  *
@@ -109,7 +109,7 @@ export async function ensureHqSpace(orgId: string, name: string, tx: Prisma.Tran
 export async function addOrgToHq(orgId: string): Promise<void> {
   const spaceId = await ensureHqSpace(orgId, "الشركة");
   const people = await db.organizationMember.findMany({
-    where: { organizationId: orgId, status: "ACTIVE", role: { notIn: ["OWNER", "GUEST"] } },
+    where: { organizationId: orgId, status: "ACTIVE", role: { notIn: ["OWNER", "GUEST"] }, spaceOnly: false },
     select: { userId: true, role: true },
   });
   if (!people.length) return;
@@ -126,7 +126,8 @@ export async function addOrgToHq(orgId: string): Promise<void> {
 /** Puts one person in HQ (a reactivated member comes back this way). */
 export async function addPersonToHq(orgId: string, userId: string, role: string, tx: Prisma.TransactionClient | typeof db = db): Promise<void> {
   if (role === "OWNER" /* oversight-ok: HQ membership by rank */ || role === "GUEST") return;
-  const membership = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: orgId, userId } }, select: { status: true, role: true } });
+  const membership = await tx.organizationMember.findUnique({ where: { organizationId_userId: { organizationId: orgId, userId } }, select: { status: true, role: true, spaceOnly: true } });
+  if (membership?.spaceOnly) return;
   if (!membership || membership.status !== "ACTIVE" || membership.role === "OWNER" /* oversight-ok: HQ membership by rank */ || membership.role === "GUEST") return;
   const spaceId = await ensureHqSpace(orgId, "الشركة", tx);
   await tx.workspaceMember.upsert({

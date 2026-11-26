@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { reachableWhere } from "@/server/policy/space-only";
 import { onlineUserIds } from "@/server/realtime/presence";
 import { spacePeopleWhere, verifiedShownTo } from "@/server/chat/space-people";
 import { lastSeenReader } from "@/server/services/last-seen";
@@ -55,9 +56,11 @@ export interface RosterOptions {
 
 export async function presenceRoster(orgId: string, viewerId: string, opts: RosterOptions = {}): Promise<PresenceRoster> {
   const scoped = !opts.everyone && opts.spaceId ? spacePeopleWhere(orgId, opts.spaceId) : null;
+  // «محصور بمساحة»: with no space to narrow by (taken out of its one space) such a viewer still meets nobody outside
+  const reach = await reachableWhere(orgId, viewerId);
   const rows = await db.organizationMember.findMany({
     where: {
-      ...(scoped ? { AND: [scoped] } : {}),
+      AND: [scoped ?? {}, reach ?? {}],
       organizationId: orgId,
       role: { not: "GUEST" },
       status: "ACTIVE",

@@ -61,7 +61,7 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
 
   const issuer = await db.organizationMember.findUnique({
     where: { organizationId_userId: { organizationId: row.organizationId, userId: row.createdById } },
-    select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
+    select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true, spaceOnly: true },
   });
   // a BOT's token (docs/contracts/bots.md) is issued by the bot's own account, an ordinary member: it needs no «integrations.manage», but it must be the live token of a live bot
   // (this door only; the bot's token holds `messages.write` and nothing else, so no other door ever sees it)

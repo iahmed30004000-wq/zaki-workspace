@@ -62,7 +62,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return withApi(async () => {
     const task = await db.task.findFirst({
       where: { id: params.id },
-      select: { workspaceId: true, project: { select: { teamId: true } }, visibility: true, creatorId: true, assigneeId: true, coAssignees: { select: { userId: true } }, },
+      select: { id: true, workspaceId: true, project: { select: { teamId: true } }, visibility: true, creatorId: true, assigneeId: true, coAssignees: { select: { userId: true } }, },
     });
     if (!task) throw new NotFoundError("task.not_found");
     const access = await requireTeamWork(task.workspaceId, task.project.teamId, undefined, "task.not_found", task);

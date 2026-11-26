@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { taskParticipantFilter } from "@/server/services/team-scope";
 import type { Prisma } from "@prisma/client";
 import { db } from "@/server/db";
 import { audit, ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
@@ -85,6 +86,8 @@ async function openRows(ctx: OrgAccessContext, from: string, opts: { workspaceId
       ...(opts.workspaceId ? { workspaceId: opts.workspaceId } : {}),
       ...(opts.taskIds ? { id: { in: [...opts.taskIds] } } : {}),
       ...(scope.all ? {} : { workspaceId: { in: [...scope.spaces] } }),
+      // the private-task rule and «مهامه بس»: a manager passes the first, only the company's owner and admins the second
+      AND: [await taskParticipantFilter(ctx.userId)],
     },
     select,
     orderBy: [{ dueDate: { sort: "asc", nulls: "last" } }, { number: "asc" }],
