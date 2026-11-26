@@ -71,7 +71,14 @@ export async function resolveWorkspaceView(
 ): Promise<{ ctx: WorkspaceViewCtx } | { none: true } | { pageRedirect: true }> {
   const user = await pageUser();
   if (!user) return { pageRedirect: true };
+  return workspaceViewFor(user.id, wantedId);
+}
 
+/**
+ * The same resolution for a person already known (a route's `requireActor`, M2 N6): the page above and the phone's calendar door read ONE rule.
+ */
+export async function workspaceViewFor(userId: string, wantedId?: string): Promise<{ ctx: WorkspaceViewCtx } | { none: true }> {
+  const user = { id: userId };
   const scope = await loadWorkScope(user.id);
   const accessibleIds = scopeSpaceIds(scope);
   if (accessibleIds.length === 0) return { none: true };
