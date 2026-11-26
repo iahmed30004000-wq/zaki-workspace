@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { assertMemberCan } from "@/server/policy/actor";
+import { actorCan, assertMemberCan, type Actor } from "@/server/policy/actor";
+import { currentSpace } from "@/server/services/current-space";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError, ValidationError, type OrgAccessContext } from "@/server/auth";
 import { AR } from "@/lib/i18n/dict";
@@ -368,4 +369,21 @@ export async function endWatch(ctx: OrgAccessContext, id: string): Promise<void>
     await writeSystemMessage(tx, { orgId: ctx.orgId, conversationId: row.conversationId, authorId: ctx.userId, k: "watch_ended", spaceId: conv?.spaceId });
     await emitRealtime(tx, ctx.orgId, "conversation.changed", { conversationId: row.conversationId, spaceId: conv?.spaceId ?? undefined });
   });
+}
+
+/**
+ * The watch place of the space the person is in, as ONE read: the page (src/app/(app)/watch/page.tsx) and the phone's door
+ * (GET /api/watch/home) draw the same thing: the sessions this person may see, who may be picked for a new one, and whether
+ * they may start one (a person of the space holding `watch.edit`). Who may see the place at all is decided by each caller first.
+ */
+export async function watchHome(actor: Actor): Promise<{ spaceId: string | null; sessions: WatchSessionDto[]; candidates: { id: string; name: string }[]; canStart: boolean }> {
+  const ctx = { orgId: actor.orgId, orgRole: actor.role, userId: actor.userId };
+  const space = await currentSpace(actor);
+  if (!space) return { spaceId: null, sessions: [], candidates: [], canStart: false };
+  const [sessions, candidates, inSpace] = await Promise.all([
+    listWatch(ctx, space.id),
+    watchCandidates(actor.orgId, space.id, actor.userId),
+    isOfSpace(actor.orgId, space.id, actor.userId),
+  ]);
+  return { spaceId: space.id, sessions, candidates, canStart: inSpace && actorCan(actor, "watch.edit") };
 }

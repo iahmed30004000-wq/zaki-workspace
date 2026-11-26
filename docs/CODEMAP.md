@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 422 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 424 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 210 feature switches and every place that reads them (§8).
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 422 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 424 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 171 services — the business rules (§6) |
+| `src/server/services/` | 172 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 188 · `activeOrgCtx` 122 · `(none)` 43 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 190 · `activeOrgCtx` 122 · `(none)` 43 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -233,6 +233,7 @@ Doors in use: `requireActor` 188 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 | GET, POST | `/api/departments/[id]/campaigns` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`campaigns`: createCampaign, createCampaignSchema, listDepartmentCampaigns |
 | POST | `/api/departments/[id]/members` | activeOrgCtx | `integrations`: activeOrgCtx<br>`departments`: membersSchema, setMembers |
 | GET, POST | `/api/departments/[id]/tickets` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`tickets`: createTicket, createTicketSchema, listDepartmentTickets |
+| GET | `/api/desks/facts` | requireActor | `desks`: deskFactsFor |
 | GET | `/api/device/stream` | **none** (public by design) † | — |
 | POST | `/api/digest` | requireActor † | `digest`: morningDigest |
 | GET, POST | `/api/documents` | requireActor | `documents`: createDocSchema, createDocument, listDocuments |
@@ -491,6 +492,7 @@ Doors in use: `requireActor` 188 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 | GET | `/api/watch/[id]/conversions` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: watchDetail |
 | POST | `/api/watch/[id]/end` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: endWatch |
 | GET, POST, PATCH | `/api/watch/[id]/remote` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: assertFeatureOn<br>`watch`: handOverRemote, handOverSchema, pressRemote, pressSchema, … |
+| GET | `/api/watch/home` | requireActor | `features`: assertFeatureOn<br>`watch`: watchHome |
 | GET | `/api/work/boards/[id]` | requireActor | `work-app`: boardScreenFor |
 | GET | `/api/work/projects` | requireActor | `work-app`: projectsScreenFor |
 | GET | `/api/work/projects/[id]` | requireActor | `work-app`: projectScreenFor |
@@ -516,7 +518,7 @@ Doors in use: `requireActor` 188 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 422. Each one is a door that cannot have a session, or one that is closed.
+Six of 424. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -537,7 +539,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 87 | 182 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 87 | 183 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 138 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 77 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 299 | 50 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -581,6 +583,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `manufacturing-ledger` | 528 | 8 | «مخزون التصنيع» — the movements. |
 | `owner-board-io` | 78 | 8 | «لوحة المالك» — what comes in (the query string, parsed once, the same for the pages and the routes) and what goes out (the CSV of the people table: exactly the columns on the s… |
 | `team-plans` | 259 | 8 | «خطة التطوير» and «ملاحظات ١:١» of one person. |
+| `watch` | 390 | 8 | «نتفرّج سوا» — people of a space watch one link together (the owner's ask, 2026-10-26). |
 | `workspaces` | 396 | 8 | Spaces (workspaces): who is in one, who may change it. |
 | `approval-forms` | 297 | 7 | «نموذج» — reusable forms that create approval requests. |
 | `campaigns` | 310 | 7 | Campaigns live inside a department (marketing calendars). |
@@ -590,7 +593,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `last-seen` | 124 | 7 | «آخر ظهور» — WHO MAY SEE WHEN SOMEBODY WAS LAST AT THEIR SCREEN (the owner, 2026-10-31: «بدي كمان احط آخر ظهور للأعضاء»). |
 | `task-steps` | 160 | 7 | «خطوات» — the short checklist inside a task. |
 | `team-criteria` | 109 | 7 | «معايير التقييم» — the criteria a reviewer rates 1-5: the five the owner named (جودة الشغل، الالتزام بالمواعيد، التعاون، المبادرة، التواصل), which the owner may rename, add to (… |
-| `watch` | 372 | 7 | «نتفرّج سوا» — people of a space watch one link together (the owner's ask, 2026-10-26). |
 | `approval-input` | 79 | 6 | What a request body says about an approval: the amount as typed (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency, the chain, the thi… |
 | `botfather` | 526 | 6 | «بوت فاذر» — the system chat where the owner and the admins make bots (docs/contracts/bots.md), like Telegram's. |
 | `checkins-space` | 18 | 6 | The space a check-in request is about: the one the request names (`workspaceId`, which the guards in src/server/services/checkins.ts check against the person), or else the space… |
@@ -629,6 +631,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `views` | 596 | 4 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
 | `work-requests` | 493 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `calendar` | 125 | 3 | The calendar's data logic, taken out of the page so it can be tested with an injected `now`. |
+| `desks` | 53 | 3 | The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns, departments, production): who the person is to these … |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
@@ -859,7 +862,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 | Switch | Places that read it |
 |---|---|
-| `watch` | 21 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
+| `watch` | 22 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/home/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
 | `sectionPermissions` | 3 — `components/members/capability-panel.tsx`, `server/policy/capabilities.ts`, `server/policy/section-grid.ts` |
 | `libraryDrive` | 1 — `server/services/google.ts` |
 | `pushEverything` | 3 — `app/api/device/stream/route.ts`, `server/notify.ts`, `server/push-chat.ts` |
@@ -1022,7 +1025,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `autoTickets` | 7 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/policy/capabilities.ts`, `server/services/problem-settings.ts`, `server/services/problem-tickets.ts`, `server/services/ticket-chat.ts`, `server/services/ticket-escalation.ts` |
 | `orderTemplateHint` | 1 — `server/chat/topics.ts` |
 | `orderStatus` | 2 — `server/chat/topics.ts`, `server/services/order-state.ts` |
-| `watch` | 21 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
+| `watch` | 22 — `app/(app)/watch/[id]/page.tsx`, `app/(app)/watch/loading.tsx`, `app/(app)/watch/page.tsx`, `app/api/watch/[id]/conversions/route.ts`, `app/api/watch/[id]/end/route.ts`, `app/api/watch/[id]/remote/route.ts`, `app/api/watch/[id]/route.ts`, `app/api/watch/home/route.ts`, `app/api/watch/route.ts`, `components/chat/v2/pane/pane-header.tsx`, `components/watch/watch-home.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/chat/v2/pane/switch.ts`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `lib/nav/new-actions.ts`, `lib/nav/places.ts`, `lib/nav/shell-v2.ts`, `lib/watch/source.ts`, `server/policy/capabilities.ts`, `server/services/nav-order.ts` |
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
 | `sectionPermissions` | 3 — `components/members/capability-panel.tsx`, `server/policy/capabilities.ts`, `server/policy/section-grid.ts` |
 | `permissionTemplates` | 4 — `components/control-panel/sections/accounts-section.tsx`, `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
@@ -1074,8 +1077,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 416 of 422 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 310 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 418 of 424 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 312 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **20 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 7 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`, `/mcp`); 6 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right; the 1 left (`/mcp`) are the ones Phase E looks at. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

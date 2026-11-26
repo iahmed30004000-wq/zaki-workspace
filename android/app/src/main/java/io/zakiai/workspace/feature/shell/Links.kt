@@ -41,6 +41,11 @@ sealed interface Destination {
     data class Me(val section: String) : Destination
     data object Guide : Destination
     data class GuideArticle(val slug: String) : Destination
+    /** the watch place of the space and one session (M2 N6 batch 6) */
+    data object Watch : Destination
+    data class WatchSession(val id: String) : Destination
+    /** the company's departments (campaigns and the daily routine are tabs of آ«ط§ظ„ط´ط؛ظ„آ») */
+    data object Departments : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -65,6 +70,7 @@ object Links {
     private val CARD = Regex("^/cards/([A-Za-z0-9_-]+)/?$")
     private val ME = Regex("^/settings/me/([a-z]+)/?$")
     private val GUIDE = Regex("^/guide/([A-Za-z0-9_-]+)/?$")
+    private val WATCH = Regex("^/watch/([A-Za-z0-9_-]+)/?$")
     /** the sections of آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» the phone draws itself; the others (folders, menu, shortcuts, data, the company's) stay the site's */
     val NATIVE_ME = setOf("account", "notifications", "privacy", "chat", "devices", "language", "help")
 
@@ -81,7 +87,7 @@ object Links {
         if (path.startsWith("/go?")) {
             val next = path.removePrefix("/go?").split("&").firstOrNull { it.startsWith("next=") }?.removePrefix("next=")
                 ?.let { runCatching { URLDecoder.decode(it, "UTF-8") }.getOrNull() }
-            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET, CALL, APPROVAL, PERSON, CARD).any { it.matches(next.substringBefore('?')) }) path = next
+            if (next != null && listOf(CHAT, TASK, PROJECT, BOARD, DOCUMENT, SHEET, CALL, APPROVAL, PERSON, CARD, WATCH).any { it.matches(next.substringBefore('?')) }) path = next
         }
         // a task opens natively in any space: its sheet is read by id (the site's own scope rules decide)
         TASK.find(path.substringBefore('?'))?.let { return Destination.Task(it.groupValues[1]) }
@@ -96,6 +102,7 @@ object Links {
         CARD.find(path.substringBefore('?'))?.let { return Destination.Card(it.groupValues[1]) }
         ME.find(path.substringBefore('?'))?.let { m -> return if (m.groupValues[1] in NATIVE_ME) Destination.Me(m.groupValues[1]) else Destination.Site(path) }
         GUIDE.find(path.substringBefore('?'))?.let { return Destination.GuideArticle(it.groupValues[1]) }
+        WATCH.find(path.substringBefore('?'))?.let { return Destination.WatchSession(it.groupValues[1]) }
         CHAT.find(path.substringBefore('?'))?.let { match ->
             val at = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("m=") }?.removePrefix("m=")
                 ?.takeIf { ID.matches(it) }
@@ -128,6 +135,10 @@ object Links {
             // آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ»: its list lives in آ«ط§ظ„ط¥ط¯ط§ط±ط©آ»
             "/settings/me" -> Destination.Settings
             "/guide" -> Destination.Guide
+            "/watch" -> Destination.Watch
+            "/campaigns" -> Destination.Work("campaigns")
+            "/production" -> Destination.Work("production")
+            "/departments" -> Destination.Departments
             // آ«/cards?new=taskآ» is the site's task sheet over the cards (W1.8): still its page
             "/cards" -> if (path.contains("new=")) Destination.Site(path) else Destination.Cards
             // a report narrowed by the site (a task's «تقرير الوقت»: ?taskId=, a range) stays the site's page: the phone has the week and the month only

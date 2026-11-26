@@ -221,14 +221,18 @@ private object Routes {
     const val ME = "me/{section}"
     const val GUIDE = "guide"
     const val GUIDE_ARTICLE = "guide/{slug}"
-    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS)
+    /** آ«ظ†طھظپط±ظ‘ط¬ ط³ظˆط§آ»: a tab of the bar, and one session */
+    const val WATCH = "watch"
+    const val WATCH_SESSION = "watch/{id}"
+    const val DEPARTMENTS = "departments"
+    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
     fun work(tab: String, view: String? = null) = "work?tab=$tab" + (view?.let { "&v=${Uri.encode(it)}" } ?: "")
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -243,6 +247,7 @@ private val SITE_ITEMS = listOf(
     // «اللوحات» opens in every space (the site's /cards); in a space of cards it is also the first tab
     SiteItem(io.zakiai.workspace.feature.cards.K.title, "/cards", Icons.Filled.Dashboard),
     SiteItem(T.calendar, "/calendar", Icons.Filled.CalendarMonth),
+    SiteItem(io.zakiai.workspace.feature.desks.Q.departments, "/departments", Icons.Filled.Groups),
     SiteItem(T.ideas, "/ideas", Icons.Filled.Lightbulb),
     SiteItem(T.teams, "/teams", Icons.Filled.Groups),
     // the profile, the password, the company's settings: the native «الإعدادات» tab has only what lives on the phone
@@ -280,6 +285,9 @@ fun NavHostController.open(dest: Destination) {
         is Destination.Me -> navigate("me/" + dest.section)
         Destination.Guide -> navigate(Routes.GUIDE) { launchSingleTop = true }
         is Destination.GuideArticle -> navigate("guide/" + dest.slug)
+        Destination.Watch -> navigate(Routes.WATCH) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.WatchSession -> navigate("watch/" + dest.id)
+        Destination.Departments -> navigate(Routes.DEPARTMENTS) { launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -374,6 +382,7 @@ fun Shell(
                                     "/teams" -> Destination.People
                                     "/cards" -> Destination.Cards
                                     "/guide" -> Destination.Guide
+                                    "/departments" -> Destination.Departments
                                     else -> null
                                 }
                                 nav.open(native ?: Destination.Site(item.path)); scope.launch { drawer.close() }
@@ -405,6 +414,7 @@ fun Shell(
                                 Routes.LIBRARY -> T.library
                                 Routes.SETTINGS -> T.settings
                                 Routes.CARDS -> io.zakiai.workspace.feature.cards.K.title
+                                Routes.WATCH -> io.zakiai.workspace.feature.watch.V.title
                                 else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
                             },
                             start = { RoundIcon(Icons.Filled.Menu, T.menu, size = 24.dp) { scope.launch { drawer.open() } } },
@@ -433,7 +443,7 @@ fun Shell(
                             BarTab(T.chat, Icons.Filled.ChatBubbleOutline, route == Routes.CHATS, chatUnread) { nav.open(Destination.Chats) },
                             BarTab(io.zakiai.workspace.feature.projects.P.work, Icons.Filled.TaskAlt, route == Routes.WORK, 0) { nav.open(Destination.MyWork) },
                             BarTab(T.library, Icons.Filled.LocalLibrary, route == Routes.LIBRARY, 0) { nav.open(Destination.Library) },
-                            BarTab(T.watch, Icons.Filled.Movie, false, 0) { nav.open(Destination.Site("/watch")) },
+                            BarTab(T.watch, Icons.Filled.Movie, route == Routes.WATCH, 0) { nav.open(Destination.Watch) },
                             BarTab(T.admin, Icons.Filled.AdminPanelSettings, route == Routes.SETTINGS, 0) { nav.open(Destination.Settings) },
                         ),
                     )
@@ -556,6 +566,24 @@ fun Shell(
                             onOpenGuide = { nav.open(Destination.Guide) },
                             onOpenChat = { nav.open(Destination.Conversation(it)) },
                             onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    // M2 N6 batch 6: آ«ظ†طھظپط±ظ‘ط¬ ط³ظˆط§آ» (the room itself is the site's page inside the app, marked: YouTube's own player)
+                    composable(Routes.WATCH) {
+                        io.zakiai.workspace.feature.watch.WatchHomeScreen(onOpen = { nav.open(Destination.WatchSession(it)) }, spaceKey = spaces?.currentSpaceId)
+                    }
+                    composable(Routes.WATCH_SESSION, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.watch.WatchSessionScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenChat = { nav.open(Destination.Conversation(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.DEPARTMENTS) {
+                        io.zakiai.workspace.feature.desks.DepartmentsScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenCampaigns = { nav.open(Destination.Work("campaigns", it)) },
+                            onOpenTickets = { nav.open(Destination.Work("tickets")) },
                         )
                     }
                     composable(Routes.GUIDE) {
@@ -685,6 +713,9 @@ private fun WorkHub(
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.checkins, 0, tab == "checkins") { tab = "checkins" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.tickets, 0, tab == "tickets") { tab = "tickets" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.time, 0, tab == "time") { tab = "time" }
+            // M2 N6 batch 6: آ«ط§ظ„ط­ظ…ظ„ط§طھآ» and آ«ط§ظ„ط±ظˆطھظٹظ† ط§ظ„ظٹظˆظ…ظٹآ» (each refuses for itself who may not read it, as the site's pages do)
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desks.Q.campaigns, 0, tab == "campaigns") { tab = "campaigns" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desks.Q.routine, 0, tab == "production") { tab = "production" }
             // the owner and the admins run spaces: «مهام قديمة» (the server decides who may; a space manager reaches it by its link too)
             if (orgRole == "OWNER" || orgRole == "ADMIN") io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.stale.S.title, 0, false) { onOpenPath("/my-work/stale") }
         }
@@ -709,6 +740,10 @@ private fun WorkHub(
                 io.zakiai.workspace.feature.office.CalendarScreen(spaceKey = spaceKey, onOpenTask = onOpenTask, onOpenSite = onOpenSite, guest = orgRole == "GUEST")
             } else if (tab == "tickets") {
                 io.zakiai.workspace.feature.office.TicketsScreen(onOpenTicket = onOpenTicket, onOpenSite = onOpenSite, manager = orgRole == "OWNER" || orgRole == "ADMIN")
+            } else if (tab == "campaigns") {
+                io.zakiai.workspace.feature.desks.CampaignsScreen(initialDept = initialView, meId = meId, onOpenTask = onOpenTask)
+            } else if (tab == "production") {
+                io.zakiai.workspace.feature.desks.ProductionScreen(onOpenTask = onOpenTask)
             } else if (tab == "time") {
                 io.zakiai.workspace.feature.office.TimeScreen(spaceKey = spaceKey, onOpenTask = onOpenTask, onOpenSite = onOpenSite)
             } else {
