@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 430 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 431 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 210 feature switches and every place that reads them (§8).
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 430 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 431 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 173 services — the business rules (§6) |
+| `src/server/services/` | 174 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 196 · `activeOrgCtx` 122 · `(none)` 43 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 197 · `activeOrgCtx` 122 · `(none)` 43 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -420,6 +420,7 @@ Doors in use: `requireActor` 196 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 | GET, PATCH, POST | `/api/settings/features` | activeOrgCtx | `integrations`: activeOrgCtx<br>`guest-guard`: assertNotGuest<br>`features`: applyFeaturePreset, listFeatures, setFeature |
 | GET | `/api/settings/server-health` | activeOrgCtx | `integrations`: activeOrgCtx<br>`server-health`: serverHealth |
 | POST | `/api/site-guide/step` | requireActor † | `site-guide`: guideStep |
+| GET | `/api/spaces/[id]/settings` | requireActor | `space-settings`: spaceSettingsFor |
 | GET | `/api/spaces/overview` | requireActor | `space-manage`: spacesScreenFor |
 | GET | `/api/spaces/unplaced` | requireActor | `move-to-space`: listUnplaced |
 | POST | `/api/spaces/unplaced/move` | requireActor | `move-to-space`: moveSchema, moveToSpace |
@@ -524,7 +525,7 @@ Doors in use: `requireActor` 196 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 430. Each one is a door that cannot have a session, or one that is closed.
+Six of 431. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -675,6 +676,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `owner-assistant-data` | 124 | 2 | «مساعد المالك» — WHAT THE MODEL MAY LEARN FROM, as raw material for `buildContext` (src/server/ai/redact.ts). |
 | `permission-templates` | 81 | 2 | «قوالب» (A1.1, switch `permissionTemplates`): the company's templates and how one is applied. |
 | `project-created` | 15 | 2 | «أنشأها فلان · 25 تشرين الثاني 14:30» for a project the caller already reads (an older project, or one the system made, has no maker: its date alone). |
+| `space-settings` | 68 | 2 | «إعدادات المساحة» as one answer (A2.2): who the person is to the space (`facts`), the tabs they are offered, and what the read-only tabs show — the space's name, description, em… |
 | `storage` | 300 | 2 | THE STORAGE OF THE COMPANY'S FILES — what the owner sees and does about the server's disk filling up (his decision, 2026-11-01). |
 | `task-links` | 173 | 2 | «التبعيات» — the links between two tasks (the owner, 2026-10-30: the table existed and nothing wrote it). |
 | `task-sheet` | 237 | 2 | What the viewer may do with a pending request to give the task to somebody of a higher rank. |
@@ -894,10 +896,10 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `ownerAssistant` | 10 — `lib/nav/places.ts`, `server/calls/assistant-agent.ts`, `server/calls/transcripts.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts`, `server/services/owner-assistant-access.ts`, `server/services/site-guide.ts`, `server/services/zaki-ai.ts` |
 | `chatAssistant` | 5 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/chat-assistant.ts`, `server/services/digest.ts`, `server/services/message-translate.ts` |
 | `chatOutbox` | 1 — `server/chat/topics.ts` |
-| `customFields` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/(app)/spaces/[id]/settings/page.tsx`, `lib/feature-groups.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
-| `checkins` | 12 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts`, `server/services/today-app.ts` |
+| `customFields` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts`, `server/services/space-settings.ts` |
+| `checkins` | 12 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts`, `server/services/space-settings.ts`, `server/services/today-app.ts` |
 | `lastSeen` | 6 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/last-seen/route.ts`, `app/api/me/settings/route.ts`, `server/chat/topics.ts`, `server/realtime/presence.ts`, `server/services/last-seen.ts` |
-| `approvals` | 9 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
+| `approvals` | 9 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/space-settings.ts`, `server/services/work-requests.ts` |
 | `teamDevelopment` | 6 — `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/policy/capabilities.ts`, `server/policy/team-development.ts`, `server/services/desks.ts`, `server/services/team-score.ts` |
 | `okr` | 4 — `app/api/goals/route.ts`, `lib/feature-groups.ts`, `server/services/goals.ts`, `server/services/okr.ts` |
 | `taskRules` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
@@ -948,11 +950,11 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatScheduled` | 3 — `server/chat/scheduled.ts`, `server/chat/topics.ts`, `server/jobs/scheduler.ts` |
 | `chatMultiSelect` | 4 — `app/api/chat/forward-targets/route.ts`, `app/api/chat/messages/delete/route.ts`, `app/api/chat/messages/forward/route.ts`, `server/chat/make-work.ts` |
 | `chatChecklists` | 4 — `server/chat/checklists.ts`, `server/chat/messages.ts`, `server/chat/sync.ts`, `server/chat/topics.ts` |
-| `workStages` | 2 — `app/(app)/spaces/[id]/settings/page.tsx`, `app/api/boards/[id]/columns/route.ts` |
+| `workStages` | 2 — `app/api/boards/[id]/columns/route.ts`, `server/services/space-settings.ts` |
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
 | `zakiEmojis` | 2 — `server/chat/messages.ts`, `server/chat/topics.ts` |
-| `controlPanelV2` | 10 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
+| `controlPanelV2` | 10 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts`, `server/services/space-settings.ts` |
 | `spaceTemplates` | 2 — `app/api/workspaces/route.ts`, `components/space-templates/new-space-from-template.tsx` |
 | `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `verifiedBadge` | 5 — `server/chat/list.ts`, `server/chat/redact.ts`, `server/chat/space-people.ts`, `server/chat/topics.ts`, `server/services/org-members.ts` |
@@ -983,17 +985,17 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `recurringTasks` | 6 — `app/(app)/list/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/my-work.ts`, `server/services/production.ts`, `server/services/task-recurrence.ts`, `server/services/work-app.ts` |
 | `timeTracking` | 7 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `lib/feature-groups.ts`, `server/services/time-section.ts`, `server/services/time-tracking.ts`, `server/services/today-app.ts` |
 | `taskRewards` | 5 — `app/api/instant/route.ts`, `lib/feature-groups.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
-| `customFields` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/(app)/spaces/[id]/settings/page.tsx`, `lib/feature-groups.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts` |
-| `checkins` | 12 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts`, `server/services/today-app.ts` |
+| `customFields` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts`, `server/services/space-settings.ts` |
+| `checkins` | 12 — `app/(app)/checkins/loading.tsx`, `app/(app)/checkins/page.tsx`, `app/(app)/page.tsx`, `lib/feature-groups.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `lib/today.ts`, `server/jobs/run.ts`, `server/services/checkins-section.ts`, `server/services/checkins.ts`, `server/services/space-settings.ts`, `server/services/today-app.ts` |
 | `okr` | 4 — `app/api/goals/route.ts`, `lib/feature-groups.ts`, `server/services/goals.ts`, `server/services/okr.ts` |
 | `taskRules` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
-| `approvals` | 9 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
+| `approvals` | 9 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/space-settings.ts`, `server/services/work-requests.ts` |
 | `taskPrivacy` | 1 — `server/services/tasks.ts` |
 | `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
 | `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
 | `workInbox` | 8 — `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts`, `server/services/work-app.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |
-| `workStages` | 2 — `app/(app)/spaces/[id]/settings/page.tsx`, `app/api/boards/[id]/columns/route.ts` |
+| `workStages` | 2 — `app/api/boards/[id]/columns/route.ts`, `server/services/space-settings.ts` |
 | `workMyTasks` | 9 — `app/(app)/boards/[id]/page.tsx`, `app/(app)/calendar/page.tsx`, `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/work/tasks/[id]/route.ts`, `app/api/work/tasks/[id]/stage/route.ts`, `app/api/work/tasks/route.ts`, `server/policy/org-settings.ts` |
 | `workStaleSweep` | 5 — `app/(app)/my-work/automated.ts`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/stale/page.tsx`, `app/api/work/stale/route.ts`, `lib/nav/places.ts` |
 | `zakiEmojis` | 2 — `server/chat/messages.ts`, `server/chat/topics.ts` |
@@ -1065,7 +1067,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `themeSwitchFx` | 1 — `app/(app)/theme-gallery/page.tsx` |
 | `themeV2Default` | 1 — `server/services/chat-prefs.ts` |
 | `expenseForms` | 2 — `server/services/approval-forms.ts`, `server/services/approval-notify.ts` |
-| `controlPanelV2` | 10 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
+| `controlPanelV2` | 10 — `app/(app)/owner/page.tsx`, `app/(app)/owner/people/[id]/page.tsx`, `app/(app)/projects/page.tsx`, `app/(app)/settings/page.tsx`, `app/(app)/spaces/current/page.tsx`, `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts`, `server/services/space-settings.ts` |
 | `spaceTemplates` | 2 — `app/api/workspaces/route.ts`, `components/space-templates/new-space-from-template.tsx` |
 | `settingsOneDoor` | 4 — `components/settings-me/server-data.ts`, `lib/nav/shell-v2.ts`, `server/services/control-panel.ts`, `server/services/first-steps.ts` |
 | `verifiedBadge` | 5 — `server/chat/list.ts`, `server/chat/redact.ts`, `server/chat/space-people.ts`, `server/chat/topics.ts`, `server/services/org-members.ts` |
@@ -1084,8 +1086,8 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 424 of 430 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 318 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 425 of 431 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 319 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **20 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 7 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`, `/mcp`); 6 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right; the 1 left (`/mcp`) are the ones Phase E looks at. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

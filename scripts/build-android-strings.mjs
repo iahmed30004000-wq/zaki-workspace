@@ -10,13 +10,13 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { ANDROID_STRINGS, renderAndroidStrings } from "../src/lib/android-strings.ts";
+import { ANDROID_STRINGS, collectWords, renderAndroidStrings } from "../src/lib/android-strings.ts";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const check = process.argv.includes("--check");
 let stale = 0;
 for (const file of ANDROID_STRINGS) {
-  const words = JSON.parse(readFileSync(path.join(root, "src/lib/i18n", file.source), "utf8"));
+  const words = collectWords(file, (source) => JSON.parse(readFileSync(path.join(root, "src/lib/i18n", source), "utf8")));
   const text = renderAndroidStrings(file, words);
   const target = path.join(root, file.target);
   const now = existsSync(target) ? readFileSync(target, "utf8") : "";

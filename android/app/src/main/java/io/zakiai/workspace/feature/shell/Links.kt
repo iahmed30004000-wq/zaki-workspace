@@ -64,6 +64,8 @@ sealed interface Destination {
     data object DevSettings : Destination
     /** «كل المساحات» (M2 N6 batch 10) */
     data object Spaces : Destination
+    /** one space's settings (M2 N6 batch 11) */
+    data class SpaceSettings(val id: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -93,6 +95,7 @@ object Links {
     private val MFG_MATERIAL = Regex("^/manufacturing/materials/([A-Za-z0-9_-]+)/?$")
     private val MFG_PART = Regex("^/manufacturing/(orders|recipes|reports)/?$")
     private val DEV_PERSON = Regex("^/development/people/([A-Za-z0-9_-]+)/?$")
+    private val SPACE_SETTINGS = Regex("^/spaces/([A-Za-z0-9_-]+)/settings/?$")
     /** the sections of «إعداداتي» the phone draws itself; the others (folders, menu, shortcuts, data, the company's) stay the site's */
     val NATIVE_ME = setOf("account", "notifications", "privacy", "chat", "devices", "language", "help")
 
@@ -128,6 +131,7 @@ object Links {
         BOARD_PERSON.find(path.substringBefore('?'))?.let { return Destination.OwnerBoardPerson(it.groupValues[1]) }
         MFG_MATERIAL.find(path.substringBefore('?'))?.let { return Destination.MfgMaterial(it.groupValues[1]) }
         MFG_PART.find(path.substringBefore('?'))?.let { return Destination.MfgPart(it.groupValues[1]) }
+        SPACE_SETTINGS.find(path.substringBefore('?'))?.let { return Destination.SpaceSettings(it.groupValues[1]) }
         DEV_PERSON.find(path.substringBefore('?'))?.let { m ->
             val tab = path.substringAfter('?', "").split("&").firstOrNull { it.startsWith("tab=") }?.removePrefix("tab=")?.takeIf { it.matches(Regex("^[a-z]{1,12}$")) }
             return Destination.DevPerson(m.groupValues[1], tab)

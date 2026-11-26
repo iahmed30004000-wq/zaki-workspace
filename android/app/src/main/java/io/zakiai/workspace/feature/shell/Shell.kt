@@ -239,6 +239,7 @@ private object Routes {
     const val DEV_SKILLS = "dev-skills"
     const val DEV_SETTINGS = "dev-settings"
     const val SPACES = "spaces-overview"
+    const val SPACE_SETTINGS = "space-settings/{id}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -246,7 +247,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE, DEV_SKILLS, DEV_SETTINGS, SPACES)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE, DEV_SKILLS, DEV_SETTINGS, SPACES, SPACE_SETTINGS)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -315,6 +316,7 @@ fun NavHostController.open(dest: Destination) {
         Destination.DevSkills -> navigate(Routes.DEV_SKILLS) { launchSingleTop = true }
         Destination.DevSettings -> navigate(Routes.DEV_SETTINGS) { launchSingleTop = true }
         Destination.Spaces -> navigate(Routes.SPACES) { launchSingleTop = true }
+        is Destination.SpaceSettings -> navigate("space-settings/" + dest.id)
         is Destination.MfgPart -> navigate("mfg-part/" + dest.tab) { popUpTo(Routes.MFG_PART) { inclusive = true }; launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
@@ -652,7 +654,16 @@ fun Shell(
                         io.zakiai.workspace.feature.spaces.SpacesOverviewScreen(
                             onBack = { nav.popBackStack() },
                             onEnter = { id -> vm.enter(id); nav.open(Destination.Today) },
+                            onOpenSettings = { nav.open(Destination.SpaceSettings(it)) },
+                        )
+                    }
+                    // M2 N6 batch 11: one space's settings (no «خطر» on the phone)
+                    composable(Routes.SPACE_SETTINGS, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.spaces.SpaceSettingsScreen(
+                            onBack = { nav.popBackStack() },
                             onOpenSite = { nav.open(Destination.Site(it)) },
+                            onEnter = { id, path -> vm.enter(id); openPath(path) },
+                            onOpenDepartments = { nav.open(Destination.Departments) },
                         )
                     }
                     composable(Routes.STRUCTURE) {

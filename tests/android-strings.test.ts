@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { ANDROID_STRINGS, kotlinLiteral, renderAndroidStrings } from "@/lib/android-strings";
+import { ANDROID_STRINGS, collectWords, kotlinLiteral, renderAndroidStrings } from "@/lib/android-strings";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -11,7 +11,7 @@ const ROOT = path.resolve(__dirname, "..");
  */
 describe("the Android app's generated words", () => {
   for (const file of ANDROID_STRINGS) {
-    const words = JSON.parse(readFileSync(path.join(ROOT, "src/lib/i18n", file.source), "utf8")) as Record<string, string>;
+    const words = collectWords(file, (source) => JSON.parse(readFileSync(path.join(ROOT, "src/lib/i18n", source), "utf8")) as Record<string, string>);
 
     it(`${file.target} is exactly what the script writes from ${file.source}`, () => {
       expect(existsSync(path.join(ROOT, file.target)), "run: npx tsx scripts/build-android-strings.mjs").toBe(true);
@@ -31,6 +31,13 @@ describe("the Android app's generated words", () => {
       expect(missing).toEqual([]);
     });
   }
+
+  it("a named extra key is carried from its own fragment, and a missing one is refused", () => {
+    const file = { source: "a.json", target: "x.kt", pkg: "p", name: "W", keep: (k: string) => k.startsWith("a."), extra: [{ source: "b.json", keys: ["b.one"] }] };
+    const read = (s: string): Record<string, string> => (s === "a.json" ? { "a.x": "1", "z.y": "2" } : { "b.one": "3", "b.two": "4" });
+    expect(collectWords(file, read)).toEqual({ "a.x": "1", "b.one": "3" });
+    expect(() => collectWords({ ...file, extra: [{ source: "b.json", keys: ["b.gone"] }] }, read)).toThrow(/b.gone/);
+  });
 
   it("a value is a safe Kotlin literal: quotes, backslashes, dollars and line breaks escaped", () => {
     expect(kotlinLiteral('a "b" \\ $x\nc')).toBe('"a \\"b\\" \\\\ \\$x\\nc"');
