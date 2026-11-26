@@ -1237,6 +1237,7 @@ model Workspace {
   files         StoredFile[]
   projects      Project[]
   taskRecurrences TaskRecurrence[]
+  dailyRoutines DailyRoutine[]
   conversations Conversation[]
   // «مجموعات المواضيع»: the groups the space's topics are arranged in (Telegram's folder → group → topic)
   topicGroups   TopicGroup[]
@@ -1371,6 +1372,7 @@ model Project {
   // «الأهداف والنتائج»: the key results whose value follows this project's finished tasks
   keyResults KeyResult[]
   taskRecurrences TaskRecurrence[]
+  dailyRoutines DailyRoutine[]
   // «حقول مخصصة»: the project's own schema of task fields (they die with the project)
   customFields ProjectField[]
   // «القواعد التلقائية»: the if-then rules of the project and (through them) their log (both die with the project)
@@ -1421,6 +1423,7 @@ model Board {
   columns BoardColumn[]
   tasks   Task[]
   taskRecurrences TaskRecurrence[]
+  dailyRoutines DailyRoutine[]
 
   @@index([projectId])
 }
@@ -1613,6 +1616,54 @@ model TaskRecurrence {
 
   @@index([active, mode, nextDueAt])
   @@index([orgId])
+}
+
+/// «روتين يومي»: a template that makes one fresh card per company day at `time` for `assigneeId`, on the chosen weekdays
+/// (`days`: 0..6 as the JavaScript Date counts them), due the same day at `dueTime` (both are the company's wall clock).
+/// The runner claims a due row by `nextRunAt` (null while paused or stopped). `stoppedReason` says why an automatic stop
+/// happened (null: a person paused it). Pausing, editing or stopping never touches a card already made.
+model DailyRoutine {
+  id            String    @id @default(cuid())
+  orgId         String
+  workspaceId   String
+  projectId     String
+  boardId       String
+  title         String
+  description   String?
+  assigneeId    String
+  createdById   String
+  days          Int[]
+  time          String
+  dueTime       String
+  active        Boolean   @default(true)
+  stoppedReason String?
+  nextRunAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  board     Board             @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  runs      DailyRoutineRun[]
+
+  @@index([active, nextRunAt])
+  @@index([orgId])
+  @@index([workspaceId])
+}
+
+/// The day a routine already made its card (`day`: `YYYY-MM-DD`, company zone). Its unique key is what keeps «one card a
+/// day» true through retries, overlapping runs, edits and pauses. No foreign key to the task on purpose: a card a person
+/// deleted is not made again.
+model DailyRoutineRun {
+  id        String   @id @default(cuid())
+  routineId String
+  day       String
+  taskId    String?
+  createdAt DateTime @default(now())
+
+  routine DailyRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@unique([routineId, day])
 }
 
 /// «خطوات»: the short checklist inside a task (the owner, 2026-10-30). One row per step; `position` is fractional like the
