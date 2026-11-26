@@ -8,6 +8,16 @@ import { buildPollPayload, emptyPollDraft, errorKeyOf, POLL_CLOSE_CHOICES, POLL_
 
 const field = "h-11 w-full rounded-lg border border-muted bg-surface px-3 text-base md:h-9 md:text-sm";
 
+/** Sends the draft as a new poll message; throws with the words to show. The dialog and the phone's attach sheet share it. */
+export async function createPoll(conversationId: string, draft: PollDraft, clientId: string): Promise<MessageDto> {
+  const response = await fetch(`/api/chat/conversations/${encodeURIComponent(conversationId)}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(buildPollPayload(draft, clientId)) });
+  if (!response.ok) {
+    const key = errorKeyOf(await response.json().catch(() => null));
+    throw new Error(key ? ct(key) : ct("chatc.poll.failed"));
+  }
+  return (await response.json()) as MessageDto;
+}
+
 /**
  * «استطلاع» from the composer's «+»: a question, 2 to 10 options, one choice or several, an optional deadline
  * (at most 7 days) and an optional secret ballot. It is sent as an ordinary message with a `poll` (the send path,
@@ -31,12 +41,7 @@ export function PollDialog({ open, conversationId, onClose, onCreated }: { open:
     setBusy(true);
     setError("");
     try {
-      const response = await fetch(`/api/chat/conversations/${encodeURIComponent(conversationId)}/messages`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(buildPollPayload(draft, clientId)) });
-      if (!response.ok) {
-        const key = errorKeyOf(await response.json().catch(() => null));
-        throw new Error(key ? ct(key) : ct("chatc.poll.failed"));
-      }
-      onCreated(await response.json() as MessageDto);
+      onCreated(await createPoll(conversationId, draft, clientId));
     } catch (e) {
       setError(e instanceof Error ? e.message : ct("chatc.poll.failed"));
       setBusy(false);
