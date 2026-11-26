@@ -13,6 +13,19 @@ export function TgPhoneProvider({ on, children }: { on: boolean; children: React
   return <TgPhoneContext.Provider value={on}>{children}</TgPhoneContext.Provider>;
 }
 
+/**
+ * The mark the stylesheet looks for (`[data-tg-phone]`), with `data-tg-bar` while the floating bar is drawn. A box that takes no room (`contents`), and none
+ * at all while the switch is off, so the previous screen's markup is exactly what it was.
+ */
+export function TgPhoneScope({ on, bar, children }: { on: boolean; bar: boolean; children: React.ReactNode }) {
+  if (!on) return <>{children}</>;
+  return (
+    <div className="contents" data-tg-phone="" {...(bar ? { "data-tg-bar": "" } : {})}>
+      {children}
+    </div>
+  );
+}
+
 /** The switch alone: for markup the server draws too (pair it with `max-md:` classes or the CSS scope `[data-tg-phone]`). */
 export const useTgPhoneOn = (): boolean => useContext(TgPhoneContext);
 
