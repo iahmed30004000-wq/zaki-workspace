@@ -13,7 +13,7 @@
 }
 
 /* a sheet dragged upward leaves no gap under it: its own surface goes on below */
-.tg-attach-sheet {
+.zk-sheet.tg-attach-sheet {
   box-shadow: 0 100vh 0 0 rgb(var(--surface-2));
 }
 

@@ -21,7 +21,7 @@ const DEFAULT_DURATION = 1440;
 /** «إنشاء»: dim until the draft can be sent. It stands in the question's card at half height and in the bar of the full page. */
 export function PollCreateButton({ disabled, busy, onCreate }: { disabled: boolean; busy: boolean; onCreate: () => void }) {
   return (
-    <button type="button" data-poll-create="" disabled={disabled || busy} onClick={onCreate} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-4 text-sm font-semibold text-accent-fg transition-opacity disabled:opacity-40">
+    <button type="button" data-poll-create="" disabled={disabled || busy} onClick={onCreate} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-40">
       {busy ? <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" /> : null}
       {ct("tgsheets.poll.create")}
     </button>
@@ -170,7 +170,7 @@ export function TgPollForm({ draft, onChange, error, action }: { draft: PollDraf
         <SwitchLine id="multiple" icon={ListChecks} tile="bg-cat-4" title={ct("tgsheets.poll.multiple")} hint={ct("tgsheets.poll.multiple_hint")} checked={draft.multiple} onChange={(on) => onChange({ multiple: on })} />
         <SwitchLine id="duration" icon={Clock} tile="bg-cat-2" title={ct("tgsheets.poll.duration")} hint={ct("tgsheets.poll.duration_hint")} checked={draft.closesInMinutes > 0} onChange={(on) => onChange({ closesInMinutes: on ? DEFAULT_DURATION : 0 })} />
         {draft.closesInMinutes > 0 ? (
-          <div role="radiogroup" aria-label={ct("chatc.poll.closes")} className="tg-rows-in flex flex-wrap gap-2 px-4 pb-3 pt-1">
+          <div role="radiogroup" aria-label={ct("chatc.poll.closes")} className="flex flex-wrap gap-2 px-4 pb-3 pt-1">
             {POLL_CLOSE_CHOICES.filter((m) => m > 0).map((minutes) => (
               <button key={minutes} type="button" role="radio" aria-checked={draft.closesInMinutes === minutes} data-poll-closes={minutes} onClick={() => onChange({ closesInMinutes: minutes })} className="min-h-9 rounded-full border border-border px-3 text-[13px] aria-checked:border-accent aria-checked:bg-accent/10 aria-checked:font-semibold aria-checked:text-accent">
                 {ct(`chatc.poll.closes.${minutes}`)}

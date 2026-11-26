@@ -40,6 +40,6 @@ html[data-decor-economy] .tg-set-head {
   }
   html:not([data-fx-off~="transitions"]) .tg-radio-dot,
   html:not([data-fx-off~="transitions"]) .tg-chevron {
-    transition: transform 150ms ease-out;
+    transition: transform var(--tg-more-rows-ms, 150ms) ease-out;
   }
 }
