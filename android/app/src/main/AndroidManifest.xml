@@ -11,6 +11,10 @@
     <!-- the live line (StreamService) keeps running with its own quiet notification; remote messaging is the kind made for chat apps -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING" />
+    <!-- M2 N5: a running call keeps the microphone (and the camera) while the screen is off; Bluetooth headsets for its sound -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CAMERA" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <!-- the call screen over the lock screen -->
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <!-- the live line comes back after the phone restarts, and the person may let it run without battery limits -->
@@ -58,6 +62,11 @@
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
+
+        <service
+            android:name=".feature.calls.CallService"
+            android:exported="false"
+            android:foregroundServiceType="microphone|camera" />
 
         <service
             android:name=".StreamService"

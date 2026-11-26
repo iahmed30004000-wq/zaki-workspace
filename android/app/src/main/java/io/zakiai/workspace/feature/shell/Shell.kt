@@ -101,6 +101,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.unit.sp
 import io.zakiai.workspace.feature.work.MyWorkScreen
+import io.zakiai.workspace.feature.projects.BoardScreen
+import io.zakiai.workspace.feature.projects.GoalsScreen
+import io.zakiai.workspace.feature.projects.ProjectScreen
+import io.zakiai.workspace.feature.projects.ProjectsScreen
+import androidx.compose.material.icons.filled.AdminPanelSettings
+import androidx.compose.material.icons.filled.ChatBubbleOutline
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LocalLibrary
+import androidx.compose.material.icons.filled.Movie
 import io.zakiai.workspace.feature.work.TaskScreen
 import io.zakiai.workspace.feature.work.TodayScreen
 import io.zakiai.workspace.feature.notifications.NotificationsScreen
@@ -188,12 +197,23 @@ private object Routes {
     const val NEW_CHAT = "new-chat?group={group}"
     const val SITE = "site?path={path}"
     const val TODAY = "today"
-    const val MY_WORK = "my-work"
+    /** «الشغل»: the site's work place, its tabs «مهامي» and «المشاريع» */
+    const val WORK = "work?tab={tab}"
     const val TASK = "task/{id}"
-    val TABS = setOf(TODAY, CHATS, MY_WORK, NOTIFICATIONS, SETTINGS)
+    const val PROJECT = "project/{id}"
+    const val BOARD = "board/{id}"
+    const val GOALS = "goals"
+    const val LIBRARY = "library"
+    const val DOCUMENT = "document/{id}"
+    const val SHEET = "sheet/{id}"
+    const val CALL = "call/{id}"
+    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
     fun task(id: String) = "task/$id"
+    fun work(tab: String) = "work?tab=$tab"
+    fun project(id: String) = "project/$id"
+    fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -205,10 +225,7 @@ private object Routes {
 private data class SiteItem(val label: String, val path: String, val icon: ImageVector)
 
 private val SITE_ITEMS = listOf(
-    SiteItem(T.projects, "/projects", Icons.Filled.ViewKanban),
     SiteItem(T.calendar, "/calendar", Icons.Filled.CalendarMonth),
-    SiteItem(T.files, "/files", Icons.Filled.Folder),
-    SiteItem(T.goals, "/goals", Icons.Filled.Flag),
     SiteItem(T.ideas, "/ideas", Icons.Filled.Lightbulb),
     SiteItem(T.teams, "/teams", Icons.Filled.Groups),
     // the profile, the password, the company's settings: the native «الإعدادات» tab has only what lives on the phone
@@ -224,7 +241,15 @@ fun NavHostController.open(dest: Destination) {
         Destination.Notifications -> navigate(Routes.NOTIFICATIONS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Settings -> navigate(Routes.SETTINGS) { popUpTo(Routes.CHATS); launchSingleTop = true }
         Destination.Today -> navigate(Routes.TODAY) { popUpTo(Routes.CHATS); launchSingleTop = true }
-        Destination.MyWork -> navigate(Routes.MY_WORK) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        Destination.MyWork -> navigate(Routes.work("mine")) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        Destination.Projects -> navigate(Routes.work("projects")) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.Project -> navigate(Routes.project(dest.id))
+        is Destination.Board -> navigate(Routes.board(dest.id))
+        Destination.Goals -> navigate(Routes.GOALS) { launchSingleTop = true }
+        Destination.Library -> navigate(Routes.LIBRARY) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.Document -> navigate("document/" + dest.id)
+        is Destination.Sheet -> navigate("sheet/" + dest.id)
+        is Destination.Call -> navigate("call/" + dest.id) { launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -335,12 +360,17 @@ fun Shell(
                         ZkBar(
                             title = when (route) {
                                 Routes.NOTIFICATIONS -> T.notifications
-                                Routes.MY_WORK -> io.zakiai.workspace.feature.work.W.myWork
+                                Routes.WORK -> io.zakiai.workspace.feature.projects.P.work
+                                Routes.LIBRARY -> T.library
                                 Routes.SETTINGS -> T.settings
                                 else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
                             },
                             start = { RoundIcon(Icons.Filled.Menu, T.menu, size = 24.dp) { scope.launch { drawer.open() } } },
-                            actions = { if (route == Routes.CHATS) RoundIcon(Icons.Filled.Search, io.zakiai.workspace.feature.chat.C.search) { chatQuery = "" } },
+                            actions = {
+                                if (route == Routes.CHATS) RoundIcon(Icons.Filled.Search, io.zakiai.workspace.feature.chat.C.search) { chatQuery = "" }
+                                // the site's bell at the top of every place, with its number
+                                BellButton(notesUnread, route == Routes.NOTIFICATIONS) { nav.open(Destination.Notifications) }
+                            },
                         )
                     }
                 } else if (route == Routes.SITE) {
@@ -352,11 +382,14 @@ fun Shell(
                     // the floating tab bar of «شكل تيليجرام»
                     FloatingTabBar(
                         listOf(
-                            BarTab(T.today, Icons.Filled.Today, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
-                            BarTab(T.chats, Icons.Filled.ChatBubble, route == Routes.CHATS, chatUnread) { nav.open(Destination.Chats) },
-                            BarTab(T.myWork, Icons.Filled.TaskAlt, route == Routes.MY_WORK, 0) { nav.open(Destination.MyWork) },
-                            BarTab(T.notifications, Icons.Filled.Notifications, route == Routes.NOTIFICATIONS, notesUnread) { nav.open(Destination.Notifications) },
-                            BarTab(T.settings, Icons.Filled.Settings, route == Routes.SETTINGS, 0) { nav.open(Destination.Settings) },
+                            // the site's phone places, in the site's order (src/lib/nav/places.ts): «المكتبة» and «نتفرّج سوا» are still the
+                            // site's pages (⚠️ until their phase), «الإدارة» opens the phone's own settings and the site's panels from there
+                            BarTab(T.today, Icons.Filled.Home, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
+                            BarTab(T.chat, Icons.Filled.ChatBubbleOutline, route == Routes.CHATS, chatUnread) { nav.open(Destination.Chats) },
+                            BarTab(io.zakiai.workspace.feature.projects.P.work, Icons.Filled.TaskAlt, route == Routes.WORK, 0) { nav.open(Destination.MyWork) },
+                            BarTab(T.library, Icons.Filled.LocalLibrary, route == Routes.LIBRARY, 0) { nav.open(Destination.Library) },
+                            BarTab(T.watch, Icons.Filled.Movie, false, 0) { nav.open(Destination.Site("/watch")) },
+                            BarTab(T.admin, Icons.Filled.AdminPanelSettings, route == Routes.SETTINGS, 0) { nav.open(Destination.Settings) },
                         ),
                     )
                 }
@@ -377,7 +410,40 @@ fun Shell(
                     composable(Routes.NOTIFICATIONS) { NotificationsScreen(onOpenPath = openPath) }
                     // both read the space the person is in: entering another one reloads them
                     composable(Routes.TODAY) { TodayScreen(onOpenTask = { nav.open(Destination.Task(it)) }, onOpenPath = openPath, onOpenSite = { nav.open(Destination.Site(it)) }, spaceKey = spaces?.currentSpaceId) }
-                    composable(Routes.MY_WORK) { MyWorkScreen(onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) }, spaceKey = spaces?.currentSpaceId) }
+                    composable(Routes.WORK, arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "mine" })) { e ->
+                        WorkHub(
+                            initial = e.arguments?.getString("tab") ?: "mine",
+                            onOpenTask = { nav.open(Destination.Task(it)) },
+                            onOpenProject = { nav.open(Destination.Project(it)) },
+                            onOpenGoals = { nav.open(Destination.Goals) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            spaceKey = spaces?.currentSpaceId,
+                        )
+                    }
+                    composable(Routes.PROJECT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        ProjectScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    composable(Routes.BOARD, arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
+                        BoardScreen(boardId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    composable(Routes.LIBRARY) {
+                        io.zakiai.workspace.feature.library.LibraryHub(
+                            spaceId = spaces?.currentSpaceId,
+                            onOpenDoc = { nav.open(Destination.Document(it)) },
+                            onOpenSheet = { nav.open(Destination.Sheet(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.DOCUMENT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.library.DocumentScreen(onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.CALL, arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
+                        io.zakiai.workspace.feature.calls.CallScreen(callId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.SHEET, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.library.SheetScreen(onBack = { nav.popBackStack() })
+                    }
+                    composable(Routes.GOALS) { GoalsScreen(onBack = { nav.popBackStack() }, onOpenSite = { nav.open(Destination.Site(it)) }) }
                     composable(Routes.TASK, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         TaskScreen(onBack = { nav.popBackStack() })
                     }
@@ -460,5 +526,47 @@ private fun ChatSearchBar(query: String, onChange: (String) -> Unit, onClose: ()
             if (query.isNotEmpty()) RoundIcon(Icons.Filled.Close, io.zakiai.workspace.feature.chat.C.cancel) { onChange("") }
         }
         HorizontalDivider(color = Zk.colors.border, thickness = 1.dp)
+    }
+}
+
+/**
+ * «الشغل», the site's work place on the phone: its tabs in the chat's folder strip — «مهامي» and «المشاريع» here, «الأهداف» as its own screen.
+ */
+@Composable
+private fun WorkHub(
+    initial: String,
+    onOpenTask: (String) -> Unit,
+    onOpenProject: (String) -> Unit,
+    onOpenGoals: () -> Unit,
+    onOpenSite: (String) -> Unit,
+    spaceKey: String?,
+) {
+    var tab by androidx.compose.runtime.saveable.rememberSaveable(initial) { androidx.compose.runtime.mutableStateOf(initial) }
+    Column(Modifier.fillMaxSize()) {
+        io.zakiai.workspace.ui.components.PillStrip {
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.myWork, 0, tab == "mine") { tab = "mine" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.projects, 0, tab == "projects") { tab = "projects" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.goals, 0, false) { onOpenGoals() }
+        }
+        Box(Modifier.weight(1f)) {
+            if (tab == "projects") {
+                ProjectsScreen(onOpenProject = onOpenProject, onOpenSite = onOpenSite, spaceKey = spaceKey)
+            } else {
+                MyWorkScreen(onOpenTask = onOpenTask, onOpenSite = onOpenSite, spaceKey = spaceKey)
+            }
+        }
+    }
+}
+
+/** The site's bell: a 44 round button with the unread number on its corner; the accent while the notifications are open. */
+@Composable
+private fun BellButton(count: Int, here: Boolean, onClick: () -> Unit) {
+    Box {
+        RoundIcon(Icons.Filled.Notifications, T.notifications, tint = if (here) Zk.colors.accent else Zk.colors.fg, onClick = onClick)
+        if (count > 0) {
+            Box(Modifier.align(Alignment.TopEnd).padding(top = 4.dp, end = 2.dp)) {
+                io.zakiai.workspace.ui.components.CountPill(count, background = Zk.colors.danger, foreground = Zk.colors.dangerFg)
+            }
+        }
     }
 }

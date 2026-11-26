@@ -252,4 +252,95 @@ interface WorkspaceApi {
 
     @POST("api/client-errors")
     suspend fun clientErrors(@Body body: ClientErrorBatch): Ok
+
+    // ── «المشاريع» (M2 N3): the shared doors of the projects pages, then the site's own write routes ──
+    @GET("api/work/projects")
+    suspend fun workProjects(@Header("Cache-Control") cache: String = "no-cache"): ProjectsAnswer
+
+    @GET("api/work/projects/{id}")
+    suspend fun workProject(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): ProjectAnswer
+
+    @GET("api/work/boards/{id}")
+    suspend fun workBoard(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): BoardAnswer
+
+    @POST("api/projects")
+    suspend fun newProject(@Body body: NewProjectBody): NewProjectAnswer
+
+    @POST("api/boards")
+    suspend fun newBoard(@Body body: NewBoardBody): NewBoardAnswer
+
+    @POST("api/boards/{id}/columns")
+    suspend fun newColumn(@Path("id") boardId: String, @Body body: NewColumnBody): ColumnAnswer
+
+    @GET("api/projects/{id}/timeline")
+    suspend fun timeline(@Path("id") projectId: String, @Header("Cache-Control") cache: String = "no-cache"): TimelineAnswer
+
+    @GET("api/projects/{id}/milestones")
+    suspend fun milestones(@Path("id") projectId: String, @Header("Cache-Control") cache: String = "no-cache"): MilestonesAnswer
+
+    @POST("api/projects/{id}/milestones")
+    suspend fun newMilestone(@Path("id") projectId: String, @Body body: NewMilestoneBody): kotlinx.serialization.json.JsonObject
+
+    @PATCH("api/milestones/{id}")
+    suspend fun milestoneStatus(@Path("id") id: String, @Body body: MilestoneStatusBody): kotlinx.serialization.json.JsonObject
+
+    @GET("api/goals")
+    suspend fun goals(@Header("Cache-Control") cache: String = "no-cache"): GoalsAnswer
+
+    @PATCH("api/goals/{id}")
+    suspend fun goalProgress(@Path("id") id: String, @Body body: GoalProgressBody): kotlinx.serialization.json.JsonObject
+
+    // ── «المكتبة» (M2 N4): the site's own routes, as the pages call them ──
+    @GET("api/files")
+    suspend fun libraryFiles(@Header("Cache-Control") cache: String = "no-cache"): FilesAnswer
+
+    @Multipart
+    @POST("api/files")
+    suspend fun uploadLibrary(@Part file: okhttp3.MultipartBody.Part): UploadedFile
+
+    @DELETE("api/files/{id}")
+    suspend fun deleteFile(@Path("id") id: String): Ok
+
+    @GET("api/documents")
+    suspend fun documents(@Query("spaceId") spaceId: String, @Header("Cache-Control") cache: String = "no-cache"): DocsAnswer
+
+    @POST("api/documents")
+    suspend fun newDocument(@Body body: NewDocBody): DocAnswer
+
+    @GET("api/documents/{id}")
+    suspend fun document(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): DocAnswer
+
+    @PATCH("api/documents/{id}")
+    suspend fun saveDocument(@Path("id") id: String, @Body body: SaveDocBody): DocAnswer
+
+    @GET("api/knowledge")
+    suspend fun knowledge(@Header("Cache-Control") cache: String = "no-cache"): SheetsAnswer
+
+    @GET("api/knowledge/{id}")
+    suspend fun sheet(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): SheetAnswer
+
+    @DELETE("api/notifications/{id}")
+    suspend fun deleteNotification(@Path("id") id: String): Ok
+
+    // ── calls (M2 N5): the site's own call routes; the media goes to the site's LiveKit room ──
+    @GET("api/calls/{id}")
+    suspend fun callDetail(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): CallDetail
+
+    @POST("api/calls/{id}/token")
+    suspend fun callToken(@Path("id") id: String, @Body body: CallTokenBody = CallTokenBody()): CallPass
+
+    @POST("api/calls/{id}/joined")
+    suspend fun callJoined(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/leave")
+    suspend fun callLeave(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/decline")
+    suspend fun callDecline(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/end")
+    suspend fun callEnd(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): Ok
+
+    @POST("api/calls/{id}/mute")
+    suspend fun callMute(@Path("id") id: String, @Body body: CallUserBody): Ok
 }

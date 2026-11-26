@@ -41,8 +41,12 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     const manifest = read("android/app/src/main/AndroidManifest.xml");
     const permissions = [...manifest.matchAll(/uses-permission android:name="([^"]+)"/g)].map((m) => m[1]);
     expect(permissions.sort()).toEqual([
+      // M2 N5: a native call (Bluetooth headsets for its sound; the microphone and camera kept by a foreground service while the screen is off)
+      "android.permission.BLUETOOTH_CONNECT",
       "android.permission.CAMERA",
       "android.permission.FOREGROUND_SERVICE",
+      "android.permission.FOREGROUND_SERVICE_CAMERA",
+      "android.permission.FOREGROUND_SERVICE_MICROPHONE",
       "android.permission.FOREGROUND_SERVICE_REMOTE_MESSAGING",
       "android.permission.INTERNET",
       "android.permission.MODIFY_AUDIO_SETTINGS",

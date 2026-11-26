@@ -60,7 +60,9 @@ describe("«الخطوات»: the little progress", () => {
     expect(read("src/components/board-view.tsx")).toContain("<StepProgressChip progress={task.steps} />");
     expect(read("src/components/task-row.tsx")).toContain("<StepProgressChip progress={task.steps} />");
     // and the pages hand it over only while the company's switch is on
-    expect(read("src/app/(app)/boards/[id]/page.tsx")).toMatch(/actorFeatureOn\(actor, "taskSteps"\)/);
+    // M2 N3: the board page reads its cards through `boardScreenFor` (shared with the phone's door), so the rule lives there
+    expect(read("src/app/(app)/boards/[id]/page.tsx")).toContain("boardScreenFor(");
+    expect(read("src/server/services/work-app.ts")).toMatch(/actorFeatureOn\(actor, "taskSteps"\)/);
     expect(read("src/app/(app)/list/page.tsx")).toMatch(/actorFeatureOn\(actor, "taskSteps"\)/);
   });
 });

@@ -14,6 +14,9 @@ import * as taskRoute from "@/app/api/tasks/[id]/route";
 import * as taskCommentsRoute from "@/app/api/tasks/[id]/comments/route";
 import * as taskCompleteRoute from "@/app/api/tasks/[id]/complete/route";
 import * as tasksRoute from "@/app/api/tasks/route";
+import * as phoneBoardRoute from "@/app/api/work/boards/[id]/route";
+import * as phoneProjectRoute from "@/app/api/work/projects/[id]/route";
+import * as phoneProjectsRoute from "@/app/api/work/projects/route";
 import { DEFAULT_MY_TASKS_PARAMS } from "@/lib/work/my-tasks";
 import { listOpenTasks } from "@/server/services/bulk-assign";
 import { getWorkTasks } from "@/server/services/my-work";
@@ -135,6 +138,18 @@ describe("the switch is on", () => {
     expect((await call(projectBoardsRoute.GET, { params: { id: w.alpha.project.id } })).status).toBe(200);
     const work = await myWork(w.worker.id, w);
     expect(work.filters.projects.map((p) => p.id)).toEqual([w.alpha.project.id]);
+  });
+
+  it("the phone's project doors hold to the same rule: its own projects, its own cards, its own numbers", async () => {
+    const w = await world();
+    await loginAs(w.worker.id);
+    const list = await call(phoneProjectsRoute.GET, { url: "http://localhost/api/work/projects" });
+    const rows = list.json?.["projects"] as Array<{ id: string; tasks: number }>;
+    expect(rows.map((p) => [p.id, p.tasks])).toEqual([[w.alpha.project.id, 2]]);
+    expect((await call(phoneProjectRoute.GET, { params: { id: w.beta.project.id } })).status).toBe(404);
+    expect((await call(phoneBoardRoute.GET, { params: { id: w.beta.board.id } })).status).toBe(404);
+    const board = await call(phoneBoardRoute.GET, { params: { id: w.alpha.board.id } });
+    expect((board.json?.["tasks"] as Array<{ id: string }>).map((t) => t.id).sort()).toEqual([w.mine.id, w.beside.id].sort());
   });
 
   it("the person asked to take a task opens it to answer, and keeps it once they accept", async () => {
