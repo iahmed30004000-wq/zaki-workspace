@@ -29,6 +29,7 @@ android/.gradle/
 android/.kotlin/
 android/build/
 android/app/build/
+android/baselineprofile/build/
 android/local.properties
 *.p12
 *.jks

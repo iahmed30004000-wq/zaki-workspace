@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.baselineprofile)
 }
 
 // ONE fixed key for every build, so a new build installs over the app already on the phones. The key file is NOT in git: the workflow
@@ -94,6 +95,19 @@ android {
 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
+}
+
+// the baseline profile is generated on purpose (android/baselineprofile), never during an ordinary build, and lands in src/main for
+// every flavor: the code it names is the same in all of them
+baselineProfile {
+    mergeIntoMain = true
+    automaticGenerationDuringBuild = false
+}
+
+// generated from the staging flavor only (the local site, never the real one); the per-variant configuration appears once the variant
+// exists, so the generator is attached then. The file lands in src/main and ships with the real app too.
+configurations.matching { it.name == "stagingReleaseBaselineProfile" }.configureEach {
+    dependencies.add(project.dependencies.project(mapOf("path" to ":baselineprofile")))
 }
 
 dependencies {
