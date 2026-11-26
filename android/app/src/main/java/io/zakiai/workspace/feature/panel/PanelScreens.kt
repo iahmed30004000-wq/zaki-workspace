@@ -695,4 +695,5 @@ fun AdminRows(onOpen: (String) -> Unit, vm: ReportsViewModel = hiltViewModel()) 
     if (!f.external && f.crm.view) Row1(B.crm, "crm")
     if (f.development) Row1(io.zakiai.workspace.feature.dev.w("teamdev.title"), "development")
     if (f.development) Row1(io.zakiai.workspace.feature.dev.w("teamdev.structure.title"), "structure")
+    if (f.spaces) Row1(io.zakiai.workspace.feature.spaces.w("spaces.overview.title"), "spaces")
 }

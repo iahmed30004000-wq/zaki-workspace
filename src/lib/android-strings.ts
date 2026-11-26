@@ -30,6 +30,12 @@ export const ANDROID_STRINGS: readonly AndroidStringsFile[] = [
     name: "DevWords",
     keep: (key) => key.startsWith("teamdev.") || key === "nav.tab.myFile",
   },
+  {
+    source: "ar.spaces.json",
+    target: "android/app/src/main/java/io/zakiai/workspace/feature/spaces/SpaceWords.kt",
+    pkg: "io.zakiai.workspace.feature.spaces",
+    name: "SpaceWords",
+  },
 ];
 
 /** A Kotlin string literal: backslash, quote and `$` escaped, a line break kept as `\n`. */

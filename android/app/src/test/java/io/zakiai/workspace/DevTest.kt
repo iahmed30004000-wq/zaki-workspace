@@ -27,7 +27,8 @@ class DevTest {
         assertEquals(Destination.Structure, Links.destinationOf("/structure", base))
         assertEquals(Destination.DevPerson("u1", "score"), Links.destinationOf("/development/people/u1?tab=score&period=2026-10", base))
         assertEquals(Destination.DevPerson("u1", null), Links.destinationOf("/development/people/u1", base))
-        assertEquals(Destination.Site("/development/settings"), Links.destinationOf("/development/settings", base))
+        assertEquals(Destination.DevSettings, Links.destinationOf("/development/settings", base))
+        assertEquals(Destination.DevSkills, Links.destinationOf("/development/skills", base))
     }
 
     @Test fun `the tree runs from the top down, then the people nobody answers for, each drawn once`() {
@@ -69,6 +70,14 @@ class DevTest {
         assertEquals("الربع 4 2026", D.period("2026-Q4", listOf(PeriodChoice("2026-Q4", "quarter", "الربع 4 2026"))))
         assertEquals(listOf("skills"), D.tabsOf("OWNER"))
         assertEquals(5, D.tabsOf("MEMBER").size)
+    }
+
+    @Test fun `a typed weight is a whole number from 0 to 100`() {
+        assertEquals(50, io.zakiai.workspace.feature.dev.weightOf(" 50 "))
+        assertEquals(0, io.zakiai.workspace.feature.dev.weightOf("0"))
+        assertNull(io.zakiai.workspace.feature.dev.weightOf("101"))
+        assertNull(io.zakiai.workspace.feature.dev.weightOf(""))
+        assertNull(io.zakiai.workspace.feature.dev.weightOf("-1"))
     }
 
     @Test fun `a rating tapped again is taken back`() {

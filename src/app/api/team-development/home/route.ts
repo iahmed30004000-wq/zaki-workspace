@@ -4,7 +4,7 @@ import { requireActor } from "@/server/policy/actor";
 import { loadDevelopmentHome, periodChoicesFor } from "@/server/services/team-people";
 
 /**
- * The front door of آ«ط§ظ„ط£ط¯ط§ط، ظˆط§ظ„طھط·ظˆظٹط±آ» for the phone: who the viewer reads (`mode`: owner, supervisor, or self: only their own file) and the
+ * The front door of «الأداء والتطوير» for the phone: who the viewer reads (`mode`: owner, supervisor, or self: only their own file) and the
  * periods to pick, named. The same service as the page; 404 for a guest and while the feature is switched off.
  */
 export async function GET() {

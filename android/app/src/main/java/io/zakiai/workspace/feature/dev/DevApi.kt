@@ -224,7 +224,34 @@ data class Structure(
 @Serializable
 data class StructureAnswer(val structure: Structure = Structure())
 
+@Serializable
+data class MatrixCell(val manual: Int? = null, val self: Int? = null)
+
+@Serializable
+data class MatrixPerson(val userId: String = "", val name: String = "", val jobTitle: String? = null)
+
+@Serializable
+data class SkillMatrix(val skills: List<Skill> = emptyList(), val people: List<MatrixPerson> = emptyList(), val cells: Map<String, Map<String, MatrixCell>> = emptyMap())
+
+@Serializable
+data class MatrixAnswer(val matrix: SkillMatrix = SkillMatrix())
+
+@Serializable
+data class WeightsAnswer(val weights: Weights = Weights())
+
 // ── bodies ──
+
+@Serializable
+data class SkillBody(val name: String, val category: String, val description: String)
+
+@Serializable
+data class SkillPatch(val name: String? = null, val category: String? = null, val description: String? = null, val archived: Boolean? = null)
+
+@Serializable
+data class NameBody(val name: String)
+
+@Serializable
+data class CriterionPatch(val name: String? = null, val archived: Boolean? = null)
 
 @Serializable
 data class ReviewBody(val period: String, val ratings: Map<String, Int>, val light: String?, val strengths: String, val improvement: String, val privateNote: String, val newVersion: Boolean? = null)
@@ -304,6 +331,30 @@ interface DevApi {
 
     @PATCH("api/team-development/notes/{id}")
     suspend fun shareNote(@Path("id") id: String, @Body body: SharedBody): JsonObject
+
+    @GET("api/team-development/skills/matrix")
+    suspend fun matrix(@Header("Cache-Control") cache: String = "no-store"): MatrixAnswer
+
+    @GET("api/team-development/skills")
+    suspend fun catalogueAll(@Query("archived") archived: String = "1"): SkillsAnswer
+
+    @POST("api/team-development/skills")
+    suspend fun addSkill(@Body body: SkillBody): JsonObject
+
+    @PATCH("api/team-development/skills/{id}")
+    suspend fun patchSkill(@Path("id") id: String, @Body body: SkillPatch): JsonObject
+
+    @GET("api/team-development/weights")
+    suspend fun weights(@Header("Cache-Control") cache: String = "no-store"): WeightsAnswer
+
+    @PUT("api/team-development/weights")
+    suspend fun setWeights(@Body body: Weights): JsonObject
+
+    @POST("api/team-development/criteria")
+    suspend fun addCriterion(@Body body: NameBody): JsonObject
+
+    @PATCH("api/team-development/criteria/{id}")
+    suspend fun patchCriterion(@Path("id") id: String, @Body body: CriterionPatch): JsonObject
 
     @GET("api/team-development/lines")
     suspend fun structure(@Header("Cache-Control") cache: String = "no-store"): StructureAnswer

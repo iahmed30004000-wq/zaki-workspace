@@ -218,11 +218,11 @@ private object Routes {
     const val CARDS = "cards"
     const val CARDS_OPENED = "cards-opened"
     const val CARD = "card/{id}"
-    /** آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ»: one section; آ«ط¯ظ„ظٹظ„ ط²ط§ظƒظٹآ» and one article */
+    /** «إعداداتي»: one section; «دليل زاكي» and one article */
     const val ME = "me/{section}"
     const val GUIDE = "guide"
     const val GUIDE_ARTICLE = "guide/{slug}"
-    /** آ«ظ†طھظپط±ظ‘ط¬ ط³ظˆط§آ»: a tab of the bar, and one session */
+    /** «نتفرّج سوا»: a tab of the bar, and one session */
     const val WATCH = "watch"
     const val WATCH_SESSION = "watch/{id}"
     const val DEPARTMENTS = "departments"
@@ -236,6 +236,9 @@ private object Routes {
     const val DEV = "development"
     const val DEV_PERSON = "dev-person/{id}?tab={tab}"
     const val STRUCTURE = "structure"
+    const val DEV_SKILLS = "dev-skills"
+    const val DEV_SETTINGS = "dev-settings"
+    const val SPACES = "spaces-overview"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -243,7 +246,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE, DEV_SKILLS, DEV_SETTINGS, SPACES)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -309,6 +312,9 @@ fun NavHostController.open(dest: Destination) {
         Destination.Development -> navigate(Routes.DEV) { launchSingleTop = true }
         is Destination.DevPerson -> navigate("dev-person/" + dest.id + (dest.tab?.let { "?tab=$it" } ?: ""))
         Destination.Structure -> navigate(Routes.STRUCTURE) { launchSingleTop = true }
+        Destination.DevSkills -> navigate(Routes.DEV_SKILLS) { launchSingleTop = true }
+        Destination.DevSettings -> navigate(Routes.DEV_SETTINGS) { launchSingleTop = true }
+        Destination.Spaces -> navigate(Routes.SPACES) { launchSingleTop = true }
         is Destination.MfgPart -> navigate("mfg-part/" + dest.tab) { popUpTo(Routes.MFG_PART) { inclusive = true }; launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
@@ -396,7 +402,7 @@ fun Shell(
                         }
                     }
                     HorizontalDivider(color = Zk.colors.border, modifier = Modifier.padding(vertical = 8.dp))
-                    // آ«ظ…ط®ط²ظˆظ† ط§ظ„طھطµظ†ظٹط¹آ»: only where the company has a space of آ«طھطµظ†ظٹط¹آ» (the ledger decides again who may open it)
+                    // «مخزون التصنيع»: only where the company has a space of «تصنيع» (the ledger decides again who may open it)
                     if (spaces?.organizations?.any { o -> o.workspaces.any { it.mfg } } == true) NavigationDrawerItem(
                         label = { Text(io.zakiai.workspace.feature.mfg.w("mfg.title")) },
                         icon = { Icon(Icons.Filled.Inventory2, contentDescription = null) },
@@ -596,11 +602,11 @@ fun Shell(
                             askNotifications = askNotifications,
                             onOpenMe = { nav.open(Destination.Me(it)) },
                             onOpenSite = { nav.open(Destination.Site(it)) },
-                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; "development" -> Destination.Development; "structure" -> Destination.Structure; "spaces" -> Destination.Site("/spaces"); else -> Destination.Crm }) },
+                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; "development" -> Destination.Development; "structure" -> Destination.Structure; "spaces" -> Destination.Spaces; else -> Destination.Crm }) },
                         )
                     }
-                    // M2 N6 batch 7: آ«ط§ظ„ط¹ظ…ظ„ط§ط،آ», آ«ط§ظ„طھظ‚ط§ط±ظٹط±آ», the owner's board / panel and one person of it
-                    // M2 N6 batch 8: آ«ظ…ط®ط²ظˆظ† ط§ظ„طھطµظ†ظٹط¹آ» of the manufacturing space (the space the person is in, else the company's first one)
+                    // M2 N6 batch 7: «العملاء», «التقارير», the owner's board / panel and one person of it
+                    // M2 N6 batch 8: «مخزون التصنيع» of the manufacturing space (the space the person is in, else the company's first one)
                     composable(Routes.MFG) {
                         io.zakiai.workspace.feature.mfg.MfgHomeScreen(
                             spaceId = mfgSpace(),
@@ -623,14 +629,14 @@ fun Shell(
                     composable(Routes.MFG_MATERIAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.mfg.MaterialScreen(onBack = { nav.popBackStack() })
                     }
-                    // M2 N6 batch 9: آ«ط§ظ„ط£ط¯ط§ط، ظˆط§ظ„طھط·ظˆظٹط±آ», one person's file, آ«ط§ظ„ظ‡ظٹظƒظ„آ»
+                    // M2 N6 batch 9: «الأداء والتطوير», one person's file, «الهيكل»
                     composable(Routes.DEV) {
                         io.zakiai.workspace.feature.dev.DevHomeScreen(
                             onBack = { nav.popBackStack() },
                             onOpenPerson = { id, tab -> nav.open(Destination.DevPerson(id, tab)) },
                             onSelf = { id -> nav.navigate("dev-person/" + id) { popUpTo(Routes.DEV) { inclusive = true } } },
                             onOpenStructure = { nav.open(Destination.Structure) },
-                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            onOpenSite = { path -> nav.open(Links.destinationOf(path, Config.BASE) ?: Destination.Site(path)) },
                         )
                     }
                     composable(
@@ -639,8 +645,18 @@ fun Shell(
                     ) {
                         io.zakiai.workspace.feature.dev.DevPersonScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it)) })
                     }
+                    composable(Routes.DEV_SKILLS) { io.zakiai.workspace.feature.dev.SkillsScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it, "skills")) }) }
+                    composable(Routes.DEV_SETTINGS) { io.zakiai.workspace.feature.dev.DevSettingsScreen(onBack = { nav.popBackStack() }) }
+                    // M2 N6 batch 10: «كل المساحات»
+                    composable(Routes.SPACES) {
+                        io.zakiai.workspace.feature.spaces.SpacesOverviewScreen(
+                            onBack = { nav.popBackStack() },
+                            onEnter = { id -> vm.enter(id); nav.open(Destination.Today) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
                     composable(Routes.STRUCTURE) {
-                        io.zakiai.workspace.feature.dev.StructureScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it)) })
+                        io.zakiai.workspace.feature.dev.StructureScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it)) }, onOpenSkills = { nav.open(Destination.DevSkills) })
                     }
                     composable(Routes.CRM) { io.zakiai.workspace.feature.panel.CrmScreen(onBack = { nav.popBackStack() }) }
                     composable(Routes.REPORTS) { io.zakiai.workspace.feature.panel.ReportsScreen(onBack = { nav.popBackStack() }) }
@@ -656,7 +672,7 @@ fun Shell(
                     composable(Routes.OWNER_PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.panel.BoardPersonScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) })
                     }
-                    // M2 N6 batch 5: آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» and آ«ط¯ظ„ظٹظ„ ط²ط§ظƒظٹآ»
+                    // M2 N6 batch 5: «إعداداتي» and «دليل زاكي»
                     composable(Routes.ME, arguments = listOf(navArgument("section") { type = NavType.StringType })) { e ->
                         io.zakiai.workspace.feature.me.MeSectionScreen(
                             section = e.arguments?.getString("section").orEmpty(),
@@ -667,7 +683,7 @@ fun Shell(
                             onOpenSite = { nav.open(Destination.Site(it)) },
                         )
                     }
-                    // M2 N6 batch 6: آ«ظ†طھظپط±ظ‘ط¬ ط³ظˆط§آ» (the room itself is the site's page inside the app, marked: YouTube's own player)
+                    // M2 N6 batch 6: «نتفرّج سوا» (the room itself is the site's page inside the app, marked: YouTube's own player)
                     composable(Routes.WATCH) {
                         io.zakiai.workspace.feature.watch.WatchHomeScreen(onOpen = { nav.open(Destination.WatchSession(it)) }, spaceKey = spaces?.currentSpaceId)
                     }
@@ -812,7 +828,7 @@ private fun WorkHub(
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.checkins, 0, tab == "checkins") { tab = "checkins" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.tickets, 0, tab == "tickets") { tab = "tickets" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.time, 0, tab == "time") { tab = "time" }
-            // M2 N6 batch 6: آ«ط§ظ„ط­ظ…ظ„ط§طھآ» and آ«ط§ظ„ط±ظˆطھظٹظ† ط§ظ„ظٹظˆظ…ظٹآ» (each refuses for itself who may not read it, as the site's pages do)
+            // M2 N6 batch 6: «الحملات» and «الروتين اليومي» (each refuses for itself who may not read it, as the site's pages do)
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desks.Q.campaigns, 0, tab == "campaigns") { tab = "campaigns" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desks.Q.routine, 0, tab == "production") { tab = "production" }
             // the owner and the admins run spaces: «مهام قديمة» (the server decides who may; a space manager reaches it by its link too)

@@ -149,7 +149,7 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel(), askNotifications: ()
             HorizontalDivider(color = Zk.colors.border)
         }
 
-        // آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» (the site's /settings/me), its sections natively
+        // «إعداداتي» (the site's /settings/me), its sections natively
         SectionLabel(io.zakiai.workspace.feature.me.M.title)
         io.zakiai.workspace.feature.me.MeSectionRows(onOpen = onOpenMe, onOpenSite = onOpenSite)
 

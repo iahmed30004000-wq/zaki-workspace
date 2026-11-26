@@ -66,35 +66,35 @@ import io.zakiai.workspace.ui.theme.Zk
 // ── small pieces ─────────────────────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun Chip(label: String, on: Boolean, onClick: () -> Unit) = Text(
+internal fun Chip(label: String, on: Boolean, onClick: () -> Unit) = Text(
     label, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, maxLines = 1,
     color = if (on) Zk.colors.accentFg else Zk.colors.fg,
     modifier = Modifier.clip(RoundedCornerShape(50)).background(if (on) Zk.colors.accent else Zk.colors.surface2).clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 7.dp),
 )
 
 @Composable
-private fun Title(text: String, hint: String? = null) = Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
+internal fun Title(text: String, hint: String? = null) = Column(Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 6.dp)) {
     Text(text, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Zk.colors.accent)
     hint?.let { Text(it, fontSize = 12.sp, color = Zk.colors.fgMuted) }
 }
 
 @Composable
-private fun Line(text: String, color: Color = Zk.colors.fgMuted, size: Float = 12.5f) = Text(text, fontSize = size.sp, color = color, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
+internal fun Line(text: String, color: Color = Zk.colors.fgMuted, size: Float = 12.5f) = Text(text, fontSize = size.sp, color = color, modifier = Modifier.padding(horizontal = 16.dp, vertical = 2.dp))
 
 @Composable
-private fun Mark(warn: String, fix: String) = Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
+internal fun Mark(warn: String, fix: String) = Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp)) {
     WarnFix(if (warn.startsWith("⚠️")) warn else "⚠️ $warn", if (fix.startsWith("🔧")) fix else "🔧 $fix")
 }
 
 @Composable
-private fun Divider() = HorizontalDivider(color = Zk.colors.border.copy(alpha = 0.4f), modifier = Modifier.padding(horizontal = 16.dp))
+internal fun Divider() = HorizontalDivider(color = Zk.colors.border.copy(alpha = 0.4f), modifier = Modifier.padding(horizontal = 16.dp))
 
 @Composable
-private fun Act(label: String, enabled: Boolean, color: Color = Zk.colors.accent, onClick: () -> Unit) =
+internal fun Act(label: String, enabled: Boolean, color: Color = Zk.colors.accent, onClick: () -> Unit) =
     TextButton(enabled = enabled, onClick = onClick) { Text(label, color = if (enabled) color else Zk.colors.fgMuted, fontWeight = FontWeight.SemiBold, fontSize = 13.5.sp) }
 
 @Composable
-private fun Choice(label: String, current: String, options: List<Pair<String, String>>, onPick: (String) -> Unit) {
+internal fun Choice(label: String, current: String, options: List<Pair<String, String>>, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     Box {
         Chip(if (label.isEmpty()) current else "$label: $current", true) { open = true }
@@ -112,7 +112,7 @@ private fun lightColor(l: String?): Color? = when (l) {
 
 /** the status light always with its word (a colour alone says nothing); a suggestion is marked «اقتراح» */
 @Composable
-private fun LightBadge(light: String?, suggested: Boolean = false) {
+internal fun LightBadge(light: String?, suggested: Boolean = false) {
     val c = lightColor(light)
     if (c == null) { Text("—", fontSize = 12.sp, color = Zk.colors.fgMuted); return }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.clip(RoundedCornerShape(6.dp)).border(1.dp, c.copy(alpha = 0.45f), RoundedCornerShape(6.dp)).background(c.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp)) {
@@ -123,7 +123,7 @@ private fun LightBadge(light: String?, suggested: Boolean = false) {
 }
 
 @Composable
-private fun BandBadge(band: String?) {
+internal fun BandBadge(band: String?) {
     val c = when (band) { "excellent" -> Zk.colors.ok; "good" -> Zk.colors.info; "support" -> Zk.colors.warn; else -> null }
     if (c == null) { Text("—", fontSize = 12.sp, color = Zk.colors.fgMuted); return }
     Text(D.band(band), fontSize = 11.5.sp, color = c, modifier = Modifier.clip(RoundedCornerShape(6.dp)).border(1.dp, c.copy(alpha = 0.45f), RoundedCornerShape(6.dp)).background(c.copy(alpha = 0.1f)).padding(horizontal = 6.dp, vertical = 2.dp))
@@ -131,7 +131,7 @@ private fun BandBadge(band: String?) {
 
 /** the frame: bar, loading / refusal / list, notices */
 @Composable
-private fun Page(title: String, ready: Boolean, failure: io.zakiai.workspace.core.net.ApiFailure?, notice: String?, onSaid: () -> Unit, onRetry: () -> Unit, onBack: () -> Unit, body: LazyListScope.() -> Unit) {
+internal fun Page(title: String, ready: Boolean, failure: io.zakiai.workspace.core.net.ApiFailure?, notice: String?, onSaid: () -> Unit, onRetry: () -> Unit, onBack: () -> Unit, body: LazyListScope.() -> Unit) {
     val snack = remember { SnackbarHostState() }
     LaunchedEffect(notice) { notice?.let { snack.showSnackbar(it); onSaid() } }
     Column(Modifier.fillMaxSize().background(Zk.colors.surface).navigationBarsPadding()) {
@@ -148,7 +148,7 @@ private fun Page(title: String, ready: Boolean, failure: io.zakiai.workspace.cor
 }
 
 @Composable
-private fun Formula(weights: Weights) {
+internal fun Formula(weights: Weights) {
     var open by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp).clip(RoundedCornerShape(12.dp)).background(Zk.colors.surface1).clickable { open = !open }.padding(vertical = 10.dp)) {
         Line(w("teamdev.formula.title") + if (open) "  ▴" else "  ▾", Zk.colors.fg, 13.5f)
@@ -178,7 +178,7 @@ fun DevHomeScreen(onBack: () -> Unit, onOpenPerson: (String, String?) -> Unit, o
     val notice by vm.notice.collectAsStateWithLifecycle()
     WhileOnScreen(120_000) { vm.refresh() }
     val h = home
-    // somebody who reads nobody but themselves: their own file, as the site does (it REPLACES this screen, so آ«backآ» does not bounce)
+    // somebody who reads nobody but themselves: their own file, as the site does (it REPLACES this screen, so «back» does not bounce)
     LaunchedEffect(h?.home?.mode) { if (h?.home?.mode == "self") onSelf(h.home.viewerId) }
     Page(w("teamdev.title"), h != null && (h.home.mode == "self" || table != null), failure, notice, vm::consumeNotice, vm::refresh, onBack) {
         val a = h ?: return@Page
@@ -191,7 +191,6 @@ fun DevHomeScreen(onBack: () -> Unit, onOpenPerson: (String, String?) -> Unit, o
                 Chip(w("teamdev.skills.page"), false) { onOpenSite("/development/skills") }
                 if (a.home.mode == "owner") Chip(w("teamdev.settings.title"), false) { onOpenSite("/development/settings") }
             }
-            Mark(D.moreWarn, D.moreFix)
             Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp), horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                 Choice(w("teamdev.col.period"), D.period(t.period.key, a.periods), a.periods.map { it.key to it.label }) { vm.pick(it) }
                 Chip(w("teamdev.col.score"), t.sort == "score") { vm.sortBy(t.sort != "score") }
@@ -559,7 +558,7 @@ private fun LazyListScope.notesTab(vm: DevPersonViewModel, p: PersonHeader, busy
  * «غيّر المسؤول» only for the people the viewer may change (`canEdit`), choosing among everybody but the person and those below them.
  */
 @Composable
-fun StructureScreen(onBack: () -> Unit, onOpenPerson: (String) -> Unit, vm: StructureViewModel = hiltViewModel()) {
+fun StructureScreen(onBack: () -> Unit, onOpenPerson: (String) -> Unit, onOpenSkills: () -> Unit = {}, vm: StructureViewModel = hiltViewModel()) {
     val data by vm.data.collectAsStateWithLifecycle()
     val failure by vm.failure.collectAsStateWithLifecycle()
     val notice by vm.notice.collectAsStateWithLifecycle()
@@ -576,6 +575,8 @@ fun StructureScreen(onBack: () -> Unit, onOpenPerson: (String) -> Unit, vm: Stru
                 Text(w("teamdev.structure.my_supervisor") + ": " + (s.me.supervisor?.name ?: w("teamdev.structure.no_supervisor")), fontSize = 13.sp, color = Zk.colors.fg)
                 if (s.me.teamMates.isNotEmpty()) Text(w("teamdev.structure.my_team") + ": " + s.me.teamMates.joinToString("، ") { it.name }, fontSize = 13.sp, color = Zk.colors.fgMuted)
             }
+            // whoever manages the lines keeps the skills checklist too: its door, even without a team of their own
+            if (s.canManage) Row(Modifier.padding(horizontal = 12.dp)) { Chip(w("teamdev.skills.page"), false, onOpenSkills) }
             if (s.mode != "own" && s.roots.isNotEmpty()) Title(w("teamdev.tree.top"))
         }
         if (s.mode != "own") {

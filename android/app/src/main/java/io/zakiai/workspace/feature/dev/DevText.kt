@@ -8,11 +8,10 @@ fun w(key: String, vararg params: Pair<String, Any?>): String = DevWords.s(key, 
 /** Numbers, dates and the shapes of «الأداء والتطوير» on the phone. Pure (DevTest pins them). */
 object D {
     const val cancel = "إلغاء"
+    const val edit = "تعديل"
     const val save = "حفظ"
     const val csvWarn = "⚠️ تنزيل الجدول كملف من الموقع بس."
     const val csvFix = "🔧 افتح «الأداء والتطوير» على الموقع ونزّل الملف من هناك؛ نفس الأرقام اللي هون."
-    const val moreWarn = "⚠️ مصفوفة المهارات وإعدادات التقييم لسا صفحات الموقع جوّا التطبيق."
-    const val moreFix = "🔧 بتفتح من هون، وبتنقلب أصلية بالدفعة الجاية."
 
     val TABS = listOf("skills", "score", "reviews", "plan", "notes")
 
