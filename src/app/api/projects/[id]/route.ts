@@ -27,7 +27,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     const input = await parseJson(patchSchema, req);
     const project = await db.project.findUnique({ where: { id: params.id }, select: { id: true, workspaceId: true, teamId: true } });
     if (!project) throw new NotFoundError("project.not_found");
-    const ctx = await requireTeamWork(project.workspaceId, project.teamId, ["ADMIN", "MEMBER"], "project.not_found");
+    const ctx = await requireTeamWork(project.workspaceId, project.teamId, ["ADMIN", "MEMBER"], "project.not_found", undefined, params.id);
     await assertMemberCan(ctx, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
 
     if (input.departmentId) {

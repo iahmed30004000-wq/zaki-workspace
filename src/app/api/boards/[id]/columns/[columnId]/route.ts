@@ -23,7 +23,7 @@ export async function PATCH(
   return withApi(async () => {
     const input = await parseJson(patchSchema, req);
     const { board } = await resolveBoard(params.id);
-    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found");
+    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found", undefined, board.project.id);
     await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
     // W1.3: choosing the stage is the space manager's (the owner, a space admin, an admin of the company who is in the space)
     if (input.stage !== undefined && access.spaceManager !== true) throw new ForbiddenError("column.stage_manager_only");
@@ -49,7 +49,7 @@ export async function DELETE(
 ) {
   return withApi(async () => {
     const { board } = await resolveBoard(params.id);
-    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found");
+    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found", undefined, board.project.id);
     await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
     const column = await db.boardColumn.findFirst({
       where: { id: params.columnId, boardId: board.id },
@@ -70,7 +70,7 @@ export async function DELETE(
 async function resolveBoard(boardId: string) {
   const board = await db.board.findFirst({
     where: { id: boardId },
-    select: { id: true, project: { select: { workspaceId: true, teamId: true } } },
+    select: { id: true, project: { select: { id: true, workspaceId: true, teamId: true } } },
   });
   if (!board) throw new NotFoundError("board.not_found");
   return { board: board as typeof board & { id: string } };

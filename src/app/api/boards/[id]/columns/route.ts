@@ -23,10 +23,10 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   return withApi(async () => {
     const board = await db.board.findFirst({
       where: { id: params.id },
-      select: { id: true, project: { select: { workspaceId: true, teamId: true } } },
+      select: { id: true, project: { select: { id: true, workspaceId: true, teamId: true } } },
     });
     if (!board) throw new NotFoundError("board.not_found");
-    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, undefined, "board.not_found");
+    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, undefined, "board.not_found", undefined, board.project.id);
     await assertMemberCan(access, "projects.view", "section.view_denied", { spaceGuestsPass: true });
     const [columns, stagesOn] = await Promise.all([
       db.boardColumn.findMany({
@@ -46,10 +46,10 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     const input = await parseJson(createSchema, req);
     const board = await db.board.findFirst({
       where: { id: params.id },
-      select: { id: true, project: { select: { workspaceId: true, teamId: true } } },
+      select: { id: true, project: { select: { id: true, workspaceId: true, teamId: true } } },
     });
     if (!board) throw new NotFoundError("board.not_found");
-    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found");
+    const access = await requireTeamWork(board.project.workspaceId, board.project.teamId, ["ADMIN", "MEMBER"], "board.not_found", undefined, board.project.id);
     await assertMemberCan(access, "projects.edit", "section.edit_denied", { spaceGuestsPass: true });
     // W1.3: a stage in the body is the space manager's choice
     if (input.stage !== undefined && access.spaceManager !== true) throw new ForbiddenError("column.stage_manager_only");

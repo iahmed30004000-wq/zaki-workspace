@@ -12,7 +12,7 @@
 2. **Who may call this door, and what does it call?** — all 417 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 208 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 210 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -416,7 +416,7 @@ Doors in use: `requireActor` 184 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 | GET, POST | `/api/system-tokens` | requireActor | `system-tokens`: createSystemToken, listSystemTokens<br>`api-tokens`: TOKEN_EXPIRY_DAYS |
 | DELETE | `/api/system-tokens/[id]` | requireActor | `system-tokens`: revokeSystemToken |
 | GET, POST | `/api/tasks` | requireWorkspace | `team-scope`: teamFilterInSpace<br>`tasks`: createTask, listTasks<br>`org-day`: orgTimeZone<br>`n8n`: dispatchEvent<br>`rewards`: rewardsVisibleTo<br>`reward-input`: rewardBodySchema, toRewardRequest |
-| GET, PATCH, DELETE | `/api/tasks/[id]` | requireTaskAccess | `team-scope`: userSeesProject<br>`tasks`: updateTask, deleteTask<br>`active-people`: assertActiveAssignee<br>`org-day`: orgTimeZone<br>`rewards`: rewardsVisibleTo, setReward<br>`reward-input`: rewardBodySchema, toRewardRequest |
+| GET, PATCH, DELETE | `/api/tasks/[id]` | requireTaskAccess | `team-scope`: loadWorkScope, taskVisibleWhere, userSeesProject<br>`tasks`: updateTask, deleteTask<br>`active-people`: assertActiveAssignee<br>`org-day`: orgTimeZone<br>`rewards`: rewardsVisibleTo, setReward<br>`reward-input`: rewardBodySchema, toRewardRequest |
 | POST, GET | `/api/tasks/[id]/comments` | requireTeamWork ‡ | `n8n`: dispatchEvent |
 | PATCH, DELETE | `/api/tasks/[id]/comments/[commentId]` | requireTeamWork ‡ | — |
 | POST | `/api/tasks/[id]/complete` | requireTeamWork | `tasks`: setTaskCompletion<br>`n8n`: dispatchEvent |
@@ -535,10 +535,10 @@ high count is a wide surface: changing its signature reaches all of them.
 | `features` | 87 | 181 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 138 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 77 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
-| `team-scope` | 273 | 49 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
+| `team-scope` | 299 | 50 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 39 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
-| `tasks` | 746 | 26 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
+| `tasks` | 750 | 26 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `files` | 608 | 25 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `control-panel` | 514 | 23 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
 | `owner-assistant-settings` | 389 | 20 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
@@ -673,7 +673,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `ai-settings` | 30 | 1 | THE AI CONNECTION — ONE PLACE (A2.1). |
 | `assistant-work` | 107 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
 | `bot-webhooks` | 136 | 1 | «بوت فاذر» — the webhook of a bot (docs/contracts/bots.md): the messages that ADDRESS a bot are sent to its address, signed. |
-| `bulk-assign` | 142 | 1 | «نقل أو فكّ المهام المفتوحة»: when a person leaves, their OPEN cards (not archived, not completed, not in a finished column) are listed and handed to somebody else, or unassigne… |
+| `bulk-assign` | 145 | 1 | «نقل أو فكّ المهام المفتوحة»: when a person leaves, their OPEN cards (not archived, not completed, not in a finished column) are listed and handed to somebody else, or unassigne… |
 | `card-log` | 92 | 1 | «السجل»: a read-only timeline made of the AuditLog rows written about this card. |
 | `card-status` | 32 | 1 | «حالة الاعتماد» (the second of the two systems): مسودة → قيد المراجعة → معتمدة → مؤرشفة, set by a moderator of the space or the OWNER. |
 | `checkins-section` | 27 | 1 | «التسجيل اليومي» as a section of the team score: how many days a person answered in the period and the run of answered days. |
@@ -694,7 +694,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `site-guide` | 140 | 1 | «المرشد» — ONE STEP of the guide. |
 | `space-delete` | 94 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
 | `task-privacy-bulk` | 38 | 1 | «خلّي المهام المسندة المفتوحة خاصة»: one click for the whole space (P0.2). |
-| `task-rules-run` | 298 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
+| `task-rules-run` | 301 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
 | `team-score-sections` | 20 | 1 | «السكور» — THE EXTENSION POINT. |
 | `ticket-escalation` | 73 | 1 | Waiting and escalation of the tickets «🎫 مشكلة» made (Q1.5). |
 | `approval-notify` | 128 | 0 | The bell of «طلبات الموافقة». |
@@ -958,6 +958,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/away.ts` |
+| `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
 | `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
 | `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts`, `server/services/task-sheet.ts` |
@@ -973,6 +974,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `taskRules` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/jobs/run.ts`, `server/services/task-rules-run.ts`, `server/services/task-rules.ts` |
 | `approvals` | 9 — `app/(app)/approvals/[id]/page.tsx`, `app/(app)/approvals/forms/page.tsx`, `app/(app)/approvals/page.tsx`, `app/(app)/spaces/[id]/settings/page.tsx`, `components/work/requests/types.ts`, `lib/guide/page-help.ts`, `lib/nav/places.ts`, `server/services/approval-access.ts`, `server/services/work-requests.ts` |
 | `taskPrivacy` | 1 — `server/services/tasks.ts` |
+| `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
 | `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
 | `workInbox` | 8 — `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts`, `server/services/work-app.ts` |
 | `workRequests` | 5 — `app/(app)/requests/page.tsx`, `app/api/work/requests/route.ts`, `app/api/workspaces/route.ts`, `lib/nav/places.ts`, `server/services/today-dashboard.ts` |

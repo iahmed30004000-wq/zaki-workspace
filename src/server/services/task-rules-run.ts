@@ -1,4 +1,5 @@
 import { Prisma, type TaskRule } from "@prisma/client";
+import { mayHearOfTask } from "@/server/policy/assigned-only";
 import { db } from "@/server/db";
 import { log } from "@/server/log";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
@@ -206,6 +207,8 @@ async function runAction(rule: TaskRule, task: TaskRow, action: RuleAction, acto
     }
     case "NOTIFY": {
       if (!(await eligiblePerson(actor.orgId, project, action.userId))) return skipped("NOTIFY", "person_not_allowed");
+      // «كل واحد بيشوف مهامه بس»: the notice carries the task's title
+      if ((await mayHearOfTask([action.userId], task.id)).length === 0) return skipped("NOTIFY", "person_not_allowed");
       const org = await db.organization.findUnique({ where: { id: task.orgId }, select: { keyPrefix: true } });
       const line = `${org?.keyPrefix ?? ""}-${task.number} · ${task.title}`;
       await pushNotification({

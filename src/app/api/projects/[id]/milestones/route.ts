@@ -26,7 +26,7 @@ async function projectFor(projectId: string, capability: "projects.view" | "proj
   });
   if (!project) throw new NotFoundError("project.not_found");
   const roles = capability === "projects.edit" ? (["ADMIN", "MEMBER"] as const) : undefined;
-  const access = await requireTeamWork(project.workspaceId, project.teamId, roles ? [...roles] : undefined, "project.not_found");
+  const access = await requireTeamWork(project.workspaceId, project.teamId, roles ? [...roles] : undefined, "project.not_found", undefined, project.id);
   await assertMemberCan(access, capability, "section.view_denied", { spaceGuestsPass: true });
   await assertFeatureOn(access.orgId, "milestones");
   return { project, access };

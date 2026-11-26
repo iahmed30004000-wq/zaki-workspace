@@ -5,7 +5,7 @@ import { assertMemberCan } from "@/server/policy/actor";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { requireTaskAccess, audit, ForbiddenError, NotFoundError } from "@/server/auth";
-import { userSeesProject } from "@/server/services/team-scope";
+import { loadWorkScope, taskVisibleWhere, userSeesProject } from "@/server/services/team-scope";
 import { withApi } from "@/server/api";
 import { parseJson, priorities, taskTypes } from "@/server/validation";
 import { updateTask, deleteTask } from "@/server/services/tasks";
@@ -33,6 +33,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
     // its space, then its project's team: outside the team it is «not found»
     const access = await requireTaskAccess(params.id);
     await assertMemberCan(access, "tasks.view", "section.view_denied", { spaceGuestsPass: true });
+    const readable = taskVisibleWhere(await loadWorkScope(access.userId));
     const task = await db.task.findFirst({
       where: { id: params.id },
       include: {
@@ -48,6 +49,7 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
           include: { actor: { select: { id: true, name: true } } },
         },
         dependencies: {
+          where: { dependsOn: readable },
           select: { id: true, kind: true, dependsOn: { select: { id: true, title: true, number: true } } },
         },
         _count: { select: { comments: true } },
