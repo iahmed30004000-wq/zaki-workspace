@@ -5,6 +5,7 @@ import { assertCan, type Actor } from "@/server/policy/actor";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
 import { DOOR_PERMISSIONS, generateToken, isDoorPermission, type DoorPermission } from "@/server/door/tokens";
+import { usableAgent } from "@/server/door/acting-agent";
 
 /**
  * «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). Whoever holds
@@ -12,7 +13,8 @@ import { DOOR_PERMISSIONS, generateToken, isDoorPermission, type DoorPermission 
  * must be able to kill a leaked token even while the door is shut.
  *
  * A token is made for ONE space the maker reaches, with named permissions (reads by default), an optional expiry; the whole token
- * is returned ONCE, here, and only its hash is kept. It acts in the name of the maker (see api-door.ts).
+ * is returned ONCE, here, and only its hash is kept. It acts in the name of the maker (see api-door.ts), or, when the OWNER says
+ * so, in the name of a 🤖 account of that space («باسم مين»); the maker still has to be allowed to keep it.
  */
 
 export const TOKEN_EXPIRY_DAYS = [30, 90, 365] as const;
@@ -29,6 +31,8 @@ export interface ApiTokenDTO {
   permissions: DoorPermission[];
   space: { id: string; name: string };
   createdBy: { id: string; name: string };
+  /** The 🤖 account it acts as; null: it acts as its maker. */
+  actsAs: { id: string; name: string } | null;
   createdAt: Date;
   lastUsedAt: Date | null;
   expiresAt: Date | null;
@@ -51,6 +55,7 @@ const TOKEN_SELECT = {
   revokedReason: true,
   workspace: { select: { id: true, name: true } },
   createdBy: { select: { id: true, name: true } },
+  actsAs: { select: { id: true, name: true } },
 } satisfies Prisma.ApiTokenSelect;
 
 function toDTO(row: Prisma.ApiTokenGetPayload<{ select: typeof TOKEN_SELECT }>, now = new Date()): ApiTokenDTO {
@@ -63,6 +68,7 @@ function toDTO(row: Prisma.ApiTokenGetPayload<{ select: typeof TOKEN_SELECT }>, 
     permissions: row.permissions.filter(isDoorPermission),
     space: row.workspace,
     createdBy: row.createdBy,
+    actsAs: row.actsAs,
     createdAt: row.createdAt,
     lastUsedAt: row.lastUsedAt,
     expiresAt: row.expiresAt,
@@ -103,6 +109,8 @@ export interface CreateApiTokenInput {
   expiresInDays: number | null;
   /** Set only by `createSystemToken` (W1). */
   system?: string;
+  /** «باسم مين»: a 🤖 account of the space. The OWNER only. Absent or null: the maker. */
+  actsAsId?: string | null;
 }
 
 export async function createApiToken(actor: Actor, input: CreateApiTokenInput): Promise<{ token: string; item: ApiTokenDTO }> {
@@ -117,6 +125,12 @@ export async function createApiToken(actor: Actor, input: CreateApiTokenInput): 
     ? await db.workspace.findFirst({ where: { id: input.workspaceId, organizationId: actor.orgId }, select: { id: true } })
     : null;
   if (!space) throw new ForbiddenError("door.err.space");
+  const actsAsId = input.actsAsId || null;
+  if (actsAsId) {
+    // writing under another name is the owner's decision, and only a 🤖 account can be that name: never a person
+    if (!actor.isOwner) throw new ForbiddenError("door.err.agent_owner");
+    if (!(await usableAgent(actor.orgId, actsAsId, space.id))) throw new ForbiddenError("door.err.agent");
+  }
   const name = input.name.trim();
   const fresh = generateToken();
   const expiresAt = input.expiresInDays ? new Date(Date.now() + input.expiresInDays * 86_400_000) : null;
@@ -132,6 +146,7 @@ export async function createApiToken(actor: Actor, input: CreateApiTokenInput): 
         ...(input.system ? { system: input.system } : {}),
         workspaceId: space.id,
         createdById: actor.userId,
+        ...(actsAsId ? { actsAsId } : {}),
         expiresAt,
       },
       select: TOKEN_SELECT,
@@ -143,7 +158,7 @@ export async function createApiToken(actor: Actor, input: CreateApiTokenInput): 
         orgId: actor.orgId,
         target: made.id,
         workspaceId: space.id,
-        meta: { name, permissions, expiresAt: expiresAt?.toISOString() ?? null, ...(input.system ? { system: input.system } : {}) },
+        meta: { name, permissions, expiresAt: expiresAt?.toISOString() ?? null, ...(input.system ? { system: input.system } : {}), ...(actsAsId ? { actsAsId } : {}) },
       },
     });
     return made;
@@ -176,12 +191,13 @@ export async function revokeApiToken(actor: Actor, tokenId: string): Promise<Api
  * «يلغي مفاتيح اللي انوقف»: the tokens a person made in this company die with the person's access (suspended or offboarded), inside
  * the transaction that changes their status. They are NOT given back by reactivating the person: a token that died is made again, on purpose.
  * (The door also refuses them live, from the person's status: this makes the death permanent and visible on the screen.)
+ * The tokens that ACT AS the person (a 🤖 account) die with it the same way.
  */
 export async function revokeTokensOfPerson(
   tx: Prisma.TransactionClient,
   input: { orgId: string; userId: string; byUserId: string; reason: "person_suspended" | "person_offboarded" },
 ): Promise<number> {
-  const live = await tx.apiToken.findMany({ where: { organizationId: input.orgId, createdById: input.userId, revokedAt: null }, select: { id: true, workspaceId: true } });
+  const live = await tx.apiToken.findMany({ where: { organizationId: input.orgId, OR: [{ createdById: input.userId }, { actsAsId: input.userId }], revokedAt: null }, select: { id: true, workspaceId: true } });
   if (live.length === 0) return 0;
   await tx.apiToken.updateMany({
     where: { id: { in: live.map((t) => t.id) }, revokedAt: null },

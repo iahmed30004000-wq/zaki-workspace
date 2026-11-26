@@ -22,6 +22,8 @@ export interface SystemTokensAnswer {
   tokens: ApiTokenDTO[];
   systems: Array<{ key: string; name: string; permissions: string[] }>;
   spaces: { id: string; name: string }[];
+  /** The 🤖 accounts a token may act as, each with the spaces it is in. */
+  agents: Array<{ id: string; name: string; spaceIds: string[] }>;
   switchOn: boolean;
 }
 
@@ -33,11 +35,21 @@ export async function listSystemTokens(actor: Actor): Promise<SystemTokensAnswer
     tokens: all.tokens,
     systems: DOOR_SYSTEMS.map((s) => ({ key: s.key, name: s.name, permissions: [...s.permissions] })),
     spaces: all.spaces,
+    agents: await agentsOf(actor.orgId, all.spaces.map((s) => s.id)),
     switchOn: all.switchOn,
   };
 }
 
-export async function createSystemToken(actor: Actor, input: { system: string; workspaceId: string; expiresInDays?: number | null }): Promise<{ token: string; item: ApiTokenDTO }> {
+async function agentsOf(orgId: string, spaceIds: string[]): Promise<SystemTokensAnswer["agents"]> {
+  const rows = await db.organizationMember.findMany({
+    where: { organizationId: orgId, agent: true, status: "ACTIVE", role: { not: "GUEST" } },
+    orderBy: { createdAt: "asc" },
+    select: { userId: true, user: { select: { name: true, workspaceLinks: { where: { workspaceId: { in: spaceIds } }, select: { workspaceId: true } } } } },
+  });
+  return rows.map((r) => ({ id: r.userId, name: r.user.name, spaceIds: r.user.workspaceLinks.map((l) => l.workspaceId) }));
+}
+
+export async function createSystemToken(actor: Actor, input: { system: string; workspaceId: string; expiresInDays?: number | null; actsAsId?: string | null }): Promise<{ token: string; item: ApiTokenDTO }> {
   owner(actor);
   const system = doorSystem(input.system);
   if (!system) throw new ForbiddenError("door.err.system");
@@ -47,6 +59,7 @@ export async function createSystemToken(actor: Actor, input: { system: string; w
     workspaceId: input.workspaceId,
     expiresInDays: input.expiresInDays === undefined ? DEFAULT_SYSTEM_EXPIRY_DAYS : input.expiresInDays,
     system: system.key,
+    actsAsId: input.actsAsId ?? null,
   });
 }
 

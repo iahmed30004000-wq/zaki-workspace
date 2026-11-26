@@ -78,7 +78,7 @@ export const currentUser: () => Promise<CurrentUser | null> = perRequest(async (
           where: { status: "ACTIVE" },
           orderBy: { createdAt: "asc" },
           take: 1,
-          select: { organization: { select: { settings: true } } },
+          select: { agent: true, organization: { select: { settings: true } } },
         },
       },
     }),
@@ -99,6 +99,8 @@ export const currentUser: () => Promise<CurrentUser | null> = perRequest(async (
     tv: user.tokenVersion,
     sid: session.sid ?? null,
     ...onboardingStateOf(user, active.organization.settings),
+    // a 🤖 account used through a token owes no onboarding: no program reads the notice, and its token passed its own gate
+    ...(acting && active.agent ? { mustChangePassword: false, transparencyPending: false } : {}),
   };
 });
 

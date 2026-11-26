@@ -16,6 +16,8 @@ const createSchema = z.object({
   name: z.string().trim().min(2, "door.err.name").max(60, "door.err.name"),
   permissions: z.array(z.enum(ALL_DOOR_PERMISSIONS)).min(1, "door.err.permissions").max(ALL_DOOR_PERMISSIONS.length),
   workspaceId: z.string().min(1, "door.err.space").max(64),
+  /** «باسم مين»: a 🤖 account (the owner only; the service decides). */
+  actsAsId: z.string().min(1).max(64).nullable().optional(),
   /** null: never expires. */
   expiresInDays: z
     .union([z.null(), z.number().int().refine((n) => (TOKEN_EXPIRY_DAYS as readonly number[]).includes(n), "door.err.expiry")])

@@ -16,6 +16,8 @@ const createSchema = z
   .object({
     system: z.string().min(1, "door.err.system").max(40, "door.err.system"),
     workspaceId: z.string().min(1, "door.err.space").max(64),
+    /** «باسم مين»: a 🤖 account of that space; absent or null: the owner's own name. */
+    actsAsId: z.string().min(1).max(64).nullable().optional(),
     /** absent: 90 days; null: never expires. */
     expiresInDays: z.union([z.null(), z.number().int().refine((n) => (TOKEN_EXPIRY_DAYS as readonly number[]).includes(n), "door.err.expiry")]).optional(),
   })
