@@ -455,4 +455,8 @@ html.zk-reveal::view-transition-new(zk-overlay) {
   .group\/frame:has([data-frame-bars="hide-all"]) div:has(> #zk-main) {
     padding-bottom: 0;
   }
+  /* `main` itself keeps room for Telegram's floating bar (`tgTabBar`); the bar is hidden here, so the room goes with it, or it stays as a blank strip under the composer */
+  .group\/frame:has([data-frame-bars="hide-all"]) #zk-main {
+    padding-bottom: 0;
+  }
 }
