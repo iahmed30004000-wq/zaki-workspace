@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 419 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 420 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 212 feature switches and every place that reads them (§8).
@@ -45,7 +45,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 419 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 420 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 184 · `activeOrgCtx` 122 · `(none)` 45 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 185 · `activeOrgCtx` 122 · `(none)` 45 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `ideaAccessCtx` 4 · `directoryContext` 3 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -175,6 +175,7 @@ Doors in use: `requireActor` 184 · `activeOrgCtx` 122 · `(none)` 45 · `requir
 | GET, POST | `/api/chat/conversations/[id]/scheduled` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/conversations/[id]/search` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/conversations/[id]/summarize` | requireActor † | `digest`: summarizeTopic |
+| POST | `/api/chat/conversations/[id]/transcribe` | requireActor | `voice-transcript`: authorizeTakeTranscript, MAX_TAKE_BYTES, takeGuard, transcribeTake, … |
 | GET, PUT | `/api/chat/conversations/[id]/whiteboard` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/directory` | directoryContext | `current-space`: currentSpace<br>`last-seen`: lastSeenReader<br>`assistant-chat`: assistantContactOffered<br>`botfather`: botFatherOffered |
 | POST | `/api/chat/dm` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn |
@@ -513,7 +514,7 @@ Doors in use: `requireActor` 184 · `activeOrgCtx` 122 · `(none)` 45 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 419. Each one is a door that cannot have a session, or one that is closed.
+Six of 420. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -625,6 +626,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `reward-guard` | 39 | 4 | «مهمة بمكافأة» — the guard every writer of a task goes through (tasks.ts `updateTask` / `deleteTask` / `createTask`, the reward routes). |
 | `reward-input` | 30 | 4 | What a request body says about a reward: the amount as the person typed it (`amount`: "12.5", in the major unit) or already in minor units (`amountMinor`), the currency (optiona… |
 | `search-embed-index` | 314 | 4 | «بحث بالمعنى» — WHAT GETS A VECTOR, and when. |
+| `voice-transcript` | 324 | 4 | «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine. |
 | `work-requests` | 493 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
@@ -673,7 +675,6 @@ high count is a wide surface: changing its signature reaches all of them.
 | `timeline` | 77 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
 | `today-app` | 89 | 2 | «اليوم» FOR THE PHONE (M2 N2): the very service calls the page makes (src/app/(app)/page.tsx, its newer shape `simpleToday`), for the space the person is in — nothing computed t… |
 | `today-dashboard` | 248 | 2 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
-| `voice-transcript` | 249 | 2 | «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine. |
 | `zaki-ai` | 171 | 2 | «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
 | `ai-settings` | 30 | 1 | THE AI CONNECTION — ONE PLACE (A2.1). |
 | `assistant-work` | 107 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
@@ -897,7 +898,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `mfgLedger` | 8 — `app/(app)/cards/page.tsx`, `app/(app)/manufacturing/orders/page.tsx`, `app/(app)/manufacturing/page.tsx`, `app/(app)/manufacturing/recipes/page.tsx`, `app/(app)/manufacturing/reports/page.tsx`, `server/policy/capabilities.ts`, `server/services/manufacturing-access.ts`, `server/services/manufacturing-proof.ts` |
 | `calls` | 16 — `app/(app)/calls/[id]/page.tsx`, `components/chat/v2/pane/message-viewport.tsx`, `components/chat/v2/pane/viewport-row.tsx`, `components/settings-me/notifications-section.tsx`, `lib/chat/prefs.ts`, `lib/chat/viewport/rows.ts`, `lib/chat/viewport/sizes.ts`, `lib/chat/viewport/use-message-viewport.ts`, `lib/guide/articles.ts`, `lib/guide/page-help.ts`, `lib/members-ui.ts`, `server/calls/assistant-agent.ts`, `server/calls/calls.ts`, `server/calls/push.ts`, `server/chat/topics.ts`, `server/policy/capabilities.ts` |
 | `whiteboard` | 6 — `app/(app)/chat/[id]/whiteboard/page.tsx`, `components/chat/v2/pane/pane-header.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/feature-groups.ts`, `server/chat/topics.ts`, `server/chat/whiteboard.ts` |
-| `voiceNotes` | 3 — `server/chat/attachments.ts`, `server/chat/messages.ts`, `server/chat/topics.ts` |
+| `voiceNotes` | 4 — `server/chat/attachments.ts`, `server/chat/messages.ts`, `server/chat/topics.ts`, `server/services/voice-transcript.ts` |
 | `voiceTranscript` | 2 — `server/chat/topics.ts`, `server/services/voice-transcript.ts` |
 | `externalGateway` | 2 — `server/services/gateway-address.ts`, `server/services/owner-assistant-settings.ts` |
 | `assistantContact` | 2 — `server/services/assistant-chat.ts`, `server/services/chat-assistant.ts` |
@@ -958,14 +959,14 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `assistantInMeetings` | 2 — `server/calls/assistant-agent.ts`, `server/calls/transcripts.ts` |
 | `themeSwitchFx` | 1 — `app/(app)/theme-gallery/page.tsx` |
 | `voiceTelegram` | 1 — `server/chat/topics.ts` |
-| `voiceLiveText` | 1 — `server/chat/topics.ts` |
+| `voiceLiveText` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/topics.ts` |
 | `tgLook` | 2 — `app/(app)/chat/layout.tsx`, `server/chat/topics.ts` |
 | `tgTabBar` | 0 —  |
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/away.ts` |
 | `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
-| `tgPhone` | 0 —  |
+| `tgPhone` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx` |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
 | `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
 | `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts`, `server/services/task-sheet.ts` |
@@ -998,7 +999,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `quickRecall` | 2 — `server/chat/recall.ts`, `server/chat/topics.ts` |
 | `chatBubbles` | 1 — `server/chat/topics.ts` |
 | `chatOutbox` | 1 — `server/chat/topics.ts` |
-| `voiceNotes` | 3 — `server/chat/attachments.ts`, `server/chat/messages.ts`, `server/chat/topics.ts` |
+| `voiceNotes` | 4 — `server/chat/attachments.ts`, `server/chat/messages.ts`, `server/chat/topics.ts`, `server/services/voice-transcript.ts` |
 | `voiceTranscript` | 2 — `server/chat/topics.ts`, `server/services/voice-transcript.ts` |
 | `messageTranslate` | 3 — `lib/chat/customer-data-hint.ts`, `server/chat/topics.ts`, `server/services/message-translate.ts` |
 | `whiteboard` | 6 — `app/(app)/chat/[id]/whiteboard/page.tsx`, `components/chat/v2/pane/pane-header.tsx`, `lib/chat/v2/pane/header-model.ts`, `lib/feature-groups.ts`, `server/chat/topics.ts`, `server/chat/whiteboard.ts` |
@@ -1065,20 +1066,20 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatSounds` | 0 —  |
 | `spaceBadges` | 1 — `app/api/workspaces/route.ts` |
 | `voiceTelegram` | 1 — `server/chat/topics.ts` |
-| `voiceLiveText` | 1 — `server/chat/topics.ts` |
+| `voiceLiveText` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/topics.ts` |
 | `tgLook` | 2 — `app/(app)/chat/layout.tsx`, `server/chat/topics.ts` |
 | `tgTabBar` | 0 —  |
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/away.ts` |
-| `tgPhone` | 0 —  |
+| `tgPhone` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx` |
 
 ## 9. What this map noticed
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 413 of 419 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 306 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 414 of 420 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 307 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **20 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 7 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`, `/mcp`); 6 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right; the 1 left (`/mcp`) are the ones Phase E looks at. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

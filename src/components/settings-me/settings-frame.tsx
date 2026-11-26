@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bell, Building2, ChevronLeft, Database, Folder, Keyboard, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, ListOrdered, Lock, MessageCircle, Plug, Smartphone, Sparkles, ToggleRight, UserRound, type LucideIcon } from "lucide-react";
+import { AudioLines, Bell, Building2, ChevronLeft, Database, Folder, Keyboard, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, ListOrdered, Lock, MessageCircle, Plug, Smartphone, Sparkles, ToggleRight, UserRound, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -16,6 +16,7 @@ import {
   sectionHref,
   sectionLabelKey,
   sectionOfPath,
+  PHONE_ONLY_SECTIONS,
   SETTINGS_ME_HREF,
   type CompanyGroup,
   type CompanySectionKey,
@@ -35,6 +36,7 @@ const ICONS: Record<SectionKey, LucideIcon> = {
   privacy: Lock,
   chat: MessageCircle,
   effects: Sparkles,
+  speech: AudioLines,
   folders: Folder,
   data: Database,
   devices: Smartphone,
@@ -88,9 +90,9 @@ const COMPANY_ICONS: Record<CompanySectionKey, LucideIcon> = {
 };
 
 /** One row of the list: a tile, a name, its one line and (on the phone) the chevron. `data-section` is the key the tests and the route use. */
-function Row({ href, name, hint, icon: Icon, tile, active, dataKey, extra }: { href: string; name: string; hint: string; icon: LucideIcon; tile: string; active: boolean; dataKey: string; extra?: Record<string, string> }) {
+function Row({ href, name, hint, icon: Icon, tile, active, dataKey, extra, phoneOnly = false }: { href: string; name: string; hint: string; icon: LucideIcon; tile: string; active: boolean; dataKey: string; extra?: Record<string, string>; phoneOnly?: boolean }) {
   return (
-    <li className="relative [&+&]:before:absolute [&+&]:before:inset-x-3.5 [&+&]:before:top-0 [&+&]:before:border-t [&+&]:before:border-border [&+&]:before:content-['']">
+    <li className={cn("relative [&+&]:before:absolute [&+&]:before:inset-x-3.5 [&+&]:before:top-0 [&+&]:before:border-t [&+&]:before:border-border [&+&]:before:content-['']", phoneOnly && "md:hidden")}>
       <Link
         href={href}
         aria-current={active ? "page" : undefined}
@@ -119,7 +121,9 @@ export function SectionList({ sections, current, company = null, currentCompany 
   const { t } = useI18n();
   // S3.3: the theme has ONE home (the section `language`), which wears its new name while «الإعدادات» is ONE door
   const oneDoor = useSettingsOneDoor();
-  const own = sections.map((key, at) => <Row key={key} href={sectionHref(key)} name={t(sectionLabelKey(key, oneDoor))} hint={t(sectionHintKey(key, oneDoor))} icon={ICONS[key]} tile={TILES[at % TILES.length] as string} active={key === current} dataKey={key} />);
+  // a phone-only row takes no turn of the tiles' colours: the other rows keep theirs
+  const coloured = sections.filter((key) => !PHONE_ONLY_SECTIONS.has(key));
+  const own = sections.map((key) => <Row key={key} href={sectionHref(key)} name={t(sectionLabelKey(key, oneDoor))} hint={t(sectionHintKey(key, oneDoor))} icon={ICONS[key]} tile={PHONE_ONLY_SECTIONS.has(key) ? "bg-cat-4" : (TILES[coloured.indexOf(key) % TILES.length] as string)} phoneOnly={PHONE_ONLY_SECTIONS.has(key)} active={key === current} dataKey={key} />);
   if (!company) {
     return (
       <nav aria-label={t("settingsMe.sections")} data-settings-sections>

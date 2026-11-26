@@ -22,12 +22,13 @@ import type { MessageDto } from "@/server/chat/dto";
 const note = (n: number, extra: Partial<VoiceNote> = {}): VoiceNote => ({ src: `/api/chat/attachments/a${n}`, messageId: `m${n}`, authorName: "ليلى", mine: false, durationMs: 4000, ...extra });
 
 describe("the speed in the person's prefs", () => {
-  it("is 1, 1.5 or 2 and nothing else; an empty prefs object resolves to 1", () => {
+  it("the tap's circle is 1, 1.5 and 2; a speed outside the offered ones is refused; an empty prefs object resolves to 1", () => {
     expect([...VOICE_SPEEDS]).toEqual([1, 1.5, 2]);
     expect(chatPrefsSchema.safeParse({ voiceSpeed: 1.5 }).success).toBe(true);
     expect(chatPrefsSchema.safeParse({ voiceSpeed: 3 }).success).toBe(false);
     expect(chatPrefsPatchSchema.safeParse({ voiceSpeed: 2 }).success).toBe(true);
-    expect(chatPrefsPatchSchema.safeParse({ voiceSpeed: 0.5 }).success).toBe(false);
+    // 0.5 became one of the offered speeds (the phone's long press, `tests/tg-voice-model.test.ts`); a speed that is none of them is still refused
+    expect(chatPrefsPatchSchema.safeParse({ voiceSpeed: 0.25 }).success).toBe(false);
     expect(resolveChatPrefs({}).voiceSpeed).toBe(1);
     expect(resolveChatPrefs({ voiceSpeed: 2 }).voiceSpeed).toBe(2);
   });

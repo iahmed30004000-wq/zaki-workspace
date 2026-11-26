@@ -120,6 +120,18 @@ export const TG_MOTION = {
   voiceDustMs: 400,
   composerReturnMs: 150,
   cancelDustMs: 300,
+  /** a finger lifted sooner than this was a tap, not a hold: nothing is recorded, the tooltip says to hold */
+  micHoldMs: 200,
+  /** how long the tooltip under that tap stays */
+  micTipMs: 2500,
+  /** one blink of the red dot */
+  recordBlinkMs: 1000,
+  /** the circle follows the volume: one level arrives every 100 ms */
+  micLevelMs: 100,
+  /** a press this long on the speed chip opens the list of speeds */
+  speedHoldMs: 500,
+  /** one turn of the ring around the transcribe button */
+  transcriptSpinMs: 900,
   // sheets
   sheetMs: 180,
 } as const;
