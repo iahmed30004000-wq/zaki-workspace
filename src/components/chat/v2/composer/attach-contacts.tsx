@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Check, LoaderCircle, Search, Send } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
+import { Button } from "@/components/ui/button";
 import { usePaneActions } from "@/components/chat/v2/pane/pane-actions";
 import { appendMessage } from "@/lib/chat/cache/writer";
 import { messageClientId } from "@/lib/chat/conversation/client";
@@ -80,10 +81,10 @@ export function ContactList({
       ) : null}
       {chosen ? (
         <div className="sticky bottom-0 border-t border-border bg-surface-1 p-2">
-          <button type="button" data-contact-send="" disabled={busy} onClick={onSendContact} className="flex min-h-12 w-full items-center justify-center gap-2 rounded-full bg-accent px-4 font-semibold text-accent-fg disabled:opacity-60">
+          <Button type="button" data-contact-send="" disabled={busy} onClick={onSendContact} className="h-auto min-h-12 w-full gap-2 rounded-full px-4 text-base font-semibold md:h-auto">
             {busy ? <LoaderCircle aria-hidden="true" className="size-5 motion-safe:animate-spin" /> : <Send aria-hidden="true" className="size-5" />}
             <span className="truncate">{ct("tgsheets.contact.send", { name: chosen.name })}</span>
-          </button>
+          </Button>
         </div>
       ) : null}
     </div>

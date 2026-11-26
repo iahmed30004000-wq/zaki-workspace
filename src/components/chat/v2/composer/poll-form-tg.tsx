@@ -3,6 +3,7 @@
 import React from "react";
 import { CirclePlus, Clock, Eye, ListChecks, LoaderCircle, Menu, X, type LucideIcon } from "lucide-react";
 import { SwitchTrack } from "@/components/ui/switch";
+import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/chat/text";
 import { cn } from "@/lib/utils";
 import { dragTargetIndex, moveOption, pollRoomKey, pollRoomLeft, POLL_CLOSE_CHOICES, POLL_MIN_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, type PollDraft } from "@/lib/chat/poll-client";
@@ -21,10 +22,10 @@ const DEFAULT_DURATION = 1440;
 /** «إنشاء»: dim until the draft can be sent. It stands in the question's card at half height and in the bar of the full page. */
 export function PollCreateButton({ disabled, busy, onCreate }: { disabled: boolean; busy: boolean; onCreate: () => void }) {
   return (
-    <button type="button" data-poll-create="" disabled={disabled || busy} onClick={onCreate} className="inline-flex min-h-9 shrink-0 items-center justify-center gap-1.5 rounded-full bg-accent px-4 text-sm font-semibold text-accent-fg disabled:opacity-40">
+    <Button type="button" data-poll-create="" disabled={disabled || busy} onClick={onCreate} className="h-auto min-h-9 shrink-0 rounded-full px-4 font-semibold disabled:opacity-40 md:h-auto">
       {busy ? <LoaderCircle aria-hidden="true" className="size-4 motion-safe:animate-spin" /> : null}
       {ct("tgsheets.poll.create")}
-    </button>
+    </Button>
   );
 }
 
