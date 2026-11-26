@@ -21,7 +21,8 @@ export default async function DepartmentsPage() {
       </div>
     );
   }
-  if (!actorCan(actor, "directory.view")) return <SectionOffNotice />;
+  // «محصور بمساحة»: the departments are the whole company's, and the API refuses such an account (403)
+  if (!actorCan(actor, "directory.view") || actor.spaceOnly) return <SectionOffNotice />;
 
   return (
     <DepartmentsView

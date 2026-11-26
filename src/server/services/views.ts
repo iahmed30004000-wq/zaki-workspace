@@ -1,6 +1,7 @@
 import { overdueDueFilter } from "@/lib/due-day";
 import { Prisma, type TaskPriority } from "@prisma/client";
 import { db } from "@/server/db";
+import { reachableWhere } from "@/server/policy/space-only";
 import { TASK_INCLUDE } from "@/server/services/tasks";
 import { loadWorkScope, scopeSpaceIds, taskVisibleWhere } from "@/server/services/team-scope";
 import { canWriteInWorkspace, workspaceRoleOf } from "@/server/workspace-role";
@@ -138,12 +139,14 @@ export async function resolveWorkspaceView(
  * or offboarded person is not somebody work can be filtered to or handed to.
  */
 export async function listWorkspacePeople(
-  ctx: Pick<WorkspaceViewCtx, "orgId" | "workspaceId" | "orgRole">,
+  ctx: Pick<WorkspaceViewCtx, "orgId" | "workspaceId" | "orgRole"> & { userId?: string },
 ): Promise<{ id: string; name: string }[]> {
+  const reach = ctx.userId ? await reachableWhere(ctx.orgId, ctx.userId) : null;
   const rows = await db.organizationMember.findMany({
     where: {
       organizationId: ctx.orgId,
       status: "ACTIVE",
+      ...(reach ? { AND: [reach] } : {}),
       ...(ctx.orgRole === "GUEST"
         ? { user: { workspaceLinks: { some: { workspaceId: ctx.workspaceId } } } }
         : {}),

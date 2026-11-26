@@ -5,6 +5,7 @@ import { parseJson } from "@/server/validation";
 import { activeOrgCtx, assertOrgManager } from "@/server/services/integrations";
 import { connectBot, disconnect, listChats } from "@/server/services/telegram";
 import { assertNotGuest } from "@/server/services/guest-guard";
+import { assertNotSpaceOnly } from "@/server/policy/space-only";
 
 const connectSchema = z.object({
   token: z
@@ -23,6 +24,7 @@ export async function GET() {
   return withApi(async () => {
     const ctx = await activeOrgCtx();
     assertNotGuest(ctx);
+    await assertNotSpaceOnly(ctx.userId, ctx.orgId); // the customers' conversations are the company's
     const chats = await listChats(ctx.orgId);
     const botUsername = (chats?.config as { botUsername?: string })?.botUsername ?? null;
     return NextResponse.json({ chats, botUsername });
@@ -34,6 +36,7 @@ export async function POST(req: Request) {
   return withApi(async () => {
     const ctx = await activeOrgCtx();
     assertNotGuest(ctx);
+    await assertNotSpaceOnly(ctx.userId, ctx.orgId); // the customers' conversations are the company's
     const input = await parseJson(connectSchema, req);
     await assertOrgManager(ctx.orgId);
     const result = await connectBot(ctx.orgId, input.token);
@@ -49,6 +52,7 @@ export async function DELETE() {
   return withApi(async () => {
     const ctx = await activeOrgCtx();
     assertNotGuest(ctx);
+    await assertNotSpaceOnly(ctx.userId, ctx.orgId); // the customers' conversations are the company's
     await assertOrgManager(ctx.orgId);
     await disconnect(ctx.orgId);
     return NextResponse.json({ ok: true });

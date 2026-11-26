@@ -1,4 +1,5 @@
 import { db } from "@/server/db";
+import { reachableWhere } from "@/server/policy/space-only";
 import { onlineUserIds } from "@/server/realtime/presence";
 import type { DirectoryPersonDto } from "@/server/chat/dto";
 import { spacePeopleWhere, verifiedShownTo } from "@/server/chat/space-people";
@@ -16,12 +17,14 @@ import type { DirectoryPerson } from "@/components/members/staff-directory";
  * colleagues you share the space with, like the contacts of one account.
  */
 export async function chatDirectory(orgId: string, spaceId?: string | null, viewerId?: string | LastSeenReader, viewerRole?: string): Promise<DirectoryPersonDto[]> {
+  // «محصور بمساحة»: with no space named (the contacts screen) such a viewer still meets only their own spaces' people
+  const reach = spaceId === undefined && typeof viewerId === "string" ? await reachableWhere(orgId, viewerId) : null;
   const rows = await db.organizationMember.findMany({
     where: {
       organizationId: orgId,
       role: { not: "GUEST" },
       status: "ACTIVE",
-      ...(spaceId !== undefined ? { AND: [spaceId ? spacePeopleWhere(orgId, spaceId) : { userId: { in: [] } }] } : {}),
+      ...(spaceId !== undefined ? { AND: [spaceId ? spacePeopleWhere(orgId, spaceId) : { userId: { in: [] } }] } : reach ? { AND: [reach] } : {}),
     },
     select: {
       userId: true,
@@ -53,9 +56,10 @@ export async function chatDirectory(orgId: string, spaceId?: string | null, view
  * The staff directory page (`/members` for somebody who may look but not manage): the ACTIVE people with job title, rank and e-mail, the owner first.
  * `verified: true` («إشارة التوثيق», S5.5) comes in the same read for a viewer who is not a guest, while the switch is on.
  */
-export async function staffDirectory(orgId: string, viewerRole: string): Promise<DirectoryPerson[]> {
+export async function staffDirectory(orgId: string, viewerRole: string, viewerId: string): Promise<DirectoryPerson[]> {
+  const reach = await reachableWhere(orgId, viewerId);
   const rows = await db.organizationMember.findMany({
-    where: { organizationId: orgId, status: "ACTIVE" },
+    where: { organizationId: orgId, status: "ACTIVE", ...(reach ? { AND: [reach] } : {}) },
     orderBy: { createdAt: "asc" },
     select: { role: true, verifiedAt: true, user: { select: { id: true, name: true, jobTitle: true, email: true, avatarUrl: true } } },
   });
@@ -98,9 +102,10 @@ export async function companyDirectory(orgId: string, viewerId: string, spaceId:
   const hideOwner = await isFeatureOn(orgId, "ownerHiddenOnline");
   const seen = reader ?? (await lastSeenReader(orgId, viewerId));
   const badges = await verifiedShownTo(orgId, { userId: viewerId });
+  const reach = await reachableWhere(orgId, viewerId);
   const [rows, ofSpace, online] = await Promise.all([
     db.organizationMember.findMany({
-      where: { organizationId: orgId, role: { not: "GUEST" }, status: "ACTIVE" },
+      where: { organizationId: orgId, role: { not: "GUEST" }, status: "ACTIVE", ...(reach ? { AND: [reach] } : {}) },
       select: {
         userId: true,
         role: true,
@@ -129,7 +134,7 @@ export async function companyDirectory(orgId: string, viewerId: string, spaceId:
     ...seen.field(r),
     ...(badges && r.verifiedAt ? { verified: true as const } : {}),
     // no space at all (a company without spaces): the DM is opened company-wide, so nobody is fenced off
-    inSpace: spaceId ? space.has(r.userId) : true,
+    inSpace: spaceId ? space.has(r.userId) : !reach,
     // «إخفاء المالك من متصل»: the owner does not light up for anybody but himself
     online: r.userId === viewerId || (atScreen.has(r.userId) && !(hideOwner && r.role === "OWNER" /* oversight-ok: presence of the OWNER rank, not reading */)),
   }));

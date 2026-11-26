@@ -8,6 +8,7 @@ import { emitRealtime } from "@/server/realtime/emit";
 import { writeSystemMessage } from "@/server/chat/system";
 import { systemSentenceOfBody } from "@/lib/chat/system-sentence";
 import { isHqSpace, isOfSpace } from "@/server/chat/space-people";
+import { mayAllMeet } from "@/server/policy/space-only";
 
 /**
  * DMs. A DM is its two people; nobody else WRITES in it. The OWNER reads it too, silently (decision
@@ -66,6 +67,8 @@ export async function openDm(ctx: OrgAccessContext, otherId: string, spaceId: st
   if (me.role === "GUEST" || other.role === "GUEST") throw new ForbiddenError("chat.guest_forbidden");
   // only with somebody of the space you are in (the owner is in every space)
   if (spaceId && !(await isOfSpace(ctx.orgId, spaceId, otherId))) throw new ForbiddenError("chat.dm_not_in_space");
+  // «محصور بمساحة»: from either side, and with no space named too
+  if (!(await mayAllMeet(ctx.orgId, [ctx.userId, otherId]))) throw new ForbiddenError("chat.dm_not_in_space");
 
   // «الشركة» keeps the old key (its DMs from before spaces are found); every other space has its own
   const hq = await isHqSpace(spaceId);
@@ -215,6 +218,7 @@ export async function createGroup(ctx: OrgAccessContext, opts: { title: string; 
     select: { userId: true },
   });
   if (people.length !== ids.length) throw new NotFoundError("chat.e.not_found");
+  if (!(await mayAllMeet(ctx.orgId, ids))) throw new ForbiddenError("space_only.apart");
 
   const c = await db.$transaction(async (tx) => {
     const conv = await tx.conversation.create({
@@ -247,6 +251,11 @@ export async function manageGroup(
     select: { role: true },
   });
   if (!me || me.role !== "admin") throw new ForbiddenError("chat.e.moderator_only");
+  if (input.addMemberIds?.length) {
+    // «محصور بمساحة»: whoever would be in the group afterwards, judged together
+    const inside = await db.conversationMember.findMany({ where: { conversationId }, select: { userId: true } });
+    if (!(await mayAllMeet(ctx.orgId, [...inside.map((m) => m.userId), ...input.addMemberIds]))) throw new ForbiddenError("space_only.apart");
+  }
 
   await db.$transaction(async (tx) => {
     if (input.title !== undefined || input.emoji !== undefined) {

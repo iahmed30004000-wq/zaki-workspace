@@ -54,6 +54,7 @@ export async function GET(req: Request) {
         revokedCapabilities: true,
         // a partner (an OWNER who is not the primary owner) loses `spaces.create` only when this is read: `can` needs it
         primaryOwner: true,
+        spaceOnly: true,
         organization: {
           select: {
             id: true,
@@ -182,7 +183,7 @@ export async function POST(req: Request) {
     if (input.organizationId && input.organizationId !== actor.orgId) {
       const member = await db.organizationMember.findUnique({
         where: { organizationId_userId: { organizationId: input.organizationId, userId: actor.userId } },
-        select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true },
+        select: { role: true, status: true, capabilities: true, revokedCapabilities: true, primaryOwner: true, spaceOnly: true },
       });
       if (!member || member.status !== "ACTIVE") throw new ForbiddenError("spaces.wrong_org");
       orgId = input.organizationId;

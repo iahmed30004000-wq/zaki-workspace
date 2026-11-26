@@ -19,7 +19,7 @@ export async function activeMember(orgId: string, userId: string, client: DbClie
     // `primaryOwner` decides whether an OWNER is the owner or a partner: a partner's removed boxes
     // count, the primary owner's do not. Leaving it out read every partner as the primary owner, so
     // a capability the owner took away came back in every service guard (security review C2).
-    select: { role: true, primaryOwner: true, status: true, capabilities: true, revokedCapabilities: true },
+    select: { role: true, primaryOwner: true, status: true, capabilities: true, revokedCapabilities: true, spaceOnly: true },
   });
   return member && member.status === "ACTIVE" ? member : null;
 }

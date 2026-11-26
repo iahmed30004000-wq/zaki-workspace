@@ -68,6 +68,7 @@ export function MemberCard({
             <RankBadge role={member.role} primaryOwner={member.primaryOwner} />
             <StatusBadge status={member.status} />
             {member.mustChangePassword ? <PendingPasswordBadge /> : null}
+            {member.spaceOnly ? <span className="rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold text-fg">{t("members.space_only_badge")}</span> : null}
           </span>
           <span className="block text-xs text-muted">{lastLoginLine(member.lastLoginAt, now, t)}</span>
           {member.managerName ? (

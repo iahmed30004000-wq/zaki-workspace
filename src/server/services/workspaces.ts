@@ -265,7 +265,7 @@ export async function changeWorkspaceMembers(
 
   const result = await db.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Workspace" WHERE "id" = ${workspaceId} FOR UPDATE`;
-    const ws = await tx.workspace.findUnique({ where: { id: workspaceId }, select: { organizationId: true } });
+    const ws = await tx.workspace.findUnique({ where: { id: workspaceId }, select: { organizationId: true, kind: true } });
     if (!ws) throw new NotFoundError("workspace.not_found");
 
     const current = await tx.workspaceMember.findMany({ where: { workspaceId }, select: { userId: true, role: true } });
@@ -274,7 +274,7 @@ export async function changeWorkspaceMembers(
 
     const orgRows = await tx.organizationMember.findMany({
       where: { organizationId: ws.organizationId, userId: { in: unique([...add, ...remove, ...promote, ...demote, ...adminRows]) } },
-      select: { userId: true, role: true, status: true },
+      select: { userId: true, role: true, status: true, spaceOnly: true },
     });
     const org = new Map(orgRows.map((r) => [r.userId, r] as const));
     const isGuest = (id: string) => org.get(id)?.role === "GUEST";
@@ -283,6 +283,8 @@ export async function changeWorkspaceMembers(
 
     // Refused up front, so nothing else in the same request is applied either.
     if (promote.some(isGuest)) throw new ForbiddenError("guest.readonly");
+    // «محصور بمساحة»: «الشركة» holds the whole company, so such an account is never put in it
+    if (ws.kind === "HQ" && add.some((id) => org.get(id)?.spaceOnly)) throw new ForbiddenError("space_only.no_hq");
     if (add.some((id) => !isActive(id)) || promote.some((id) => !isActive(id))) {
       throw new ForbiddenError("spaces.member_not_in_org");
     }

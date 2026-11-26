@@ -45,7 +45,7 @@ export default async function MembersPage({ searchParams }: { searchParams?: Rec
   if (!actorCan(actor, "directory.view")) return <SectionOffNotice />;
 
   // the ACTIVE people, the owner first; `verified` rides along for a non-guest viewer while the switch is on (src/server/chat/directory.ts)
-  const people = await staffDirectory(actor.orgId, actor.role);
+  const people = await staffDirectory(actor.orgId, actor.role, actor.userId);
   return (
     <div className="mx-auto max-w-3xl space-y-4 p-4 md:p-6">
       <header>

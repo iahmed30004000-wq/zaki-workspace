@@ -285,8 +285,35 @@ export const EXTERNAL_FORBIDDEN: readonly Capability[] = CAPABILITIES;
 export const OWNER_ONLY: readonly Capability[] = ["archive.view"];
 
 
+/**
+ * «محصور بمساحة» (src/server/policy/space-only.ts): the boxes that reach the whole company, so an account that works only in its
+ * spaces never holds them, whatever its rank gives or somebody switches on for it.
+ */
+export const SPACE_ONLY_WITHHELD: readonly Capability[] = [
+  "spaces.create",
+  "users.manage",
+  "integrations.manage",
+  "announce.send",
+  "escalation.configure",
+  "board.team",
+  "people.manage_lines",
+  "people.review",
+  "reports.view",
+  "crm.view",
+  "crm.edit",
+  "crm.delete",
+  "tickets.view",
+  "tickets.edit",
+  "tickets.delete",
+  "campaigns.view",
+  "campaigns.edit",
+  "campaigns.delete",
+];
+
 export interface CapabilitySource {
   role: OrgRole;
+  /** «محصور بمساحة»: the company-wide boxes (`SPACE_ONLY_WITHHELD`) are taken away. */
+  spaceOnly?: boolean | null;
   capabilities?: readonly string[] | null;
   revokedCapabilities?: readonly string[] | null;
   /** OWNER rows: false for a partner («شريك»), whose permissions the primary owner may take away one by one. */
@@ -304,6 +331,12 @@ export function isPartner(member: Pick<CapabilitySource, "role" | "primaryOwner"
  * took away from him.
  */
 export function effectiveCapabilities(member: CapabilitySource, opts: CapabilityOptions = {}): Set<Capability> {
+  const caps = rankAndBoxes(member, opts);
+  if (member.spaceOnly) for (const c of SPACE_ONLY_WITHHELD) caps.delete(c);
+  return caps;
+}
+
+function rankAndBoxes(member: CapabilitySource, opts: CapabilityOptions): Set<Capability> {
   if (opts.sectionGrid === false) return withoutGrid(member);
   if (isPartner(member)) {
     const caps = new Set<Capability>(CAPABILITIES);
@@ -400,6 +433,7 @@ export const CAPABILITY_FEATURE: Readonly<Partial<Record<Capability, FeatureKey>
  *  - `owner_only`    the owner rank's alone (`archive.view`), never grantable
  *  - `needs_view`    an add/edit or delete box of a section whose «يشوف» is off
  *  - `grid_off`      «صلاحيات الأقسام» is off: the section boxes are the rank's template, whatever was stored
+ *  - `space_only`    the account works only in its spaces: the company-wide boxes are never its
  *  - `feature_off`   the person holds it, but the company switched the feature behind it off (`reason` only, never `basis`)
  */
 export type ExplainReason =
@@ -412,6 +446,7 @@ export type ExplainReason =
   | "owner_only"
   | "needs_view"
   | "grid_off"
+  | "space_only"
   | "feature_off";
 
 export interface CapabilityExplanation {
@@ -450,6 +485,7 @@ export function explainCapabilities(member: CapabilitySource, settings: unknown)
   const basisOf = (capability: Capability, held: boolean): CapabilityExplanation["basis"] => {
     if (member.role === "GUEST") return "guest";
     if (primaryOwner) return "owner";
+    if (member.spaceOnly && SPACE_ONLY_WITHHELD.includes(capability)) return "space_only";
     if (!partner && OWNER_ONLY.includes(capability)) return "owner_only";
     if (!sectionGrid && isGridBox(capability)) return "grid_off";
     if (held) return partner ? "owner" : defaults.has(capability) ? "rank_default" : "added";
