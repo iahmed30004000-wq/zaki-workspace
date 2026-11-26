@@ -217,6 +217,10 @@ private object Routes {
     const val CARDS = "cards"
     const val CARDS_OPENED = "cards-opened"
     const val CARD = "card/{id}"
+    /** آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ»: one section; آ«ط¯ظ„ظٹظ„ ط²ط§ظƒظٹآ» and one article */
+    const val ME = "me/{section}"
+    const val GUIDE = "guide"
+    const val GUIDE_ARTICLE = "guide/{slug}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -224,7 +228,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -273,6 +277,9 @@ fun NavHostController.open(dest: Destination) {
         Destination.Contacts -> navigate(Routes.newChat(false)) { launchSingleTop = true }
         Destination.Cards -> navigate(Routes.CARDS_OPENED) { launchSingleTop = true }
         is Destination.Card -> navigate("card/" + dest.id)
+        is Destination.Me -> navigate("me/" + dest.section)
+        Destination.Guide -> navigate(Routes.GUIDE) { launchSingleTop = true }
+        is Destination.GuideArticle -> navigate("guide/" + dest.slug)
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -366,6 +373,7 @@ fun Shell(
                                     "/calendar" -> Destination.Work("calendar")
                                     "/teams" -> Destination.People
                                     "/cards" -> Destination.Cards
+                                    "/guide" -> Destination.Guide
                                     else -> null
                                 }
                                 nav.open(native ?: Destination.Site(item.path)); scope.launch { drawer.close() }
@@ -538,7 +546,29 @@ fun Shell(
                     composable(Routes.TASK, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         TaskScreen(onBack = { nav.popBackStack() })
                     }
-                    composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications) }
+                    composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications, onOpenMe = { nav.open(Destination.Me(it)) }, onOpenSite = { nav.open(Destination.Site(it)) }) }
+                    // M2 N6 batch 5: آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» and آ«ط¯ظ„ظٹظ„ ط²ط§ظƒظٹآ»
+                    composable(Routes.ME, arguments = listOf(navArgument("section") { type = NavType.StringType })) { e ->
+                        io.zakiai.workspace.feature.me.MeSectionScreen(
+                            section = e.arguments?.getString("section").orEmpty(),
+                            onBack = { nav.popBackStack() },
+                            onOpenSection = { nav.open(Destination.Me(it)) },
+                            onOpenGuide = { nav.open(Destination.Guide) },
+                            onOpenChat = { nav.open(Destination.Conversation(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.GUIDE) {
+                        io.zakiai.workspace.feature.me.GuideScreen(onBack = { nav.popBackStack() }, onOpen = { nav.open(Destination.GuideArticle(it)) })
+                    }
+                    composable(Routes.GUIDE_ARTICLE, arguments = listOf(navArgument("slug") { type = NavType.StringType })) { e ->
+                        io.zakiai.workspace.feature.me.GuideArticleScreen(
+                            slug = e.arguments?.getString("slug").orEmpty(),
+                            onBack = { nav.popBackStack() },
+                            onOpen = { nav.navigate("guide/" + it) { popUpTo(Routes.GUIDE) } },
+                            onOpenPath = openPath,
+                        )
+                    }
                     composable(
                         Routes.CONVERSATION,
                         arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("at") { type = NavType.StringType; nullable = true; defaultValue = null }),

@@ -11,6 +11,8 @@ const OWN = [
   "src/lib/guide",
   "src/components/guide",
   "src/app/(app)/guide",
+  // the phone's doors to the same guide (M2 N6 batch 5): their refusal is the guide's own sentence
+  "src/app/api/guide",
   "src/server/services/first-steps.ts",
 ];
 

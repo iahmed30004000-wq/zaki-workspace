@@ -45,11 +45,14 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
  */
 object SiteKept {
     private val PREFIXES = listOf("/automation", "/telegram", "/owner/assistant/settings", "/theme-gallery", "/approvals/forms")
+    private val COMPANY_SECTIONS = listOf("company", "features", "integrations", "spaces").map { "/settings/me/$it" }.toSet()
 
     fun isKept(path: String): Boolean {
         val bare = path.substringBefore('?').substringBefore('#').trimEnd('/')
         // «/settings/me…» is the person's own settings (ported phase by phase); the rest of «/settings» is the company's
         if (bare == "/settings" || (bare.startsWith("/settings/") && !bare.startsWith("/settings/me"))) return true
+        // the company's sections inside «إعداداتي» while «الإعدادات» is one door (sections.ts COMPANY_SECTION_KEYS): the company's, kept
+        if (bare in COMPANY_SECTIONS) return true
         return PREFIXES.any { bare == it || bare.startsWith("$it/") }
     }
 }

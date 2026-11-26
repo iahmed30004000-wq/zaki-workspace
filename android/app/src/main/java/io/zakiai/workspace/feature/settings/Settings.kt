@@ -121,7 +121,7 @@ private fun ThemeSwatch(t: ZkTheme, selected: Boolean, onClick: () -> Unit) {
 
 /** The person, the look, the lock, what the ringing phone needs, the app's own health, and sign-out. */
 @Composable
-fun SettingsScreen(vm: SettingsViewModel = hiltViewModel(), askNotifications: () -> Unit) {
+fun SettingsScreen(vm: SettingsViewModel = hiltViewModel(), askNotifications: () -> Unit, onOpenMe: (String) -> Unit = {}, onOpenSite: (String) -> Unit = {}) {
     val context = LocalContext.current
     val me by vm.session.me.collectAsStateWithLifecycle()
     val theme by vm.theme.collectAsStateWithLifecycle()
@@ -148,6 +148,10 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel(), askNotifications: ()
             }
             HorizontalDivider(color = Zk.colors.border)
         }
+
+        // آ«ط¥ط¹ط¯ط§ط¯ط§طھظٹآ» (the site's /settings/me), its sections natively
+        SectionLabel(io.zakiai.workspace.feature.me.M.title)
+        io.zakiai.workspace.feature.me.MeSectionRows(onOpen = onOpenMe, onOpenSite = onOpenSite)
 
         SectionLabel(T.theme)
         Row(Modifier.fillMaxWidth().horizontalScrollRow().padding(horizontal = 8.dp)) {

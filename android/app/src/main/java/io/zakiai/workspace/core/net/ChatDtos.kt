@@ -197,7 +197,12 @@ data class ChatTabs(val hidden: List<String> = emptyList())
 
 @Immutable
 @Serializable
-data class ChatPrefs(val folders: Map<String, List<Folder>?> = emptyMap(), val tabs: ChatTabs? = null)
+data class ChatPrefs(val folders: Map<String, List<Folder>?> = emptyMap(), val tabs: ChatTabs? = null, val chat: ChatLook? = null)
+
+/** the person's own chat choices the phone uses: the six of a long press (`chat.quickReactions`) */
+@Immutable
+@Serializable
+data class ChatLook(val quickReactions: List<String>? = null)
 
 @Immutable
 @Serializable

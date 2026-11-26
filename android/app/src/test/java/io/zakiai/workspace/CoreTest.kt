@@ -66,8 +66,8 @@ class LinksTest {
         assertEquals(Destination.Notifications, Links.destinationOf("/notifications?x=1", BASE))
     }
 
-    @Test fun `the site's settings stay reachable - a settings link opens the site's page, not the smaller native tab`() {
-        assertEquals(Destination.Site("/settings/me"), Links.destinationOf("/settings/me", BASE))
+    @Test fun `the company's settings stay the site's page, the person's own open the native tab that now holds them (N6 batch 5)`() {
+        assertEquals(Destination.Settings, Links.destinationOf("/settings/me", BASE))
         assertEquals(Destination.Site("/settings"), Links.destinationOf("$BASE/settings", BASE))
     }
 

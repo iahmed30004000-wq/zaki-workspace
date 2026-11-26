@@ -234,5 +234,6 @@
   "guide.tour.work.work-requests.title": "الطلبات",
   "guide.tour.work.work-requests.body": "كل شي بينتظر قرارك: موافقات وطلبات تكليف، وغيرها حسب إعدادات شركتك.",
   "guide.tour.work.work-inbox.title": "صندوق المهام",
-  "guide.tour.work.work-inbox.body": "أي مهمة سريعة بدون مشروع بتنزل هون. هو مثبّت فوق المشاريع بأيقونته."
+  "guide.tour.work.work-inbox.body": "أي مهمة سريعة بدون مشروع بتنزل هون. هو مثبّت فوق المشاريع بأيقونته.",
+  "guide.not_found": "هالمقال مش موجود بالدليل، أو مش إلك."
 }

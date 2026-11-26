@@ -98,7 +98,8 @@ interface SessionRow {
 
 /** The label of a session's device: the Android app (its HTTP client says so) or a browser the person will recognise. */
 export function sessionLabelOf(userAgent: string | null | undefined, words: { app: string; unknown: string; on: string }): string {
-  if (userAgent && /okhttp/i.test(userAgent)) return words.app;
+  // the app names itself "ZakiApp/<version> (Android ...)" (android/.../NetworkModule.kt); an older build's client said "okhttp"
+  if (userAgent && /okhttp|^ZakiApp\//i.test(userAgent)) return words.app;
   return browserLabelOf(userAgent, { unknown: words.unknown, on: words.on });
 }
 
