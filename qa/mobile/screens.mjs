@@ -152,4 +152,15 @@ export const SCREENS = [
   { name: "19-profile", run: (p) => p.go("/profile") },
   { name: "20-contacts", run: (p) => p.go("/contacts") },
   { name: "21-my-work", run: (p) => p.go("/my-work") },
+  // the rest of «إعداداتي»
+  ...["sounds", "privacy", "speech", "folders", "data", "devices", "menu", "shortcuts", "help"].map((section, i) => ({
+    name: `${22 + i}-settings-${section}`,
+    run: async (p) => {
+      await p.go(`/settings/me/${section}`);
+      // the open sessions are live (one more at every run, with the real time): that list alone is left out of the picture
+      if (section !== "devices") return;
+      await p.until(has("[data-sessions]"), 20_000);
+      await p.js(`document.querySelector('[data-sessions]').style.display='none'`);
+    },
+  })),
 ];
