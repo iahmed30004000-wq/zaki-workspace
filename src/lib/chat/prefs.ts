@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { SPEECH_CHOICES } from "@/lib/chat/speech-langs";
 
 /**
  * C3a.2 — the person's chat preferences: `User.chatPrefs`, ONE nullable JSON column and ONE zod schema (this file). Pure: no React, no server import,
@@ -26,15 +27,21 @@ export const MAX_FOLDER_COMPANIES = 20;
 export const BUILTIN_TABS = ["all", "unread", "dm", "spaces", "mentions"] as const;
 export type BuiltinTab = (typeof BUILTIN_TABS)[number];
 
-/** Voice note speeds (C3b.4): 1× / 1.5× / 2×. */
+/**
+ * Voice note speeds. A TAP on the speed button goes round `VOICE_SPEEDS` (C3b.4: 1× / 1.5× / 2×); the phone's long press (`tgPhone`) offers every one of
+ * `VOICE_SPEED_CHOICES`, and any of them may be stored (the three old values stay valid).
+ */
 export const VOICE_SPEEDS = [1, 1.5, 2] as const;
-export type VoiceSpeed = (typeof VOICE_SPEEDS)[number];
+export const VOICE_SPEED_CHOICES = [0.5, 1, 1.2, 1.5, 1.7, 2] as const;
+export type VoiceSpeed = (typeof VOICE_SPEED_CHOICES)[number];
 export const DEFAULT_VOICE_SPEED: VoiceSpeed = 1;
 
-/** The speed button of a voice note: 1 → 1.5 → 2 → 1 (a value that is not in the list starts again at 1.5). */
+export const isVoiceSpeed = (value: unknown): value is VoiceSpeed => (VOICE_SPEED_CHOICES as readonly unknown[]).includes(value);
+
+/** The tap on the speed button: the next of 1 → 1.5 → 2 that is faster than now, else 1 again (a value that is no speed at all starts at 1.5). */
 export function nextVoiceSpeed(current: VoiceSpeed): VoiceSpeed {
-  const at = VOICE_SPEEDS.indexOf(current);
-  return at < 0 ? VOICE_SPEEDS[1] : VOICE_SPEEDS[(at + 1) % VOICE_SPEEDS.length]!;
+  if (!isVoiceSpeed(current)) return 1.5;
+  return VOICE_SPEEDS.find((speed) => speed > current) ?? 1;
 }
 
 /** An id the code made (cuid, or a folder's id): plain characters, never starting with an underscore (so `__proto__` is no key). */
@@ -198,7 +205,15 @@ function readSection<S extends z.ZodTypeAny>(raw: unknown, known: Record<string,
   return out;
 }
 
-const voiceSpeedSchema = z.union([z.literal(1), z.literal(1.5), z.literal(2)]);
+const voiceSpeedSchema = z.union([z.literal(0.5), z.literal(1), z.literal(1.2), z.literal(1.5), z.literal(1.7), z.literal(2)]);
+
+/** «تحويل الكلام لنص» (`tgPhone`): the language, the live words while recording, the preview's text (defaults in `speech-langs.ts`). */
+const speechShape = {
+  language: z.enum(SPEECH_CHOICES).optional(),
+  live: z.boolean().optional(),
+  preview: z.boolean().optional(),
+};
+const speechSchema = z.object(speechShape).catchall(z.unknown()).superRefine(sectionRules);
 
 const foldersByCompany = z
   .record(idSchema, folderListSchema)
@@ -211,6 +226,7 @@ export const chatPrefsSchema = z
     notifications: notificationsSchema.optional(),
     chat: chatSectionSchema.optional(),
     voiceSpeed: voiceSpeedSchema.optional(),
+    speech: speechSchema.optional(),
   })
   .strict();
 
@@ -231,6 +247,7 @@ export const chatPrefsPatchSchema = z
     notifications: notificationsSchema.nullable().optional(),
     chat: chatSectionSchema.nullable().optional(),
     voiceSpeed: voiceSpeedSchema.nullable().optional(),
+    speech: speechSchema.nullable().optional(),
   })
   .strict();
 
@@ -274,6 +291,8 @@ export function readChatPrefs(raw: unknown): ChatPrefs {
   if (chat) out.chat = chat as NonNullable<ChatPrefs["chat"]>;
   const speed = voiceSpeedSchema.safeParse(raw["voiceSpeed"]);
   if (speed.success) out.voiceSpeed = speed.data;
+  const speech = readSection(raw["speech"], speechShape);
+  if (speech) out.speech = speech as NonNullable<ChatPrefs["speech"]>;
   return out;
 }
 
@@ -293,7 +312,7 @@ export function mergeChatPrefs(current: ChatPrefs, patch: ChatPrefsPatch): ChatP
     else delete next.folders;
   }
 
-  for (const key of ["tabs", "notifications", "chat", "voiceSpeed"] as const) {
+  for (const key of ["tabs", "notifications", "chat", "voiceSpeed", "speech"] as const) {
     const value = patch[key];
     if (value === null) delete next[key];
     else if (value !== undefined) (next as Record<string, unknown>)[key] = value;
@@ -312,6 +331,7 @@ export interface ResolvedChatPrefs {
   notifications: NonNullable<ChatPrefs["notifications"]>;
   chat: NonNullable<ChatPrefs["chat"]>;
   voiceSpeed: VoiceSpeed;
+  speech: NonNullable<ChatPrefs["speech"]>;
 }
 
 /** Every field with its default filled in. An empty object resolves to «all defaults». */
@@ -322,6 +342,7 @@ export function resolveChatPrefs(prefs: ChatPrefs): ResolvedChatPrefs {
     notifications: prefs.notifications ?? {},
     chat: prefs.chat ?? {},
     voiceSpeed: prefs.voiceSpeed ?? DEFAULT_VOICE_SPEED,
+    speech: prefs.speech ?? {},
   };
 }
 

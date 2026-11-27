@@ -3,6 +3,9 @@
 import React from "react";
 import { Pause, Play, X } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useTgPhone } from "@/components/shell/tg-phone";
+import { TgVoiceBar } from "@/components/chat/v2/pane/tg-voice-bar";
+import { voiceHeard } from "@/lib/chat/voice-heard";
 import { chatPrefsQueryOptions, saveChatPrefs } from "@/lib/chat/cache/queries";
 import { nextVoiceSpeed, resolveChatPrefs, type VoiceSpeed } from "@/lib/chat/prefs";
 import { ct } from "@/lib/chat/text";
@@ -81,16 +84,22 @@ export function VoiceMiniPlayerView({ note, playing, at, durationMs, speed, onTo
  * C3b.4 — mounted ONCE in the conversation pane. It gives the engine this conversation's voice notes (the queue the next-note walk follows), keeps the
  * person's speed in step with their prefs (read from, and saved to, the existing `/api/me/chat-prefs` door through the chat cache's own helpers), and draws
  * the bar while a note of this conversation is playing (or paused part of the way) and its bubble is out of sight. Leaving the conversation stops the sound.
+ * On a phone with `tgPhone` the bar is `TgVoiceBar` (the sender and the date, the speed chip with its long press), and the notes also tell the unplayed
+ * dot's memory when they were sent.
  */
 export function VoiceMiniPlayer({ conversationId, messages, onJump, always = false }: { conversationId: string; messages: readonly MessageDto[]; onJump: (messageId: string) => void; /** «الصوت زي تيليجرام»: the bar stays while a note plays even when its bubble is on screen */ always?: boolean }) {
   const qc = useQueryClient();
   const prefs = useQuery(chatPrefsQueryOptions());
-  const notes = React.useMemo(() => voiceNotesOf(messages), [messages]);
+  const phone = useTgPhone();
+  const notes = React.useMemo(() => voiceNotesOf(messages, { withTime: phone }), [messages, phone]);
   const snap = React.useSyncExternalStore(voiceEngine.subscribe, voiceEngine.getSnapshot, voiceEngine.getServerSnapshot);
 
   React.useEffect(() => {
     voiceEngine.setQueue(conversationId, notes);
   }, [conversationId, notes]);
+  React.useEffect(() => {
+    if (phone) voiceHeard.know(notes);
+  }, [phone, notes]);
   React.useEffect(() => () => voiceEngine.leave(conversationId), [conversationId]);
 
   React.useEffect(() => {
@@ -108,6 +117,21 @@ export function VoiceMiniPlayer({ conversationId, messages, onJump, always = fal
   // the note as it was when it started: the bar stays while the sound goes on, even when the list has since dropped the message
   const note = snap.note;
   if (!note || (snap.activeVisible && !always)) return null;
+  if (phone) {
+    return (
+      <TgVoiceBar
+        note={note}
+        playing={snap.playing}
+        at={snap.at}
+        speed={snap.speed}
+        onToggle={() => voiceEngine.toggle(note.src)}
+        onJump={() => onJump(note.messageId)}
+        onSpeed={() => voiceEngine.setSpeed(nextVoiceSpeed(snap.speed))}
+        onPickSpeed={(speed) => voiceEngine.setSpeed(speed)}
+        onStop={() => voiceEngine.stop()}
+      />
+    );
+  }
   return (
     <VoiceMiniPlayerView
       note={note}

@@ -537,7 +537,8 @@ function privacyHtml(): string {
 
 describe("C4.1 · the sections", () => {
   it("eleven sections in the order of the spec; «المجلدات» only while the company's switch is on; an address belongs to one section", () => {
-    expect([...SECTION_KEYS]).toEqual(["account", "notifications", "privacy", "chat", "effects", "folders", "data", "devices", "language", "menu", "shortcuts", "help"]);
+    // «speech» («تحويل الكلام لنص») is listed only while the switch `tgPhone` is on: the list without it is the old one
+    expect([...SECTION_KEYS]).toEqual(["account", "notifications", "privacy", "chat", "effects", "speech", "folders", "data", "devices", "language", "menu", "shortcuts", "help"]);
     expect(visibleSections({ foldersOn: true })).toHaveLength(12);
     expect(visibleSections({ foldersOn: false })).not.toContain("folders");
     expect(isSectionKey("chat")).toBe(true);
@@ -570,7 +571,7 @@ describe("C4.1 · the sections", () => {
     expect(index).toContain("@ahmad");
     expect(index).toContain("المدير");
     expect(index).toContain('href="/settings/me/account"');
-    for (const key of SECTION_KEYS) expect(index, key).toContain(`href="/settings/me/${key}"`);
+    for (const key of visibleSections({ foldersOn: true })) expect(index, key).toContain(`href="/settings/me/${key}"`);
     const classesOf = (html: string, tag: string) => (new RegExp("<" + tag + ' class="([^"]*)"').exec(html)?.[1] ?? "").split(/\s+/);
     expect(classesOf(index, "aside")).toEqual(expect.arrayContaining(["block", "md:w-80"]));
     expect(classesOf(index, "aside")).not.toContain("hidden");

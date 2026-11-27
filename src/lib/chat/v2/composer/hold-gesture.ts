@@ -1,3 +1,5 @@
+import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
+
 /**
  * C2.5 — the hold on the microphone, on a phone (a mouse clicks to start and clicks to stop; that has no gesture).
  *
@@ -26,6 +28,60 @@ export function holdOutcome(start: Point, now: Point): HoldOutcome {
   // anywhere else far from the mic (sideways, or down and away) is «not a message»
   if (Math.hypot(dx, Math.max(down, 0)) > HOLD_CANCEL_PX) return "cancel";
   return "hold";
+}
+
+/**
+ * «تيليجرام على التلفون» (`tgPhone`): the same hold, Telegram's way. A slide UP locks as above. It cancels only past `TG_MOTION.recordCancelShare` of the
+ * screen's width TOWARD THE CANCEL SIDE: from the microphone toward the words «السحب للإلغاء», which in this right-to-left layout is rightward (the mic sits
+ * at the left end of the row). Sliding the other way, or down, is still a hold. Pure; the caller says the width and the direction.
+ */
+export interface TgDrag {
+  outcome: HoldOutcome;
+  /** how far the finger went toward the cancel side, as a screen shift (positive rightward in a right-to-left page, negative in a left-to-right one) */
+  dx: number;
+  /** 0..1 of the way to a cancel */
+  cancel: number;
+  /** how far up the finger is, in px, up to the lock distance */
+  up: number;
+  /** 0..1 of the way to the lock */
+  lock: number;
+}
+
+export const TG_NO_DRAG: TgDrag = { outcome: "hold", dx: 0, cancel: 0, up: 0, lock: 0 };
+
+export function tgHoldDrag(start: Point, now: Point, width: number, rtl: boolean): TgDrag {
+  const toward = Math.max(0, rtl ? now.x - start.x : start.x - now.x);
+  const rise = Math.max(0, start.y - now.y);
+  const cancelAt = Math.max(1, width * TG_MOTION.recordCancelShare);
+  const locks = rise > HOLD_LOCK_PX && rise >= Math.abs(now.x - start.x);
+  const outcome: HoldOutcome = locks ? "lock" : toward >= cancelAt ? "cancel" : "hold";
+  return { outcome, dx: toward === 0 ? 0 : rtl ? toward : -toward, cancel: Math.min(1, toward / cancelAt), up: Math.min(rise, HOLD_LOCK_PX), lock: Math.min(1, rise / HOLD_LOCK_PX) };
+}
+
+/** Where the finger is, kept OUTSIDE the composer's state: the recording bar writes it straight onto its own elements, so a move draws nothing again. */
+export interface DragStore {
+  get(): TgDrag;
+  set(next: TgDrag): void;
+  reset(): void;
+  subscribe(listener: () => void): () => void;
+}
+
+export function createDragStore(): DragStore {
+  let value = TG_NO_DRAG;
+  const listeners = new Set<() => void>();
+  const set = (next: TgDrag) => {
+    value = next;
+    for (const l of [...listeners]) l();
+  };
+  return {
+    get: () => value,
+    set,
+    reset: () => set(TG_NO_DRAG),
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => void listeners.delete(listener);
+    },
+  };
 }
 
 /**

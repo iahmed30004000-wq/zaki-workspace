@@ -27,6 +27,8 @@ import { PrivacySection } from "@/components/settings-me/privacy-section";
 import { companyAccessFor, contactOwnerId, menuFor } from "@/components/settings-me/server-data";
 import { isCompanySectionKey, isSectionKey, PANEL_SECTION_OF, type CompanySectionKey } from "@/components/settings-me/sections";
 import { ShortcutsSection } from "@/components/settings-me/shortcuts-section";
+import { SpeechSection } from "@/components/settings-me/speech-section";
+import { transcriptAvailable } from "@/server/services/voice-transcript";
 
 /**
  * C4.1 — one section of «إعداداتي» (`/settings/me/<section>`). Everything here is the person's OWN: the company's switches are not (they are A2's, in `/settings`).
@@ -76,6 +78,11 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
       break;
     case "effects":
       body = <EffectsSection />;
+      break;
+    case "speech":
+      // «تحويل الكلام لنص» is the phone's (`tgPhone`); with the switch off its address does not exist
+      if (!(await actorFeatureOn(actor, "tgPhone"))) notFound();
+      body = <SpeechSection serviceReady={await transcriptAvailable(actor.orgId)} liveAllowed={await actorFeatureOn(actor, "voiceLiveText")} />;
       break;
     case "folders":
       if (!(await actorFeatureOn(actor, "chatFolders"))) notFound();

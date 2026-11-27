@@ -3,7 +3,8 @@
  * browser actually supports (`audio/webm;codecs=opus` first, `audio/mp4` for Safari,
  * `audio/ogg;codecs=opus` last), reports live level samples reduced to at most 100 waveform
  * peaks of 0..100, stops by itself after 5 minutes, and ALWAYS releases the microphone —
- * on stop, on cancel, and when the page is hidden mid-recording.
+ * on stop, on cancel, and when the page is hidden mid-recording. It can PAUSE (the phone's preview before sending, `tgPhone`): while paused nothing is
+ * captured, no time is counted and no level is read, and what was recorded so far is handed over to be listened to; `resume` goes on with the same take.
  */
 export type RecorderError = "mic.denied" | "mic.unavailable" | "mic.unsupported" | "mic.busy";
 
@@ -23,6 +24,8 @@ export type VoiceTake = { blob: Blob; mime: string; durationMs: number; peaks: n
 
 export const MAX_RECORDING_MS = 5 * 60 * 1000;
 const MAX_PEAKS = 100;
+/** a browser that never answers `requestData` does not leave the pause hanging */
+const FLUSH_WAIT_MS = 500;
 
 export function pickMimeType(): string | null {
   if (typeof MediaRecorder === "undefined") return null;
@@ -39,6 +42,11 @@ export class VoiceRecorder {
   private audioCtx: AudioContext | null = null;
   private timer: ReturnType<typeof setInterval> | null = null;
   private startedAt = 0;
+  /** when the pause in progress began (0: not paused), and the length of the pauses before it */
+  private pausedAt = 0;
+  private pausedTotal = 0;
+  /** told when the recorder hands data over (a pause waits for it) */
+  private flushed: (() => void) | null = null;
   private peaks: number[] = [];
   /** Every chunk since start: MediaRecorder hands them over every 250 ms, the last one on stop. */
   private chunks: Blob[] = [];
@@ -57,8 +65,13 @@ export class VoiceRecorder {
     return this.recorder !== null;
   }
 
+  get paused(): boolean {
+    return this.recorder !== null && this.pausedAt !== 0;
+  }
+
+  /** The recorded time: the pauses are not part of it. */
   get elapsedMs(): number {
-    return this.recorder ? Date.now() - this.startedAt : 0;
+    return this.recorder ? (this.pausedAt || Date.now()) - this.startedAt - this.pausedTotal : 0;
   }
 
   async start(): Promise<void> {
@@ -75,9 +88,12 @@ export class VoiceRecorder {
     this.stream = stream;
     this.peaks = [];
     this.chunks = [];
+    this.pausedAt = 0;
+    this.pausedTotal = 0;
     this.recorder = new MediaRecorder(stream, { mimeType });
     this.recorder.ondataavailable = (e) => {
       if (e.data.size > 0) this.chunks.push(e.data);
+      this.flushed?.();
     };
     this.recorder.start(250);
     this.startedAt = Date.now();
@@ -93,6 +109,7 @@ export class VoiceRecorder {
     }
 
     this.timer = setInterval(() => {
+      if (this.pausedAt) return;
       if (this.analyser) {
         const buf = new Uint8Array(this.analyser.frequencyBinCount);
         this.analyser.getByteFrequencyData(buf);
@@ -118,12 +135,57 @@ export class VoiceRecorder {
     this.peaks = next;
   }
 
+  /**
+   * Pause, and answer the part recorded so far (to listen to, and to ask for its words). Null when there is nothing to pause (or the browser cannot, or
+   * nothing was captured yet); the recording is then as `paused` says.
+   */
+  async pause(): Promise<VoiceTake | null> {
+    const recorder = this.recorder;
+    if (!recorder || this.pausedAt || recorder.state !== "recording" || typeof recorder.pause !== "function") return null;
+    recorder.pause();
+    this.pausedAt = Date.now();
+    await new Promise<void>((resolve) => {
+      let settled = false;
+      const done = () => {
+        if (settled) return;
+        settled = true;
+        this.flushed = null;
+        clearTimeout(giveUp);
+        resolve();
+      };
+      const giveUp = setTimeout(done, FLUSH_WAIT_MS);
+      // one turn more after the first piece: a slice that was already on its way and the one asked for both arrive
+      this.flushed = () => void setTimeout(done, 0);
+      try {
+        recorder.requestData();
+      } catch {
+        done();
+      }
+    });
+    if (this.recorder !== recorder || this.chunks.length === 0) return null;
+    const mime = recorder.mimeType.split(";")[0] ?? "audio/webm";
+    return { blob: new Blob([...this.chunks], { type: recorder.mimeType }), mime, durationMs: Math.min(MAX_RECORDING_MS, this.elapsedMs), peaks: normalisePeaks(this.peaks, MAX_PEAKS) };
+  }
+
+  /** Go on after a pause. False when there was no pause to end. */
+  resume(): boolean {
+    if (!this.recorder || !this.pausedAt) return false;
+    try {
+      this.recorder.resume();
+    } catch {
+      return false;
+    }
+    this.pausedTotal += Date.now() - this.pausedAt;
+    this.pausedAt = 0;
+    return true;
+  }
+
   /** Stop and return the recording (or null when nothing was captured). */
   async stop(): Promise<VoiceTake | null> {
     const recorder = this.recorder;
     if (!recorder) return null;
+    const durationMs = Math.min(MAX_RECORDING_MS, this.elapsedMs); // read while the recorder is still ours
     this.recorder = null; // a second stop (the timer and a tap at once) returns null instead of a twin
-    const durationMs = Math.min(MAX_RECORDING_MS, Date.now() - this.startedAt);
     // ALL the chunks since start (the 250 ms slices) plus the final one stop() flushes: the old code
     // started a fresh list here and kept only that last slice, so most of every recording was lost
     const chunks = this.chunks;
@@ -152,6 +214,10 @@ export class VoiceRecorder {
   private cleanup(): void {
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.pausedAt = 0;
+    this.pausedTotal = 0;
+    this.flushed?.();
+    this.flushed = null;
     document.removeEventListener("visibilitychange", this.onHidden);
     this.stream?.getTracks().forEach((t) => t.stop()); // the microphone light goes off, always
     void this.audioCtx?.close().catch(() => undefined);
