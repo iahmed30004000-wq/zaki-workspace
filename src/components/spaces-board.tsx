@@ -142,7 +142,6 @@ function CardActions({ card, owner, settingsLinks }: { card: BoardCard; owner: b
   const router = useRouter();
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(card.name);
-  const [dept, setDept] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function rename() {
@@ -165,12 +164,7 @@ function CardActions({ card, owner, settingsLinks }: { card: BoardCard; owner: b
 
   return (
     <>
-      {owner && card.kind === "STANDARD" ? <SpaceDeleteButton id={card.id} name={card.name} /> : null}
-      {owner && card.kind === "DEPARTMENT" ? (
-        <button type="button" onClick={() => setDept(true)} aria-label={`${t("spaces.delete.open")}: ${card.name}`} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-muted hover:bg-danger/10 hover:text-danger">
-          <span aria-hidden="true">🗑</span>
-        </button>
-      ) : null}
+      {owner && card.kind !== "HQ" ? <SpaceDeleteButton id={card.id} name={card.name} /> : null}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button type="button" aria-label={`${t("spaces.card.actions")}: ${card.name}`} className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-lg text-fg-muted hover:bg-surface-2">
@@ -191,14 +185,6 @@ function CardActions({ card, owner, settingsLinks }: { card: BoardCard; owner: b
             <Button type="submit" disabled={busy || !name.trim()}>{t("common.save")}</Button>
           </div>
         </form>
-      </Modal>
-      <Modal open={dept} onClose={() => setDept(false)} title={t("spaces.dept.title")}>
-        <div className="space-y-3 text-sm">
-          <p>{t("spaces.dept.body", { name: card.name })}</p>
-          <div className="flex justify-end">
-            <Link href="/departments" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3 font-semibold text-accent-fg">{t("spaces.dept.go")}</Link>
-          </div>
-        </div>
       </Modal>
     </>
   );

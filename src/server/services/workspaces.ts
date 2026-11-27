@@ -23,7 +23,7 @@ import { spaceTemplateOf, templateBoardIdOf, templateColumnIdOf, templateProject
 /** A refusal that is a clash with the current state, not a missing right: the routes answer 409 with the key as the message. */
 export class SpaceConflictError extends Error {
   constructor(
-    message: "spaces.last_admin" | "spaces.not_empty" | "spaces.delete_hq" | "spaces.delete_department" | "spaces.delete_name_mismatch" | "spaces.archive_hq",
+    message: "spaces.last_admin" | "spaces.not_empty" | "spaces.delete_hq" | "spaces.delete_name_mismatch" | "spaces.archive_hq",
   ) {
     super(message);
     this.name = "SpaceConflictError";

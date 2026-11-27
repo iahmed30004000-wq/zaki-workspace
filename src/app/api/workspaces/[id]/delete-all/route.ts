@@ -6,7 +6,7 @@ import { requireActor } from "@/server/policy/actor";
 import { SpaceConflictError } from "@/server/services/workspaces";
 import { deleteAllSchema, deleteSpaceWithWork, spaceContents } from "@/server/services/space-delete";
 
-/** GET: what would go with the space (the OWNER only; never «الشركة» or a department's space: 409). */
+/** GET: what would go with the space, and with its department when it has one (the OWNER only; never «الشركة»: 409). Deletes nothing. */
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
   return withApi(async () => {
     const actor = await requireActor();

@@ -9,8 +9,8 @@ import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorks
 /**
  * THE OWNER DELETES A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26): after typing its name, everything in
  * it goes in one go — tasks, projects, conversations and messages, ideas, goals, routines, customers, opportunities,
- * notifications, its library files — and nothing of another space is touched. Never «الشركة», never a department's
- * space, never anybody but the OWNER.
+ * notifications, its library files — and nothing of another space is touched. Never «الشركة», never anybody but the OWNER.
+ * A department's space (2026-11-27) goes with its department.
  */
 
 async function world() {
@@ -88,7 +88,7 @@ describe("deleting a space with all its work", () => {
     expect(await db.task.findUnique({ where: { id: w.a.task.id } })).not.toBeNull();
   });
 
-  it("only the OWNER (403); never «الشركة» or a department's space (409)", async () => {
+  it("only the OWNER (403); never «الشركة» (409)", async () => {
     const w = await world();
     await loginAs(w.admin.id);
     expect((await remove(w.doomed.id, w.doomed.name)).status).toBe(403);
@@ -102,10 +102,60 @@ describe("deleting a space with all its work", () => {
     expect(hqTry.status).toBe(409);
     expect(hqTry.json?.["message"]).toBe("spaces.delete_hq");
 
+  });
+
+  it("a department's space goes WITH its department: counted first, deleted together, no other department touched", async () => {
+    const w = await world();
     const admin: OrgAccessContext = { orgId: w.orgId, userId: w.admin.id, orgRole: "ADMIN" };
     const dept = await createDepartment(admin, { name: `Design ${uid()}` });
-    const deptTry = await remove(deptSpaceIdOf(dept.id), dept.name);
-    expect(deptTry.status).toBe(409);
-    expect(deptTry.json?.["message"]).toBe("spaces.delete_department");
+    const other = await createDepartment(admin, { name: `Sales ${uid()}` });
+    await db.departmentMember.create({ data: { departmentId: dept.id, userId: w.member.id } });
+    await db.ticket.create({ data: { orgId: w.orgId, departmentId: dept.id, creatorId: w.owner.id, title: `Request ${uid()}`, number: Math.floor(Math.random() * 1e9) } });
+    const kept = await db.ticket.create({ data: { orgId: w.orgId, departmentId: other.id, creatorId: w.owner.id, title: `Request ${uid()}`, number: Math.floor(Math.random() * 1e9) } });
+    const spaceId = deptSpaceIdOf(dept.id);
+
+    await loginAs(w.owner.id);
+    const dry = await contents(spaceId);
+    expect(dry.status).toBe(200);
+    expect(dry.json?.["department"]).toEqual({ tickets: 1, campaigns: 0, people: 1 });
+    // the dry run deletes nothing
+    expect(await db.department.findUnique({ where: { id: dept.id } })).not.toBeNull();
+    expect(await db.workspace.findUnique({ where: { id: spaceId } })).not.toBeNull();
+
+    await loginAs(w.admin.id);
+    expect((await remove(spaceId, dept.name)).status).toBe(403);
+    await loginAs(w.owner.id);
+    expect((await remove(spaceId, dept.name)).status).toBe(200);
+    expect(await db.workspace.findUnique({ where: { id: spaceId } })).toBeNull();
+    expect(await db.department.findUnique({ where: { id: dept.id } })).toBeNull();
+    expect(await db.ticket.count({ where: { departmentId: dept.id } })).toBe(0);
+    expect(await db.department.findUnique({ where: { id: other.id } })).not.toBeNull();
+    expect(await db.ticket.findUnique({ where: { id: kept.id } })).not.toBeNull();
+    expect(await db.workspace.findUnique({ where: { id: deptSpaceIdOf(other.id) } })).not.toBeNull();
+  });
+
+  it("a space whose department is already gone is deleted like any other (deleting a department only unlinks its space)", async () => {
+    const w = await world();
+    const admin: OrgAccessContext = { orgId: w.orgId, userId: w.admin.id, orgRole: "ADMIN" };
+    const dept = await createDepartment(admin, { name: `Old ${uid()}` });
+    const spaceId = deptSpaceIdOf(dept.id);
+    await db.department.delete({ where: { id: dept.id } });
+    await loginAs(w.owner.id);
+    const dry = await contents(spaceId);
+    expect(dry.status).toBe(200);
+    expect(dry.json?.["department"]).toBeNull();
+    expect((await remove(spaceId, dept.name)).status).toBe(200);
+    expect(await db.workspace.findUnique({ where: { id: spaceId } })).toBeNull();
+  });
+
+  it("counts the daily routines with the others, and the seats", async () => {
+    const w = await world();
+    await db.dailyRoutine.create({ data: { orgId: w.orgId, workspaceId: w.doomed.id, projectId: w.a.p.project.id, boardId: w.a.p.board.id, title: "daily", assigneeId: w.member.id, createdById: w.owner.id, days: [0], time: "09:00", dueTime: "18:00" } });
+    await loginAs(w.owner.id);
+    const dry = await contents(w.doomed.id);
+    expect(dry.json).toMatchObject({ routines: 2, department: null });
+    expect(Number(dry.json?.["members"])).toBeGreaterThanOrEqual(1);
+    expect((await remove(w.doomed.id, w.doomed.name)).status).toBe(200);
+    expect(await db.dailyRoutine.count({ where: { workspaceId: w.doomed.id } })).toBe(0);
   });
 });
