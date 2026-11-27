@@ -16,9 +16,13 @@ export interface ListSearchState {
   failed: boolean;
   /** the words the data was asked for (a result older than the typed words is never shown as the new one) */
   words: string | null;
+  /** the typed words are being asked about and nothing for them is here yet */
+  pending?: boolean;
 }
 
 const IDLE: ListSearchState = { data: null, failed: false, words: null };
+
+const WAITING: ListSearchState = { data: null, failed: false, words: null, pending: true };
 
 export function useListSearch(typed: string): ListSearchState {
   const words = listSearchWords(typed);
@@ -46,5 +50,6 @@ export function useListSearch(typed: string): ListSearchState {
     };
   }, [words]);
   // the typed words moved on: what is held belongs to the old ones
-  return words && state.words === words ? state : IDLE;
+  if (words && state.words === words) return state;
+  return words ? WAITING : IDLE;
 }

@@ -1,4 +1,6 @@
 import { z } from "zod";
+import { SPEECH_CHOICES } from "@/lib/chat/speech-langs";
+import { SOUND_CHOICE, SOUND_EVENTS, type SoundChoices } from "@/lib/sound-library/choice";
 
 /**
  * C3a.2 — the person's chat preferences: `User.chatPrefs`, ONE nullable JSON column and ONE zod schema (this file). Pure: no React, no server import,
@@ -6,7 +8,7 @@ import { z } from "zod";
  *
  *  - An empty object is a valid «all defaults»: every field is optional and its default lives in code (`resolveChatPrefs`).
  *  - The folders (C3a.2) are keyed by company id, at most 10 per company. The sections `notifications` and `chat` are room for C4.1 (a plain bounded map
- *    until C4.1 gives them their fields), `voiceSpeed` is C3b.4's, `tabs` holds the built-in tabs the person hid (C4.1 may add the order of the tabs beside it).
+ *    until C4.1 gives them their fields), `voiceSpeed` is C3b.4's, `sounds` is the sounds library's, `tabs` holds the built-in tabs the person hid (C4.1 may add the order of the tabs beside it).
  *    What stays on the device (auto-download, cache size) is NOT here: it lives in `localStorage` `zk-device-prefs`.
  *  - Writing is strict (`chatPrefsSchema` / `chatPrefsPatchSchema`: known keys only, bounded sizes), reading is forgiving (`readChatPrefs`: whatever is
  *    wrong is dropped, the rest is kept), and a save is a PATCH (`mergeChatPrefs`): a section not named stays, `null` puts one back to its default.
@@ -26,15 +28,21 @@ export const MAX_FOLDER_COMPANIES = 20;
 export const BUILTIN_TABS = ["all", "unread", "dm", "spaces", "mentions"] as const;
 export type BuiltinTab = (typeof BUILTIN_TABS)[number];
 
-/** Voice note speeds (C3b.4): 1× / 1.5× / 2×. */
+/**
+ * Voice note speeds. A TAP on the speed button goes round `VOICE_SPEEDS` (C3b.4: 1× / 1.5× / 2×); the phone's long press (`tgPhone`) offers every one of
+ * `VOICE_SPEED_CHOICES`, and any of them may be stored (the three old values stay valid).
+ */
 export const VOICE_SPEEDS = [1, 1.5, 2] as const;
-export type VoiceSpeed = (typeof VOICE_SPEEDS)[number];
+export const VOICE_SPEED_CHOICES = [0.5, 1, 1.2, 1.5, 1.7, 2] as const;
+export type VoiceSpeed = (typeof VOICE_SPEED_CHOICES)[number];
 export const DEFAULT_VOICE_SPEED: VoiceSpeed = 1;
 
-/** The speed button of a voice note: 1 → 1.5 → 2 → 1 (a value that is not in the list starts again at 1.5). */
+export const isVoiceSpeed = (value: unknown): value is VoiceSpeed => (VOICE_SPEED_CHOICES as readonly unknown[]).includes(value);
+
+/** The tap on the speed button: the next of 1 → 1.5 → 2 that is faster than now, else 1 again (a value that is no speed at all starts at 1.5). */
 export function nextVoiceSpeed(current: VoiceSpeed): VoiceSpeed {
-  const at = VOICE_SPEEDS.indexOf(current);
-  return at < 0 ? VOICE_SPEEDS[1] : VOICE_SPEEDS[(at + 1) % VOICE_SPEEDS.length]!;
+  if (!isVoiceSpeed(current)) return 1.5;
+  return VOICE_SPEEDS.find((speed) => speed > current) ?? 1;
 }
 
 /** An id the code made (cuid, or a folder's id): plain characters, never starting with an underscore (so `__proto__` is no key). */
@@ -131,6 +139,10 @@ export function isPhotoWallpaper(value: unknown): value is (typeof PHOTO_WALLPAP
 }
 /** What a person who never chose gets: the first pattern, so the chat looks like a messenger out of the box (they can pick «plain»). */
 export const DEFAULT_WALLPAPER: Wallpaper = "boxes";
+
+/** Telegram's own ranges: the message text, and the corners of a bubble. */
+export const TG_FONT_PX = { min: 12, max: 30, default: 16 } as const;
+export const TG_BUBBLE_RADIUS = { min: 0, max: 17, default: 17 } as const;
 /** What sends a message from the keyboard: «enter» (Shift+Enter is a new line) or «ctrl» (Ctrl+Enter sends, Enter is a new line). */
 export const SEND_KEYS = ["enter", "ctrl"] as const;
 export type SendKey = (typeof SEND_KEYS)[number];
@@ -170,7 +182,15 @@ const chatShape = {
   quickReactions: quickSix.optional(),
   doubleTap: emojiOne.optional(),
   themeAuto: z.boolean().optional(),
+  /** «تيليجرام على التلفون»: the message text in px and the bubble's corners in px (the phone only) */
+  fontPx: z.number().int().min(TG_FONT_PX.min).max(TG_FONT_PX.max).optional(),
+  bubbleRadius: z.number().int().min(TG_BUBBLE_RADIUS.min).max(TG_BUBBLE_RADIUS.max).optional(),
 };
+/** «مكتبة الأصوات»: the person's own sound for each of the five events (absent: «افتراضي»). What a value may be: `src/lib/sound-library/choice.ts`. */
+const soundChoice = z.string().regex(SOUND_CHOICE, "chatprefs.bad_sound").optional();
+const soundsShape = Object.fromEntries(SOUND_EVENTS.map((event) => [event, soundChoice])) as Record<(typeof SOUND_EVENTS)[number], typeof soundChoice>;
+const soundsSchema = z.object(soundsShape).catchall(z.unknown()).superRefine(sectionRules);
+
 const notificationsSchema = z.object(notificationsShape).catchall(z.unknown()).superRefine(sectionRules);
 const chatSectionSchema = z.object(chatShape).catchall(z.unknown()).superRefine(sectionRules);
 
@@ -191,7 +211,15 @@ function readSection<S extends z.ZodTypeAny>(raw: unknown, known: Record<string,
   return out;
 }
 
-const voiceSpeedSchema = z.union([z.literal(1), z.literal(1.5), z.literal(2)]);
+const voiceSpeedSchema = z.union([z.literal(0.5), z.literal(1), z.literal(1.2), z.literal(1.5), z.literal(1.7), z.literal(2)]);
+
+/** «تحويل الكلام لنص» (`tgPhone`): the language, the live words while recording, the preview's text (defaults in `speech-langs.ts`). */
+const speechShape = {
+  language: z.enum(SPEECH_CHOICES).optional(),
+  live: z.boolean().optional(),
+  preview: z.boolean().optional(),
+};
+const speechSchema = z.object(speechShape).catchall(z.unknown()).superRefine(sectionRules);
 
 const foldersByCompany = z
   .record(idSchema, folderListSchema)
@@ -204,6 +232,8 @@ export const chatPrefsSchema = z
     notifications: notificationsSchema.optional(),
     chat: chatSectionSchema.optional(),
     voiceSpeed: voiceSpeedSchema.optional(),
+    speech: speechSchema.optional(),
+    sounds: soundsSchema.optional(),
   })
   .strict();
 
@@ -224,6 +254,8 @@ export const chatPrefsPatchSchema = z
     notifications: notificationsSchema.nullable().optional(),
     chat: chatSectionSchema.nullable().optional(),
     voiceSpeed: voiceSpeedSchema.nullable().optional(),
+    speech: speechSchema.nullable().optional(),
+    sounds: soundsSchema.nullable().optional(),
   })
   .strict();
 
@@ -267,6 +299,10 @@ export function readChatPrefs(raw: unknown): ChatPrefs {
   if (chat) out.chat = chat as NonNullable<ChatPrefs["chat"]>;
   const speed = voiceSpeedSchema.safeParse(raw["voiceSpeed"]);
   if (speed.success) out.voiceSpeed = speed.data;
+  const speech = readSection(raw["speech"], speechShape);
+  if (speech) out.speech = speech as NonNullable<ChatPrefs["speech"]>;
+  const sounds = readSection(raw["sounds"], soundsShape);
+  if (sounds) out.sounds = sounds as NonNullable<ChatPrefs["sounds"]>;
   return out;
 }
 
@@ -286,7 +322,7 @@ export function mergeChatPrefs(current: ChatPrefs, patch: ChatPrefsPatch): ChatP
     else delete next.folders;
   }
 
-  for (const key of ["tabs", "notifications", "chat", "voiceSpeed"] as const) {
+  for (const key of ["tabs", "notifications", "chat", "voiceSpeed", "speech", "sounds"] as const) {
     const value = patch[key];
     if (value === null) delete next[key];
     else if (value !== undefined) (next as Record<string, unknown>)[key] = value;
@@ -305,6 +341,8 @@ export interface ResolvedChatPrefs {
   notifications: NonNullable<ChatPrefs["notifications"]>;
   chat: NonNullable<ChatPrefs["chat"]>;
   voiceSpeed: VoiceSpeed;
+  speech: NonNullable<ChatPrefs["speech"]>;
+  sounds: SoundChoices;
 }
 
 /** Every field with its default filled in. An empty object resolves to «all defaults». */
@@ -315,6 +353,8 @@ export function resolveChatPrefs(prefs: ChatPrefs): ResolvedChatPrefs {
     notifications: prefs.notifications ?? {},
     chat: prefs.chat ?? {},
     voiceSpeed: prefs.voiceSpeed ?? DEFAULT_VOICE_SPEED,
+    speech: prefs.speech ?? {},
+    sounds: (prefs.sounds ?? {}) as SoundChoices,
   };
 }
 

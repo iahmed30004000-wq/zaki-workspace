@@ -1,9 +1,16 @@
 "use client";
 
-import React, { useId, useMemo, useState } from "react";
+import React, { useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ArrowUpDown, FolderPlus, Plus } from "lucide-react";
+import { ArrowRight, ArrowUpDown, FolderPlus, MessageSquarePlus, Plus } from "lucide-react";
 import { NewTopicDialog } from "@/components/chat/home/new-topic-dialog";
+import { topicLead } from "@/components/chat/v2/forum/topic-lead";
+import { RowLeadProvider } from "@/components/chat/v2/list/row-lead";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
+import { Button } from "@/components/ui/button";
+import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
+import { fabHiddenAfter } from "@/lib/chat/v2/topic-icon";
+import "@/components/chat/v2/tg-sheets.css";
 import { ListHeader } from "@/components/chat/v2/list/list-header";
 import { ListEmpty, ListError, ListSkeleton } from "@/components/chat/v2/list/list-states";
 import { VirtualRows } from "@/components/chat/v2/list/virtual-rows";
@@ -30,6 +37,9 @@ import { useSpaceSections } from "@/lib/chat/v2/use-space-sections";
  * `canCreateTopic`, and decides again). Under it: the topics, the managers' pin first and then the newest activity (the person's own «ترتيب» of this
  * space wins inside those groups: `forumRows`), the archived ones (the managers receive them) folded under «المؤرشفة».
  *
+ * «تيليجرام على التلفون» (`tgPhone`, a phone's width): each topic wears a coloured icon, the sender's name is coloured, and «موضوع جديد» floats at the bottom
+ * (it steps aside while the list scrolls down) in place of the header's plus.
+ *
  * It reads only the C1.4 cache (`useChatSpace`: the topics the server let this person read; a restricted topic they are outside of is not in it, so
  * it is never named here) and draws the same rows as the list. A topic of another space still goes through `keepInSpace` when it is opened, as today.
  */
@@ -51,6 +61,9 @@ export function ForumView({
   selectedId: string | null;
 }) {
   const tall = variant === "screen";
+  const tg = useTgPhoneOn();
+  const [fabHidden, setFabHidden] = useState(false);
+  const scrolledTo = useRef(0);
   const searchId = useId();
   const day = useDayKey();
   const { space, rows, isPending, isError, refetch } = useChatSpace(spaceId);
@@ -77,8 +90,18 @@ export function ForumView({
   const openGroup = (model: { id: string | null; name: string; emoji: string | null }) => setOpen({ id: model.id, name: model.name, emoji: model.emoji });
   const { sections, settled } = useSpaceSections(spaceId, creating);
 
+  // the rows' own scroller reports here (a scroll does not bubble, so it is caught on the way down)
+  const onScrollCapture = (event: React.UIEvent) => {
+    const el = event.target as HTMLElement;
+    if (!el.hasAttribute?.("data-chat-rows")) return;
+    const before = scrolledTo.current;
+    scrolledTo.current = el.scrollTop;
+    setFabHidden((hidden) => fabHiddenAfter(before, el.scrollTop, hidden));
+  };
+
   return (
-    <div data-chat-forum="" data-space-id={spaceId} className="absolute inset-0 z-40 flex min-h-0 flex-col bg-surface">
+    <RowLeadProvider value={tg ? topicLead : null}>
+    <div data-chat-forum="" data-tg-forum={tg ? "" : undefined} data-space-id={spaceId} onScrollCapture={tg ? onScrollCapture : undefined} className="absolute inset-0 z-40 flex min-h-0 flex-col bg-surface">
       <header className="flex h-14 shrink-0 items-center gap-1 border-b border-border px-1">
         <Link
           href={chatHref.list}
@@ -135,7 +158,8 @@ export function ForumView({
             aria-label={ct("chath.topic.new")}
             title={ct("chath.topic.new")}
             onClick={() => setCreating(true)}
-            className="grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            // a phone with Telegram's look has the floating button instead
+            className={cn("grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent", tg && "max-md:hidden")}
           >
             <Plus className="size-5" aria-hidden="true" />
           </button>
@@ -169,11 +193,28 @@ export function ForumView({
         <VirtualRows items={items} tall={tall} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.forum.rows")} day={day} onOpenGroup={openGroup} />
       )}
       {isError && space ? <ListError onRetry={() => void refetch()} /> : null}
+      {tg && space?.canCreateTopic && !arranging ? (
+        <Button
+          type="button"
+          variant="fab"
+          data-forum-fab=""
+          data-hidden={fabHidden ? "" : undefined}
+          aria-label={ct("chath.topic.new")}
+          title={ct("chath.topic.new")}
+          tabIndex={fabHidden ? -1 : 0}
+          onClick={() => setCreating(true)}
+          className="tg-forum-fab absolute bottom-[calc(1rem+env(safe-area-inset-bottom))] end-4 z-20 md:hidden"
+          style={tgMotionVars(["barSlideMs"])}
+        >
+          <MessageSquarePlus className="size-6" aria-hidden="true" />
+        </Button>
+      ) : null}
 
       {open ? <GroupTopicsPane spaceId={spaceId} group={open} rows={rows} groups={groups} orders={orders} canManage={canManage} variant={variant} userId={userId} menu={menu} selectedId={selectedId} onBack={() => setOpen(null)} onEdited={(next) => setOpen((now) => (now ? { ...now, ...next } : now))} /> : null}
       {newGroup ? <NewTopicGroupDialog spaceId={spaceId} onClose={() => setNewGroup(false)} /> : null}
       {moving ? <MoveToGroupDialog row={moving} spaceId={spaceId} groups={groups} current={groupOfRow(moving, groups)} onClose={() => setMoving(null)} /> : null}
       {space?.canCreateTopic && creating && settled ? <NewTopicDialog open onOpenChange={setCreating} space={{ id: spaceId, name: space.name, sections }} /> : null}
     </div>
+    </RowLeadProvider>
   );
 }

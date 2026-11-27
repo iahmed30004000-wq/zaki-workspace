@@ -11,15 +11,40 @@ import { Button } from "@/components/ui/button";
 import { menuFor, menuOpen, type MessageMenuContext, type MessageMenuId } from "@/components/chat/message/message-menu-registry";
 import { EmojiPickerDialog } from "@/components/chat/v2/menu/emoji-picker";
 import { menuIconOf } from "@/components/chat/v2/menu/menu-icons";
+import { MessageOverlay } from "@/components/chat/v2/menu/message-overlay";
 import { ReactionBar } from "@/components/chat/v2/menu/reaction-bar";
+import { TgConfirm } from "@/components/chat/v2/menu/tg-confirm";
+import { useTgPhone } from "@/components/shell/tg-phone";
 import { useOptionalToast } from "@/components/ui/toast";
 import { chatKeys } from "@/lib/chat/cache/keys";
 import { keepInSaved, savedFlagsOf, type ListWithSaved } from "@/lib/chat/v2/menu/menu-context";
+import type { Rect } from "@/lib/chat/v2/menu/phone-menu";
+import type { TapPoint } from "@/lib/chat/v2/menu/quick-reactions";
 import { selectionStore, useSelectionEnabled } from "@/lib/chat/selection";
 import { useParityActions } from "@/lib/chat/v2/phone/parity-actions";
-import { ct } from "@/lib/chat/text";
+import { announceRemoval } from "@/lib/chat/v2/phone/removals";
+import { ct, ctCount } from "@/lib/chat/text";
+
+/** «تيليجرام على التلفون»: what the tap menu asks of the bubble it opens from, and of the pane. Only the phone's overlay reads it. */
+export interface PhoneMenuProps {
+  /** where the bubble is on the screen now */
+  anchorRect: () => Rect | null;
+  /** the tap that opened the menu (null: a long press or a key) */
+  openedBy: () => TapPoint | null;
+  /** a second tap came right after: the person's quick reaction */
+  doubleTap: () => void;
+  /** a reaction is on its way: the bubble draws its pill at once and the emoji flies there; the answer takes it back (the server refused) */
+  expectReaction: (emoji: string, from: Rect | null) => () => void;
+  /** the reactions on the message that are mine */
+  chosen: ReadonlySet<string>;
+  /** the pane's own commands, with what they answered */
+  sendReaction: (emoji: string) => Promise<boolean>;
+  togglePin: () => Promise<boolean>;
+}
 
 export interface MessageMenuV2Props {
+  /** «تيليجرام على التلفون» (absent: the phone's sheet of before) */
+  phone?: PhoneMenuProps;
   context: MessageMenuContext;
   /** the six quick reactions (today's six until C4's setting exists) */
   quick: readonly string[];
@@ -55,8 +80,14 @@ const small =
  *
  * Nothing is drawn for a deleted message, a system line, or while the owner reads in silent oversight (`menuOpen`): a reaction or a pin is refused to him.
  */
-export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, onSheetOpenChange, menuOpen: open, onMenuOpenChange, portal = true }: MessageMenuV2Props) {
+export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, onSheetOpenChange, menuOpen: open, onMenuOpenChange, portal = true, phone }: MessageMenuV2Props) {
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  // «تيليجرام على التلفون»: a tap's overlay in place of the sheet, a pin asks first, and the confirmations are Telegram's
+  const tgPhone = useTgPhone();
+  const tg = tgPhone && phone !== undefined;
+  // what the pin dialog asks is kept while it closes: it must not change its words as it fades
+  const [pinAsk, setPinAsk] = React.useState<"pin" | "unpin">("pin");
+  const [pinOpen, setPinOpen] = React.useState(false);
   const [reactOpen, setReactOpen] = React.useState(false);
   const [pickerOpen, setPickerOpen] = React.useState(false);
   // S5.7 (a): «حذف عندي» is this package's own item BESIDE the registry's list (the registry is the old screens' too): it hides the message for the person only and asks first
@@ -87,6 +118,10 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
     onMenuOpenChange(false);
     onSheetOpenChange(false);
     if (id === "delete") setConfirmDelete(true);
+    else if (id === "pin" && tg) {
+      setPinAsk(context.pinned ? "unpin" : "pin");
+      setPinOpen(true);
+    }
     else if (id === "select") {
       // no door and no dialog: the selection starts with this message (the viewport draws the checks, the header the bar)
       if (context.messageId) selectionStore.begin(context.messageId);
@@ -103,6 +138,31 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
     onMenuOpenChange(false);
     onSheetOpenChange(false);
     onReact(emoji);
+  };
+  /** a pick of the overlay: a reaction that is NEW is drawn and flown at once; taking mine back just asks the door */
+  const overlayReact = (emoji: string, from: Rect | null) => {
+    if (!phone) return;
+    const undo = phone.chosen.has(emoji) ? null : phone.expectReaction(emoji, from);
+    void phone.sendReaction(emoji).then((ok) => {
+      if (!ok) undo?.();
+    });
+  };
+  const togglePin = () => {
+    const unpinning = pinAsk === "unpin";
+    setPinOpen(false);
+    if (!phone) return;
+    void phone.togglePin().then((ok) => {
+      if (!ok) return;
+      if (!unpinning) toast?.toast(ct("tgmsg.pin.done"), "success");
+      else toast?.toast(ct("tgmsg.pin.unpinned"), "success", { label: ct("tgmsg.undo"), onClick: () => void phone.togglePin() });
+    });
+  };
+  const hideForMe = () => {
+    setConfirmHide(false);
+    if (!parity || !context.messageId) return;
+    // the message leaves the list for me only: say so, so the log can turn it to dust (a dropped page looks the same)
+    announceRemoval([context.messageId]);
+    void parity.hide([context.messageId]);
   };
   const more = () => {
     setReactOpen(false);
@@ -157,6 +217,30 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
         </DropdownMenu>
       </div>
 
+      {tg ? (
+        <MessageOverlay
+          portal={portal}
+          open={sheetOpen}
+          onClose={() => onSheetOpenChange(false)}
+          context={context}
+          actions={actions}
+          quick={quick}
+          chosen={phone.chosen}
+          anchor={phone.anchorRect}
+          openedBy={phone.openedBy}
+          onDoubleTap={phone.doubleTap}
+          onPick={pick}
+          onReact={overlayReact}
+          {...(parity && context.messageId
+            ? {
+                onHide: () => {
+                  onSheetOpenChange(false);
+                  setConfirmHide(true);
+                },
+              }
+            : {})}
+        />
+      ) : (
       <Sheet open={sheetOpen} onOpenChange={onSheetOpenChange}>
         <SheetContent portal={portal}>
           <SheetHeader>
@@ -196,9 +280,40 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
           </SheetBody>
         </SheetContent>
       </Sheet>
+      )}
 
       <EmojiPickerDialog open={pickerOpen} onOpenChange={setPickerOpen} onPick={onReact} portal={portal} />
 
+      {tg ? (
+        <>
+          <TgConfirm
+            portal={portal}
+            open={confirmDelete}
+            onOpenChange={setConfirmDelete}
+            title={ctCount("tgmsg.del.title", 1)}
+            body={ctCount("tgmsg.del.body", 1)}
+            note={ct(context.mine ? "chatc.menu.delete_body_mine" : "chatc.menu.delete_body_other")}
+            confirmLabel={ct("tgmsg.del.confirm")}
+            danger
+            onConfirm={() => {
+              setConfirmDelete(false);
+              onAction("delete");
+            }}
+          />
+          <TgConfirm portal={portal} open={confirmHide} onOpenChange={setConfirmHide} title={ct("chatparity.hide.title")} body={ct("chatparity.hide.body")} confirmLabel={ct("chatparity.hide.confirm")} danger onConfirm={hideForMe} />
+          <TgConfirm
+            portal={portal}
+            open={pinOpen}
+            onOpenChange={setPinOpen}
+            title={ct(pinAsk === "unpin" ? "tgmsg.pin.unpin_title" : "tgmsg.pin.title")}
+            body={ct(pinAsk === "unpin" ? "tgmsg.pin.unpin_body" : "tgmsg.pin.body")}
+            confirmLabel={ct(pinAsk === "unpin" ? "tgmsg.pin.unpin_confirm" : "tgmsg.pin.confirm")}
+            danger={pinAsk === "unpin"}
+            onConfirm={togglePin}
+          />
+        </>
+      ) : (
+        <>
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent portal={portal} aria-label={ct("chatc.menu.delete_title")}>
           <DialogHeader>
@@ -236,19 +351,14 @@ export function MessageMenuV2({ context, quick, onAction, onReact, sheetOpen, on
             <Button type="button" variant="secondary" onClick={() => setConfirmHide(false)}>
               {ct("chatc.cancel")}
             </Button>
-            <Button
-              type="button"
-              variant="danger"
-              onClick={() => {
-                setConfirmHide(false);
-                if (parity && context.messageId) void parity.hide([context.messageId]);
-              }}
-            >
+            <Button type="button" variant="danger" onClick={hideForMe}>
               {ct("chatparity.hide.confirm")}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+        </>
+      )}
     </>
   );
 }

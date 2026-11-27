@@ -1,0 +1,334 @@
+/*
+ * «تيليجرام على التلفون» (the switch `tgPhone`): the look and the movement of the shell on a PHONE. Everything here is under `[data-tg-phone]` (the app
+ * frame wears it) or `html[data-tg-doc]` (for what is drawn outside the frame: menus, toasts), and below `md`, so a computer and the switch off are
+ * untouched. Movement is written only for people who did not ask for less of it, and each kind is stopped by its switch in «التأثيرات الحركية»
+ * (`html[data-fx-off~="…"]`). The durations are `TG_MOTION`'s (`tests/tg-shell.test.ts` holds the two together). Colours are the theme's tokens.
+ */
+
+@media not all and (min-width: 768px) {
+  /* ───────── the chat's page: Telegram's soft wallpaper behind the whole screen, header included ───────── */
+  /* no `position` here: the box is already placed over the list (`absolute inset-0`), and saying anything else drops it below the screen */
+  [data-tg-phone] [data-chat-phone-screen] {
+    isolation: isolate;
+    background-color: rgb(var(--chat-wallpaper));
+    background-image: linear-gradient(
+      165deg,
+      color-mix(in srgb, rgb(var(--ok)) 26%, rgb(var(--surface-1))) 0%,
+      color-mix(in srgb, rgb(var(--accent-2)) 24%, rgb(var(--surface-1))) 48%,
+      color-mix(in srgb, rgb(var(--ok)) 20%, rgb(var(--surface-1))) 100%
+    );
+  }
+  html.dark [data-tg-phone] [data-chat-phone-screen] {
+    background-image: none;
+  }
+  [data-tg-phone] [data-chat-phone-screen]::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-color: rgb(var(--ok) / 0.22);
+    -webkit-mask: url("/brand/tg/doodles.svg") repeat;
+    mask: url("/brand/tg/doodles.svg") repeat;
+    -webkit-mask-size: 240px 240px;
+    mask-size: 240px 240px;
+  }
+  html.dark [data-tg-phone] [data-chat-phone-screen]::before {
+    background-color: rgb(var(--fg) / 0.05);
+  }
+  /* a wallpaper the person chose themselves wins over the default one */
+  html[data-chat-wallpaper-chosen] [data-tg-phone] [data-chat-phone-screen] {
+    background-image: none;
+  }
+  html[data-chat-wallpaper-chosen] [data-tg-phone] [data-chat-phone-screen]::before {
+    display: none;
+  }
+  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] [role="log"][data-conversation-id] {
+    background: transparent;
+  }
+  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] div:has(> [role="log"][data-conversation-id]),
+  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] > div,
+  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] [data-chat-pane-root],
+  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] [data-message-viewport] {
+    background-color: transparent;
+  }
+
+  /* ───────── the conversation header: round white buttons and a white pill for the picture and the name ───────── */
+  [data-tg-phone] header[data-pane-header][data-tg-glass] {
+    gap: 0.375rem;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    padding-inline: 0;
+  }
+  [data-tg-phone] header[data-pane-header][data-tg-glass] > a,
+  [data-tg-phone] header[data-pane-header][data-tg-glass] > button,
+  [data-tg-phone] header[data-pane-header][data-tg-glass] > [data-call-button],
+  [data-tg-phone] header[data-pane-header][data-tg-glass] [data-header-identity] {
+    border-radius: 9999px;
+    background-color: rgb(var(--surface-1) / 0.94);
+    box-shadow: var(--shadow-card);
+  }
+  [data-tg-phone] header[data-pane-header][data-tg-glass] [data-header-identity] {
+    min-height: 2.75rem;
+    padding-inline: 0.25rem 0.75rem;
+  }
+  [data-tg-phone] header[data-pane-header][data-tg-glass] [data-header-title] {
+    border-radius: 9999px;
+  }
+
+  /* ───────── bubbles: Telegram's corners and the person's text size ───────── */
+  [data-tg-phone] [data-message-row] [class*="rounded-[17px]"],
+  [data-tg-phone] [data-pending-message] [class*="rounded-[17px]"] {
+    border-radius: var(--tg-bubble-radius, 17px);
+  }
+  [data-tg-phone] [data-message-row] [class*="rounded-[17px]"][class*="rounded-ee-sm"] {
+    border-end-end-radius: min(var(--tg-bubble-radius, 17px), 4px);
+  }
+  [data-tg-phone] [data-message-row] [class*="rounded-[17px]"][class*="rounded-es-sm"] {
+    border-end-start-radius: min(var(--tg-bubble-radius, 17px), 4px);
+  }
+  [data-tg-phone] [data-message-row] .text-sm.leading-relaxed,
+  [data-tg-phone] [data-pending-message] .text-sm.leading-relaxed {
+    font-size: var(--tg-font-px, 16px);
+    line-height: 1.45;
+  }
+
+  /* ───────── the round button to write: above the floating bar ───────── */
+  [data-tg-phone][data-tg-bar] [data-chat-fab] {
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+  [data-tg-phone] [data-tg-scrolled] [data-chat-fab] {
+    transform: translateY(calc(100% + 6rem));
+    pointer-events: none;
+  }
+
+  /* ───────── the settings: a bar that appears when the big picture has scrolled away ───────── */
+  [data-tg-phone] [data-tg-settings-bar] {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    height: 3rem;
+    margin-bottom: -3rem;
+    background-color: rgb(var(--surface-1) / 0.78);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    opacity: 0;
+    pointer-events: none;
+  }
+  html[data-fx-off~="blur"] [data-tg-phone] [data-tg-settings-bar] {
+    background-color: rgb(var(--surface-1));
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  [data-tg-phone] [data-tg-settings-bar][data-shown] {
+    opacity: 1;
+  }
+
+  /* ───────── the search takes the whole screen under its field ───────── */
+  [data-tg-phone] [data-list-search-panel][data-tg-search-panel] {
+    height: calc(100dvh - 4rem);
+    max-height: none;
+    border: 0;
+    box-shadow: none;
+  }
+
+  /* ───────── toasts rise from the bottom, above the bar and the composer ───────── */
+  html[data-tg-doc] div[aria-live="polite"]:has(> [data-zk-toast]) {
+    top: auto;
+    bottom: calc(5rem + env(safe-area-inset-bottom));
+    padding-top: 0;
+  }
+}
+
+@media not all and (min-width: 768px) {
+  @media (prefers-reduced-motion: no-preference) {
+    /* opening a conversation: it fades in and slides 24px from the side, 220ms */
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-chat-phone-screen].zk-tg-open {
+      animation: zk-tg-push 220ms ease-out both;
+    }
+    /* going back: the screen fades away and the list under it shows through, 180ms */
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-chat-phone-screen].zk-tg-leaving {
+      animation: zk-tg-leave 180ms ease-in-out both;
+    }
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-tg-sub] {
+      animation: zk-tg-push 220ms ease-out both;
+    }
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] #zk-main[data-tg-tab-in="next"] {
+      animation: zk-tg-tab-next 120ms ease-out both;
+    }
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] #zk-main[data-tg-tab-in="prev"] {
+      animation: zk-tg-tab-prev 120ms ease-out both;
+    }
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-tg-tab-pill] {
+      transition: transform 120ms ease-out;
+    }
+    /* another folder: the list slides in sideways, then its pictures fade in */
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-tg-folder-way="next"] {
+      animation: zk-tg-folder-next 280ms ease-out both;
+    }
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-tg-folder-way="prev"] {
+      animation: zk-tg-folder-prev 280ms ease-out both;
+    }
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-tg-folder-way] [data-row-avatar] {
+      animation: zk-tg-fade 150ms ease-out 150ms both;
+    }
+    html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-tg-search-panel] {
+      animation: zk-tg-fade 240ms ease-out both;
+    }
+    [data-tg-phone] [data-chat-fab] {
+      transition: transform 150ms ease-out;
+    }
+    [data-tg-phone] [data-tg-search-pill-row] {
+      transition: grid-template-rows 150ms ease-out, opacity 150ms ease-out;
+    }
+    [data-tg-phone] [data-tg-settings-bar] {
+      transition: opacity 150ms ease-out;
+    }
+    /* long-press menus and the «⋮» menus: the page dims, the menu grows from what was pressed */
+    html[data-tg-doc]:not([data-fx-off~="zoom"]) [data-radix-popper-content-wrapper] > [role="menu"] {
+      transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+      animation: zk-tg-menu 150ms ease-out both;
+    }
+    html[data-tg-doc] body:has([data-radix-popper-content-wrapper] > [role="menu"])::after {
+      animation: zk-tg-fade 140ms ease-out both;
+    }
+    html[data-tg-doc]:not([data-fx-off~="transitions"]) div[aria-live="polite"] > [data-zk-toast] {
+      animation: zk-tg-toast 200ms ease-out both;
+    }
+    html[data-tg-doc]:not([data-fx-off~="emoji"]) div[aria-live="polite"] > [data-zk-toast] > svg {
+      animation: zk-tg-pop 360ms ease-out 80ms both;
+    }
+    [data-tg-phone] .zk-tg-ripple {
+      animation: zk-tg-ripple 150ms ease-out forwards;
+    }
+  }
+  html[data-tg-doc] body:has([data-radix-popper-content-wrapper] > [role="menu"])::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    pointer-events: none;
+    background: rgb(var(--scrim) / 0.35);
+  }
+  [data-tg-phone] .zk-tg-ripple {
+    position: absolute;
+    z-index: 0;
+    width: 12rem;
+    height: 12rem;
+    margin: -6rem 0 0 -6rem;
+    border-radius: 9999px;
+    pointer-events: none;
+    background: rgb(var(--fg) / 0.1);
+    opacity: 0;
+  }
+}
+
+@keyframes zk-tg-push {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+@keyframes zk-tg-leave {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+@keyframes zk-tg-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* the next tab or folder is toward the inline end: in this right-to-left page it comes from the left */
+@keyframes zk-tg-tab-next {
+  from {
+    transform: translateX(-3rem);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes zk-tg-tab-prev {
+  from {
+    transform: translateX(3rem);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+@keyframes zk-tg-folder-next {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes zk-tg-folder-prev {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+@keyframes zk-tg-menu {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes zk-tg-toast {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes zk-tg-pop {
+  0% {
+    transform: scale(0.2);
+  }
+  70% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@keyframes zk-tg-ripple {
+  from {
+    transform: scale(0.1);
+    opacity: 1;
+  }
+  to {
+    transform: scale(2);
+    opacity: 0;
+  }
+}

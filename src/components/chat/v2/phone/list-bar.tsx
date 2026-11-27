@@ -5,6 +5,7 @@ import { ArrowRight, Menu, Search, X } from "lucide-react";
 import { ListSearchPanel } from "@/components/chat/v2/info/list-search-results";
 import { ct } from "@/lib/chat/text";
 import { useFrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
 
 const iconButton =
   "grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
@@ -19,8 +20,9 @@ const iconButton =
  * C3d: while the field is open and holds two letters, the chats, people and messages the server found (`GET /api/search?scope=chat`) are drawn as a panel under the
  * bar, over the rows; opening one folds the field.
  */
-export function PhoneListBar({ title, query, onQuery, searchId, menu }: { title: string; query: string; onQuery: (value: string) => void; searchId: string; /** S6.6 «شكل تيليجرام»: the list's main «⋮» menu */ menu?: React.ReactNode }) {
+export function PhoneListBar({ title, query, onQuery, searchId, menu, scrolled = false }: { title: string; query: string; onQuery: (value: string) => void; searchId: string; /** S6.6 «شكل تيليجرام»: the list's main «⋮» menu */ menu?: React.ReactNode; /** «تيليجرام»: the list is scrolled down, so the search pill folds into an icon */ scrolled?: boolean }) {
   const bridge = useFrameBridge();
+  const tg = useTgPhoneOn();
   // the field stays open while it holds words (a rebuilt list must not close what the person is typing)
   const [open, setOpen] = React.useState(query !== "");
   const input = React.useRef<HTMLInputElement>(null);
@@ -36,7 +38,7 @@ export function PhoneListBar({ title, query, onQuery, searchId, menu }: { title:
   return (
     <header data-chat-phone-bar="" className="relative shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
       {expanded ? (
-        <div data-chat-phone-search="open" className="flex h-14 items-center gap-1 px-1">
+        <div data-chat-phone-search="open" className={tg ? "mx-2 my-1.5 flex h-11 items-center gap-1 rounded-full bg-surface-2" : "flex h-14 items-center gap-1 px-1"}>
           <button type="button" aria-label={ct("chatui.phone.search.close")} onClick={fold} className={iconButton}>
             <ArrowRight aria-hidden="true" className="size-5" />
           </button>
@@ -74,9 +76,11 @@ export function PhoneListBar({ title, query, onQuery, searchId, menu }: { title:
             </button>
           ) : null}
           <h1 className={`min-w-0 flex-1 truncate text-lg font-semibold leading-tight text-fg ${bridge?.openDrawer ? "" : "ps-3"}`}>{title}</h1>
-          <button type="button" data-chat-phone-search-open="" aria-label={ct("chatui.phone.search.open")} onClick={() => setOpen(true)} className={iconButton}>
-            <Search aria-hidden="true" className="size-5" />
-          </button>
+          {tg && !scrolled ? null : (
+            <button type="button" data-chat-phone-search-open="" aria-label={ct("chatui.phone.search.open")} onClick={() => setOpen(true)} className={iconButton}>
+              <Search aria-hidden="true" className="size-5" />
+            </button>
+          )}
           {menu}
           {bridge?.trailing ? (
             <div data-chat-phone-trailing="" className="flex shrink-0 items-center">
@@ -85,6 +89,17 @@ export function PhoneListBar({ title, query, onQuery, searchId, menu }: { title:
           ) : null}
         </div>
       )}
+      {tg && !expanded ? (
+        // «تيليجرام»: the search is a pill under the title; scrolling the list down folds it away (the icon above takes its place)
+        <div data-tg-search-pill-row="" className={`grid ${scrolled ? "grid-rows-[0fr] opacity-0" : "grid-rows-[1fr] opacity-100"}`}>
+          <div className="min-h-0 overflow-hidden">
+            <button type="button" data-tg-search-pill="" tabIndex={scrolled ? -1 : 0} aria-hidden={scrolled ? true : undefined} onClick={() => setOpen(true)} className="mx-3 mb-2 flex min-h-11 w-[calc(100%-1.5rem)] items-center gap-2 rounded-full bg-surface-2 px-4 text-start text-sm text-fg-muted">
+              <Search aria-hidden="true" className="size-4 shrink-0" />
+              <span className="truncate">{ct("chatui.search.placeholder")}</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
       {expanded ? <ListSearchPanel query={query} onPick={fold} /> : null}
     </header>
   );

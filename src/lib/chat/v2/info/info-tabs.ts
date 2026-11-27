@@ -1,4 +1,6 @@
 import type { MediaCountsDto } from "@/server/chat/media";
+import { arabicPlural } from "@/lib/format";
+import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 
 /**
  * C3d + S5.4 — THE INFO PANEL'S TABS «الوسائط · الملفات · الروابط · الصوتيات · الأعضاء · الشغل · المثبّتة», as pure functions.
@@ -93,6 +95,34 @@ export function tabAfterKey(tabs: readonly InfoTab[], current: InfoTabId | null,
   if (step === 0) return null;
   return tabs[Math.min(tabs.length - 1, Math.max(0, at + step))]!.id;
 }
+
+// ───────────────────────────── the phone's info page («تيليجرام على التلفون») ─────────────────────────────
+
+/** The members first, then the rest in their usual order (a computer, and the switch off, keep `INFO_TAB_ORDER`). */
+export function orderTabs(tabs: readonly InfoTab[], phone: boolean): InfoTab[] {
+  if (!phone) return [...tabs];
+  return [...tabs.filter((t) => t.id === "members"), ...tabs.filter((t) => t.id !== "members")];
+}
+
+/** The phone's page opens on its people where it has any, as the app does; otherwise by the usual rule. */
+export function phoneActiveTabOf(tabs: readonly InfoTab[], chosen: InfoTabId | null): InfoTabId | null {
+  if (chosen && tabs.some((t) => t.id === chosen)) return chosen;
+  return tabs.some((t) => t.id === "members") ? "members" : activeTabOf(tabs, null);
+}
+
+/**
+ * The tab a sideways swipe brings (`dx`, `dy`: how far the finger went). Right-to-left, the next tab lies on the left, so a finger moving RIGHT pulls it in.
+ * `null`: too short, more up-and-down than sideways, or there is no tab that way.
+ */
+export function swipeTabOf(tabs: readonly InfoTab[], current: InfoTabId, dx: number, dy: number, rtl: boolean): InfoTabId | null {
+  if (Math.abs(dx) < TG_MOTION.infoSwipePx || Math.abs(dx) < Math.abs(dy) * 1.5) return null;
+  const forward = rtl ? dx > 0 : dx < 0;
+  const at = tabs.findIndex((t) => t.id === current);
+  return at < 0 ? null : (tabs[at + (forward ? 1 : -1)]?.id ?? null);
+}
+
+/** The line under the header's title: what the active tab holds, in the Arabic form of the number. */
+export const counterKeyOf = (id: InfoTabId, count: number): string => `tgsheets.count.${id}.${count === 0 ? "zero" : arabicPlural(count)}`;
 
 /** The address of one page of a tab's list. */
 export function mediaPageUrl(conversationId: string, kind: (typeof TAB_KIND)[PagedTab], before?: string | null): string {

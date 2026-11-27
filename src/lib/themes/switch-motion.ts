@@ -364,7 +364,7 @@ export function stepParticles(list: Particle[], dtMs: number, drag = 1.2, gy = 0
 
 const round1 = (n: number): number => Math.round(n * 10) / 10;
 
-export type RevealLook = "shards" | "ink";
+export type RevealLook = "shards" | "ink" | "circle";
 
 /** Smooth-ish angular noise from a seed: the same seed is the same edge, `roughness` 0 = a circle. */
 export function edgeProfile(points: number, seed: number, roughness: number, smoothing: number): number[] {
@@ -389,7 +389,7 @@ export function edgeProfile(points: number, seed: number, roughness: number, smo
  * broken off). `ink`: a soft wobbling blot. Every radius has the same number of vertices so `clip-path` can animate between them.
  */
 export function revealPolygon(cx: number, cy: number, radius: number, look: RevealLook, seed: number, points = 72): string {
-  const profile = look === "ink" ? edgeProfile(points, seed, 0.1, 5) : edgeProfile(points, seed, 0.36, 0);
+  const profile = look === "circle" ? edgeProfile(points, seed, 0, 0) : look === "ink" ? edgeProfile(points, seed, 0.1, 5) : edgeProfile(points, seed, 0.36, 0);
   const spikes = look === "shards" ? edgeProfile(points, seed + 99, 0.28, 0) : null;
   const v: string[] = [];
   for (let i = 0; i < points; i++) {
@@ -439,6 +439,7 @@ export function shardSeeds(count: number, seed: number): Shard[] {
 export function revealEase(t: number, look: RevealLook = "shards"): number {
   const c = clamp01(t);
   if (look === "ink") return 1 - Math.pow(1 - c, 2.2);
+  if (look === "circle") return 1 - Math.pow(1 - c, 2);
   const k = 9;
   const mid = 0.64;
   const f = (x: number) => 1 / (1 + Math.exp(-k * (x - mid)));

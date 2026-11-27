@@ -10,6 +10,7 @@ import { useChatShortcuts } from "@/lib/chat/shortcuts";
 import { navTrail } from "@/lib/chat/v2/phone/nav-trail";
 import { phoneBackOf, phoneScreenOf } from "@/lib/chat/v2/phone/screens";
 import { chatHref, chatRouteOf, isListScreen, selectedConversationId } from "@/lib/chat/v2/routes";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
 
 export interface ChatShellProps {
@@ -44,6 +45,7 @@ export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, tgLook, c
   const screen = phoneScreenOf(pathname);
   const marker = screen === "other" ? {} : { "data-chat-screen": screen, "data-frame-bars": screen === "conversation" || screen === "info" ? "hide-all" : "hide-top" };
   const desktop = useIsDesktop();
+  const tgPhone = useTgPhoneOn();
   const router = useRouter();
   // C2.8: the trail of addresses, so «back» pops the history when it can (nav-trail.ts)
   useEffect(() => navTrail.visit(pathname ?? ""), [pathname]);
@@ -68,7 +70,15 @@ export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, tgLook, c
     const onList = isListScreen(route);
     return (
       <div data-chat-shell="phone" {...marker} className="relative h-full min-h-0 overflow-x-clip">
-        <div className={onList ? "h-full" : "hidden"}>{column}</div>
+        {tgPhone ? (
+          // «تيليجرام»: the list stays drawn under the open conversation, so going back (and a swipe) shows it; meanwhile it takes no focus and no touch.
+          // `isolate`: whatever floats inside the list never climbs over the conversation
+          <div className="relative isolate h-full" {...(onList ? {} : ({ "aria-hidden": true, inert: "" } as Record<string, unknown>))}>
+            {column}
+          </div>
+        ) : (
+          <div className={onList ? "h-full" : "hidden"}>{column}</div>
+        )}
         {/* C2.8: the conversation (or its info screen) is the whole screen: it slides in from the start edge, a swipe from that edge goes back, the composer rides above the keyboard */}
         <PhoneScreenFrame active={!onList} back={phoneBackOf(pathname)}>
           {children}

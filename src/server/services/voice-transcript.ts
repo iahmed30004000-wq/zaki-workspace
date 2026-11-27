@@ -1,7 +1,9 @@
 import { db } from "@/server/db";
-import { NotFoundError } from "@/server/auth";
+import { ForbiddenError, NotFoundError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
-import { canReadConversation } from "@/server/policy/conversation";
+import { canPostInConversation, canReadConversation } from "@/server/policy/conversation";
+import { FixedWindowLimiter, RateLimitedError, type LimiterOptions } from "@/server/rate-limit";
+import { CHAT_LIMITS } from "@/server/files/sniff";
 import { LocalQueue } from "@/server/ai/local-queue";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
 import { callLocal, jsonOf, targetOf, type LocalTransport } from "@/server/ai/local-transport";
@@ -26,6 +28,9 @@ import type { ApiErrorCode } from "@/server/api";
  *   WHO     whoever may read the conversation of the note (the same rule as the bytes of the attachment); the OWNER's silent oversight too.
  *   KEPT    the text is written once into `StoredFile.meta.transcript` of the recording (no new table): asking again is free and never
  *           sends the audio twice. A deleted message's note is gone for everybody but the owner.
+ *   BEFORE SENDING (`tgPhone`, the preview of a recording)  `transcribeTake`: the take that is still on the person's device goes to the same service,
+ *           with the same filter, through the conversation it is recorded in (whoever may read it AND post in it), rate limited per person; neither the
+ *           audio nor the words are kept.
  *   SWITCH  `voiceTranscript`, off by default (the audio leaves the app for that service). Off: the route answers «not found».
  *
  * ⚠️ A transcript can be wrong, above all with a noisy recording or a dialect. 🔧 The screen shows it under the note as «نص تقريبي», never in
@@ -245,4 +250,74 @@ export async function transcribeAttachment(
   const base = fresh?.meta && typeof fresh.meta === "object" && !Array.isArray(fresh.meta) ? (fresh.meta as Record<string, unknown>) : {};
   await db.storedFile.update({ where: { id: att.file.id }, data: { meta: { ...base, transcript: { text, at: new Date().toISOString() } } } });
   return { text, cached: false };
+}
+
+// ───────────────────────────── a recording that was not sent yet (the preview) ─────────────────────────────
+
+/** A take weighs at most what a voice note may weigh when it is sent. */
+export const MAX_TAKE_BYTES = CHAT_LIMITS.VOICE;
+/** One person: this many previews in this long (a pause, listen, go on, pause again costs one each time). */
+export const TAKE_LIMIT: LimiterOptions = { limit: 20, windowMs: 10 * 60_000 };
+/** …and this many in the air at once (one left behind by «متابعة التسجيل», and the new one). */
+export const TAKES_AT_ONCE = 2;
+
+/** The gate in front of the previews, per person. `enter` answers the way out, or refuses. */
+export function createTakeGuard(limit: LimiterOptions = TAKE_LIMIT, atOnce: number = TAKES_AT_ONCE) {
+  const limiter = new FixedWindowLimiter(limit);
+  const running = new Map<string, number>();
+  return {
+    enter(userId: string): () => void {
+      const state = limiter.check(userId);
+      if (!state.ok) throw new RateLimitedError(state.retryAfterSec, "tgvoice.err_rate");
+      const now = running.get(userId) ?? 0;
+      if (now >= atOnce) throw new VoiceTranscriptError("voiceTranscript.err_busy");
+      limiter.hit(userId);
+      running.set(userId, now + 1);
+      let left = false;
+      return () => {
+        if (left) return;
+        left = true;
+        const held = (running.get(userId) ?? 1) - 1;
+        if (held > 0) running.set(userId, held);
+        else running.delete(userId);
+      };
+    },
+  };
+}
+
+export const takeGuard = createTakeGuard();
+
+/**
+ * May this person have the words of a recording made in this conversation? The two switches (the transcript's and the voice notes'), a conversation of THIS
+ * company, the right to read it (as for a sent note), and the right to post in it (a recording exists only where one may send it).
+ */
+export async function authorizeTakeTranscript(actor: Actor, conversationId: string): Promise<void> {
+  await assertFeatureOn(actor.orgId, "voiceTranscript");
+  await assertFeatureOn(actor.orgId, "voiceNotes");
+  const here = await db.conversation.findFirst({ where: { id: conversationId, orgId: actor.orgId }, select: { id: true } });
+  if (!here || !(await canReadConversation(actor.userId, conversationId))) throw new NotFoundError("voiceTranscript.not_found");
+  if (!(await canPostInConversation(actor.userId, conversationId))) throw new ForbiddenError("chat.e.post_denied");
+}
+
+/** The person's language for this take: a short code, «auto» (the service guesses), and anything else leaves the service's own. */
+export function takeLanguageOf(raw: unknown, own: string | null): string | null {
+  if (raw === "auto") return null;
+  return typeof raw === "string" && /^[a-z]{2,3}$/.test(raw) ? raw : own;
+}
+
+/** The words of a take (already authorized by `authorizeTakeTranscript`). Nothing is stored. */
+export async function transcribeTake(
+  actor: Actor,
+  audio: { bytes: Uint8Array; mime: string },
+  language: unknown,
+  options: { source?: Readonly<Record<string, string | undefined>>; transport?: LocalTransport; queue?: LocalQueue } = {},
+): Promise<{ text: string }> {
+  const server = await resolveTranscribeServer(actor.orgId, options.source);
+  if (!server) throw new VoiceTranscriptError("voiceTranscript.err_not_configured");
+  if (audio.bytes.byteLength > MAX_TAKE_BYTES) throw new VoiceTranscriptError("voiceTranscript.err_big");
+  const heard = await transcribeBytes({ ...server, language: takeLanguageOf(language, server.language) }, audio, { ...(options.transport ? { transport: options.transport } : {}), ...(options.queue ? { queue: options.queue } : {}) });
+  // the same filter as a sent note's words
+  const text = server.filter && heard !== "" ? redactText(heard).text : heard;
+  if (text === "") throw new VoiceTranscriptError("voiceTranscript.err_empty");
+  return { text };
 }

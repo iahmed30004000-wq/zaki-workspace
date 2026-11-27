@@ -7,6 +7,7 @@ import type { ScrollMetrics } from "@/lib/chat/history/edges";
 import type { ScrollSignal } from "@/lib/chat/history/jump";
 import { captureAnchor, restoredScrollTop, shouldRestore, type Anchor } from "@/lib/chat/viewport/anchor";
 import { detectArrival } from "@/lib/chat/viewport/arrival";
+import { smoothJumpAllowed } from "@/lib/chat/v2/phone/jump-scroll";
 import { OVERSCAN, pendingExpired } from "@/lib/chat/viewport/config";
 import { firstMessageIdFrom, messagesOfRow, rowIndexOfMessage, scrollRowIndex, type Row } from "@/lib/chat/viewport/rows";
 import { estimateRowHeight } from "@/lib/chat/viewport/sizes";
@@ -40,6 +41,8 @@ export interface MessageViewportOptions {
   scroll: ScrollSignal | null;
   /** the conversation shown: when it changes, what the hook remembers about the last one (the counter, the bottom, the anchor) is forgotten */
   resetKey?: string | null;
+  /** «تيليجرام على التلفون»: a jump to a row that is already drawn slides to it (absent: every jump is instant, as before) */
+  smoothNear?: boolean;
   /** the scroll moved, or the rows changed: the message id of the first row in view, and the scroll metrics (the history hook asks for pages from this) */
   onViewport?: (firstVisibleMessageId: string | null, metrics: ScrollMetrics) => void;
 }
@@ -61,6 +64,8 @@ export interface MessageViewport {
 
 export function useMessageViewport(opts: MessageViewportOptions): MessageViewport {
   const { rows, hasNewer, scroll, onViewport, resetKey = null } = opts;
+  const smoothRef = useRef(false);
+  smoothRef.current = opts.smoothNear === true;
   const elRef = useRef<HTMLDivElement | null>(null);
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const scrollRef = useCallback((node: HTMLDivElement | null) => {
@@ -137,7 +142,11 @@ export function useMessageViewport(opts: MessageViewportOptions): MessageViewpor
     if (at < 0) return; // not in the rows yet: tried again when they change
     pendingScroll.current = null;
     stickRef.current = false;
-    v.scrollToIndex(at, { align: target.align });
+    // a slide is asked of the element itself, only for a measured row (the virtual list's own smooth scroll is not made for measured heights)
+    // (`center` is a jump to a message; `start` is the landing on the first unread as a chat opens, which stays instant)
+    const near = smoothJumpAllowed({ wanted: smoothRef.current && target.align === "center", targetIndex: at, drawn: smoothRef.current ? v.getVirtualItems().map((i) => i.index) : [] }) ? v.getOffsetForIndex(at, target.align) : undefined;
+    if (near) elRef.current.scrollTo({ top: near[0], behavior: "smooth" });
+    else v.scrollToIndex(at, { align: target.align });
   }, [scrollToBottom]);
 
   const reportViewport = useCallback(() => {

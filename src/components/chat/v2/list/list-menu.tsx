@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Bookmark, MoonStar, MoreVertical, Sun, Users, UsersRound } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useThemeToggle } from "@/components/theme/use-theme-toggle";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
+import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 import { ct } from "@/lib/chat/text";
 import { listMenuItemsOf } from "@/lib/chat/v2/list-menu";
 import { openSavedId } from "@/lib/chat/v2/menu/menu-context";
@@ -17,6 +19,14 @@ import { openSavedId } from "@/lib/chat/v2/menu/menu-context";
 export function ListMenu({ guest, onNewGroup }: { guest: boolean; onNewGroup?: () => void }) {
   const router = useRouter();
   const { dark, setDark } = useThemeToggle();
+  const tg = useTgPhoneOn();
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const turnTheme = () => {
+    if (!tg) return setDark(!dark);
+    const box = trigger.current?.getBoundingClientRect();
+    const origin = box ? { x: box.left + box.width / 2, y: box.top + box.height / 2 } : undefined;
+    window.setTimeout(() => setDark(!dark, origin, false, "circle"), TG_MOTION.themeMenuMs);
+  };
   const items = listMenuItemsOf({ guest, canGroup: onNewGroup !== undefined });
   const [missed, setMissed] = React.useState(false);
   const openSaved = async () => {
@@ -29,6 +39,7 @@ export function ListMenu({ guest, onNewGroup }: { guest: boolean; onNewGroup?: (
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
+            ref={trigger}
             type="button"
             data-list-menu
             aria-label={ct("chatui.listmenu.label")}
@@ -39,7 +50,7 @@ export function ListMenu({ guest, onNewGroup }: { guest: boolean; onNewGroup?: (
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="z-[60] min-w-56">
           {items.includes("theme") ? (
-            <DropdownMenuItem data-list-menu-item="theme" className="gap-3" onSelect={() => setDark(!dark)}>
+            <DropdownMenuItem data-list-menu-item="theme" className="gap-3" onSelect={turnTheme}>
               {dark ? <Sun aria-hidden="true" className="size-5 shrink-0 text-fg-muted" /> : <MoonStar aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />}
               {ct(dark ? "chatui.listmenu.day" : "chatui.listmenu.night")}
             </DropdownMenuItem>

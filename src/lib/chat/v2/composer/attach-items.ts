@@ -5,6 +5,13 @@
  */
 export type AttachItemId = "media" | "file" | "poll" | "checklist";
 
+/** The tabs of the phone's attach sheet («تيليجرام على التلفون»): the same kinds, and «جهة اتصال» (an ordinary text message, so whoever may write may send one). The older menu offers `attachItemsOf`. */
+export type AttachTabId = AttachItemId | "contact";
+
+export function attachTabsOf(me: { canPoll?: boolean; canChecklist?: boolean }): AttachTabId[] {
+  return ["media", "file", ...(me.canPoll ? (["poll"] as const) : []), "contact", ...(me.canChecklist ? (["checklist"] as const) : [])];
+}
+
 export function attachItemsOf(me: { canPoll?: boolean; canChecklist?: boolean }): AttachItemId[] {
   return ["media", "file", ...(me.canPoll ? (["poll"] as const) : []), ...(me.canChecklist ? (["checklist"] as const) : [])];
 }

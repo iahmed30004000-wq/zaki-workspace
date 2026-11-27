@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import type { QueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient, type QueryClient } from "@tanstack/react-query";
 import type { ConversationDto, MessageDto } from "@/server/chat/dto";
 import type { ScheduledAnswer, ScheduledItem } from "@/components/chat/v2/composer/scheduled-list";
 import { editChangesTime, type ScheduleSubmit } from "@/components/chat/v2/composer/schedule-dialog";
@@ -14,7 +14,7 @@ import { sendKeyAllows } from "@/lib/chat/prefs";
 import { isSavedHeader } from "@/lib/chat/v2/menu/menu-context";
 import { scheduledPlanOf } from "@/lib/chat/v2/composer/scheduled-plan";
 import { createChatUploadFormData, createVoiceUploadFormData, enterSends, messageClientId } from "@/lib/chat/conversation/client";
-import { DEFAULT_DICTATION_LANG, browserRecognition, createDictation, dictationText, type DictationSnapshot } from "@/lib/chat/v2/dictation";
+import { DEFAULT_DICTATION_LANG, DICTATION_LANGS, browserRecognition, createDictation, dictationText, type DictationSnapshot } from "@/lib/chat/v2/dictation";
 import { ASSISTANT_MENTION_ID, filterMentionChoices, findMentionQuery, insertMention, MENTION_ALL_NAME, mentionsAll, selectedMentionIds } from "@/lib/chat/conversation/mentions";
 import { classifyFile, exceedsKindLimit, MAX_ATTACHMENTS_PER_MESSAGE } from "@/lib/chat/file-kinds";
 import { errorKeyOf } from "@/lib/chat/poll-client";
@@ -30,11 +30,17 @@ import { uploadWithProgress } from "@/lib/chat/upload-with-progress";
 import { composerFaceOf, canSubmitNow } from "@/lib/chat/v2/composer/face";
 import { failMessageOf } from "@/lib/chat/v2/composer/fail-text";
 import { forDropMode, pastedDocuments, pastedImages, type DroppedFile } from "@/lib/chat/v2/composer/clipboard-files";
-import { holdOutcome } from "@/lib/chat/v2/composer/hold-gesture";
+import { createDragStore, holdOutcome, tgHoldDrag } from "@/lib/chat/v2/composer/hold-gesture";
 import { arrowUpEdits } from "@/lib/chat/v2/composer/edit-last";
 import { composerHintOf } from "@/lib/chat/v2/composer/hint";
-import type { MentionChoice, PendingFile, VoiceState } from "@/lib/chat/v2/composer/types";
+import type { MentionChoice, PendingFile, TgVoiceView, VoiceState } from "@/lib/chat/v2/composer/types";
 import { VoiceRecorder, type VoiceTake } from "@/lib/chat/voice-recorder";
+import { voiceEngine } from "@/lib/chat/voice-queue";
+import { CHAT_PREFS_KEY, chatPrefsQueryOptions, saveChatPrefs, type ChatPrefsDto } from "@/lib/chat/cache/queries";
+import { SPEECH_LANGS, liveLangOf, resolveSpeech } from "@/lib/chat/speech-langs";
+import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
+import { effectOn } from "@/lib/motion/effects";
+import { useTgPhone } from "@/components/shell/tg-phone";
 import { useTyping } from "@/lib/realtime/use-realtime";
 
 /**
@@ -43,6 +49,8 @@ import { useTyping } from "@/lib/realtime/use-realtime";
  * (`uploadWithProgress`, `compressImage`), the recorder (`VoiceRecorder`), the mentions (`conversation/mentions.ts`) and the «/» command (`recall-client.ts`).
  * What it adds: paste and drop, the hold-slide-lock gesture, the one-click recording on the computer, Esc, «↑» to edit my last message, the emoji inserted at
  * the caret, and the customer-data line while typing.
+ *
+ * On a phone with `tgPhone` the hold is Telegram's (a short tap only says «hold to record»; cancel past 40% of the width; pause, preview and resume).
  *
  * The server still decides every send. A plain text is optimistic (C1.8) and goes through the outbox; files, a voice note and a poll keep the old flow (their
  * upload progress is the feedback). A retry can never send twice: the `clientId` is renewed only when what is being sent changes.
@@ -595,9 +603,46 @@ export function useComposer(p: ComposerParams) {
   const liveTextOn = detail.voiceLiveText === true;
   const dictation = React.useMemo(() => (liveTextOn && typeof window !== "undefined" ? createDictation(browserRecognition()) : null), [liveTextOn]);
   const live = React.useSyncExternalStore(dictation?.subscribe ?? NO_SUBSCRIBE, dictation?.getSnapshot ?? (() => NO_LIVE), dictation?.getServerSnapshot ?? (() => NO_LIVE));
+  // «تيليجرام على التلفون»: false while the switch is off or on a wide screen, and then nothing below it does anything
+  const phone = useTgPhone();
+  const qc = useQueryClient();
+  const personPrefs = useQuery({ ...chatPrefsQueryOptions(), enabled: phone });
+  const speech = resolveSpeech(personPrefs.data?.prefs.speech);
+  /** the live words run for this recording (on the phone the person may switch them off for themselves) */
+  const liveHere = !phone || speech.live;
+  React.useEffect(() => {
+    if (!dictation) return;
+    dictation.allow(phone ? SPEECH_LANGS : DICTATION_LANGS);
+    if (phone) dictation.setLang(liveLangOf(speech.language));
+  }, [dictation, phone, speech.language]);
+  const [drag] = React.useState(createDragStore);
+  const [micTip, setMicTip] = React.useState(false);
+  const tipTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelTimer = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pausing = React.useRef(false);
+  React.useEffect(
+    () => () => {
+      if (tipTimer.current) clearTimeout(tipTimer.current);
+      if (cancelTimer.current) clearTimeout(cancelTimer.current);
+    },
+    [],
+  );
+  function hideMicTip() {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    setMicTip(false);
+  }
+  function showMicTip() {
+    if (tipTimer.current) clearTimeout(tipTimer.current);
+    setMicTip(true);
+    tipTimer.current = setTimeout(() => setMicTip(false), TG_MOTION.micTipMs);
+  }
   async function startRecording(hold: boolean) {
     if (voice.mode !== "idle" || busy || editing) return;
     setError("");
+    if (phone) {
+      hideMicTip();
+      voiceEngine.pause(); // a note that plays would be recorded with the person's voice
+    }
     const rec = new VoiceRecorder({
       onTick: (elapsedMs) => setVoice((v) => (v.mode === "recording" ? { ...v, elapsedMs } : v)),
       onPeaks: (peaks) => setVoice((v) => (v.mode === "recording" ? { ...v, peaks } : v)),
@@ -615,7 +660,7 @@ export function useComposer(p: ComposerParams) {
       await rec.start();
       // the finger lifted (or slid away) while the browser was still asking for the microphone
       if (recorder.current !== rec) rec.cancel();
-      else dictation?.start();
+      else if (liveHere) dictation?.start();
     } catch (e) {
       dictation?.cancel();
       recorder.current = null;
@@ -626,11 +671,60 @@ export function useComposer(p: ComposerParams) {
     }
   }
   function cancelRecording() {
+    if (cancelTimer.current) clearTimeout(cancelTimer.current);
     dictation?.cancel();
     releaseHold.current?.();
     recorder.current?.cancel();
     recorder.current = null;
     setVoice({ mode: "idle" });
+  }
+  /** The phone's trash and slide: the take is gone and the microphone closed AT ONCE; only the dust stays on screen, then the box comes back. */
+  function discardRecording(from: "slide" | "trash") {
+    if (!effectOn("dust") && !effectOn("transitions")) {
+      cancelRecording();
+      return;
+    }
+    dictation?.cancel();
+    releaseHold.current?.();
+    recorder.current?.cancel();
+    recorder.current = null;
+    // a functional update: the slide calls this from the listeners that were bound while the box was still idle
+    setVoice((v) => (v.mode === "idle" || v.mode === "cancelling" ? v : { mode: "cancelling", from, elapsedMs: v.mode === "review" ? v.take.durationMs : v.elapsedMs, peaks: v.mode === "review" ? v.take.peaks : v.peaks }));
+    if (cancelTimer.current) clearTimeout(cancelTimer.current);
+    cancelTimer.current = setTimeout(() => setVoice((v) => (v.mode === "cancelling" ? { mode: "idle" } : v)), from === "trash" ? TG_MOTION.voiceDustMs : TG_MOTION.cancelDustMs);
+  }
+  async function pauseRecording() {
+    const rec = recorder.current;
+    if (!rec || voice.mode !== "recording" || pausing.current) return;
+    pausing.current = true;
+    releaseHold.current?.();
+    dictation?.hold(); // the live words stop listening with the recording
+    try {
+      const take = await rec.pause();
+      // sent or thrown away while the last piece was on its way
+      if (recorder.current !== rec) return;
+      if (take) setVoice((v) => (v.mode === "recording" ? { mode: "paused", take, elapsedMs: take.durationMs, peaks: v.peaks } : v));
+      else {
+        rec.resume();
+        dictation?.resume();
+      }
+    } finally {
+      pausing.current = false;
+    }
+  }
+  function resumeRecording() {
+    if (voice.mode !== "paused" || !recorder.current?.resume()) return;
+    voiceEngine.pause(); // the preview was perhaps playing
+    setVoice({ mode: "recording", elapsedMs: voice.elapsedMs, peaks: voice.peaks, hold: false, locked: true });
+    dictation?.resume();
+  }
+  /** The language picked on the recording bar: used at once and remembered on the account. */
+  function setSpeechLanguage(code: string) {
+    dictation?.allow(SPEECH_LANGS);
+    dictation?.setLang(code);
+    const current = qc.getQueryData<ChatPrefsDto>(CHAT_PREFS_KEY)?.prefs.speech ?? {};
+    // a refused save puts the cache back to what the server holds (the helper marks it to be read again)
+    void saveChatPrefs(qc, { speech: { ...current, language: code } }).catch(() => undefined);
   }
   /** «ابعت كنص»: the words heard so far go as a text message; the recording is thrown away */
   async function sendVoiceAsText() {
@@ -654,7 +748,10 @@ export function useComposer(p: ComposerParams) {
     }
     releaseHold.current?.();
     setVoice({ mode: "idle" });
-    if (!recording || recording.durationMs < 500) return; // a slip of the finger, not a message
+    if (!recording || recording.durationMs < 500) {
+      if (phone) showMicTip(); // the phone says why nothing was sent
+      return; // a slip of the finger, not a message
+    }
     setBusy(true);
     setError("");
     setProgress([0]);
@@ -675,7 +772,8 @@ export function useComposer(p: ComposerParams) {
   React.useEffect(() => {
     if (!recordingNow) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") cancelRecording();
+      // a sheet or a menu that closed itself on this Escape keeps the recording
+      if (event.key === "Escape" && !event.defaultPrevented) cancelRecording();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -689,6 +787,10 @@ export function useComposer(p: ComposerParams) {
     if (event.pointerType === "mouse") return;
     // a second finger never starts a second recorder
     if (releaseHold.current) return;
+    if (phone) {
+      holdOnPhone(event);
+      return;
+    }
     lastTouchAt.current = Date.now();
     event.preventDefault();
     const start = { x: event.clientX, y: event.clientY };
@@ -725,6 +827,64 @@ export function useComposer(p: ComposerParams) {
     window.addEventListener("pointerup", up);
     window.addEventListener("pointercancel", cancel);
     void startRecording(true);
+  }
+  /**
+   * The phone's hold (`tgPhone`): nothing is recorded until the finger has stayed `micHoldMs` (a short tap only shows «hold to record»); then a lift sends,
+   * a slide up locks, a slide past 40% of the width toward the cancel side throws it away. A touch the browser takes away never loses a take: it locks.
+   */
+  function holdOnPhone(event: React.PointerEvent<HTMLButtonElement>) {
+    if (voice.mode !== "idle" || busy || editing) return;
+    lastTouchAt.current = Date.now();
+    event.preventDefault();
+    // the microphone leaves the page the moment the recording bar takes its place: let go of the browser's own capture so the moves keep reaching the window
+    try {
+      event.currentTarget.releasePointerCapture?.(event.pointerId);
+    } catch {
+      /* nothing was captured */
+    }
+    const start = { x: event.clientX, y: event.clientY };
+    const pointerId = event.pointerId;
+    const rtl = document.documentElement.dir !== "ltr";
+    drag.reset();
+    let waiting: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      waiting = null;
+      void startRecording(true);
+    }, TG_MOTION.micHoldMs);
+    const locked = () => setVoice((v) => (v.mode === "recording" ? { ...v, hold: false, locked: true } : v));
+    const done = () => {
+      if (waiting) clearTimeout(waiting);
+      waiting = null;
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
+      releaseHold.current = null;
+      lastTouchAt.current = Date.now();
+      drag.reset();
+    };
+    const move = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId || waiting) return;
+      const at = tgHoldDrag(start, { x: e.clientX, y: e.clientY }, window.innerWidth, rtl);
+      if (at.outcome === "cancel") { done(); discardRecording("slide"); }
+      else if (at.outcome === "lock") { done(); locked(); }
+      else drag.set(at);
+    };
+    const up = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      const tapped = waiting !== null;
+      done();
+      if (tapped) showMicTip();
+      else void sendVoice();
+    };
+    const cancel = (e: PointerEvent) => {
+      if (e.pointerId !== pointerId) return;
+      const tapped = waiting !== null;
+      done();
+      if (!tapped) locked();
+    };
+    releaseHold.current = done;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
   }
   function onMicClick() {
     // a tap on a phone also fires `click` just after the hold: the hold already handled it (a click from the keyboard, much later, is a start)
@@ -813,7 +973,8 @@ export function useComposer(p: ComposerParams) {
     scheduledOpen, setScheduledOpen: showScheduled, scheduledBusy, scheduledError, scheduleNotice, beginEditScheduled, sendScheduledNow, deleteScheduled,
     startRecording, cancelRecording, sendVoice, onMicPointerDown, onMicClick,
     // «نص مباشر أثناء التسجيل»: what the recorder bar shows above the pill (absent while the switch is off)
-    live: dictation ? { supported: live.supported, listening: live.listening, text: dictationText(live.final, live.interim), lang: live.lang, error: live.error, setLang: dictation.setLang, sendAsText: sendVoiceAsText } : undefined,
+    live: dictation && liveHere ? { supported: live.supported, listening: live.listening, text: dictationText(live.final, live.interim), lang: live.lang, error: live.error, setLang: dictation.setLang, sendAsText: sendVoiceAsText } : undefined,
+    tg: phone ? ({ conversationId, drag, tip: micTip, transcribe: detail.voiceTranscript === true, liveAllowed: liveTextOn, speech, speechReady: personPrefs.data !== undefined, setLanguage: setSpeechLanguage, pause: () => void pauseRecording(), resume: resumeRecording, discard: discardRecording } satisfies TgVoiceView) : undefined,
     insertWords: (text: string) => { const next = body ? `${body} ${text}` : text; setClientId(messageClientId()); setBody(next); keepDraft(next, mentions); textRef.current?.focus(); },
     setDismissed,
   };

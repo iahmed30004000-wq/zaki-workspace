@@ -110,6 +110,14 @@ export const TG_MOTION = {
   deleteSettleMs: 300,
   deleteDustMs: 360,
   composerMorphMs: 150,
+  /** one row of the reaction card fading in; the rows are staggered so the whole card is full by `reactionCardFillMs` */
+  cardRowFadeMs: 160,
+  /** the check circle of selection mode growing in */
+  selectionCheckMs: 150,
+  /** the tint over the original after a tap on a quote (inside the jump's 2 s highlight) */
+  quoteFlashMs: 1600,
+  /** one breath of the big single emoji while it sits in the chat */
+  emojiIdleMs: 2600,
   // voice
   recordMorphMs: 200,
   micToSendMs: 120,
@@ -120,8 +128,31 @@ export const TG_MOTION = {
   voiceDustMs: 400,
   composerReturnMs: 150,
   cancelDustMs: 300,
+  /** a finger lifted sooner than this was a tap, not a hold: nothing is recorded, the tooltip says to hold */
+  micHoldMs: 200,
+  /** how long the tooltip under that tap stays */
+  micTipMs: 2500,
+  /** one blink of the red dot */
+  recordBlinkMs: 1000,
+  /** the circle follows the volume: one level arrives every 100 ms */
+  micLevelMs: 100,
+  /** a press this long on the speed chip opens the list of speeds */
+  speedHoldMs: 500,
+  /** one turn of the ring around the transcribe button */
+  transcriptSpinMs: 900,
+  /** one breath of the glow around the live words' field */
+  dictationGlowMs: 1600,
   // sheets
   sheetMs: 180,
+  // phase 5: sheets, info pages, settings, sounds
+  /** a sheet dragged up this far becomes the full page */
+  sheetExpandPx: 56,
+  /** a sheet (or the full page) dragged down this far steps back: full to half, half to closed */
+  sheetClosePx: 96,
+  /** a sideways swipe this long moves to the next tab of the info page */
+  infoSwipePx: 56,
+  /** the rows of «خيارات أكثر» fading down into place, and a radio's dot */
+  moreRowsMs: 150,
 } as const;
 
 export type TgTiming = keyof typeof TG_MOTION;

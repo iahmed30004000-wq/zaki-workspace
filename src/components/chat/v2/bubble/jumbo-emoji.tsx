@@ -2,6 +2,11 @@
 
 import React from "react";
 import "./emoji-alive.css";
+import "@/components/chat/v2/phone/tg-messages.css";
+import { EmojiEffect } from "@/components/chat/v2/bubble/emoji-effect";
+import { useTgPhone } from "@/components/shell/tg-phone";
+import { TG_MOTION, tgMotionVars } from "@/lib/chat/v2/phone/motion";
+import { effectOn } from "@/lib/motion/effects";
 import { zakiNameOf, zakiSrc, type EmojiToken } from "@/lib/chat/zaki-emoji";
 import { cn } from "@/lib/utils";
 
@@ -21,10 +26,25 @@ export function JumboEmoji({ tokens, fresh }: { tokens: readonly EmojiToken[]; f
   // 0: never tapped; every tap raises it, and the units below are keyed by it, so each tap restarts the wiggle
   const [taps, setTaps] = React.useState(0);
   const count = Math.min(Math.max(tokens.length, 1), 3);
-  const animation = taps > 0 ? "zk-emoji-wiggle" : fresh ? "zk-emoji-pop" : undefined;
-  return (
-    <p data-jumbo-emoji data-count={count} data-pop={fresh ? "on" : "off"} className={cn("flex cursor-pointer select-none items-center gap-1 leading-none", TEXT_SIZE[count - 1])} onClick={() => setTaps((n) => n + 1)}>
-      {tokens.map((token, i) =>
+  // «تيليجرام على التلفون»: ONE emoji is bigger, breathes while it sits there, shows its grey shadow for a moment when just sent, and a tap plays it over the screen
+  const phone = useTgPhone();
+  const alive = phone && tokens.length === 1;
+  const [playing, setPlaying] = React.useState(0);
+  React.useEffect(() => {
+    if (playing === 0) return;
+    const stop = setTimeout(() => setPlaying(0), TG_MOTION.emojiEffectMs);
+    return () => clearTimeout(stop);
+  }, [playing]);
+  // the pop of before is the computer's and of two or three: the single one on the phone wakes from its shadow instead
+  const animation = taps > 0 ? "zk-emoji-wiggle" : alive ? undefined : fresh ? "zk-emoji-pop" : undefined;
+  const tap = (event: React.MouseEvent) => {
+    setTaps((n) => n + 1);
+    if (!alive || !effectOn("emoji") || !effectOn("particles")) return;
+    // this tap plays the emoji: it does not also open the message's menu (the time under it, and a long press, are the message's)
+    event.stopPropagation();
+    setPlaying((n) => n + 1);
+  };
+  const units = tokens.map((token, i) =>
         token.zaki !== undefined ? (
           // eslint-disable-next-line @next/next/no-img-element -- a small local picture of the owner's pack
           <img
@@ -34,15 +54,43 @@ export function JumboEmoji({ tokens, fresh }: { tokens: readonly EmojiToken[]; f
             data-zaki-emoji={token.zaki}
             decoding="async"
             draggable={false}
-            style={taps === 0 && fresh ? { animationDelay: `${i * 70}ms` } : undefined}
-            className={cn("zk-jumbo-unit object-contain", PICTURE_SIZE[count - 1], animation)}
+            style={taps === 0 && fresh && !alive ? { animationDelay: `${i * 70}ms` } : undefined}
+            className={cn("zk-jumbo-unit object-contain", alive ? "size-32" : PICTURE_SIZE[count - 1], animation)}
           />
         ) : (
-          <span key={`${taps}-${i}`} style={taps === 0 && fresh ? { animationDelay: `${i * 70}ms` } : undefined} className={cn("zk-jumbo-unit", animation)}>
+          <span key={`${taps}-${i}`} style={taps === 0 && fresh && !alive ? { animationDelay: `${i * 70}ms` } : undefined} className={cn("zk-jumbo-unit", animation)}>
             {token.glyph}
           </span>
         ),
+      );
+  const first = tokens[0];
+  return (
+    <p
+      data-jumbo-emoji
+      data-count={count}
+      data-pop={fresh ? "on" : "off"}
+      {...(alive ? { style: tgMotionVars(["sendEmojiMs", "emojiIdleMs"]) as React.CSSProperties, "data-tg-alive": "" } : {})}
+      className={cn("flex cursor-pointer select-none items-center gap-1 leading-none", alive ? "text-8xl" : TEXT_SIZE[count - 1], alive && fresh && "zk-tg-wake")}
+      onClick={tap}
+    >
+      {alive ? (
+        <span className="relative inline-flex">
+          {fresh && first ? (
+            <span aria-hidden="true" className="zk-tg-ghost pointer-events-none absolute inset-0 flex items-center justify-center grayscale">
+              {first.zaki !== undefined ? (
+                // eslint-disable-next-line @next/next/no-img-element -- a small local picture of the owner's pack
+                <img src={zakiSrc(first.zaki)} alt="" draggable={false} className="size-32 object-contain" />
+              ) : (
+                first.glyph
+              )}
+            </span>
+          ) : null}
+          <span className="zk-tg-alive inline-flex">{units}</span>
+        </span>
+      ) : (
+        units
       )}
+      {playing > 0 && first ? <EmojiEffect key={playing} glyph={first.glyph ?? ""} {...(first.zaki !== undefined ? { picture: zakiSrc(first.zaki) } : {})} /> : null}
     </p>
   );
 }

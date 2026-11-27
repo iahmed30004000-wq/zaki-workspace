@@ -4,6 +4,8 @@ import { dmSubtitle } from "@/lib/chat/conversation/last-seen-line";
 import { privacyState, type PrivacyState } from "@/lib/chat/privacy";
 import { MUTE_PRESETS } from "@/lib/chat/row-preview";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
+import { profileQrUrl } from "@/lib/chat/v2/qr";
+import { chatHref } from "@/lib/chat/v2/routes";
 import { headerMenuOf, subtitleOf, type HeaderMenuId } from "@/lib/chat/v2/pane/header-model";
 
 /**
@@ -147,6 +149,41 @@ export interface MuteOffers {
 export function muteOffersOf(i: { muted: boolean; personal: boolean; saved: boolean; oversight: boolean }): MuteOffers | null {
   if (i.saved || i.oversight || !i.personal) return null;
   return { state: i.muted ? "lift" : "presets", presets: MUTE_PRESETS };
+}
+
+// ───────────────────────────── the phone's action cards («تيليجرام على التلفون») ─────────────────────────────
+
+export type InfoActionId = "message" | "mute" | "unmute" | "search" | "call" | "share" | "leave";
+
+/** The cards under the big picture, in their order: only what really works here. */
+export function infoActionsOf(i: { mute: MuteOffers["state"] | null; canCall: boolean; canShare: boolean; canLeave: boolean }): InfoActionId[] {
+  const out: InfoActionId[] = ["message"];
+  if (i.mute) out.push(i.mute === "lift" ? "unmute" : "mute");
+  out.push("search");
+  if (i.canCall) out.push("call");
+  if (i.canShare) out.push("share");
+  if (i.canLeave) out.push("leave");
+  return out;
+}
+
+/**
+ * «مغادرة»: only where leaving does something and the app's door allows it (`DELETE …/conversations/<id>`): my OWN membership of a group, or of a topic made for
+ * named people. Never a private chat (the door refuses), never an open topic (its space still reads it), never the silent eye. The server decides again.
+ */
+export function canLeaveOf(header: ConversationHeaderDto, people: PaneMembers | null): boolean {
+  if (header.kind === "DM" || header.me.oversight === true) return false;
+  if (header.kind === "TOPIC" && header.restricted !== true) return false;
+  return Boolean(header.me.id) && (people?.members ?? []).some((m) => m.id === header.me.id);
+}
+
+/**
+ * What «مشاركة» hands out: a person's profile page in a private chat, the conversation's own address otherwise (it opens only for whoever may read it).
+ * Nothing for the saved messages.
+ */
+export function shareAddressOf(header: ConversationHeaderDto, origin: string, saved: boolean): string | null {
+  if (saved) return null;
+  if (header.kind === "DM") return header.peer?.id ? profileQrUrl(origin, header.peer.id) : null;
+  return `${origin.replace(/\/$/, "")}${chatHref.conversation(header.id)}`;
 }
 
 /** A video's length for its tile: `1:15`, `1:02:05`; Western digits; null when it is not known. */

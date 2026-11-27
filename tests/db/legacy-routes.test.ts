@@ -572,7 +572,8 @@ describe("every page × the five ranks: an element, a redirect to a page that ex
           // (W1.9 /my-work/stale is OFF by default: not-found is its honest answer, tested in work-stale-sweep.test.ts)
           // (A2.2 /spaces/[id]/settings answers not-found while controlPanelV2 is OFF, the default; the owner opens it with the switch ON in space-settings.test.ts)
           // (S6.2 /calls/[id]/minutes answers not-found while meetingMinutes is OFF, the default; the owner reads the minutes with it ON in tests/db/meeting-minutes.test.ts)
-          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && route !== "/spaces/[id]/settings" && route !== "/calls/[id]/minutes" && !address.includes(GONE)) {
+          // («الأصوات» answers not-found while the new chat screen is OFF, this company's default; the owner opens it with it ON in tests/db/tg-sheets-sounds.test.ts)
+          if (rank === "OWNER" && IN_APP.has(route) && route !== "/my-work/stale" && route !== "/spaces/[id]/settings" && route !== "/calls/[id]/minutes" && address !== "/settings/me/sounds" && !address.includes(GONE)) {
             expect(end.kind, `${where}: the owner opens it`).toBe("rendered");
           }
         }
@@ -744,7 +745,8 @@ describe("C4.1: /profile is still an address: it redirects to «حسابي», th
     for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
       await loginAs(person.id);
       for (const section of SETTINGS_ME_SECTIONS) {
-        if (section === "folders") continue;
+        // «الأصوات» is «تيليجرام على التلفون»'s: with the new chat screen off (this company's default) its address is «not found»
+        if (section === "folders" || section === "sounds") continue;
         expect((await land(`/settings/me/${section}`)).end.kind, `${person.name} ${section}`).toBe("rendered");
       }
       expect((await land(`/settings/me/${GONE}`)).end.kind, person.name).toBe("not-found");

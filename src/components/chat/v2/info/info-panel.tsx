@@ -2,13 +2,14 @@
 
 import React from "react";
 import Link from "next/link";
-import { Bookmark, Phone, Search, X } from "lucide-react";
+import { Bookmark, Phone, Search, UserPlus, X } from "lucide-react";
 import type { ConversationHeaderDto, MemberDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { InfoTabs } from "@/components/chat/v2/info/info-tabs";
 import { MuteRow } from "@/components/chat/v2/info/info-mute";
 import { InfoMenu } from "@/components/chat/v2/info/info-menu";
+import { InfoActions } from "@/components/chat/v2/info/info-actions";
 import { TopicSoundRow } from "@/components/chat/v2/info/info-sound";
 import { CallButton } from "@/components/calls/call-button";
 import { TopicSettingsDialog } from "@/components/chat/conversation/topic-settings-dialog";
@@ -63,9 +64,15 @@ export interface InfoPanelProps {
   onSettingsSaved?: () => void;
   /** docked: the panel draws its own header with a close button (the sheet has its own title and corner button) */
   onClose?: () => void;
+  /** the phone's info page with «تيليجرام على التلفون»: a bigger picture, the action cards, «إضافة أعضاء», and the phone's tabs */
+  phone?: boolean;
+  /** «مراسلة» (the phone's cards): back to the conversation */
+  onMessage?: () => void;
+  /** the active tab's line for the page's bar («85 رابطًا»), or null while it is not known */
+  onCounter?: (line: string | null) => void;
 }
 
-export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, onClose }: InfoPanelProps) {
+export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, onClose, phone = false, onMessage, onCounter }: InfoPanelProps) {
   const listed = useChatRow(header.id);
   const system = listed?.system === true;
   const teamName = useTeamName(header.id, header.space?.id ?? null, header.teamId ?? null);
@@ -92,20 +99,20 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
         </div>
       ) : null}
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <section data-info-hero className="relative flex flex-col items-center gap-1 px-4 pb-3 pt-6 text-center">
+        <section data-info-hero className={phone ? "relative flex flex-col items-center gap-1 px-4 pb-4 pt-3 text-center" : "relative flex flex-col items-center gap-1 px-4 pb-3 pt-6 text-center"}>
           {tg && model.kind === "dm" && !saved && model.peerId ? <InfoMenu userId={model.peerId} name={header.title} onSearch={onSearch} /> : null}
           {saved ? (
-            <span aria-hidden="true" data-info-saved-avatar className="grid size-24 place-items-center rounded-full bg-accent text-accent-fg">
+            <span aria-hidden="true" data-info-saved-avatar className={`grid place-items-center rounded-full bg-accent text-accent-fg ${phone ? "size-28" : "size-24"}`}>
               <Bookmark className="size-12" />
             </span>
           ) : model.avatar.kind === "person" ? (
-            <Avatar name={model.avatar.name} src={model.avatar.src} className="size-24 text-3xl" />
+            <Avatar name={model.avatar.name} src={model.avatar.src} className={phone ? "size-28 text-4xl" : "size-24 text-3xl"} />
           ) : (
-            <span aria-hidden="true" className="grid size-24 place-items-center rounded-full bg-surface-2 text-5xl">
+            <span aria-hidden="true" className={phone ? "grid size-28 place-items-center rounded-full bg-surface-1 text-6xl shadow-card" : "grid size-24 place-items-center rounded-full bg-surface-2 text-5xl"}>
               {model.avatar.emoji}
             </span>
           )}
-          <h3 className="mt-2 flex max-w-full items-center justify-center gap-1.5 break-words text-lg font-semibold">
+          <h3 className={`mt-2 flex max-w-full items-center justify-center gap-1.5 break-words font-semibold ${phone ? "text-xl" : "text-lg"}`}>
             <span className="min-w-0 break-words">{model.title}</span>
             {/* S5.5: «موثّق» next to the other person's name in a private chat */}
             {model.kind === "dm" && !saved && header.peer?.verified ? <VerifiedBadge /> : null}
@@ -113,15 +120,21 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
           {model.subtitle && !saved ? <p className="max-w-full break-words text-sm text-fg-muted">{model.subtitle}</p> : null}
         </section>
 
-        <div className={`grid ${tg ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3"} gap-2 px-4 pb-3`}>
-          <button type="button" data-info-button="search" onClick={onSearch} className={pill}>
-            <Search aria-hidden="true" className="size-6" />
-            {ct("chatui.info.search")}
-          </button>
-          {model.buttons.includes("call") && !saved ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
-        </div>
+        {phone ? (
+          <InfoActions header={header} people={people} model={model} saved={saved} onMessage={onMessage ?? onSearch} onSearch={onSearch} />
+        ) : (
+          <>
+            <div className={`grid ${tg ? "grid-cols-3" : "grid-cols-2 sm:grid-cols-3"} gap-2 px-4 pb-3`}>
+              <button type="button" data-info-button="search" onClick={onSearch} className={pill}>
+                <Search aria-hidden="true" className="size-6" />
+                {ct("chatui.info.search")}
+              </button>
+              {model.buttons.includes("call") && !saved ? <CallButton conversationId={header.id} isDm={header.kind === "DM"} canStart outlined /> : null}
+            </div>
 
-        <MuteRow header={header} saved={saved} tg={tg} />
+            <MuteRow header={header} saved={saved} tg={tg} />
+          </>
+        )}
         {/* S5.1: «صوت هالموضوع»: كل الرسائل / الذكر بس (this device; only while the company's switch `chatSounds` is on) */}
         <TopicSoundRow header={header} saved={saved} />
 
@@ -199,7 +212,14 @@ export function InfoPanel({ header, people, onSearch, onTopic, onSettingsSaved, 
             )}
           </div>
         ) : null}
-        <InfoTabs header={header} people={people} />
+        {/* a topic made for named people: its moderators add them in the topic's settings (an open topic's people are its space's) */}
+        {phone && header.kind === "TOPIC" && header.restricted === true && model.moderator.includes("settings") ? (
+          <button type="button" data-info-add-members="" onClick={() => setSettingsOpen(true)} className="mx-3 mt-3 flex min-h-14 w-[calc(100%-1.5rem)] items-center gap-3 rounded-2xl bg-surface-1 px-4 text-start text-[15px] text-fg shadow-card">
+            <UserPlus aria-hidden="true" className="size-5 shrink-0 text-accent" />
+            {ct("tgsheets.info.add_members")}
+          </button>
+        ) : null}
+        {phone ? <InfoTabs header={header} people={people} phone {...(onCounter ? { onCounter } : {})} /> : <InfoTabs header={header} people={people} />}
       </div>
       {header.kind === "TOPIC" && header.me.canModerate ? <TopicSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} topic={settingsTopic} onSaved={() => onSettingsSaved?.()} /> : null}
     </div>

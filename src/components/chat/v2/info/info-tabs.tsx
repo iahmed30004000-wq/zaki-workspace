@@ -9,16 +9,20 @@ import type { ConversationHeaderDto } from "@/server/chat/dto";
 import type { LinkItemDto, MediaItemDto, MediaPageDto, WorkTaskDto, WorkTicketDto } from "@/server/chat/media";
 import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
+import { VoicePlayer } from "@/components/chat/message/voice-player";
 import { MediaViewerContext, MediaViewerProvider, safeMediaUrl, viewerItemsOfMedia } from "@/components/chat/v2/media-viewer";
 import { useInfoJump } from "@/components/chat/v2/info/info-jump";
 import { ct, ctCount } from "@/lib/chat/text";
 import { durationLabel, memberTagKeyOf, membersTabOf, type MembersTab } from "@/lib/chat/v2/info/info-model";
-import { activeTabOf, emptyKeyOf, isPagedTab, safeLinkHref, tabAfterKey, tabsOf, type InfoTab, type InfoTabId, type PagedTab } from "@/lib/chat/v2/info/info-tabs";
-import { mergeLinkPages } from "@/lib/chat/v2/info/link-list";
+import { activeTabOf, counterKeyOf, emptyKeyOf, isPagedTab, orderTabs, phoneActiveTabOf, safeLinkHref, swipeTabOf, tabAfterKey, tabsOf, type InfoTab, type InfoTabId, type PagedTab } from "@/lib/chat/v2/info/info-tabs";
+import { groupLinksByMonth, mergeLinkPages } from "@/lib/chat/v2/info/link-list";
+import { EDGE_PX } from "@/lib/chat/v2/phone/edge-swipe";
+import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
 import { useConversationWork, useMediaCounts, useMediaPages, useRefreshOnMessages } from "@/lib/chat/v2/info/use-info-tabs";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { chatHref } from "@/lib/chat/v2/routes";
 import { fmtShort, fmtSize, fmtTime, dayDiff } from "@/lib/format";
+import "@/components/chat/v2/tg-sheets.css";
 
 // the ticket's own window (comments and activity) is heavy and only opened by a tap
 const TicketDetailModal = dynamic(() => import("@/components/ticket-detail-modal").then((m) => m.TicketDetailModal), { ssr: false });
@@ -39,8 +43,11 @@ const NO_MESSAGES: never[] = [];
  * «اعرض بالمحادثة» scrolls the open conversation to the message (the pane provides how; the phone's info screen has no pane, so it goes to `/chat/<id>?m=<message>`).
  * The server decided what each list holds; nothing here filters a privacy rule again — except that the members come from `membersTabOf`, which lists only what the
  * conversation's own rule allows.
+ *
+ * `phone` («تيليجرام على التلفون», the phone's info page): the members first, pills that scroll sideways and are swiped between, links under their month with a
+ * letter tile, voice notes in the app's own player; `onCounter` hands the page's bar the active tab's line («85 رابطًا»).
  */
-export function InfoTabs({ header, people = null, initialTab }: { header: ConversationHeaderDto; people?: PaneMembers | null; initialTab?: InfoTabId }) {
+export function InfoTabs({ header, people = null, initialTab, phone = false, onCounter }: { header: ConversationHeaderDto; people?: PaneMembers | null; initialTab?: InfoTabId; phone?: boolean; onCounter?: (line: string | null) => void }) {
   const router = useRouter();
   const provided = useInfoJump();
   const jump = React.useCallback(
@@ -55,43 +62,108 @@ export function InfoTabs({ header, people = null, initialTab }: { header: Conver
   const work = useConversationWork(header.id);
   const pinned = header.pinnedMessages ?? NO_MESSAGES;
   const membersTab = membersTabOf(header, people);
-  const tabs = tabsOf({
-    counts,
-    work: work.data ? { tasks: work.data.tasks.length, tickets: work.data.tickets.length } : null,
-    pinned: pinned.length,
-    members: membersTab?.total ?? null,
-  });
+  const tabs = orderTabs(
+    tabsOf({
+      counts,
+      work: work.data ? { tasks: work.data.tasks.length, tickets: work.data.tickets.length } : null,
+      pinned: pinned.length,
+      members: membersTab?.total ?? null,
+    }),
+    phone,
+  );
   const [chosen, setChosen] = React.useState<InfoTabId | null>(initialTab ?? null);
-  const active = activeTabOf(tabs, chosen);
+  const active = phone ? phoneActiveTabOf(tabs, chosen) : activeTabOf(tabs, chosen);
+  /** which side the new tab's content slides in from (null: nothing was changed yet, nothing slides) */
+  const [from, setFrom] = React.useState<"next" | "prev" | null>(null);
+  const list = React.useRef<HTMLDivElement>(null);
+  const finger = React.useRef<{ x: number; y: number } | null>(null);
+  // the line of the bar follows the active tab; a number that is not known yet is not said
+  const shownTab = tabs.find((t) => t.id === active);
+  const countKnown = shownTab !== undefined && (shownTab.id === "members" || shownTab.id === "pinned" || (shownTab.id === "work" ? Boolean(work.data) : counts !== null));
+  const counter = shownTab && countKnown ? ct(counterKeyOf(shownTab.id, shownTab.count), { n: shownTab.count }) : null;
+  React.useEffect(() => {
+    onCounter?.(counter);
+  }, [counter, onCounter]);
   if (!active) return null;
+
+  const choose = (next: InfoTabId) => {
+    const order = tabs.map((t) => t.id);
+    setFrom(order.indexOf(next) > order.indexOf(active) ? "next" : "prev");
+    setChosen(next);
+    if (!phone) return;
+    // the chosen pill comes into view inside its own row (the page itself never moves)
+    requestAnimationFrame(() => {
+      const row = list.current;
+      const pill = row?.querySelector<HTMLElement>(`[data-info-tab="${next}"]`);
+      if (!row || !pill) return;
+      const a = pill.getBoundingClientRect();
+      const b = row.getBoundingClientRect();
+      row.scrollBy({ left: a.left + a.width / 2 - (b.left + b.width / 2) });
+    });
+  };
+  const swipe: React.HTMLAttributes<HTMLDivElement> = {
+    onPointerDown: (event) => {
+      // the screen's edges belong to the swipe back
+      finger.current = event.pointerType === "touch" && event.clientX > EDGE_PX && event.clientX < window.innerWidth - EDGE_PX ? { x: event.clientX, y: event.clientY } : null;
+    },
+    onPointerUp: (event) => {
+      const start = finger.current;
+      finger.current = null;
+      if (!start) return;
+      const next = swipeTabOf(tabs, active, event.clientX - start.x, event.clientY - start.y, document.documentElement.dir !== "ltr");
+      if (next) choose(next);
+    },
+    onPointerCancel: () => {
+      finger.current = null;
+    },
+  };
 
   const onKeyDown = (event: React.KeyboardEvent) => {
     const next = tabAfterKey(tabs, active, event.key);
     if (!next) return;
     event.preventDefault();
-    setChosen(next);
+    choose(next);
     // the roving focus follows the choice
     requestAnimationFrame(() => document.getElementById(`info-tab-${next}`)?.focus());
   };
   const known = (id: PagedTab): number | null => (counts ? tabs.find((t) => t.id === id)?.count ?? 0 : null);
 
+  const body = isPagedTab(active) ? (
+    <PagedPanel key={active} header={header} tab={active} jump={jump} count={known(active)} phone={phone} />
+  ) : active === "members" ? (
+    <MembersPanel model={membersTab} pending={people === null} tags={header.tgLook !== false} phone={phone} />
+  ) : active === "work" ? (
+    <WorkPanel header={header} jump={jump} tasks={work.data?.tasks ?? []} tickets={work.data?.tickets ?? []} />
+  ) : (
+    <PinnedPanel pins={pinned} jump={jump} />
+  );
+
+  if (phone) {
+    return (
+      <section data-info-tabs data-info-tabs-phone="" className="mx-3 mb-3 mt-3">
+        <div ref={list} role="tablist" aria-label={ct("chatinfo.tabs.label")} onKeyDown={onKeyDown} className="tg-no-scrollbar mx-auto flex w-fit max-w-full gap-1 overflow-x-auto rounded-full bg-surface-1 p-1 shadow-card">
+          {tabs.map((tab) => (
+            <TabButton key={tab.id} tab={tab} selected={tab.id === active} onSelect={() => choose(tab.id)} phone />
+          ))}
+        </div>
+        <div role="tabpanel" id={`info-panel-${active}`} aria-labelledby={`info-tab-${active}`} data-info-tab-panel={active} {...swipe} className="mt-2 min-h-[50dvh] touch-pan-y overflow-hidden rounded-2xl bg-surface-1 shadow-card">
+          <div key={active} data-from={from ?? undefined} className={from ? "tg-tab-in p-2" : "p-2"} style={tgMotionVars(["tabSwitchMs"])}>
+            {body}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section data-info-tabs className={header.tgLook !== false ? "mx-3 mb-3 mt-2 rounded-2xl bg-surface-1 shadow-card" : "mt-2 border-t border-border bg-surface-1"}>
       <div role="tablist" aria-label={ct("chatinfo.tabs.label")} onKeyDown={onKeyDown} className={header.tgLook !== false ? "m-2 flex flex-wrap gap-1 rounded-full bg-surface-2 p-1" : "flex flex-wrap gap-1 px-2 py-2"}>
         {tabs.map((tab) => (
-          <TabButton key={tab.id} tab={tab} selected={tab.id === active} onSelect={() => setChosen(tab.id)} />
+          <TabButton key={tab.id} tab={tab} selected={tab.id === active} onSelect={() => choose(tab.id)} />
         ))}
       </div>
       <div role="tabpanel" id={`info-panel-${active}`} aria-labelledby={`info-tab-${active}`} data-info-tab-panel={active} className="px-2 pb-3 pt-1">
-        {isPagedTab(active) ? (
-          <PagedPanel key={active} header={header} tab={active} jump={jump} count={known(active)} />
-        ) : active === "members" ? (
-          <MembersPanel model={membersTab} pending={people === null} tags={header.tgLook !== false} />
-        ) : active === "work" ? (
-          <WorkPanel header={header} jump={jump} tasks={work.data?.tasks ?? []} tickets={work.data?.tickets ?? []} />
-        ) : (
-          <PinnedPanel pins={pinned} jump={jump} />
-        )}
+        {body}
       </div>
     </section>
   );
@@ -99,7 +171,7 @@ export function InfoTabs({ header, people = null, initialTab }: { header: Conver
 
 const TAB_ICONS = { media: ImageIcon, files: FileText, links: Link2, voice: Headphones, members: Users } as const;
 
-function TabButton({ tab, selected, onSelect }: { tab: InfoTab; selected: boolean; onSelect: () => void }) {
+function TabButton({ tab, selected, onSelect, phone = false }: { tab: InfoTab; selected: boolean; onSelect: () => void; /** a pill of the phone's row: its number is in the page's bar, not here */ phone?: boolean }) {
   return (
     <button
       type="button"
@@ -110,10 +182,10 @@ function TabButton({ tab, selected, onSelect }: { tab: InfoTab; selected: boolea
       tabIndex={selected ? 0 : -1}
       data-info-tab={tab.id}
       onClick={onSelect}
-      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${selected ? "bg-accent/10 font-semibold text-accent" : "text-fg hover:bg-surface-2"}`}
+      className={`inline-flex min-h-11 items-center gap-1.5 rounded-full px-3 text-sm focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${phone ? "min-h-9 shrink-0 whitespace-nowrap px-4 " : ""}${selected ? "bg-accent/10 font-semibold text-accent" : "text-fg hover:bg-surface-2"}`}
     >
       <span className="flex-1">{ct(tab.labelKey)}</span>
-      {tab.count > 0 ? (
+      {tab.count > 0 && !phone ? (
         <span aria-hidden="true" className="text-sm tabular-nums text-fg-muted">
           {tab.count}
         </span>
@@ -136,7 +208,7 @@ function Empty({ tab, children }: { tab: "media" | "files" | "links" | "voice" |
 // ───────────────────────────── the four paged tabs ─────────────────────────────
 
 /** `count` is what the counts door said for this tab (null: not known yet). Zero asks for nothing and says «empty» at once. */
-function PagedPanel({ header, tab, jump, count }: { header: ConversationHeaderDto; tab: PagedTab; jump: (messageId: string) => void; count: number | null }) {
+function PagedPanel({ header, tab, jump, count, phone }: { header: ConversationHeaderDto; tab: PagedTab; jump: (messageId: string) => void; count: number | null; phone: boolean }) {
   const query = useMediaPages(header.id, tab, count !== 0);
   const pages: MediaPageDto[] = query.data?.pages ?? [];
   const items = pages.flatMap((p) => p.items);
@@ -164,7 +236,9 @@ function PagedPanel({ header, tab, jump, count }: { header: ConversationHeaderDt
       ) : tab === "files" ? (
         <FileRows items={items} jump={jump} />
       ) : tab === "voice" ? (
-        <VoiceRows items={items} jump={jump} />
+        phone ? <PhoneVoiceRows items={items} jump={jump} /> : <VoiceRows items={items} jump={jump} />
+      ) : phone ? (
+        <PhoneLinkRows links={links} jump={jump} />
       ) : (
         <LinkRows links={links} jump={jump} />
       )}
@@ -307,6 +381,73 @@ function VoiceRows({ items, jump }: { items: MediaItemDto[]; jump: (messageId: s
   );
 }
 
+/** The phone's voice tab: each note in the app's own player (one note at a time, the same speed as in the conversation). */
+function PhoneVoiceRows({ items, jump }: { items: MediaItemDto[]; jump: (messageId: string) => void }) {
+  return (
+    <ul className="divide-y divide-border">
+      {items.map((item) => {
+        const src = safeMediaUrl(item.attachment.url);
+        return (
+          <li key={item.id} data-info-voice={item.id} className="px-2 py-2">
+            {src ? <VoicePlayer src={src} peaks={item.attachment.peaks} durationMs={item.attachment.durationMs ?? 0} /> : null}
+            <span className="flex items-center gap-1">
+              <span className="min-w-0 flex-1">
+                <Meta authorName={item.authorName} at={item.at} />
+              </span>
+              <ShowButton messageId={item.messageId} jump={jump} />
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/** The phone's links: under the month they came in, a tile with a letter (or the card's picture), the name, the card's words and the address. */
+function PhoneLinkRows({ links, jump }: { links: LinkItemDto[]; jump: (messageId: string) => void }) {
+  return (
+    <div data-info-links="">
+      {groupLinksByMonth(links).map((month) => (
+        <section key={month.key} data-info-month={month.key}>
+          <h4 className="rounded-lg bg-surface-2 px-3 py-1 text-xs font-semibold text-fg-muted">{month.label}</h4>
+          <ul className="divide-y divide-border">
+            {month.links.map((link) => {
+              const href = safeLinkHref(link.url);
+              const picture = link.image && link.image.startsWith("/api/chat/messages/") ? link.image : null;
+              const name = link.title ?? link.siteName ?? link.host ?? link.url;
+              return (
+                <li key={link.id} className="flex items-start gap-3 px-1 py-2.5">
+                  <span aria-hidden="true" data-info-link-letter="" className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-lg bg-surface-2 text-xl font-semibold uppercase text-fg-muted">
+                    {picture ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- the card's picture, served by our own preview door
+                      <img src={picture} alt="" loading="lazy" decoding="async" draggable={false} className="size-full object-cover" />
+                    ) : (
+                      ([...(link.host || name)][0] ?? "")
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <bdi className="block truncate text-[15px] font-semibold text-fg">{name}</bdi>
+                    {link.description ? <bdi className="line-clamp-2 text-[13px] leading-5 text-fg">{link.description}</bdi> : null}
+                    {href ? (
+                      <a href={href} target="_blank" rel="noopener noreferrer nofollow" aria-label={ct("chatinfo.link.open", { url: link.url })} dir="ltr" className="block truncate py-0.5 text-end text-[13px] text-accent">
+                        {link.url}
+                      </a>
+                    ) : (
+                      <bdi className="block truncate text-[13px] text-fg-muted">{link.url}</bdi>
+                    )}
+                    <Meta authorName={link.authorName} at={link.at} />
+                  </span>
+                  <ShowButton messageId={link.messageId} jump={jump} />
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /** Every address found in the messages: the host, and the card's title when a card was made for THAT address; otherwise the address itself. */
 function LinkRows({ links, jump }: { links: LinkItemDto[]; jump: (messageId: string) => void }) {
   return (
@@ -355,7 +496,7 @@ function LinkRows({ links, jump }: { links: LinkItemDto[]; jump: (messageId: str
  * The people of an open topic, a restricted topic (only the names the door gave) or a group. Nobody to list (a topic of a section, a restricted topic whose people
  * were not given, people not loaded yet) says so and shows the count the header carries — never a name from another list.
  */
-function MembersPanel({ model, pending, tags }: { model: MembersTab | null; pending: boolean; /** «شكل تيليجرام» (`tgLook`): the rank tag after a name */ tags: boolean }) {
+function MembersPanel({ model, pending, tags, phone }: { model: MembersTab | null; pending: boolean; /** «شكل تيليجرام» (`tgLook`): the rank tag after a name */ tags: boolean; /** the phone's page: taller rows, «متصل» under the name, the list scrolls with the page */ phone: boolean }) {
   if (!model) return null;
   // the door's people have not come yet (a topic of a section never lists, so it never waits): say so, never «nobody»
   if (pending && model.names.length === 0 && model.state !== "team") {
@@ -377,18 +518,25 @@ function MembersPanel({ model, pending, tags }: { model: MembersTab | null; pend
     );
   }
   return (
-    <ul data-info-members className="max-h-96 divide-y divide-border overflow-y-auto">
+    <ul data-info-members className={phone ? "divide-y divide-border" : "max-h-96 divide-y divide-border overflow-y-auto"}>
       {model.names.map((m) => (
-        <li key={m.id} className="flex min-h-11 items-center gap-3 px-2 py-1">
-          <Avatar name={m.name} src={m.avatarUrl ?? null} className="size-9 text-sm" />
-          <bdi className="min-w-0 flex-1 truncate text-sm">{m.name}</bdi>
+        <li key={m.id} className={phone ? "flex min-h-14 items-center gap-3 px-2 py-1.5" : "flex min-h-11 items-center gap-3 px-2 py-1"}>
+          <Avatar name={m.name} src={m.avatarUrl ?? null} className={phone ? "size-11 text-sm" : "size-9 text-sm"} />
+          {phone ? (
+            <span className="min-w-0 flex-1">
+              <bdi className="block truncate text-[15px]">{m.name}</bdi>
+              {m.online ? <span className="block text-xs text-accent">{ct("chatprof.members.online")}</span> : null}
+            </span>
+          ) : (
+            <bdi className="min-w-0 flex-1 truncate text-sm">{m.name}</bdi>
+          )}
           {tags && memberTagKeyOf(m.role) ? (
             <span data-member-tag={m.role} className="shrink-0 rounded-full bg-accent/15 px-2 py-0.5 text-xs font-semibold text-accent">
               {ct(memberTagKeyOf(m.role)!)}
             </span>
           ) : null}
           {m.verified ? <VerifiedBadge /> : null}
-          {m.online ? <span role="img" aria-label={ct("chatprof.members.online")} className="size-2.5 shrink-0 rounded-full bg-success" /> : null}
+          {m.online && !phone ? <span role="img" aria-label={ct("chatprof.members.online")} className="size-2.5 shrink-0 rounded-full bg-success" /> : null}
         </li>
       ))}
     </ul>

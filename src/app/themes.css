@@ -1330,19 +1330,19 @@
 
 [data-theme="tg-night"] {
   color-scheme: dark;
-  --surface: 14 22 33;
-  --surface-1: 23 33 43;
-  --surface-2: 30 44 58;
-  --border: 36 50 66;
-  --muted: 138 155 173;
+  --surface: 26 37 48;
+  --surface-1: 30 42 54;
+  --surface-2: 35 49 64;
+  --border: 49 64 79;
+  --muted: 153 169 186;
   --fg: 245 247 250;
-  --fg-muted: 154 171 188;
-  --accent: 112 166 221;
+  --fg-muted: 169 184 199;
+  --accent: 126 177 228;
   --accent-fg: 6 19 31;
   --accent-2: 240 185 85;
   --ok: 79 202 139;
   --warn: 230 177 80;
-  --danger: 240 123 123;
+  --danger: 247 147 147;
   --info: 184 162 255;
   --ok-fg: 14 22 33;
   --warn-fg: 14 22 33;
@@ -1354,17 +1354,17 @@
   --cat-3: 255 143 163;
   --cat-4: 98 198 218;
   --cat-5: 174 213 97;
-  --cat-6: 127 174 255;
+  --cat-6: 143 184 255;
   --on-photo: 255 255 255;
   --bubble-out: 43 82 120;
   --bubble-out-fg: 245 247 250;
   --bubble-in: 24 37 51;
   --bubble-in-fg: 245 247 250;
-  --chat-wallpaper: 14 22 33;
-  --chat-pattern: 26 39 53;
+  --chat-wallpaper: 20 29 38;
+  --chat-pattern: 32 44 56;
   --selected-row: 28 49 72;
   --selected-row-fg: 245 247 250;
-  --badge-muted: 125 136 145;
+  --badge-muted: 147 160 171;
   --font-display: var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif;
   --radius-card: 0.75rem;
   --shadow-card: 0 1px 2px rgb(0 0 0 / 0.5), 0 2px 6px rgb(0 0 0 / 0.35);
@@ -1519,9 +1519,9 @@
 
 [data-theme="tg-day"] {
   color-scheme: light;
-  --surface: 230 235 238;
+  --surface: 237 239 239;
   --surface-1: 255 255 255;
-  --surface-2: 241 243 245;
+  --surface-2: 242 244 245;
   --border: 220 226 231;
   --muted: 86 99 112;
   --fg: 15 25 35;
@@ -1545,13 +1545,13 @@
   --cat-5: 86 102 26;
   --cat-6: 56 77 184;
   --on-photo: 255 255 255;
-  --bubble-out: 239 253 222;
+  --bubble-out: 236 253 219;
   --bubble-out-fg: 15 25 35;
   --bubble-in: 255 255 255;
   --bubble-in-fg: 15 25 35;
   --chat-wallpaper: 221 230 201;
   --chat-pattern: 197 211 174;
-  --selected-row: 220 234 247;
+  --selected-row: 225 239 245;
   --selected-row-fg: 15 27 42;
   --badge-muted: 113 119 124;
   --font-display: var(--font-plex, "IBM Plex Sans Arabic"), "Segoe UI", Tahoma, sans-serif;

@@ -70,7 +70,7 @@ function assertOwner(ctx: OrgAccessContext): void {
 const tally = (r: { _count: { _all: number }; _sum: { size: number | null } }): Tally => ({ files: r._count._all, bytes: r._sum.size ?? 0 });
 
 const onServer = (orgId: string): Prisma.StoredFileWhereInput => ({ orgId, path: { not: PENDING_PATH }, NOT: { path: { startsWith: DRIVE_PREFIX } } });
-const movableWhere = (orgId: string): Prisma.StoredFileWhereInput => ({ ...onServer(orgId), purpose: { not: "AVATAR" } });
+const movableWhere = (orgId: string): Prisma.StoredFileWhereInput => ({ ...onServer(orgId), purpose: { notIn: ["AVATAR", "SOUND"] } });
 
 async function copiesTally(orgId: string): Promise<Tally> {
   const rows = await db.$queryRaw<Array<{ files: bigint; bytes: bigint | null }>>`

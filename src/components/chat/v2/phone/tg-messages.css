@@ -1,0 +1,303 @@
+/*
+ * «تيليجرام على التلفون», the messages (the switch `tgPhone`). Motion only: every colour is a theme token on the element, every number comes from
+ * TG_MOTION through `tgMotionVars()` on the element (or one above it). Only transform and opacity move.
+ *
+ * Every animation lives under `prefers-reduced-motion: no-preference`; «التأثيرات الحركية» switches them off by name through `html[data-fx-off]`:
+ * transitions (panels, bars, slides), zoom (growing menus and dialogs fade only), emoji (the big emoji), stickers (the suggestion strip's entrance).
+ * Without an animation every element is simply visible where it belongs: the dust's cover and the skeleton are the only things that exist for motion.
+ */
+
+/* the grey squares of the reaction card exist only while they are animating */
+.zk-tg-skeleton {
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* a bubble that is turning to dust is not drawn under its own particles; its «حُذفت الرسالة» line comes after them */
+[data-tg-dusting] {
+  opacity: 0;
+}
+
+/* the emoji panel stands where the phone's keyboard stood: edge to edge, down to the home bar (the footer's own padding is taken back) */
+.zk-tg-panel {
+  margin-inline: -0.75rem;
+  margin-bottom: calc(-0.75rem - env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
+  height: calc(min(20rem, 46dvh) + env(safe-area-inset-bottom));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes zk-tg-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  @keyframes zk-tg-fade-out {
+    from {
+      opacity: 1;
+    }
+    to {
+      opacity: 0;
+    }
+  }
+  /* the bar grows from the message and goes a little past its size before it settles */
+  @keyframes zk-tg-bar-in {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    70% {
+      opacity: 1;
+      transform: scale(1.06);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+  @keyframes zk-tg-menu-in {
+    from {
+      opacity: 0;
+      transform: scale(0.7);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  /* the card starts the size of the bar it grew out of */
+  @keyframes zk-tg-morph {
+    from {
+      opacity: 0.6;
+      transform: scale(var(--tg-from-x, 0.9), var(--tg-from-y, 0.15));
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes zk-tg-rise {
+    from {
+      opacity: 0;
+      transform: translateY(100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes zk-tg-drop {
+    from {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  @keyframes zk-tg-lift-away {
+    from {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    to {
+      opacity: 0;
+      transform: translateY(-100%);
+    }
+  }
+  @keyframes zk-tg-check-in {
+    from {
+      opacity: 0;
+      transform: scale(0.2);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  /* the bubbles on the circles' side make room for them (the screen is right to left: the circles stand at the right) */
+  @keyframes zk-tg-make-room {
+    from {
+      transform: translateX(2.25rem);
+    }
+    to {
+      transform: translateX(0);
+    }
+  }
+  @keyframes zk-tg-flash {
+    0% {
+      opacity: 0;
+    }
+    12%,
+    65% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  @keyframes zk-tg-breathe {
+    0%,
+    100% {
+      transform: scale(1) rotate(0deg);
+    }
+    25% {
+      transform: scale(1.07) rotate(-3deg);
+    }
+    50% {
+      transform: scale(0.97) rotate(0deg);
+    }
+    75% {
+      transform: scale(1.05) rotate(3deg);
+    }
+  }
+  /* a big emoji that was just sent: its grey shadow first, then it comes to life */
+  @keyframes zk-tg-shadow {
+    0%,
+    80% {
+      opacity: 0.35;
+    }
+    100% {
+      opacity: 0;
+    }
+  }
+  @keyframes zk-tg-wake {
+    0%,
+    80% {
+      opacity: 0;
+      transform: scale(0.85);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+  @keyframes zk-tg-fly {
+    0% {
+      opacity: 0;
+      transform: translate3d(0, 0, 0) scale(0.2) rotate(0deg);
+    }
+    12% {
+      opacity: 1;
+    }
+    75% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+      transform: translate3d(var(--tg-dx), var(--tg-dy), 0) scale(var(--tg-scale)) rotate(var(--tg-spin));
+    }
+  }
+
+  .zk-tg-dim[data-state="open"] {
+    animation: zk-tg-fade-in var(--tg-message-dim-ms) ease-out both;
+  }
+  .zk-tg-overlay[data-state="closed"],
+  .zk-tg-dim[data-state="closed"] {
+    animation: zk-tg-fade-out var(--tg-message-dim-ms) ease-in both;
+  }
+  .zk-tg-bar {
+    animation: zk-tg-bar-in var(--tg-message-menu-ms) cubic-bezier(0.34, 1.56, 0.64, 1) both;
+  }
+  .zk-tg-menu {
+    animation: zk-tg-menu-in var(--tg-message-menu-ms) ease-out both;
+  }
+  .zk-tg-card {
+    animation: zk-tg-morph var(--tg-reaction-card-ms) ease-out both;
+  }
+  /* a reaction was picked: the whole menu and the dim fade while the emoji flies */
+  .zk-tg-dim[data-closing],
+  .zk-tg-overlay[data-closing] {
+    animation: zk-tg-fade-out var(--tg-reaction-menu-fade-ms) ease-out both;
+  }
+
+  .zk-tg-card [data-tg-fill] [data-tg-row] {
+    animation: zk-tg-fade-in var(--tg-card-row-fade-ms) ease-out both;
+    animation-delay: var(--tg-row-delay, 0ms);
+  }
+  .zk-tg-skeleton {
+    animation: zk-tg-fade-out var(--tg-card-row-fade-ms) ease-out both;
+    animation-delay: var(--tg-row-delay, 0ms);
+  }
+
+  .zk-tg-slide-up {
+    animation: zk-tg-rise var(--tg-bar-slide-ms) ease-out both;
+  }
+  .zk-tg-pin-in {
+    animation: zk-tg-drop var(--tg-bar-slide-ms) ease-out both;
+  }
+  .zk-tg-pin-out {
+    animation: zk-tg-lift-away var(--tg-bar-slide-ms) ease-in both;
+  }
+
+  .zk-tg-check {
+    animation: zk-tg-check-in var(--tg-selection-check-ms) ease-out both;
+  }
+  .zk-tg-make-room {
+    animation: zk-tg-make-room var(--tg-selection-check-ms) ease-out both;
+  }
+
+  .zk-tg-flash {
+    animation: zk-tg-flash var(--tg-quote-flash-ms) ease-in-out both;
+  }
+
+  /* dialogs of the messages (delete, pin): in with a slight growth, out quickly. Two classes deep, so they win over the kit's own pop. */
+  .zk-pop.zk-tg-dialog[data-state="open"] {
+    animation: zk-tg-menu-in var(--tg-menu-scale-ms) ease-out both;
+  }
+  .zk-pop.zk-tg-dialog[data-state="closed"] {
+    animation: zk-tg-fade-out var(--tg-delete-dialog-ms) ease-in both;
+  }
+
+  [data-tg-undust] {
+    animation: zk-tg-fade-in var(--tg-bubble-grow-ms) ease-out both;
+  }
+
+  .zk-tg-effect-piece {
+    animation: zk-tg-fly var(--tg-duration) ease-out both;
+    animation-delay: var(--tg-delay);
+  }
+
+  @media (max-width: 767px) {
+    .zk-tg-alive {
+      animation: zk-tg-breathe var(--tg-emoji-idle-ms) ease-in-out infinite;
+    }
+    .zk-tg-wake .zk-tg-alive {
+      animation:
+        zk-tg-wake var(--tg-send-emoji-ms) ease-out both,
+        zk-tg-breathe var(--tg-emoji-idle-ms) ease-in-out var(--tg-send-emoji-ms) infinite;
+    }
+    .zk-tg-wake .zk-tg-ghost {
+      animation: zk-tg-shadow var(--tg-send-emoji-ms) linear both;
+    }
+  }
+
+  /* «تأثير التكبير» off: what grew now only fades */
+  html[data-fx-off~="zoom"] .zk-tg-bar,
+  html[data-fx-off~="zoom"] .zk-tg-menu,
+  html[data-fx-off~="zoom"] .zk-tg-card,
+  html[data-fx-off~="zoom"] .zk-pop.zk-tg-dialog[data-state="open"] {
+    animation-name: zk-tg-fade-in;
+  }
+
+  /* «الانتقالات السلسة» off: nothing slides, grows or fades */
+  html[data-fx-off~="transitions"] :is(.zk-tg-dim, .zk-tg-overlay, .zk-tg-bar, .zk-tg-menu, .zk-tg-card, .zk-tg-skeleton, .zk-tg-slide-up, .zk-tg-pin-in, .zk-tg-pin-out, .zk-tg-check, .zk-tg-make-room, .zk-tg-flash, [data-tg-undust]),
+  html[data-fx-off~="transitions"] .zk-pop.zk-tg-dialog[data-state],
+  html[data-fx-off~="transitions"] .zk-tg-card [data-tg-fill] [data-tg-row] {
+    animation: none;
+  }
+
+  /* «الرموز المتحركة» off: the big emoji stands still */
+  html[data-fx-off~="emoji"] :is(.zk-tg-alive, .zk-tg-ghost, .zk-tg-effect-piece),
+  html[data-fx-off~="emoji"] .zk-tg-wake .zk-tg-alive {
+    animation: none;
+  }
+}
+
+/* the grey shadow under a fresh emoji is only ever seen while it animates */
+.zk-tg-ghost {
+  opacity: 0;
+}
