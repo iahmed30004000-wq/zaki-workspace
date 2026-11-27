@@ -1,6 +1,7 @@
 import type { AttachmentDto } from "@/server/chat/dto";
 import type { Row } from "@/lib/chat/viewport/rows";
 import { albumMediaOf, layoutAlbum, type AlbumSize } from "@/lib/chat/album-layout";
+import { VIDEO_NOTE_PX } from "@/lib/chat/v2/video-note/limits";
 
 /**
  * C1.7 — what the virtual list knows about a row BEFORE it is drawn and measured. Pure.
@@ -56,6 +57,7 @@ export function albumBox(media: readonly AlbumSize[]): { width: number; height: 
 }
 
 function attachmentPx(a: AttachmentDto): number {
+  if (a.round) return VIDEO_NOTE_PX + ATTACHMENT_GAP_PX;
   if (a.kind === "IMAGE" || a.kind === "VIDEO") return imageBox(a).height + ATTACHMENT_GAP_PX;
   if (a.kind === "AUDIO") return VOICE_ROW_PX;
   return FILE_ROW_PX;

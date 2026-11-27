@@ -21,6 +21,10 @@ export interface ChatShellProps {
   canPurge: boolean;
   /** «شكل تيليجرام» (`tgLook`; absent: off): the folders as a pill and the list's main «⋮» menu */
   tgLook?: boolean;
+  /** «القصص» (`stories`, never for an external partner; absent: off): the row of rings above the list */
+  stories?: boolean;
+  /** the phone's round camera button (`storyCamera`; absent: off) */
+  storyCamera?: boolean;
   children: ReactNode;
 }
 
@@ -38,7 +42,7 @@ export interface ChatShellProps {
  * Until the screen size is known (the server and the first client render) only the pane is drawn, in the SAME box it has on the computer, so the two
  * renders agree and the pane is not remounted when the column appears.
  */
-export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, tgLook, children }: ChatShellProps) {
+export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, tgLook, stories, storyCamera, children }: ChatShellProps) {
   const pathname = usePathname();
   const route = chatRouteOf(pathname);
   // C2.8: which phone screen this address is. `data-frame-bars` asks the app frame to hide its own top bar below `md` ("hide-top": the list screen draws its own) and, inside a conversation or its info screen, its bottom bar and people row too ("hide-all"), with CSS only
@@ -62,8 +66,8 @@ export function ChatShell({ userId, guest, canMeet, rowMenu, canPurge, tgLook, c
   });
 
   const column = useMemo(
-    () => <ChatListColumn variant={desktop === false ? "screen" : "column"} userId={userId} guest={guest} canMeet={canMeet} rowMenu={rowMenu} canPurge={canPurge} tgLook={tgLook === true} />,
-    [desktop, userId, guest, canMeet, rowMenu, canPurge, tgLook],
+    () => <ChatListColumn variant={desktop === false ? "screen" : "column"} userId={userId} guest={guest} canMeet={canMeet} rowMenu={rowMenu} canPurge={canPurge} tgLook={tgLook === true} stories={stories === true} storyCamera={storyCamera === true} />,
+    [desktop, userId, guest, canMeet, rowMenu, canPurge, tgLook, stories, storyCamera],
   );
 
   if (desktop === false) {

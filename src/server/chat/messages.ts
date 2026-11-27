@@ -387,7 +387,7 @@ export async function notifyAfterSend(
   mentionIds: string[],
   allIds: string[],
   replyToId: string | null,
-  dto: Pick<MessageDto, "id" | "authorName" | "body" | "silent">,
+  dto: Pick<MessageDto, "id" | "authorName" | "body" | "silent"> & Partial<Pick<MessageDto, "attachments">>,
 ): Promise<void> {
   const parent = replyToId ? await db.chatMessage.findUnique({ where: { id: replyToId }, select: { authorId: true } }) : null;
   const audience = await readersAmong(conversationId, notifyCandidates(facts, ctx.userId, [...mentionIds, ...allIds], parent?.authorId ?? null));
@@ -403,7 +403,7 @@ export async function notifyAfterSend(
     allIds: allIds.filter((id) => !mentionIds.includes(id)),
     ...(dto.silent === true ? { silent: true } : {}),
     // the WHOLE body: `notify.ts` strips the markers and then cuts (a bold run is never cut inside its markers)
-    preview: dto.body ? dto.body : "أرسل مرفقًا",
+    preview: dto.body ? dto.body : dto.attachments?.[0]?.round ? "أرسل رسالة فيديو" : "أرسل مرفقًا",
   });
 }
 
@@ -624,7 +624,7 @@ export async function addNote(ctx: OrgAccessContext, messageId: string, input: z
 
 export const forwardSchema = z.object({ conversationId: z.string().min(1) });
 
-type MessageLinks = { fileId: string; kind: string; width: number | null; height: number | null; durationMs: number | null; peaks: Prisma.JsonValue | null; position: number }[];
+type MessageLinks = { fileId: string; kind: string; width: number | null; height: number | null; durationMs: number | null; peaks: Prisma.JsonValue | null; round: boolean; position: number }[];
 
 /**
  * ONE copy of a message in a conversation, written by the person who forwards (the ONE implementation: `forwardMessage` and the batch `forwardMessages` both call it).
@@ -664,6 +664,8 @@ async function copyForward(
         height: l.height,
         durationMs: l.durationMs,
         peaks: l.peaks as never,
+        // a forwarded round video message is still one
+        round: l.round,
         position: l.position,
       })),
     });

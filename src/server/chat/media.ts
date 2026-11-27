@@ -141,6 +141,7 @@ async function listAttachments(ctx: OrgAccessContext, conversationId: string, ki
       height: true,
       durationMs: true,
       peaks: true,
+      round: true,
       position: true,
       file: { select: { id: true, name: true, mimeType: true, size: true } },
       message: { select: { id: true, body: true, createdAt: true, author: { select: { name: true } } } },

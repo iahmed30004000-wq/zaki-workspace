@@ -19,6 +19,9 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
   if (!(await isFeatureOn(actor.orgId, "chatLayoutV2"))) return <>{children}</>;
   const rowMenu = await isFeatureOn(actor.orgId, "chatRowMenu");
   const tgLook = await isFeatureOn(actor.orgId, "tgLook");
+  // «القصص»: never for an external partner (the story doors refuse him again); the camera button is a part of it
+  const stories = !actor.isExternal && (await isFeatureOn(actor.orgId, "stories"));
+  const storyCamera = stories && (await isFeatureOn(actor.orgId, "storyCamera"));
   return (
     <ChatShell
       userId={actor.userId}
@@ -27,6 +30,8 @@ export default async function ChatLayout({ children }: { children: ReactNode }) 
       rowMenu={rowMenu}
       canPurge={rowMenu && actor.isOwner}
       tgLook={tgLook}
+      stories={stories}
+      storyCamera={storyCamera}
     >
       {children}
     </ChatShell>

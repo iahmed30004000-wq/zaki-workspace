@@ -1,0 +1,45 @@
+/*
+ * «القصص»: where the camera button stands and the one entrance of the viewer.
+ *
+ * The camera sits ABOVE the pencil (`[data-chat-fab]`: 3.5rem tall, 1rem from the bottom; 5rem under Telegram's floating tab bar,
+ * app/tg-phone.css): its bottom is the pencil's top and 0.75rem, and it goes away with the pencil while the list scrolls down. The
+ * rows get room under them so the last chat can be scrolled clear of both buttons.
+ */
+@media (max-width: 767.98px) {
+  [data-story-camera] {
+    bottom: calc(5.25rem + env(safe-area-inset-bottom));
+  }
+  [data-tg-phone][data-tg-bar] [data-story-camera] {
+    bottom: calc(9.25rem + env(safe-area-inset-bottom));
+  }
+  [data-tg-phone] [data-tg-scrolled] [data-story-camera] {
+    transform: translateY(calc(100% + 11rem));
+    pointer-events: none;
+  }
+  [data-chat-list]:has([data-story-camera]) [data-chat-rows] {
+    padding-bottom: 8.5rem;
+  }
+  [data-tg-phone][data-tg-bar] [data-chat-list]:has([data-story-camera]) [data-chat-rows] {
+    padding-bottom: 12.5rem;
+  }
+}
+
+@keyframes zk-story-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-fx-off~="transitions"]) .zk-story-in {
+    animation: zk-story-in var(--tg-story-open-ms, 180ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) [data-tg-phone] [data-story-camera] {
+    transition: transform 150ms ease-out;
+  }
+}

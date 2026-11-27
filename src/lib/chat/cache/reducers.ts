@@ -334,6 +334,7 @@ export function lastMessageOf(m: MessageDto): ChatRowLastMessageDto {
     mine: m.mine,
   };
   if (m.status && m.mine && m.kind !== "SYSTEM") out.status = m.status;
+  if (!m.deleted && m.attachments?.[0]?.round) out.round = true;
   return out;
 }
 

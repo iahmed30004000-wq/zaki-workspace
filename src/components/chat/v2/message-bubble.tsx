@@ -210,6 +210,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
     : undefined;
   // a single emoji by itself is not put in a bubble on the phone: it stands big, with its time on a small pill
   const bare = tgLook && bigEmojiAlone(message);
+  // a round video message stands without a bubble around it, its time on a small pill
+  const roundNote = !message.deleted && message.attachments.length === 1 && message.attachments[0]?.round === true;
   const mine = message.mine;
   const mentionsMe = mentionsMeOf(message, facts.meId);
   const sender = showsSender(mine, facts.conversationKind);
@@ -304,7 +306,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
                 if (canAct && gestures && replyOnDoubleClick({ pointerType: pointer.current, target: e.target })) gestures.reply(message, facts);
               }}
               {...(bare ? { "data-tg-bare": "" } : {})}
-              className={cn(bubbleClass({ mine, mentionsMe, tail: end, highlighted }), fresh && "animate-fade-up motion-reduce:animate-none", bare && "max-md:border-transparent max-md:bg-transparent max-md:px-0 max-md:text-fg max-md:shadow-none", tgLook && "max-md:max-w-[min(82vw,100%)]")}
+              {...(roundNote ? { "data-round-note": "" } : {})}
+              className={cn(bubbleClass({ mine, mentionsMe, tail: end, highlighted }), fresh && "animate-fade-up motion-reduce:animate-none", roundNote && "border-transparent bg-transparent px-0 text-fg shadow-none", bare && "max-md:border-transparent max-md:bg-transparent max-md:px-0 max-md:text-fg max-md:shadow-none", tgLook && "max-md:max-w-[min(82vw,100%)]")}
             >
               {sender && start ? (
                 <p data-sender className={cn("mb-0.5 truncate text-xs font-semibold", nameTone(message.authorName))}>
@@ -335,7 +338,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               <ReactionPop reactions={reactions}>
                 <ReactionChips message={shownMessage} canAct={canAct} onReact={onReact} onWho={(emoji) => setWho({ emoji })} />
               </ReactionPop>
-              <BubbleFooter message={message} singleTick={facts.saved} pill={bare} />
+              <BubbleFooter message={message} singleTick={facts.saved} pill={bare || roundNote} />
             </article>
             {hoverNode}
             {menuNode}

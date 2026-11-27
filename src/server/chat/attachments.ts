@@ -14,6 +14,7 @@ import {
 
 export type { ChatAttachmentKind };
 import { assertFeatureOn } from "@/server/services/features";
+import { VIDEO_NOTE_MAX_BYTES, VIDEO_NOTE_MAX_MS, VIDEO_NOTE_SLACK_MS } from "@/lib/chat/v2/video-note/limits";
 import { discardStoredBytes, ingest, logFile, openStored, PENDING_PATH } from "@/server/services/files";
 
 /**
@@ -58,6 +59,8 @@ type UploadMeta = {
   height?: number;
   durationMs?: number;
   peaks?: number[];
+  /** «رسالة فيديو دائرية»: recorded as one (kind VIDEO_NOTE at the upload); the claim marks its attachment `round` */
+  videoNote?: boolean;
 };
 
 function readMeta(raw: unknown): UploadMeta {
@@ -70,6 +73,7 @@ function readMeta(raw: unknown): UploadMeta {
   if (typeof m.height === "number" && Number.isFinite(m.height)) meta.height = Math.round(m.height);
   if (typeof m.durationMs === "number" && Number.isFinite(m.durationMs)) meta.durationMs = Math.max(0, Math.round(m.durationMs));
   if (Array.isArray(m.peaks)) meta.peaks = m.peaks.filter((p): p is number => typeof p === "number" && Number.isFinite(p));
+  if (m.videoNote === true) meta.videoNote = true;
   return meta;
 }
 
@@ -80,7 +84,8 @@ export interface ChatUploadInput {
   name: string;
   bytes?: Uint8Array;
   upload?: ReceivedUpload;
-  declaredKind: ChatAttachmentKind | "VOICE";
+  /** `VIDEO_NOTE`: a round video message the app recorded (a video, judged like one, with its own ceilings) */
+  declaredKind: ChatAttachmentKind | "VOICE" | "VIDEO_NOTE";
   durationMs?: unknown;
   peaks?: unknown;
 }
@@ -115,6 +120,15 @@ function clampPeaks(raw: unknown): number[] | undefined {
 export async function createChatUpload(input: ChatUploadInput): Promise<ChatUploadResult> {
   // «الرسائل الصوتية» off: a recording is refused before a byte of it is kept (the other kinds of attachment are untouched)
   if (input.declaredKind === "VOICE") await assertFeatureOn(input.actor.orgId, "voiceNotes");
+  // «رسالة فيديو دائرية» is a mode of the microphone button: its own switch AND the voice notes' (the same rule the screen draws by)
+  const videoNote = input.declaredKind === "VIDEO_NOTE";
+  if (videoNote) {
+    await assertFeatureOn(input.actor.orgId, "videoNotes");
+    await assertFeatureOn(input.actor.orgId, "voiceNotes");
+    const ran = Number(input.durationMs);
+    if (Number.isFinite(ran) && ran > VIDEO_NOTE_MAX_MS + VIDEO_NOTE_SLACK_MS) throw new ForbiddenError("chat.f.video_note_long");
+  }
+  const declared: ChatAttachmentKind | "VOICE" = input.declaredKind === "VIDEO_NOTE" ? "VIDEO" : input.declaredKind;
   const upload = input.upload;
   const bytes = input.bytes;
   if (!upload && !bytes) throw new ForbiddenError("files.empty");
@@ -123,9 +137,9 @@ export async function createChatUpload(input: ChatUploadInput): Promise<ChatUplo
   // anyone ACTIVE may upload for the chat (a guest posts in the topics of his spaces)
   if (size === 0) throw new ForbiddenError("files.empty");
 
-  const sn = sniffChatMedia(prefix, input.declaredKind, input.name);
+  const sn = sniffChatMedia(prefix, declared, input.name);
   if (!sn.ok) throw new ForbiddenError(sn.key);
-  const limit = input.declaredKind === "VOICE" ? CHAT_LIMITS.VOICE : CHAT_LIMITS[sn.kind];
+  const limit = videoNote ? VIDEO_NOTE_MAX_BYTES : declared === "VOICE" ? CHAT_LIMITS.VOICE : CHAT_LIMITS[sn.kind];
   if (size > limit) throw new ForbiddenError("chat.f.too_large");
 
   const meta: UploadMeta = { kind: sn.kind };
@@ -148,6 +162,12 @@ export async function createChatUpload(input: ChatUploadInput): Promise<ChatUplo
     meta.durationMs = durationMs;
     meta.peaks = peaks;
     meta.kind = "AUDIO";
+  }
+  if (videoNote) {
+    const ran = Number(input.durationMs);
+    durationMs = Number.isFinite(ran) && ran > 0 ? Math.min(VIDEO_NOTE_MAX_MS, Math.round(ran)) : undefined;
+    meta.durationMs = durationMs;
+    meta.videoNote = true;
   }
 
   const checksum = upload ? await checksumFile(upload.path) : checksumHex(bytes!);
@@ -249,6 +269,8 @@ export async function claimUploads(
         height: meta.height ?? null,
         durationMs: meta.durationMs ?? null,
         peaks: (meta.peaks ?? null) as never,
+        // a round video message is a message of its own: sent together with other files it is an ordinary video
+        round: meta.videoNote === true && files.length === 1 && f.purpose === "CHAT" && f.mimeType.startsWith("video/"),
       };
     }),
   });
@@ -266,6 +288,8 @@ export type AttachmentDto = {
   height?: number;
   durationMs?: number;
   peaks?: number[];
+  /** a round video message: drawn as a circle. Present only when it is one. */
+  round?: true;
   url: string;
 };
 
@@ -278,6 +302,7 @@ export function attachmentView(att: {
   height?: number | null;
   durationMs?: number | null;
   peaks?: unknown;
+  round?: boolean | null;
 }): AttachmentDto {
   const file = att.file ?? null;
   if (!file) throw new NotFoundError("chat.f.not_found");
@@ -294,6 +319,7 @@ export function attachmentView(att: {
   if (typeof att.height === "number") out.height = att.height;
   if (typeof att.durationMs === "number") out.durationMs = att.durationMs;
   if (peaks) out.peaks = peaks;
+  if (att.round === true) out.round = true;
   return out;
 }
 

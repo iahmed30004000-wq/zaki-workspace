@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation", "assignedTasksOnly", "tgPhone"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation", "assignedTasksOnly", "tgPhone", "stories", "storyCamera", "videoNotes"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -441,6 +441,16 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   assignedTasksOnly: false,
   // The Telegram Android look and motion of the chat on a PHONE (2026-11-27). ON by default; switching it off gives back the previous phone chat.
   tgPhone: true,
+  // «القصص» (src/server/services/stories.ts): a photo or a short video with a caption that the people of the company see for 24 hours, a row of rings above the chat list.
+  // ON by default. Off: no row and no viewer, every /api/stories route answers «not found» (the files included); the stories already posted stay in the data, and the ones
+  // whose 24 hours are not over come back with the switch.
+  stories: true,
+  // the round camera button above «new message» on a phone's chat list (src/components/chat/v2/stories/story-camera-fab.tsx): off, only that button goes; stories are
+  // still posted from the «قصتك» ring
+  storyCamera: true,
+  // «رسالة فيديو دائرية» (src/lib/chat/v2/video-note/): the microphone button gets a camera mode that records a round video of at most a minute. ON by default. Off: no
+  // camera mode and the server refuses a new one; the ones already sent stay and still play.
+  videoNotes: true,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
@@ -681,4 +691,7 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   groupPictures: { group: "chat", dependsOn: ["chatLayoutV2"] },
   chatAutomation: { group: "chat" },
   tgPhone: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  stories: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  storyCamera: { group: "chat", dependsOn: ["stories"] },
+  videoNotes: { group: "chat", dependsOn: ["chatLayoutV2", "voiceNotes"] },
 };
