@@ -17,6 +17,7 @@ import { AutomationBlock } from "@/components/settings-me/automation-block";
 import { ChatSection } from "@/components/settings-me/chat-section";
 import { DataSection } from "@/components/settings-me/data-section";
 import { DevicesSection } from "@/components/settings-me/devices-section";
+import { EffectsSection } from "@/components/settings-me/effects-section";
 import { HelpSection } from "@/components/settings-me/help-section";
 import { LanguageSection } from "@/components/settings-me/language-section";
 import { MenuSection } from "@/components/settings-me/menu-section";
@@ -72,6 +73,9 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
     }
     case "chat":
       body = <ChatSection />;
+      break;
+    case "effects":
+      body = <EffectsSection />;
       break;
     case "folders":
       if (!(await actorFeatureOn(actor, "chatFolders"))) notFound();

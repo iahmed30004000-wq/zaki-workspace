@@ -1,4 +1,5 @@
 import { DEFAULT_FONT_STEP, FONT_SCALES, QUICK_REACTION_COUNT, SEND_KEYS, WALLPAPERS, isOneEmoji, type ChatPrefs, type SendKey, type Wallpaper } from "@/lib/chat/prefs";
+import { isEffectKey, type EffectKey } from "@/lib/motion/effects";
 
 /**
  * C4.1 — the choices that belong to ONE DEVICE, kept in `localStorage` under `zk-device-prefs` (like Telegram's data settings: a phone on mobile data and a
@@ -8,6 +9,7 @@ import { DEFAULT_FONT_STEP, FONT_SCALES, QUICK_REACTION_COUNT, SEND_KEYS, WALLPA
  *   textSize       a text size step (0-4) that OVERRIDES the person's own on this device (null / absent: use the person's)
  *   imageQuality   «عادية» (the 1600 px resize the composer always did) or «عالية» (3200 px, a better quality)
  *   autoDownload   which kinds download by themselves on wifi and on mobile data
+ *   effectsOff     «التأثيرات الحركية»: the effects switched off on this device (`src/lib/motion/effects.ts`)
  *   mirror         a COPY of the person's own choices (the ones saved on the account in `User.chatPrefs`) that the page can read before any request has
  *                  answered, so the text size and the wallpaper are right on the first paint and the composer knows the send key. The account stays the
  *                  truth: the settings screen and the chat shell rewrite the mirror whenever they read it.
@@ -50,6 +52,7 @@ export interface DevicePrefs {
   imageQuality?: ImageQuality;
   autoDownload?: Partial<Record<Connection, Partial<Record<MediaKind, boolean>>>>;
   mirror?: DeviceMirror;
+  effectsOff?: EffectKey[];
 }
 
 export interface PrefsStorage {
@@ -86,6 +89,11 @@ export function cleanDevicePrefs(raw: unknown): DevicePrefs {
       if (Object.keys(kinds).length > 0) auto[connection] = kinds;
     }
     if (Object.keys(auto).length > 0) out.autoDownload = auto;
+  }
+
+  if (Array.isArray(raw["effectsOff"])) {
+    const off = [...new Set(raw["effectsOff"].filter(isEffectKey))];
+    if (off.length > 0) out.effectsOff = off;
   }
 
   if (isPlain(raw["mirror"])) {

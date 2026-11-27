@@ -68,3 +68,70 @@ export function flipMoves(
 export function prefersReducedMotion(): boolean {
   return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+
+/**
+ * «تيليجرام على التلفون» (the switch `tgPhone`): every timing of the owner's spec (measured from the Android app, about 40 ms either way), in one place.
+ * All in milliseconds, the 24 of `openShiftPx` and the 0.4 / 0.5 shares aside. `tests/tg-motion.test.ts` holds them to the spec; the CSS reads them
+ * through `tgMotionVars()`, so a number is written once.
+ */
+export const TG_MOTION = {
+  // moving between screens
+  rippleMs: 150,
+  openMs: 220,
+  openShiftPx: 24,
+  backMs: 180,
+  /** an edge swipe released before this share of the width snaps back */
+  backCommitShare: 0.5,
+  subPageMs: 220,
+  tabSwitchMs: 120,
+  folderSwitchMs: 280,
+  folderAvatarsMs: 150,
+  searchFadeMs: 240,
+  searchSkeletonMs: 2000,
+  menuDimMs: 140,
+  menuScaleMs: 150,
+  toastMs: 3000,
+  themeMenuMs: 180,
+  themeRevealMs: 200,
+  infoBackMs: 150,
+  barSlideMs: 150,
+  // messages
+  messageDimMs: 140,
+  messageMenuMs: 150,
+  reactionCardMs: 100,
+  reactionCardFillMs: 1000,
+  reactionMenuFadeMs: 240,
+  bubbleGrowMs: 200,
+  reactionFlyMs: 250,
+  reactionBurstMs: 1000,
+  sendEmojiMs: 300,
+  emojiEffectMs: 3300,
+  deleteDialogMs: 100,
+  deleteSettleMs: 300,
+  deleteDustMs: 360,
+  composerMorphMs: 150,
+  // voice
+  recordMorphMs: 200,
+  micToSendMs: 120,
+  dictationFadeMs: 250,
+  languageMenuMs: 450,
+  /** a slide toward cancel past this share of the width cancels */
+  recordCancelShare: 0.4,
+  voiceDustMs: 400,
+  composerReturnMs: 150,
+  cancelDustMs: 300,
+  // sheets
+  sheetMs: 180,
+} as const;
+
+export type TgTiming = keyof typeof TG_MOTION;
+
+/** The timings as CSS custom properties (`--tg-open-ms: 220ms`), for a style attribute on the element that animates. */
+export function tgMotionVars(keys: readonly TgTiming[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const key of keys) {
+    const name = "--tg-" + key.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+    out[name] = key.endsWith("Ms") ? `${TG_MOTION[key]}ms` : key.endsWith("Px") ? `${TG_MOTION[key]}px` : String(TG_MOTION[key]);
+  }
+  return out;
+}

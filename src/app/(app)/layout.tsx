@@ -86,6 +86,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       quickChat={on.quickChat}
       // «شريط تيليجرام السفلي»: a phone's bottom bar is Telegram's four tabs (the company's switch `tgTabBar`, off by default; never for an external partner)
       tgTabBar={on.tgTabBar && !actor.isExternal}
+      // «تيليجرام على التلفون» (`tgPhone`, a part of the new chat screen): the frame and the chat read it from the shell
+      tgPhone={on.chatLayoutV2 && on.tgPhone}
       siteGuide={on.siteGuide && on.ownerAssistant && actor.isOwner}
       economy={economyOn(org?.settings)}
       // «مظهر المفتاح»: the person's look of the light/dark switch (the `zk-switch` cookie, so the very first paint already has the right tint);
