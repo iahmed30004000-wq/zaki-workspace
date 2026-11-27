@@ -2,6 +2,7 @@
   "accounts.username_too_short": "اسم المستخدم 3 خانات على الأقل",
   "accounts.username_too_long": "اسم المستخدم 32 خانة على الأكثر",
   "accounts.username_invalid": "اسم المستخدم يُكتب بحروف إنجليزية صغيرة وأرقام، ويجوز فيه النقطة (.) والشرطة (-) والشرطة السفلية (_)، ويبدأ بحرف أو رقم",
+  "accounts.username_bot": "هذه النهاية للبوتات وحدها — اختر اسمًا آخر",
   "accounts.username_taken": "اسم المستخدم هذا مستعمل — اختر اسمًا آخر",
   "accounts.name_too_short": "الاسم حرفان على الأقل",
   "accounts.name_too_long": "الاسم 80 حرفًا على الأكثر",
