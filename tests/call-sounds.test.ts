@@ -23,7 +23,8 @@ function sharedStore(): LockStorage {
 
 describe("three incoming ringtones, chosen per device", () => {
   it("the recorded one stays, two drawn ones join it; reading a remembered choice is safe", () => {
-    expect([...RING_TONES]).toEqual(["file", "soft", "bell"]);
+    // the first three as before; five of our own joined on 2026-11-27 (tests/ringtones-new.test.ts)
+    expect([...RING_TONES].slice(0, 3)).toEqual(["file", "soft", "bell"]);
     expect(DEFAULT_RING_TONE).toBe("file");
     expect(parseRingTone("bell")).toBe("bell");
     expect(parseRingTone("trumpet")).toBeNull();

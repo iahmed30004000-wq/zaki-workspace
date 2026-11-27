@@ -1,8 +1,8 @@
 /**
- * Which incoming ringtone this DEVICE rings (the owner picks from three, 2026-11-21): the recorded one (public/sounds/ring.mp3) and two drawn by the
- * browser itself (src/lib/calls/tones.ts). Kept in localStorage, so each phone and each computer has its own, and never sent anywhere.
+ * Which incoming ringtone this DEVICE rings (the owner picks, 2026-11-21; five more of our own on 2026-11-27): the recorded one (public/sounds/ring.mp3) and
+ * the ones drawn by the browser itself (src/lib/calls/tones.ts). Kept in localStorage, so each phone and each computer has its own, and never sent anywhere.
  */
-export const RING_TONES = ["file", "soft", "bell"] as const;
+export const RING_TONES = ["file", "soft", "bell", "marimba", "breeze", "pearl", "hop", "sunset"] as const;
 export type RingTone = (typeof RING_TONES)[number];
 
 export const DEFAULT_RING_TONE: RingTone = "file";
@@ -14,6 +14,11 @@ export const RING_TONE_LABEL: Record<RingTone, string> = {
   file: "calls.tone.file",
   soft: "calls.tone.soft",
   bell: "calls.tone.bell",
+  marimba: "calls.tone.marimba",
+  breeze: "calls.tone.breeze",
+  pearl: "calls.tone.pearl",
+  hop: "calls.tone.hop",
+  sunset: "calls.tone.sunset",
 };
 
 export function parseRingTone(value: unknown): RingTone | null {
