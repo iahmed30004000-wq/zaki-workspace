@@ -23,9 +23,9 @@ const ROOT = path.resolve(__dirname, "..");
 const m = manifest();
 
 describe("the web app manifest (served by Next at /manifest.webmanifest)", () => {
-  it("names the app: «Zaki Workspace», short name «زاكي», with an Arabic description", () => {
+  it("names the app: «Zaki Workspace», short name «ذكي», with an Arabic description", () => {
     expect(m.name).toBe("Zaki Workspace");
-    expect(m.short_name).toBe("زاكي");
+    expect(m.short_name).toBe("ذكي");
     expect(m.description).toMatch(/[؀-ۿ]/);
     // the sentence is Arabic: the brand name is the only Latin text allowed in it
     expect((m.description ?? "").replace(/Zaki Workspace|Zaki/g, "")).not.toMatch(/[A-Za-z]/);

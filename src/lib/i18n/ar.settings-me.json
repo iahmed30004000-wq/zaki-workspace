@@ -236,7 +236,7 @@
   "settingsMe.k.settings": "فتح إعداداتي",
   "settingsMe.k.settings.keys": "كنترول وفاصلة",
 
-  "settingsMe.h.guide": "دليل زاكي",
+  "settingsMe.h.guide": "دليل ذكي",
   "settingsMe.h.guide.hint": "شرح الشاشات خطوة خطوة",
   "settingsMe.h.contact": "تواصل مع الإدارة",
   "settingsMe.h.contact.hint": "بتفتح محادثة خاصة مع مدير الشركة.",
@@ -247,7 +247,7 @@
   "settingsMe.v.sessions.current": "هالجهاز",
   "settingsMe.v.sessions.last": "آخر نشاط: {when}",
   "settingsMe.v.sessions.since": "دخل: {when}",
-  "settingsMe.v.sessions.app": "تطبيق زاكي على أندرويد",
+  "settingsMe.v.sessions.app": "تطبيق ذكي على أندرويد",
   "settingsMe.v.sessions.on": "على",
   "settingsMe.v.sessions.end": "اطلع من هالجهاز",
   "settingsMe.v.sessions.ended": "طلع الجهاز من حسابك",

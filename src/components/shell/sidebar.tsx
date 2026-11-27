@@ -20,7 +20,7 @@ import { NavOrderButton, SettingsDoor, useSettingsOneDoor } from "./nav-options"
  * The computer's side menu (from `md`), on the START side — the right, in Arabic («نجمة وطريق»):
  *
  *   - the 88px header: the theme's ornament (`ThemeDecor kind="sidebar"`, one of the four places a
- *     decoration may be drawn — the field of stars on «ليل»/«نهار») behind the wordmark «زاكي» in
+ *     decoration may be drawn — the field of stars on «ليل»/«نهار») behind the wordmark «ذكي» in
  *     Lalezar (`.zk-wordmark`) and the company's name. The header is `relative` and clips the layer;
  *     its content is `relative` too, so it paints over the layer. The ornament stays in the header:
  *     never behind the list of places;
@@ -28,7 +28,7 @@ import { NavOrderButton, SettingsDoor, useSettingsOneDoor } from "./nav-options"
  *   - the places (icon and label), the current one washed in gold and marked with a star, the unread
  *     count beside «الدردشة»;
  *   - a dashed gold thread down the menu's end edge (`.zk-side-rule`, decoration only);
- *   - at the bottom «دليل زاكي», the avatar menu and the button that folds the menu to an icon rail
+ *   - at the bottom «دليل ذكي», the avatar menu and the button that folds the menu to an icon rail
  *     (remembered on this device by the shell).
  *
  * `data-tour="places"` on the list (the bottom bar carries it on a phone).
@@ -82,9 +82,9 @@ export function Sidebar({
   canReset?: boolean;
 }) {
   const { t } = useI18n();
-  // S3.1: «الإعدادات» is ONE door: one row replaces «دليل زاكي» and «ترتيب», and «ترتيب» is a small icon button in the header
+  // S3.1: «الإعدادات» is ONE door: one row replaces «دليل ذكي» and «ترتيب», and «ترتيب» is a small icon button in the header
   const oneDoor = useSettingsOneDoor();
-  // the space you are in, written where «زاكي» was and in its lettering (the owner's ask, 2026-10-25); a long name
+  // the space you are in, written where «ذكي» was and in its lettering (the owner's ask, 2026-10-25); a long name
   // steps down a size so it fits the menu, and the folded rail keeps the space's mark
   const brand = space?.name ?? t("app.brand");
   const brandSize = collapsed ? "text-2xl" : brand.length > 12 ? "text-2xl" : brand.length > 8 ? "text-[32px]" : "text-[40px]";
@@ -209,7 +209,7 @@ export function Sidebar({
         )}
       </nav>
 
-      {/* the pinned block: «دليل زاكي», the install button, the fold and the person. It never shrinks and never overlaps the list above it (`data-sidebar="footer"`) */}
+      {/* the pinned block: «دليل ذكي», the install button, the fold and the person. It never shrinks and never overlaps the list above it (`data-sidebar="footer"`) */}
       <div data-sidebar="footer" className="relative z-10 shrink-0 bg-surface-1">
       <div className={cn("shrink-0 px-3 pb-1", collapsed && "px-2")}>
         {oneDoor ? (

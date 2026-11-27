@@ -349,7 +349,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
     <div className="flex min-h-0 flex-1">
       <div className="flex min-h-0 min-w-0 flex-1 flex-col" {...swipe} {...(tg ? { onScrollCapture: scroll.onScroll, ...(scroll.down ? { "data-tg-scrolled": "" } : {}) } : {})}>
       {tall ? (
-        // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
+        // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «ذكي», and a search that expands
         <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} scrolled={scroll.down} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} />
       ) : rail ? null : (
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />

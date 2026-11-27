@@ -7,7 +7,7 @@
   "mobile.push.banner_text": "فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر",
   "mobile.push.banner_enable": "فعّل الإشعارات",
   "mobile.push.banner_region": "اقتراح: فعّل الإشعارات",
-  "mobile.push.ios_text": "على الآيفون الإشعارات بتشتغل بعد ما تضيف زاكي للشاشة الرئيسية (آيفون 16.4 وما فوق)، وبعدها فعّلها من هون",
+  "mobile.push.ios_text": "على الآيفون الإشعارات بتشتغل بعد ما تضيف ذكي للشاشة الرئيسية (آيفون 16.4 وما فوق)، وبعدها فعّلها من هون",
   "mobile.pwa.ios_push_note": "الإشعارات على الآيفون بتشتغل بس بعد «إضافة إلى الشاشة الرئيسية» (آيفون 16.4 وما فوق)",
   "mobile.share.title": "ابعت لـ…",
   "mobile.share.search": "دوّر على محادثة",
@@ -25,6 +25,6 @@
   "mobile.share.back": "رجوع للمحادثات",
   "mobile.share.list_label": "المحادثات",
   "mobile.offline.message": "ما في نت — الرسائل اللي بتكتبها رح تنبعت لما يرجع",
-  "mobile.offline.open": "افتح زاكي",
-  "mobile.offline.page_title": "زاكي: ما في نت"
+  "mobile.offline.open": "افتح ذكي",
+  "mobile.offline.page_title": "ذكي: ما في نت"
 }

@@ -13,7 +13,7 @@ import { fmtMoment } from "@/components/owner-board/format";
 /**
  * «لوحة التحكم» as a page: what /owner is for the OWNER while the switch «لوحة التحكم» is on. One page, four sections chosen by `?v=`
  * (a link each, no script): «نظرة عامة» (the cards, every sentence, the day's strip, the company's cards), «الناس» (the old people table with
- * its filters, as it was), «التقارير» (the old report merged and extended) and «زاكي أي أي» (is it connected, and how to connect it).
+ * its filters, as it was), «التقارير» (the old report merged and extended) and «ذكي أي أي» (is it connected, and how to connect it).
  * Every section is a server read; the access is decided here AND in every service it calls, and reading writes nothing.
  */
 export async function ControlPanelPage({ actor, searchParams }: { actor: Actor; searchParams: Record<string, string | string[] | undefined> }) {

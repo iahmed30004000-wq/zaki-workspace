@@ -9,7 +9,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 
 /**
- * «إعداداتي» and «دليل زاكي» — the site's own words (ar.settings-me.json, ar.json, ar.automation.json, ar.last-seen.json, ar.app-devices.json,
+ * «إعداداتي» and «دليل ذكي» — the site's own words (ar.settings-me.json, ar.json, ar.automation.json, ar.last-seen.json, ar.app-devices.json,
  * ar.guide.json) and its rules (src/lib/chat/prefs.ts, src/components/settings-me/), ported as they are. Pure (MeTest pins them).
  */
 object M {
@@ -157,7 +157,7 @@ object M {
     const val digitsFix = "🔧 اختيارك بينحفظ لحسابك وبيشتغل على الموقع فورًا، وعلى التطبيق بمرحلة جاية."
 
     // help
-    const val guide = "دليل زاكي"; const val guideHint = "شرح الشاشات خطوة خطوة"
+    const val guide = "دليل ذكي"; const val guideHint = "شرح الشاشات خطوة خطوة"
     const val contact = "تواصل مع الإدارة"; const val contactHint = "بتفتح محادثة خاصة مع مدير الشركة."
     const val contactFailed = "ما قدرنا نفتح المحادثة"
 
@@ -178,7 +178,7 @@ object M {
     /** A browser's name from its user agent (devices-section.tsx `browserLabel`): «كروم على ويندوز»; the app is named as the app. */
     fun uaLabel(ua: String?): String {
         val s = ua.orEmpty()
-        if (Regex("okhttp|^ZakiApp/", RegexOption.IGNORE_CASE).containsMatchIn(s)) return "تطبيق زاكي على أندرويد"
+        if (Regex("okhttp|^ZakiApp/", RegexOption.IGNORE_CASE).containsMatchIn(s)) return "تطبيق ذكي على أندرويد"
         val browser = when {
             s.contains("Edg/") -> "إيدج"
             s.contains("OPR/") || s.contains("Opera") -> "أوبرا"

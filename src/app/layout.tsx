@@ -34,7 +34,7 @@ const reem = localFont({
 });
 
 /**
- * The wordmark face of «نجمة وطريق»: «زاكي» in a heavy Arabic display face (SIL OFL). Like Plex it is
+ * The wordmark face of «نجمة وطريق»: «ذكي» in a heavy Arabic display face (SIL OFL). Like Plex it is
  * fetched once at BUILD time by next/font and served from this site: a visitor's browser never asks Google.
  * Not preloaded: only the wordmark wears it (`font-brand`).
  */
@@ -49,7 +49,7 @@ const lalezar = Lalezar({
 export const metadata: Metadata = {
   title: { default: "Zaki Workspace", template: "%s · Zaki Workspace" },
   description: "مساحة عمل فريقك: المهام والمشاريع والدردشة والملفات في مكان واحد.",
-  appleWebApp: { capable: true, title: "زاكي", statusBarStyle: "default" },
+  appleWebApp: { capable: true, title: "ذكي", statusBarStyle: "default" },
   formatDetection: { telephone: false, address: false, email: false, date: false },
 };
 

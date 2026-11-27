@@ -16,8 +16,8 @@ import type { SectionCtx } from "./board-sections";
  * and the link to the orders system (the cards of /automation, MOVED), the orders system's events card, the Telegram bot (/telegram, MOVED) and the AI connection.
  * (The tokens of the systems that call Zaki Workspace are the OWNER rank's, as they were on /settings: they sit in «إعدادات الشركة», not behind `integrations.manage`.)
  *
- * THE AI CONNECTION IS ONE PLACE: the two forms the owner used to find (the gateway form of «زاكي أي أي» and the key / model / local model / gateway form of «مساعد المالك»)
- * both wrote the same AiSettings row; here the status of «زاكي أي أي» (is it connected, the test, the fixed address) sits on top of the ONE form that edits that row
+ * THE AI CONNECTION IS ONE PLACE: the two forms the owner used to find (the gateway form of «ذكي أي أي» and the key / model / local model / gateway form of «مساعد المالك»)
+ * both wrote the same AiSettings row; here the status of «ذكي أي أي» (is it connected, the test, the fixed address) sits on top of the ONE form that edits that row
  * (`SettingsForm`), and the gateway fields exist once. The cards that are the owner's alone stay owner-only (the backup, the mailbox, the orders system's token, the AI).
  */
 export async function IntegrationsSection({ ctx }: { ctx: SectionCtx }) {

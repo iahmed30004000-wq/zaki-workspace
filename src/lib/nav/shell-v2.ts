@@ -11,7 +11,7 @@ export interface AppBarSlots {
   search: boolean;
   /** «ليل / نهار» (still in the avatar menu's «المظهر» for everybody). */
   theme: boolean;
-  /** «؟»: the help of the page (still in «دليل زاكي»). */
+  /** «؟»: the help of the page (still in «دليل ذكي»). */
   help: boolean;
   bell: boolean;
   create: boolean;

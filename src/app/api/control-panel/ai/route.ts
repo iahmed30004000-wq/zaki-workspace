@@ -7,7 +7,7 @@ import { connectZakiAi, zakiAiStatus } from "@/server/services/zaki-ai";
 const noStore = { headers: { "cache-control": "no-store" } } as const;
 
 /**
- * «زاكي أي أي»: is it connected? OWNER ONLY (404 for everybody else and while «لوحة التحكم» is off).
+ * «ذكي أي أي»: is it connected? OWNER ONLY (404 for everybody else and while «لوحة التحكم» is off).
  * `?fresh=1` asks the service again instead of answering from the 30-second memory. The answer holds the address and the model name that were
  * saved, whether a key is saved and its last four characters, and a dictionary key for the reason: never the key.
  */

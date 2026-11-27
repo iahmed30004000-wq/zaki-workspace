@@ -10,7 +10,7 @@ import { startTour } from "./tour-runner";
 export const GUIDE_CARD_HINT = "guide-card";
 
 /**
- * «أهلين! أنا زاكي» — the guide's welcome on «اليوم» («نجمة وطريق»): «يلا» starts the real tour of the frame
+ * «أهلين! أنا ذكي» — the guide's welcome on «اليوم» («نجمة وطريق»): «يلا» starts the real tour of the frame
  * (the `shell` tour: the places, the search, the bell, «جديد», the avatar), «بعدين» puts the card away on this
  * device. It is not shown once the tour was taken or the card was put away; what this device remembers is read
  * after the page has loaded, so the server and the first paint agree (nothing until the device was asked).

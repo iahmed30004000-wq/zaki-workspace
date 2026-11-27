@@ -1,6 +1,6 @@
 /**
  * WP-ARABIC1: the wording decisions of 04-REVIEW-A-ARABIC.md, pinned so a later edit cannot quietly
- * undo them — «ركّب» is «ثبّت», «زكي» is «زاكي», no «قريبًا» archive promise, «المؤسسة» is «الشركة», the
+ * undo them — «ركّب» is «ثبّت», «زكي» is «ذكي», no «قريبًا» archive promise, «المؤسسة» is «الشركة», the
  * password rule names the English letter, and no «ـاً» spelling comes back.
  */
 import { describe, expect, it } from "vitest";
@@ -45,9 +45,9 @@ describe("WP-ARABIC1: the words the review corrected", () => {
     expect(AR["common.logout"]).toBe("تسجيل الخروج");
   });
 
-  it("the app is called «زاكي» and the person installs it: «ثبّت», never «ركّب»", () => {
-    expect(AR["pwa.install_title"]).toContain("زاكي");
-    expect(AR["pwa.region_label"]).toContain("زاكي");
+  it("the app is called «ذكي» and the person installs it: «ثبّت», never «ركّب»", () => {
+    expect(AR["pwa.install_title"]).toContain("ذكي");
+    expect(AR["pwa.region_label"]).toContain("ذكي");
     const everything = Object.values(AR).join("\n") + "\n" + articleText(ARTICLES[0]!, "managers");
     expect(everything).not.toContain("ركّب");
     expect(everything).not.toContain("تركيب");
