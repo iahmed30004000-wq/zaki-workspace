@@ -167,6 +167,7 @@ object Links {
             "/calendar" -> Destination.Work("calendar")
             "/requests" -> Destination.Work("requests")
             "/my-work/stale" -> Destination.Stale
+            "/my-work/routines" -> Destination.Work("routines")
             "/contacts" -> Destination.Contacts
             // «إعداداتي»: its list lives in «الإدارة»
             "/settings/me" -> Destination.Settings
