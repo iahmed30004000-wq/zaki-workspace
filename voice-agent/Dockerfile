@@ -1,11 +1,13 @@
-# The voice agent of «المساعد بالاجتماعات» (see README.md). CPU only; the models are downloaded once into the /models volume.
+# The voice agent of «المساعد بالاجتماعات» (see README.md). The models are downloaded once into the /models volume.
+# Built for the processor unless the build argument GPU=1 (docker-compose.gpu.yml) adds the libraries of an NVIDIA graphics card (about 1 GB more to download).
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 curl ca-certificates ffmpeg && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-COPY logic.py tashkeel.py stt_groq.py tts_edge.py tts_gemini.py agent.py entrypoint.sh ./
+ARG GPU=0
+COPY requirements.txt requirements-gpu.txt ./
+RUN if [ "$GPU" = "1" ]; then pip install --no-cache-dir -r requirements.txt -r requirements-gpu.txt; else pip install --no-cache-dir -r requirements.txt; fi
+COPY logic.py notes.py stt_device.py stt_probe.py tashkeel.py stt_groq.py tts_edge.py tts_gemini.py agent.py entrypoint.sh ./
 RUN chmod +x entrypoint.sh
 
 ENV HF_HOME=/models/hf PORT=8080 PYTHONUNBUFFERED=1

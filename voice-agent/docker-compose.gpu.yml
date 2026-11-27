@@ -1,0 +1,64 @@
+# The same program ON A SERVER WITH AN NVIDIA GRAPHICS CARD. A whole file of its own (Coolify deploys one file): everything of docker-compose.yml, plus the card.
+# In Coolify set «Docker Compose Location» to /docker-compose.gpu.yml and redeploy. The server needs the NVIDIA driver and the NVIDIA container toolkit FIRST:
+# without them this file does not start at all. Going back is setting the location to /docker-compose.yml again. See README.md.
+services:
+  voice-agent:
+    build:
+      context: .
+      args:
+        GPU: "1"
+    restart: unless-stopped
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    environment:
+      - VOICE_AGENT_SECRET=${SERVICE_PASSWORD_VOICEAGENT}
+      - WORKSPACE_TURN_URL=${WORKSPACE_TURN_URL:-https://workspace.zakiai.io/api/voice-agent/turn}
+      - WHISPER_MODEL=${WHISPER_MODEL:-small}
+      - MAX_SESSIONS=${MAX_SESSIONS:-2}
+      - TASHKEEL=${TASHKEEL:-1}
+      # who speaks: edge (Microsoft neural voice, the default) | gemini (needs GEMINI_API_KEY, the owner's own) | piper (local only)
+      # speed and diagnosis: timings are always in the log; VOICE_DEBUG=1 adds what was said; VOICE_FILLER=0 drops the spoken «one moment»
+      - VOICE_DEBUG=${VOICE_DEBUG:-0}
+      - VOICE_FILLER=${VOICE_FILLER:-0}
+      - WHISPER_THREADS=${WHISPER_THREADS:-0}
+      # where it listens: auto (the graphics card when one really works, else the processor) | cpu | cuda. A server WITH a card deploys docker-compose.gpu.yml.
+      - STT_DEVICE=${STT_DEVICE:-auto}
+      # the model ON THE CARD (WHISPER_MODEL above stays the processor's). int8_float16 needs about a third less card memory than float16.
+      # A model that does not fit falls back by itself to medium, then small, then the processor; /health and the log say which one runs.
+      - WHISPER_GPU_MODEL=${WHISPER_GPU_MODEL:-large-v3}
+      - WHISPER_GPU_COMPUTE=${WHISPER_GPU_COMPUTE:-int8_float16}
+      # utility puts nvidia-smi in the container: that is where the card's name and memory come from
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      # where pip put cuBLAS and cuDNN in this image (python:3.11-slim)
+      - LD_LIBRARY_PATH=/usr/local/lib/python3.11/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.11/site-packages/nvidia/cudnn/lib
+      # who listens: local (default, nothing leaves the server) | groq (needs GROQ_API_KEY, the owner's own; every sentence goes to Groq)
+      - STT_ENGINE=${STT_ENGINE:-local}
+      - GROQ_API_KEY=${GROQ_API_KEY:-}
+      - GROQ_STT_MODEL=${GROQ_STT_MODEL:-whisper-large-v3}
+      - TTS_ENGINE=${TTS_ENGINE:-edge}
+      # the voice: for a Levantine sound try EDGE_VOICE=ar-JO-TaimNeural; EDGE_RATE is its speed (+10% faster, -10% slower)
+      - EDGE_VOICE=${EDGE_VOICE:-ar-SA-HamedNeural}
+      - EDGE_RATE=${EDGE_RATE:-+0%}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+      - GEMINI_VOICE=${GEMINI_VOICE:-Kore}
+      - GEMINI_TTS_MODEL=${GEMINI_TTS_MODEL:-gemini-3.8-flash-lite-tts}
+      # the local Piper voice (the backup of edge and gemini); EMPTY = the voice's own setting
+      - PIPER_LENGTH_SCALE=${PIPER_LENGTH_SCALE:-}
+      - PIPER_NOISE_SCALE=${PIPER_NOISE_SCALE:-}
+      - PIPER_NOISE_W=${PIPER_NOISE_W:-}
+      - PIPER_SENTENCE_SILENCE=${PIPER_SENTENCE_SILENCE:-}
+      # a hint for the recogniser so it knows the assistant's names (a single space sends none)
+      - STT_PROMPT=${STT_PROMPT:-اجتماع عمل. المساعد زاكي يشارك فيه.}
+      - VOICE_FILLER_TEXT=${VOICE_FILLER_TEXT:-حسنًا، لحظة من فضلك.}
+    volumes:
+      - voice-models:/models
+    expose:
+      - "8080"
+
+volumes:
+  voice-models:

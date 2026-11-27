@@ -3,12 +3,18 @@ The voice agent of «المساعد بالاجتماعات»: a small program on
 
     room audio --(voice activity)--> sentence --(faster-whisper)--> text --(POST /api/voice-agent/turn)--> answer --(Piper)--> room audio
 
-Free software only: faster-whisper and Piper run here, on the CPU. The workspace decides WHAT to say (it asks the owner's own model, with the
+Free software only: faster-whisper and Piper run here. The workspace decides WHAT to say (it asks the owner's own model, with the
 words filtered first); this program only hears and speaks. NO AUDIO IS EVER STORED: sound lives in memory for the length of one sentence.
 
 Only while the OWNER has turned on «تسجيل نص الاجتماعات» for this call (the workspace tells it: the join says `transcript`, and /transcript flips it) every finished
 sentence is also handed over as TEXT, with who said it, to a second signed door (POST /api/voice-agent/transcript: {callId, personId, text}). The minutes are
-written by the workspace AFTER the call. Without a graphics card the speech is written on the processor, so nothing here is live.
+written by the workspace AFTER the call.
+
+WHERE it listens (stt_device.py): on the graphics card when there is one that really works (a bigger, more accurate model, much faster), else on the
+processor as before. The card never stops the agent from starting; /health says which one listens, with which model, and why.
+
+The same recogniser also writes the words of a VOICE NOTE for the site, through the signed door POST /transcribe-note (notes.py), one piece at a time
+so a meeting is never held for the length of a note.
 """
 import asyncio
 import json
@@ -26,6 +32,8 @@ from livekit import rtc
 from piper import PiperVoice
 
 import logic
+import notes
+import stt_device
 import tashkeel
 import stt_groq
 import tts_edge
@@ -40,7 +48,13 @@ TRANSCRIPT_URL = os.environ.get("WORKSPACE_TRANSCRIPT_URL", "").strip() or (TURN
 # When the door says «not stored» (the record is off for that call) the agent stops sending for this long.
 TRANSCRIPT_PAUSE_SECONDS = 60
 TRANSCRIPT_LINE_MAX = 1500
-WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")
+WHISPER_MODEL = os.environ.get("WHISPER_MODEL", "small")  # the model on the PROCESSOR
+# The card. WHISPER_MODEL is deliberately not reused there: Coolify keeps the «small» it read from the compose file, and the card would never get more.
+STT_DEVICE = os.environ.get("STT_DEVICE", "auto")  # auto | cpu | cuda
+WHISPER_GPU_MODEL = os.environ.get("WHISPER_GPU_MODEL", "").strip() or stt_device.GPU_DEFAULT_MODEL
+WHISPER_GPU_COMPUTE = os.environ.get("WHISPER_GPU_COMPUTE", "").strip() or stt_device.GPU_DEFAULT_COMPUTE
+# how long one try of a model on the card may take; the first one includes downloading the model (about 3 GB for large-v3)
+WHISPER_GPU_TRY_SECONDS = float(os.environ.get("WHISPER_GPU_TRY_SECONDS", "").strip() or 1800)
 PIPER_VOICE = os.environ.get("PIPER_VOICE", "/models/ar_JO-kareem-medium.onnx")
 MAX_SESSIONS = int(os.environ.get("MAX_SESSIONS", "2"))
 # Vowel marks before speaking (the voice was trained on marked text; without them it sounds like a robot). TASHKEEL=0 turns it off.
@@ -96,16 +110,51 @@ MAX_UTTERANCE_SECONDS = 15
 MIN_UTTERANCE_SECONDS = 0.6
 OUT_RATE = 24000  # the room's voice track
 
-_whisper = None
+_stt = None  # stt_device.Choice: the recogniser, and where and why it runs there
+_ready = False  # every model is loaded; until then /join and /transcribe-note answer «loading»
 _voice = None
 _tashkeel = None
 _filler = None
 
 
+def _cards() -> int:
+    import ctranslate2
+
+    return ctranslate2.get_cuda_device_count()
+
+
+def _load_cpu(model: str):
+    return WhisperModel(model, device="cpu", compute_type="int8", cpu_threads=WHISPER_THREADS)
+
+
+def load_recogniser():
+    setting, understood = stt_device.parse_setting(STT_DEVICE)
+    if not understood:
+        log.warning("STT_DEVICE=%s is not auto, cpu or cuda: using auto", STT_DEVICE[:20])
+    choice = stt_device.choose(
+        setting,
+        cpu_model=WHISPER_MODEL,
+        gpu_model=WHISPER_GPU_MODEL,
+        gpu_compute=WHISPER_GPU_COMPUTE,
+        gpu_count=_cards,
+        gpu_card=stt_device.gpu_card,
+        libs_ok=stt_device.cublas_present,
+        probe=lambda model, compute: stt_device.run_probe(model, compute, timeout=WHISPER_GPU_TRY_SECONDS),
+        load_gpu=lambda model, compute: WhisperModel(model, device="cuda", compute_type=compute),
+        load_cpu=_load_cpu,
+        warn=log.warning,
+    )
+    if choice.device == "cuda":
+        card = f"{choice.gpu['name']}, {choice.gpu['memoryMb']} MB" if choice.gpu else "name unknown"
+        log.info("speech recogniser: %s (%s) on the GRAPHICS CARD (%s), one sentence at a time", choice.model, choice.compute, card)
+    else:
+        log.info("speech recogniser: %s on %d threads of the processor (one sentence at a time)%s", choice.model, WHISPER_THREADS, f", reason: {choice.reason}" if choice.reason else "")
+    return choice
+
+
 def load_models() -> None:
-    global _whisper, _voice, _tashkeel
-    _whisper = WhisperModel(WHISPER_MODEL, device="cpu", compute_type="int8", cpu_threads=WHISPER_THREADS)
-    log.info("speech recogniser: %s on %d threads (one sentence at a time)", WHISPER_MODEL, WHISPER_THREADS)
+    global _stt, _voice, _tashkeel, _ready
+    _stt = load_recogniser()
     if STT_ENGINE == "groq":
         log.info("listening: groq %s%s", GROQ_STT_MODEL, "" if GROQ_KEY else " (NO KEY: local only)")
     else:
@@ -118,10 +167,11 @@ def load_models() -> None:
             log.info("tashkeel on: %s -> %s", sample, _tashkeel(sample))
     else:
         log.info("tashkeel off (TASHKEEL=0)")
+    _ready = True
 
 
 def transcribe(pcm: np.ndarray) -> str:
-    segments, _ = _whisper.transcribe(
+    segments, _ = _stt.recogniser.transcribe(
         pcm.astype(np.float32) / 32768.0,
         language="ar",
         beam_size=1,
@@ -133,8 +183,31 @@ def transcribe(pcm: np.ndarray) -> str:
 
 
 # ONE sentence at a time on the local recogniser: several at once (every voice, every pause) fought over the same cores and a two-second
-# sentence took up to 29 seconds.
+# sentence took up to 29 seconds. The pieces of a voice note wait in the same line.
 _local_stt = ThreadPoolExecutor(max_workers=1, thread_name_prefix="whisper")
+_gpu_guard = stt_device.RuntimeGuard()
+
+
+def on_recogniser(fn):
+    """fn on the recogniser's one worker, in turn."""
+    return asyncio.get_running_loop().run_in_executor(_local_stt, fn)
+
+
+def _move_to_cpu() -> None:
+    global _stt
+    card = _stt
+    _stt = stt_device.Choice("cpu", WHISPER_MODEL, "int8", card.setting, card.requested, card.gpu_found, card.gpu, "gpu_runtime", _load_cpu(WHISPER_MODEL))
+    log.warning("the graphics card stopped working: listening on the processor (%s) until the next restart", WHISPER_MODEL)
+
+
+async def recogniser_failed(err: Exception) -> None:
+    # the error of the library only (a CUDA or memory message): never anything that was said
+    log.warning("local recogniser failed: %s: %s", type(err).__name__, str(err)[:200])
+    if _stt and _stt.device == "cuda" and _gpu_guard.failed():
+        try:
+            await on_recogniser(_move_to_cpu)
+        except Exception as again:
+            log.warning("could not load the processor's model: %s", type(again).__name__)
 
 
 async def recognise(pcm: np.ndarray) -> str:
@@ -145,7 +218,13 @@ async def recognise(pcm: np.ndarray) -> str:
         if text is not None:
             return text
         log.warning("listening with the local recogniser instead")
-    return await asyncio.get_running_loop().run_in_executor(_local_stt, transcribe, pcm)
+    try:
+        text = await on_recogniser(lambda: transcribe(pcm))
+    except Exception as err:  # this sentence is lost; the meeting goes on
+        await recogniser_failed(err)
+        return ""
+    _gpu_guard.worked()
+    return text
 
 
 def synthesize(text: str):
@@ -378,6 +457,8 @@ async def join(request: web.Request) -> web.Response:
     call_id = str(data["callId"])
     if call_id in meetings:
         return web.json_response({"ok": True})
+    if not _ready:
+        return web.json_response({"error": "loading"}, status=503)
     if len(meetings) >= MAX_SESSIONS:  # speech to text on a CPU: two meetings at once is plenty
         return web.json_response({"error": "busy"}, status=429)
     meeting = Meeting(call_id, data["room"], data["url"], data["token"], data.get("title"), data.get("transcript", False))
@@ -415,8 +496,114 @@ async def leave(request: web.Request) -> web.Response:
     return web.json_response({"ok": True})
 
 
-async def health(_request: web.Request) -> web.Response:
-    return web.json_response({"ok": True, "meetings": len(meetings)})
+async def decode(demuxer: str, audio: bytes):
+    """The recording as 16 kHz mono 16-bit sound, or None. It goes through ffmpeg without ever reaching a disk: an in-memory file where the system has
+    one (an mp4 whose index is at its end can only be read from something seekable), else the input pipe."""
+    memory = None
+    try:
+        memory = os.memfd_create("voice-note")
+        view = memoryview(audio)
+        while view:
+            view = view[os.write(memory, view) :]
+    except (AttributeError, OSError):
+        if memory is not None:
+            os.close(memory)
+        memory = None
+    piped = memory is None
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *notes.ffmpeg_args(demuxer, "pipe:0" if piped else f"/proc/self/fd/{memory}"),
+            stdin=asyncio.subprocess.PIPE if piped else asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,  # ffmpeg quotes what is inside a file: none of it reaches a log
+            **({} if piped else {"pass_fds": (memory,)}),
+        )
+        try:
+            pcm, _ = await asyncio.wait_for(process.communicate(audio if piped else None), notes.DECODE_TIMEOUT_SECONDS)
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            return None
+        return pcm if process.returncode == 0 and len(pcm) >= 2 else None
+    finally:
+        if memory is not None:
+            os.close(memory)
+
+
+note_gate = notes.NoteGate()
+
+
+def _refused(code: str, status: int) -> web.Response:
+    return web.json_response({"error": code}, status=status)
+
+
+async def transcribe_note(request: web.Request) -> web.Response:
+    """The words of one voice note for the site (signed; notes.py). Always the recogniser of THIS server, whatever STT_ENGINE says about meetings.
+    Nothing is stored; the log gets sizes and times only."""
+    signed = notes.check_headers(SECRET, request.headers)  # before a byte of the body is read
+    if signed is None:
+        raise web.HTTPNotFound()
+    if not _ready:
+        return _refused("loading", 503)
+    if (request.content_length or 0) > notes.MAX_NOTE_BYTES:
+        return _refused("too_large", 413)
+    sha, language = signed
+    began = time.monotonic()
+    try:
+        async with note_gate.turn():
+            audio = await notes.read_limited(request.content.iter_chunked(65536))
+            if audio is None:
+                return _refused("too_large", 413)
+            if not notes.body_matches(audio, sha):
+                raise web.HTTPNotFound()
+            demuxer = notes.container_of(audio[:64])
+            pcm = await decode(demuxer, audio) if demuxer else None
+            if pcm is None:
+                return _refused("unreadable", 415)
+            seconds = notes.pcm_seconds(len(pcm))
+            if seconds > notes.MAX_NOTE_SECONDS:
+                return _refused("too_long", 422)
+            samples = np.frombuffer(pcm[: len(pcm) // 2 * 2], dtype=np.int16).astype(np.float32) / 32768.0
+            try:
+                text = await notes.drain(
+                    lambda: (s.text for s in _stt.recogniser.transcribe(samples, **notes.note_options(_stt.device, language))[0]),
+                    on_recogniser,
+                    deadline=began + notes.NOTE_DEADLINE_SECONDS,
+                )
+            except notes.TooSlow:
+                log.warning("voice note: %.0f seconds of sound were too slow to write", seconds)
+                return _refused("too_slow", 504)
+            except Exception as err:
+                await recogniser_failed(err)
+                return _refused("failed", 500)
+            _gpu_guard.worked()
+            log.info("voice note written: %.0f seconds of sound in %d ms on %s", seconds, int((time.monotonic() - began) * 1000), _stt.device)
+            return web.json_response({"text": notes.clean_note(text)}, headers={"cache-control": "no-store"})
+    except notes.Busy:
+        return _refused("busy", 429)
+
+
+async def health(request: web.Request) -> web.Response:
+    """No secret in it. A signed look (the site's) also learns whether the two secrets match."""
+    body = {"ok": True, "meetings": len(meetings), "stt": stt_device.health_stt(_stt if _ready else None, hosted_meetings=STT_ENGINE == "groq" and bool(GROQ_KEY))}
+    matches = notes.secret_matches(SECRET, request.headers)
+    if matches is not None:
+        body["secretOk"] = matches
+    return web.json_response(body)
+
+
+async def load_in_the_background(app: web.Application) -> None:
+    """The port opens at once and /health says «loading»: the first start on a graphics card downloads gigabytes, and the site must not call that «gone»."""
+
+    async def load() -> None:
+        try:
+            await asyncio.get_running_loop().run_in_executor(None, load_models)
+            log.info("models ready")
+        except BaseException:  # as before: an agent that cannot load its models stops, and the container is restarted
+            log.exception("loading the models failed")
+            os._exit(1)
+
+    app["loading"] = asyncio.create_task(load())
 
 
 def main() -> None:
@@ -424,7 +611,6 @@ def main() -> None:
     if len(SECRET) < 16 or not TURN_URL:
         raise SystemExit("VOICE_AGENT_SECRET (16+ characters) and WORKSPACE_TURN_URL are required")
     log.info("loading models (the first start downloads the speech model, a few minutes)")
-    load_models()
     if TTS_ENGINE == "gemini" and not GEMINI_KEY:
         log.warning("TTS_ENGINE=gemini but GEMINI_API_KEY is empty: the local voice will speak")
     log.info(
@@ -433,9 +619,10 @@ def main() -> None:
             TTS_ENGINE, "local Piper only"
         ),
     )
-    log.info("models ready, listening on port %s", os.environ.get("PORT", "8080"))
+    log.info("listening on port %s", os.environ.get("PORT", "8080"))
     app = web.Application()
-    app.add_routes([web.post("/join", join), web.post("/leave", leave), web.post("/transcript", set_transcript), web.get("/health", health)])
+    app.add_routes([web.post("/join", join), web.post("/leave", leave), web.post("/transcript", set_transcript), web.post("/transcribe-note", transcribe_note), web.get("/health", health)])
+    app.on_startup.append(load_in_the_background)
     web.run_app(app, port=int(os.environ.get("PORT", "8080")))
 
 

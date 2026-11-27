@@ -6,6 +6,7 @@ import { apiDelete, apiPost, apiPut, ApiError } from "@/lib/api-client";
 import { fmtNumber } from "@/lib/format";
 import { useI18n } from "@/lib/i18n";
 import { LocalPanel, localValueOf, type LocalValue } from "./local-panel";
+import { VoiceServerCard } from "./voice-server-card";
 import type { PublicSettings, UsageSummary } from "@/server/services/owner-assistant-settings";
 
 /**
@@ -50,10 +51,11 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
   const [allowTitles, setAllowTitles] = useState(initial.allowTitles);
   const [local, setLocal] = useState<LocalValue>(() => localValueOf(initial));
   // «تفريغ الصوت»: the service the voice notes go to ("" = the server's own variable, as before)
-  const [tSource, setTSource] = useState<"" | "local" | "gateway">(initial.transcribeSource ?? "");
+  const [tSource, setTSource] = useState<"" | "local" | "gateway" | "agent">(initial.transcribeSource ?? "");
   const [tUrl, setTUrl] = useState(initial.transcribeBaseUrl ?? "");
   const [tModel, setTModel] = useState(initial.transcribeModel ?? "");
   const [saving, setSaving] = useState(false);
+  const [savedTimes, setSavedTimes] = useState(0); // the voice program's card reads again after each save
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
 
   const saveKey = async () => {
@@ -130,6 +132,7 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
         transcribeBaseUrl: tUrl.trim(),
         transcribeModel: tModel.trim(),
       });
+      setSavedTimes((n) => n + 1);
       setMessage({ ok: true, text: t("assistant.settings.saved") });
     } catch (err) {
       setMessage({ ok: false, text: errorText(t, err) });
@@ -272,13 +275,16 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
         </label>
       </section>
 
+      <VoiceServerCard savedTimes={savedTimes} onSourceChange={(source) => setTSource(source ?? "")} />
+
       <section className={card} aria-label={t("assistant.transcribe.title")} data-testid="ai-transcribe">
         <h2 className="text-sm font-semibold">{t("assistant.transcribe.title")}</h2>
         <p className="text-sm leading-7 text-muted">{t("assistant.transcribe.hint")}</p>
         <label className="flex flex-col gap-1 text-xs text-muted">
           {t("assistant.transcribe.source")}
-          <select value={tSource} onChange={(e) => setTSource(e.target.value as "" | "local" | "gateway")} className={field} data-testid="ai-transcribe-source">
+          <select value={tSource} onChange={(e) => setTSource(e.target.value as "" | "local" | "gateway" | "agent")} className={field} data-testid="ai-transcribe-source">
             <option value="">{t("assistant.transcribe.none")}</option>
+            <option value="agent">{t("gpuVoice.source_option")}</option>
             <option value="local">{t("assistant.transcribe.local")}</option>
             <option value="gateway">{t("assistant.transcribe.gateway")}</option>
           </select>
@@ -289,7 +295,7 @@ export function SettingsForm({ settings: initial, usage, models }: SettingsFormP
             <input type="text" dir="ltr" value={tUrl} onChange={(e) => setTUrl(e.target.value)} placeholder="http://whisper:8000" className={`${field} text-start`} data-testid="ai-transcribe-url" />
           </label>
         ) : null}
-        {tSource !== "" ? (
+        {tSource === "local" || tSource === "gateway" ? (
           <label className="flex flex-col gap-1 text-xs text-muted">
             {t("assistant.transcribe.model")}
             <input type="text" dir="ltr" value={tModel} onChange={(e) => setTModel(e.target.value)} placeholder="whisper-1" className={`${field} text-start`} data-testid="ai-transcribe-model" />
