@@ -4,6 +4,7 @@ import React from "react";
 import { Play } from "lucide-react";
 import type { AttachmentDto, MessageKind } from "@/server/chat/dto";
 import { ImageText } from "@/components/image-text";
+import { VideoNoteBubble } from "@/components/chat/v2/bubble/video-note-bubble";
 import { VoicePlayer } from "@/components/chat/message/voice-player";
 import { VoiceTranscript } from "@/components/chat/message/voice-transcript";
 import { MediaViewer, MediaViewerContext, OCR_MIMES, viewerItemsOfAttachments, type ViewerItem } from "@/components/chat/v2/media-viewer";
@@ -67,6 +68,8 @@ export function BubbleMedia({ attachments, kind, canTranscribe, canReadImages, a
         </div>
       );
     }
+    // «رسالة فيديو دائرية»: a circle of its own (no file line under it); the company's switch off stops new ones, never how a sent one is drawn
+    if (file.round && file.mime.startsWith("video/")) return <VideoNoteBubble key={file.id} src={url} durationMs={file.durationMs} />;
     const box = imageBox(file);
     const reserved = { width: box.width, maxWidth: "100%", aspectRatio: `${box.width} / ${box.height}` };
     // eslint-disable-next-line @next/next/no-img-element -- our own attachment address (checked above), already boxed from its own size: next/image would need a loader for a private route

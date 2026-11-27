@@ -542,6 +542,7 @@ export async function conversationDetail(
     calls: await isFeatureOn(ctx.orgId, "calls"),
     whiteboard: await isFeatureOn(ctx.orgId, "whiteboard"),
     voiceNotes: await isFeatureOn(ctx.orgId, "voiceNotes"),
+    videoNotes: (await isFeatureOn(ctx.orgId, "videoNotes")) && (await isFeatureOn(ctx.orgId, "voiceNotes")),
     voiceTranscript: await transcriptAvailable(ctx.orgId),
     voiceTelegram: await isFeatureOn(ctx.orgId, "voiceTelegram"),
     voiceLiveText: (await isFeatureOn(ctx.orgId, "voiceLiveText")) && (await isFeatureOn(ctx.orgId, "voiceNotes")),
@@ -686,7 +687,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
 
   // the switches: ONE read of the settings. A service that decides "is it offered" by itself (a ready model, a service address) is asked only
   // while its own switches are on, so a company that never turned them on pays no read for them.
-  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn, zakiEmojis, checklistsOn, voiceTelegram, liveTextOn] = await Promise.all([
+  const [chatBubbles, chatOutbox, chatFormatting, chatAlbums, silentSend, scheduledOn, calls, whiteboard, voiceNotes, reminders, voiceTranscriptOn, imageOcrOn, translateOn, digestOn, siteGuide, hintOn, mustReadOn, zakiEmojis, checklistsOn, voiceTelegram, liveTextOn, videoNotesOn] = await Promise.all([
     feature("chatBubbles"),
     feature("chatOutbox"),
     feature("chatFormatting"),
@@ -708,6 +709,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     feature("chatChecklists"),
     feature("voiceTelegram"),
     feature("voiceLiveText"),
+    feature("videoNotes"),
   ]);
   const hidden = silent && !joined;
   // «جدول الإرسال» (C3c.3): the person's OWN waiting messages here, asked only where they may use it (the switch is on and they may write; the silent eye cannot schedule)
@@ -789,6 +791,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     calls,
     whiteboard,
     voiceNotes,
+    videoNotes: videoNotesOn && voiceNotes,
     voiceTranscript,
     voiceTelegram,
     voiceLiveText: liveTextOn && voiceNotes,

@@ -14,7 +14,7 @@ import { CHAT_LIMITS } from "@/server/files/sniff";
  * The bytes decide the kind; a declared kind that disagrees is refused. Guests may upload
  * (they post in the topics of their spaces).
  */
-const formKind = z.enum(["IMAGE", "VIDEO", "AUDIO", "FILE", "VOICE"]);
+const formKind = z.enum(["IMAGE", "VIDEO", "AUDIO", "FILE", "VOICE", "VIDEO_NOTE"]);
 
 export async function POST(req: Request) {
   return withApi(async () => {

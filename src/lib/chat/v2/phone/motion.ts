@@ -153,6 +153,17 @@ export const TG_MOTION = {
   infoSwipePx: 56,
   /** the rows of «خيارات أكثر» fading down into place, and a radio's dot */
   moreRowsMs: 150,
+  // stories and round video messages
+  /** how long a story's picture stays before the next one */
+  storyImageMs: 5000,
+  /** a finger held longer than this on a story was a hold (it paused), not a tap */
+  storyHoldMs: 200,
+  /** a sideways swipe this long moves to the next or the previous person's stories */
+  storySwipePx: 56,
+  /** a story dragged down this far closes the viewer */
+  storyClosePx: 96,
+  /** the viewer fading in */
+  storyOpenMs: 180,
 } as const;
 
 export type TgTiming = keyof typeof TG_MOTION;

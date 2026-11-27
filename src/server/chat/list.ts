@@ -182,6 +182,8 @@ export interface ConvRecord {
   lmCreatedAt?: Date | null;
   lmAuthorId?: string | null;
   lmAuthorName?: string | null;
+  /** the newest message is a round video message (and is not deleted) */
+  lmRound?: boolean | null;
   // C3a.1: the viewer's OWN pin, archive (as it stands now: an unmuted one a message came after is not) and mark; all empty while `chatPersonalState` is off
   myPinnedAt?: Date | null;
   archivedByMe?: boolean;
@@ -269,7 +271,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
       CASE WHEN ${personal} THEN cm."pinnedAt" END AS "myPinnedAt",
       ${archivedByMeSql(v.orgId)} AS "archivedByMe",
       (${personal} AND COALESCE(cm."markedUnread", false)) AS "markedUnreadByMe",
-      lm.id AS "lmId", lm.body AS "lmBody", lm.kind AS "lmKind", lm."deletedAt" AS "lmDeletedAt", lm."createdAt" AS "lmCreatedAt", lm."authorId" AS "lmAuthorId", lm."authorName" AS "lmAuthorName",
+      lm.id AS "lmId", lm.body AS "lmBody", lm.kind AS "lmKind", lm."deletedAt" AS "lmDeletedAt", lm."createdAt" AS "lmCreatedAt", lm."authorId" AS "lmAuthorId", lm."authorName" AS "lmAuthorName", lm.round AS "lmRound",
       COALESCE(un.n, 0)::int AS "unreadCount", COALESCE(un.mn, 0)::int AS "mentionCount",
       CASE WHEN c.kind = 'TOPIC' AND ${!v.guest}::boolean THEN EXISTS (
         SELECT 1 FROM "WorkspaceMember" g JOIN "OrganizationMember" gom ON gom."userId" = g."userId" AND gom."organizationId" = c."orgId"
@@ -280,7 +282,8 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
     ? Prisma.sql`
     LEFT JOIN LATERAL (
       -- the newest message, a deleted one included (its text never leaves the database: the row shows «رسالة محذوفة»); one the person hid for themselves (S5.7) is not the newest FOR THEM
-      SELECT m.id, CASE WHEN m."deletedAt" IS NULL THEN m.body END AS body, m.kind, m."deletedAt", m."createdAt", m."authorId", au.name AS "authorName"
+      SELECT m.id, CASE WHEN m."deletedAt" IS NULL THEN m.body END AS body, m.kind, m."deletedAt", m."createdAt", m."authorId", au.name AS "authorName",
+        (m."deletedAt" IS NULL AND EXISTS (SELECT 1 FROM "MessageAttachment" ma WHERE ma."messageId" = m.id AND ma.round)) AS round
       FROM "ChatMessage" m JOIN "User" au ON au.id = m."authorId"
       WHERE m."conversationId" = c.id AND ${notHiddenSql(uid, "m")}
       ORDER BY m."createdAt" DESC, m.id DESC
@@ -427,6 +430,7 @@ function lastOf(r: ConvRecord, v: ListViewer): ChatRowLastMessageDto | null {
     at: r.lmCreatedAt.toISOString(),
     mine,
   };
+  if (r.lmRound === true) out.round = true;
   // no ticks in a chat with myself (C3a.3): nobody else is there to deliver to or read it
   if (r.kind === "DM" && mine && !system && r.selfDm !== true) {
     out.status = dmStatusFor(peerMarks(r), r.lmCreatedAt);

@@ -99,6 +99,8 @@ model User {
   messageRevisions MessageRevision[]   @relation("RevisionEditor")
   messageNotes    MessageNote[]        @relation("NoteAuthor")
   uploadedFiles   StoredFile[]         @relation("FileUploader")
+  stories         Story[]              @relation("StoryAuthor")
+  storyViews      StoryView[]          @relation("StoryViewer")
   deptMemberships DepartmentMember[]
   createdTickets  Ticket[]             @relation("TicketCreator")
   assignedTickets Ticket[]             @relation("TicketAssignee")
@@ -438,6 +440,8 @@ model StoredFile {
   text         FileText?
   // the picture of a link preview (C3b.2): a file only its own preview card points at
   previewOf    LinkPreview[]       @relation("LinkPreviewImage")
+  // «القصص»: the one story this file (purpose STORY) belongs to; it is served only by the story's own door
+  story        Story?
 
   @@index([orgId, familyId, isLatest])
   @@index([familyId])
@@ -457,6 +461,45 @@ model FileText {
   file StoredFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
 
   @@index([orgId])
+}
+
+// «القصص» (src/server/services/stories.ts): a photo or a short video with a caption that people of the same company see for 24 hours.
+// WHO may see one is never a column: it is judged on every read (an ACTIVE non-guest person, and for an account limited to its spaces the
+// one «may these two meet» rule of src/server/policy/space-only.ts). Nothing is hard-deleted: `expiresAt` takes it out of the view and
+// `deletedAt` is the author taking it back; the row and the bytes stay, as the chat's deleted messages do.
+model Story {
+  id         String    @id @default(cuid())
+  orgId      String
+  authorId   String
+  fileId     String    @unique
+  kind       String // IMAGE | VIDEO
+  caption    String    @default("")
+  durationMs Int? // a video's length as the browser measured it; the viewer never plays past the cap
+  createdAt  DateTime  @default(now())
+  expiresAt  DateTime
+  deletedAt  DateTime?
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  author       User         @relation("StoryAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  file         StoredFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+  views        StoryView[]
+
+  @@index([orgId, expiresAt])
+  @@index([authorId, createdAt])
+}
+
+// Who saw a story (the author's list). One row per person and story; the author's own opening is never one.
+model StoryView {
+  id       String   @id @default(cuid())
+  storyId  String
+  viewerId String
+  viewedAt DateTime @default(now())
+
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  viewer User  @relation("StoryViewer", fields: [viewerId], references: [id], onDelete: Cascade)
+
+  @@unique([storyId, viewerId])
+  @@index([viewerId])
 }
 
 // ---------- internal chat (Phase: real-time rooms over the org boundary) ----------
@@ -892,6 +935,7 @@ model MessageAttachment {
   height     Int?
   durationMs Int?
   peaks      Json? // voice waveform: up to 100 integers 0..100
+  round      Boolean  @default(false) // a round video message («رسالة فيديو دائرية»): the bubble draws it as a circle
   position   Int      @default(0)
   createdAt  DateTime @default(now())
 
@@ -1118,6 +1162,7 @@ model Organization {
   scheduledChatMessages ScheduledChatMessage[]
   chatOrders       UserChatOrder[]
   files            StoredFile[]
+  stories          Story[]
   departments      Department[]
   tickets          Ticket[]
   customers        Customer[]

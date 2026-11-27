@@ -10,6 +10,8 @@ import { DropOverlay } from "@/components/chat/v2/composer/drop-overlay";
 import { PasteSendDialog } from "@/components/chat/v2/composer/paste-dialog";
 import { ReplyOptions } from "@/components/chat/v2/composer/reply-options";
 import { StickerStrip } from "@/components/chat/v2/composer/sticker-strip";
+import { VideoNoteOverlay } from "@/components/chat/v2/composer/video-note-overlay";
+import { useVideoNote } from "@/lib/chat/v2/video-note/use-video-note";
 import { useTgPhone } from "@/components/shell/tg-phone";
 import { suggestedStickers } from "@/lib/chat/v2/composer/sticker-suggest";
 import { replyQuoteStore } from "@/lib/chat/v2/phone/reply-quote";
@@ -31,6 +33,8 @@ export function ChatComposerV2(props: ComposerParams) {
   // S5.7 «رد بالاقتباس»: the piece picked for the reply being written (the send takes it from the same store)
   const replyQuote = useReplyQuote(conversationId, reply?.id);
   const recording = c.voice.mode !== "idle";
+  // «رسالة فيديو دائرية»: an engine of its own beside the voice recorder's
+  const videoNote = useVideoNote({ conversationId, enabled: detail.videoNotes === true && !editing, ...(reply ? { replyToId: reply.id } : {}), onCancelReply, onMessage });
   // «تيليجرام على التلفون»: our stickers over a box that holds one emoji, and «خيارات الرد» of the reply bar
   const tg = useTgPhone();
   const suggested = tg && detail.zakiEmojis !== false && !editing && !recording && c.files.length === 0 ? suggestedStickers(c.body) : [];
@@ -57,6 +61,7 @@ export function ChatComposerV2(props: ComposerParams) {
         onEmojiUsed={(emoji) => setRecents(rememberEmoji(emoji))}
         onStickerSend={c.sendText}
         onReplyOptions={() => setReplyOptions(true)}
+        videoNote={videoNote}
         onEmoji={(emoji) => {
           // a Zaki sticker goes in as its text code like an emoji, but it is not a recent emoji (`rememberEmoji` keeps it out)
           setRecents(rememberEmoji(emoji));
@@ -109,7 +114,8 @@ export function ChatComposerV2(props: ComposerParams) {
         />
       ) : null}
       <PasteSendDialog files={c.pasted} initialCaption={c.body} onSend={c.sendPasted} onCancel={() => c.setPasted(null)} />
-      <DropOverlay enabled={!editing && !recording && !c.busy} onDropFiles={(zone, files) => c.addDropped(files, zone === "files")} />
+      <VideoNoteOverlay v={videoNote} />
+      <DropOverlay enabled={!editing && !recording && !c.busy && videoNote.state.mode === "idle"} onDropFiles={(zone, files) => c.addDropped(files, zone === "files")} />
     </>
   );
 }

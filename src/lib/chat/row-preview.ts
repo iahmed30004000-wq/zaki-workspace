@@ -71,6 +71,7 @@ export function rowPreview(row: ChatRowDto, extra: { typingNames?: readonly stri
   // «قائمة مهام» (C3c.1): the TITLE and, where the row carries it, the count of the done items — never an item's words
   if (last.kind === CHECKLIST_KIND) return { tone: "text", author, text: last.checklist ? ct("chatcl.row", { text: words, done: last.checklist.done, total: last.checklist.total }) : ct("chatcl.row_plain", { text: words }) };
   if (last.kind === "CARD") return { tone: "text", author, text: words ? ct("chatui.row.card", { text: words }) : ct("chatui.row.card_plain") };
+  if (words === "" && last.round) return { tone: "text", author, text: ct("tgstories.videonote.row") };
   // a message with a file and no words has an empty preview
   if (words === "") return { tone: "text", author, text: ct("chatui.row.attachment") };
   return { tone: "text", author, text: words };

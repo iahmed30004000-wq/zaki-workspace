@@ -28,7 +28,7 @@ export function uploadWithProgress(
       } else {
         // the API answers { error: <code>, message: <dictionary key> }: the key says what went wrong
         const message = body["message"];
-        reject(new Error(typeof message === "string" && message.startsWith("chat.") ? message : "chat.f.upload_failed"));
+        reject(new Error(typeof message === "string" && (message.startsWith("chat.") || message.startsWith("stories.")) ? message : "chat.f.upload_failed"));
       }
     };
     xhr.onerror = () => reject(new Error("chat.f.upload_failed"));

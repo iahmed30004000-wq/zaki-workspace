@@ -32,6 +32,8 @@ export interface AttachmentDto {
   height?: number;
   durationMs?: number;
   peaks?: number[];
+  /** a round video message («رسالة فيديو دائرية»): drawn as a circle. Present only when it is one. */
+  round?: true;
   url: string;
 }
 
@@ -381,6 +383,8 @@ export interface ConversationDto {
   whiteboard?: boolean;
   /** the company's «الرسائل الصوتية» switch (`voiceNotes`): off, the composer draws no microphone; absent: on */
   voiceNotes?: boolean;
+  /** «رسالة فيديو دائرية» (`videoNotes` AND `voiceNotes`): the microphone has a camera mode. Absent or false: no camera mode (unlike the others, absent is OFF) */
+  videoNotes?: boolean;
   /** «كتابة نص الرسالة الصوتية» (`voiceTranscript`): the switch is on AND a speech-to-text service is set up; absent or false: no «اكتب النص» button */
   voiceTranscript?: boolean;
   /** «الصوت زي تيليجرام» (`voiceTelegram`): the speed button on every voice note and the bar under the header while one plays; absent: on */
@@ -420,6 +424,8 @@ export interface ChatRowLastMessageDto {
   status?: "sent" | "delivered" | "read";
   /** a CHECKLIST message (C3c.1): how many items are done, of how many — «☑️ العنوان (3/5)». The row has the title only (`preview`); absent, the row says «☑️ العنوان» with no count. */
   checklist?: { done: number; total: number };
+  /** the message is a round video message: with no words the row says «رسالة فيديو». Present only when it is one. */
+  round?: true;
 }
 
 export interface ChatRowDto {

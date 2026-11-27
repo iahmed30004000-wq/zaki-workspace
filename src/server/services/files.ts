@@ -203,6 +203,9 @@ export async function assertMayReadFile(ctx: OrgAccessContext, id: string): Prom
     },
   });
   if (!f) throw new NotFoundError("files.not_found");
+  // «القصص»: a story's file has ONE door, `/api/stories/<id>/media`, which judges who may see it and for how long
+  // (src/server/services/stories.ts). No file route serves it, not even to its author.
+  if (f.purpose === "STORY") throw new NotFoundError("files.not_found");
   // a library file: the library row of the person's grid, and of one of their spaces (or from before spaces had
   // libraries). A chat attachment is its conversation's, whatever the library box says.
   if (f.purpose === "LIBRARY") {
@@ -389,7 +392,7 @@ export async function ingest(
   ctx: OrgAccessContext,
   input: IngestFile,
   familyOf?: { familyId: string; latestVersion: number },
-  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" | "SOUND" = "LIBRARY",
+  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" | "SOUND" | "STORY" = "LIBRARY",
   meta?: Record<string, unknown>,
   /**
    * `sniffedMime`: the chat's own sniffing (`sniffChatMedia`) already read the bytes WITH the declared
