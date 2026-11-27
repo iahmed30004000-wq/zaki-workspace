@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import type { ZakiAiState, ZakiAiStatus } from "@/server/services/zaki-ai";
 
 /**
- * «زاكي أي أي» on the owner's screens: a chip («مربوط ✓») and the connect panel. Plain requests, no query cache (the home page is a server
+ * «ذكي أي أي» on the owner's screens: a chip («مربوط ✓») and the connect panel. Plain requests, no query cache (the home page is a server
  * page and these two parts ask for their own state, so a slow or missing agent never slows the page). The status is cached for 30 seconds on
  * the server and costs the agent nothing (a list of models, no question).
  */
@@ -62,7 +62,7 @@ export function useZakiAiStatus(): { status: ZakiAiStatus | null; reload: (fresh
   return { status, reload, set };
 }
 
-/** The small chip: «زاكي أي أي: مربوط» with its icon, a link to the connect screen. */
+/** The small chip: «ذكي أي أي: مربوط» with its icon, a link to the connect screen. */
 export function ZakiAiChip() {
   const { t } = useI18n();
   const { status } = useZakiAiStatus();

@@ -67,7 +67,7 @@ describe("the list screen's bar", () => {
       createElement(
         Bridge,
         { value: drawer ? { openDrawer: noop } : null },
-        createElement(PhoneListBar, { title: props.title ?? "زاكي", query: props.query ?? "", onQuery: noop, searchId: "s1" }),
+        createElement(PhoneListBar, { title: props.title ?? "ذكي", query: props.query ?? "", onQuery: noop, searchId: "s1" }),
       ),
     );
 
@@ -75,7 +75,7 @@ describe("the list screen's bar", () => {
     const html = bar();
     expect(html).toContain("data-chat-phone-bar");
     expect(classTokens(html)).toEqual(expect.arrayContaining(["h-14", "pt-[env(safe-area-inset-top)]", "size-11"]));
-    expect(html).toContain("زاكي");
+    expect(html).toContain("ذكي");
     expect(html).toContain("data-chat-phone-search-open");
     expect(html).toContain(AR["chatui.phone.search.open"]!);
     expect(html).toContain('data-chat-phone-search="closed"');
@@ -89,10 +89,10 @@ describe("the list screen's bar", () => {
     expect(bar({}, false)).not.toContain("lucide-menu");
     expect(bar({}, true)).toContain("lucide-menu");
     // no frame at all (a test, a page outside it) is the same as the old bar
-    expect(wrap(createElement(PhoneListBar, { title: "زاكي", query: "", onQuery: noop, searchId: "s1" }))).not.toContain("data-chat-drawer-open");
+    expect(wrap(createElement(PhoneListBar, { title: "ذكي", query: "", onQuery: noop, searchId: "s1" }))).not.toContain("data-chat-drawer-open");
   });
 
-  it("the title is whatever it is given (the folder's name, or «زاكي» for «الكل»)", () => {
+  it("the title is whatever it is given (the folder's name, or «ذكي» for «الكل»)", () => {
     expect(bar({ title: AR["chatui.folder.unread"]! })).toContain(AR["chatui.folder.unread"]!);
   });
 
@@ -131,7 +131,7 @@ describe("the list column on the phone", () => {
     );
   };
 
-  it("the screen has the 56 px bar (title «زاكي» in «الكل»), the folders, 76 px rows and NO header field", () => {
+  it("the screen has the 56 px bar (title «ذكي» in «الكل»), the folders, 76 px rows and NO header field", () => {
     const html = column("screen", true);
     expect(html).toContain("data-chat-phone-bar");
     expect(html).toContain(`>${AR["chatui.phone.title"]}</h1>`);
@@ -326,7 +326,7 @@ describe("the phone list's rows slide to their place", () => {
 describe("what the frame's hidden top bar carried, on the phone's list bar (review)", () => {
   const TRAILING = createElement("span", { "data-test-trailing": "" }, "x");
   const bar = (value: { openDrawer: (() => void) | null; trailing?: ReactNode } | null, query = "") =>
-    wrap(createElement(Bridge, { value: value as { openDrawer: () => void } | null }, createElement(PhoneListBar, { title: "زاكي", query, onQuery: noop, searchId: "s1" })));
+    wrap(createElement(Bridge, { value: value as { openDrawer: () => void } | null }, createElement(PhoneListBar, { title: "ذكي", query, onQuery: noop, searchId: "s1" })));
 
   it("the bell (and, with the old menu, the account menu) the frame hands over are drawn at the END of the bar; «☰» only when a drawer is handed over", () => {
     const oldMenu = bar({ openDrawer: null, trailing: TRAILING });

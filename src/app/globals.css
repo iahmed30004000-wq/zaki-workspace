@@ -154,7 +154,7 @@ html {
   mask: var(--zk-star-mask) center / contain no-repeat;
 }
 
-/* The wordmark «زاكي»: Lalezar, the caption colour, a stroke and a hard shadow in the theme's scrim. */
+/* The wordmark «ذكي»: Lalezar, the caption colour, a stroke and a hard shadow in the theme's scrim. */
 .zk-wordmark {
   font-family: var(--font-lalezar), var(--font-display);
   font-weight: 400;

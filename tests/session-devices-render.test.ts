@@ -51,7 +51,7 @@ describe("«الجلسات المفتوحة»", () => {
   });
 
   it("a device is named from its user agent: the Android app by its HTTP client, a browser in Arabic, an unknown one honestly", () => {
-    const words = { app: "تطبيق زاكي على أندرويد", unknown: "متصفح ما بنعرف اسمه", on: "على" };
+    const words = { app: "تطبيق ذكي على أندرويد", unknown: "متصفح ما بنعرف اسمه", on: "على" };
     expect(sessionLabelOf("okhttp/4.12.0", words)).toBe(words.app);
     // the app names itself (android/.../NetworkModule.kt `userAgent`): «ZakiApp/<version> (Android <release>; <model>)»
     expect(sessionLabelOf("ZakiApp/5.2.0 (Android 15; Pixel 8)", words)).toBe(words.app);

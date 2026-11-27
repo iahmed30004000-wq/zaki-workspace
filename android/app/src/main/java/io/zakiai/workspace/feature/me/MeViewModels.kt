@@ -257,7 +257,7 @@ class MeViewModel @Inject constructor(
     }
 }
 
-/** «دليل زاكي»: the articles this person may read, and one article (`GET /api/guide`, `/api/guide/[slug]`). */
+/** «دليل ذكي»: the articles this person may read, and one article (`GET /api/guide`, `/api/guide/[slug]`). */
 @HiltViewModel
 class GuideViewModel @Inject constructor(retrofit: retrofit2.Retrofit, private val session: Session) : ViewModel() {
     private val api = retrofit.create(MeApi::class.java)

@@ -13,7 +13,7 @@ const iconButton =
 /**
  * C2.8 — THE PHONE'S LIST SCREEN BAR: 56 px under the notch. «☰» at the start (it opens the app's drawer, which the frame hands over through
  * `useFrameBridge`; with the new menu OFF the frame hands nothing and NO «☰» is drawn: the old bottom bar is the way around), the title — the folder
- * the person is in, or «زاكي» for «الكل» — and a search icon that EXPANDS to a full-width field («→» folds it back and clears it; Esc too). The folders and
+ * the person is in, or «ذكي» for «الكل» — and a search icon that EXPANDS to a full-width field («→» folds it back and clears it; Esc too). The folders and
  * the rows are under it, in the list's own column. The words typed narrow the rows exactly as the computer's search field does (the list holds the state).
  * The frame's own top bar is hidden on the phone while a chat screen is up (app-shell.tsx), so this bar owns the notch.
  *

@@ -14,7 +14,8 @@
  * the same rule so native controls (checkboxes, date pickers, scrollbars) follow the theme.
  */
 import { DEFAULT_THEME, THEME_KEYS, THEMES, type ThemeKey } from "./registry";
-import { themeFxVariables, themeVariables } from "./palettes";
+import { hexToTriplet } from "./contrast";
+import { TG_PHONE_ART, TG_PHONE_NIGHT_THEMES, themeFxVariables, themeVariables } from "./palettes";
 
 /** Where the generated stylesheet lives (relative to the repository root). */
 export const THEMES_CSS_FILE = "src/app/themes.css";
@@ -36,7 +37,22 @@ function rule(selector: string, key: ThemeKey): string {
   return `${selector} {\n${lines.join("\n")}\n}`;
 }
 
+/**
+ * «تيليجرام على التلفون»: while the phone look is drawn (the frame wears `data-tg-phone`, a server-drawn mark, so the first frame is already right), a PHONE
+ * has the Telegram colours whatever theme the person chose: the plain dark themes get the night pair, every other one the day pair (the decorated dark ones
+ * are a look, not a wish for the night). A computer, and the switch off, keep the chosen theme.
+ */
+function phoneRules(): string {
+  const root = "html:has([data-tg-phone])";
+  const night = `${root}:is(${TG_PHONE_NIGHT_THEMES.map((key) => `[data-theme="${key}"]`).join(", ")})`;
+  const block = (selector: string, key: ThemeKey, art: Record<string, string>) => {
+    const own = Object.entries(art).map(([name, value]) => `  --${name}: ${hexToTriplet(value)};`);
+    return `${rule(selector, key).slice(0, -2)}\n${own.join("\n")}\n}`;
+  };
+  return `@media not all and (min-width: 768px) {\n${block(root, "tg-day", TG_PHONE_ART.day)}\n\n${block(night, "tg-night", TG_PHONE_ART.night)}\n}`;
+}
+
 export function renderThemesCss(): string {
-  const blocks = [HEADER, rule(":root", DEFAULT_THEME), ...THEME_KEYS.map((key) => rule(`[data-theme="${key}"]`, key))];
+  const blocks = [HEADER, rule(":root", DEFAULT_THEME), ...THEME_KEYS.map((key) => rule(`[data-theme="${key}"]`, key)), phoneRules()];
   return `${blocks.join("\n\n")}\n`;
 }

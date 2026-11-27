@@ -696,7 +696,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `timeline` | 77 | 2 | Microsoft-Project-style timeline data for one project: dated tasks become bars, milestones become diamonds, undated tasks are reported separately. |
 | `today-app` | 89 | 2 | «اليوم» FOR THE PHONE (M2 N2): the very service calls the page makes (src/app/(app)/page.tsx, its newer shape `simpleToday`), for the space the person is in — nothing computed t… |
 | `today-dashboard` | 248 | 2 | The smart cards of «اليوم» — a few numbers, each over what the person may already see. |
-| `zaki-ai` | 171 | 2 | «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
+| `zaki-ai` | 171 | 2 | «ذكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?». |
 | `ai-settings` | 30 | 1 | THE AI CONNECTION — ONE PLACE (A2.1). |
 | `assistant-work` | 107 | 1 | «المساعد» يعرف شغلك — the work picture the assistant contact gets with every question asked in a person's OWN conversation. |
 | `bot-webhooks` | 136 | 1 | «بوت فاذر» — the webhook of a bot (docs/contracts/bots.md): the messages that ADDRESS a bot are sent to its address, signed. |

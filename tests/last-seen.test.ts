@@ -196,7 +196,7 @@ describe("the screens", () => {
     bio: null,
     createdAt: new Date("2026-01-01T00:00:00Z"),
     organizationId: "o1",
-    organizationName: "زاكي",
+    organizationName: "ذكي",
     organizationRole: "MEMBER",
     avatarUrl: null,
     stats: { ideasCreated: 0, ideasVotesReceived: 0, openTasksAssigned: 0, tasksCompleted: 0 },

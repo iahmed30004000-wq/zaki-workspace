@@ -17,6 +17,8 @@ export interface SwipeFacts {
   dy: number;
   ms: number;
   rtl: boolean;
+  /** «تيليجرام على التلفون»: the strip of tabs runs left to right whatever the page's direction, so the NEXT tab is reached by a finger going left */
+  ltrTabs?: boolean;
   /** the touch began on a row that has swipe actions */
   onActionRow: boolean;
   /** some row of the list is open (its buttons are uncovered) */
@@ -29,9 +31,14 @@ export function folderSwipe(f: SwipeFacts): "next" | "prev" | null {
   if (f.fromStartEdge || f.rowOpen) return null;
   if (f.ms > SWIPE_MAX_MS || Math.abs(f.dx) < SWIPE_MIN_PX || Math.abs(f.dx) < SWIPE_RATIO * Math.abs(f.dy)) return null;
   const towardStart = f.rtl ? f.dx > 0 : f.dx < 0;
-  if (towardStart) return f.onActionRow ? null : "next";
-  return "prev";
+  // a row's own swipe buttons belong to the page's start direction, wherever the tabs run
+  if (towardStart && f.onActionRow) return null;
+  if (f.ltrTabs) return f.dx < 0 ? "next" : "prev";
+  return towardStart ? "next" : "prev";
 }
+
+/** Is this drawn with «تيليجرام على التلفون» on a phone? */
+const underTg = (el: Element): boolean => window.innerWidth < 768 && typeof el.closest === "function" && el.closest("[data-tg-phone]") !== null;
 
 /** The tab after / before the active one, or null at the ends (and for a key that is not among them). */
 export function nextTab<T extends { key: string }>(tabs: readonly T[], active: string, way: "next" | "prev"): T | null {
@@ -49,7 +56,8 @@ export function useFolderSwipe(onSwipe: (way: "next" | "prev") => void, enabled 
   const onPointerDown = useCallback(
     (event: ReactPointerEvent<HTMLElement>) => {
       if (!enabled || event.pointerType !== "touch" || !event.isPrimary) return;
-      const rtl = getComputedStyle(event.currentTarget).direction === "rtl";
+      // the strip of the swipe back: at the left under «تيليجرام» (its back arrow is there), else at the page's start edge
+      const rtl = getComputedStyle(event.currentTarget).direction === "rtl" && !underTg(event.currentTarget);
       const width = window.innerWidth;
       const fromStartEdge = rtl ? event.clientX >= width - EDGE_PX : event.clientX <= EDGE_PX;
       start.current = { x: event.clientX, y: event.clientY, t: event.timeStamp, onActionRow: !!(event.target as Element).closest?.("[data-row-swipe]"), fromStartEdge };
@@ -66,6 +74,7 @@ export function useFolderSwipe(onSwipe: (way: "next" | "prev") => void, enabled 
       dy: event.clientY - s.y,
       ms: event.timeStamp - s.t,
       rtl,
+      ltrTabs: underTg(event.currentTarget),
       onActionRow: s.onActionRow,
       rowOpen: document.querySelector('[data-row-swipe-open="true"]') !== null,
       fromStartEdge: s.fromStartEdge,

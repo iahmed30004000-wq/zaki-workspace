@@ -43,7 +43,7 @@ describe("shortcuts: what a long press on the app icon offers", () => {
   });
 });
 
-describe("share_target: the phone's share sheet lists «زاكي»", () => {
+describe("share_target: the phone's share sheet lists «ذكي»", () => {
   const target = m.share_target as unknown as { action: string; method: string; enctype?: string; params: Record<string, unknown> };
 
   it("is a GET to /share with the title, the text and the address, and NO files yet", () => {
@@ -65,7 +65,7 @@ describe("what did not move (D-N1 is unanswered)", () => {
     expect(m.scope).toBe("/");
     expect(m.id).toBe("/");
     expect(m.name).toBe("Zaki Workspace");
-    expect(m.short_name).toBe("زاكي");
+    expect(m.short_name).toBe("ذكي");
     expect(m.display).toBe("standalone");
   });
 });

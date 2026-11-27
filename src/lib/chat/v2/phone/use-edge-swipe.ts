@@ -21,7 +21,8 @@ export function useEdgeSwipeBack<T extends HTMLElement>(enabled: boolean, onBack
     const el = ref.current;
     if (!enabled || !el) return;
     return attachEdgeSwipe(el as unknown as Parameters<typeof attachEdgeSwipe>[0], {
-      rtl: () => getComputedStyle(el).direction === "rtl",
+      // «تيليجرام على التلفون»: the back arrow is at the left, so the swipe back starts at the left edge and goes right
+      rtl: () => getComputedStyle(el).direction === "rtl" && !(window.innerWidth < 768 && el.closest("[data-tg-phone]")),
       width: () => window.innerWidth,
       reducedMotion: prefersReducedMotion,
       onBack: () => live.current(),

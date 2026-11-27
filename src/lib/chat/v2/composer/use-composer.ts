@@ -844,7 +844,6 @@ export function useComposer(p: ComposerParams) {
     }
     const start = { x: event.clientX, y: event.clientY };
     const pointerId = event.pointerId;
-    const rtl = document.documentElement.dir !== "ltr";
     drag.reset();
     let waiting: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       waiting = null;
@@ -863,7 +862,8 @@ export function useComposer(p: ComposerParams) {
     };
     const move = (e: PointerEvent) => {
       if (e.pointerId !== pointerId || waiting) return;
-      const at = tgHoldDrag(start, { x: e.clientX, y: e.clientY }, window.innerWidth, rtl);
+      // «تيليجرام»'s row runs left to right even in this right-to-left page: the mic is at its right end, the cancel side is the left
+      const at = tgHoldDrag(start, { x: e.clientX, y: e.clientY }, window.innerWidth, false);
       if (at.outcome === "cancel") { done(); discardRecording("slide"); }
       else if (at.outcome === "lock") { done(); locked(); }
       else drag.set(at);

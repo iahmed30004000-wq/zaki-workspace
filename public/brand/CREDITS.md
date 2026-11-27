@@ -17,7 +17,7 @@ Everything in `public/brand/`, `public/fonts/` and `public/icons/` is listed her
 | `icons/icon-maskable-512.png` (in `public/`) | The maskable app icon: full-bleed paper colour, the mark inside the 80% safe zone so a round or squircle mask cuts nothing | Same as above. |
 | `src/app/apple-icon.png` (served by Next at `/apple-icon.png`, outside `public/`) | The iPhone home-screen icon, 180x180, opaque | Same as above. |
 
-IBM Plex Sans Arabic (the body font) and Lalezar (the wordmark «زاكي» of «نجمة وطريق») are loaded
+IBM Plex Sans Arabic (the body font) and Lalezar (the wordmark «ذكي» of «نجمة وطريق») are loaded
 through `next/font/google` at build time and served from this site; both are SIL OFL 1.1.
 
 The whiteboard («الصبورة») is Excalidraw (`@excalidraw/excalidraw`, MIT). Its fonts are copied from that package

@@ -78,7 +78,7 @@ export function NavOrderButton({ orderLocked = false, onEditStart, className, de
 }
 
 /**
- * S3.1 — the ONE row «الإعدادات» that replaces «إعداداتي», «دليل زاكي» and «ترتيب»: it opens the frame of «إعداداتي» (`/settings/me`), where the guide is inside «المساعدة» and, for whoever manages the company,
+ * S3.1 — the ONE row «الإعدادات» that replaces «إعداداتي», «دليل ذكي» and «ترتيب»: it opens the frame of «إعداداتي» (`/settings/me`), where the guide is inside «المساعدة» and, for whoever manages the company,
  * «إعدادات الشركة» is the second group. `drawer` and `sidebar` are rows (the folded side menu keeps the icon and hides the word); `rail` is an icon cell like the «⋯» it replaces.
  */
 export function SettingsDoor({ variant, collapsed = false, pathname, onNavigate }: { variant: "drawer" | "sidebar" | "rail"; collapsed?: boolean; pathname?: string; onNavigate?: () => void }) {
@@ -114,7 +114,7 @@ export function SettingsDoor({ variant, collapsed = false, pathname, onNavigate 
 }
 
 /**
- * What the new menu keeps beside its places: «دليل زاكي», «الإعدادات» (when the person has that page) and «ترتيب» — or, while the company's order is
+ * What the new menu keeps beside its places: «دليل ذكي», «الإعدادات» (when the person has that page) and «ترتيب» — or, while the company's order is
  * set, its ⚠️ + 🔧 note instead of «ترتيب».
  *
  * `rail` is the «⋯» button at the foot of the computer's rail (a menu); `drawer` is the same list drawn open inside the phone's drawer.

@@ -502,7 +502,7 @@ private fun Help(vm: MeViewModel, onOpenGuide: () -> Unit, onOpenChat: (String) 
     }
 }
 
-// ── «دليل زاكي» ──
+// ── «دليل ذكي» ──
 
 /** The guide's index (src/app/(app)/guide/page.tsx): the articles this person may read, a search that reads one shape of alef. */
 @Composable

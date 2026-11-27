@@ -137,10 +137,11 @@ describe("a hold", () => {
     await vi.advanceTimersByTimeAsync(TG_MOTION.micHoldMs + 10);
     const moves: number[] = [];
     c.tg!.drag.subscribe(() => moves.push(c.tg!.drag.get().dx));
-    fire("pointermove", { clientX: 40 + 150, clientY: 700 });
+    // the mic stands at the RIGHT end of its row (his pictures), so the finger goes left to cancel
+    fire("pointermove", { clientX: 40 - 150, clientY: 700 });
     expect(world.made[0]!.calls).toEqual(["start"]);
-    expect(moves).toEqual([150]);
-    fire("pointermove", { clientX: 40 + 160, clientY: 700 });
+    expect(moves).toEqual([-150]);
+    fire("pointermove", { clientX: 40 - 160, clientY: 700 });
     await vi.advanceTimersByTimeAsync(10);
     expect(world.made[0]!.calls).toEqual(["start", "cancel"]);
     fire("pointerup", { clientX: 220, clientY: 700 });

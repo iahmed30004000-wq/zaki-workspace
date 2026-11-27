@@ -22,7 +22,7 @@ function kotlinFiles(dir: string): string[] {
 }
 
 describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManager)", () => {
-  it("the real app talks to exactly the production site, opens its links, and is named «زاكي»", () => {
+  it("the real app talks to exactly the production site, opens its links, and is named «ذكي»", () => {
     const manifest = read("android/app/src/main/AndroidManifest.xml");
     expect(manifest).toContain('android:host="workspace.zakiai.io"');
     expect(manifest).toContain('android:name=".MainActivity"');
@@ -31,7 +31,7 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     // the local test copy has its own id: it installs beside the real app and never replaces it
     expect(gradle).toMatch(/create\("staging"\)[\s\S]*?applicationIdSuffix = "\.staging"/);
     expect(read(SRC + "Config.java")).toContain("BASE = BuildConfig.BASE_URL");
-    expect(read("android/app/src/main/res/values/strings.xml")).toContain('<string name="app_name">زاكي</string>');
+    expect(read("android/app/src/main/res/values/strings.xml")).toContain('<string name="app_name">ذكي</string>');
   });
 
   it("keeps one stable identity and asks only for what the live line and the calls need", () => {

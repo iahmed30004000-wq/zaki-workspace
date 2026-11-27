@@ -316,7 +316,7 @@ const head = (html: string) => {
 const foot = (html: string) => html.slice(html.indexOf('data-shell="drawer-foot"'));
 
 describe("S3.1 · the drawer", () => {
-  it("OFF: «إعداداتي», «دليل زاكي» and «ترتيب» rows in the foot, as today", () => {
+  it("OFF: «إعداداتي», «دليل ذكي» and «ترتيب» rows in the foot, as today", () => {
     const html = drawer(false);
     expect(hrefs(foot(html))).toEqual(expect.arrayContaining(["/settings/me", "/guide"]));
     expect(foot(html)).toContain(AR["navorder.toggle"] as string);

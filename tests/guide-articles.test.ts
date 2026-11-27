@@ -432,7 +432,7 @@ describe("«الاعتمادات والرخص»: the in-app credits every licenc
   });
 
   it("names every font the app ships, each under the open font licence, and the renamed digits", () => {
-    for (const font of ["بلكس", "لاله‌زار", "ريم كوفي", "أرقام زاكي"]) expect(text, font).toContain(font);
+    for (const font of ["بلكس", "لاله‌زار", "ريم كوفي", "أرقام ذكي"]) expect(text, font).toContain(font);
     expect(text.match(/رخصة الخطوط المفتوحة/g)?.length).toBeGreaterThanOrEqual(4);
   });
 
@@ -444,12 +444,12 @@ describe("«الاعتمادات والرخص»: the in-app credits every licenc
   });
 });
 
-describe("«من تيليجرام لزاكي» (I1.2): which group becomes which space, who joins, which bot becomes which card", () => {
+describe("«من تيليجرام لذكي» (I1.2): which group becomes which space, who joins, which bot becomes which card", () => {
   const article = () => bySlug("telegram-to-zaki");
   const text = () => articleText(article(), "staff");
 
   it("exists in the guide for the team (staff and above), never for a guest, and sits before the credits", () => {
-    expect(article().title).toBe("من تيليجرام لزاكي");
+    expect(article().title).toBe("من تيليجرام لذكي");
     expect(article().audience).toBe("staff");
     expect(articlesFor("everyone").map((a) => a.slug)).not.toContain("telegram-to-zaki");
     expect(articlesFor("staff").map((a) => a.slug)).toContain("telegram-to-zaki");

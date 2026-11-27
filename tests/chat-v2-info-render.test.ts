@@ -464,7 +464,7 @@ describe("C3d — the list's search results", () => {
     const typed = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(ListHeader, { query: "طلب", onQuery: noop, searchId: "s" })));
     // asked for after a pause, in an effect: the first paint has no panel
     expect(typed).not.toContain("data-list-search-panel");
-    const bar = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(PhoneListBar, { title: "زاكي", query: "طلب", onQuery: noop, searchId: "s" })));
+    const bar = renderToStaticMarkup(createElement(Translations, { initial: "ar" }, createElement(PhoneListBar, { title: "ذكي", query: "طلب", onQuery: noop, searchId: "s" })));
     expect(bar).toContain("data-chat-phone-search=\"open\"");
     expect(bar).not.toContain("data-list-search-panel");
   });

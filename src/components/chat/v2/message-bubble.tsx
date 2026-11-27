@@ -124,6 +124,11 @@ export interface MessageBubbleProps {
  * A pending message (the id starts with `pending:`) and a system line are NEVER drawn here: the viewport draws them through `PendingBubble` and
  * `ServiceLine` — a menu on a message the server does not have would act on an id it does not know.
  */
+/** «تيليجرام على التلفون»: when nothing comes between the words and the time, the time sits at the end of the words' last line (tg-phone.css). */
+function BubbleWords({ on, children }: { on: boolean; children: React.ReactNode }) {
+  return on ? <div data-bubble-words="">{children}</div> : <>{children}</>;
+}
+
 function MessageBubbleView({ message, conversationId, facts, start, end, mentionNames, readers = [], highlighted = false, menu, hover, select, onReact, onJump, onAck, onOpenWork, onHintTicket, onSuggestProblem }: MessageBubbleProps) {
   const [sheetOpen, setSheetOpen] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -315,7 +320,9 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
                   {ct("chatc.mention_me")}
                 </span>
               ) : null}
-              <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} formatting={facts.formatting} fresh={fresh} />
+              <BubbleWords on={tgLook && !bare && !message.deleted}>
+                <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} formatting={facts.formatting} fresh={fresh} />
+              </BubbleWords>
               {!message.deleted && <MessageTranslation state={translation.state} onHide={translation.hide} />}
               {!message.deleted ? <LinkPreviewCard preview={message.preview} enabled={facts.linkPreviews} /> : null}
               {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} /> : null}

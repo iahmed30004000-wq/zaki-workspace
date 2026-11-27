@@ -25,7 +25,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
     name: "Zaki Workspace",
-    short_name: "زاكي",
+    short_name: "ذكي",
     description: "نظام عمل الفريق: المساحات والمشاريع والمهام والدردشة والملفات في مكان واحد.",
     lang: "ar",
     dir: "rtl",

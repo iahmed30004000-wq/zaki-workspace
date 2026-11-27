@@ -19,6 +19,8 @@ import { hasUnread } from "@/lib/chat/cache/unread";
 import { SLIDE_MS, prefersReducedMotion } from "@/lib/chat/v2/phone/motion";
 import { ROW_ACTION_PX, attachRowSwipe, claimOpenRow, releaseOpenRow, rowSwipeActionsOf, rowSwipeChange, type RowSwipeActionId } from "@/lib/chat/v2/phone/row-swipe";
 import { cn } from "@/lib/utils";
+import { fmtTime12 } from "@/lib/format";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
 
 /** The row heights of the spec (C2 §3): 72 px, and 76 px on the phone (a bigger thumb, a bigger avatar). */
 export const ROW_HEIGHT = 72;
@@ -103,6 +105,8 @@ export function RowView({
   const channel = rowChannelWord(row);
   const ticks = saved ? null : rowTicks(row);
   const time = rowTimeLabel(row.lastMessage?.at, now);
+  // «تيليجرام على التلفون»: «6:49 م» on the phone
+  const tg = useTgPhoneOn();
   const space = row.kind === "SPACE";
   const chips = space ? (row.topicChips ?? []) : [];
   const muted = row.muted;
@@ -197,7 +201,16 @@ export function RowView({
             ) : null}
             {time ? (
               <time dir="ltr" className={cn("text-xs tabular-nums", unread && !muted && !on ? "text-accent" : quiet)}>
-                {time}
+                {tg && time.includes(":") && row.lastMessage?.at ? (
+                  <>
+                    <span className="max-md:hidden">{time}</span>
+                    <span dir="rtl" data-time-12="" className="md:hidden">
+                      {fmtTime12(row.lastMessage.at)}
+                    </span>
+                  </>
+                ) : (
+                  time
+                )}
               </time>
             ) : null}
           </span>
