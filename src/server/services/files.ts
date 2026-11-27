@@ -13,6 +13,7 @@ import { snippetOf } from "@/server/chat/search";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { logEvent } from "@/server/services/integrations";
 import { canReadConversation } from "@/server/policy/conversation";
+import { holdsArchiveView } from "@/server/chat/archive-access";
 import { MAX_FILE_BYTES, canManageFile, checksumHex, safeStoredName, sniffMimeType } from "@/server/files/sniff";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { driveIsDown, pauseDrive, resumeDrive, storageTarget } from "@/server/files/storage-policy";
@@ -199,7 +200,7 @@ export async function assertMayReadFile(ctx: OrgAccessContext, id: string): Prom
       purpose: true,
       uploaderId: true,
       workspaceId: true,
-      chatLinks: { select: { message: { select: { conversationId: true, deletedAt: true } } } },
+      chatLinks: { select: { replacedAt: true, message: { select: { conversationId: true, deletedAt: true } } } },
     },
   });
   if (!f) throw new NotFoundError("files.not_found");
@@ -217,7 +218,10 @@ export async function assertMayReadFile(ctx: OrgAccessContext, id: string): Prom
     throw new NotFoundError("files.not_found");
   }
   const messages = f.chatLinks.flatMap((l) => (l.message ? [l.message] : []));
-  if (messages.length === 0 && f.uploaderId === ctx.userId) return;
+  // a file an edit took off a message is the edit history's: no longer «not sent yet» for its uploader; the holder of silent oversight opens it
+  const replaced = f.chatLinks.some((l) => l.replacedAt);
+  if (messages.length === 0 && !replaced && f.uploaderId === ctx.userId) return;
+  if (replaced && (await holdsArchiveView(ctx))) return;
   for (const m of messages) {
     if (m.deletedAt && ctx.orgRole !== "OWNER") continue;
     if (await canReadConversation(ctx.userId, m.conversationId)) return;

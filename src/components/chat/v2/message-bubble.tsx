@@ -19,6 +19,9 @@ import { ReactionPop } from "@/components/chat/v2/phone/reaction-pop";
 import { ReactorsSheet } from "@/components/chat/v2/menu/reactors-sheet";
 import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { useOpenForwardSource } from "@/components/chat/v2/forward/use-open-forward-source";
+import { CrossReplyBlock } from "@/components/chat/v2/bubble/cross-quote";
+import { ArticleCard } from "@/components/chat/v2/article/article-card";
+import { ARTICLE_KIND } from "@/lib/chat/article";
 import "@/components/chat/v2/phone/tg-messages.css";
 import { flyReaction } from "@/components/chat/v2/phone/message-fx";
 import { useTgPhone, useTgPhoneOn } from "@/components/shell/tg-phone";
@@ -147,6 +150,10 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
   const translation = useTranslation(message.id);
   // S5.2: the «محوّلة من» header is a button: the server says where the original is (only when I may read it)
   const openForwardSource = useOpenForwardSource(conversationId, onJump);
+  // «الرد في محادثة أخرى»: the same tap, through the quote's own door (drawn as a button only where the server said I may read the source)
+  const openCrossSource = useOpenForwardSource(conversationId, onJump, "cross-reply");
+  // «المقالات»: an article is one card (its pictures live inside it), not words and files
+  const article = message.kind === ARTICLE_KIND && !message.deleted;
   const canAct = !facts.oversight && !message.deleted && message.kind !== "SYSTEM";
   // C3b.5: while selecting, a press anywhere on the row picks it: the bubble takes no pointer (so its long press and double-click gestures never start) and draws no menu or hover buttons
   const selecting = select?.on === true && canAct;
@@ -315,19 +322,24 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               ) : null}
               {message.forwardedFrom && !message.deleted ? <ForwardedHeader name={message.forwardedFrom.name} onOpen={() => openForwardSource(message.id)} /> : null}
               {message.replyTo ? <ReplyBlock replyTo={message.replyTo} onJump={onJump} /> : null}
+              {message.crossReply && !message.deleted ? <CrossReplyBlock crossReply={message.crossReply} onOpen={() => openCrossSource(message.id)} /> : null}
               {mentionsMe ? (
                 <span data-mentions-me className="mb-1 block text-xs font-semibold text-warn">
                   {ct("chatc.mention_me")}
                 </span>
               ) : null}
-              <BubbleWords on={tgLook && !bare && !message.deleted}>
-                <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} formatting={facts.formatting} fresh={fresh} />
-              </BubbleWords>
+              {article ? (
+                <ArticleCard message={message} />
+              ) : (
+                <BubbleWords on={tgLook && !bare && !message.deleted}>
+                  <BubbleBody message={message} mentionNames={mentionNames} conversationId={conversationId} orderChips={chips} formatting={facts.formatting} fresh={fresh} />
+                </BubbleWords>
+              )}
               {!message.deleted && <MessageTranslation state={translation.state} onHide={translation.hide} />}
               {!message.deleted ? <LinkPreviewCard preview={message.preview} enabled={facts.linkPreviews} /> : null}
-              {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} /> : null}
+              {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} mayAdd={facts.pollExtras === true} /> : null}
               {message.card && !message.deleted ? message.card.type === "order" ? facts.canOrderState ? <OrderCardBubble number={message.card.number} conversationId={conversationId} /> : null : <CardBubble card={message.card} /> : null}
-              {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} albums={facts.albums} mine={mine} /> : null}
+              {!message.deleted && !article ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} albums={facts.albums} mine={mine} /> : null}
               {message.work?.length ? <WorkChips work={message.work} onOpenWork={onOpenWork} /> : null}
               <MustReadBlock message={message} onAck={onAck} />
               <CustomerHint hint={hint} canProblem={facts.canProblem} onTicket={onHintTicket ? () => onHintTicket(message) : undefined} />

@@ -93,5 +93,9 @@ export function menuContextV2(message: MessageDto, facts: BubbleFacts, extras: {
     canAsk: extras.askKind,
     // C3b.2: «شيل المعاينة» is offered on a message that carries a card (the server sends none for a deleted message or while the switch is off)
     hasPreview: message.preview !== undefined,
+    // «الرد في محادثة أخرى», «تعديل صورة أو ملف» and the article's editor: each only where the header says so
+    ...(facts.canReplyElsewhere ? { canReplyElsewhere: true } : {}),
+    ...(facts.canEditMedia ? { canEditMedia: true, hasFiles: message.attachments.length > 0 } : {}),
+    ...(facts.canEditArticle ? { canEditArticle: true } : {}),
   };
 }

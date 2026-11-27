@@ -4,7 +4,7 @@ import React from "react";
 import { flushSync } from "react-dom";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Camera, ChartColumn, FileText, Image as ImageIcon, Images, ListChecks, UserRound, type LucideIcon } from "lucide-react";
+import { ArrowRight, Camera, ChartColumn, FileText, Image as ImageIcon, Images, ListChecks, Newspaper, UserRound, type LucideIcon } from "lucide-react";
 import { Sheet, SheetDescription, SheetOverlay, SheetPanel, SheetTitle } from "@/components/ui/sheet";
 import { ContactTab } from "@/components/chat/v2/composer/attach-contacts";
 import { PhotoEditor } from "@/components/chat/v2/composer/photo-editor";
@@ -27,12 +27,12 @@ import "@/components/chat/v2/tg-sheets.css";
 /**
  * «المرفقات» on a phone with Telegram's look: a sheet at about half the screen that slides in over a dim, with the kinds as tabs at the bottom (المعرض · ملف
  * · استفتاء · جهة اتصال, and the checklist the app already had). Dragged up by its head it is a full page («استفتاء جديد» for the poll); dragged down it
- * steps back and closes. Location and articles are not here: the app has neither.
+ * steps back and closes. «مقال» (where I may write one) closes the sheet and opens the article editor. Location is not here: the app has none.
  */
-const ICONS: Record<AttachTabId, LucideIcon> = { media: ImageIcon, file: FileText, poll: ChartColumn, contact: UserRound, checklist: ListChecks };
+const ICONS: Record<AttachTabId, LucideIcon> = { media: ImageIcon, file: FileText, poll: ChartColumn, contact: UserRound, checklist: ListChecks, article: Newspaper };
 /** Each kind's own colour: the theme's categorical tokens. */
-const TONES: Record<AttachTabId, string> = { media: "text-cat-6", file: "text-cat-4", poll: "text-cat-1", contact: "text-cat-3", checklist: "text-cat-5" };
-const LABELS: Record<AttachTabId, string> = { media: "chatui.attachsheet.gallery", file: "tgsheets.attach.file", poll: "tgsheets.attach.poll", contact: "tgsheets.attach.contact", checklist: "chatcl.menu" };
+const TONES: Record<AttachTabId, string> = { media: "text-cat-6", file: "text-cat-4", poll: "text-cat-1", contact: "text-cat-3", checklist: "text-cat-5", article: "text-cat-2" };
+const LABELS: Record<AttachTabId, string> = { media: "chatui.attachsheet.gallery", file: "tgsheets.attach.file", poll: "tgsheets.attach.poll", contact: "tgsheets.attach.contact", checklist: "chatcl.menu", article: "tgx.article.menu" };
 
 export interface AttachTileProps {
   item: PendingFile;
@@ -231,6 +231,10 @@ export interface TgAttachSheetProps {
   onHd?: (index: number, on: boolean) => void;
   onSend: () => void;
   onChecklist: () => void;
+  /** «مقال»: the sheet gives way to the article editor */
+  onArticle?: () => void;
+  /** the company's switch `chatPollExtras` */
+  pollExtras?: boolean;
   onDropFiles?: (files: File[]) => void;
 }
 
@@ -324,7 +328,7 @@ function TgAttachBody({ panel, size, setSize, ...p }: TgAttachSheetProps & { pan
         busy={p.busy}
         caption={p.caption}
         canSend={p.canSend}
-        onTab={(id) => (id === "checklist" ? p.onChecklist() : setTab(id))}
+        onTab={(id) => (id === "checklist" ? p.onChecklist() : id === "article" ? p.onArticle?.() : setTab(id))}
         onBack={() => resize("half")}
         // the keyboard's way up (a finger's tap is handled with the drag)
         onExpand={() => {
@@ -342,6 +346,7 @@ function TgAttachBody({ panel, size, setSize, ...p }: TgAttachSheetProps & { pan
         content={
           tab === "poll" ? (
             <TgPollForm
+              extras={p.pollExtras === true}
               draft={draft}
               error={pollError}
               action={size === "half" ? createButton : null}

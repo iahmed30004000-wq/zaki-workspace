@@ -38,6 +38,7 @@ export interface OptimisticSendInput {
   payload: ChatSendPayload;
   author: PendingInput["author"];
   replyTo?: PendingInput["replyTo"];
+  crossReply?: PendingInput["crossReply"];
 }
 
 export type OptimisticOutcome =
@@ -63,6 +64,7 @@ export function startOptimisticSend(deps: OptimisticDeps, input: OptimisticSendI
     author: input.author,
     mentions: payload.mentions,
     ...(input.replyTo ? { replyTo: input.replyTo } : {}),
+    ...(input.crossReply ? { crossReply: input.crossReply } : {}),
   });
   if (!shown) return { shown: false };
   const quote = payload.replyToId ? (payload.replyQuote ?? replyQuoteStore.take(conversationId, payload.replyToId)) : null;
@@ -76,6 +78,7 @@ export function startOptimisticSend(deps: OptimisticDeps, input: OptimisticSendI
         body,
         mentions: payload.mentions,
         ...(payload.replyToId ? { replyToId: payload.replyToId, ...(payload.replyQuote ? { replyQuote: payload.replyQuote } : {}) } : {}),
+        ...(payload.crossReplyId ? { crossReplyId: payload.crossReplyId } : {}),
         ...(payload.mentionAll ? { mentionAll: true } : {}),
         ...(payload.noPreview ? { noPreview: true } : {}),
         ...(payload.silent ? { silent: true } : {}),

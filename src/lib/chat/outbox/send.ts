@@ -54,6 +54,8 @@ export interface ChatSendPayload {
   replyToId?: string;
   /** S5.7 «رد بالاقتباس»: the picked piece of the original (only with `replyToId`) */
   replyQuote?: string;
+  /** «الرد في محادثة أخرى»: the source message's id (never with `replyToId`; the server takes the quote from the source itself) */
+  crossReplyId?: string;
   clientId: string;
   mentionAll?: boolean;
   voice?: boolean;
@@ -77,7 +79,7 @@ export async function postChatMessage(conversationId: string, payload: ChatSendP
       method: "POST",
       headers: { "content-type": "application/json" },
       // `silent` rides next to the shared payload builder (a file of the conversation screens): only a silent message carries it
-      body: JSON.stringify({ ...buildChatMessagePayload(payload), ...(payload.silent ? { silent: true } : {}), ...(payload.replyToId && payload.replyQuote ? { replyQuote: payload.replyQuote } : {}) }),
+      body: JSON.stringify({ ...buildChatMessagePayload(payload), ...(payload.silent ? { silent: true } : {}), ...(payload.replyToId && payload.replyQuote ? { replyQuote: payload.replyQuote } : {}), ...(payload.crossReplyId ? { crossReply: { messageId: payload.crossReplyId } } : {}) }),
       ...(controller ? { signal: controller.signal } : {}),
     });
     if (response.ok) {
@@ -110,6 +112,7 @@ export function sendOutboxItem(item: OutboxItem): Promise<SendOutcome> {
     attachmentIds: item.attachmentIds ?? [],
     mentions: item.mentions,
     ...(item.replyToId ? { replyToId: item.replyToId, ...(item.replyQuote ? { replyQuote: item.replyQuote } : {}) } : {}),
+    ...(item.crossReplyId ? { crossReplyId: item.crossReplyId } : {}),
     clientId: item.clientId,
     ...(item.mentionAll ? { mentionAll: true } : {}),
     ...(item.noPreview ? { noPreview: true } : {}),

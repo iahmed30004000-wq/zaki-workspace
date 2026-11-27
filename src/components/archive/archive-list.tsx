@@ -25,6 +25,10 @@ export function ArchiveList({ items }: { items: ArchiveItemDto[] }) {
         <p className="text-xs text-fg-muted">{AR["archive.author"]}: {item.authorName || AR["archive.unknown"]}</p>
         <p className="rounded-lg bg-surface-2 p-3"><span className="text-xs text-fg-muted">{AR["archive.before"]}: </span>{item.previousBody || AR["archive.noBody"]}</p>
         <p className="rounded-lg border border-border p-3"><span className="text-xs text-fg-muted">{AR["archive.after"]}: </span>{item.body || AR["archive.noBody"]}</p>
+        {item.oldFiles?.length ? <div data-archive-old-files="" className="space-y-1">
+          <p className="text-xs text-fg-muted">{AR["tgx.archive.old_files"]}</p>
+          <ul className="flex flex-col">{item.oldFiles.map((file) => <li key={file.id}><a href={file.url} download={file.name} dir="auto" className="inline-flex min-h-11 items-center text-accent underline [overflow-wrap:anywhere]">{file.name}</a></li>)}</ul>
+        </div> : null}
       </div>}
       {item.type === "moderation" && <div className="mt-3 space-y-1 text-sm">
         <p>{AR["archive.action"]}: {item.action ?? AR["archive.unknown"]}</p>

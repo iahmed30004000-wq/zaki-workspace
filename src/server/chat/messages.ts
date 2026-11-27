@@ -19,7 +19,9 @@ import { log } from "@/server/log";
 import { claimUploads, MAX_ATTACHMENTS_PER_MESSAGE } from "@/server/chat/attachments";
 import { presentMessage, previewOf, type Viewer } from "@/server/chat/redact";
 import { emojiOnlyCount, isZakiCode } from "@/lib/chat/zaki-emoji";
-import { cleanPollOptions, pollCreateData, pollInclude, pollInputSchema } from "@/server/chat/poll-shared";
+import { cleanPollExtras, cleanPollOptions, hasPollExtras, pollCreateData, pollInclude, pollInputSchema, type PollExtras } from "@/server/chat/poll-shared";
+import { crossViewerOf, resolveCrossReply, touchCrossReplies, type ResolvedCrossReply } from "@/server/chat/cross-reply";
+import { articleBodyProblem, articleTitleOf, ARTICLE_KIND, MAX_ARTICLE_BODY, MAX_ARTICLE_IMAGES } from "@/lib/chat/article";
 import { checklistCreateData, checklistInclude, checklistInputSchema, cleanChecklistItems, CHECKLIST_KIND, isBlankText, MAX_CHECKLIST_TITLE } from "@/lib/chat/checklist";
 import { notifyMessageToAudience, notifyCandidates, readersAmong, rewriteMessagePreviews, topicAudienceIds, forwardedPreview, DELETED_PREVIEW } from "@/server/chat/notify";
 import { FORWARD_COMMENT_MAX } from "@/lib/chat/forward";
@@ -49,6 +51,11 @@ const retryLimiter = new FixedWindowLimiter({ limit: 300, windowMs: 60_000 });
 
 const MAX_BODY = 4000;
 
+/** What an article is called where only a line is shown (a bell, a push): its title, never the whole post. */
+const articleLine = (body: string): string => `📄 ${articleTitleOf(body)}`;
+const lineOfMessage = (kind: string, body: string): string => (kind === ARTICLE_KIND ? articleLine(body) : body);
+const ARTICLE_ERRORS = { title: "chat.e.article_title", content: "chat.e.article_content", long: "chat.e.too_long" } as const;
+
 /**
  * What a reaction may be (S5.6): ONE real emoji (a pictograph with its variation selector or skin tone, a flag, a keycap, a joined family: up to 16 characters, no
  * spaces) or ONE known Zaki code from the allow-list of the pack (`:zaki_clap:`, a task sticker too). Any other text — a word, markup, an unknown or a doubled code —
@@ -63,7 +70,12 @@ export function isSingleEmoji(emoji: string): boolean {
 
 export const sendSchema = z
   .object({
-    body: z.string().max(MAX_BODY).optional(),
+    // an article (see `article` below) may be long; anything else keeps the ordinary limit (the refinement at the end)
+    body: z.string().max(MAX_ARTICLE_BODY).optional(),
+    // «مقال»: the body is the title line and the content; its only files are pictures
+    article: z.boolean().optional(),
+    // «الرد في محادثة أخرى»: the id of a message of ANOTHER conversation. Only the id is taken: what is carried over is read by the server from that row
+    crossReply: z.object({ messageId: z.string().min(1).max(64) }).optional(),
     replyToId: z.string().min(1).max(64).optional(),
     mentions: z.array(z.string().min(1)).max(50).optional(),
     // «@الكل»: honoured only with the word in the body, in a topic, for somebody who is not a guest
@@ -91,7 +103,8 @@ export const sendSchema = z
   .refine((v) => (v.body?.trim().length ?? 0) > 0 || (v.attachmentIds?.length ?? 0) > 0, {
     message: "chat.e.empty",
     path: ["body"],
-  });
+  })
+  .refine((v) => v.article === true || (v.body?.length ?? 0) <= MAX_BODY, { message: "chat.e.too_long", path: ["body"] });
 
 export type SendInput = z.infer<typeof sendSchema>;
 
@@ -159,7 +172,8 @@ export async function sendMessage(
 
   const body = (input.body ?? "").trim();
   const attachments = input.attachmentIds ?? [];
-  if (body.length > MAX_BODY) throw new ValidationError([{ path: "body", message: "chat.e.too_long" }]);
+  const isArticle = input.article === true;
+  if (body.length > (isArticle ? MAX_ARTICLE_BODY : MAX_BODY)) throw new ValidationError([{ path: "body", message: "chat.e.too_long" }]);
   if (body.length === 0 && attachments.length === 0) throw new ValidationError([{ path: "body", message: "chat.e.empty" }]);
 
   // «الرسائل الصوتية» off: no new voice note (the ones already sent still play)
@@ -172,6 +186,7 @@ export async function sendMessage(
 
   // a poll: a topic's, with 2-10 options and nothing else attached; a guest only votes, never asks
   let pollOptions: string[] | null = null;
+  let pollExtras: PollExtras | null = null;
   if (input.poll) {
     if (facts.kind !== "TOPIC") throw new ForbiddenError("chat.e.poll_topic_only");
     if (org.role === "GUEST") throw new ForbiddenError("chat.e.poll_guest");
@@ -179,7 +194,25 @@ export async function sendMessage(
     if (body.length === 0) throw new ValidationError([{ path: "body", message: "chat.e.poll_question" }]);
     pollOptions = cleanPollOptions(input.poll.options);
     if (!pollOptions) throw new ValidationError([{ path: "poll.options", message: "chat.e.poll_options" }]);
+    // the extra settings: only while the company's switch is on, and only in a shape that makes sense (a quiz has one right answer)
+    if (hasPollExtras(input.poll) && !(await isFeatureOn(ctx.orgId, "chatPollExtras"))) throw new ForbiddenError("chat.e.poll_extras_off");
+    const extras = cleanPollExtras(input.poll, pollOptions);
+    if ("error" in extras) throw new ValidationError([{ path: "poll", message: extras.error }]);
+    pollExtras = extras.extras;
   }
+
+  // an article: the company's switch, not a guest, a title and some words, and no file but pictures
+  if (isArticle) {
+    await assertFeatureOn(ctx.orgId, "chatArticles");
+    if (org.role === "GUEST") throw new ForbiddenError("chat.e.article_guest");
+    if (input.voice === true || input.poll || input.checklist || internal.card || input.mustRead === true) throw new ValidationError([{ path: "article", message: "chat.e.article_alone" }]);
+    const problem = articleBodyProblem(body);
+    if (problem) throw new ValidationError([{ path: "body", message: ARTICLE_ERRORS[problem] }]);
+    if (attachments.length > MAX_ARTICLE_IMAGES) throw new ValidationError([{ path: "attachmentIds", message: "chat.f.too_many" }]);
+    for (const id of attachments) if ((await attachmentKind(id)) !== "IMAGE") throw new ValidationError([{ path: "attachmentIds", message: "chat.e.article_images" }]);
+  }
+  // a reply is to ONE message: of this conversation, or of another one
+  if (input.crossReply && (input.replyToId || internal.card)) throw new ValidationError([{ path: "crossReply", message: "chat.e.cross_with_reply" }]);
 
   // a checklist: where the company's switch is on, not for a guest (he reads the list, never writes one), with a title and 1-30 items, alone in its message
   let checklistItems: string[] | null = null;
@@ -202,7 +235,7 @@ export async function sendMessage(
 
   // a card stands alone: no files, no voice, no poll
   if (internal.card && (attachments.length > 0 || input.voice === true || input.poll)) throw new ValidationError([{ path: "card", message: "chat.e.card_alone" }]);
-  const kind = internal.card ? "CARD" : input.poll ? "POLL" : input.checklist ? "CHECKLIST" : input.voice === true && isVoice ? "VOICE" : "TEXT";
+  const kind = internal.card ? "CARD" : input.poll ? "POLL" : input.checklist ? "CHECKLIST" : isArticle ? ARTICLE_KIND : input.voice === true && isVoice ? "VOICE" : "TEXT";
 
   // a moment of the video means something only in a «نتفرّج سوا» session's talk; anywhere else it is dropped
   const videoAtSec =
@@ -241,8 +274,15 @@ export async function sendMessage(
     });
     if (existing) {
       // a retry is the SAME message: it stays silent whatever the retry's own flag says (a copy that lost the flag must not make it loud)
-      return withSilent(presentMessage(existing, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn }), existing.silent);
+      return withSilent(presentMessage(existing, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn, ...(await crossViewerOf(ctx.userId, ctx.orgId, org, [existing])) }), existing.silent);
     }
+  }
+  // «الرد في محادثة أخرى»: judged AFTER the retry above (a message that went is answered even when its source has gone since). The target's own rule was checked at the top
+  // (`canPost`); an archived topic is no place to carry anything into, as for a forward
+  let cross: ResolvedCrossReply | null = null;
+  if (input.crossReply) {
+    cross = await resolveCrossReply(ctx, conversationId, input.crossReply.messageId);
+    await assertTargetOpen({ facts, org }, conversationId);
   }
   // «ابعت بدون صوت»: honoured only while the company's switch is on (off: an ordinary message)
   const silent = input.silent === true && (await isFeatureOn(ctx.orgId, "chatSilentSend"));
@@ -257,13 +297,14 @@ export async function sendMessage(
         kind,
         replyToId: input.replyToId ?? null,
         ...(replyQuote ? { replyQuote } : {}),
+        ...(cross ? { crossReplyToId: cross.sourceId, crossReply: cross.snapshot as unknown as Prisma.InputJsonValue } : {}),
         mentions: wantsAll ? [...mentionIds, MENTION_ALL_ID] : mentionIds,
         ...(input.clientId ? { clientId: input.clientId } : {}),
         ...(silent ? { silent: true } : {}),
         ...(mustRead ? { ackRequired: true, ackMeta: { markedAt: new Date().toISOString() } } : {}),
         ...(videoAtSec !== null ? { videoAtSec } : {}),
         ...(internal.card ? { card: internal.card as unknown as Prisma.InputJsonValue } : {}),
-        ...(input.poll && pollOptions ? { poll: { create: pollCreateData(input.poll, pollOptions) } } : {}),
+        ...(input.poll && pollOptions && pollExtras ? { poll: { create: pollCreateData(input.poll, pollOptions, new Date(), pollExtras) } } : {}),
         ...(input.checklist && checklistItems ? { checklist: { create: checklistCreateData(input.checklist, checklistItems, ctx.userId) } } : {}),
       },
       include: messageInclude(),
@@ -294,10 +335,11 @@ export async function sendMessage(
   });
 
   // my own fresh DM message starts at ✓ (sent): the screen shows it from this answer before any refetch
-  const dto = withSilent(presentMessage(created, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn }, facts.kind === "DM" ? "sent" : undefined), silent);
+  const dto = withSilent(presentMessage(created, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: previewsOn, ...(await crossViewerOf(ctx.userId, ctx.orgId, org, [created])) }, facts.kind === "DM" ? "sent" : undefined), silent);
   // C1.8: the answer goes back as soon as the commit is done. The bell and the push (and the company's auto-ticket rules) run AFTER it: the
   // sender's ✓ never waits for them, and a failure there is logged with its step (never swallowed) and never fails the send.
-  const after: AfterSendStep[] = [{ step: "notify", run: () => notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, dto) }];
+  const bellDto = kind === ARTICLE_KIND ? { ...dto, body: articleLine(body) } : dto;
+  const after: AfterSendStep[] = [{ step: "notify", run: () => notifyAfterSend(ctx, facts, conversationId, mentionIds, allIds, input.replyToId ?? null, bellDto) }];
   // «المشاكل تصير تذاكر»: the rules of the company, after the message is stored (a failure there never stops a message)
   if (kind === "TEXT" && !internal.card) {
     after.push({ step: "auto_tickets", run: () => applyAutoTicketRules(ctx, { id: created.id, body, conversationId }, { spaceId: facts.spaceId ?? null, kind: facts.kind, restricted: Boolean(facts.restricted), teamId: facts.teamId ?? null }) });
@@ -420,12 +462,17 @@ async function attachmentKind(fileId: string): Promise<string> {
 
 // ---------- edit ----------
 
-export const editSchema = z.object({ body: z.string().trim().min(1, "chat.e.empty").max(MAX_BODY) });
+export const editSchema = z.object({
+  // may be empty only for the caption of a photo or a file (`editMessage` decides); anything but an article keeps the ordinary limit
+  body: z.string().trim().max(MAX_ARTICLE_BODY),
+  // «تعديل صورة أو ملف»: ONE attachment of the message replaced by ONE upload of mine
+  replace: z.object({ attachmentId: z.string().min(1).max(64), uploadId: z.string().min(1).max(64) }).optional(),
+});
 
 export async function editMessage(ctx: OrgAccessContext, messageId: string, input: z.infer<typeof editSchema>): Promise<MessageDto> {
   const msg = await db.chatMessage.findUnique({
     where: { id: messageId },
-    include: { conversation: { select: { id: true, orgId: true } }, preview: { select: { url: true } } },
+    include: { conversation: { select: { id: true, orgId: true } }, preview: { select: { url: true } }, _count: { select: { attachments: true } } },
   });
   if (!msg) throw new NotFoundError("chat.e.not_found");
   if (msg.orgId !== ctx.orgId) throw new NotFoundError("chat.e.not_found");
@@ -439,20 +486,66 @@ export async function editMessage(ctx: OrgAccessContext, messageId: string, inpu
   if (msg.kind === CHECKLIST_KIND && (isBlankText(input.body) || [...input.body].length > MAX_CHECKLIST_TITLE)) throw new ValidationError([{ path: "body", message: "chat.e.checklist_title" }]);
   if (!canRead(facts, org)) throw new NotFoundError("chat.e.not_found");
 
+  if (msg.kind === ARTICLE_KIND) {
+    // an article is edited as an article (its title and content), while the company has articles on
+    await assertFeatureOn(ctx.orgId, "chatArticles");
+    const problem = articleBodyProblem(input.body);
+    if (problem) throw new ValidationError([{ path: "body", message: ARTICLE_ERRORS[problem] }]);
+  } else if (input.body.length > MAX_BODY) {
+    throw new ValidationError([{ path: "body", message: "chat.e.too_long" }]);
+  }
+  if (input.replace) {
+    // «تعديل صورة أو ملف»: the same rules as editing the words (above), on an ordinary message that holds files; a voice note is a recording and is never swapped
+    await assertFeatureOn(ctx.orgId, "chatEditMedia");
+    if (msg.kind !== "TEXT") throw new ForbiddenError("chat.e.media_kind");
+  }
+  // an empty body is the emptied caption of a message that keeps its file; words alone are never emptied
+  if (input.body.length === 0 && !((msg.kind === "TEXT" || msg.kind === "VOICE") && msg._count.attachments > 0 && (await isFeatureOn(ctx.orgId, "chatEditMedia")))) {
+    throw new ValidationError([{ path: "body", message: "chat.e.empty" }]);
+  }
+
   const updated = await db.$transaction(async (tx) => {
+    // one edit of a message at a time, and never of one that was deleted a moment ago
+    const [locked] = await tx.$queryRaw<{ deletedAt: Date | null }[]>`SELECT "deletedAt" FROM "ChatMessage" WHERE "id" = ${messageId} FOR UPDATE`;
+    if (!locked || locked.deletedAt) throw new ForbiddenError("chat.e.deleted");
     // the text BEFORE the edit goes into the history, in the same transaction
-    await tx.messageRevision.create({ data: { messageId, body: msg.body, editorId: ctx.userId } });
+    const revision = await tx.messageRevision.create({ data: { messageId, body: msg.body, editorId: ctx.userId }, select: { createdAt: true } });
+    if (input.replace) await replaceAttachment(tx, ctx, { id: messageId, conversationId: msg.conversationId }, input.replace, revision.createdAt);
     // «معاينة الرابط»: the card follows the words — when the edit changed the first link (or took it away), the card of the old one goes. A new link is NOT visited on an edit.
     const cardStays = msg.preview !== null && previewUrlOf(input.body) === msg.preview.url;
     const m = await tx.chatMessage.update({ where: { id: messageId }, data: { body: input.body, editedAt: new Date(), ...(msg.preview !== null && !cardStays ? { previewId: null } : {}) }, include: messageInclude() });
     // a bell that showed the old words shows the new ones
-    await rewriteMessagePreviews(tx, msg.conversationId, messageId, input.body);
+    await rewriteMessagePreviews(tx, msg.conversationId, messageId, input.body.length === 0 ? "أرسل مرفقًا" : lineOfMessage(msg.kind, input.body));
     await emitRealtime(tx, ctx.orgId, "message.edited", { conversationId: msg.conversationId, messageId, spaceId: facts.spaceId ?? undefined });
     return m;
   });
   // «بحث بالمعنى»: the vector follows the new words
   queueSync(ctx.orgId, "message", messageId);
-  return presentMessage(updated, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: await linkPreviewsOn(ctx.orgId) });
+  return presentMessage(updated, { ...withViewer(viewerOf(facts, org), ctx.userId), linkPreviews: await linkPreviewsOn(ctx.orgId), ...(await crossViewerOf(ctx.userId, ctx.orgId, org, [updated])) });
+}
+
+/**
+ * ONE file of my own message swapped for ONE upload of mine, inside the edit's transaction. NOTHING IS DELETED: the old row leaves the message (`messageId` NULL, so no
+ * reader of a message's files can ever list it) and remembers it (`formerMessageId`) and the edit (`replacedAt` = the revision's time): it is part of the edit
+ * history, read by the holder of silent oversight alone. The upload goes through `claimUploads` (mine, unused, fresh, of this company) and takes the old file's place.
+ * A forward made before the edit keeps its own link to the old file: it is another message.
+ */
+async function replaceAttachment(
+  tx: Prisma.TransactionClient,
+  ctx: OrgAccessContext,
+  msg: { id: string; conversationId: string },
+  replace: { attachmentId: string; uploadId: string },
+  at: Date,
+): Promise<void> {
+  const old = await tx.messageAttachment.findFirst({ where: { id: replace.attachmentId, messageId: msg.id }, select: { id: true, position: true } });
+  if (!old) throw new NotFoundError("chat.e.media_not_found");
+  // a recording is a voice note's alone: it never becomes the file of another message through an edit
+  const upload = await tx.storedFile.findFirst({ where: { id: replace.uploadId, orgId: ctx.orgId, uploaderId: ctx.userId, purpose: "CHAT" }, select: { id: true } });
+  if (!upload) throw new NotFoundError("chat.f.not_found");
+  const taken = await tx.messageAttachment.updateMany({ where: { id: old.id, messageId: msg.id }, data: { messageId: null, formerMessageId: msg.id, replacedAt: at } });
+  if (taken.count !== 1) throw new NotFoundError("chat.e.media_not_found");
+  await claimUploads(tx, { orgId: ctx.orgId, uploaderId: ctx.userId, conversationId: msg.conversationId, messageId: msg.id, attachmentIds: [upload.id] });
+  await tx.messageAttachment.updateMany({ where: { messageId: msg.id, fileId: upload.id }, data: { position: old.position } });
 }
 
 // ---------- delete ----------
@@ -485,6 +578,8 @@ async function deleteLoaded(
     });
     // the bell never keeps the words of a deleted message
     await rewriteMessagePreviews(tx, msg.conversationId, messageId, DELETED_PREVIEW);
+    // a reply in ANOTHER conversation that quotes it stops showing the quote, on the open screens too
+    await touchCrossReplies(tx, ctx.orgId, { id: messageId });
     await recomputeLastMessageAt(tx, msg.conversationId, msg.createdAt);
     await emitRealtime(tx, ctx.orgId, "message.deleted", { conversationId: msg.conversationId, messageId, spaceId: facts.spaceId ?? undefined });
     // an admin deletion is a moderation act: it goes to the audit trail
@@ -737,7 +832,7 @@ export async function forwardMessage(ctx: OrgAccessContext, messageId: string, i
     });
     return copy;
   });
-  const job = runAfterSend([notifyForward(ctx, to, input.conversationId, { lastId: created.id, count: 1, body: msg.body, comment: null }, authorNameOnce(ctx))]);
+  const job = runAfterSend([notifyForward(ctx, to, input.conversationId, { lastId: created.id, count: 1, body: lineOfMessage(msg.kind, msg.body), comment: null }, authorNameOnce(ctx))]);
   if (afterSendMode() === "inline") await job;
   return { id: created.id };
 }
@@ -877,7 +972,7 @@ export async function forwardMessages(ctx: OrgAccessContext, input: z.infer<type
       );
       results.push({ targetId, ok: true, ids: copies.made.map((c) => c.id), ...(copies.note ? { commentId: copies.note.id } : {}) });
       const last = ordered[ordered.length - 1]!;
-      notify.push(notifyForward(ctx, to, targetId, { lastId: (copies.note ?? copies.made[copies.made.length - 1]!).id, count: ordered.length, body: last.body, comment: comment || null }, authorName));
+      notify.push(notifyForward(ctx, to, targetId, { lastId: (copies.note ?? copies.made[copies.made.length - 1]!).id, count: ordered.length, body: lineOfMessage(last.kind, last.body), comment: comment || null }, authorName));
     } catch (err) {
       if (err instanceof NotFoundError || err instanceof ForbiddenError) results.push({ targetId, ok: false, error: TARGET_REFUSED });
       else {
@@ -1023,6 +1118,10 @@ export function messageInclude() {
     deletedBy: { select: { name: true } },
     replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: { name: true } } } },
     forwardedFrom: { select: { author: { select: { name: true } } } },
+    // «الرد في محادثة أخرى»: whether the source is still there, and where it is (the conversation never leaves the server: redact.ts)
+    crossReplyTo: { select: { deletedAt: true, conversationId: true, orgId: true } },
+    // the files edits took off the message: presented inside the edit history only (the holder of silent oversight)
+    replacedFiles: { orderBy: { position: "asc" as const }, include: { file: { select: { id: true, name: true, mimeType: true, size: true } } } },
     // «مين تفاعل» (S5.6): the names come with the rows (one join, oldest reaction first); redact.ts decides who may be named to whom
     reactions: { select: { emoji: true, userId: true, user: { select: { name: true, avatarUrl: true } } }, orderBy: { id: "asc" as const } },
     attachments: {

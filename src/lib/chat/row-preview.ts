@@ -66,6 +66,8 @@ export function rowPreview(row: ChatRowDto, extra: { typingNames?: readonly stri
   // a deleted voice note, poll or card says «رسالة محذوفة» and nothing of what it was
   if (last.preview === null) return { tone: "deleted", author, text: ct("chatui.row.deleted") };
   if (last.kind === "VOICE") return { tone: "text", author, text: ct("chatui.row.voice") };
+  // «المقالات»: the row says the article's TITLE (the first line of the words), never the post
+  if (last.kind === "ARTICLE") return { tone: "text", author, text: ct("tgx.article.row", { text: squash(last.preview.split("\n")[0] ?? "") }) };
   const words = squash(last.preview);
   if (last.kind === "POLL") return { tone: "text", author, text: ct("chatui.row.poll", { text: words }) };
   // «قائمة مهام» (C3c.1): the TITLE and, where the row carries it, the count of the done items — never an item's words

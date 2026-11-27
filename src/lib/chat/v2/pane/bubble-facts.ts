@@ -32,6 +32,11 @@ export interface BubbleFacts extends MenuFacts {
   /** C3a.3: this is the person's saved chat (a private chat with nobody else in it): its messages have the single ✓ and no typing */
   saved: boolean;
   problemRules: AutoRule[];
+  /** the header's `replyElsewhere`, `editMedia`, `me.canArticle` and `pollExtras` */
+  canReplyElsewhere?: boolean;
+  canEditMedia?: boolean;
+  canEditArticle?: boolean;
+  pollExtras?: boolean;
 }
 
 const NO_RULES: AutoRule[] = [];
@@ -61,6 +66,10 @@ export function bubbleFactsOf(header: ConversationHeaderDto): BubbleFacts {
     albums: header.chatAlbums !== false,
     saved: isSavedHeader(header),
     problemRules: me.problemRules ?? NO_RULES,
+    canReplyElsewhere: header.replyElsewhere === true,
+    canEditMedia: header.editMedia === true,
+    canEditArticle: me.canArticle === true,
+    pollExtras: header.pollExtras === true,
   };
 }
 

@@ -7,6 +7,7 @@ import { emitRealtime } from "@/server/realtime/emit";
 import { presentMessage } from "@/server/chat/redact";
 import { guard, messageInclude, viewerOf, withViewer } from "@/server/chat/messages";
 import { linkPreviewsOn } from "@/server/chat/link-preview";
+import { crossViewerOf } from "@/server/chat/cross-reply";
 import { isSilentOwner } from "@/server/chat/poll-shared";
 import { assertFeatureOn } from "@/server/services/features";
 import { insertStep } from "@/server/services/task-steps";
@@ -86,7 +87,7 @@ function assertMayEdit(l: Loaded, item: { addedById: string }): void {
 
 async function present(ctx: OrgAccessContext, l: Loaded): Promise<MessageDto> {
   const row = await db.chatMessage.findUniqueOrThrow({ where: { id: l.msg.id }, include: messageInclude() });
-  return presentMessage(row, { ...withViewer(viewerOf(l.facts, l.org), ctx.userId), linkPreviews: await linkPreviewsOn(ctx.orgId) });
+  return presentMessage(row, { ...withViewer(viewerOf(l.facts, l.org), ctx.userId), linkPreviews: await linkPreviewsOn(ctx.orgId), ...(await crossViewerOf(ctx.userId, ctx.orgId, l.org, [row])) });
 }
 
 type Tx = Parameters<Parameters<typeof db.$transaction>[0]>[0];

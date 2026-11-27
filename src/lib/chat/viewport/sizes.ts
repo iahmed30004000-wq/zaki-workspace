@@ -61,6 +61,9 @@ function attachmentPx(a: AttachmentDto): number {
   return FILE_ROW_PX;
 }
 
+export const ARTICLE_ROW_PX = 190;
+export const ARTICLE_COVER_PX = 144;
+
 export function estimateRowHeight(row: Row, options: { albums?: boolean } = {}): number {
   if (row.type === "day") return DAY_ROW_PX;
   if (row.type === "unread") return UNREAD_ROW_PX;
@@ -71,12 +74,14 @@ export function estimateRowHeight(row: Row, options: { albums?: boolean } = {}):
   if (m.deleted) return DELETED_ROW_PX;
   if (m.kind === "POLL") return POLL_ROW_PX;
   if (m.kind === "CARD") return CARD_ROW_PX;
+  // «المقالات»: one card whatever the length of the post (a cover when it has a picture)
+  if (m.kind === "ARTICLE") return ARTICLE_ROW_PX + (m.attachments.length > 0 ? ARTICLE_COVER_PX : 0) + (m.crossReply ? REPLY_PX : 0) + (m.reactions.length ? REACTIONS_PX : 0);
   const lines = m.body ? m.body.split("\n").reduce((n, line) => n + Math.max(1, Math.ceil(line.length / CHARS_PER_LINE)), 0) : 0;
   let px = TEXT_BASE_PX + Math.max(1, lines) * TEXT_LINE_PX;
   const album = options.albums === true ? albumMediaOf(m.attachments) : [];
   if (album.length >= 2) px += albumBox(album).height + ATTACHMENT_GAP_PX;
   for (const a of m.attachments) if (!album.includes(a) || album.length < 2) px += attachmentPx(a);
-  if (m.replyTo) px += REPLY_PX;
+  if (m.replyTo || m.crossReply) px += REPLY_PX;
   if (m.reactions.length) px += REACTIONS_PX;
   return Math.round(px);
 }

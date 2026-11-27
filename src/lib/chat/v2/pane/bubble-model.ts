@@ -29,8 +29,8 @@ export function showsSender(mine: boolean, kind: "DM" | "GROUP" | "TOPIC"): bool
 }
 
 /** «تيليجرام على التلفون»: a message that is ONE emoji and nothing else (no file, card, poll, quote or forwarded header) stands without a bubble. */
-export function bigEmojiAlone(message: Pick<MessageDto, "kind" | "body" | "deleted" | "attachments" | "card" | "poll" | "replyTo" | "forwardedFrom">): boolean {
-  if (message.deleted || message.kind !== "TEXT" || !message.body || message.attachments.length > 0 || message.card || message.poll || message.replyTo || message.forwardedFrom) return false;
+export function bigEmojiAlone(message: Pick<MessageDto, "kind" | "body" | "deleted" | "attachments" | "card" | "poll" | "replyTo" | "forwardedFrom" | "crossReply">): boolean {
+  if (message.deleted || message.kind !== "TEXT" || !message.body || message.attachments.length > 0 || message.card || message.poll || message.replyTo || message.forwardedFrom || message.crossReply) return false;
   return emojiTokens(message.body)?.length === 1;
 }
 

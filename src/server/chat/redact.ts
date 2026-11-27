@@ -5,6 +5,7 @@ import { presentPoll, type PollRow } from "./poll-shared";
 import { stripFormatting } from "@/lib/chat/format/parse";
 import { presentChecklist, type ChecklistRow } from "@/lib/chat/checklist";
 import { zakiToWords } from "@/lib/chat/zaki-emoji";
+import { readCrossSnapshot } from "@/lib/chat/cross-reply";
 import { featureOn } from "@/lib/features";
 
 export { attachmentView };
@@ -34,6 +35,11 @@ export type Viewer = {
   canPost?: boolean;
   /** the company's switch `chatChecklists` (C3c.1): `false` shows a list with no working box or button; absent reads as on (the routes check the switch themselves) */
   checklists?: boolean;
+  /**
+   * «الرد في محادثة أخرى» (`crossViewerOf`): PRESENT only while the company's switch is on; absent reads as off, so a caller that forgets to ask sends no quote at all.
+   * `jumpable`: the ids of the REPLIES whose source this viewer may read.
+   */
+  crossReply?: { jumpable: ReadonlySet<string> };
   /** the company's switch `chatFormatting` (C3b.1): present and `true` means the quote of a reply shows the words without the markers (a spoiler is masked). Absent reads as off: the old detail and the Android app get the quote as it always was. */
   formatting?: boolean;
 };
@@ -48,6 +54,12 @@ type MessageRow = {
   replyToId?: string | null;
   /** «رد بالاقتباس» (S5.7): the piece of the parent the sender picked */
   replyQuote?: string | null;
+  /** «الرد في محادثة أخرى»: what the sender carried over, and the source row as far as the presenter needs it */
+  crossReply?: unknown;
+  crossReplyToId?: string | null;
+  crossReplyTo?: { deletedAt: Date | null; conversationId: string; orgId: string } | null;
+  /** the files edits took off the message (the edit history shows them to the holder of oversight) */
+  replacedFiles?: (Parameters<typeof attachmentView>[0] & { id: string; replacedAt?: Date | null })[];
   replyTo?: { id: string; body: string; deletedAt: Date | null; author: { name: string } } | null;
   forwardedFromId?: string | null;
   forwardedFrom?: { author: { name: string } } | null;
@@ -196,7 +208,7 @@ export function presentMessage(
 
   // a poll: a deleted message hides it like any message (the owner reads the question in `original`)
   if (row.kind === "POLL" && row.poll && !deleted) {
-    dto.poll = presentPoll(row.poll, { userId: viewer.userId, role: viewer.role, oversight: viewer.oversight, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere }, row.authorId, deleted);
+    dto.poll = presentPoll(row.poll, { userId: viewer.userId, role: viewer.role, oversight: viewer.oversight, isMember: viewer.isMember === true, canModerateHere: viewer.canModerateHere, canPost: viewer.canPost }, row.authorId, deleted);
   }
 
   // a checklist: a deleted message hides it like any message (the owner reads the title in `original`; the items are never part of an original)
@@ -237,6 +249,20 @@ export function presentMessage(
     };
   }
 
+  // «الرد في محادثة أخرى» (src/server/chat/cross-reply.ts, rules 3 and 4): the carried words, never the source's id or its conversation. A deleted reply has none; a source that
+  // is deleted or gone takes the words away from everybody; a guest is not told who wrote it; the way there is offered only to whoever may read it
+  const carried = row.crossReply && !deleted && viewer.crossReply ? readCrossSnapshot(row.crossReply) : null;
+  if (carried) {
+    const gone = !row.crossReplyTo || !!row.crossReplyTo.deletedAt;
+    dto.crossReply = {
+      authorName: viewer.role === "GUEST" ? "" : carried.author,
+      text: gone ? null : carried.text,
+      kind: carried.kind,
+      ...(gone ? { gone: true as const } : {}),
+      ...(!gone && viewer.role !== "GUEST" && viewer.crossReply!.jumpable.has(row.id) ? { jump: true as const } : {}),
+    };
+  }
+
   // forwarded from: a GUEST never learns which conversation a message came from
   if (row.forwardedFromId) {
     const name = row.forwardedFrom?.author.name ?? null;
@@ -258,7 +284,11 @@ export function presentMessage(
 
   // edit history: the OWNER only
   if (isOwner && row.revisions?.length) {
-    dto.history = row.revisions.map((r) => ({ body: r.body, editedAt: r.createdAt.toISOString() }));
+    dto.history = row.revisions.map((r) => {
+      // what THIS edit took off the message («تعديل صورة أو ملف»): the replaced row carries the time of its revision
+      const files = (row.replacedFiles ?? []).filter((f) => f.replacedAt?.getTime() === r.createdAt.getTime()).map((f) => attachmentView(f));
+      return { body: r.body, editedAt: r.createdAt.toISOString(), ...(files.length ? { files } : {}) };
+    });
   }
 
   // the original of a deleted message: the OWNER only
