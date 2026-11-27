@@ -3,6 +3,8 @@ import { cookies } from "next/headers";
 import { IBM_Plex_Sans_Arabic, Lalezar } from "next/font/google";
 import localFont from "next/font/local";
 import "./globals.css";
+// the computer's look, 768 px and wider only (tests/desktop-freeze.test.ts keeps it away from the phone)
+import "./desktop.css";
 import { Providers } from "./providers";
 import { DECOR_COOKIE, THEME_COOKIE, decorLevelOf, rootThemeAttributes, themeOf } from "@/lib/themes/registry";
 import { themeColorOf } from "@/lib/themes/palettes";

@@ -36,3 +36,6 @@ android/local.properties
 
 __pycache__/
 *.pyc
+
+# the mobile picture test: what a failed run leaves behind (qa/README.md)
+qa/mobile/out/
