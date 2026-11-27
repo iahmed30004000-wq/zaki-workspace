@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import { ProfileMessageButton } from "@/components/profile-message-button";
+import { PROFILE_EDIT_HREF } from "@/components/profile/profile-screen";
 import { AR } from "@/lib/i18n/dict";
 import { interpolate } from "@/lib/i18n/interpolate";
 import { enumLabel } from "@/lib/i18n/enums";
@@ -46,7 +47,7 @@ export function ProfileCard({ profile, mine }: { profile: PublicProfile; mine: b
           </div>
           {mine ? (
             <Link
-              href="/profile"
+              href={PROFILE_EDIT_HREF}
               data-edit-profile
               className="inline-flex h-11 items-center justify-center rounded-lg border border-border bg-surface px-4 text-sm font-medium text-fg hover:bg-surface-2 md:h-9"
             >

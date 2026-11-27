@@ -3,22 +3,23 @@ import { arabicPlural } from "@/lib/format";
 import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 
 /**
- * C3d + S5.4 — THE INFO PANEL'S TABS «الوسائط · الملفات · الروابط · الصوتيات · الأعضاء · الشغل · المثبّتة», as pure functions.
+ * C3d + S5.4 — THE INFO PANEL'S TABS «الوسائط · الملفات · الروابط · الصوتيات · مجموعات مشتركة · الأعضاء · الشغل · المثبّتة», as pure functions.
  *
  * S5.4: the first four are ALWAYS drawn, each with an empty sentence of its own when there is nothing (an empty conversation is not a panel with a hole in it), and
  * «الأعضاء» is always drawn for a conversation that has people (a topic or a group; a private chat has the profile instead). «الشغل» and «المثبّتة» (the old ones)
  * stay and are drawn only when they have something. The counts come from `GET …/media?counts=1` (one request), the work from `GET …/media/work`, the pinned from
  * the header the cache already holds, the members from the people the existing detail door gave.
  */
-export type InfoTabId = "media" | "files" | "links" | "voice" | "members" | "work" | "pinned";
+export type InfoTabId = "media" | "files" | "links" | "voice" | "groups" | "members" | "work" | "pinned";
 
-export const INFO_TAB_ORDER: readonly InfoTabId[] = ["media", "files", "links", "voice", "members", "work", "pinned"];
+export const INFO_TAB_ORDER: readonly InfoTabId[] = ["media", "files", "links", "voice", "groups", "members", "work", "pinned"];
 
 const LABELS: Record<InfoTabId, string> = {
   media: "chatinfo.tab.media",
   files: "chatinfo.tab.files",
   links: "chatinfo.tab.links",
   voice: "chatinfo.tab.voice",
+  groups: "chatinfo.tab.groups",
   members: "chatprof.tab.members",
   work: "chatinfo.tab.work",
   pinned: "chatinfo.tab.pinned",
@@ -47,6 +48,8 @@ export interface InfoTabFacts {
   pinned: number;
   /** the number the members tab shows; null: this conversation has no members tab (a private chat) */
   members: number | null;
+  /** a private chat's «مجموعات مشتركة»: how many the two people share (left out or null: not a private chat, or not known yet). Drawn only when there are some. */
+  common?: number | null;
 }
 
 export interface InfoTab {
@@ -64,6 +67,7 @@ export function tabsOf(facts: InfoTabFacts): InfoTab[] {
     files: counts?.FILE ?? 0,
     links: counts?.LINK ?? 0,
     voice: counts?.AUDIO ?? 0,
+    groups: facts.common ?? 0,
     members: facts.members ?? 0,
     work: facts.work ? facts.work.tasks + facts.work.tickets : 0,
     pinned: facts.pinned,
@@ -78,7 +82,8 @@ export function tabsOf(facts: InfoTabFacts): InfoTab[] {
  */
 export function activeTabOf(tabs: readonly InfoTab[], chosen: InfoTabId | null): InfoTabId | null {
   if (chosen && tabs.some((t) => t.id === chosen)) return chosen;
-  const withData = tabs.find((t) => t.id !== "members" && t.count > 0);
+  // the people and the shared groups are not what a conversation holds: neither is opened on by itself (and a late answer never moves the open tab)
+  const withData = tabs.find((t) => t.id !== "members" && t.id !== "groups" && t.count > 0);
   return (withData ?? tabs[0])?.id ?? null;
 }
 
@@ -131,6 +136,7 @@ export function mediaPageUrl(conversationId: string, kind: (typeof TAB_KIND)[Pag
 }
 
 export const mediaCountsUrl = (conversationId: string): string => `/api/chat/conversations/${encodeURIComponent(conversationId)}/media?counts=1`;
+export const commonUrl = (conversationId: string): string => `/api/chat/conversations/${encodeURIComponent(conversationId)}/common`;
 export const workUrl = (conversationId: string): string => `/api/chat/conversations/${encodeURIComponent(conversationId)}/media/work`;
 
 /** Only an ordinary web address is opened from a link row (the server stores https pages only; this is the second lock). */

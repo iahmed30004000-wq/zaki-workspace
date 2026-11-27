@@ -40,6 +40,13 @@ describe("the profile's own page", () => {
   });
 });
 
+describe("the links that were about changing something", () => {
+  it("go to the form itself: the password card of the settings and «تعديل» on my own card (the profile's page has neither a password nor a form)", () => {
+    expect(SRC("app/(app)/settings/page.tsx")).toContain('<Link href={PROFILE_EDIT_HREF} data-settings-password=""');
+    expect(SRC("components/profile-card.tsx")).toMatch(/href=\{PROFILE_EDIT_HREF\}\s+data-edit-profile/);
+  });
+});
+
 describe("the settings on a phone with the bar", () => {
   const list = (profileApart: boolean) => renderToStaticMarkup(React.createElement(I18nProvider, { locale: "ar", children: React.createElement(SectionList, { sections: ["account", "chat"], current: null, profileApart }) } as never));
 

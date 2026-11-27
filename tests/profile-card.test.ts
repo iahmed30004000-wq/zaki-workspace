@@ -32,7 +32,7 @@ describe("the profile card (the owner: a profile like a social network's)", () =
     expect(render()).not.toContain("data-edit-profile");
     const own = render({ mine: true });
     expect(own).toContain("data-edit-profile");
-    expect(own).toContain('href="/profile"');
+    expect(own).toContain('href="/settings/me/account"');
     expect(own).not.toContain("data-message-button");
   });
 

@@ -18,6 +18,7 @@ import { SystemTokensCard } from "@/components/system-tokens-card";
 import { PrimitiveSamples } from "@/components/theme/primitive-samples";
 import { actorFeatureOn, listFeatures } from "@/server/services/features";
 import { panelHref } from "@/lib/control-panel";
+import { PROFILE_EDIT_HREF } from "@/components/profile/profile-screen";
 import { embedServer } from "@/server/services/search-embeddings";
 import { settingsDoorTarget } from "@/lib/legacy-routes";
 import { companyAccessFor, oneDoorOnFor } from "@/components/settings-me/server-data";
@@ -150,7 +151,7 @@ export default async function SettingsPage() {
           <h3 className="text-sm font-semibold group-hover:text-accent">{t("settings.profileLink")}</h3>
           <p className="mt-1 text-xs text-muted">{t("settings.profileLinkHint")}</p>
         </Link>
-        <Link href="/profile" className="group rounded-[14px] bg-surface-1 p-4 transition-colors hover:bg-surface-2">
+        <Link href={PROFILE_EDIT_HREF} data-settings-password="" className="group rounded-[14px] bg-surface-1 p-4 transition-colors hover:bg-surface-2">
           <span className="mb-2 grid size-9 place-items-center rounded-lg bg-warn/10 text-warn">
             <KeyRound className="size-5" />
           </span>

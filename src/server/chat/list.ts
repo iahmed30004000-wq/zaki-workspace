@@ -388,6 +388,20 @@ export async function loadConversationBatch(v: ListViewer, ids: string[]): Promi
   return { all, visible };
 }
 
+/**
+ * The groups and topics BOTH people belong to as ordinary members (src/server/chat/common-groups.ts). Both are looked at without the silent eye and without the
+ * owner's rank (a rank alone makes nobody a member), so the answer is never more than what the first of them reads as a member. Archived topics are left out.
+ * TWO queries: the first person's conversations, then which of those the second one is in.
+ */
+export async function sharedConversations(first: ListViewer, second: ListViewer): Promise<ConvRecord[]> {
+  const asMember = (v: ListViewer): ListViewer => ({ ...v, oversight: false, ownerRank: false, org: { ...v.org, oversight: false } });
+  const a = asMember(first);
+  const b = asMember(second);
+  const ids = (await queryConversations(a, { all: true }, { stats: false, visibleOnly: true })).filter((r) => r.kind !== "DM" && !r.archivedAt && listable(r, a)).map((r) => r.id);
+  if (!ids.length) return [];
+  return (await queryConversations(b, { ids }, { stats: false, visibleOnly: true })).filter((r) => listable(r, b));
+}
+
 // ───────────────────────────────────────── rows ─────────────────────────────────────────
 
 /** The other person's marks of a private chat, for the ticks on MY messages; the owner's silent reading never shows as «قرأ». */
