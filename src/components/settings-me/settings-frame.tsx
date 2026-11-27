@@ -169,7 +169,7 @@ export function SettingsFrame({ header, sections, company = null, children }: { 
     <div data-settings-me className={cn("mx-auto flex w-full", currentCompany ? "max-w-6xl" : "max-w-5xl", "md:gap-4 md:p-6")}>
       {/* keeps this device's copy of the person's choices fresh and applies the text size and the wallpaper (the person may land here first) */}
       <MeEffects always />
-      <aside className={cn("w-full md:block md:w-80 md:shrink-0", atIndex ? "block" : "hidden")}>
+      <aside className={cn("w-full md:block md:w-80 md:shrink-0", tg && "max-md:relative", atIndex ? "block" : "hidden")}>
         {tg && atIndex ? <TgSettingsBar /> : null}
         <div className="overflow-hidden bg-surface-1 md:rounded-[14px]">
           <HeaderCard header={header} />

@@ -100,6 +100,14 @@ describe("the stylesheet", () => {
   });
 });
 
+describe("the conversation over the list", () => {
+  it("the stylesheet never re-places the screen's box: it must stay over the list (the first phone pictures showed the list on top)", () => {
+    const rules = [...css.replace(/\/\*[\s\S]*?\*\//g, "").matchAll(/([^{}]*\[data-chat-phone-screen\](?:\.zk-tg-[a-z]+)?)\s*\{([^}]*)\}/g)];
+    expect(rules.length).toBeGreaterThan(0);
+    for (const [, selector, body] of rules) expect(body, selector).not.toMatch(/(^|[\s;])position\s*:/);
+  });
+});
+
 describe("going back", () => {
   it("a slow pull goes back only past half the screen; a quick flick still does; without the switch the old distance stands", () => {
     const width = 390;

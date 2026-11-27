@@ -7,8 +7,8 @@
 
 @media not all and (min-width: 768px) {
   /* ───────── the chat's page: Telegram's soft wallpaper behind the whole screen, header included ───────── */
+  /* no `position` here: the box is already placed over the list (`absolute inset-0`), and saying anything else drops it below the screen */
   [data-tg-phone] [data-chat-phone-screen] {
-    position: relative;
     isolation: isolate;
     background-color: rgb(var(--chat-wallpaper));
     background-image: linear-gradient(
@@ -126,6 +126,14 @@
   }
   [data-tg-phone] [data-tg-settings-bar][data-shown] {
     opacity: 1;
+  }
+
+  /* ───────── the search takes the whole screen under its field ───────── */
+  [data-tg-phone] [data-list-search-panel][data-tg-search-panel] {
+    height: calc(100dvh - 4rem);
+    max-height: none;
+    border: 0;
+    box-shadow: none;
   }
 
   /* ───────── toasts rise from the bottom, above the bar and the composer ───────── */
