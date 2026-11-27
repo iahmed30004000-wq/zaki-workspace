@@ -77,7 +77,7 @@ function isMachinePath(pathname: string): boolean {
  * `/noise/` is the call noise filter's model and worklet (src/components/calls/noise-filter.ts).
  * `/sounds/` is the ring of a call (src/lib/calls/ring-sound.ts): it must play on the sign-in page's side of a redirect too.
  */
-const STATIC_DIRS = ["/icons/", "/brand/", "/fonts/", "/noise/", "/sounds/"];
+const STATIC_DIRS = ["/icons/", "/brand/", "/fonts/", "/noise/", "/sounds/", "/emoji/"];
 const STATIC_ROOT_FILES = new Set(["/icon.svg", "/apple-icon.png", "/manifest.webmanifest", "/favicon.ico", "/robots.txt", "/sw.js", "/.well-known/assetlinks.json"]);
 const STATIC_EXT = /\.(?:svg|png|jpe?g|gif|webp|avif|ico|txt|xml|webmanifest|woff2?|css|js|map|wasm|mp3)$/i;
 function isStaticFile(pathname: string): boolean {

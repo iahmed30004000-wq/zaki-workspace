@@ -38,6 +38,12 @@ export function EffectsSection({ gifs = false }: { /** the company's «الصو�
       </Group>
       <div className="px-4 md:px-1">
         <Scope device />
+        {/* the licence of the drawings asks that their maker be named (public/emoji/anim/LICENSE.txt) */}
+        <p data-emoji-credit="" className="mt-2 text-xs leading-5 text-fg-muted">
+          <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer" className="underline">
+            {t("settingsMe.fx.emoji_credit")}
+          </a>
+        </p>
       </div>
     </div>
   );

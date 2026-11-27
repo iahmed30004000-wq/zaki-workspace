@@ -29,7 +29,7 @@ export function BubbleBody({ message, mentionNames, conversationId, orderChips, 
   if (!body) return null;
   if (message.kind === "TEXT" && message.attachments.length === 0 && !message.card && !message.poll) {
     const tokens = emojiTokens(body);
-    if (tokens && tokens.length <= 3) return <JumboEmoji tokens={tokens} fresh={fresh} />;
+    if (tokens && tokens.length <= 3) return <JumboEmoji tokens={tokens} fresh={fresh} {...(message.pending ? {} : { messageId: message.id })} />;
   }
   const bare = (text: string) => (orderChips ? <OrderText text={text} conversationId={conversationId} /> : text);
   // the owner's Zaki emojis (:zaki_smile:) become their pictures; a message of only those is a big sticker

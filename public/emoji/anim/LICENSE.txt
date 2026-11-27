@@ -1,0 +1,8 @@
+The animated emoji in this folder are from "Noto Animated Emoji" by Google.
+https://googlefonts.github.io/noto-emoji-animation/
+
+They are licensed under the Creative Commons Attribution 4.0 International licence (CC BY 4.0):
+https://creativecommons.org/licenses/by/4.0/legalcode
+
+The files are unchanged (512 px animated WebP), renamed from "<code>/512.webp" to "<code>.webp".
+Downloaded from https://fonts.gstatic.com/s/e/notoemoji/latest/ on 2026-11-27.

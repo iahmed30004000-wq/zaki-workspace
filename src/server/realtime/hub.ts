@@ -17,7 +17,7 @@ export interface RtEvent {
   id: string;
   orgId: string;
   /** `typing` and `presence.changed` are STREAM-ONLY: never a stored row, never replayed (and not in REALTIME_KINDS). */
-  kind: RealtimeKind | "typing" | "reload" | "presence.changed";
+  kind: RealtimeKind | "typing" | "reload" | "presence.changed" | "emoji.effect";
   ids: RealtimeIds;
 }
 
@@ -554,6 +554,28 @@ export async function broadcastTyping(
     }
   }
   setTyping(conversationId, userId, name);
+  return sent;
+}
+
+/**
+ * «تأثير الإيموجي عند الطرفين»: tells ONE person's open screens to play the effect of a message, if the policy says they may read its conversation. Never
+ * stored and never replayed (who may ask is decided by the caller, src/server/chat/emoji-effect.ts).
+ */
+export async function signalEmojiEffect(orgId: string, conversationId: string, targetUserId: string, messageId: string): Promise<number> {
+  const targets = hub().registry.filter((r) => r.client.orgId === orgId && r.client.userId === targetUserId);
+  if (targets.length === 0) return 0;
+  const verdicts = await readableBy(orgId, conversationId, [targetUserId]);
+  if (verdicts.get(targetUserId) !== true) return 0;
+  const frame = frameOf({ id: "", orgId, kind: "emoji.effect", ids: { conversationId, messageId } });
+  let sent = 0;
+  for (const entry of targets) {
+    try {
+      entry.client.send(frame);
+      sent++;
+    } catch {
+      removeClient(entry.client);
+    }
+  }
   return sent;
 }
 
