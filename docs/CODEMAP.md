@@ -635,7 +635,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `api-tokens` | 220 | 5 | «الباب»: the owner's screen for the tokens (src/components/api-door-card.tsx, under «الأتمتة»). |
 | `avatars` | 118 | 5 | A PERSON'S PICTURE (the owner's ask, 2026-10-29: «خيار إن المستخدم يحط صورة بروفايل»). |
 | `card-attachments` | 124 | 5 | «المعرض»: a cover picture and an ordered gallery of pictures and files, with captions. |
-| `daily-routines` | 278 | 5 | «روتين يومي» — the routines screen: the list, and making, changing, pausing and resuming one. |
+| `daily-routines` | 286 | 5 | «روتين يومي» — the routines screen: the list, and making, changing, pausing and resuming one. |
 | `must-read` | 232 | 5 | «لازم ينقرأ» (Q1.6): an instruction post that people must acknowledge. |
 | `owner-assistant-chat` | 306 | 5 | «مساعد المالك» — THE CONVERSATION. |
 | `owner-board-sections` | 85 | 5 | «لوحة المالك» — THE EXTENSION POINT. |
@@ -668,7 +668,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `views` | 596 | 4 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
 | `work-requests` | 493 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `calendar` | 125 | 3 | The calendar's data logic, taken out of the page so it can be tested with an injected `now`. |
-| `desks` | 91 | 3 | The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns, departments, production): who the person is to these … |
+| `desks` | 94 | 3 | The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns, departments, production): who the person is to these … |
 | `image-ocr` | 304 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
@@ -925,7 +925,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `taskSteps` | 7 — `app/(app)/list/page.tsx`, `server/chat/checklists.ts`, `server/services/my-work.ts`, `server/services/task-rules-run.ts`, `server/services/task-sheet.ts`, `server/services/task-steps.ts`, `server/services/work-app.ts` |
 | `reminders` | 8 — `app/(app)/page.tsx`, `lib/today.ts`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/calendar-feed.ts`, `server/services/reminders.ts`, `server/services/task-sheet.ts`, `server/services/today-app.ts` |
 | `timeTracking` | 7 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `lib/feature-groups.ts`, `server/services/time-section.ts`, `server/services/time-tracking.ts`, `server/services/today-app.ts` |
-| `recurringTasks` | 9 — `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/routines/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/daily-routines.ts`, `server/services/my-work.ts`, `server/services/production.ts`, `server/services/task-recurrence.ts`, `server/services/work-app.ts` |
+| `recurringTasks` | 10 — `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/routines/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/daily-routines.ts`, `server/services/desks.ts`, `server/services/my-work.ts`, `server/services/production.ts`, `server/services/task-recurrence.ts`, `server/services/work-app.ts` |
 | `calendarFeed` | 2 — `app/(app)/calendar/page.tsx`, `server/services/calendar-feed.ts` |
 | `ownerBoard` | 5 — `app/(app)/analytics/page.tsx`, `lib/nav/places.ts`, `server/policy/board.ts`, `server/policy/capabilities.ts`, `server/services/assistant-work.ts` |
 | `taskRewards` | 5 — `app/api/instant/route.ts`, `lib/feature-groups.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
@@ -1029,7 +1029,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `taskSteps` | 7 — `app/(app)/list/page.tsx`, `server/chat/checklists.ts`, `server/services/my-work.ts`, `server/services/task-rules-run.ts`, `server/services/task-sheet.ts`, `server/services/task-steps.ts`, `server/services/work-app.ts` |
 | `reminders` | 8 — `app/(app)/page.tsx`, `lib/today.ts`, `server/chat/topics.ts`, `server/jobs/run.ts`, `server/services/calendar-feed.ts`, `server/services/reminders.ts`, `server/services/task-sheet.ts`, `server/services/today-app.ts` |
 | `calendarFeed` | 2 — `app/(app)/calendar/page.tsx`, `server/services/calendar-feed.ts` |
-| `recurringTasks` | 9 — `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/routines/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/daily-routines.ts`, `server/services/my-work.ts`, `server/services/production.ts`, `server/services/task-recurrence.ts`, `server/services/work-app.ts` |
+| `recurringTasks` | 10 — `app/(app)/list/page.tsx`, `app/(app)/my-work/page.tsx`, `app/(app)/my-work/routines/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `server/services/daily-routines.ts`, `server/services/desks.ts`, `server/services/my-work.ts`, `server/services/production.ts`, `server/services/task-recurrence.ts`, `server/services/work-app.ts` |
 | `timeTracking` | 7 — `app/(app)/page.tsx`, `app/(app)/tasks/[id]/page.tsx`, `app/(app)/time/page.tsx`, `lib/feature-groups.ts`, `server/services/time-section.ts`, `server/services/time-tracking.ts`, `server/services/today-app.ts` |
 | `taskRewards` | 5 — `app/api/instant/route.ts`, `lib/feature-groups.ts`, `server/services/my-work.ts`, `server/services/reward-guard.ts`, `server/services/rewards.ts` |
 | `customFields` | 6 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `lib/feature-groups.ts`, `server/services/custom-fields-export.ts`, `server/services/custom-fields.ts`, `server/services/space-settings.ts` |

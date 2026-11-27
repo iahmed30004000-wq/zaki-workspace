@@ -7,7 +7,7 @@ import { orgTimeZone } from "@/server/services/org-day";
 import { judgeAssignment } from "@/server/services/task-assign";
 import { loadWorkScope, projectVisibleWhere, userSeesProject } from "@/server/services/team-scope";
 import { isSpaceManager, workspaceRoleOf } from "@/server/workspace-role";
-import { dayOfInstant } from "@/lib/due-day";
+import { DEFAULT_DUE_HOUR, dayOfInstant, defaultDueHourOf } from "@/lib/due-day";
 import { ruleOccurrenceAfter } from "@/lib/reminders/recurrence";
 import { ruleOfRoutine, type RoutineInput, type RoutineStopReason } from "@/lib/daily-routine";
 import { routineObstacle } from "@/server/services/daily-routine-spawn";
@@ -51,6 +51,8 @@ export interface RoutinesScreen {
   routines: RoutineDto[];
   spaces: RoutineSpaceOption[];
   timeZone: string;
+  /** «HH:00»: the company's usual due hour, what a new routine's «لازم تخلص قبل» starts on (the page and the phone read the same) */
+  defaultDueTime: string;
 }
 
 /** The signed-in person, past the switch. A partner from outside has no routines. */
@@ -151,8 +153,14 @@ export async function routinesScreen(): Promise<RoutinesScreen> {
   const actor = await door();
   await assertMemberCan(actor, "tasks.view", "section.view_denied");
   const seats = await seatsOf(actor);
-  const [routines, spaces, timeZone] = await Promise.all([dtos(actor, seats), optionsOf(actor, seats), orgTimeZone(actor.orgId)]);
-  return { routines, spaces, timeZone };
+  const [routines, spaces, timeZone, org] = await Promise.all([
+    dtos(actor, seats),
+    optionsOf(actor, seats),
+    orgTimeZone(actor.orgId),
+    db.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } }),
+  ]);
+  const hour = defaultDueHourOf(org?.settings) ?? DEFAULT_DUE_HOUR;
+  return { routines, spaces, timeZone, defaultDueTime: `${String(hour).padStart(2, "0")}:00` };
 }
 
 /** The first time AFTER now whose day has no card yet (an edit or a resume after today's card shows tomorrow). */

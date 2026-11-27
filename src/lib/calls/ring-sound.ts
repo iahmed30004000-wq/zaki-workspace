@@ -81,7 +81,7 @@ function startBeeps(): () => void {
 
 /**
  * Starts the incoming ring in the tone chosen on this device (`opts.tone` overrides it: the settings' preview); returns its stop (safe to call twice).
- * The recorded tone is the file below; the two others are drawn by the browser (src/lib/calls/tones.ts).
+ * The recorded tone is the file below; the others are drawn by the browser (src/lib/calls/tones.ts).
  */
 export function startRing(opts: { tone?: RingTone } = {}): () => void {
   // «رنة المكالمة الواردة» of the sounds library (a phone): the person's own choice wins over the device's ringtone; a caller that names a tone (the
@@ -91,7 +91,7 @@ export function startRing(opts: { tone?: RingTone } = {}): () => void {
     if (own) return own;
   }
   const tone = opts.tone ?? loadRingTone();
-  if (tone === "soft" || tone === "bell") return playLoop(RING_PATTERNS[tone], RING_PATTERN_PERIOD_MS[tone]);
+  if (tone !== "file") return playLoop(RING_PATTERNS[tone], RING_PATTERN_PERIOD_MS[tone]);
   if (typeof Audio === "undefined") return startBeeps();
   let stopped = false;
   let timer: ReturnType<typeof setTimeout> | null = null;

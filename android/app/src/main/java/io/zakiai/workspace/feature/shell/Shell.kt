@@ -846,9 +846,13 @@ private fun WorkHub(
     onOpenPath: (String) -> Unit = onOpenSite,
 ) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable(initial) { androidx.compose.runtime.mutableStateOf(initial) }
+    // «روتين المهام»: a tab only where the site draws the page (its switch on, not a partner, the tasks section readable)
+    val routinesGate: io.zakiai.workspace.feature.routines.RoutinesGateViewModel = androidx.hilt.navigation.compose.hiltViewModel()
+    val routinesOn by routinesGate.on.collectAsStateWithLifecycle()
     Column(Modifier.fillMaxSize()) {
         io.zakiai.workspace.ui.components.PillStrip {
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.myWork, 0, tab == "mine") { tab = "mine" }
+            if (routinesOn || tab == "routines") io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.routines.rw("routine.title"), 0, tab == "routines") { tab = "routines" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.projects, 0, tab == "projects") { tab = "projects" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.calendar, 0, tab == "calendar") { tab = "calendar" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.goals, 0, false) { onOpenGoals() }
@@ -888,6 +892,8 @@ private fun WorkHub(
                 io.zakiai.workspace.feature.office.TicketsScreen(onOpenTicket = onOpenTicket, onOpenSite = onOpenSite, manager = orgRole == "OWNER" || orgRole == "ADMIN")
             } else if (tab == "campaigns") {
                 io.zakiai.workspace.feature.desks.CampaignsScreen(initialDept = initialView, meId = meId, onOpenTask = onOpenTask)
+            } else if (tab == "routines") {
+                io.zakiai.workspace.feature.routines.RoutinesScreen()
             } else if (tab == "production") {
                 io.zakiai.workspace.feature.desks.ProductionScreen(onOpenTask = onOpenTask)
             } else if (tab == "time") {

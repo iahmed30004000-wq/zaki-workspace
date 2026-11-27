@@ -47,6 +47,8 @@ data class DeskFacts(
     val accounts: Boolean = false,
     /** the company the person is in: the accounts' doors carry it */
     val orgId: String = "",
+    /** «روتين المهام» exists for this person (the company's switch on, not a partner, the tasks section readable) */
+    val routines: Boolean = false,
 )
 
 // ── departments ──

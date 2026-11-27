@@ -60,6 +60,19 @@ export const ANDROID_STRINGS: readonly AndroidStringsFile[] = [
     ],
   },
   {
+    source: "ar.routine.json",
+    target: "android/app/src/main/java/io/zakiai/workspace/feature/routines/RoutineWords.kt",
+    pkg: "io.zakiai.workspace.feature.routines",
+    name: "RoutineWords",
+    extra: [
+      { source: "ar.recurring.json", keys: ["recurring.day.0", "recurring.day.1", "recurring.day.2", "recurring.day.3", "recurring.day.4", "recurring.day.5", "recurring.day.6"] },
+      { source: "ar.features.json", keys: ["features.off"] },
+      { source: "ar.json", keys: ["guest.readonly", "section.view_denied", "section.edit_denied"] },
+      { source: "ar.spaces.json", keys: ["assignee.not_in_team"] },
+      { source: "ar.enums.json", keys: ["project.not_found", "board.not_found"] },
+    ],
+  },
+  {
     source: "ar.members.json",
     target: "android/app/src/main/java/io/zakiai/workspace/feature/accounts/AccountWords.kt",
     pkg: "io.zakiai.workspace.feature.accounts",

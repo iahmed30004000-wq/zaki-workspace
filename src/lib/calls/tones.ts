@@ -26,7 +26,27 @@ export const RINGBACK_NOTES: readonly Note[] = [
 /** A whole ringback round (the notes and the pause after them). */
 export const RINGBACK_PERIOD_MS = 3600;
 
-/** The incoming ringtones that are drawn, not recorded: «هادي» (soft chime) and «جرس» (bell). The third choice is the recorded file. */
+/** Wooden strikes one after another: each note a triangle with a faint sine an octave up. */
+function struck(freqs: readonly number[], step: number, dur: number, gain: number, from = 0): Note[] {
+  return freqs.flatMap((freq, i): Note[] => [
+    { at: round3(from + i * step), freq, dur, gain, type: "triangle" },
+    { at: round3(from + i * step), freq: freq * 2, dur: dur * 0.5, gain: gain * 0.25, type: "sine" },
+  ]);
+}
+
+/** Glassy drops: a sine with a short, quiet overtone that is not an octave (what makes it sound like glass). */
+function glass(freqs: readonly number[], step: number, dur: number, from = 0): Note[] {
+  return freqs.flatMap((freq, i): Note[] => [
+    { at: round3(from + i * step), freq, dur, gain: 0.16, type: "sine" },
+    { at: round3(from + i * step), freq: freq * 2.76, dur: dur * 0.3, gain: 0.04, type: "sine" },
+  ]);
+}
+
+function round3(n: number): number {
+  return Math.round(n * 1000) / 1000;
+}
+
+/** The incoming ringtones that are drawn, not recorded (the one other choice is the recorded file). */
 export const RING_PATTERNS = {
   soft: [
     { at: 0, freq: 659.25, dur: 0.22, gain: 0.2, type: "sine" },
@@ -42,9 +62,45 @@ export const RING_PATTERNS = {
     { at: 0.6, freq: 880, dur: 0.5, gain: 0.22, type: "triangle" },
     { at: 0.78, freq: 1318.5, dur: 0.5, gain: 0.12, type: "sine" },
   ],
-} as const satisfies Record<string, readonly Note[]>;
+  // the five of 2026-11-27 («نغمات الرنين الجديدة»): our own melodies, written here
+  // «ماريمبا»: a quick wooden run up and back, each note with a faint octave over it
+  marimba: [
+    ...struck([523.25, 659.25, 783.99, 880, 783.99, 1046.5], 0.14, 0.32, 0.18),
+    ...struck([783.99, 880, 1046.5], 0.14, 0.4, 0.18, 1.12),
+  ],
+  // «نسيم»: four long soft notes that lean on each other, the last one stays
+  breeze: [
+    { at: 0, freq: 349.23, dur: 1.1, gain: 0.1, type: "sine" },
+    { at: 0.3, freq: 440, dur: 1.1, gain: 0.1, type: "sine" },
+    { at: 0.6, freq: 523.25, dur: 1.2, gain: 0.1, type: "sine" },
+    { at: 0.9, freq: 659.25, dur: 1.5, gain: 0.11, type: "sine" },
+  ],
+  // «لؤلؤ»: small high drops with a glassy overtone
+  pearl: [
+    ...glass([1174.66, 987.77, 783.99], 0.22, 0.45),
+    ...glass([1318.51, 1174.66], 0.22, 0.6, 0.95),
+  ],
+  // «نطّة»: a jump of five steps, three times, each a step higher
+  hop: [
+    { at: 0, freq: 392, dur: 0.12, gain: 0.17, type: "triangle" },
+    { at: 0.14, freq: 587.33, dur: 0.2, gain: 0.19, type: "triangle" },
+    { at: 0.46, freq: 440, dur: 0.12, gain: 0.17, type: "triangle" },
+    { at: 0.6, freq: 659.25, dur: 0.2, gain: 0.19, type: "triangle" },
+    { at: 0.92, freq: 493.88, dur: 0.12, gain: 0.17, type: "triangle" },
+    { at: 1.06, freq: 739.99, dur: 0.38, gain: 0.19, type: "triangle" },
+  ],
+  // «غروب»: comes down gently and turns up at the end
+  sunset: [
+    { at: 0, freq: 880, dur: 0.45, gain: 0.15, type: "sine" },
+    { at: 0.28, freq: 739.99, dur: 0.45, gain: 0.15, type: "sine" },
+    { at: 0.56, freq: 587.33, dur: 0.45, gain: 0.15, type: "sine" },
+    { at: 0.84, freq: 440, dur: 0.6, gain: 0.15, type: "sine" },
+    { at: 1.34, freq: 554.37, dur: 0.3, gain: 0.13, type: "sine" },
+    { at: 1.56, freq: 659.25, dur: 0.7, gain: 0.15, type: "sine" },
+  ],
+} satisfies Record<string, readonly Note[]>;
 /** The length of one round of each drawn ringtone (notes plus pause), in ms. */
-export const RING_PATTERN_PERIOD_MS = { soft: 2800, bell: 2400 } as const;
+export const RING_PATTERN_PERIOD_MS: Readonly<Record<keyof typeof RING_PATTERNS, number>> = { soft: 2800, bell: 2400, marimba: 2600, breeze: 3600, pearl: 2800, hop: 2500, sunset: 3300 };
 
 /** «اتّصلت»: two short rising notes. */
 export const CONNECT_NOTES: readonly Note[] = [

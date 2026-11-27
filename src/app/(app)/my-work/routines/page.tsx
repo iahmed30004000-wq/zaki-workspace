@@ -3,10 +3,8 @@ import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
 import { GuestNotice } from "@/app/(app)/_guest";
 import { RoutinesView } from "@/components/work/routines/routines-view";
 import { actorCanWork } from "@/server/policy/actor";
-import { db } from "@/server/db";
 import { routinesScreen } from "@/server/services/daily-routines";
 import { isFeatureOn } from "@/server/services/features";
-import { DEFAULT_DUE_HOUR, defaultDueHourOf } from "@/lib/due-day";
 
 /**
  * «الروتين اليومي» — /my-work/routines: the routines that make a fresh card on their days, each with pause, resume and
@@ -18,9 +16,9 @@ export default async function RoutinesPage() {
   if (!(await isFeatureOn(actor.orgId, "recurringTasks"))) notFound();
   if (actor.isExternal) return <GuestNotice />;
   if (!actorCanWork(actor, "tasks.view")) return <SectionOffNotice />;
-  const [initial, org] = await Promise.all([routinesScreen(), db.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } })]);
-  const hour = defaultDueHourOf(org?.settings) ?? DEFAULT_DUE_HOUR;
-  return <RoutinesView initial={initial} defaultDueTime={`${String(hour).padStart(2, "0")}:00`} />;
+  // the screen carries the company's usual due hour too: the phone reads the same answer (GET /api/daily-routines)
+  const initial = await routinesScreen();
+  return <RoutinesView initial={initial} defaultDueTime={initial.defaultDueTime} />;
 }
 
 export const dynamic = "force-dynamic";
