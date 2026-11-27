@@ -6,7 +6,8 @@ import { SwitchTrack } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { ct } from "@/lib/chat/text";
 import { cn } from "@/lib/utils";
-import { dragTargetIndex, moveOption, pollRoomKey, pollRoomLeft, POLL_CLOSE_CHOICES, POLL_MIN_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, type PollDraft } from "@/lib/chat/poll-client";
+import { PollExtrasFields } from "@/components/chat/composer/poll-extras-fields";
+import { correctAfter, dragTargetIndex, moveOption, pollRoomKey, pollRoomLeft, POLL_CLOSE_CHOICES, POLL_MIN_OPTIONS, POLL_OPTION_MAX, POLL_QUESTION_MAX, type PollDraft } from "@/lib/chat/poll-client";
 
 /**
  * «استطلاع» on a phone with Telegram's look: «سؤال», «الخيارات» (a handle to drag each one, «إضافة خيار…», how many more fit) and «الإعدادات», a row with a
@@ -44,13 +45,18 @@ function SwitchLine({ id, icon: Icon, tile, title, hint, checked, onChange }: { 
   );
 }
 
-export function TgPollForm({ draft, onChange, error, action }: { draft: PollDraft; onChange: (patch: Partial<PollDraft>) => void; error: string; /** «إنشاء» at the end of the question's heading (half height); the full page has it in its bar */ action?: React.ReactNode }) {
+export function TgPollForm({ draft, onChange, error, action, extras = false }: { draft: PollDraft; onChange: (patch: Partial<PollDraft>) => void; error: string; /** «إنشاء» at the end of the question's heading (half height); the full page has it in its bar */ action?: React.ReactNode; /** the company's switch `chatPollExtras`: the extra settings under «الإعدادات» */ extras?: boolean }) {
   const inputs = React.useRef<(HTMLInputElement | null)[]>([]);
   const [focusAt, setFocusAt] = React.useState<number | null>(null);
   const [dragging, setDragging] = React.useState<number | null>(null);
   const drag = React.useRef<{ pointer: number; from: number; at: number; y: number; row: number } | null>(null);
   const options = React.useRef(draft.options);
   options.current = draft.options;
+  const latest = React.useRef(draft);
+  latest.current = draft;
+  /** an option moved or went: the quiz's right answer follows ITS option */
+  const places = (count: number) => Array.from({ length: count }, (_, i) => i);
+  const followed = (from: readonly number[]): Partial<PollDraft> => (latest.current.quiz ? { correct: correctAfter(latest.current.correct, from) } : {});
   React.useEffect(() => {
     if (focusAt === null) return;
     inputs.current[focusAt]?.focus();
@@ -74,7 +80,10 @@ export function TgPollForm({ draft, onChange, error, action }: { draft: PollDraf
     if (!d || d.pointer !== event.pointerId) return;
     const target = dragTargetIndex(d.from, event.clientY - d.y, d.row, options.current.length);
     if (target === d.at) return;
-    onChange({ options: moveOption(options.current, d.at, target) });
+    const order = places(options.current.length);
+    const moved = order.splice(d.at, 1)[0]!;
+    order.splice(target, 0, moved);
+    onChange({ options: moveOption(options.current, d.at, target), ...followed(order) });
     d.at = target;
     setDragging(target);
   };
@@ -88,7 +97,9 @@ export function TgPollForm({ draft, onChange, error, action }: { draft: PollDraf
     const target = index + step;
     if (step === 0 || target < 0 || target >= draft.options.length) return;
     event.preventDefault();
-    onChange({ options: moveOption(draft.options, index, target) });
+    const order = places(draft.options.length);
+    order.splice(target, 0, order.splice(index, 1)[0]!);
+    onChange({ options: moveOption(draft.options, index, target), ...followed(order) });
     const list = event.currentTarget.closest("ul");
     requestAnimationFrame(() => list?.querySelector<HTMLButtonElement>(`[data-poll-handle="${target}"]`)?.focus());
   };
@@ -146,7 +157,7 @@ export function TgPollForm({ draft, onChange, error, action }: { draft: PollDraf
                   className="min-h-11 min-w-0 flex-1 bg-transparent text-base outline-none placeholder:text-fg-muted"
                 />
                 {draft.options.length > POLL_MIN_OPTIONS ? (
-                  <button type="button" data-poll-remove={index} aria-label={ct("chatc.poll.remove_option", { n: index + 1 })} onClick={() => onChange({ options: draft.options.filter((_, i) => i !== index) })} className="grid size-11 shrink-0 place-items-center rounded-full text-fg-muted">
+                  <button type="button" data-poll-remove={index} aria-label={ct("chatc.poll.remove_option", { n: index + 1 })} onClick={() => onChange({ options: draft.options.filter((_, i) => i !== index), ...followed(places(draft.options.length).filter((i) => i !== index)) })} className="grid size-11 shrink-0 place-items-center rounded-full text-fg-muted">
                     <X aria-hidden="true" className="size-4" />
                   </button>
                 ) : null}
@@ -168,7 +179,7 @@ export function TgPollForm({ draft, onChange, error, action }: { draft: PollDraf
       <section className={CARD}>
         <h3 className={HEADING}>{ct("tgsheets.poll.settings")}</h3>
         <SwitchLine id="voters" icon={Eye} tile="bg-cat-6" title={ct("tgsheets.poll.voters")} hint={ct("tgsheets.poll.voters_hint")} checked={!draft.anonymous} onChange={(on) => onChange({ anonymous: !on })} />
-        <SwitchLine id="multiple" icon={ListChecks} tile="bg-cat-4" title={ct("tgsheets.poll.multiple")} hint={ct("tgsheets.poll.multiple_hint")} checked={draft.multiple} onChange={(on) => onChange({ multiple: on })} />
+        {draft.quiz ? null : <SwitchLine id="multiple" icon={ListChecks} tile="bg-cat-4" title={ct("tgsheets.poll.multiple")} hint={ct("tgsheets.poll.multiple_hint")} checked={draft.multiple} onChange={(on) => onChange({ multiple: on })} />}
         <SwitchLine id="duration" icon={Clock} tile="bg-cat-2" title={ct("tgsheets.poll.duration")} hint={ct("tgsheets.poll.duration_hint")} checked={draft.closesInMinutes > 0} onChange={(on) => onChange({ closesInMinutes: on ? DEFAULT_DURATION : 0 })} />
         {draft.closesInMinutes > 0 ? (
           <div role="radiogroup" aria-label={ct("chatc.poll.closes")} className="flex flex-wrap gap-2 px-4 pb-3 pt-1">
@@ -180,6 +191,11 @@ export function TgPollForm({ draft, onChange, error, action }: { draft: PollDraf
           </div>
         ) : null}
       </section>
+      {extras ? (
+        <section className={`${CARD} px-4 py-2`}>
+          <PollExtrasFields draft={draft} onChange={onChange} />
+        </section>
+      ) : null}
       {error ? (
         <p role="alert" className="px-6 text-sm text-danger">
           {error}

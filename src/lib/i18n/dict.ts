@@ -74,6 +74,7 @@ import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
 import voiceTranscript from "./ar.voice-transcript.json";
+import gpuVoice from "./ar.gpu-voice.json";
 import botfather from "./ar.botfather.json";
 import automation from "./ar.automation.json";
 import semanticSearch from "./ar.semantic-search.json";
@@ -112,6 +113,9 @@ import chatSounds from "./ar.chat-sounds.json";
 import tgVoice from "./ar.tg-voice.json";
 import tgSheets from "./ar.tg-sheets.json";
 import tgMessages from "./ar.tg-messages.json";
+import tgExtraStories from "./ar.tg-extra-stories.json";
+import tgExtraAttach from "./ar.tg-extra-attach.json";
+import tgExtraMessages from "./ar.tg-extra-messages.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -147,6 +151,7 @@ export const AR: Record<string, string> = {
   ...features,
   ...economy,
   ...voiceTranscript,
+  ...gpuVoice,
   ...botfather,
   ...automation,
   ...semanticSearch,
@@ -235,4 +240,7 @@ export const AR: Record<string, string> = {
   ...tgVoice,
   ...tgSheets,
   ...tgMessages,
+  ...tgExtraStories,
+  ...tgExtraAttach,
+  ...tgExtraMessages,
 };

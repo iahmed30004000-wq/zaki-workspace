@@ -49,7 +49,8 @@ export function ProfileScreen({ person, words, withPicture }: { person: ProfileS
     ...(person.email ? [{ id: "email", label: words.email, value: person.email, ltr: true }] : []),
   ];
   return (
-    <div data-profile-screen="" className="mx-auto flex min-h-full w-full max-w-md flex-col gap-3 bg-surface px-3 pb-8 pt-6">
+    // the page is only drawn with the bottom bar: on a phone the app's top bar steps aside (his pictures), and the page owns the notch
+    <div data-profile-screen="" data-frame-bars="hide-top" className="mx-auto flex min-h-full w-full max-w-md flex-col gap-3 bg-surface px-3 pb-8 pt-[calc(1.5rem+env(safe-area-inset-top))] md:pt-6">
       <div className="flex flex-col items-center gap-2 text-center">
         <Avatar name={person.name} src={person.avatarUrl} className="size-28 text-3xl" />
         <h1 className="max-w-full truncate text-xl font-bold leading-8 text-fg">

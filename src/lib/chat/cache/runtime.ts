@@ -21,7 +21,7 @@ import { wipeChatCache } from "@/lib/chat/cache/wipe";
  */
 
 /** Frames that never change what the cache holds: they live on the stream only. Everything else asks the feed. */
-const STREAM_ONLY = new Set(["typing", "presence.changed", "whiteboard.changed", "call.ring", "call.changed", "watch.changed"]);
+const STREAM_ONLY = new Set(["typing", "presence.changed", "whiteboard.changed", "call.ring", "call.changed", "watch.changed", "emoji.effect"]);
 export function frameWantsSync(e: RealtimeEventPayload): boolean {
   return !STREAM_ONLY.has(e.kind);
 }

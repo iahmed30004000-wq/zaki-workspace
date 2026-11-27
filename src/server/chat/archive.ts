@@ -2,6 +2,7 @@ import { db } from "@/server/db";
 import { ForbiddenError, type OrgAccessContext } from "@/server/auth";
 import type { ArchiveItemDto, ArchivePageDto, ArchiveType } from "@/server/chat/dto";
 import { logChat } from "@/server/chat/moderation";
+import { attachmentView } from "@/server/chat/attachments";
 import { holdsArchiveView } from "./archive-access";
 
 /**
@@ -119,6 +120,7 @@ export async function readArchive(
         author: { select: { name: true } },
         conversation: { select: { spaceId: true, space: { select: { name: true } } } },
         revisions: { orderBy: { createdAt: "desc" }, take: 1, select: { body: true } },
+        replacedFiles: { orderBy: [{ replacedAt: "desc" }, { position: "asc" }], take: 20, include: { file: { select: { id: true, name: true, mimeType: true, size: true } } } },
       },
     });
     for (const r of rows.slice(0, limit)) {
@@ -131,6 +133,7 @@ export async function readArchive(
         messageId: r.id,
         body: r.body,
         previousBody: r.revisions[0]?.body ?? null,
+        ...(r.replacedFiles.length ? { oldFiles: r.replacedFiles.map((f) => attachmentView(f)) } : {}),
         authorId: r.authorId,
         authorName: r.author.name,
         at: r.editedAt!.toISOString(),

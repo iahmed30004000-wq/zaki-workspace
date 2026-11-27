@@ -4,12 +4,17 @@ import React from "react";
 import { PollDialog } from "@/components/chat/composer/poll-dialog";
 import { RecallDialog } from "@/components/chat/composer/recall-dialog";
 import { FeedbackDialog } from "@/components/chat/v2/feedback/feedback-dialog";
+import { GifPanel } from "@/components/chat/v2/composer/gif-panel";
 import { ComposerSurface } from "@/components/chat/v2/composer/composer-surface";
 import { BotFatherBar } from "@/components/chat/v2/composer/botfather-bar";
 import { DropOverlay } from "@/components/chat/v2/composer/drop-overlay";
 import { PasteSendDialog } from "@/components/chat/v2/composer/paste-dialog";
 import { ReplyOptions } from "@/components/chat/v2/composer/reply-options";
 import { StickerStrip } from "@/components/chat/v2/composer/sticker-strip";
+import { VideoNoteOverlay } from "@/components/chat/v2/composer/video-note-overlay";
+import { useVideoNote } from "@/lib/chat/v2/video-note/use-video-note";
+import { ArticleEditor } from "@/components/chat/v2/article/article-editor";
+import { ARTICLE_KIND } from "@/lib/chat/article";
 import { useTgPhone } from "@/components/shell/tg-phone";
 import { suggestedStickers } from "@/lib/chat/v2/composer/sticker-suggest";
 import { replyQuoteStore } from "@/lib/chat/v2/phone/reply-quote";
@@ -24,13 +29,18 @@ import { useReplyQuote } from "@/lib/chat/v2/phone/reply-quote";
  * paste dialog) and the drop zones. The dialogs sit OUTSIDE the box's form: a dialog's own submit never reaches the composer's.
  */
 export function ChatComposerV2(props: ComposerParams) {
-  const c = useComposer(props);
-  const { detail, conversationId, onMessage, editing, reply, onCancelReply, onCancelEdit } = props;
+  // «المقالات»: «عدّل» on my article opens the article's own editor over the pane; the box is not in an edit, and what was typed in it stays
+  const articleEdit = props.editing?.kind === ARTICLE_KIND ? props.editing : null;
+  const boxProps = articleEdit ? { ...props, editing: null } : props;
+  const c = useComposer(boxProps);
+  const { detail, conversationId, onMessage, editing, reply, onCancelReply, onCancelEdit } = boxProps;
   const [recents, setRecents] = React.useState<string[]>([]);
   React.useEffect(() => setRecents(loadRecentEmoji()), []);
   // S5.7 «رد بالاقتباس»: the piece picked for the reply being written (the send takes it from the same store)
   const replyQuote = useReplyQuote(conversationId, reply?.id);
   const recording = c.voice.mode !== "idle";
+  // «رسالة فيديو دائرية»: an engine of its own beside the voice recorder's
+  const videoNote = useVideoNote({ conversationId, enabled: detail.videoNotes === true && !editing, ...(reply ? { replyToId: reply.id } : {}), onCancelReply, onMessage });
   // «تيليجرام على التلفون»: our stickers over a box that holds one emoji, and «خيارات الرد» of the reply bar
   const tg = useTgPhone();
   const suggested = tg && detail.zakiEmojis !== false && !editing && !recording && c.files.length === 0 ? suggestedStickers(c.body) : [];
@@ -53,10 +63,31 @@ export function ChatComposerV2(props: ComposerParams) {
         linkPreviews={detail.linkPreviews !== false}
         zakiEmojis={detail.zakiEmojis !== false}
         attachSheet={detail.tgLook !== false}
+        pollExtras={detail.pollExtras === true}
         onNoPreviewChange={c.setNoPreview}
         onEmojiUsed={(emoji) => setRecents(rememberEmoji(emoji))}
         onStickerSend={c.sendText}
         onReplyOptions={() => setReplyOptions(true)}
+        videoNote={videoNote}
+        // «صور متحركة»: one tap sends (as the reply being written, if there is one) and the picker closes
+        {...(detail.gifs === true
+          ? {
+              gifPanel: (close: () => void) => (
+                <GifPanel
+                  conversationId={conversationId}
+                  {...(reply ? { replyToId: reply.id } : {})}
+                  {...(replyQuote ? { replyQuote } : {})}
+                  onSent={(message) => {
+                    close();
+                    onMessage(message);
+                    if (!reply) return;
+                    replyQuoteStore.clear();
+                    onCancelReply();
+                  }}
+                />
+              ),
+            }
+          : {})}
         onEmoji={(emoji) => {
           // a Zaki sticker goes in as its text code like an emoji, but it is not a recent emoji (`rememberEmoji` keeps it out)
           setRecents(rememberEmoji(emoji));
@@ -89,6 +120,7 @@ export function ChatComposerV2(props: ComposerParams) {
       ) : null}
       {detail.me.canPoll ? (
         <PollDialog
+          extras={detail.pollExtras === true}
           open={c.pollOpen}
           conversationId={conversationId}
           onClose={() => c.setPollOpen(false)}
@@ -108,8 +140,10 @@ export function ChatComposerV2(props: ComposerParams) {
           onCancelReply={onCancelReply}
         />
       ) : null}
+      {articleEdit ? <ArticleEditor open conversationId={conversationId} editing={articleEdit} onClose={onCancelEdit} onSaved={props.onEdited} /> : null}
       <PasteSendDialog files={c.pasted} initialCaption={c.body} onSend={c.sendPasted} onCancel={() => c.setPasted(null)} />
-      <DropOverlay enabled={!editing && !recording && !c.busy} onDropFiles={(zone, files) => c.addDropped(files, zone === "files")} />
+      <VideoNoteOverlay v={videoNote} />
+      <DropOverlay enabled={!editing && !recording && !c.busy && videoNote.state.mode === "idle"} onDropFiles={(zone, files) => c.addDropped(files, zone === "files")} />
     </>
   );
 }

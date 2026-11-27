@@ -8,6 +8,8 @@ import { useTgPhone } from "@/components/shell/tg-phone";
 import { TG_MOTION, tgMotionVars } from "@/lib/chat/v2/phone/motion";
 import { effectOn } from "@/lib/motion/effects";
 import { zakiNameOf, zakiSrc, type EmojiToken } from "@/lib/chat/zaki-emoji";
+import { EMOJI_EFFECT_EVENT, emojiAnimationOf } from "@/lib/chat/emoji-anim";
+import { useEffectOn } from "@/lib/motion/use-effect-on";
 import { cn } from "@/lib/utils";
 
 /**
@@ -18,11 +20,20 @@ import { cn } from "@/lib/utils";
  *    and long press keep working);
  *  - the keyframes are plain CSS in `emoji-alive.css` and are off under `prefers-reduced-motion`; the emojis stay fully visible without them.
  * The words of the message are not changed: the unicode emojis are drawn as they are and a Zaki one is its picture with its Arabic name.
+ *
+ * «حركات الإيموجي» (src/lib/chat/emoji-anim.ts): an emoji that has a drawn animation is drawn by it, while «الإيموجي المتحرك» is on and the device does not ask
+ * for less motion; otherwise, and when the file cannot be had, it is the character it was. With a `messageId`, one emoji tapped plays over the screen here and
+ * asks the other person's screen to play it too (the server does that only in a private chat), and theirs plays here the same way.
  */
 const TEXT_SIZE = ["text-6xl", "text-5xl", "text-4xl"] as const;
 const PICTURE_SIZE = ["size-24", "size-20", "size-16"] as const;
+/** a drawing is a picture, so it is sized as one: about as big as the character it stands for */
+const DRAWING_SIZE = ["size-20", "size-16", "size-14"] as const;
 
-export function JumboEmoji({ tokens, fresh }: { tokens: readonly EmojiToken[]; fresh: boolean }) {
+export function JumboEmoji({ tokens, fresh, messageId }: { tokens: readonly EmojiToken[]; fresh: boolean; /** a sent message: its one emoji can be played for both people */ messageId?: string }) {
+  const motion = useEffectOn("emoji");
+  // an emoji whose file did not come stays the character
+  const [broken, setBroken] = React.useState<readonly string[]>([]);
   // 0: never tapped; every tap raises it, and the units below are keyed by it, so each tap restarts the wiggle
   const [taps, setTaps] = React.useState(0);
   const count = Math.min(Math.max(tokens.length, 1), 3);
@@ -37,9 +48,24 @@ export function JumboEmoji({ tokens, fresh }: { tokens: readonly EmojiToken[]; f
   }, [playing]);
   // the pop of before is the computer's and of two or three: the single one on the phone wakes from its shadow instead
   const animation = taps > 0 ? "zk-emoji-wiggle" : alive ? undefined : fresh ? "zk-emoji-pop" : undefined;
+  const single = tokens.length === 1;
+  // the other person played this one: it plays here too, over the screen
+  React.useEffect(() => {
+    if (!messageId || !single) return;
+    const theirs = (event: Event) => {
+      if ((event as CustomEvent<{ messageId?: string }>).detail?.messageId !== messageId) return;
+      if (!effectOn("emoji") || !effectOn("particles")) return;
+      setTaps((n) => n + 1);
+      setPlaying((n) => n + 1);
+    };
+    window.addEventListener(EMOJI_EFFECT_EVENT, theirs);
+    return () => window.removeEventListener(EMOJI_EFFECT_EVENT, theirs);
+  }, [messageId, single]);
   const tap = (event: React.MouseEvent) => {
     setTaps((n) => n + 1);
-    if (!alive || !effectOn("emoji") || !effectOn("particles")) return;
+    if (!single || !(alive || messageId) || !effectOn("emoji") || !effectOn("particles")) return;
+    // «التأثير عند الطرفين»: quietly, and never in the way of the tap (a topic's server answers and tells nobody)
+    if (messageId) void fetch(`/api/chat/messages/${encodeURIComponent(messageId)}/effect`, { method: "POST" }).catch(() => undefined);
     // this tap plays the emoji: it does not also open the message's menu (the time under it, and a long press, are the message's)
     event.stopPropagation();
     setPlaying((n) => n + 1);
@@ -56,6 +82,19 @@ export function JumboEmoji({ tokens, fresh }: { tokens: readonly EmojiToken[]; f
             draggable={false}
             style={taps === 0 && fresh && !alive ? { animationDelay: `${i * 70}ms` } : undefined}
             className={cn("zk-jumbo-unit object-contain", alive ? "size-32" : PICTURE_SIZE[count - 1], animation)}
+          />
+        ) : motion && emojiAnimationOf(token.glyph ?? "") && !broken.includes(token.glyph ?? "") ? (
+          // eslint-disable-next-line @next/next/no-img-element -- an animated picture of our own folder; the optimiser would stop its motion
+          <img
+            key={i}
+            src={emojiAnimationOf(token.glyph ?? "") as string}
+            alt={token.glyph}
+            data-emoji-drawing=""
+            loading="lazy"
+            decoding="async"
+            draggable={false}
+            onError={() => setBroken((list) => [...list, token.glyph ?? ""])}
+            className={cn("zk-jumbo-unit object-contain", alive ? "size-32" : DRAWING_SIZE[count - 1], animation)}
           />
         ) : (
           <span key={`${taps}-${i}`} style={taps === 0 && fresh && !alive ? { animationDelay: `${i * 70}ms` } : undefined} className={cn("zk-jumbo-unit", animation)}>

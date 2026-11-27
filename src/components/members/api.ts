@@ -120,6 +120,18 @@ export interface CreatedPerson {
   password: string | null;
 }
 
+/** A free sign-in name made from the person's name, or "" (the form keeps what it already shows). */
+export async function suggestUsername(orgId: string, name: string, signal: AbortSignal): Promise<string> {
+  try {
+    const res = await fetch(`/api/organizations/${encodeURIComponent(orgId)}/members/suggest-username?name=${encodeURIComponent(name)}`, { signal, cache: "no-store" });
+    if (!res.ok) return "";
+    const json = (await res.json()) as { username?: unknown };
+    return typeof json.username === "string" ? json.username : "";
+  } catch {
+    return "";
+  }
+}
+
 export async function createMember(orgId: string, values: AddFormValues, t: TFn): Promise<FlowOutcome<CreatedPerson>> {
   const problem = validateAddForm(values);
   if (problem) return invalid(t(problem.key), problem.field);

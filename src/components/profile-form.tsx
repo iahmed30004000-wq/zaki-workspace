@@ -11,6 +11,7 @@ import { compressImage } from "@/lib/chat/compress-image";
 import { useI18n } from "@/lib/i18n";
 import { useToast } from "@/components/ui/toast";
 import { LastSeenToggle } from "@/components/last-seen-toggle";
+import { OwnUsername } from "@/components/own-username";
 
 export interface MeData {
   id: string;
@@ -187,15 +188,6 @@ export function ProfileForm({
           </div>
           {identity ? (
             <div data-identity className="space-y-2 border-t border-border pt-3 text-sm">
-              {identity.username ? (
-                <div>
-                  <p className="text-fg-muted">{t("settingsMe.account.username")}</p>
-                  <p dir="ltr" className="text-end text-fg">
-                    @{identity.username}
-                  </p>
-                  <p className="text-xs text-fg-muted">{identity.usernameManaged ? t("settingsMe.account.username_manager") : t("settingsMe.account.username_member")}</p>
-                </div>
-              ) : null}
               {me.email ? (
                 <div>
                   <p className="text-fg-muted">{t("settingsMe.account.email")}</p>
@@ -212,6 +204,8 @@ export function ProfileForm({
           </Button>
         </form>
       </section>
+
+      {identity?.username ? <OwnUsername username={identity.username} /> : null}
 
       {lastSeen ? <LastSeenToggle initialHide={lastSeen.hide} /> : null}
 

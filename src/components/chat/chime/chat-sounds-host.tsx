@@ -10,6 +10,7 @@ import { fetchChatJson } from "@/lib/chat/cache/http";
 import { playChosenSound } from "@/lib/sound-library/play";
 import { isMentioned } from "@/lib/chat/conversation/mentions";
 import { soundsEnabled } from "@/lib/chat/sounds";
+import { notifyTypeOf } from "@/lib/chat/prefs";
 import { subscribeRealtime, type RealtimeEventPayload } from "@/lib/realtime/use-realtime";
 import type { ConversationHeaderDto, MessagesPageDto } from "@/server/chat/dto";
 
@@ -72,8 +73,9 @@ async function onMessage(conversationId: string, messageId: string): Promise<voi
   if (!kind) return;
   // the page may have changed while the answers were on their way (a hidden tab, the conversation opened)
   if (!chimeGate({ enabled: soundsEnabled(), visible: document.visibilityState === "visible", openHere: openConversationOf(window.location.pathname) === conversationId })) return;
-  // «إشعار داخل التطبيق» of the sounds library, when the person chose one (a phone); otherwise their chosen chat tone, as before
-  if (playChosenSound("inChat", { mention: kind === "mention", throttle: true })) return;
+  // the sound of this KIND of notification, else «إشعار داخل التطبيق» of the sounds library, when the person chose one (a phone); otherwise their chosen chat tone, as before
+  const type = notifyTypeOf({ kind: header.kind, mentioned: isMentioned(message.mentions, me), replied: message.replyTo?.mine === true });
+  if (playChosenSound("inChat", { mention: kind === "mention", throttle: true, type })) return;
   playChime({ tone: prefs.tone, volume: prefs.volume, mention: kind === "mention" });
 }
 

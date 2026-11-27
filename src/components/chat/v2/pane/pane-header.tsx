@@ -216,11 +216,11 @@ export function PaneHeader({ header, people, watch, system }: { header: Conversa
               ) : null}
               {channel && !subtitle.typing && (subtitle.privacy || subtitle.line) ? <span aria-hidden="true">·</span> : null}
               {subtitle.privacy && !subtitle.typing ? (
-                <button type="button" data-privacy aria-label={ct("chatp.open_sheet")} onClick={() => setPrivacyOpen(true)} className="pointer-events-auto relative z-10 shrink-0 rounded-md px-1 text-accent hover:bg-surface-2">
+                <button type="button" data-privacy {...(header.kind === "DM" ? { "data-privacy-dm": "" } : {})} aria-label={ct("chatp.open_sheet")} onClick={() => setPrivacyOpen(true)} className="pointer-events-auto relative z-10 shrink-0 rounded-md px-1 text-accent hover:bg-surface-2">
                   {subtitle.privacy}
                 </button>
               ) : null}
-              {subtitle.privacy && !subtitle.typing && subtitle.line ? <span aria-hidden="true">·</span> : null}
+              {subtitle.privacy && !subtitle.typing && subtitle.line ? <span data-privacy-dot="" aria-hidden="true">·</span> : null}
               {subtitle.line ? <span className="truncate">{subtitle.line}</span> : null}
             </p>
           ) : null}

@@ -107,7 +107,7 @@ describe("the tabs: media, files, links, voice and members are always there", ()
   });
 
   it("the plan's order; «الوسائط» counts the pictures and the videos together; the old «الشغل» and «المثبّتة» tabs stay, and only with data", () => {
-    expect(INFO_TAB_ORDER).toEqual(["media", "files", "links", "voice", "members", "work", "pinned"]);
+    expect(INFO_TAB_ORDER).toEqual(["media", "files", "links", "voice", "groups", "members", "work", "pinned"]);
     const tabs = tabsOf({ counts: counts({ IMAGE: 2, VIDEO: 1, AUDIO: 3 }), work: { tasks: 1, tickets: 2 }, pinned: 4, members: 7 });
     expect(tabs.map((t) => [t.id, t.count])).toEqual([["media", 3], ["files", 0], ["links", 0], ["voice", 3], ["members", 7], ["work", 3], ["pinned", 4]]);
   });

@@ -49,10 +49,19 @@ describe("every response carries the security headers", () => {
     expect(securityHeaders({ https: false }).map(([n]) => n)).not.toContain("strict-transport-security");
   });
 
-  it("calls keep the camera and the microphone for this site only, and geolocation is off", async () => {
+  it("calls keep the camera and the microphone for this site only, and geolocation is this site's alone («إرسال الموقع»)", async () => {
     const policy = SECURITY_HEADERS.find(([name]) => name === "permissions-policy")?.[1] ?? "";
-    expect(policy).toContain("camera=(self)");
-    expect(policy).toContain("microphone=(self)");
-    expect(policy).toContain("geolocation=()");
+    // the owner lifted the block for OUR OWN pages only (2026-11-27): no frame of another site may ask, and nothing else of the header moved
+    expect(policy).toBe("camera=(self), microphone=(self), display-capture=(self), geolocation=(self)");
+    expect((await ask("/projects")).headers.get("permissions-policy")).toBe(policy);
+  });
+
+  it("every other header is exactly what it was", () => {
+    expect(SECURITY_HEADERS.filter(([name]) => name !== "permissions-policy")).toEqual([
+      ["x-content-type-options", "nosniff"],
+      ["x-frame-options", "SAMEORIGIN"],
+      ["referrer-policy", "same-origin"],
+      ["content-security-policy", "frame-ancestors 'self'; base-uri 'self'; form-action 'self'"],
+    ]);
   });
 });

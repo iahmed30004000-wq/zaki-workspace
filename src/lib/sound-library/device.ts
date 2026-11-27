@@ -1,4 +1,4 @@
-import { SOUND_EVENTS, isSoundChoice, type SoundChoices, type SoundEvent } from "./choice";
+import { SOUND_KEYS, isSoundChoice, type SoundChoices, type SoundEvent } from "./choice";
 
 /**
  * This device's COPY of the account's sound choices (`User.chatPrefs.sounds`), in `localStorage` `zk-sounds`: a call rings at once, with no request to wait
@@ -23,11 +23,11 @@ function defaultStorage(): MirrorStorage | null {
   }
 }
 
-/** Only the five events, and only values that are choices. */
+/** Only the known keys (the five events and the kinds of notification), and only values that are choices. */
 export function cleanSoundChoices(raw: unknown): SoundChoices {
   const out: SoundChoices = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
-  for (const event of SOUND_EVENTS) {
+  for (const event of SOUND_KEYS) {
     const value = (raw as Record<string, unknown>)[event];
     if (isSoundChoice(value)) out[event] = value;
   }
@@ -60,6 +60,13 @@ export function withSoundChoice(choices: SoundChoices, event: SoundEvent, choice
   else next[event] = choice;
   return next;
 }
+
+let typeSounds = false;
+/** The company's switch `chatTypeSounds`, told to the page by the app's layout (`TypeSoundsFlag`). Off until told: the kinds then share the app's sounds, as before. */
+export function setTypeSoundsOn(on: boolean): void {
+  typeSounds = on;
+}
+export const typeSoundsOn = (): boolean => typeSounds;
 
 /** Is this a phone with Telegram's look on, right now? */
 export function tgPhoneNow(): boolean {

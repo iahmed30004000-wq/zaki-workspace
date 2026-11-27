@@ -1,5 +1,6 @@
 import type { AttachmentDto, ChatListDto, ChatRowDto, ConversationHeaderDto, MessageDto } from "@/server/chat/dto";
 import { ct } from "@/lib/chat/text";
+import { isGifAttachment } from "@/lib/chat/gifs";
 import { chatRouteOf } from "@/lib/chat/v2/routes";
 import { messageMenuContext } from "@/components/chat/message/message-item";
 import type { MessageMenuContext } from "@/components/chat/message/message-menu-registry";
@@ -81,6 +82,9 @@ export async function keepInSaved(messageId: string, fetchImpl: typeof fetch = f
   }
 }
 
+/** The GIFs a message carries, as the chat can keep them: only files at our own attachment address. */
+export const gifsOf = (message: Pick<MessageDto, "attachments">): AttachmentDto[] => message.attachments.filter((f) => isGifAttachment(f) && ours(f));
+
 export function menuContextV2(message: MessageDto, facts: BubbleFacts, extras: { readerCount: number; askKind: boolean }): MessageMenuContext {
   return {
     ...messageMenuContext(message, facts),
@@ -93,5 +97,10 @@ export function menuContextV2(message: MessageDto, facts: BubbleFacts, extras: {
     canAsk: extras.askKind,
     // C3b.2: «شيل المعاينة» is offered on a message that carries a card (the server sends none for a deleted message or while the switch is off)
     hasPreview: message.preview !== undefined,
+    ...(facts.gifs === true && gifsOf(message).length > 0 ? { canSaveGif: true } : {}),
+    // «الرد في محادثة أخرى», «تعديل صورة أو ملف» and the article's editor: each only where the header says so
+    ...(facts.canReplyElsewhere ? { canReplyElsewhere: true } : {}),
+    ...(facts.canEditMedia ? { canEditMedia: true, hasFiles: message.attachments.length > 0 } : {}),
+    ...(facts.canEditArticle ? { canEditArticle: true } : {}),
   };
 }

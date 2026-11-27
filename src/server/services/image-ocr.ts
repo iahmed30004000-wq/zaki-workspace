@@ -231,8 +231,9 @@ export async function assertMayReadPicture(actor: Actor, fileId: string): Promis
       chatLinks: { select: { message: { select: { conversationId: true, deletedAt: true } } } },
     },
   });
-  if (!f || (f.purpose !== "LIBRARY" && f.purpose !== "CHAT")) throw new NotFoundError("imageOcr.not_found");
-  if (f.purpose === "CHAT") {
+  // «GIF»: a picture somebody put in their own GIF library; sent into a chat it is that chat's picture, like any other
+  if (!f || (f.purpose !== "LIBRARY" && f.purpose !== "CHAT" && f.purpose !== "GIF")) throw new NotFoundError("imageOcr.not_found");
+  if (f.purpose !== "LIBRARY") {
     const messages = f.chatLinks.flatMap((l) => (l.message ? [l.message] : []));
     // a picture no message has claimed yet is nobody's to read: there is nothing to put its text under
     if (messages.length === 0) throw new NotFoundError("imageOcr.not_found");

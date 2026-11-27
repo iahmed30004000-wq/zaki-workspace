@@ -361,7 +361,7 @@
   "settings.profileLink": "الملف الشخصي",
   "settings.profileLinkHint": "الاسم، المسمى الوظيفي، النبذة",
   "settings.passwordLink": "كلمة المرور",
-  "settings.passwordLinkHint": "تغييرها يتطلب الحالية — من صفحة الملف الشخصي",
+  "settings.passwordLinkHint": "تغييرها يتطلب كلمة المرور الحالية",
   "telegram.managerOnly": "الربط والتحديث لمن عنده مفتاح «الربط والأتمتة»",
   "n8n.managerOnly": "الإعداد لمن عنده مفتاح «الربط والأتمتة» فقط",
   "nav.chat": "الدردشة",

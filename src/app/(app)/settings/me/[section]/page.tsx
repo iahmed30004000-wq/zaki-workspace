@@ -31,7 +31,9 @@ import { SpeechSection } from "@/components/settings-me/speech-section";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
 import { SoundsSection } from "@/components/settings-me/sounds-section";
 import { soundLibraryOn } from "@/server/services/sounds";
-import { NOTIFICATIONS_HREF, SOUNDS_HREF, notifyKindOf, soundKindOf } from "@/lib/sound-library/hrefs";
+import { NOTIFICATIONS_HREF, SOUNDS_HREF, notifyKindOf, notifySubHref, soundKindOf } from "@/lib/sound-library/hrefs";
+import { TYPE_SOUND_OF, isTypeSoundEvent } from "@/lib/sound-library/choice";
+import { NOTIFY_TYPES } from "@/lib/chat/prefs";
 
 /**
  * C4.1 — one section of «إعداداتي» (`/settings/me/<section>`). Everything here is the person's OWN: the company's switches are not (they are A2's, in `/settings`).
@@ -74,13 +76,16 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
     case "notifications": {
       const type = notifyKindOf(searchParams?.["type"]);
       if (type) sub = { titleKey: `settingsMe.n.type.${type}`, back: NOTIFICATIONS_HREF };
-      body = <NotificationsSection sub={type} />;
+      body = <NotificationsSection sub={type} typeSounds={await actorFeatureOn(actor, "chatTypeSounds")} />;
       break;
     }
     case "sounds": {
       if (!(await soundLibraryOn(actor))) notFound();
       const event = soundKindOf(searchParams?.["kind"]);
-      if (event) sub = { titleKey: `tgsheets.sounds.event.${event}`, back: SOUNDS_HREF };
+      // a kind's own sound («صوت لكل نوع إشعار»): only while its switch is on, and its back button leads to the kind's page
+      const kindOfSound = event && isTypeSoundEvent(event) ? NOTIFY_TYPES.find((type) => TYPE_SOUND_OF[type] === event) : undefined;
+      if (kindOfSound && !(await actorFeatureOn(actor, "chatTypeSounds"))) notFound();
+      if (event) sub = { titleKey: `tgsheets.sounds.event.${event}`, back: kindOfSound ? notifySubHref(kindOfSound) : SOUNDS_HREF };
       body = <SoundsSection event={event} canUpload={!actor.isExternal} />;
       break;
     }
@@ -94,7 +99,7 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
       body = <ChatSection />;
       break;
     case "effects":
-      body = <EffectsSection />;
+      body = <EffectsSection gifs={(await actorFeatureOn(actor, "chatLayoutV2")) && (await actorFeatureOn(actor, "chatGifs"))} />;
       break;
     case "speech":
       // «تحويل الكلام لنص» is the phone's (`tgPhone`); with the switch off its address does not exist

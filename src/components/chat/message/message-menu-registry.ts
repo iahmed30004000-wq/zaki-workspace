@@ -7,7 +7,10 @@
  * - react: any message I may read, except while the OWNER reads in silent oversight (toggleReact);
  * - pin: a DM's two people; in a topic or group, its moderators (togglePin);
  * - forward: any message I may read except a poll and a checklist (a copy would carry no votes and no items: forwardMessage refuses both; it checks the target when it is picked);
- * - edit: my own message only, never a voice note (editMessage: author only; a voice note has no text);
+ * - edit: my own message only, never a voice note (editMessage: author only; a voice note has no text); on the new screen also my own photo or file with no words while
+ *   `chatEditMedia` is on (the file may be replaced, the caption written or emptied), and my own article while `chatArticles` is on (it opens the article editor);
+ * - replyElsewhere: «الرد في محادثة أخرى», new screen only, where the header says the company's switch is on: any message I may read (the target and the source are both
+ *   decided again by the server: `src/server/chat/cross-reply.ts`);
  * - delete: my own message, or a moderator's (deleteMessage), after a confirmation;
  * - note: the moderators (addNote);
  * - copy: a message with text;
@@ -31,17 +34,25 @@
  * - ask: «اسألي مشرفتك», the «🎫 مشكلة» door with the question kind, where the company's kinds have it;
  * - saved (C3a.3): «حوّل للمحفوظة», a forward into the person's own saved chat, where the screen knows it (`canSaved`: the company's switch `savedMessages` is on), not inside that chat itself,
  *   not on a poll (a copy would carry no votes: `forwardMessage` refuses it too).
+ * - saveGif: «احفظ بالصور المتحركة», a message that carries a GIF, where the company's `chatGifs` switch is on (`canSaveGif`);
  * - select (C3b.5): «حدّد», starts a selection of messages (a check on each, then «حوّل · انسخ · احذف · اعمل مهمة» in the bar), where the screen can select (`canSelect`: the company's
  *   switch `chatMultiSelect` is on); it runs inside `MessageMenuV2`, with no door of its own.
  *
  * Nothing at all on a deleted message, a system line, or for the owner in silent oversight.
  */
-export type MessageMenuId = "reply" | "pin" | "forward" | "saved" | "select" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask" | "removePreview";
+export type MessageMenuId = "reply" | "replyElsewhere" | "pin" | "forward" | "saved" | "saveGif" | "select" | "edit" | "delete" | "note" | "copy" | "task" | "ticket" | "problem" | "mustread" | "remind" | "translate" | "copyLink" | "readText" | "transcribe" | "seen" | "ask" | "removePreview";
 
 export interface MessageMenuContext {
   mine: boolean;
   deleted: boolean;
-  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD" | "CHECKLIST";
+  kind: "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD" | "CHECKLIST" | "ARTICLE";
+  /** «الرد في محادثة أخرى» is on offer (the header's `replyElsewhere`; absent: no) */
+  canReplyElsewhere?: boolean;
+  /** the company's `chatEditMedia` and whether the message holds files: my own photo or file may be edited with no words in it */
+  canEditMedia?: boolean;
+  hasFiles?: boolean;
+  /** my own article may be edited (`me.canArticle`) */
+  canEditArticle?: boolean;
   hasText: boolean;
   pinned: boolean;
   conversationKind: "DM" | "GROUP" | "TOPIC";
@@ -83,6 +94,8 @@ export interface MessageMenuContext {
   viewerId?: string;
   /** C3b.2: the message carries a link card (`message.preview`), so its author may take it off («شيل المعاينة») */
   hasPreview?: boolean;
+  /** «الصور المتحركة»: the message carries a GIF and the company's `chatGifs` switch is on (the new screen says so; the server judges the read again) */
+  canSaveGif?: boolean;
 }
 
 /** `labelKey`: a key of ar.chat-conversation.json (the strings live there, not here). */
@@ -93,11 +106,13 @@ const v2 = (c: MessageMenuContext) => c.surface === "v2";
 
 export const messageMenuItems: MessageMenuAction[] = [
   { id: "reply", labelKey: () => "chatc.menu.reply", available: (c) => c.canPost },
+  { id: "replyElsewhere", labelKey: () => "tgx.menu.reply_elsewhere", available: (c) => v2(c) && !!c.canReplyElsewhere },
   { id: "pin", labelKey: (c) => (v2(c) ? (c.pinned ? "chatui.menu.unpin" : "chatui.menu.pin") : c.pinned ? "chatc.menu.unpin" : "chatc.menu.pin"), available: (c) => (c.conversationKind === "DM" ? true : c.canModerate) },
   { id: "forward", labelKey: (c) => (v2(c) ? "chatui.menu.forward" : "chatc.menu.forward"), available: (c) => c.kind !== "POLL" && c.kind !== "CHECKLIST" },
   { id: "saved", labelKey: () => "chatsaved.menu.save", available: (c) => v2(c) && !!c.canSaved && !c.inSaved && c.kind !== "POLL" && c.kind !== "CHECKLIST" },
+  { id: "saveGif", labelKey: () => "gifs.menu_save", available: (c) => v2(c) && !!c.canSaveGif },
   { id: "select", labelKey: () => "chatsel.menu.select", available: (c) => v2(c) && !!c.canSelect },
-  { id: "edit", labelKey: (c) => (v2(c) ? "chatui.menu.edit" : "chatc.menu.edit"), available: (c) => c.mine && c.kind === "TEXT" && c.hasText },
+  { id: "edit", labelKey: (c) => (v2(c) ? "chatui.menu.edit" : "chatc.menu.edit"), available: (c) => c.mine && ((c.kind === "TEXT" && (c.hasText || (v2(c) && !!c.canEditMedia && !!c.hasFiles))) || (v2(c) && c.kind === "ARTICLE" && !!c.canEditArticle)) },
   { id: "note", labelKey: (c) => (v2(c) ? "chatui.menu.note" : "chatc.menu.note"), available: (c) => c.canModerate },
   { id: "copy", labelKey: (c) => (v2(c) ? "chatui.menu.copy" : "chatc.menu.copy"), available: (c) => c.hasText },
   { id: "copyLink", labelKey: () => "chatui.menu.copy_link", available: (c) => v2(c) },
@@ -120,7 +135,7 @@ export const messageMenuItems: MessageMenuAction[] = [
  * مشرفتك، ذكّرني، ملاحظة، «لازم ينقرأ»، ترجم، اقرأ النص، حوّل الصوت لنص، مين شاف). The old screen keeps the order of `messageMenuItems` (the dangerous one last);
  * every id has a place here (a test fails for an id without one), so a new item has to choose.
  */
-export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "copy", "copyLink", "pin", "forward", "saved", "select", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen", "removePreview"];
+export const V2_MENU_ORDER: readonly MessageMenuId[] = ["reply", "replyElsewhere", "copy", "copyLink", "pin", "forward", "saved", "select", "saveGif", "edit", "delete", "task", "ticket", "problem", "ask", "remind", "note", "mustread", "translate", "readText", "transcribe", "seen", "removePreview"];
 
 /** Is there a menu at all for this message (and a reaction bar)? */
 export function menuOpen(c: MessageMenuContext): boolean {

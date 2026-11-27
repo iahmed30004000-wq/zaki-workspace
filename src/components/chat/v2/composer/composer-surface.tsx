@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { CalendarClock, Check, Keyboard, LoaderCircle, Mic, Send, Smile, Star, X, Zap } from "lucide-react";
+import { CalendarClock, Camera, Check, Keyboard, LoaderCircle, Mic, Send, Smile, Star, Video, X, Zap } from "lucide-react";
 import type { MessageDto } from "@/server/chat/dto";
 import { CustomerHint } from "@/components/chat/v2/bubble/bubble-extras";
 import { AttachMenu } from "@/components/chat/v2/composer/attach-menu";
@@ -18,6 +18,8 @@ import { ScheduledList } from "@/components/chat/v2/composer/scheduled-list";
 import { ScheduleDialog } from "@/components/chat/v2/composer/schedule-dialog";
 import { SendMenu, sendMenuItemsOf } from "@/components/chat/v2/composer/send-menu";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
+import { EditMediaStrip } from "@/components/chat/v2/composer/edit-media-strip";
+import { CrossQuote } from "@/components/chat/v2/bubble/cross-quote";
 import { COMPOSER_ICON_BUTTON, ROUND_BUTTON } from "@/components/chat/v2/composer/composer-styles";
 import { ct } from "@/lib/chat/text";
 import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
@@ -25,6 +27,7 @@ import { firstLink, hostOf } from "@/lib/chat/format/links";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
 import { applyFormat, formatActionOf, type FormatAction } from "@/lib/chat/v2/composer/format-keys";
 import type { ComposerEngine } from "@/lib/chat/v2/composer/use-composer";
+import type { VideoNoteEngine } from "@/lib/chat/v2/video-note/use-video-note";
 
 /** What the surface reads of the engine (a test builds one by hand). */
 export type SurfaceEngine = Pick<
@@ -42,12 +45,16 @@ export type SurfaceEngine = Pick<
   Partial<Pick<ComposerEngine, "tg">> &
   /** S6.2: the attach sheet's edit and «جودة عالية» buttons; an engine without them (a test's) draws neither */
   Partial<Pick<ComposerEngine, "replaceFile" | "setHd" | "addDropped">> &
+  /** «الرد في محادثة أخرى» (the quote over the box) and «تعديل صورة أو ملف» (the files of the edited message); an engine without them (a test's) draws neither */
+  Partial<Pick<ComposerEngine, "crossReply" | "removeCrossReply" | "editAttachments" | "replacement" | "setReplacement">> &
   /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
   Partial<Pick<ComposerEngine, "scheduling" | "scheduledCount" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
 
 export interface SurfaceProps {
   c: SurfaceEngine;
-  me: { canPoll?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
+  me: { canPoll?: boolean; canChecklist?: boolean; canArticle?: boolean; canLocation?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
+  /** the company's switch `chatPollExtras` (absent: off): the phone's poll form offers the extra settings */
+  pollExtras?: boolean;
   reply: MessageDto | null;
   /** S5.7 «رد بالاقتباس»: the piece of `reply` the person picked (the bar shows it in place of the whole message) */
   replyQuote?: string | null;
@@ -75,6 +82,10 @@ export interface SurfaceProps {
   onStickerSend?: (code: string) => void;
   /** «تيليجرام على التلفون»: the reply bar was tapped: «خيارات الرد» */
   onReplyOptions?: () => void;
+  /** «رسالة فيديو دائرية» (its own engine, `useVideoNote`); absent or not `enabled`: the microphone is exactly what it was */
+  videoNote?: Pick<VideoNoteEngine, "enabled" | "captureMode" | "tip" | "error" | "state" | "swallowsClick" | "watchMicTap" | "onCameraPointerDown" | "onCameraClick" | "startLocked">;
+  /** «صور متحركة»: the picker's GIF tab (it closes the picker after a send); absent (the switch off, or while an edit is typed): the picker has no such tab */
+  gifPanel?: (close: () => void) => React.ReactNode;
 }
 
 /**
@@ -82,7 +93,7 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange, onEmojiUsed, onStickerSend, onReplyOptions }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange, onEmojiUsed, onStickerSend, onReplyOptions, videoNote, gifPanel, pollExtras = false }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   // «تيليجرام على التلفون»: the emojis stand where the keyboard stood (the box is NOT focused while they do), and the caret is kept by hand
   const tg = useTgPhone();
@@ -177,6 +188,10 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
     return <RecordBar voice={voice} error={c.error} live={c.live} onCancel={c.cancelRecording} onSend={send} />;
   }
   const mic = c.face === "mic";
+  // «رسالة فيديو دائرية»: under Telegram's phone look a tap turns the round button into the camera (and back); elsewhere the camera is a button of its own in the pill
+  const video = videoNote?.enabled === true && !editing ? videoNote : null;
+  const cameraFace = mic && video !== null && c.tg !== undefined && video.captureMode === "video";
+  const tipKey = video && c.tg ? (video.tip || c.tg.tip ? (video.captureMode === "video" ? "tgstories.videonote.tip_video" : "tgstories.videonote.tip_voice") : null) : c.tg?.tip ? "tgvoice.tap_tip" : null;
   // the microphone and send morph into each other (150 ms); nothing morphs on the first drawing of the box
   const morph = c.tg && faceChanged ? "tg-face-morph" : "";
   // C3c.2: the send button's menu (right-click, long press): only an engine that can send silently, only while the company's switch is on (absent: on)
@@ -188,6 +203,13 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
     <>
     <form onSubmit={c.submit} className={`mx-auto flex w-full max-w-[904px] flex-col gap-2${c.tg && cameBack.current ? " tg-composer-return" : ""}`} style={c.tg ? (tgMotionVars(["composerMorphMs", "composerReturnMs"]) as React.CSSProperties) : undefined} data-composer-surface>
       <ReplyEditBar reply={reply} editing={editing} quote={replyQuote} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} {...(onReplyOptions ? { onOptions: onReplyOptions } : {})} />
+      {!editing && c.crossReply ? (
+        <div data-cross-bar="" className="rounded-xl bg-surface-1 px-2 pt-1.5 shadow-card">
+          <CrossQuote authorName={c.crossReply.snapshot.author} text={c.crossReply.snapshot.text} kind={c.crossReply.snapshot.kind} {...(c.removeCrossReply ? { onRemove: c.removeCrossReply } : {})} />
+          <p className="pb-1.5 text-xs text-warn">{ct("tgx.cross.warn")}</p>
+        </div>
+      ) : null}
+      {editing && c.editAttachments && c.setReplacement ? <EditMediaStrip attachments={c.editAttachments} replacement={c.replacement ?? null} busy={c.busy} onReplace={c.setReplacement} /> : null}
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
       <MentionList choices={c.choices} pickAt={c.pickAt} onHover={c.setPick} onChoose={c.selectMention} />
       {previewHref && !noPreview ? (
@@ -212,6 +234,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           onClose={closeEmoji}
           recents={recents}
           zaki={zakiEmojis}
+          {...(gifPanel && !editing ? { gifs: gifPanel(closeEmoji) } : {})}
           onPick={(emoji) => {
             onEmoji(emoji);
           }}
@@ -248,6 +271,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
         {!editing && attachSheet ? (
           <AttachSheet
             items={attachItemsOf(me)}
+            pollExtras={pollExtras}
             disabled={c.busy}
             files={c.files}
             busy={c.busy}
@@ -263,6 +287,11 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           />
         ) : null}
         {!editing && !attachSheet ? <AttachMenu items={attachItemsOf(me)} disabled={c.busy} onPick={(id) => (id === "media" ? c.mediaInput.current?.click() : id === "file" ? c.fileInput.current?.click() : c.setPollOpen(true))} /> : null}
+        {mic && video && !c.tg ? (
+          <button type="button" data-video-note-button className={COMPOSER_ICON_BUTTON} aria-label={ct("tgstories.videonote.record")} title={ct("tgstories.videonote.record")} disabled={c.busy} onClick={video.startLocked}>
+            <Video aria-hidden="true" className="size-6" />
+          </button>
+        ) : null}
         {!editing && scheduledCount > 0 ? (
           <button type="button" data-sched-icon className={COMPOSER_ICON_BUTTON} aria-label={ct("chatsched.icon", { n: scheduledCount })} title={ct("chatsched.icon", { n: scheduledCount })} onClick={() => c.setScheduledOpen?.(true)}>
             <CalendarClock aria-hidden="true" className="size-6" />
@@ -281,21 +310,45 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
         </div>
         <input ref={c.mediaInput} type="file" accept="image/*,video/*" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(event) => { c.addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
         <input ref={c.fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(event) => { c.addFiles(event.currentTarget.files, true); event.currentTarget.value = ""; }} />
-        {c.tg?.tip ? (
+        {tipKey ? (
           <p role="tooltip" data-mic-tip className="pointer-events-none absolute bottom-full end-0 z-20 mb-2 max-w-[85%] rounded-xl bg-fg px-3 py-2 text-xs font-medium text-surface shadow-lg">
-            {ct("tgvoice.tap_tip")}
+            {ct(tipKey)}
           </p>
         ) : null}
-        {mic ? (
+        {cameraFace ? (
+          // a key of its own: the button that was tapped leaves the page, so its click is not handed to the one that took its place
           <button
+            key="camera"
+            type="button"
+            data-composer-face="camera"
+            className={`${ROUND_BUTTON} touch-none select-none [-webkit-touch-callout:none]`}
+            aria-label={ct("tgstories.videonote.record")}
+            title={ct("tgstories.videonote.record")}
+            disabled={c.busy}
+            onClick={video.onCameraClick}
+            onPointerDown={video.onCameraPointerDown}
+            onContextMenu={(event) => event.preventDefault()}
+          >
+            <Camera aria-hidden="true" className="size-6" />
+          </button>
+        ) : mic ? (
+          <button
+            key="mic"
             type="button"
             data-composer-face="mic"
             className={`${ROUND_BUTTON} touch-none select-none${c.tg ? " [-webkit-touch-callout:none]" : ""}`}
             aria-label={ct("chat.f.record")}
             title={ct("chat.f.hold_to_record")}
             disabled={c.busy}
-            onClick={c.onMicClick}
-            onPointerDown={c.onMicPointerDown}
+            onClick={video ? () => (video.swallowsClick() ? undefined : c.onMicClick()) : c.onMicClick}
+            onPointerDown={
+              video && c.tg
+                ? (event) => {
+                    video.watchMicTap(event);
+                    c.onMicPointerDown(event);
+                  }
+                : c.onMicPointerDown
+            }
             // a long press on a phone must not open the browser's own menu in the middle of a hold
             onContextMenu={c.tg ? (event) => event.preventDefault() : undefined}
           >
@@ -316,6 +369,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           onEmoji={panelInsert}
           onSticker={(code) => (onStickerSend && !editing && !c.body.trim() ? onStickerSend(code) : panelEdit((text, start, end) => insertPiece(text, start, end, code)))}
           onBackspace={() => panelEdit(deleteBack)}
+          {...(gifPanel && !editing ? { gifs: gifPanel(closeEmoji) } : {})}
         />
       ) : null}
       {c.hint ? <CustomerHint hint={c.hint} canProblem={false} /> : null}
@@ -325,6 +379,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
         </p>
       ) : null}
       {c.error ? <p role="alert">{c.error}</p> : null}
+      {video && video.state.mode === "idle" && video.error ? <p role="alert">{video.error}</p> : null}
       {c.scheduleNotice ? (
         <p role="status" className="text-xs text-fg-muted" data-sched-notice>
           {c.scheduleNotice}

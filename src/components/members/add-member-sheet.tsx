@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { ChevronDown, Loader2, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -23,7 +23,8 @@ import {
   type ContractMember,
   type ContractSpace,
 } from "@/lib/members-ui";
-import { createMember, type CreatedPerson } from "./api";
+import { createMember, suggestUsername, type CreatedPerson } from "./api";
+import { usernameFromName } from "@/lib/username-suggest";
 import { CredentialsCard } from "./credentials-card";
 import { Field } from "./field";
 import { ManagerPicker } from "./manager-picker";
@@ -63,6 +64,22 @@ export function AddMemberSheet({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [created, setCreated] = useState<CreatedPerson | null>(null);
+  // «اسم المستخدم بينعمل لحاله»: true once whoever adds the person typed their own (emptying the field hands it back)
+  const [typedName, setTypedName] = useState(false);
+  // …and the server's answer makes it one nobody has (the letters appear at once, the free form a moment later)
+  useEffect(() => {
+    if (typedName || !usernameFromName(values.name)) return;
+    const stop = new AbortController();
+    const timer = setTimeout(() => {
+      void suggestUsername(orgId, values.name, stop.signal).then((free) => {
+        if (free && !stop.signal.aborted) setValues((v) => ({ ...v, username: free }));
+      });
+    }, 350);
+    return () => {
+      clearTimeout(timer);
+      stop.abort();
+    };
+  }, [orgId, values.name, typedName]);
   // A1.1: «القالب» appears only while the company's switch is on (the templates door answers «not found» otherwise)
   const templates = useRoleTemplates(orgId);
 
@@ -101,6 +118,7 @@ export function AddMemberSheet({
   function addAnother() {
     setCreated(null);
     setError(null);
+    setTypedName(false);
     setValues({ ...EMPTY_ADD_FORM, role: values.role, workspaceIds: values.workspaceIds, templateId: values.templateId, spaceOnly: values.spaceOnly, agent: values.agent });
   }
 
@@ -142,7 +160,10 @@ export function AddMemberSheet({
             <Input
               id={fieldId("name")}
               value={values.name}
-              onChange={(e) => set("name", e.target.value)}
+              onChange={(e) => {
+                const name = e.target.value;
+                setValues((v) => ({ ...v, name, ...(typedName ? {} : { username: usernameFromName(name) }) }));
+              }}
               autoComplete="off"
               maxLength={NAME_MAX}
               required
@@ -150,11 +171,15 @@ export function AddMemberSheet({
             />
           </Field>
 
-          <Field id={fieldId("username")} label={t("members.f_username")} hint={t("members.f_username_hint")}>
+          <Field id={fieldId("username")} label={t("members.f_username")} hint={`${t("ownUsername.add_hint")} ${t("members.f_username_hint")}`}>
             <Input
               id={fieldId("username")}
               value={values.username}
-              onChange={(e) => set("username", normalizeUsername(e.target.value))}
+              onChange={(e) => {
+                const username = normalizeUsername(e.target.value);
+                setTypedName(username !== "");
+                set("username", username);
+              }}
               dir="ltr"
               autoComplete="off"
               autoCapitalize="none"

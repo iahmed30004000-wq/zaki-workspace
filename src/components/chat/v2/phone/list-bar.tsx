@@ -6,6 +6,7 @@ import { ListSearchPanel } from "@/components/chat/v2/info/list-search-results";
 import { ct } from "@/lib/chat/text";
 import { useFrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
 import { useTgPhoneOn } from "@/components/shell/tg-phone";
+import { ListMenuExtrasContext } from "@/components/chat/v2/list/list-menu";
 
 const iconButton =
   "grid size-11 shrink-0 place-items-center rounded-full text-fg hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
@@ -34,6 +35,26 @@ export function PhoneListBar({ title, query, onQuery, searchId, menu, scrolled =
     onQuery("");
     setOpen(false);
   };
+  // «تيليجرام»: as in his pictures, only the app's name and the «⋮» stand over the list: «☰» and the notifications are items of the «⋮», and the bell shows by
+  // itself only while something is unread (or once it was asked for from the menu)
+  const openDrawer = bridge?.openDrawer ?? null;
+  const tidy = tg && menu !== undefined && openDrawer !== null;
+  const [bellAsked, setBellAsked] = React.useState(false);
+  const trailing = React.useRef<HTMLDivElement>(null);
+  const extras = React.useMemo(
+    () =>
+      tidy && openDrawer !== null
+        ? {
+            openDrawer,
+            openNotifications: () => {
+              setBellAsked(true);
+              // after the menu has closed and given the focus back, or the bell's panel would close at once
+              window.setTimeout(() => trailing.current?.querySelector<HTMLButtonElement>("button")?.click(), 220);
+            },
+          }
+        : null,
+    [tidy, openDrawer],
+  );
 
   return (
     <header data-chat-phone-bar="" className="relative shrink-0 border-b border-border bg-surface pt-[env(safe-area-inset-top)]">
@@ -70,20 +91,20 @@ export function PhoneListBar({ title, query, onQuery, searchId, menu, scrolled =
         </div>
       ) : (
         <div data-chat-phone-search="closed" className="flex h-14 items-center gap-1 px-1">
-          {bridge?.openDrawer ? (
+          {bridge?.openDrawer && !tidy ? (
             <button type="button" data-chat-drawer-open="" aria-label={ct("chatui.phone.menu")} onClick={bridge.openDrawer} className={iconButton}>
               <Menu aria-hidden="true" className="size-6" />
             </button>
           ) : null}
-          <h1 className={`min-w-0 flex-1 truncate text-lg font-semibold leading-tight text-fg ${bridge?.openDrawer ? "" : "ps-3"}`}>{title}</h1>
+          <h1 className={`min-w-0 flex-1 truncate text-lg font-semibold leading-tight text-fg ${bridge?.openDrawer && !tidy ? "" : "ps-3"}`}>{title}</h1>
           {tg && !scrolled ? null : (
             <button type="button" data-chat-phone-search-open="" aria-label={ct("chatui.phone.search.open")} onClick={() => setOpen(true)} className={iconButton}>
               <Search aria-hidden="true" className="size-5" />
             </button>
           )}
-          {menu}
+          <ListMenuExtrasContext.Provider value={extras}>{menu}</ListMenuExtrasContext.Provider>
           {bridge?.trailing ? (
-            <div data-chat-phone-trailing="" className="flex shrink-0 items-center">
+            <div ref={trailing} data-chat-phone-trailing="" {...(tidy && !bellAsked ? { "data-tg-quiet": "" } : {})} className="flex shrink-0 items-center">
               {bridge.trailing}
             </div>
           ) : null}

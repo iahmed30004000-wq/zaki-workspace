@@ -6,7 +6,8 @@ import { CHAT_GC_MS } from "@/lib/chat/cache/constants";
 import { chatKeys, convIdOfKey, isMessagesKey } from "@/lib/chat/cache/keys";
 import { messagesOfData } from "@/lib/chat/cache/reducers";
 import type { MessagesData } from "@/lib/chat/cache/types";
-import { mediaCountsUrl, mediaPageUrl, TAB_KIND, workUrl, type PagedTab } from "@/lib/chat/v2/info/info-tabs";
+import { commonUrl, mediaCountsUrl, mediaPageUrl, TAB_KIND, workUrl, type PagedTab } from "@/lib/chat/v2/info/info-tabs";
+import type { CommonGroupDto } from "@/server/chat/common-groups";
 import type { ConversationWorkDto, MediaCountsDto, MediaPageDto } from "@/server/chat/media";
 
 /**
@@ -101,6 +102,20 @@ export function useConversationWork(conversationId: string, enabled = true) {
     refetchOnWindowFocus: false,
     queryFn: ({ signal }) => getJson<ConversationWorkDto>(workUrl(conversationId), signal),
   });
+}
+
+/** «مجموعات مشتركة» of a private chat (asked for only there): null while not known. */
+export function useCommonGroups(conversationId: string, enabled: boolean): CommonGroupDto[] | null {
+  const query = useQuery({
+    queryKey: [...chatKeys.conv(conversationId), "common"],
+    enabled,
+    staleTime: STALE_MS,
+    gcTime: CHAT_GC_MS,
+    retry: false,
+    refetchOnWindowFocus: false,
+    queryFn: async ({ signal }) => (await getJson<{ groups: CommonGroupDto[] }>(commonUrl(conversationId), signal)).groups,
+  });
+  return query.data ?? null;
 }
 
 /** One tab's pages, newest first; `fetchNextPage` follows the server's cursor. Asked for only while the tab is the one shown. */

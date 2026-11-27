@@ -9,6 +9,8 @@ import { AssistantError } from "@/server/ai/api";
 import { parseLocalBaseUrl } from "@/server/ai/local-host";
 import { isFeatureOn } from "@/server/services/features";
 import { gatewayEnv, validGatewayKeyText } from "@/server/services/gateway-env";
+import { readVoiceAgent } from "@/server/services/voice-server";
+import { canChooseVoiceServer } from "@/lib/voice-server";
 import type { ProviderKind } from "@/server/ai/registry";
 
 /**
@@ -57,13 +59,14 @@ export interface PublicSettings {
   gatewayFixed?: { url: boolean; model: boolean; key: boolean };
   /** The privacy filter is relaxed for a local model (for the gateway: only with the confirmation). Never for Claude. */
   localRelaxRedaction: boolean;
-  /** «تفريغ الصوت»: null (the server's variable), "local" (`transcribeBaseUrl`) or "gateway" (the gateway above); the model name of the service. */
+  /** «تفريغ الصوت»: null (the server's variable), "agent" (the voice program on the server), "local" (`transcribeBaseUrl`) or "gateway" (the gateway above); the model name of the service. */
   transcribeSource: TranscribeSource | null;
   transcribeBaseUrl: string | null;
   transcribeModel: string | null;
 }
 
-export const TRANSCRIBE_SOURCES = ["local", "gateway"] as const;
+/** "agent": the voice program on the owner's server (services/voice-server.ts): nothing to type. */
+export const TRANSCRIBE_SOURCES = ["local", "gateway", "agent"] as const;
 export type TranscribeSource = (typeof TRANSCRIBE_SOURCES)[number];
 const asTranscribeSource = (value: string | null): TranscribeSource | null => ((TRANSCRIBE_SOURCES as readonly (string | null)[]).includes(value) ? (value as TranscribeSource) : null);
 
@@ -272,6 +275,12 @@ export async function updateSettings(ctx: { orgId: string; userId: string }, bod
   // «تفريغ الصوت» needs what it points at: a saved address for a local service, a saved gateway address for the gateway
   if (patch.transcribeSource === "local" && !merged.transcribeBaseUrl) invalid("transcribeSource", "assistant.transcribe_incomplete");
   if (patch.transcribeSource === "gateway" && !merged.gatewayBaseUrl) invalid("transcribeSource", "assistant.transcribe_incomplete");
+  // the voice program is chosen only while it answers, is new enough to have the door and knows our secret. Asked only when the choice CHANGES, so
+  // saving the rest of the screen never depends on that program running (and turning it off never asks).
+  if (patch.transcribeSource === "agent" && current.transcribeSource !== "agent") {
+    const agent = await readVoiceAgent();
+    if (!canChooseVoiceServer(agent)) invalid("transcribeSource", `gpuVoice.refused.${agent.state}`);
+  }
   // the confirmation belongs to ONE address: a new gateway address starts unconfirmed unless it is confirmed in the same request
   if (patch.gatewayBaseUrl !== undefined && patch.gatewayBaseUrl !== current.gatewayBaseUrl && patch.gatewayConfirmedLocal === undefined) patch.gatewayConfirmedLocal = false;
   if (patch.gatewayConfirmedLocal === true && !merged.gatewayBaseUrl) invalid("gatewayConfirmedLocal", "assistant.local_incomplete");

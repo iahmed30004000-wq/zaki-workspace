@@ -268,10 +268,35 @@ export function EmojiPanel({ recents, onPick, zaki = false }: { recents: string[
 }
 
 /**
+ * «صور متحركة» beside the emojis: two tabs on top of the picker, only where the composer handed in the GIF tab (the company's `chatGifs` switch); without it the picker is
+ * drawn exactly as before. The GIF tab is mounted only while it is the chosen one.
+ */
+export function PickerTabs({ gifs, children, initial = "emoji" }: { gifs?: React.ReactNode; children: React.ReactNode; initial?: "emoji" | "gifs" }) {
+  const [tab, setTab] = React.useState<"emoji" | "gifs">(initial);
+  if (!gifs) return <>{children}</>;
+  const tabs = [
+    { id: "emoji" as const, label: ct("gifs.tab_emoji") },
+    { id: "gifs" as const, label: ct("gifs.tab") },
+  ];
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div role="tablist" aria-label={ct("gifs.tabs_label")} data-picker-tabs="" className="flex justify-center gap-1">
+        {tabs.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} data-picker-tab={t.id} onClick={() => setTab(t.id)} className={`min-h-9 rounded-full px-4 text-sm font-semibold focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent ${tab === t.id ? "bg-surface-2 text-fg" : "text-fg-muted"}`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+      {tab === "gifs" ? <div className="h-[min(22rem,60vh)]">{gifs}</div> : children}
+    </div>
+  );
+}
+
+/**
  * The picker where it belongs: on the computer a popover above the box (a tap outside or Esc closes it, it stays open to pick several); on the phone a bottom
  * sheet (it closes after a pick). Rendered inside the box's `relative` row so the popover is anchored to it.
  */
-export function EmojiPopover({ open, onClose, recents, onPick, zaki = false }: { open: boolean; onClose: () => void; recents: string[]; onPick: (emoji: string) => void; zaki?: boolean }) {
+export function EmojiPopover({ open, onClose, recents, onPick, zaki = false, gifs }: { open: boolean; onClose: () => void; recents: string[]; onPick: (emoji: string) => void; zaki?: boolean; /** the «صور متحركة» tab; absent: no tabs */ gifs?: React.ReactNode }) {
   const desktop = useIsDesktop();
   const ref = React.useRef<HTMLDivElement | null>(null);
   const desktopOpen = open && desktop !== false;
@@ -300,14 +325,16 @@ export function EmojiPopover({ open, onClose, recents, onPick, zaki = false }: {
             <SheetTitle>{ct("chatui.composer.emoji")}</SheetTitle>
           </SheetHeader>
           <SheetBody>
-            <EmojiPanel
-              recents={recents}
-              zaki={zaki}
-              onPick={(emoji) => {
-                onPick(emoji);
-                onClose();
-              }}
-            />
+            <PickerTabs gifs={gifs}>
+              <EmojiPanel
+                recents={recents}
+                zaki={zaki}
+                onPick={(emoji) => {
+                  onPick(emoji);
+                  onClose();
+                }}
+              />
+            </PickerTabs>
           </SheetBody>
         </SheetContent>
       </Sheet>
@@ -315,7 +342,9 @@ export function EmojiPopover({ open, onClose, recents, onPick, zaki = false }: {
   }
   return (
     <div ref={ref} role="dialog" aria-label={ct("chatui.composer.emoji")} data-emoji-popover className="absolute bottom-full start-0 z-20 mb-2 w-[22rem] max-w-full rounded-xl bg-surface-1 p-2 shadow-lg">
-      <EmojiPanel recents={recents} onPick={onPick} zaki={zaki} />
+      <PickerTabs gifs={gifs}>
+        <EmojiPanel recents={recents} onPick={onPick} zaki={zaki} />
+      </PickerTabs>
     </div>
   );
 }
@@ -526,16 +555,19 @@ export function TgEmojiGrid({
  * tabs «الرموز التعبيرية» and «الملصقات» (the second only while our pack is on) and «⌫». An emoji goes into the box; a sticker of the second tab is sent
  * by itself when the box is empty (the composer decides). Nothing here focuses the box, so the keyboard stays closed.
  */
-export function EmojiKeyboard({ recents, onEmoji, onSticker, onBackspace, zaki = false }: { recents: readonly string[]; onEmoji: (emoji: string) => void; onSticker: (code: string) => void; onBackspace: () => void; zaki?: boolean }) {
-  const [tab, setTab] = React.useState<"emoji" | "stickers">("emoji");
+export function EmojiKeyboard({ recents, onEmoji, onSticker, onBackspace, zaki = false, gifs }: { recents: readonly string[]; onEmoji: (emoji: string) => void; onSticker: (code: string) => void; onBackspace: () => void; zaki?: boolean; /** the «صور متحركة» tab; absent: not offered */ gifs?: React.ReactNode }) {
+  const [tab, setTab] = React.useState<"emoji" | "stickers" | "gifs">("emoji");
   const tabs = [
     { id: "emoji" as const, label: ct("tgmsg.panel.emoji") },
     ...(zaki ? [{ id: "stickers" as const, label: ct("tgmsg.panel.stickers") }] : []),
+    ...(gifs ? [{ id: "gifs" as const, label: ct("gifs.tab") }] : []),
   ];
   return (
     <div data-emoji-keyboard="" role="group" aria-label={ct("tgmsg.panel.label")} style={tgMotionVars(["barSlideMs", "cardRowFadeMs"]) as React.CSSProperties} className="zk-tg-panel zk-tg-slide-up flex min-w-0 flex-col border-t border-border bg-surface-1">
       <div className="min-h-0 flex-1">
-        {tab === "emoji" ? (
+        {tab === "gifs" ? (
+          gifs
+        ) : tab === "emoji" ? (
           <TgEmojiGrid recents={recents} onPick={(emoji) => onEmoji(emoji)} zaki={zaki} />
         ) : (
           <div data-tg-stickers="" className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain [&>[data-zaki-grid]]:flex-none [&>[data-zaki-grid]]:overflow-visible">
@@ -552,9 +584,11 @@ export function EmojiKeyboard({ recents, onEmoji, onSticker, onBackspace, zaki =
             </button>
           ))}
         </div>
-        <button type="button" data-tg-backspace="" aria-label={ct("tgmsg.panel.backspace")} onClick={onBackspace} className="flex size-11 shrink-0 items-center justify-center rounded-full text-fg-muted">
-          <Delete aria-hidden="true" className="size-6" />
-        </button>
+        {tab === "gifs" ? null : (
+          <button type="button" data-tg-backspace="" aria-label={ct("tgmsg.panel.backspace")} onClick={onBackspace} className="flex size-11 shrink-0 items-center justify-center rounded-full text-fg-muted">
+            <Delete aria-hidden="true" className="size-6" />
+          </button>
+        )}
       </div>
     </div>
   );

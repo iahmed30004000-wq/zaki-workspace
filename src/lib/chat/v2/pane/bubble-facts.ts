@@ -29,9 +29,16 @@ export interface BubbleFacts extends MenuFacts {
   formatting: boolean;
   /** C3b.3: the company's switch `chatAlbums` (absent: on): off, a message's pictures are one box each, not a mosaic */
   albums: boolean;
+  /** «الصور المتحركة» (`chatGifs`; absent: off): a GIF obeys «play by itself», and the menu offers to keep it */
+  gifs?: boolean;
   /** C3a.3: this is the person's saved chat (a private chat with nobody else in it): its messages have the single ✓ and no typing */
   saved: boolean;
   problemRules: AutoRule[];
+  /** the header's `replyElsewhere`, `editMedia`, `me.canArticle` and `pollExtras` */
+  canReplyElsewhere?: boolean;
+  canEditMedia?: boolean;
+  canEditArticle?: boolean;
+  pollExtras?: boolean;
 }
 
 const NO_RULES: AutoRule[] = [];
@@ -59,8 +66,13 @@ export function bubbleFactsOf(header: ConversationHeaderDto): BubbleFacts {
     linkPreviews: header.linkPreviews === true,
     formatting: header.chatFormatting !== false,
     albums: header.chatAlbums !== false,
+    gifs: header.gifs === true,
     saved: isSavedHeader(header),
     problemRules: me.problemRules ?? NO_RULES,
+    canReplyElsewhere: header.replyElsewhere === true,
+    canEditMedia: header.editMedia === true,
+    canEditArticle: me.canArticle === true,
+    pollExtras: header.pollExtras === true,
   };
 }
 

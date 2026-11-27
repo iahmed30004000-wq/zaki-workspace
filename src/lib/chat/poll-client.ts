@@ -12,7 +12,36 @@ export const POLL_QUESTION_MAX = 300;
 /** «يُغلق بعد»: the choices the dialog offers, in minutes (0: no deadline); the longest is the server's 7 days */
 export const POLL_CLOSE_CHOICES = [0, 60, 1440, 4320, 10080] as const;
 
-export type PollDraft = { question: string; options: string[]; multiple: boolean; anonymous: boolean; closesInMinutes: number };
+export const POLL_EXPLANATION_MAX = 200;
+
+/** The extra settings are absent until the person turns one on (the switch `chatPollExtras`): the draft of before is the draft with none of them. */
+export type PollDraft = {
+  question: string;
+  options: string[];
+  multiple: boolean;
+  anonymous: boolean;
+  closesInMinutes: number;
+  /** «اختبار»: one right answer; `correct` is its place in `options` as the form draws them */
+  quiz?: boolean;
+  correct?: number | null;
+  explanation?: string;
+  openOptions?: boolean;
+  hideResults?: boolean;
+  noRevote?: boolean;
+  shuffle?: boolean;
+};
+
+/** Turning the quiz on or off: a quiz is one choice and nobody adds to it; turned off, its answer and its line go. */
+export function quizPatch(on: boolean): Partial<PollDraft> {
+  return on ? { quiz: true, multiple: false, openOptions: false } : { quiz: false, correct: null, explanation: "" };
+}
+
+/** The options changed (typed, removed, dragged): the right answer follows ITS option, not its old place. `from` is the place each new row had before (-1: a new row). */
+export function correctAfter(correct: number | null | undefined, from: readonly number[]): number | null {
+  if (correct === null || correct === undefined) return null;
+  const at = from.indexOf(correct);
+  return at < 0 ? null : at;
+}
 
 export const emptyPollDraft = (): PollDraft => ({ question: "", options: ["", ""], multiple: false, anonymous: false, closesInMinutes: 0 });
 
@@ -20,11 +49,12 @@ export const emptyPollDraft = (): PollDraft => ({ question: "", options: ["", ""
 export const filledOptions = (draft: PollDraft): string[] => draft.options.map((o) => o.trim()).filter((o) => o.length > 0);
 
 /** Why the draft cannot be sent yet (null: it can) — the same rules as the server's, so the button never lies. */
-export function pollDraftProblem(draft: PollDraft): "question" | "options" | "duplicate" | null {
+export function pollDraftProblem(draft: PollDraft): "question" | "options" | "duplicate" | "correct" | null {
   if (!draft.question.trim()) return "question";
   const options = filledOptions(draft);
   if (options.length < POLL_MIN_OPTIONS || options.length > POLL_MAX_OPTIONS) return "options";
   if (new Set(options.map((o) => o.replace(/\s+/g, " "))).size !== options.length) return "duplicate";
+  if (draft.quiz && !(draft.options[draft.correct ?? -1] ?? "").trim()) return "correct";
   return null;
 }
 
@@ -38,6 +68,12 @@ export function buildPollPayload(draft: PollDraft, clientId: string) {
       ...(draft.multiple ? { multiple: true } : {}),
       ...(draft.anonymous ? { anonymous: true } : {}),
       ...(draft.closesInMinutes > 0 ? { closesInMinutes: draft.closesInMinutes } : {}),
+      // the right answer's place counts in the options as they are SENT (the blank rows are left out)
+      ...(draft.quiz ? { quiz: true, correctOption: draft.options.slice(0, draft.correct ?? 0).filter((o) => o.trim().length > 0).length, ...(draft.explanation?.trim() ? { explanation: draft.explanation.trim() } : {}) } : {}),
+      ...(draft.openOptions && !draft.quiz ? { openOptions: true } : {}),
+      ...(draft.hideResults ? { hideResults: true } : {}),
+      ...(draft.noRevote && !draft.quiz ? { noRevote: true } : {}),
+      ...(draft.shuffle ? { shuffle: true } : {}),
     },
   };
 }

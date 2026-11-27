@@ -4,7 +4,7 @@
  * (`src/lib/themes/boot.ts`) and again whenever the person changes one. CSS reads the attribute; code that animates by itself (canvas, Web Animations)
  * asks `effectOn(key)` first, because no style rule stops those.
  */
-export const EFFECT_KEYS = ["stickers", "emoji", "wallpaper", "blur", "zoom", "dust", "particles", "transitions"] as const;
+export const EFFECT_KEYS = ["stickers", "emoji", "wallpaper", "blur", "zoom", "dust", "particles", "transitions", "gifs"] as const;
 export type EffectKey = (typeof EFFECT_KEYS)[number];
 
 export function isEffectKey(value: unknown): value is EffectKey {
@@ -17,7 +17,7 @@ export const EFFECTS_ATTR = "data-fx-off";
 export const EFFECTS_EVENT = "zk-effects";
 
 /** What a request for less motion stops. «blur» stays: a blurred bar does not move. */
-export const MOTION_EFFECTS: ReadonlySet<EffectKey> = new Set(["stickers", "emoji", "wallpaper", "zoom", "dust", "particles", "transitions"]);
+export const MOTION_EFFECTS: ReadonlySet<EffectKey> = new Set(["stickers", "emoji", "wallpaper", "zoom", "dust", "particles", "transitions", "gifs"]);
 /** What the company's «وضع التوفير» stops: the expensive drawing. */
 export const ECONOMY_EFFECTS: ReadonlySet<EffectKey> = new Set(["wallpaper", "blur", "dust", "particles"]);
 

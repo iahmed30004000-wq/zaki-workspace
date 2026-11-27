@@ -3,6 +3,8 @@
  * DTO crosses a JSON boundary unchanged; the UI agents import these with `import type`.
  */
 
+import type { CrossKind } from "@/lib/chat/cross-reply";
+
 export type TopicType = "DISCUSSION" | "ANNOUNCEMENTS" | "TASKS" | "IDEAS" | "FOLLOWUP";
 export type PostingPolicy = "ALL" | "ADMINS";
 export type ConversationKind = "DM" | "GROUP" | "TOPIC";
@@ -11,10 +13,10 @@ export type ConversationKind = "DM" | "GROUP" | "TOPIC";
  * src/lib/chat/checklist.ts) and carries its list in `message.checklist` (present exactly on a live one); the union is widened here and in the menu registry so that a screen
  * that switches over it sees the kind.
  */
-export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD" | "CHECKLIST";
+export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD" | "CHECKLIST" | "ARTICLE";
 
-/** What a CARD message points at (Q1.3): never a price, never a name — each reader's screen asks for the card. */
-export type CardRefDto = { type: "product"; cardId: string } | { type: "order"; number: string };
+/** What a CARD message points at (Q1.3): never a price, never a name — each reader's screen asks for the card. A location («إرسال الموقع») is the one card that carries its own facts: the place and how accurate it is, in metres. */
+export type CardRefDto = { type: "product"; cardId: string } | { type: "order"; number: string } | { type: "location"; lat: number; lng: number; accuracy: number };
 
 /** `{k, p}` of a system message — the client composes the Arabic sentence from it. */
 export interface SystemMeta {
@@ -32,6 +34,8 @@ export interface AttachmentDto {
   height?: number;
   durationMs?: number;
   peaks?: number[];
+  /** a round video message («رسالة فيديو دائرية»): drawn as a circle. Present only when it is one. */
+  round?: true;
   url: string;
 }
 
@@ -74,6 +78,8 @@ export interface PollOptionDto {
   mine: boolean;
   /** who chose it: only on a poll that is not anonymous, and never for a GUEST */
   voters?: { id: string; name: string }[];
+  /** a quiz: this is the right answer. ABSENT until THIS viewer may know it (they answered, the poll closed, or they asked it) */
+  correct?: boolean;
 }
 
 /** «استطلاع»: the poll a POLL message carries, for ONE viewer (src/server/chat/poll-shared.ts). */
@@ -90,6 +96,19 @@ export interface PollDto {
   canVote: boolean;
   /** the creator or a moderator, while it is open */
   canClose: boolean;
+  /** the extras, each present only when it is so */
+  quiz?: true;
+  /** a quiz's line, sent with the right answer and never before it */
+  explanation?: string;
+  /** others may add options to it */
+  openOptions?: true;
+  /** …and THIS viewer may add one now (the server decides again) */
+  canAddOption?: true;
+  hideResults?: true;
+  /** the counts, the percentages and the names are NOT in this payload (hidden until the poll closes, or a quiz this person has not answered): every count reads 0 */
+  resultsHidden?: true;
+  /** a vote cannot be changed or taken back (a quiz, or the asker's choice) */
+  noRevote?: true;
 }
 
 /** «قائمة مهام» (C3c.1): one item of a checklist, for ONE viewer. */
@@ -134,6 +153,19 @@ export interface LinkPreviewDto {
   image: string | null;
 }
 
+/**
+ * «الرد في محادثة أخرى»: the quote of a message of ANOTHER conversation, as ONE viewer receives it. It holds only what the sender carried over: never the source's id or its
+ * conversation's name. `text` is null once the source is deleted. `jump` is there only for a viewer who may read the source (the door decides again).
+ */
+export interface CrossReplyDto {
+  /** empty for a GUEST (a partner is not told who wrote something elsewhere) */
+  authorName: string;
+  text: string | null;
+  kind: CrossKind;
+  gone?: true;
+  jump?: true;
+}
+
 export interface MessageDto {
   id: string;
   kind: MessageKind;
@@ -152,8 +184,10 @@ export interface MessageDto {
   createdAt: string;
   clientId?: string | null;
   /** `quote` (S5.7, «رد بالاقتباس»): the piece of the original the sender picked; present only with a live original, plain text (the screen escapes it) */
-  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean; quote?: string } | null;
+  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean; quote?: string; /** `true` only when the message answered is the viewer's own */ mine?: true } | null;
   forwardedFrom?: { name: string } | null;
+  /** present on a reply to a message of another conversation, while the company's switch `chatReplyElsewhere` is on */
+  crossReply?: CrossReplyDto;
   mentions: string[];
   attachments: AttachmentDto[];
   reactions: ReactionDto[];
@@ -163,8 +197,8 @@ export interface MessageDto {
   notes?: NoteDto[];
   /** the OWNER only, on a deleted message. */
   original?: { body: string; deletedBy: string; deletedAt: string } | null;
-  /** the OWNER only, on an edited message. */
-  history?: { body: string; editedAt: string }[];
+  /** the OWNER only, on an edited message. `files`: what that edit took off the message (the old photo or file). */
+  history?: { body: string; editedAt: string; files?: AttachmentDto[] }[];
   system?: SystemMeta | null;
   /** a POLL message's poll (absent on any other message and on a deleted one). */
   poll?: PollDto;
@@ -335,6 +369,10 @@ export interface ConversationDto {
     canPoll?: boolean;
     /** may send a checklist here (C3c.1): not a guest, may post, not the silent eye, and the company's `chatChecklists` switch is on */
     canChecklist?: boolean;
+    /** may send their location here («الموقع»): may post, and the company's `chatLocation` switch is on (with the new chat screen) */
+    canLocation?: boolean;
+    /** may write an article here: not a guest, may post, and the company's `chatArticles` switch is on */
+    canArticle?: boolean;
     /** may open the «/» menu here (Q1.3): staff who may post, with `quickRecall` and `knowledgeCards` on */
     canRecall?: boolean;
     /** what the «/» menu offers here (Q1.3, Q1.4): «منتج» and «رد» need `knowledgeCards`, «طلب» needs `orderStatus` and `omsLink` */
@@ -369,6 +407,8 @@ export interface ConversationDto {
   zakiEmojis?: boolean;
   /** the company's «الإرسال بدون صوت» switch (`chatSilentSend`, C3c.2): off, the send button's menu has no «ابعت بدون صوت»; absent: on */
   silentSend?: boolean;
+  /** the company's «الصور المتحركة» switch (`chatGifs`, with the new chat screen): the composer's tab, «احفظ بالصور المتحركة» and the autoplay rule of a GIF bubble; absent or false: none */
+  gifs?: boolean;
   /** the company's «تنسيق الرسائل» switch (`chatFormatting`, C3b.1): off, the composer draws no formatting toolbar and a bubble shows its markers as typed; absent: on */
   chatFormatting?: boolean;
   /** the company's «ألبومات الصور» switch (`chatAlbums`, C3b.3): off, a message's pictures are not drawn as one mosaic; absent: on */
@@ -381,6 +421,8 @@ export interface ConversationDto {
   whiteboard?: boolean;
   /** the company's «الرسائل الصوتية» switch (`voiceNotes`): off, the composer draws no microphone; absent: on */
   voiceNotes?: boolean;
+  /** «رسالة فيديو دائرية» (`videoNotes` AND `voiceNotes`): the microphone has a camera mode. Absent or false: no camera mode (unlike the others, absent is OFF) */
+  videoNotes?: boolean;
   /** «كتابة نص الرسالة الصوتية» (`voiceTranscript`): the switch is on AND a speech-to-text service is set up; absent or false: no «اكتب النص» button */
   voiceTranscript?: boolean;
   /** «الصوت زي تيليجرام» (`voiceTelegram`): the speed button on every voice note and the bar under the header while one plays; absent: on */
@@ -389,6 +431,12 @@ export interface ConversationDto {
   voiceLiveText?: boolean;
   /** «شكل تيليجرام» (`tgLook`): the pinned bar's counter and list, the header as a floating glass bar; absent: on */
   tgLook?: boolean;
+  /** the company's «الرد في محادثة أخرى» switch (`chatReplyElsewhere`); absent: off (no menu item) */
+  replyElsewhere?: boolean;
+  /** the company's switch `chatEditMedia`: my own photo or file may be replaced and its caption emptied; absent: off */
+  editMedia?: boolean;
+  /** the company's switch `chatPollExtras`: the poll form offers the extra settings; absent: off */
+  pollExtras?: boolean;
   /** «قراءة نص الصور» (`imageOcr`): the switch is on, a vision service is set up AND no guest can reach this conversation; absent or false: no «اقرا النص» button under a picture */
   imageOcr?: boolean;
   /** «لخّصلي» (`morningDigest`): the switches are on, a provider is ready, and this is a topic of staff; absent or false: no button */
@@ -420,6 +468,8 @@ export interface ChatRowLastMessageDto {
   status?: "sent" | "delivered" | "read";
   /** a CHECKLIST message (C3c.1): how many items are done, of how many — «☑️ العنوان (3/5)». The row has the title only (`preview`); absent, the row says «☑️ العنوان» with no count. */
   checklist?: { done: number; total: number };
+  /** the message is a round video message: with no words the row says «رسالة فيديو». Present only when it is one. */
+  round?: true;
 }
 
 export interface ChatRowDto {
@@ -563,6 +613,8 @@ export interface ArchiveItemDto {
   deletedAt?: string | null;
   /** edited: the version BEFORE the edit */
   previousBody?: string | null;
+  /** edited: the photos and files edits took off the message («تعديل صورة أو ملف»), newest edit first; opened by the attachment door, which asks for oversight again */
+  oldFiles?: AttachmentDto[];
   /** moderation */
   action?: string | null;
   actorName?: string | null;

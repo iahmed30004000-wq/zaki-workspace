@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { pollMs } from "@/lib/economy";
+import { EMOJI_EFFECT_EVENT } from "@/lib/chat/emoji-anim";
 
 /**
  * The one realtime seam for every UI agent: useRealtime / useTyping / useOnline.
@@ -247,6 +248,11 @@ function dispatch(payload: RealtimeEventPayload): void {
   if (payload.kind === "presence.changed") {
     // stream-only, for the people dock: never a screen's handler (they would refetch a whole conversation for it)
     for (const h of stream.presenceHandlers) h(payload);
+    return;
+  }
+  if (payload.kind === "emoji.effect") {
+    // stream-only, for the one big emoji that is on screen: no screen's handler (they would refetch the conversation for it)
+    if (payload.messageId && typeof window !== "undefined") window.dispatchEvent(new CustomEvent(EMOJI_EFFECT_EVENT, { detail: { messageId: payload.messageId } }));
     return;
   }
   if (payload.kind === "typing" && payload.conversationId && payload.userId) {

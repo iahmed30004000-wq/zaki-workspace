@@ -4,7 +4,8 @@ import { NotFoundError } from "@/server/auth";
 import { requireActor } from "@/server/policy/actor";
 import { canReadConversation } from "@/server/policy/conversation";
 import { findUnclaimedUpload, readAttachment } from "@/server/chat/attachments";
-import { parseByteRange } from "@/server/files/range";
+import { bytesResponse } from "@/server/files/bytes-response";
+import { holdsArchiveView } from "@/server/chat/archive-access";
 
 /**
  * GET /api/chat/attachments/[id] — the bytes of one attachment. A viewer may read it only
@@ -31,41 +32,17 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       return bytesResponse(req, await openStored(actor.orgId, unclaimed.id));
     }
 
+    // a file an edit took off its message is part of the edit history: the holder of silent oversight alone, not even the person who uploaded it
     const claimed = Boolean(att.attachment.messageId);
-    const mayRead = claimed
-      ? await canReadConversation(actor.userId, att.attachment.message!.conversationId)
-      : att.file.uploaderId === actor.userId;
+    const mayRead = att.attachment.replacedAt
+      ? await holdsArchiveView({ orgId: actor.orgId, userId: actor.userId })
+      : claimed
+        ? await canReadConversation(actor.userId, att.attachment.message!.conversationId)
+        : att.file.uploaderId === actor.userId;
     if (!mayRead) return notFound();
     // the file of a deleted message is gone for everybody but the OWNER (redact.ts drops it from the DTO too)
     if (att.attachment.message?.deletedAt && !actor.isOwner) return notFound();
 
     return bytesResponse(req, att);
   });
-}
-
-/** The bytes as a stream (the server's disk, or proxied from Drive: only the asked range is fetched). Never a Drive link. */
-async function bytesResponse(
-  req: Request,
-  file: { mimeType: string; name: string; size: number; stream: (range: { start: number; end: number } | null) => Promise<ReadableStream<Uint8Array>> },
-): Promise<NextResponse> {
-  const mime = file.mimeType;
-  const inline = mime.startsWith("image/") || mime.startsWith("video/") || mime.startsWith("audio/");
-  const base: Record<string, string> = {
-    "content-type": mime,
-    "content-disposition": `${inline ? "inline" : "attachment"}; filename*=UTF-8''${encodeURIComponent(file.name).replace(/['()]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase())}`,
-    "x-content-type-options": "nosniff",
-    "cache-control": "private, max-age=3600",
-    "accept-ranges": "bytes",
-  };
-  const range = parseByteRange(req.headers.get("range"), file.size);
-  if (range.kind === "unsatisfiable") {
-    return new NextResponse(null, { status: 416, headers: { ...base, "content-range": `bytes */${file.size}` } });
-  }
-  if (range.kind === "partial") {
-    return new NextResponse(await file.stream(range), {
-      status: 206,
-      headers: { ...base, "content-length": String(range.end - range.start + 1), "content-range": `bytes ${range.start}-${range.end}/${file.size}` },
-    });
-  }
-  return new NextResponse(await file.stream(null), { status: 200, headers: { ...base, "content-length": String(file.size) } });
 }

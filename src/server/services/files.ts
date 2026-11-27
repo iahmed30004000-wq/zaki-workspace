@@ -13,6 +13,7 @@ import { snippetOf } from "@/server/chat/search";
 import { ForbiddenError, NotFoundError, type OrgAccessContext } from "@/server/auth";
 import { logEvent } from "@/server/services/integrations";
 import { canReadConversation } from "@/server/policy/conversation";
+import { holdsArchiveView } from "@/server/chat/archive-access";
 import { MAX_FILE_BYTES, canManageFile, checksumHex, safeStoredName, sniffMimeType } from "@/server/files/sniff";
 import { accessibleWorkspaceIds } from "@/server/services/access";
 import { driveIsDown, pauseDrive, resumeDrive, storageTarget } from "@/server/files/storage-policy";
@@ -199,10 +200,13 @@ export async function assertMayReadFile(ctx: OrgAccessContext, id: string): Prom
       purpose: true,
       uploaderId: true,
       workspaceId: true,
-      chatLinks: { select: { message: { select: { conversationId: true, deletedAt: true } } } },
+      chatLinks: { select: { replacedAt: true, message: { select: { conversationId: true, deletedAt: true } } } },
     },
   });
   if (!f) throw new NotFoundError("files.not_found");
+  // «القصص»: a story's file has ONE door, `/api/stories/<id>/media`, which judges who may see it and for how long
+  // (src/server/services/stories.ts). No file route serves it, not even to its author.
+  if (f.purpose === "STORY") throw new NotFoundError("files.not_found");
   // a library file: the library row of the person's grid, and of one of their spaces (or from before spaces had
   // libraries). A chat attachment is its conversation's, whatever the library box says.
   if (f.purpose === "LIBRARY") {
@@ -217,7 +221,10 @@ export async function assertMayReadFile(ctx: OrgAccessContext, id: string): Prom
     throw new NotFoundError("files.not_found");
   }
   const messages = f.chatLinks.flatMap((l) => (l.message ? [l.message] : []));
-  if (messages.length === 0 && f.uploaderId === ctx.userId) return;
+  // a file an edit took off a message is the edit history's: no longer «not sent yet» for its uploader; the holder of silent oversight opens it
+  const replaced = f.chatLinks.some((l) => l.replacedAt);
+  if (messages.length === 0 && !replaced && f.uploaderId === ctx.userId) return;
+  if (replaced && (await holdsArchiveView(ctx))) return;
   for (const m of messages) {
     if (m.deletedAt && ctx.orgRole !== "OWNER") continue;
     if (await canReadConversation(ctx.userId, m.conversationId)) return;
@@ -389,7 +396,7 @@ export async function ingest(
   ctx: OrgAccessContext,
   input: IngestFile,
   familyOf?: { familyId: string; latestVersion: number },
-  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" | "SOUND" = "LIBRARY",
+  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" | "SOUND" | "STORY" | "GIF" = "LIBRARY",
   meta?: Record<string, unknown>,
   /**
    * `sniffedMime`: the chat's own sniffing (`sniffChatMedia`) already read the bytes WITH the declared

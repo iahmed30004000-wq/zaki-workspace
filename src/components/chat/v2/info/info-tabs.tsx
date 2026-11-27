@@ -18,10 +18,13 @@ import { activeTabOf, counterKeyOf, emptyKeyOf, isPagedTab, orderTabs, phoneActi
 import { groupLinksByMonth, mergeLinkPages } from "@/lib/chat/v2/info/link-list";
 import { EDGE_PX } from "@/lib/chat/v2/phone/edge-swipe";
 import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
-import { useConversationWork, useMediaCounts, useMediaPages, useRefreshOnMessages } from "@/lib/chat/v2/info/use-info-tabs";
+import type { CommonGroupDto } from "@/server/chat/common-groups";
+import { useCommonGroups, useConversationWork, useMediaCounts, useMediaPages, useRefreshOnMessages } from "@/lib/chat/v2/info/use-info-tabs";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { chatHref } from "@/lib/chat/v2/routes";
 import { fmtShort, fmtSize, fmtTime, dayDiff } from "@/lib/format";
+import { GifThumb } from "@/components/chat/v2/bubble/gif-image";
+import { isGifAttachment } from "@/lib/chat/gifs";
 import "@/components/chat/v2/tg-sheets.css";
 
 // the ticket's own window (comments and activity) is heavy and only opened by a tap
@@ -60,6 +63,7 @@ export function InfoTabs({ header, people = null, initialTab, phone = false, onC
   useRefreshOnMessages(header.id);
   const counts = useMediaCounts(header.id);
   const work = useConversationWork(header.id);
+  const common = useCommonGroups(header.id, header.kind === "DM");
   const pinned = header.pinnedMessages ?? NO_MESSAGES;
   const membersTab = membersTabOf(header, people);
   const tabs = orderTabs(
@@ -68,6 +72,7 @@ export function InfoTabs({ header, people = null, initialTab, phone = false, onC
       work: work.data ? { tasks: work.data.tasks.length, tickets: work.data.tickets.length } : null,
       pinned: pinned.length,
       members: membersTab?.total ?? null,
+      common: common?.length ?? null,
     }),
     phone,
   );
@@ -79,7 +84,7 @@ export function InfoTabs({ header, people = null, initialTab, phone = false, onC
   const finger = React.useRef<{ x: number; y: number } | null>(null);
   // the line of the bar follows the active tab; a number that is not known yet is not said
   const shownTab = tabs.find((t) => t.id === active);
-  const countKnown = shownTab !== undefined && (shownTab.id === "members" || shownTab.id === "pinned" || (shownTab.id === "work" ? Boolean(work.data) : counts !== null));
+  const countKnown = shownTab !== undefined && (shownTab.id === "members" || shownTab.id === "pinned" || shownTab.id === "groups" || (shownTab.id === "work" ? Boolean(work.data) : counts !== null));
   const counter = shownTab && countKnown ? ct(counterKeyOf(shownTab.id, shownTab.count), { n: shownTab.count }) : null;
   React.useEffect(() => {
     onCounter?.(counter);
@@ -130,6 +135,8 @@ export function InfoTabs({ header, people = null, initialTab, phone = false, onC
 
   const body = isPagedTab(active) ? (
     <PagedPanel key={active} header={header} tab={active} jump={jump} count={known(active)} phone={phone} />
+  ) : active === "groups" ? (
+    <CommonPanel groups={common ?? []} />
   ) : active === "members" ? (
     <MembersPanel model={membersTab} pending={people === null} tags={header.tgLook !== false} phone={phone} />
   ) : active === "work" ? (
@@ -306,6 +313,8 @@ function Tiles({ header, items }: { header: ConversationHeaderDto; items: MediaI
                     </span>
                   ) : null}
                 </>
+              ) : header.gifs === true && isGifAttachment(item.attachment) ? (
+                <GifThumb src={src} alt="" />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- our own attachment address (checked above); a small tile of the real file
                 <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className="size-full object-cover" />
@@ -486,6 +495,29 @@ function LinkRows({ links, jump }: { links: LinkItemDto[]; jump: (messageId: str
           </li>
         );
       })}
+    </ul>
+  );
+}
+
+// ───────────────────────────── «مجموعات مشتركة» ─────────────────────────────
+
+/** The groups and topics the two people of a private chat share; a row opens it. The server decided the list. */
+function CommonPanel({ groups }: { groups: CommonGroupDto[] }) {
+  return (
+    <ul data-info-common="" className="divide-y divide-border">
+      {groups.map((g) => (
+        <li key={g.id}>
+          <Link href={chatHref.conversation(g.id)} data-info-common-row={g.id} className={`${rowBox} min-h-14`}>
+            <span aria-hidden="true" className="grid size-10 shrink-0 place-items-center rounded-full bg-surface-2 text-lg text-fg-muted">
+              {g.emoji || <Users className="size-5" />}
+            </span>
+            <span className="min-w-0 flex-1">
+              <bdi className="block truncate font-semibold">{g.title}</bdi>
+              {g.spaceName ? <bdi className="block truncate text-xs text-fg-muted">{g.spaceName}</bdi> : null}
+            </span>
+          </Link>
+        </li>
+      ))}
     </ul>
   );
 }

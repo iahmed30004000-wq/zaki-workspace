@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation", "assignedTasksOnly", "tgPhone"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation", "assignedTasksOnly", "tgPhone", "chatReplyElsewhere", "chatEditMedia", "chatPollExtras", "chatArticles", "chatGifs", "chatTypeSounds", "chatLocation", "stories", "storyCamera", "videoNotes"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -441,6 +441,44 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   assignedTasksOnly: false,
   // The Telegram Android look and motion of the chat on a PHONE (2026-11-27). ON by default; switching it off gives back the previous phone chat.
   tgPhone: true,
+  // «القصص» (src/server/services/stories.ts): a photo or a short video with a caption that the people of the company see for 24 hours, a row of rings above the chat list.
+  // ON by default. Off: no row and no viewer, every /api/stories route answers «not found» (the files included); the stories already posted stay in the data, and the ones
+  // whose 24 hours are not over come back with the switch.
+  stories: true,
+  // the round camera button above «new message» on a phone's chat list (src/components/chat/v2/stories/story-camera-fab.tsx): off, only that button goes; stories are
+  // still posted from the «قصتك» ring
+  storyCamera: true,
+  // «رسالة فيديو دائرية» (src/lib/chat/v2/video-note/): the microphone button gets a camera mode that records a round video of at most a minute. ON by default. Off: no
+  // camera mode and the server refuses a new one; the ones already sent stay and still play.
+  videoNotes: true,
+  // «صور متحركة» (src/server/chat/gifs.ts): the person's OWN library of GIFs in the composer — save one from a conversation, send it again with one tap, upload a new one. No outside
+  // GIF provider and no third-party request. A saved GIF is a POINTER: it is offered and sent only while the person can still read a message that carries it (or it is their own
+  // upload). ON by default (needs the new chat screen). Off: no tab, no menu item, no «autoplay» effect row, the routes answer «not found» and a GIF in a bubble is the plain picture
+  // it was; the saved rows stay and come back with the switch.
+  chatGifs: true,
+  // «صوت لكل نوع إشعار» (src/lib/sound-library): on the phone, each kind of notification (a private chat, topics and groups, a mention, a reply to me) keeps its own sound on the account,
+  // and that sound plays when a message of that kind arrives while the app is open. Calls already had theirs. ON by default (needs the phone look). Off: the kinds share one sound, as before;
+  // the choices stay and come back with the switch. It changes nothing in a push while the app is closed (the phone plays its own sound then).
+  chatTypeSounds: true,
+  // «إرسال الموقع» (src/server/chat/location.ts): «الموقع» in the attach menu asks the browser for the place ONLY when it is tapped, shows its accuracy and sends it after a confirmation as a
+  // card (the coordinates, the accuracy, «افتح بالخرائط» that the reader taps). No map tiles, no request to anybody from the server or the page, no live location, nothing collected in the
+  // background. ON by default (needs the new chat screen). Off: no entry, the route answers «not found»; the cards already sent stay.
+  // ⚠️ A person's place stays in the conversation for everybody who reads it. 🔧 It is sent only after they see it and confirm, and they can delete the message.
+  chatLocation: true,
+  // «الرد في محادثة أخرى» (src/server/chat/cross-reply.ts): from a message's menu a person picks another conversation they may write in and answers there; the new message carries the original writer's
+  // name and a short piece of the words, taken at the moment of sending (never the conversation's name, never a file name, a spoiler stays hidden). The server checks that the sender reads the source and may
+  // post in the target; the jump to the original is offered only to somebody who may read it. ON by default. Off: no menu item, the send refuses it, and the quotes already sent are not drawn (they come back with the switch).
+  // ⚠️ The people of the other conversation read that piece even if they may not read where it came from. 🔧 The writer sees exactly what will be carried before sending; turn this off to stop it.
+  chatReplyElsewhere: true,
+  // «تعديل صورة أو ملف مبعوت» (src/server/chat/edit-media.ts): the AUTHOR replaces a photo or a file of their own message and edits or empties its caption, under the same rules as editing words. The old file is never
+  // deleted: it is kept with the message's edit history, which only the holder of silent oversight reads. ON by default. Off: no replace button, the door refuses it and a caption cannot be emptied.
+  chatEditMedia: true,
+  // «خيارات إضافية للاستطلاع» (src/server/chat/polls.ts): a quiz with one right answer and an explanation, letting others add options, hiding the counts until the poll closes, no change of vote, and a shuffled order
+  // per person. ON by default. Off: the switches are not drawn, a new poll with one of them is refused and nobody adds an option; a poll already sent keeps its own rules (a quiz's answer stays hidden).
+  chatPollExtras: true,
+  // «المقالات» (src/lib/chat/article.ts, src/components/chat/v2/article/): «مقال» in the attach menu writes a long post (a title, headings, lists, quotes, links, pictures) drawn with the app's own safe formatter,
+  // sent as a card that opens a reading page. ON by default. Off: no menu entry and no new article or edit of one; the articles already sent stay readable.
+  chatArticles: true,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
@@ -681,4 +719,14 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   groupPictures: { group: "chat", dependsOn: ["chatLayoutV2"] },
   chatAutomation: { group: "chat" },
   tgPhone: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  stories: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  storyCamera: { group: "chat", dependsOn: ["stories"] },
+  videoNotes: { group: "chat", dependsOn: ["chatLayoutV2", "voiceNotes"] },
+  chatGifs: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatTypeSounds: { group: "chat", dependsOn: ["tgPhone"] },
+  chatLocation: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatReplyElsewhere: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatEditMedia: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatPollExtras: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatArticles: { group: "chat", dependsOn: ["chatLayoutV2"] },
 };

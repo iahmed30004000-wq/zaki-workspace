@@ -48,6 +48,12 @@ export interface TgVoiceView {
   discard: (from: "slide" | "trash") => void;
 }
 
+/** «تعديل صورة أو ملف»: the one file of the edited message that a new one will take the place of, on «حفظ». */
+export interface MediaReplacement {
+  attachmentId: string;
+  file: File;
+}
+
 /** One line of the «@» list. */
 export interface MentionChoice {
   id: string;

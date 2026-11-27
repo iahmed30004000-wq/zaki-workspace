@@ -27,7 +27,7 @@ import { composerFaceOf } from "@/lib/chat/v2/composer/face";
 import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 import { createDragStore } from "@/lib/chat/v2/composer/hold-gesture";
 import { formatRecordTime, levelScale, tgPhaseOf } from "@/lib/chat/v2/composer/tg-record";
-import { VOICE_DUST_CAP, dustBurst } from "@/lib/chat/v2/composer/voice-dust-model";
+import { VOICE_BIN_INSET, VOICE_DUST_CAP, dustAt, dustBurst } from "@/lib/chat/v2/composer/voice-dust-model";
 import { SPEED_NAME_KEYS, speedAtStep, stepOfSpeed } from "@/lib/chat/v2/pane/voice-speed-menu";
 import type { TgVoiceView, VoiceState } from "@/lib/chat/v2/composer/types";
 import { voiceHeard } from "@/lib/chat/voice-heard";
@@ -81,15 +81,31 @@ describe("the pure rules of the bar", () => {
     expect(levelScale(900)).toBe(levelScale(100));
   });
 
-  it("the dust is capped, lives no longer than its effect and flies to the bin's end", () => {
-    const right = dustBurst({ width: 360, height: 52, toRight: true, ms: 400, count: 5000, seed: 3 });
-    expect(right).toHaveLength(VOICE_DUST_CAP);
+  it("the dust is capped, lives no longer than its effect, and every speck goes INTO the bin: never past it, never away", () => {
+    expect(dustBurst({ width: 360, height: 52, toRight: true, ms: 400, count: 5000, seed: 3 })).toHaveLength(VOICE_DUST_CAP);
     expect(VOICE_DUST_CAP).toBeLessThanOrEqual(120);
-    for (const p of right) {
-      expect(p.life).toBeLessThanOrEqual(0.4);
-      expect(p.vx).toBeGreaterThan(0);
+    for (const toRight of [true, false]) {
+      const bin = toRight ? 360 - VOICE_BIN_INSET : VOICE_BIN_INSET;
+      for (const speck of dustBurst({ width: 360, height: 52, toRight, ms: 400, count: 40, seed: 7 })) {
+        expect(speck.end).toBeLessThanOrEqual(400);
+        let distance = Math.abs(bin - speck.x);
+        for (let at = 0; at < speck.end; at += 10) {
+          const now = Math.abs(bin - dustAt(speck, at)!.x);
+          expect(now).toBeLessThanOrEqual(distance + 1e-9);
+          distance = now;
+        }
+        // the last moment it is seen, it is at the bin's mouth
+        const last = dustAt(speck, speck.end - 0.001)!;
+        expect(Math.abs(last.x - bin)).toBeLessThan(0.5);
+        expect(Math.abs(last.y - speck.binY)).toBeLessThan(0.5);
+        expect(dustAt(speck, speck.end)).toBeNull();
+      }
     }
-    for (const p of dustBurst({ width: 360, height: 52, toRight: false, ms: 300, count: 20, seed: 3 })) expect(p.vx).toBeLessThan(0);
+  });
+
+  it("which end the bin is at is asked of the row itself: the phone look runs it left to right inside a right-to-left page", () => {
+    expect(read("src/components/chat/v2/composer/voice-dust.tsx")).toContain('const toRight = style.direction === "rtl";');
+    expect(read("src/components/chat/v2/composer/tg-record-bar.tsx")).toContain("<VoiceDust ms={ms} />");
   });
 
   it("the slider walks the six speeds and each has its Arabic name", () => {

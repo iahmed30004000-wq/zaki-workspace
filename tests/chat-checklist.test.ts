@@ -313,7 +313,7 @@ describe("a CHECKLIST message in the screens' unions and in the message menu", (
     const kind: MessageKind = CHECKLIST_KIND as MessageKind; // does not compile unless the union holds "CHECKLIST"
     expect(kind).toBe("CHECKLIST");
     expect(read("src/server/chat/dto.ts")).toMatch(/export type MessageKind = [^;]*"CHECKLIST"/);
-    expect(read("src/components/chat/message/message-menu-registry.ts")).toMatch(/kind: "TEXT" \| "VOICE" \| "SYSTEM" \| "POLL" \| "CARD" \| "CHECKLIST";/);
+    expect(read("src/components/chat/message/message-menu-registry.ts")).toMatch(/kind: "TEXT" \| "VOICE" \| "SYSTEM" \| "POLL" \| "CARD" \| "CHECKLIST" \| "ARTICLE";/);
   });
 
   it("the menu of a list: reply, copy, task and delete as for a text; no edit (the words are the title and the items are not editable as text), no forward and no save (a copy would carry no items: the server refuses both)", () => {

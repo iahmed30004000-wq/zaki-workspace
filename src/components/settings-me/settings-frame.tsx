@@ -167,7 +167,8 @@ export function SettingsFrame({ header, sections, company = null, profileApart =
   const atIndex = current === null && currentCompany === null;
   const tg = useTgPhoneOn();
   return (
-    <div data-settings-me className={cn("mx-auto flex w-full", currentCompany ? "max-w-6xl" : "max-w-5xl", "md:gap-4 md:p-6")}>
+    // with the bottom bar the settings are a place of their own, as in his pictures: on a phone the app's top bar steps aside and the page owns the notch
+    <div data-settings-me {...(profileApart ? { "data-frame-bars": "hide-top" } : {})} className={cn("mx-auto flex w-full", profileApart && "max-md:pt-[env(safe-area-inset-top)]", currentCompany ? "max-w-6xl" : "max-w-5xl", "md:gap-4 md:p-6")}>
       {/* keeps this device's copy of the person's choices fresh and applies the text size and the wallpaper (the person may land here first) */}
       <MeEffects always />
       <aside className={cn("w-full md:block md:w-80 md:shrink-0", tg && "max-md:relative", atIndex ? "block" : "hidden")}>

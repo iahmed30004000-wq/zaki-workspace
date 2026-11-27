@@ -146,7 +146,7 @@ describe("C3d — which tabs exist", () => {
     const tabs = tabsOf({ counts: { ...noCounts, IMAGE: 2, VIDEO: 1, AUDIO: 3 }, work: { tasks: 1, tickets: 2 }, pinned: 4, members: null });
     expect(tabs.map((t) => [t.id, t.count])).toEqual([["media", 3], ["files", 0], ["links", 0], ["voice", 3], ["work", 3], ["pinned", 4]]);
     expect(tabs.map((t) => t.labelKey)).toEqual(["chatinfo.tab.media", "chatinfo.tab.files", "chatinfo.tab.links", "chatinfo.tab.voice", "chatinfo.tab.work", "chatinfo.tab.pinned"]);
-    expect(INFO_TAB_ORDER).toEqual(["media", "files", "links", "voice", "members", "work", "pinned"]);
+    expect(INFO_TAB_ORDER).toEqual(["media", "files", "links", "voice", "groups", "members", "work", "pinned"]);
     for (const id of INFO_TAB_ORDER) expect(AR[tabLabelKey(id)], id).toBeTruthy();
   });
 

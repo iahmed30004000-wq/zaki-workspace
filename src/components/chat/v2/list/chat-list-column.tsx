@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Archive, ArrowUpDown, Bookmark, FolderPlus } from "lucide-react";
 import { NewDmDialog } from "@/components/chat/home/new-dm-dialog";
+import { useStories } from "@/components/chat/v2/stories/use-stories";
 import { WorkspaceCreateModal } from "@/components/create-forms";
 import { ChatPwaHost } from "@/components/pwa/chat-pwa-host";
 import { fetchSpaces, ORGS_QUERY_KEY } from "@/components/shell/space-switcher";
@@ -73,6 +74,10 @@ export interface ChatListColumnProps {
   canPurge: boolean;
   /** «شكل تيليجرام» (`tgLook`; absent: off): the folders as a pill and the main «⋮» menu */
   tgLook?: boolean;
+  /** «القصص» (`stories`; absent: off): the row of rings above the folders, the viewer and the new-story step. Never for an external partner. */
+  stories?: boolean;
+  /** the phone's round camera button above the pencil (`storyCamera`; absent: off) */
+  storyCamera?: boolean;
 }
 
 export function ChatListColumn(props: ChatListColumnProps) {
@@ -192,7 +197,7 @@ function ArchivedEntry({ tall, count, onOpen, names }: { tall: boolean; count: n
 }
 
 /** The conversations list with its folders and search: every conversation the server put in the list, in the folder asked for. */
-const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, tgLook, selectedId, rail }: ChatListColumnProps & { selectedId: string | null; rail: boolean }) {
+const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, rowMenu, canPurge, tgLook, stories: storiesOn, storyCamera, selectedId, rail }: ChatListColumnProps & { selectedId: string | null; rail: boolean }) {
   const tall = variant === "screen";
   const searchId = useId();
   const day = useDayKey();
@@ -214,6 +219,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const [newGroup, setNewGroup] = useState(false);
   const [newTopic, setNewTopic] = useState(false);
   const [creatingSpace, setCreatingSpace] = useState(false);
+  const stories = useStories({ enabled: storiesOn === true && !guest, phone: tall, camera: storyCamera === true });
 
   // C3a.1: «الأرشيف» is offered only while the switch is on AND the person has a chat they archived (the server sends none as archived while it is off)
   const archived = list.personal && list.archivedRows.length > 0;
@@ -354,6 +360,8 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       ) : rail ? null : (
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
+      {/* «القصص»: between the bar and the folders, as in Telegram; a search or the folded rail puts the row away */}
+      {rail || words ? null : stories.row}
       {/* the owner (item 7): the folders are ONE strip of tabs above the list, on the phone and on the computer alike (the column beside the list is gone); folded to a rail there is no room for it */}
       {rail ? null : <FolderTabs folders={folders} active={folder} badges={badges} onChange={setFolderKey} pill={tgLook === true} {...inline.tabProps} />}
       {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
@@ -407,6 +415,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       )}
 
       {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} onGroup={openGroup} onTopic={openTopic} canMeet={canMeet} /> : null}
+      {stories.camera}
       {!guest ? <NewDmDialog open={newDm} onOpenChange={setNewDm} /> : null}
       {!guest ? <NewGroupDialog open={newGroup} onOpenChange={setNewGroup} /> : null}
       {topicSpaceId && oneSpace.space && newTopic && sections.settled ? <NewTopicDialog open onOpenChange={setNewTopic} space={{ id: topicSpaceId, name: oneSpace.space.name, sections: sections.sections }} /> : null}
@@ -418,6 +427,8 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       {moving && movingSpace ? <MoveToGroupDialog row={moving} spaceId={movingSpace.id} groups={movingSpace.groups} current={groupOfRow(moving, movingSpace.groups)} onClose={() => setMoving(null)} /> : null}
       {canCreateSpace ? <WorkspaceCreateModal open={creatingSpace} onClose={() => setCreatingSpace(false)} organizations={orgs.map((org) => ({ id: org.id, name: org.name, canAdmin: org.canCreateSpaces }))} /> : null}
       </div>
+      {/* OUTSIDE the folder-swipe box: a portal's touches bubble through React's tree, and a swipe between two people's stories must not turn the folder under them */}
+      {stories.overlays}
     </div>
   );
 });

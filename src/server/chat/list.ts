@@ -182,6 +182,8 @@ export interface ConvRecord {
   lmCreatedAt?: Date | null;
   lmAuthorId?: string | null;
   lmAuthorName?: string | null;
+  /** the newest message is a round video message (and is not deleted) */
+  lmRound?: boolean | null;
   // C3a.1: the viewer's OWN pin, archive (as it stands now: an unmuted one a message came after is not) and mark; all empty while `chatPersonalState` is off
   myPinnedAt?: Date | null;
   archivedByMe?: boolean;
@@ -269,7 +271,7 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
       CASE WHEN ${personal} THEN cm."pinnedAt" END AS "myPinnedAt",
       ${archivedByMeSql(v.orgId)} AS "archivedByMe",
       (${personal} AND COALESCE(cm."markedUnread", false)) AS "markedUnreadByMe",
-      lm.id AS "lmId", lm.body AS "lmBody", lm.kind AS "lmKind", lm."deletedAt" AS "lmDeletedAt", lm."createdAt" AS "lmCreatedAt", lm."authorId" AS "lmAuthorId", lm."authorName" AS "lmAuthorName",
+      lm.id AS "lmId", lm.body AS "lmBody", lm.kind AS "lmKind", lm."deletedAt" AS "lmDeletedAt", lm."createdAt" AS "lmCreatedAt", lm."authorId" AS "lmAuthorId", lm."authorName" AS "lmAuthorName", lm.round AS "lmRound",
       COALESCE(un.n, 0)::int AS "unreadCount", COALESCE(un.mn, 0)::int AS "mentionCount",
       CASE WHEN c.kind = 'TOPIC' AND ${!v.guest}::boolean THEN EXISTS (
         SELECT 1 FROM "WorkspaceMember" g JOIN "OrganizationMember" gom ON gom."userId" = g."userId" AND gom."organizationId" = c."orgId"
@@ -280,7 +282,8 @@ async function queryConversations(v: ListViewer, f: ListFilter, opts: { stats: b
     ? Prisma.sql`
     LEFT JOIN LATERAL (
       -- the newest message, a deleted one included (its text never leaves the database: the row shows «رسالة محذوفة»); one the person hid for themselves (S5.7) is not the newest FOR THEM
-      SELECT m.id, CASE WHEN m."deletedAt" IS NULL THEN m.body END AS body, m.kind, m."deletedAt", m."createdAt", m."authorId", au.name AS "authorName"
+      SELECT m.id, CASE WHEN m."deletedAt" IS NULL THEN m.body END AS body, m.kind, m."deletedAt", m."createdAt", m."authorId", au.name AS "authorName",
+        (m."deletedAt" IS NULL AND EXISTS (SELECT 1 FROM "MessageAttachment" ma WHERE ma."messageId" = m.id AND ma.round)) AS round
       FROM "ChatMessage" m JOIN "User" au ON au.id = m."authorId"
       WHERE m."conversationId" = c.id AND ${notHiddenSql(uid, "m")}
       ORDER BY m."createdAt" DESC, m.id DESC
@@ -388,6 +391,20 @@ export async function loadConversationBatch(v: ListViewer, ids: string[]): Promi
   return { all, visible };
 }
 
+/**
+ * The groups and topics BOTH people belong to as ordinary members (src/server/chat/common-groups.ts). Both are looked at without the silent eye and without the
+ * owner's rank (a rank alone makes nobody a member), so the answer is never more than what the first of them reads as a member. Archived topics are left out.
+ * TWO queries: the first person's conversations, then which of those the second one is in.
+ */
+export async function sharedConversations(first: ListViewer, second: ListViewer): Promise<ConvRecord[]> {
+  const asMember = (v: ListViewer): ListViewer => ({ ...v, oversight: false, ownerRank: false, org: { ...v.org, oversight: false } });
+  const a = asMember(first);
+  const b = asMember(second);
+  const ids = (await queryConversations(a, { all: true }, { stats: false, visibleOnly: true })).filter((r) => r.kind !== "DM" && !r.archivedAt && listable(r, a)).map((r) => r.id);
+  if (!ids.length) return [];
+  return (await queryConversations(b, { ids }, { stats: false, visibleOnly: true })).filter((r) => listable(r, b));
+}
+
 // ───────────────────────────────────────── rows ─────────────────────────────────────────
 
 /** The other person's marks of a private chat, for the ticks on MY messages; the owner's silent reading never shows as «قرأ». */
@@ -413,6 +430,7 @@ function lastOf(r: ConvRecord, v: ListViewer): ChatRowLastMessageDto | null {
     at: r.lmCreatedAt.toISOString(),
     mine,
   };
+  if (r.lmRound === true) out.round = true;
   // no ticks in a chat with myself (C3a.3): nobody else is there to deliver to or read it
   if (r.kind === "DM" && mine && !system && r.selfDm !== true) {
     out.status = dmStatusFor(peerMarks(r), r.lmCreatedAt);

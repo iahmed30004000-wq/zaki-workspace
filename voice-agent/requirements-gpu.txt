@@ -1,0 +1,6 @@
+# Only for the build with GPU=1 (docker-compose.gpu.yml). CTranslate2 4.5.0 is the first release built for cuDNN 9 (it no longer takes cuDNN 8);
+# its release was built with cuDNN 9.1 (CTranslate2 issue 1806), so cuDNN stays on 9.1. Needs a CUDA 12 capable NVIDIA driver on the server.
+# Chosen from the published package data and notes; never built or run on a card yet. Change the three together or not at all.
+ctranslate2==4.5.0
+nvidia-cublas-cu12==12.4.5.8
+nvidia-cudnn-cu12==9.1.0.70

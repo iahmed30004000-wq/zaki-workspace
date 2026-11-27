@@ -339,8 +339,8 @@ export function TgRecordBar({ voice, error, live, tg, onSend }: TgRecordBarProps
         <span className="relative z-10 flex size-11 items-center justify-center text-accent">
           <Bin open />
         </span>
-        {/* the bin sits at the start of the row, which is its right end on this right-to-left screen */}
-        <VoiceDust ms={ms} toRight />
+        {/* the bin is the row's first item; the dust asks the row which end that is */}
+        <VoiceDust ms={ms} />
       </div>,
     );
   }

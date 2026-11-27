@@ -25,6 +25,12 @@ export const TG_TABS = [
 ] as const;
 export type TgTabKey = (typeof TG_TABS)[number]["key"];
 
+/**
+ * A tab's word is never cut (the owner, 2026-11-27: «الكلمات متل البروفايل كبيرة ومش ظاهرة»): it does not grow with a phone set to bigger text (a fifth of the
+ * row cannot grow with it), and if a phone enlarges it all the same, it goes onto a second line and the tab grows.
+ */
+const LABEL = "line-clamp-2 max-w-full text-center text-[length:min(0.75rem,12px)] leading-[1.35]";
+
 /** The pages of «الشغل» (the place `work` of the map, src/lib/nav/places.ts, and what it owns). */
 const WORK_PAGES = ["/my-work", "/tasks", "/projects", "/list", "/calendar", "/requests", "/approvals", "/time"] as const;
 
@@ -82,7 +88,7 @@ export function TelegramTabBar({ pathname, chatUnread, user }: { pathname: strin
                 aria-current={active ? "page" : undefined}
                 data-tg-tab={tab.key}
                 className={cn(
-                  "flex h-12 flex-col items-center justify-center gap-0.5 rounded-2xl px-0 text-xs transition-[transform,background-color,color] duration-150 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
+                  "flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-2xl px-0 py-0.5 transition-[transform,background-color,color] duration-150 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
                   active ? (tg ? "font-semibold text-accent" : "bg-accent/15 font-semibold text-accent") : "text-fg-muted hover:text-fg",
                 )}
               >
@@ -96,12 +102,12 @@ export function TelegramTabBar({ pathname, chatUnread, user }: { pathname: strin
                 </span>
                 {tg && tab.key === "profile" ? (
                   // five tabs leave 69px each on a 360px phone and «الملف الشخصي» needs 75 at the smallest readable size: the short word stands in there
-                  <span className="max-w-full truncate leading-5">
+                  <span className={LABEL}>
                     <span className="max-[374px]:hidden">{label}</span>
                     <span className="hidden max-[374px]:inline">{t("tgbar.tg.profile_short")}</span>
                   </span>
                 ) : (
-                  <span className="max-w-full truncate leading-5">{label}</span>
+                  <span className={LABEL}>{label}</span>
                 )}
               </Link>
             </li>

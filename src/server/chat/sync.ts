@@ -17,6 +17,7 @@ import {
 import { dmStatusFor, messageInclude } from "@/server/chat/messages";
 import { presentMessage, type Viewer } from "@/server/chat/redact";
 import { decorateMustRead } from "@/server/services/must-read";
+import { crossViewerOf } from "@/server/chat/cross-reply";
 import { linkPreviewsOn } from "@/server/chat/link-preview";
 import { isFeatureOn } from "@/server/services/features";
 import { hiddenIdsAmong, notHiddenFor } from "@/server/chat/hidden-messages";
@@ -182,9 +183,11 @@ export async function syncFeed(ctx: OrgAccessContext, opts: { after?: bigint; li
   const formatting = rows.some((r) => r.replyToId !== null) ? await v.scope.feature("chatFormatting") : false;
   // C3c.1: the company's switch `chatChecklists`, asked once and only when a message of this answer is a checklist
   const checklists = rows.some((r) => r.kind === "CHECKLIST") ? await v.scope.feature("chatChecklists") : undefined;
+  // «الرد في محادثة أخرى»: one verdict per source conversation of this answer (no query when nothing quotes another conversation)
+  const cross = await crossViewerOf(mine, ctx.orgId, org, rows);
   for (const row of rows) {
     const rec = visible.get(row.conversationId)!;
-    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, canPost: canPost(factsOfRecord(rec), org, { ownerJoined: rec.isMember }), linkPreviews, formatting, ...(checklists !== undefined ? { checklists } : {}) };
+    const viewer: Viewer = { userId: mine, role: org.role, oversight: v.oversight, canModerateHere: canModerate(factsOfRecord(rec), org), isMember: rec.isMember, canPost: canPost(factsOfRecord(rec), org, { ownerJoined: rec.isMember }), linkPreviews, formatting, ...(checklists !== undefined ? { checklists } : {}), ...cross };
     const dto = presentMessage(row as never, viewer, rec.kind === "DM" && row.authorId === mine ? dmStatusFor(peerMarks(rec), row.createdAt) : undefined);
     // a tombstone is a tombstone for everybody here: no text, no files, no reactions (the owner reads the original through the archive); no edit history
     delete dto.history;

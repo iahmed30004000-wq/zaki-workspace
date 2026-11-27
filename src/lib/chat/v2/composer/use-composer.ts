@@ -33,7 +33,8 @@ import { forDropMode, pastedDocuments, pastedImages, type DroppedFile } from "@/
 import { createDragStore, holdOutcome, tgHoldDrag } from "@/lib/chat/v2/composer/hold-gesture";
 import { arrowUpEdits } from "@/lib/chat/v2/composer/edit-last";
 import { composerHintOf } from "@/lib/chat/v2/composer/hint";
-import type { MentionChoice, PendingFile, TgVoiceView, VoiceState } from "@/lib/chat/v2/composer/types";
+import type { MediaReplacement, MentionChoice, PendingFile, TgVoiceView, VoiceState } from "@/lib/chat/v2/composer/types";
+import { crossReplyStore, useCrossReply } from "@/lib/chat/cross-reply-store";
 import { VoiceRecorder, type VoiceTake } from "@/lib/chat/voice-recorder";
 import { voiceEngine } from "@/lib/chat/voice-queue";
 import { CHAT_PREFS_KEY, chatPrefsQueryOptions, saveChatPrefs, type ChatPrefsDto } from "@/lib/chat/cache/queries";
@@ -104,6 +105,26 @@ export function useComposer(p: ComposerParams) {
   const scheduleUploads = React.useRef<{ files: File[]; ids: string[] } | null>(null);
   /** the images of a paste, waiting in the send dialog */
   const [pasted, setPasted] = React.useState<File[] | null>(null);
+  // «الرد في محادثة أخرى»: the message of another conversation waiting to be answered here (never while an edit is typed); an ordinary reply takes its place
+  const crossHeld = useCrossReply(conversationId);
+  const cross = editing ? null : crossHeld;
+  React.useEffect(() => {
+    if (reply) crossReplyStore.clear(conversationId);
+  }, [reply, conversationId]);
+  const crossId = cross?.messageId ?? null;
+  React.useEffect(() => {
+    // what is being sent changed: a new id, so a retry of the old words can never be mistaken for this one
+    setClientId(messageClientId());
+  }, [crossId]);
+  const crossFields = cross ? { crossReplyId: cross.messageId } : {};
+  const sentCross = () => crossReplyStore.clear(conversationId);
+  // «تعديل صورة أو ملف»: while MY message with files is edited, one of them may be swapped, and its caption may be emptied (the company's switch)
+  const editsMedia = editing !== null && detail.editMedia === true && editing.attachments.length > 0 && (editing.kind === "TEXT" || editing.kind === "VOICE");
+  const canReplaceMedia = editsMedia && editing?.kind === "TEXT";
+  const [replacement, setReplacement] = React.useState<MediaReplacement | null>(null);
+  React.useEffect(() => setReplacement(null), [editing?.id]);
+  /** the upload of the chosen file, kept so a save that failed does not upload it twice */
+  const replacementUpload = React.useRef<{ file: File; id: string } | null>(null);
   const recorder = React.useRef<VoiceRecorder | null>(null);
   const releaseHold = React.useRef<(() => void) | null>(null);
   const textRef = React.useRef<HTMLTextAreaElement | null>(null);
@@ -268,6 +289,7 @@ export function useComposer(p: ComposerParams) {
       {
         clientId: payload.clientId, conversationId, body: payload.body.trim(), mentions: payload.mentions,
         ...(payload.replyToId ? { replyToId: payload.replyToId } : {}),
+        ...(payload.crossReplyId ? { crossReplyId: payload.crossReplyId } : {}),
         ...(payload.attachmentIds.length ? { attachmentIds: payload.attachmentIds } : {}),
         ...(payload.mentionAll ? { mentionAll: true } : {}),
         ...(payload.noPreview ? { noPreview: true } : {}),
@@ -319,6 +341,43 @@ export function useComposer(p: ComposerParams) {
     }
   }
 
+  /** «تعديل صورة أو ملف»: the save of my message that holds files: the words may be empty, and one file may be swapped (uploaded first, then named in the same edit). */
+  async function saveMediaEdit() {
+    if (busy || !editing) return;
+    setBusy(true);
+    setError("");
+    try {
+      const change = canReplaceMedia ? replacement : null;
+      let replace: { attachmentId: string; uploadId: string } | null = null;
+      if (change) {
+        const old = editing.attachments.find((a) => a.id === change.attachmentId);
+        const kept = replacementUpload.current;
+        let uploadId = kept && kept.file === change.file ? kept.id : null;
+        if (!uploadId) {
+          setProgress([0]);
+          const kind = classifyFile(change.file);
+          // a file that was sent as a file stays one (the original bytes, never compressed)
+          const [made] = await uploadTray([{ file: change.file, kind, preview: null, asFile: old?.kind === "FILE" }]);
+          uploadId = made!;
+          replacementUpload.current = { file: change.file, id: uploadId };
+        }
+        replace = { attachmentId: change.attachmentId, uploadId };
+      }
+      const response = await fetch(`/api/chat/messages/${encodeURIComponent(editing.id)}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ body: body.trim(), ...(replace ? { replace } : {}) }) });
+      if (!response.ok) {
+        const key = errorKeyOf(await response.json().catch(() => null));
+        throw new Error(ct(key ?? "chatc.message_failed"));
+      }
+      replacementUpload.current = null;
+      onEdited((await response.json()) as MessageDto);
+    } catch (e) {
+      setError(failText(e, "chatc.message_failed"));
+    } finally {
+      setBusy(false);
+      setProgress([]);
+    }
+  }
+
   /** Uploads the tray's files one after the other (the progress of each) and answers their ids, in order (C3c.3 shares it with «جدول الإرسال»: the same upload, the same limits). */
   async function uploadTray(tray: PendingFile[]): Promise<string[]> {
     const attachmentIds: string[] = [];
@@ -353,7 +412,8 @@ export function useComposer(p: ComposerParams) {
         { qc: optimistic.qc, outbox },
         {
           conversationId,
-          payload: { body: text.trim(), attachmentIds: [], mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), ...(silent ? { silent: true } : {}), clientId: id },
+          payload: { body: text.trim(), attachmentIds: [], mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...crossFields, ...(noPreview ? { noPreview: true } : {}), ...(silent ? { silent: true } : {}), clientId: id },
+          ...(cross ? { crossReply: { authorName: cross.snapshot.author, text: cross.snapshot.text, kind: cross.snapshot.kind } } : {}),
           author: { id: meId, name: me?.name ?? "", avatar: me?.avatarUrl ?? null },
           ...(reply ? { replyTo: { id: reply.id, preview: reply.deleted ? null : reply.body, authorName: reply.authorName } } : {}),
         },
@@ -365,6 +425,7 @@ export function useComposer(p: ComposerParams) {
         setClientId(messageClientId());
         setError("");
         onCancelReply();
+        sentCross();
         void started.done.then((outcome) => {
           if (outcome.kind === "sent") {
             onMessage(outcome.message);
@@ -383,7 +444,8 @@ export function useComposer(p: ComposerParams) {
     setProgress(tray.map(() => 0));
     try {
       const attachmentIds = await uploadTray(tray);
-      await postMessage({ body: text.trim(), attachmentIds, mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...(noPreview ? { noPreview: true } : {}), ...(silent ? { silent: true } : {}), clientId: id });
+      await postMessage({ body: text.trim(), attachmentIds, mentions: selectedMentionIds(text, mentions), ...(canAll && mentionsAll(text) ? { mentionAll: true } : {}), ...(reply ? { replyToId: reply.id } : {}), ...crossFields, ...(noPreview ? { noPreview: true } : {}), ...(silent ? { silent: true } : {}), clientId: id });
+      sentCross();
       for (const f of tray) if (f.preview) URL.revokeObjectURL(f.preview);
       if (draftOn) clearComposerDraft(meId, conversationId);
       setBody("");
@@ -401,6 +463,8 @@ export function useComposer(p: ComposerParams) {
 
   function submit(event?: React.FormEvent) {
     event?.preventDefault();
+    // «تعديل صورة أو ملف»: my message that holds files has its own save (only while the switch is on); every other edit is the one above
+    if (editing && editsMedia) return void saveMediaEdit();
     if (editing) return void saveEdit();
     void sendNow(body, files);
   }
@@ -469,6 +533,7 @@ export function useComposer(p: ComposerParams) {
   /** «جدول الإرسال» from the send button's menu: asks WHEN (the dialog), then `scheduleNow`. Never while an edit is saved or with nothing to send. */
   async function openScheduleDialog() {
     if (editing || !plan.entry || (!body.trim() && !files.length)) return;
+    if (cross) return void setError(ct("tgx.cross.no_schedule"));
     setError("");
     // the company's zone is in the list: read it now when the header's number did not make us read it at the opening
     const list = scheduledList ?? (await refreshScheduled());
@@ -758,8 +823,9 @@ export function useComposer(p: ComposerParams) {
     try {
       const result = await uploadWithProgress("/api/chat/uploads", createVoiceUploadFormData(recording), (percent) => setProgress([percent]));
       if (typeof result["id"] !== "string") throw new Error(ct("chat.f.upload_failed"));
-      await postMessage({ body: "", attachmentIds: [result["id"]], mentions: [], ...(reply ? { replyToId: reply.id } : {}), clientId: messageClientId(), voice: true }, false);
+      await postMessage({ body: "", attachmentIds: [result["id"]], mentions: [], ...(reply ? { replyToId: reply.id } : {}), ...crossFields, clientId: messageClientId(), voice: true }, false);
       onCancelReply();
+      sentCross();
     } catch (e) {
       setError(failText(e, "chat.f.upload_failed"));
     } finally {
@@ -919,6 +985,7 @@ export function useComposer(p: ComposerParams) {
     if (event.key === "Escape" && !composing) {
       if (editing) { event.preventDefault(); onCancelEdit(); return; }
       if (reply) { event.preventDefault(); onCancelReply(); return; }
+      if (cross) { event.preventDefault(); crossReplyStore.clear(conversationId); return; }
     }
     // «↑» in an EMPTY box edits my last text message
     if (arrowUpEdits({ key: event.key, text: body, fileCount: files.length, composing, choicesOpen: choices.length > 0, editing: editing !== null, recording: voice.mode !== "idle", shiftKey: event.shiftKey, ctrlKey: event.ctrlKey, altKey: event.altKey, metaKey: event.metaKey }) && editLast) {
@@ -930,6 +997,11 @@ export function useComposer(p: ComposerParams) {
     // and a plain Enter is a new line (the choice is read from this device's copy of the person's settings, at the moment of the key)
     if (enterSends({ key: event.key, shiftKey: event.shiftKey, isComposing: composing }) && sendKeyAllows(readDevicePrefs().mirror?.sendKey, event)) {
       event.preventDefault();
+      // «تعديل صورة أو ملف»: the emptied caption of a message that keeps its file is a save too
+      if (editsMedia && !body.trim()) {
+        if (!busy) event.currentTarget.form?.requestSubmit();
+        return;
+      }
       if (canSubmitNow({ text: body, fileCount: files.length, editing: editing !== null, voiceOn, busy })) event.currentTarget.form?.requestSubmit();
     }
   }
@@ -953,7 +1025,9 @@ export function useComposer(p: ComposerParams) {
   const face = composerFaceOf({ text: body, fileCount: files.length, editing: editing !== null, voiceOn });
   return {
     body, files, busy, error, progress, voice, voiceOn, face,
-    canSubmit: canSubmitNow({ text: body, fileCount: files.length, editing: editing !== null, voiceOn, busy }),
+    canSubmit: canSubmitNow({ text: body, fileCount: files.length, editing: editing !== null, voiceOn, busy }) || (editsMedia && !busy),
+    crossReply: cross, removeCrossReply: sentCross,
+    editAttachments: canReplaceMedia ? editing!.attachments : null, replacement, setReplacement,
     choices, pickAt, setPick,
     hint: composerHintOf(body, detail, editing !== null),
     pollOpen, setPollOpen, recall, setRecall, feedback, setFeedback, pasted, setPasted, noPreview, setNoPreview,

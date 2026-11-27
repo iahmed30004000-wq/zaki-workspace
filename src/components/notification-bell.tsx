@@ -115,6 +115,7 @@ export function NotificationBell({ defaultOpen = false, variant = "bar" }: { def
         {rail ? <span className="max-w-full break-words">{t("notif.title")}</span> : null}
         {unread > 0 ? (
           <span
+            data-unread-badge=""
             aria-hidden="true"
             className={cn(
               "absolute flex items-center justify-center rounded-full leading-none",
