@@ -48,7 +48,7 @@ export type SurfaceEngine = Pick<
 
 export interface SurfaceProps {
   c: SurfaceEngine;
-  me: { canPoll?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
+  me: { canPoll?: boolean; canLocation?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
   reply: MessageDto | null;
   /** S5.7 «رد بالاقتباس»: the piece of `reply` the person picked (the bar shows it in place of the whole message) */
   replyQuote?: string | null;
@@ -78,6 +78,8 @@ export interface SurfaceProps {
   onReplyOptions?: () => void;
   /** «رسالة فيديو دائرية» (its own engine, `useVideoNote`); absent or not `enabled`: the microphone is exactly what it was */
   videoNote?: Pick<VideoNoteEngine, "enabled" | "captureMode" | "tip" | "error" | "state" | "swallowsClick" | "watchMicTap" | "onCameraPointerDown" | "onCameraClick" | "startLocked">;
+  /** «صور متحركة»: the picker's GIF tab (it closes the picker after a send); absent (the switch off, or while an edit is typed): the picker has no such tab */
+  gifPanel?: (close: () => void) => React.ReactNode;
 }
 
 /**
@@ -85,7 +87,7 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange, onEmojiUsed, onStickerSend, onReplyOptions, videoNote }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange, onEmojiUsed, onStickerSend, onReplyOptions, videoNote, gifPanel }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   // «تيليجرام على التلفون»: the emojis stand where the keyboard stood (the box is NOT focused while they do), and the caret is kept by hand
   const tg = useTgPhone();
@@ -219,6 +221,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           onClose={closeEmoji}
           recents={recents}
           zaki={zakiEmojis}
+          {...(gifPanel && !editing ? { gifs: gifPanel(closeEmoji) } : {})}
           onPick={(emoji) => {
             onEmoji(emoji);
           }}
@@ -352,6 +355,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           onEmoji={panelInsert}
           onSticker={(code) => (onStickerSend && !editing && !c.body.trim() ? onStickerSend(code) : panelEdit((text, start, end) => insertPiece(text, start, end, code)))}
           onBackspace={() => panelEdit(deleteBack)}
+          {...(gifPanel && !editing ? { gifs: gifPanel(closeEmoji) } : {})}
         />
       ) : null}
       {c.hint ? <CustomerHint hint={c.hint} canProblem={false} /> : null}

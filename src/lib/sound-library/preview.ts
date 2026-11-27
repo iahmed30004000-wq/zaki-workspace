@@ -6,7 +6,8 @@ import { startRing } from "@/lib/calls/ring-sound";
 import { loadRingTone } from "@/lib/calls/ring-prefs";
 import { RINGBACK_NOTES, RINGBACK_PERIOD_MS, playLoop } from "@/lib/calls/tones";
 import { FAMILY_OF } from "./catalog";
-import type { SoundEvent } from "./choice";
+import { isTypeSoundEvent, type SoundEvent } from "./choice";
+import { readSoundMirror } from "./device";
 import { playResolvedOnce, startResolvedLoop } from "./play";
 import { resolveSound } from "./resolve";
 
@@ -33,6 +34,8 @@ function playFileOnce(url: string): () => void {
 function previewDefault(event: SoundEvent): () => void {
   if (event === "ring") return startRing({ tone: loadRingTone() });
   if (event === "ringback") return playLoop(RINGBACK_NOTES, RINGBACK_PERIOD_MS);
+  // a kind of notification with no sound of its own sounds like the app's own notification: what that is set to, or its default
+  if (isTypeSoundEvent(event)) return previewSound("inChat", readSoundMirror().inChat ?? null);
   const prefs = loadChatSoundPrefs();
   // as the app plays it today: the other chats (and, with the company's `chatSounds` on, the open one) use the chosen chat tone; the rest are the two pops
   if (event === "inChat" || (event === "received" && chatSoundsActive())) {

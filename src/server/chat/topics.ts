@@ -712,6 +712,8 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     feature("videoNotes"),
   ]);
   const hidden = silent && !joined;
+  // «صور متحركة» and «إرسال الموقع»: parts of the new chat screen, each with its own switch (the doors decide again)
+  const [gifsSwitch, locationSwitch, newScreen] = await Promise.all([feature("chatGifs"), feature("chatLocation"), feature("chatLayoutV2")]);
   // «جدول الإرسال» (C3c.3): the person's OWN waiting messages here, asked only where they may use it (the switch is on and they may write; the silent eye cannot schedule)
   const scheduled = scheduledOn && mayPost ? await db.scheduledChatMessage.count({ where: { conversationId, authorId: ctx.userId, orgId: ctx.orgId, status: { in: ["PENDING", "FAILED"] } } }) : undefined;
   const [recall, problem, canTranslate, hasGuest] = await Promise.all([
@@ -772,6 +774,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
       canMentionAll: facts.kind === "TOPIC" && staff && mayPost,
       canPoll: facts.kind === "TOPIC" && staff && mayPost,
       canChecklist: staff && mayPost && checklistsOn,
+      canLocation: mayPost && newScreen && locationSwitch,
       ...recall,
       ...problem,
       orderHints: staff && hintOn,
@@ -786,6 +789,7 @@ export async function conversationHeader(ctx: OrgAccessContext, conversationId: 
     chatAlbums,
     silentSend,
     zakiEmojis,
+    gifs: newScreen && gifsSwitch,
     ...(scheduled !== undefined ? { scheduled } : {}),
     linkPreviews: await linkPreviewsOn(ctx.orgId, feature),
     calls,

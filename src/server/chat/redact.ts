@@ -6,6 +6,7 @@ import { stripFormatting } from "@/lib/chat/format/parse";
 import { presentChecklist, type ChecklistRow } from "@/lib/chat/checklist";
 import { zakiToWords } from "@/lib/chat/zaki-emoji";
 import { featureOn } from "@/lib/features";
+import { locationOf } from "@/lib/chat/location";
 
 export { attachmentView };
 
@@ -48,7 +49,7 @@ type MessageRow = {
   replyToId?: string | null;
   /** «رد بالاقتباس» (S5.7): the piece of the parent the sender picked */
   replyQuote?: string | null;
-  replyTo?: { id: string; body: string; deletedAt: Date | null; author: { name: string } } | null;
+  replyTo?: { id: string; body: string; deletedAt: Date | null; /** whose message is answered (every database row carries it) */ authorId?: string; author: { name: string } } | null;
   forwardedFromId?: string | null;
   forwardedFrom?: { author: { name: string } } | null;
   mentions?: unknown;
@@ -209,6 +210,11 @@ export function presentMessage(
     const ref = row.card as { type?: unknown; cardId?: unknown; number?: unknown } | null;
     if (ref && ref.type === "product" && typeof ref.cardId === "string") dto.card = { type: "product", cardId: ref.cardId };
     else if (ref && ref.type === "order" && typeof ref.number === "string") dto.card = { type: "order", number: ref.number };
+    else {
+      // «إرسال الموقع»: the coordinates and the accuracy ARE the message; a deleted one gives none (this branch is for a live message only)
+      const place = locationOf(row.card);
+      if (place) dto.card = { type: "location", ...place };
+    }
   }
 
   // the card of the first link: a deleted message has none (for everybody, the owner too: his original is the words), a card that failed has none, and the company's
@@ -232,6 +238,8 @@ export function presentMessage(
       preview: row.replyTo.deletedAt ? null : zakiToWords(viewer.formatting === true ? stripFormatting(row.replyTo.body, { math: true }) : row.replyTo.body), // S5.6: a Zaki emoji is its Arabic name here, never the raw code
       authorName: row.replyTo.author.name,
       deleted: !!row.replyTo.deletedAt,
+      // «صوت لكل نوع إشعار»: the viewer is answered (the screen rings the «رد على رسالتك» sound); `true` only when so, absent otherwise
+      ...(row.replyTo.authorId === viewer.userId ? { mine: true as const } : {}),
       // the quote is the PARENT's own words: it goes where the parent's preview goes — never for a deleted parent or a deleted reply
       ...(row.replyQuote && !row.replyTo.deletedAt && !deleted ? { quote: zakiToWords(row.replyQuote) } : {}),
     };

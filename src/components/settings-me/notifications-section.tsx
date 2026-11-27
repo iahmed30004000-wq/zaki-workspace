@@ -48,7 +48,7 @@ function stopPreview(preview: { current: { stop: () => void; timer: ReturnType<t
  * `sub`: one kind's own page (a phone with Telegram's look, `?type=`). With the switch `tgPhone` on, a phone-wide screen draws the card of kinds (or the
  * kind's page) in place of the five blocks, by CSS (`md:hidden` / `max-md:hidden`); a computer and the switch off draw the page exactly as before.
  */
-export function NotificationsSection({ sub = null }: { sub?: NotifyType | null }) {
+export function NotificationsSection({ sub = null, typeSounds = false }: { sub?: NotifyType | null; /** the company's switch `chatTypeSounds`: each kind's page keeps a sound of its own */ typeSounds?: boolean }) {
   const tg = useTgPhoneOn();
   const { t } = useI18n();
   const { toast } = useToast();
@@ -181,6 +181,7 @@ export function NotificationsSection({ sub = null }: { sub?: NotifyType | null }
       <div className="md:hidden">
         <NotifyTypePage
           type={sub}
+          perType={typeSounds}
           prefs={person.prefs}
           loaded={person.loaded}
           onRule={(type, rule) => void change(type, rule)}

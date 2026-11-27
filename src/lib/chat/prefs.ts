@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { SPEECH_CHOICES } from "@/lib/chat/speech-langs";
-import { SOUND_CHOICE, SOUND_EVENTS, type SoundChoices } from "@/lib/sound-library/choice";
+import { SOUND_CHOICE, SOUND_KEYS, type SoundChoices } from "@/lib/sound-library/choice";
 
 /**
  * C3a.2 — the person's chat preferences: `User.chatPrefs`, ONE nullable JSON column and ONE zod schema (this file). Pure: no React, no server import,
@@ -186,9 +186,9 @@ const chatShape = {
   fontPx: z.number().int().min(TG_FONT_PX.min).max(TG_FONT_PX.max).optional(),
   bubbleRadius: z.number().int().min(TG_BUBBLE_RADIUS.min).max(TG_BUBBLE_RADIUS.max).optional(),
 };
-/** «مكتبة الأصوات»: the person's own sound for each of the five events (absent: «افتراضي»). What a value may be: `src/lib/sound-library/choice.ts`. */
+/** «مكتبة الأصوات»: the person's own sound for each of the five events and for each kind of notification (absent: «افتراضي»). What a value may be: `src/lib/sound-library/choice.ts`. */
 const soundChoice = z.string().regex(SOUND_CHOICE, "chatprefs.bad_sound").optional();
-const soundsShape = Object.fromEntries(SOUND_EVENTS.map((event) => [event, soundChoice])) as Record<(typeof SOUND_EVENTS)[number], typeof soundChoice>;
+const soundsShape = Object.fromEntries(SOUND_KEYS.map((event) => [event, soundChoice])) as Record<(typeof SOUND_KEYS)[number], typeof soundChoice>;
 const soundsSchema = z.object(soundsShape).catchall(z.unknown()).superRefine(sectionRules);
 
 const notificationsSchema = z.object(notificationsShape).catchall(z.unknown()).superRefine(sectionRules);

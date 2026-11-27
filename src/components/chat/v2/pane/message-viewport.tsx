@@ -34,7 +34,7 @@ import { quoteFromSelection } from "@/lib/chat/v2/menu/gestures";
 import { replyQuoteStore } from "@/lib/chat/v2/phone/reply-quote";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
-import { arrivalSoundOf } from "@/lib/chat/v2/pane/arrival-sound";
+import { arrivalSoundOf, arrivalTypeOf } from "@/lib/chat/v2/pane/arrival-sound";
 import { jumpButtonsOf, mentionTargetsOf } from "@/lib/chat/v2/pane/jump-model";
 import { stableReaders } from "@/lib/chat/v2/pane/readers";
 import { useReadMarking } from "@/lib/chat/v2/pane/use-read-marking";
@@ -163,9 +163,9 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
     if (!history.ready) return;
     const was = seen.current;
     const sound = arrivalSoundOf({ previousNewestId: was.id, messages: history.messages, meId: facts.meId, hadNewer: was.hasNewer, hasNewer: history.hasNewer });
-    if (sound) playChatSound(sound);
+    if (sound) playChatSound(sound, undefined, arrivalTypeOf({ conversationKind: header.kind, messages: history.messages, meId: facts.meId }));
     seen.current = { id: history.messages.at(-1)?.id ?? null, hasNewer: history.hasNewer };
-  }, [history.messages, history.ready, history.epoch, history.hasNewer, facts.meId]);
+  }, [history.messages, history.ready, history.epoch, history.hasNewer, facts.meId, header.kind]);
 
   // ---- the jump buttons
   const unreadMentions = row?.mentionsUnread ?? 0;

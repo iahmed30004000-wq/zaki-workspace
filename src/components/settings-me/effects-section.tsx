@@ -11,7 +11,7 @@ import { EFFECT_KEYS, applyEffectsOff, type EffectKey } from "@/lib/motion/effec
  * «التأثيرات الحركية»: one switch per effect, for THIS device. A change is written, put on the page at once (`applyEffectsOff`), and followed by whatever
  * is mounted. A device that asks for less motion stops the moving ones by itself, whatever the switches say, and the page says so.
  */
-export function EffectsSection() {
+export function EffectsSection({ gifs = false }: { /** the company's «الصور المتحركة» switch: off, its «play by itself» row is not there */ gifs?: boolean } = {}) {
   const { t } = useI18n();
   const [off, setOff] = useState<EffectKey[]>([]);
   const [reduced, setReduced] = useState(false);
@@ -30,7 +30,7 @@ export function EffectsSection() {
   return (
     <div data-section-body="effects">
       <Group title={t("settingsMe.fx.title")} hint={reduced ? t("settingsMe.fx.reduced") : t("settingsMe.fx.lead")} rows>
-        {EFFECT_KEYS.map((key) => (
+        {EFFECT_KEYS.filter((key) => gifs || key !== "gifs").map((key) => (
           <div key={key} data-effect-row={key} className="px-0.5">
             <SwitchRow title={t(`settingsMe.fx.${key}`)} hint={t(`settingsMe.fx.${key}.hint`)} checked={!off.includes(key)} onChange={(on) => set(key, on)} />
           </div>

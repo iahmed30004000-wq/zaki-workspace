@@ -125,7 +125,12 @@ export function withViewer(viewer: Viewer, userId: string): Viewer {
 
 /** What only the server's own callers may add to a message (the public schema has no such field): a card the message points at. */
 export interface SendInternal {
-  card?: { type: "product"; cardId: string } | { type: "order"; number: string };
+  card?: { type: "product"; cardId: string } | { type: "order"; number: string } | { type: "location"; lat: number; lng: number; accuracy: number };
+  /**
+   * «صور متحركة» (src/server/chat/gifs.ts): link a GIF the company ALREADY holds to this message, as «حوّل» links a file. The caller has judged that the sender may have
+   * it now; the public send has no way to name a file this way.
+   */
+  gif?: { fileId: string; width: number | null; height: number | null };
 }
 
 export async function sendMessage(
@@ -160,7 +165,9 @@ export async function sendMessage(
   const body = (input.body ?? "").trim();
   const attachments = input.attachmentIds ?? [];
   if (body.length > MAX_BODY) throw new ValidationError([{ path: "body", message: "chat.e.too_long" }]);
-  if (body.length === 0 && attachments.length === 0) throw new ValidationError([{ path: "body", message: "chat.e.empty" }]);
+  if (body.length === 0 && attachments.length === 0 && !internal.gif) throw new ValidationError([{ path: "body", message: "chat.e.empty" }]);
+  // a GIF of the library stands alone: no words of its own to add here, no upload, no voice, no poll, no card
+  if (internal.gif && (body.length > 0 || attachments.length > 0 || input.voice === true || input.poll || input.checklist || internal.card)) throw new ValidationError([{ path: "attachmentIds", message: "chat.f.too_many" }]);
 
   // «الرسائل الصوتية» off: no new voice note (the ones already sent still play)
   if (input.voice === true) await assertFeatureOn(ctx.orgId, "voiceNotes");
@@ -277,6 +284,12 @@ export async function sendMessage(
         attachmentIds: attachments,
       });
     }
+    if (internal.gif) {
+      // the file is looked at again inside the transaction: a purge that landed in between takes the whole message back
+      const held = await tx.storedFile.findFirst({ where: { id: internal.gif.fileId, orgId: ctx.orgId, deletedAt: null, mimeType: "image/gif" }, select: { id: true } });
+      if (!held) throw new NotFoundError("gifs.e.not_found");
+      await tx.messageAttachment.create({ data: { messageId: msg.id, fileId: held.id, kind: "IMAGE", width: internal.gif.width, height: internal.gif.height, position: 0 } });
+    }
     await tx.conversation.update({ where: { id: conversationId }, data: { updatedAt: new Date() } });
     // C1.1: the chat list's "last message" time moves with the message, in this same transaction (never backwards)
     await moveLastMessageAt(tx, conversationId, msg.createdAt);
@@ -290,7 +303,7 @@ export async function sendMessage(
     await emitRealtime(tx, ctx.orgId, "message.created", { conversationId, messageId: msg.id, spaceId: facts.spaceId ?? undefined });
     // the row was read before its files were claimed: read it again so the answer carries them (the
     // sender's screen shows the message from this answer: a voice note without its audio was an empty bubble)
-    return attachments.length ? tx.chatMessage.findUniqueOrThrow({ where: { id: msg.id }, include: messageInclude() }) : msg;
+    return attachments.length || internal.gif ? tx.chatMessage.findUniqueOrThrow({ where: { id: msg.id }, include: messageInclude() }) : msg;
   });
 
   // my own fresh DM message starts at ✓ (sent): the screen shows it from this answer before any refetch
@@ -1023,7 +1036,7 @@ export function messageInclude() {
     // «إشارة التوثيق» (S5.5): the author's ACTIVE memberships that carry a badge (a person who is not active is nobody: no mark), and the company's settings to read its switch (the second query runs only when somebody on the page is verified)
     author: { select: { id: true, name: true, avatarUrl: true, memberships: { where: { verifiedAt: { not: null }, status: "ACTIVE" }, select: { organizationId: true, organization: { select: { settings: true } } } } } },
     deletedBy: { select: { name: true } },
-    replyTo: { select: { id: true, body: true, deletedAt: true, author: { select: { name: true } } } },
+    replyTo: { select: { id: true, body: true, deletedAt: true, authorId: true, author: { select: { name: true } } } },
     forwardedFrom: { select: { author: { select: { name: true } } } },
     // «مين تفاعل» (S5.6): the names come with the rows (one join, oldest reaction first); redact.ts decides who may be named to whom
     reactions: { select: { emoji: true, userId: true, user: { select: { name: true, avatarUrl: true } } }, orderBy: { id: "asc" as const } },

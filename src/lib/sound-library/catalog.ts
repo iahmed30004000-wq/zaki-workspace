@@ -12,7 +12,17 @@ import type { SoundEvent } from "./choice";
  */
 export type SoundFamily = "message" | "ringback" | "ring";
 
-export const FAMILY_OF: Readonly<Record<SoundEvent, SoundFamily>> = { sent: "message", received: "message", inChat: "message", ringback: "ringback", ring: "ring" };
+export const FAMILY_OF: Readonly<Record<SoundEvent, SoundFamily>> = {
+  sent: "message",
+  received: "message",
+  inChat: "message",
+  ringback: "ringback",
+  ring: "ring",
+  typePrivate: "message",
+  typeTopics: "message",
+  typeMentions: "message",
+  typeReplies: "message",
+};
 
 export type SoundPlay = { type: "tone"; tone: Pick<ChatTone, "cutoff" | "notes"> } | { type: "loop"; notes: readonly Note[]; periodMs: number };
 

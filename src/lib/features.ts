@@ -13,7 +13,7 @@
  */
 
 /** Every switch, in the order «الميزات» lists them. */
-export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation", "assignedTasksOnly", "tgPhone", "stories", "storyCamera", "videoNotes"] as const;
+export const FEATURES = ["watch", "sectionPermissions", "libraryDrive", "pushEverything", "chatRowMenu", "callNoiseFilter", "instantWork", "avatars", "peopleDock", "chatBubbles", "taskLinks", "milestones", "ownerHiddenOnline", "quickChat", "taskSteps", "reminders", "calendarFeed", "recurringTasks", "timeTracking", "taskRewards", "ownerBoard", "ownerAssistant", "chatAssistant", "chatOutbox", "customFields", "lastSeen", "approvals", "teamDevelopment", "checkins", "okr", "taskRules", "apiDoor", "spaceDocs", "mfgLedger", "calls", "whiteboard", "voiceNotes", "pdfPageCount", "search", "backgroundNudges", "economyMode", "dbBackup", "controlPanel", "voiceTranscript", "externalGateway", "assistantContact", "assistantWorkData", "assistantProposals", "siteGuide", "morningDigest", "watchConvert", "messageTranslate", "imageOcr", "semanticSearch", "emailToTask", "appConnection", "assistantInMeetings", "themeSwitchFx", "taskPrivacy", "omsLink", "knowledgeCards", "quickRecall", "orderStatus", "autoTickets", "mustRead", "orderTemplateHint", "navV2", "chatOneList", "omsEvents", "doorMessages", "chatLayoutV2", "chatFormatting", "workInbox", "chatAlbums", "permissionTemplates", "workRequests", "chatPersonalState", "chatFolders", "savedMessages", "linkPreviews", "chatSilentSend", "chatScheduled", "chatMultiSelect", "themeV2Default", "workStages", "workMyTasks", "workStaleSweep", "expenseForms", "zakiEmojis", "controlPanelV2", "spaceTemplates", "settingsOneDoor", "verifiedBadge", "meetingMinutes", "chatSounds", "chatChecklists", "spaceBadges", "voiceTelegram", "voiceLiveText", "tgLook", "tgTabBar", "botFather", "groupPictures", "chatAutomation", "assignedTasksOnly", "tgPhone", "chatGifs", "chatTypeSounds", "chatLocation", "stories", "storyCamera", "videoNotes"] as const;
 export type FeatureKey = (typeof FEATURES)[number];
 
 /** A key nobody switched yet is this (a new feature is on unless its key says otherwise). */
@@ -451,6 +451,20 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // «رسالة فيديو دائرية» (src/lib/chat/v2/video-note/): the microphone button gets a camera mode that records a round video of at most a minute. ON by default. Off: no
   // camera mode and the server refuses a new one; the ones already sent stay and still play.
   videoNotes: true,
+  // «صور متحركة» (src/server/chat/gifs.ts): the person's OWN library of GIFs in the composer — save one from a conversation, send it again with one tap, upload a new one. No outside
+  // GIF provider and no third-party request. A saved GIF is a POINTER: it is offered and sent only while the person can still read a message that carries it (or it is their own
+  // upload). ON by default (needs the new chat screen). Off: no tab, no menu item, no «autoplay» effect row, the routes answer «not found» and a GIF in a bubble is the plain picture
+  // it was; the saved rows stay and come back with the switch.
+  chatGifs: true,
+  // «صوت لكل نوع إشعار» (src/lib/sound-library): on the phone, each kind of notification (a private chat, topics and groups, a mention, a reply to me) keeps its own sound on the account,
+  // and that sound plays when a message of that kind arrives while the app is open. Calls already had theirs. ON by default (needs the phone look). Off: the kinds share one sound, as before;
+  // the choices stay and come back with the switch. It changes nothing in a push while the app is closed (the phone plays its own sound then).
+  chatTypeSounds: true,
+  // «إرسال الموقع» (src/server/chat/location.ts): «الموقع» in the attach menu asks the browser for the place ONLY when it is tapped, shows its accuracy and sends it after a confirmation as a
+  // card (the coordinates, the accuracy, «افتح بالخرائط» that the reader taps). No map tiles, no request to anybody from the server or the page, no live location, nothing collected in the
+  // background. ON by default (needs the new chat screen). Off: no entry, the route answers «not found»; the cards already sent stay.
+  // ⚠️ A person's place stays in the conversation for everybody who reads it. 🔧 It is sent only after they see it and confirm, and they can delete the message.
+  chatLocation: true,
 };
 
 export function isFeatureKey(value: unknown): value is FeatureKey {
@@ -694,4 +708,7 @@ export const FEATURE_META: Readonly<Record<FeatureKey, FeatureMeta>> = {
   stories: { group: "chat", dependsOn: ["chatLayoutV2"] },
   storyCamera: { group: "chat", dependsOn: ["stories"] },
   videoNotes: { group: "chat", dependsOn: ["chatLayoutV2", "voiceNotes"] },
+  chatGifs: { group: "chat", dependsOn: ["chatLayoutV2"] },
+  chatTypeSounds: { group: "chat", dependsOn: ["tgPhone"] },
+  chatLocation: { group: "chat", dependsOn: ["chatLayoutV2"] },
 };
