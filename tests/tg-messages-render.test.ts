@@ -284,6 +284,10 @@ describe("found in a real browser", () => {
     expect(panel).toContain('{group ? groupLabels()[group] : "\u00a0"}');
   });
 
+  it("only a jump to a message slides: the landing on the first unread when a chat opens stays instant", () => {
+    expect(read("src/lib/chat/viewport/use-message-viewport.ts")).toContain('wanted: smoothRef.current && target.align === "center"');
+  });
+
   it("nothing that grows or slides gives the log a sideways scroll", () => {
     expect(read("src/components/chat/v2/pane/message-viewport.tsx")).toContain('tg && "overflow-x-hidden"');
   });

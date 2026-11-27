@@ -143,7 +143,8 @@ export function useMessageViewport(opts: MessageViewportOptions): MessageViewpor
     pendingScroll.current = null;
     stickRef.current = false;
     // a slide is asked of the element itself, only for a measured row (the virtual list's own smooth scroll is not made for measured heights)
-    const near = smoothJumpAllowed({ wanted: smoothRef.current, targetIndex: at, drawn: smoothRef.current ? v.getVirtualItems().map((i) => i.index) : [] }) ? v.getOffsetForIndex(at, target.align) : undefined;
+    // (`center` is a jump to a message; `start` is the landing on the first unread as a chat opens, which stays instant)
+    const near = smoothJumpAllowed({ wanted: smoothRef.current && target.align === "center", targetIndex: at, drawn: smoothRef.current ? v.getVirtualItems().map((i) => i.index) : [] }) ? v.getOffsetForIndex(at, target.align) : undefined;
     if (near) elRef.current.scrollTo({ top: near[0], behavior: "smooth" });
     else v.scrollToIndex(at, { align: target.align });
   }, [scrollToBottom]);
