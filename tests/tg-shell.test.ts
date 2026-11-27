@@ -108,6 +108,18 @@ describe("the conversation over the list", () => {
   });
 });
 
+describe("the wallpaper behind the conversation", () => {
+  it("the pane's own boxes are clear while the default wallpaper is on, so it shows (the first phone pictures were flat)", () => {
+    for (const box of ["[data-chat-pane-root]", "[data-message-viewport]", '[role="log"][data-conversation-id]']) {
+      expect(css).toContain(`html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] ${box}`);
+    }
+    for (const mark of ["data-chat-pane-root", "data-message-viewport"]) {
+      const where = mark === "data-chat-pane-root" ? "components/chat/v2/pane/conversation-pane.tsx" : "components/chat/v2/pane/message-viewport.tsx";
+      expect(SRC(where), mark).toContain(mark);
+    }
+  });
+});
+
 describe("going back", () => {
   it("a slow pull goes back only past half the screen; a quick flick still does; without the switch the old distance stands", () => {
     const width = 390;

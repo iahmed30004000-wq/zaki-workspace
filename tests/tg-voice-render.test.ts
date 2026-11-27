@@ -332,7 +332,7 @@ describe("«تحويل الكلام لنص»", () => {
     const tiles = (html: string) => [...html.matchAll(/data-section="([a-z]+)"[\s\S]*?data-section-tile="" class="[^"]*?(bg-cat-\d)/g)].filter((m) => m[1] !== "speech").map((m) => `${m[1]}:${m[2]}`);
     expect(tiles(on)).toEqual(tiles(frame(false)));
     expect(read("src/app/(app)/settings/me/[section]/page.tsx")).toContain('if (!(await actorFeatureOn(actor, "tgPhone"))) notFound();');
-    expect(read("src/app/(app)/settings/me/layout.tsx")).toContain("visibleSections({ foldersOn, speechOn })");
+    expect(read("src/app/(app)/settings/me/layout.tsx")).toContain("visibleSections({ foldersOn, speechOn, soundsOn })");
   });
 });
 

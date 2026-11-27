@@ -107,7 +107,7 @@ export function TgAttachPanel({ parts, tabs, tab, size, files, busy, caption, ca
             {headerAction}
           </div>
         ) : (
-          <button type="button" data-attach-handle="" aria-label={ct("tgsheets.attach.expand")} onClick={onExpand} className="flex min-h-6 w-full items-center justify-center py-2.5">
+          <button type="button" data-attach-handle="" aria-label={ct("tgsheets.attach.expand")} onClick={onExpand} className="flex min-h-6 w-full items-center justify-center py-2.5 focus-visible:outline-none [&:focus-visible>span]:ring-2 [&:focus-visible>span]:ring-accent">
             <span aria-hidden="true" className="h-1 w-10 rounded-full bg-fg-muted/40" />
           </button>
         )}

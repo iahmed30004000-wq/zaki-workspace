@@ -48,7 +48,8 @@
   }
   html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] div:has(> [role="log"][data-conversation-id]),
   html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] > div,
-  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] [data-chat-conversation] {
+  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] [data-chat-pane-root],
+  html:not([data-chat-wallpaper-chosen]) [data-tg-phone] [data-chat-phone-screen] [data-message-viewport] {
     background-color: transparent;
   }
 
