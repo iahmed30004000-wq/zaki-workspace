@@ -389,7 +389,7 @@ export async function ingest(
   ctx: OrgAccessContext,
   input: IngestFile,
   familyOf?: { familyId: string; latestVersion: number },
-  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" | "SOUND" = "LIBRARY",
+  purpose: "LIBRARY" | "CHAT" | "VOICE" | "AVATAR" | "KNOWLEDGE" | "SOUND" | "GIF" = "LIBRARY",
   meta?: Record<string, unknown>,
   /**
    * `sniffedMime`: the chat's own sniffing (`sniffChatMedia`) already read the bytes WITH the declared

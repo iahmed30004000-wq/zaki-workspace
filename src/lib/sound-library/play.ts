@@ -3,8 +3,9 @@ import { playToneNow } from "@/lib/chat/chime/player";
 import { chimeThrottled } from "@/lib/chat/chime/decide";
 import { playLoop } from "@/lib/calls/tones";
 import type { BuiltinSound } from "./catalog";
-import type { SoundEvent } from "./choice";
-import { activeSoundChoices } from "./device";
+import { TYPE_SOUND_OF, type SoundEvent } from "./choice";
+import { activeSoundChoices, typeSoundsOn } from "./device";
+import type { NotifyType } from "@/lib/chat/prefs";
 import { resolveSound, type ResolvedSound } from "./resolve";
 
 /**
@@ -45,9 +46,15 @@ export function playResolvedOnce(resolved: ResolvedSound, onFail?: () => void): 
 /**
  * The person's own sound for a message event. `true`: the choice was handled (played, or silence on purpose); `false`: nothing is chosen, play what you
  * always played. `throttle`: the notification of another chat keeps the 600 ms between two sounds. `fallback`: today's sound, for an upload that is gone.
+ * `type`: the kind of notification this arrival is (`notifyTypeOf`): while `chatTypeSounds` is on and that kind has a sound of its own, it is the one played («بلا صوت»
+ * of a kind is silence), once even for a mention (the sound itself says which kind it is); without one the event's choice stands.
  */
-export function playChosenSound(event: SoundEvent, opts: { mention: boolean; throttle?: boolean; now?: number; fallback?: () => void }): boolean {
-  const resolved = resolveSound(event, activeSoundChoices());
+export function playChosenSound(event: SoundEvent, opts: { mention: boolean; throttle?: boolean; now?: number; fallback?: () => void; type?: NotifyType }): boolean {
+  const choices = activeSoundChoices();
+  const typeKey = opts.type && typeSoundsOn() ? TYPE_SOUND_OF[opts.type] : null;
+  const own = typeKey ? resolveSound(typeKey, choices) : null;
+  const ofType = own !== null && own.type !== "default";
+  const resolved = ofType ? own : resolveSound(event, choices);
   if (resolved.type === "default") return false;
   if (resolved.type === "none") return true;
   if (opts.throttle) {
@@ -56,7 +63,7 @@ export function playChosenSound(event: SoundEvent, opts: { mention: boolean; thr
     lastThrottledAt = now;
   }
   playResolvedOnce(resolved, opts.fallback);
-  if (opts.mention) setTimeout(() => playResolvedOnce(resolved), MENTION_GAP_MS);
+  if (opts.mention && !ofType) setTimeout(() => playResolvedOnce(resolved), MENTION_GAP_MS);
   return true;
 }
 

@@ -9,7 +9,7 @@ import { useSavePatch, usePersonPrefs } from "@/components/settings-me/use-perso
 import { useToast } from "@/components/ui/toast";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
-import { NO_SOUND, SOUND_EVENTS, SOUND_MAX_BYTES, customChoice, customIdOf, type SoundChoices, type SoundEvent } from "@/lib/sound-library/choice";
+import { NO_SOUND, SOUND_EVENTS, SOUND_KEYS, SOUND_MAX_BYTES, customChoice, customIdOf, isTypeSoundEvent, type SoundChoices, type SoundEvent } from "@/lib/sound-library/choice";
 import { builtinsFor } from "@/lib/sound-library/catalog";
 import { cleanSoundChoices, saveSoundMirror, withSoundChoice } from "@/lib/sound-library/device";
 import { previewSound } from "@/lib/sound-library/preview";
@@ -23,7 +23,10 @@ import type { MySoundDto } from "@/server/services/sounds";
  */
 export const MY_SOUNDS_KEY = ["me", "sounds"] as const;
 
-const EVENT_ICONS: Record<SoundEvent, LucideIcon> = { sent: Send, received: MessageCircle, inChat: Bell, ringback: PhoneOutgoing, ring: Phone };
+const EVENT_ICONS: Record<(typeof SOUND_EVENTS)[number], LucideIcon> = { sent: Send, received: MessageCircle, inChat: Bell, ringback: PhoneOutgoing, ring: Phone };
+
+/** «افتراضي» of a kind of notification is the app's own sound; of an event it is what the app always played. */
+const defaultName = (t: (key: string) => string, event: SoundEvent): string => t(isTypeSoundEvent(event) ? "typesounds.follow" : "tgsheets.sounds.default");
 
 async function readMySounds(signal: AbortSignal): Promise<MySoundDto[]> {
   const res = await fetch("/api/me/sounds", { cache: "no-store", credentials: "same-origin", signal });
@@ -37,12 +40,12 @@ export function useMySounds() {
 
 /** The name of what an event is set to, for a row: «افتراضي», «بلا صوت», one of ours, or the upload's own name. */
 export function soundChoiceName(t: (key: string) => string, event: SoundEvent, choice: string | undefined, mine: readonly MySoundDto[]): string {
-  if (!choice) return t("tgsheets.sounds.default");
+  if (!choice) return defaultName(t, event);
   if (choice === NO_SOUND) return t("tgsheets.sounds.none");
   const fileId = customIdOf(choice);
   if (fileId) return mine.find((s) => s.id === fileId)?.name ?? t("tgsheets.sounds.custom");
   const built = builtinsFor(event).find((s) => s.id === choice);
-  return built ? t(built.labelKey) : t("tgsheets.sounds.default");
+  return built ? t(built.labelKey) : defaultName(t, event);
 }
 
 export function SoundsSection({ event = null, canUpload = true }: { event?: SoundEvent | null; /** an external partner uploads nothing (the route refuses too) */ canUpload?: boolean }) {
@@ -61,7 +64,7 @@ export function SoundsSection({ event = null, canUpload = true }: { event?: Soun
 
 function SoundEventList({ choices, mine }: { choices: SoundChoices; mine: readonly MySoundDto[] }) {
   const { t } = useI18n();
-  const groups: { title: string; events: SoundEvent[] }[] = [
+  const groups: { title: string; events: (typeof SOUND_EVENTS)[number][] }[] = [
     { title: t("tgsheets.sounds.group.messages"), events: SOUND_EVENTS.filter((e) => e === "sent" || e === "received" || e === "inChat") },
     { title: t("tgsheets.sounds.group.calls"), events: SOUND_EVENTS.filter((e) => e === "ringback" || e === "ring") },
   ];
@@ -167,8 +170,8 @@ function SoundPicker({ event, choices, loaded, mine, failed, canUpload }: { even
     }
     await qc.invalidateQueries({ queryKey: MY_SOUNDS_KEY });
     // every event that used it goes back to «افتراضي»
-    if (SOUND_EVENTS.some((e) => choices[e] === customChoice(sound.id))) {
-      await keep((before) => SOUND_EVENTS.reduce((all, e) => (all[e] === customChoice(sound.id) ? withSoundChoice(all, e, null) : all), before));
+    if (SOUND_KEYS.some((e) => choices[e] === customChoice(sound.id))) {
+      await keep((before) => SOUND_KEYS.reduce<SoundChoices>((all, e) => (all[e] === customChoice(sound.id) ? withSoundChoice(all, e, null) : all), before));
     }
   }
 
@@ -218,7 +221,7 @@ function SoundPicker({ event, choices, loaded, mine, failed, canUpload }: { even
       <Group title={t("tgsheets.sounds.ours")} hint={event === "inChat" ? t("tgsheets.sounds.inchat_hint") : undefined} rows>
         <div role="radiogroup" aria-label={t(`tgsheets.sounds.event.${event}`)} className="[&>*+*]:border-t [&>*+*]:border-border">
           <Radio id={NO_SOUND} label={t("tgsheets.sounds.none")} checked={current === NO_SOUND} disabled={!loaded} onSelect={() => choose(NO_SOUND)} />
-          <Radio id="default" label={t("tgsheets.sounds.default")} checked={!current} disabled={!loaded} onSelect={() => choose(null)} />
+          <Radio id="default" label={defaultName(t, event)} checked={!current} disabled={!loaded} onSelect={() => choose(null)} />
           {builtinsFor(event).map((sound) => (
             <Radio key={sound.id} id={sound.id} label={t(sound.labelKey)} checked={current === sound.id} disabled={!loaded} onSelect={() => choose(sound.id)} />
           ))}

@@ -22,6 +22,8 @@ import { useConversationWork, useMediaCounts, useMediaPages, useRefreshOnMessage
 import type { PaneMembers } from "@/lib/chat/v2/pane/composer-detail";
 import { chatHref } from "@/lib/chat/v2/routes";
 import { fmtShort, fmtSize, fmtTime, dayDiff } from "@/lib/format";
+import { GifThumb } from "@/components/chat/v2/bubble/gif-image";
+import { isGifAttachment } from "@/lib/chat/gifs";
 import "@/components/chat/v2/tg-sheets.css";
 
 // the ticket's own window (comments and activity) is heavy and only opened by a tap
@@ -306,6 +308,8 @@ function Tiles({ header, items }: { header: ConversationHeaderDto; items: MediaI
                     </span>
                   ) : null}
                 </>
+              ) : header.gifs === true && isGifAttachment(item.attachment) ? (
+                <GifThumb src={src} alt="" />
               ) : (
                 // eslint-disable-next-line @next/next/no-img-element -- our own attachment address (checked above); a small tile of the real file
                 <img src={src} alt="" loading="lazy" decoding="async" draggable={false} className="size-full object-cover" />

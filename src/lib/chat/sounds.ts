@@ -11,6 +11,7 @@ import { chatSoundsActive } from "@/lib/chat/chime/active";
 import { loadChatSoundPrefs } from "@/lib/chat/chime/prefs";
 import { playChime } from "@/lib/chat/chime/player";
 import { playChosenSound } from "@/lib/sound-library/play";
+import type { NotifyType } from "@/lib/chat/prefs";
 
 export type ChatSound = "sent" | "received" | "mention";
 
@@ -68,11 +69,11 @@ function pop(url: string): void {
   }
 }
 
-export function playChatSound(kind: ChatSound, storage: SoundStorage | null = defaultStorage()): void {
+export function playChatSound(kind: ChatSound, storage: SoundStorage | null = defaultStorage(), /** which kind of notification an arrival is: its own sound, where it has one */ type?: NotifyType): void {
   if (!soundsEnabled(storage)) return;
   // «مكتبة الأصوات» (a phone with Telegram's look): the person's own choice for this event; nothing chosen: everything below, as before
   const event = kind === "sent" ? "sent" : "received";
-  if (playChosenSound(event, { mention: kind === "mention", fallback: () => pop(CHAT_SOUND_URLS[event]) })) return;
+  if (playChosenSound(event, { mention: kind === "mention", fallback: () => pop(CHAT_SOUND_URLS[event]), ...(type && kind !== "sent" ? { type } : {}) })) return;
   if (kind === "sent") return pop(CHAT_SOUND_URLS.sent);
   // S5.1: with the company's switch `chatSounds` on, an arrival plays the tone the person chose (drawn by the browser, one voice for every chat) instead of the sound file
   if (chatSoundsActive()) {

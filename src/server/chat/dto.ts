@@ -13,8 +13,8 @@ export type ConversationKind = "DM" | "GROUP" | "TOPIC";
  */
 export type MessageKind = "TEXT" | "VOICE" | "SYSTEM" | "POLL" | "CARD" | "CHECKLIST";
 
-/** What a CARD message points at (Q1.3): never a price, never a name — each reader's screen asks for the card. */
-export type CardRefDto = { type: "product"; cardId: string } | { type: "order"; number: string };
+/** What a CARD message points at (Q1.3): never a price, never a name — each reader's screen asks for the card. A location («إرسال الموقع») is the one card that carries its own facts: the place and how accurate it is, in metres. */
+export type CardRefDto = { type: "product"; cardId: string } | { type: "order"; number: string } | { type: "location"; lat: number; lng: number; accuracy: number };
 
 /** `{k, p}` of a system message — the client composes the Arabic sentence from it. */
 export interface SystemMeta {
@@ -152,7 +152,7 @@ export interface MessageDto {
   createdAt: string;
   clientId?: string | null;
   /** `quote` (S5.7, «رد بالاقتباس»): the piece of the original the sender picked; present only with a live original, plain text (the screen escapes it) */
-  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean; quote?: string } | null;
+  replyTo?: { id: string; preview: string | null; authorName: string; deleted?: boolean; quote?: string; /** `true` only when the message answered is the viewer's own */ mine?: true } | null;
   forwardedFrom?: { name: string } | null;
   mentions: string[];
   attachments: AttachmentDto[];
@@ -335,6 +335,8 @@ export interface ConversationDto {
     canPoll?: boolean;
     /** may send a checklist here (C3c.1): not a guest, may post, not the silent eye, and the company's `chatChecklists` switch is on */
     canChecklist?: boolean;
+    /** may send their location here («الموقع»): may post, and the company's `chatLocation` switch is on (with the new chat screen) */
+    canLocation?: boolean;
     /** may open the «/» menu here (Q1.3): staff who may post, with `quickRecall` and `knowledgeCards` on */
     canRecall?: boolean;
     /** what the «/» menu offers here (Q1.3, Q1.4): «منتج» and «رد» need `knowledgeCards`, «طلب» needs `orderStatus` and `omsLink` */
@@ -369,6 +371,8 @@ export interface ConversationDto {
   zakiEmojis?: boolean;
   /** the company's «الإرسال بدون صوت» switch (`chatSilentSend`, C3c.2): off, the send button's menu has no «ابعت بدون صوت»; absent: on */
   silentSend?: boolean;
+  /** the company's «الصور المتحركة» switch (`chatGifs`, with the new chat screen): the composer's tab, «احفظ بالصور المتحركة» and the autoplay rule of a GIF bubble; absent or false: none */
+  gifs?: boolean;
   /** the company's «تنسيق الرسائل» switch (`chatFormatting`, C3b.1): off, the composer draws no formatting toolbar and a bubble shows its markers as typed; absent: on */
   chatFormatting?: boolean;
   /** the company's «ألبومات الصور» switch (`chatAlbums`, C3b.3): off, a message's pictures are not drawn as one mosaic; absent: on */

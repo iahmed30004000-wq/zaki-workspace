@@ -112,6 +112,7 @@ import chatSounds from "./ar.chat-sounds.json";
 import tgVoice from "./ar.tg-voice.json";
 import tgSheets from "./ar.tg-sheets.json";
 import tgMessages from "./ar.tg-messages.json";
+import tgExtraAttach from "./ar.tg-extra-attach.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -235,4 +236,5 @@ export const AR: Record<string, string> = {
   ...tgVoice,
   ...tgSheets,
   ...tgMessages,
+  ...tgExtraAttach,
 };

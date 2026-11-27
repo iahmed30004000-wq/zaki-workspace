@@ -6,6 +6,7 @@ import type { MessageDto, ReaderDto } from "@/server/chat/dto";
 import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { CardBubble } from "@/components/chat/message/card-bubble";
+import { LocationCard } from "@/components/chat/message/location-card";
 import { OrderCardBubble } from "@/components/chat/message/order-state-card";
 import { PollCard } from "@/components/chat/message/poll-card";
 import { MessageTranslation, useTranslation } from "@/components/chat/message/message-translation";
@@ -326,8 +327,8 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
               {!message.deleted && <MessageTranslation state={translation.state} onHide={translation.hide} />}
               {!message.deleted ? <LinkPreviewCard preview={message.preview} enabled={facts.linkPreviews} /> : null}
               {message.poll && !message.deleted ? <PollCard messageId={message.id} poll={message.poll} /> : null}
-              {message.card && !message.deleted ? message.card.type === "order" ? facts.canOrderState ? <OrderCardBubble number={message.card.number} conversationId={conversationId} /> : null : <CardBubble card={message.card} /> : null}
-              {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} albums={facts.albums} mine={mine} /> : null}
+              {message.card && !message.deleted ? message.card.type === "order" ? facts.canOrderState ? <OrderCardBubble number={message.card.number} conversationId={conversationId} /> : null : message.card.type === "location" ? <LocationCard place={message.card} /> : <CardBubble card={message.card} /> : null}
+              {!message.deleted ? <BubbleMedia attachments={message.attachments} kind={message.kind} canTranscribe={facts.canTranscribe} canReadImages={facts.canReadImages} albums={facts.albums} mine={mine} gifs={facts.gifs} /> : null}
               {message.work?.length ? <WorkChips work={message.work} onOpenWork={onOpenWork} /> : null}
               <MustReadBlock message={message} onAck={onAck} />
               <CustomerHint hint={hint} canProblem={facts.canProblem} onTicket={onHintTicket ? () => onHintTicket(message) : undefined} />

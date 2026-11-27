@@ -15,6 +15,7 @@ import { currentSpace, spacesOf } from "@/server/services/current-space";
 import { hasActiveReports, navSubjectOf, oneDoorPanelFor } from "@/server/services/nav-order";
 import { CallRing } from "@/components/calls/call-ring";
 import { ChatSoundsHost } from "@/components/chat/chime/chat-sounds-host";
+import { TypeSoundsFlag } from "@/components/chat/chime/type-sounds-flag";
 import { CallProvider } from "@/components/calls/call-provider";
 import { SWITCH_COOKIE } from "@/lib/themes/switch-fx";
 
@@ -102,6 +103,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <CallRing />
         {/* S5.1: a tone for a message in any conversation the person reads (the company's switch `chatSounds`, off: nothing is mounted) */}
         <ChatSoundsHost enabled={on.chatSounds} />
+        {/* «صوت لكل نوع إشعار» (`chatTypeSounds`, a part of the phone's look): the arrival sounds learn whether each kind keeps its own */}
+        <TypeSoundsFlag on={on.chatLayoutV2 && on.tgPhone && on.chatTypeSounds} />
       </CallProvider>
     </AppShell>
   );

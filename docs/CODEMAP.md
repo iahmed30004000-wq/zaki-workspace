@@ -9,10 +9,10 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 437 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 443 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
-5. **If I flip a switch, what disappears?** — the 212 feature switches and every place that reads them (§8).
+5. **If I flip a switch, what disappears?** — the 218 feature switches and every place that reads them (§8).
 
 ## 1. The layers
 
@@ -45,7 +45,7 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 437 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 443 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 200 · `activeOrgCtx` 122 · `(none)` 45 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 6 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 200 · `activeOrgCtx` 128 · `(none)` 45 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 6 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -165,6 +165,7 @@ Doors in use: `requireActor` 200 · `activeOrgCtx` 122 · `(none)` 45 · `requir
 | POST | `/api/chat/conversations/[id]/delivered` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/conversations/[id]/header` | activeOrgCtx | `integrations`: activeOrgCtx |
 | POST | `/api/chat/conversations/[id]/join` | activeOrgCtx | `integrations`: activeOrgCtx |
+| POST | `/api/chat/conversations/[id]/location` | activeOrgCtx | `integrations`: activeOrgCtx |
 | PUT | `/api/chat/conversations/[id]/me` | activeOrgCtx | `integrations`: activeOrgCtx<br>`features`: assertFeatureOn |
 | GET | `/api/chat/conversations/[id]/media` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/conversations/[id]/media/work` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -182,6 +183,11 @@ Doors in use: `requireActor` 200 · `activeOrgCtx` 122 · `(none)` 45 · `requir
 | GET | `/api/chat/directory` | directoryContext | `current-space`: currentSpace<br>`last-seen`: lastSeenReader<br>`assistant-chat`: assistantContactOffered<br>`botfather`: botFatherOffered |
 | POST | `/api/chat/dm` | activeOrgCtx | `integrations`: activeOrgCtx<br>`current-space`: currentSpace<br>`features`: assertFeatureOn |
 | GET | `/api/chat/forward-targets` | activeOrgCtx | `integrations`: activeOrgCtx<br>`features`: assertFeatureOn |
+| GET, POST | `/api/chat/gifs` | activeOrgCtx | `integrations`: activeOrgCtx |
+| DELETE | `/api/chat/gifs/[id]` | activeOrgCtx | `integrations`: activeOrgCtx |
+| GET | `/api/chat/gifs/[id]/file` | activeOrgCtx | `integrations`: activeOrgCtx |
+| POST | `/api/chat/gifs/send` | activeOrgCtx | `integrations`: activeOrgCtx |
+| POST | `/api/chat/gifs/upload` | activeOrgCtx | `integrations`: activeOrgCtx |
 | GET | `/api/chat/home` | activeOrgCtx | `current-space`: currentSpace<br>`integrations`: activeOrgCtx |
 | GET | `/api/chat/list` | activeOrgCtx | `current-space`: currentSpace<br>`integrations`: activeOrgCtx |
 | PATCH, DELETE | `/api/chat/messages/[id]` | activeOrgCtx | `integrations`: activeOrgCtx |
@@ -531,7 +537,7 @@ Doors in use: `requireActor` 200 · `activeOrgCtx` 122 · `(none)` 45 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 437. Each one is a door that cannot have a session, or one that is closed.
+Six of 443. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -552,15 +558,15 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 87 | 188 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
-| `integrations` | 180 | 138 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
+| `features` | 87 | 190 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `integrations` | 180 | 144 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 76 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 299 | 52 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
 | `guest-guard` | 30 | 43 | Org GUESTs are external partners (for example the factory): they see only what is shared with them, never write business data, and never see prices or the staff directory. |
 | `org-day` | 26 | 41 | The start of the COMPANY's today — `Organization.timezone`, never the server's clock and never the browser's. |
+| `files` | 609 | 27 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `tasks` | 750 | 27 | no header comment — exports `TASK_INCLUDE`, `assignedTo`, `DEFAULT_BOARD_COLUMNS`, `nextTaskNumber`, `createTask`, … |
 | `control-panel` | 514 | 26 | «لوحة التحكم» — THE NUMBERS, for the OWNER alone. |
-| `files` | 609 | 26 | no header comment — exports `fileLibrary`, `PENDING_PATH`, `PREVIEWABLE`, `INLINE_TEXT`, `logFile`, … |
 | `access` | 76 | 20 | Workspace-level isolation — the company's master switch. |
 | `owner-assistant-settings` | 389 | 20 | «مساعد المالك» — THE SETTINGS, THE KEY AND THE COUNTERS. |
 | `rewards` | 355 | 19 | «مهمة بمكافأة» — set, award, cancel; and «تثبيت» — pin. |
@@ -650,7 +656,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `work-requests` | 493 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `calendar` | 125 | 3 | The calendar's data logic, taken out of the page so it can be tested with an injected `now`. |
 | `desks` | 91 | 3 | The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns, departments, production): who the person is to these … |
-| `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
+| `image-ocr` | 304 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
 | `member-rules` | 184 | 3 | The rank rules of account management, in ONE place, as pure functions with no database and no server-only import — so the members screen can offer exactly what the server allows… |
@@ -751,7 +757,7 @@ to be added to, and the places a bug can leave the row half-written.
 | `RoutineLog` | 2 | `server/services/production.ts`: 2 |
 | `Goal` | 6 | `server/services/goals.ts`: 3<br>`server/services/move-to-space.ts`: 1<br>`server/services/okr.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `DepartmentMember` | 3 | `server/services/departments.ts`: 2<br>`server/services/accounts.ts`: 1 |
-| `StoredFile` | 18 | `server/services/files.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>+6 more |
+| `StoredFile` | 19 | `server/services/files.ts`: 7<br>`server/chat/link-preview.ts`: 2<br>`server/services/knowledge-media.ts`: 2<br>`server/chat/attachments.ts`: 1<br>+7 more |
 | `FileText` | 1 | `server/services/image-ocr.ts`: 1 |
 | `Conversation` | 34 | `server/chat/topics.ts`: 6<br>`server/chat/dm.ts`: 4<br>`server/chat/messages.ts`: 4<br>`server/chat/door-message.ts`: 3<br>+14 more |
 | `TopicGroup` | 6 | `server/chat/groups.ts`: 4<br>`server/chat/group-picture.ts`: 2 |
@@ -768,7 +774,8 @@ to be added to, and the places a bug can leave the row half-written.
 | `UserChatOrder` | 7 | `server/chat/read-state.ts`: 4<br>`server/chat/order.ts`: 3 |
 | `MessageRevision` | 1 | `server/chat/messages.ts`: 1 |
 | `MessageNote` | 1 | `server/chat/messages.ts`: 1 |
-| `MessageAttachment` | 2 | `server/chat/attachments.ts`: 1<br>`server/chat/messages.ts`: 1 |
+| `MessageAttachment` | 3 | `server/chat/messages.ts`: 2<br>`server/chat/attachments.ts`: 1 |
+| `SavedGif` | 3 | `server/chat/gifs.ts`: 3 |
 | `RealtimeEvent` | 2 | `server/chat/moderation.ts`: 1<br>`server/realtime/emit.ts`: 1 |
 | `Whiteboard` | 2 | `server/chat/whiteboard.ts`: 2 |
 | `Call` | 15 | `server/calls/minutes.ts`: 6<br>`server/calls/calls.ts`: 4<br>`server/calls/transcripts.ts`: 4<br>`server/calls/assistant-agent.ts`: 1 |
@@ -948,7 +955,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatOneList` | 1 — `app/api/chat/list/route.ts` |
 | `omsEvents` | 3 — `components/control-panel/sections/integrations-section.tsx`, `server/integrations/oms-events.ts`, `server/jobs/oms-daily-card.ts` |
 | `doorMessages` | 2 — `server/door/messages.ts`, `server/services/botfather.ts` |
-| `chatLayoutV2` | 8 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/hidden-messages.ts`, `server/chat/link-preview.ts`, `server/chat/messages.ts`, `server/services/sounds.ts` |
+| `chatLayoutV2` | 12 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/gifs.ts`, `server/chat/hidden-messages.ts`, `server/chat/link-preview.ts`, `server/chat/location.ts`, `server/chat/messages.ts`, `server/chat/topics.ts`, `server/services/sounds.ts` |
 | `chatFormatting` | 2 — `server/chat/sync.ts`, `server/chat/topics.ts` |
 | `workInbox` | 8 — `app/api/instant/inbox/route.ts`, `app/api/instant/route.ts`, `app/api/instant/task/route.ts`, `app/api/projects/route.ts`, `app/api/work/tasks/route.ts`, `server/services/instant-work.ts`, `server/services/production.ts`, `server/services/work-app.ts` |
 | `chatAlbums` | 1 — `server/chat/topics.ts` |
@@ -989,6 +996,9 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatAutomation` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/settings/route.ts`, `server/chat/away.ts` |
 | `assignedTasksOnly` | 1 — `server/policy/assigned-only.ts` |
 | `tgPhone` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx`, `server/services/sounds.ts` |
+| `chatGifs` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/gifs.ts`, `server/chat/topics.ts` |
+| `chatTypeSounds` | 1 — `app/(app)/settings/me/[section]/page.tsx` |
+| `chatLocation` | 2 — `server/chat/location.ts`, `server/chat/topics.ts` |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
 | `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
 | `milestones` | 8 — `app/(app)/projects/[id]/page.tsx`, `app/(app)/projects/[id]/project-chrome.ts`, `app/api/milestones/[id]/route.ts`, `app/api/projects/[id]/milestones/route.ts`, `lib/feature-groups.ts`, `server/services/calendar-feed.ts`, `server/services/milestones.ts`, `server/services/task-sheet.ts` |
@@ -1029,7 +1039,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `callNoiseFilter` | 1 — `server/calls/calls.ts` |
 | `quickChat` | 0 —  |
 | `linkPreviews` | 1 — `server/chat/link-preview.ts` |
-| `chatLayoutV2` | 8 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/hidden-messages.ts`, `server/chat/link-preview.ts`, `server/chat/messages.ts`, `server/services/sounds.ts` |
+| `chatLayoutV2` | 12 — `app/(app)/chat/layout.tsx`, `app/(app)/chat/page.tsx`, `app/(app)/chat/s/[spaceId]/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `lib/chat/v2/pane/switch.ts`, `server/chat/gifs.ts`, `server/chat/hidden-messages.ts`, `server/chat/link-preview.ts`, `server/chat/location.ts`, `server/chat/messages.ts`, `server/chat/topics.ts`, `server/services/sounds.ts` |
 | `lastSeen` | 6 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/last-seen/route.ts`, `app/api/me/settings/route.ts`, `server/chat/topics.ts`, `server/realtime/presence.ts`, `server/services/last-seen.ts` |
 | `ownerHiddenOnline` | 5 — `app/api/presence/route.ts`, `server/chat/directory.ts`, `server/chat/topics.ts`, `server/realtime/hub.ts`, `server/services/last-seen.ts` |
 | `chatRowMenu` | 3 — `app/(app)/chat/layout.tsx`, `server/chat/home.ts`, `server/chat/purge.ts` |
@@ -1095,13 +1105,16 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/settings/route.ts`, `server/chat/away.ts` |
 | `tgPhone` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx`, `server/services/sounds.ts` |
+| `chatGifs` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/gifs.ts`, `server/chat/topics.ts` |
+| `chatTypeSounds` | 1 — `app/(app)/settings/me/[section]/page.tsx` |
+| `chatLocation` | 2 — `server/chat/location.ts`, `server/chat/topics.ts` |
 
 ## 9. What this map noticed
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 431 of 437 routes open with a function from §3; the other 6 are the doors listed in §5.
-- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 322 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
+- **Every guarded route asks a guard — none compares a role name.** 437 of 443 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 328 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **20 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 7 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`, `/mcp`); 6 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right; the 1 left (`/mcp`) are the ones Phase E looks at. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.
 

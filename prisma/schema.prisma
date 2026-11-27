@@ -99,6 +99,7 @@ model User {
   messageRevisions MessageRevision[]   @relation("RevisionEditor")
   messageNotes    MessageNote[]        @relation("NoteAuthor")
   uploadedFiles   StoredFile[]         @relation("FileUploader")
+  savedGifs       SavedGif[]
   deptMemberships DepartmentMember[]
   createdTickets  Ticket[]             @relation("TicketCreator")
   assignedTickets Ticket[]             @relation("TicketAssignee")
@@ -438,6 +439,8 @@ model StoredFile {
   text         FileText?
   // the picture of a link preview (C3b.2): a file only its own preview card points at
   previewOf    LinkPreview[]       @relation("LinkPreviewImage")
+  // «صور متحركة»: the people who keep this GIF in their own library (a pointer only: it gives nobody the right to read the file)
+  savedGifs    SavedGif[]
 
   @@index([orgId, familyId, isLatest])
   @@index([familyId])
@@ -902,6 +905,27 @@ model MessageAttachment {
   @@index([fileId])
 }
 
+// «صور متحركة» (src/server/chat/gifs.ts): one person's own library of GIFs, in one company. A row is a POINTER to a StoredFile, never a copy and never a right: whether the person may
+// see or send it is judged again each time (their own upload of purpose GIF, or a live message that carries the file in a conversation they can read now). Why a table of its own: no
+// existing table holds a person's pick of files (StoredFile is the file itself, MessageAttachment belongs to a message, `User.chatPrefs` cannot hold a reference the database keeps true).
+model SavedGif {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  fileId    String
+  createdAt DateTime @default(now())
+  // the last time it was added or sent: the library lists the newest first
+  usedAt    DateTime @default(now())
+
+  organization Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  file         StoredFile   @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId, fileId])
+  @@index([userId, orgId, usedAt])
+  @@index([fileId])
+}
+
 // The bus of the chat: every change writes one row (ids only, never content) inside the same transaction;
 // a trigger notifies the listener (channel zaki_rt, payload = the row id). Rows older than two days are purged.
 // ⚠️ `id` is a BigInt: convert it (String(id)) before JSON.stringify, which throws on a bigint.
@@ -1137,6 +1161,7 @@ model Organization {
   reviewNotes      ReviewNote[]
   apiTokens        ApiToken[]
   idempotencyRecords IdempotencyRecord[]
+  savedGifs        SavedGif[]
 
   @@index([slug])
 }

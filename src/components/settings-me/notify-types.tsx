@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 import { arabicPlural } from "@/lib/format";
 import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
 import { NOTIFY_TYPES, notifyRuleOf, type ChatPrefs, type NotifyRule, type NotifyType } from "@/lib/chat/prefs";
-import type { SoundEvent } from "@/lib/sound-library/choice";
+import { TYPE_SOUND_OF, type SoundEvent } from "@/lib/sound-library/choice";
 import { cleanSoundChoices } from "@/lib/sound-library/device";
 import { SOUNDS_HREF, notifySubHref, soundsSubHref } from "@/lib/sound-library/hrefs";
 
@@ -105,6 +105,7 @@ export function NotifyTypePage({
   onMasterSounds,
   exceptionList,
   moreOpen: initiallyOpen = false,
+  perType = false,
 }: {
   type: NotifyType;
   prefs: ChatPrefs;
@@ -117,6 +118,8 @@ export function NotifyTypePage({
   exceptionList?: React.ReactNode;
   /** a test opens «خيارات أكثر» without a browser */
   moreOpen?: boolean;
+  /** the company's switch `chatTypeSounds`: this kind keeps a sound of its own; off (and absent): the message kinds share one, as before */
+  perType?: boolean;
 }) {
   const { t } = useI18n();
   const [more, setMore] = useState(initiallyOpen);
@@ -126,21 +129,24 @@ export function NotifyTypePage({
   const on = rule.on !== false;
   const calls = type === "calls";
   const soundRow = (event: SoundEvent, title: string) => <SoundLink event={event} title={title} value={soundChoiceName(t, event, choices[event], mine)} />;
+  // the kind's own sound (calls have always had theirs: the incoming ring)
+  const own = perType ? TYPE_SOUND_OF[type] : null;
   return (
     <div data-notify-page={type}>
       <Group title={t("tgsheets.notify.about_title")} rows>
         <SwitchRow checked={on} disabled={!loaded} onChange={(next) => onRule(type, { ...rule, on: next })} title={t(`tgsheets.notify.about.${type}`)} hint={t(`settingsMe.n.type.${type}.hint`)} />
         {!on && WARNED_TYPES[type] ? <WarnFix warn={t(`settingsMe.n.warn.${type}`)} fix={t(`settingsMe.n.fix.${type}`)} className="m-3" /> : null}
       </Group>
-      <Group title={t("tgsheets.notify.settings")} hint={calls ? undefined : t("tgsheets.notify.sound_shared")} rows>
+      <Group title={t("tgsheets.notify.settings")} hint={calls ? undefined : t(own ? "typesounds.own_hint" : "tgsheets.notify.sound_shared")} rows>
         {calls ? null : <SwitchRow checked={rule.preview !== false} disabled={!loaded || !on} onChange={(next) => onRule(type, { ...rule, preview: next })} title={t("tgsheets.notify.preview")} hint={t("settingsMe.n.preview.hint")} />}
-        {soundRow(calls ? "ring" : "inChat", t("tgsheets.notify.sound"))}
+        {soundRow(calls ? "ring" : (own ?? "inChat"), t("tgsheets.notify.sound"))}
         <button type="button" data-notify-more="" aria-expanded={more} onClick={() => setMore((open) => !open)} className="flex min-h-12 w-full items-center gap-3 px-3.5 text-start text-[15px] text-accent hover:bg-surface-2">
           <span className="min-w-0 flex-1">{t("tgsheets.notify.more")}</span>
           <ChevronDown aria-hidden="true" className={cn("tg-chevron size-4 shrink-0", more && "rotate-180")} />
         </button>
         {more ? (
           <div data-notify-more-rows="" className="tg-rows-in [&>*+*]:border-t [&>*+*]:border-border" style={tgMotionVars(["moreRowsMs"])}>
+            {own ? soundRow("inChat", t("typesounds.general")) : null}
             {calls ? soundRow("ringback", t("tgsheets.sounds.event.ringback")) : soundRow("received", t("tgsheets.sounds.event.received"))}
             {calls ? null : soundRow("sent", t("tgsheets.sounds.event.sent"))}
             {calls ? null : <SwitchRow checked={masterSounds} onChange={onMasterSounds} title={t("settingsMe.n.sounds")} hint={t("settingsMe.n.sounds.hint")} />}

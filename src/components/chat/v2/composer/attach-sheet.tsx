@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { ChartColumn, FileText, Image as ImageIcon, ListChecks, Paperclip, Pencil, Plus, Send, Sparkles, type LucideIcon } from "lucide-react";
+import { ChartColumn, FileText, Image as ImageIcon, ListChecks, MapPin, Paperclip, Pencil, Plus, Send, Sparkles, type LucideIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { ChecklistFromMenu } from "@/components/chat/v2/composer/attach-menu";
+import { ChecklistFromMenu, LocationFromMenu } from "@/components/chat/v2/composer/attach-menu";
 import { PhotoEditor } from "@/components/chat/v2/composer/photo-editor";
 import { TgAttachSheet, type AttachCaptionProps, type AttachTileProps } from "@/components/chat/v2/composer/attach-sheet-tg";
 import { useTgPhone } from "@/components/shell/tg-phone";
@@ -13,8 +13,8 @@ import { dragHasFiles } from "@/lib/chat/v2/composer/clipboard-files";
 import { attachTabsOf, type AttachItemId } from "@/lib/chat/v2/composer/attach-items";
 import type { PendingFile } from "@/lib/chat/v2/composer/types";
 
-const ICONS: Record<AttachItemId, LucideIcon> = { media: ImageIcon, file: FileText, poll: ChartColumn, checklist: ListChecks };
-const LABELS: Record<AttachItemId, string> = { media: "chatui.attachsheet.gallery", file: "chat.f.attach_file", poll: "chatc.poll.menu", checklist: "chatcl.menu" };
+const ICONS: Record<AttachItemId, LucideIcon> = { media: ImageIcon, file: FileText, poll: ChartColumn, checklist: ListChecks, location: MapPin };
+const LABELS: Record<AttachItemId, string> = { media: "chatui.attachsheet.gallery", file: "chat.f.attach_file", poll: "chatc.poll.menu", checklist: "chatcl.menu", location: "chatloc.menu" };
 
 export interface AttachSheetPanelProps {
   items: AttachItemId[];
@@ -223,6 +223,7 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
     if (!busy && dropped.length) onDropFiles?.(dropped);
   };
   const [checklistOpen, setChecklistOpen] = React.useState(false);
+  const [locationOpen, setLocationOpen] = React.useState(false);
   const tg = useTgPhone();
   if (tg) {
     return (
@@ -234,7 +235,7 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
           open={open}
           onOpenChange={setOpen}
           parts={PARTS}
-          tabs={attachTabsOf({ canPoll: items.includes("poll"), canChecklist: items.includes("checklist") })}
+          tabs={attachTabsOf({ canPoll: items.includes("poll"), canChecklist: items.includes("checklist"), canLocation: items.includes("location") })}
           files={files}
           busy={busy}
           caption={caption}
@@ -254,9 +255,14 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
             setOpen(false);
             setChecklistOpen(true);
           }}
+          onLocation={() => {
+            setOpen(false);
+            setLocationOpen(true);
+          }}
           onDropFiles={onDropFiles}
         />
         {checklistOpen ? <ChecklistFromMenu onClose={() => setChecklistOpen(false)} /> : null}
+        {locationOpen ? <LocationFromMenu onClose={() => setLocationOpen(false)} /> : null}
       </>
     );
   }
@@ -297,6 +303,9 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
               if (id === "checklist") {
                 setOpen(false);
                 setChecklistOpen(true);
+              } else if (id === "location") {
+                setOpen(false);
+                setLocationOpen(true);
               } else if (id === "poll") {
                 setOpen(false);
                 onPick(id);
@@ -308,6 +317,7 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
         </SheetContent>
       </Sheet>
       {checklistOpen ? <ChecklistFromMenu onClose={() => setChecklistOpen(false)} /> : null}
+      {locationOpen ? <LocationFromMenu onClose={() => setLocationOpen(false)} /> : null}
     </>
   );
 }

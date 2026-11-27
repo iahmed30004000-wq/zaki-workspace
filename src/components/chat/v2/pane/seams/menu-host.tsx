@@ -18,7 +18,9 @@ import { TicketDetailModal } from "@/components/ticket-detail-modal";
 import type { MessageMenuSlotApi } from "@/components/chat/v2/message-bubble";
 import { usePaneActions, usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import type { BubbleFacts } from "@/lib/chat/v2/pane/bubble-facts";
-import { ASK_KIND_KEY, askKindOf, menuContextV2 } from "@/lib/chat/v2/menu/menu-context";
+import { ASK_KIND_KEY, askKindOf, gifsOf, menuContextV2 } from "@/lib/chat/v2/menu/menu-context";
+import { useQueryClient } from "@tanstack/react-query";
+import { GIFS_KEY, GifError, keepGif } from "@/lib/chat/gifs";
 import { copyText } from "@/lib/chat/v2/menu/clipboard";
 import { messageLinkOf } from "@/lib/chat/v2/menu/message-link";
 import { doubleTapReactionOf, quickReactionsOf } from "@/lib/chat/v2/menu/quick-reactions";
@@ -64,6 +66,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
 
   const askKind = askKindOf(header.me.problemKinds);
   const conversationId = header.id;
+  const queries = useQueryClient();
   const dialogs = React.useMemo<MenuDialogs>(
     () => ({
       askKind,
@@ -83,11 +86,20 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
         else if (id === "removePreview") void commands.removePreview(message);
         else if (id === "delete") void commands.remove(message);
         else if (id === "copy") commands.copy(message);
+        // «احفظ بالصور المتحركة»: every GIF of the message goes into my own library (the server judges that I may read each one)
+        else if (id === "saveGif")
+          void Promise.all(gifsOf(message).map((file) => keepGif(file.id))).then(
+            () => {
+              void queries.invalidateQueries({ queryKey: GIFS_KEY });
+              commands.say("gifs.saved_done", "success");
+            },
+            (e: unknown) => commands.say(e instanceof GifError ? e.key : "gifs.save_failed", "error"),
+          );
       },
       openTicket: setTicketOpen,
       problem: (message, opts = {}) => setProblemFor({ message, kindKey: opts.kindKey ?? null, customer: opts.customer ?? null }),
     }),
-    [commands, askKind, conversationId],
+    [commands, askKind, conversationId, queries],
   );
   // a double click on a bubble replies where the registry offers «رد», a double tap of a finger reacts (one object for the life of the pane: it holds the commands only)
   const gestures = React.useMemo<BubbleGestures>(
