@@ -3,7 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Bookmark, MoonStar, MoreVertical, Sun, Users, UsersRound } from "lucide-react";
+import { Bell, Bookmark, Menu, MoonStar, MoreVertical, Sun, Users, UsersRound } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { useThemeToggle } from "@/components/theme/use-theme-toggle";
 import { useTgPhoneOn } from "@/components/shell/tg-phone";
@@ -11,6 +11,9 @@ import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 import { ct } from "@/lib/chat/text";
 import { listMenuItemsOf } from "@/lib/chat/v2/list-menu";
 import { openSavedId } from "@/lib/chat/v2/menu/menu-context";
+
+/** What the phone's bar moves into the «⋮» when it draws neither «☰» nor a bell of its own (the owner's pictures show only the app's name and the «⋮»). */
+export const ListMenuExtrasContext = React.createContext<{ openDrawer: () => void; openNotifications: () => void } | null>(null);
 
 /**
  * The list's main «⋮» (Telegram's top-corner menu, under `tgLook`): «وضع النهار» / «وضع الليل» (the same switch as everywhere), «جهات الاتصال» (`/contacts`), «مجموعة جديدة» and
@@ -20,6 +23,7 @@ export function ListMenu({ guest, onNewGroup }: { guest: boolean; onNewGroup?: (
   const router = useRouter();
   const { dark, setDark } = useThemeToggle();
   const tg = useTgPhoneOn();
+  const extras = React.useContext(ListMenuExtrasContext);
   const trigger = React.useRef<HTMLButtonElement>(null);
   const turnTheme = () => {
     if (!tg) return setDark(!dark);
@@ -49,6 +53,18 @@ export function ListMenu({ guest, onNewGroup }: { guest: boolean; onNewGroup?: (
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="z-[60] min-w-56">
+          {extras ? (
+            <>
+              <DropdownMenuItem data-list-menu-item="drawer" className="gap-3" onSelect={extras.openDrawer}>
+                <Menu aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />
+                {ct("chatui.phone.menu")}
+              </DropdownMenuItem>
+              <DropdownMenuItem data-list-menu-item="notifications" className="gap-3" onSelect={extras.openNotifications}>
+                <Bell aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />
+                {ct("notif.title")}
+              </DropdownMenuItem>
+            </>
+          ) : null}
           {items.includes("theme") ? (
             <DropdownMenuItem data-list-menu-item="theme" className="gap-3" onSelect={turnTheme}>
               {dark ? <Sun aria-hidden="true" className="size-5 shrink-0 text-fg-muted" /> : <MoonStar aria-hidden="true" className="size-5 shrink-0 text-fg-muted" />}

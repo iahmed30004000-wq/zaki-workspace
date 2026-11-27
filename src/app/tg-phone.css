@@ -176,6 +176,16 @@
     border-radius: 0 9999px 9999px 0;
   }
 
+  /* under a private chat's name, only the person's state, as in his pictures (the chat's page of information still says who reads it) */
+  [data-tg-phone] header[data-pane-header] [data-privacy-dm],
+  [data-tg-phone] header[data-pane-header] [data-privacy-dm] + [data-privacy-dot] {
+    display: none;
+  }
+  /* the bell over the chat list waits out of sight while nothing is unread (it is an item of the «⋮») */
+  [data-tg-phone] [data-chat-phone-trailing][data-tg-quiet]:not(:has([data-unread-badge])) {
+    display: none;
+  }
+
   /* ───────── the time at the end of the words' last line, bottom left, as in his pictures ───────── */
   [data-tg-phone] [data-message-row] [data-bubble-footer] {
     direction: ltr;
