@@ -696,7 +696,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `search-semantic` | 191 | 1 | «بحث بالمعنى» — THE QUESTION. |
 | `server-health` | 90 | 1 | «حال السيرفر» — a read-only look at how hard the box is working, for the OWNER alone (the one who can switch «وضع التوفير»). |
 | `site-guide` | 140 | 1 | «المرشد» — ONE STEP of the guide. |
-| `space-delete` | 94 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
+| `space-delete` | 114 | 1 | DELETING A SPACE WITH ALL ITS WORK (the owner's decision, 2026-10-26: «كلها مع شغلها»). |
 | `task-privacy-bulk` | 38 | 1 | «خلّي المهام المسندة المفتوحة خاصة»: one click for the whole space (P0.2). |
 | `task-rules-hook` | 43 | 1 | THE DOOR BETWEEN A TASK EVENT AND THE PROJECT'S RULES («القواعد التلقائية»). |
 | `task-rules-run` | 301 | 1 | THE ENGINE OF «القواعد التلقائية»: what happens when a task event meets a rule. |
@@ -718,7 +718,7 @@ to be added to, and the places a bug can leave the row half-written.
 |---|---|---|
 | `User` | 24 | `server/services/bots.ts`: 5<br>`server/services/accounts.ts`: 3<br>`server/services/avatars.ts`: 2<br>`server/services/nav-order.ts`: 2<br>+11 more |
 | `UserSession` | 7 | `server/services/sessions.ts`: 6<br>`app/api/me/logout-everywhere/route.ts`: 1 |
-| `Department` | 4 | `server/services/departments.ts`: 3<br>`server/services/accounts.ts`: 1 |
+| `Department` | 5 | `server/services/departments.ts`: 3<br>`server/services/accounts.ts`: 1<br>`server/services/space-delete.ts`: 1 |
 | `Ticket` | 7 | `server/services/tickets.ts`: 4<br>`server/chat/make-work.ts`: 1<br>`server/services/accounts.ts`: 1<br>`server/services/problem-tickets.ts`: 1 |
 | `TicketComment` | 3 | `server/services/tickets.ts`: 3 |
 | `TicketActivity` | 10 | `server/services/tickets.ts`: 6<br>`server/services/ticket-escalation.ts`: 2<br>`server/services/accounts.ts`: 1<br>`server/services/ticket-chat.ts`: 1 |

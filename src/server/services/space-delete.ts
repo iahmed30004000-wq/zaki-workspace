@@ -11,7 +11,11 @@ import { SpaceConflictError } from "@/server/services/workspaces";
  * boards and calls), its ideas, goals, routines, customers and opportunities, its notifications; its library files
  * are deleted the way the library deletes them (`deletedAt`). Its members and «مقاطع» go with the space.
  *
- * Never «الشركة» (HQ: the company's own talk), and never a department's space (it goes with its department).
+ * Never «الشركة» (HQ: the company's own talk; the app makes it again by itself).
+ *
+ * A DEPARTMENT's space (2026-11-27, the owner's list of old spaces to remove holds some): while its department exists the two go TOGETHER, because a
+ * space left behind is made again the next time the department is touched. The department takes its tickets, its campaigns and its list of people with it,
+ * so the confirmation counts them too. A space whose department is already gone (deleting a department only unlinks its space) is deleted like any other.
  * A space without work is still deleted by its ADMINs through `DELETE /api/workspaces/[id]` (`deleteEmptyWorkspace`).
  */
 
@@ -28,17 +32,20 @@ export interface SpaceContents {
   goals: number;
   routines: number;
   customers: number;
+  /** the people with a seat in the space */
+  members: number;
+  /** only while the space's department still exists: it goes too, with these */
+  department: { tickets: number; campaigns: number; people: number } | null;
 }
 
 async function spaceOf(actor: Actor, spaceId: string) {
   if (actor.role !== "OWNER") throw new ForbiddenError("spaces.delete_owner_only");
   const space = await db.workspace.findFirst({
     where: { id: spaceId, organizationId: actor.orgId },
-    select: { id: true, name: true, kind: true },
+    select: { id: true, name: true, kind: true, departmentId: true },
   });
   if (!space) throw new NotFoundError("workspace.not_found");
   if (space.kind === "HQ") throw new SpaceConflictError("spaces.delete_hq");
-  if (space.kind === "DEPARTMENT") throw new SpaceConflictError("spaces.delete_department");
   return space;
 }
 
@@ -46,7 +53,7 @@ async function spaceOf(actor: Actor, spaceId: string) {
 export async function spaceContents(actor: Actor, spaceId: string): Promise<SpaceContents> {
   const space = await spaceOf(actor, spaceId);
   const here = { workspaceId: space.id };
-  const [projects, tasks, conversations, messages, files, ideas, goals, routines, customers] = await Promise.all([
+  const [projects, tasks, conversations, messages, files, ideas, goals, routines, daily, customers, members] = await Promise.all([
     db.project.count({ where: here }),
     // task-visibility: a number for a manager's own decision (delete / confirm); no task is shown
     db.task.count({ where: here }),
@@ -56,9 +63,20 @@ export async function spaceContents(actor: Actor, spaceId: string): Promise<Spac
     db.idea.count({ where: here }),
     db.goal.count({ where: here }),
     db.routine.count({ where: here }),
+    db.dailyRoutine.count({ where: here }),
     db.customer.count({ where: here }),
+    // all-statuses: every seat goes with the space, whatever its holder's standing
+    db.workspaceMember.count({ where: here }),
   ]);
-  return { name: space.name, projects, tasks, conversations, messages, files, ideas, goals, routines, customers };
+  return { name: space.name, projects, tasks, conversations, messages, files, ideas, goals, routines: routines + daily, customers, members, department: await departmentContents(space.departmentId) };
+}
+
+/** What the space's department would take with it, or null when there is no department any more. */
+async function departmentContents(departmentId: string | null): Promise<SpaceContents["department"]> {
+  if (!departmentId) return null;
+  const here = { departmentId };
+  const [tickets, campaigns, people] = await Promise.all([db.ticket.count({ where: here }), db.campaign.count({ where: here }), db.departmentMember.count({ where: here })]);
+  return { tickets, campaigns, people };
 }
 
 /** Deletes the space and everything in it; the typed name must be the space's own. */
@@ -87,6 +105,8 @@ export async function deleteSpaceWithWork(actor: Actor, spaceId: string, confirm
       await tx.storedFile.updateMany({ where: { ...here, deletedAt: null }, data: { deletedAt: new Date() } });
       // the space itself: its members, «مقاطع» and calls go with it
       await tx.workspace.delete({ where: { id: space.id } });
+      // a department's space goes WITH its department (its tickets, campaigns and people cascade): left behind, it would make the space again
+      if (space.departmentId) await tx.department.deleteMany({ where: { id: space.departmentId, orgId: actor.orgId } });
     },
     { timeout: 60_000 },
   );
