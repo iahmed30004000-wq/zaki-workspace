@@ -80,6 +80,11 @@ object Sentences {
     const val SLOW = "الخادم تأخر بالرد. جرّب كمان مرة."
     const val NO_SERVER = "ما في اتصال بالخادم."
     const val UNREADABLE = "رد الخادم مش مفهوم. حدّث التطبيق."
+    /** the second line of a lost connection on a screen with nothing kept: why it is empty and what brings it back */
+    const val NOTHING_KEPT = "ما في نسخة محفوظة من هالصفحة على هالجهاز. لما يرجع الاتصال اضغط «جرّب كمان مرة»."
+
+    /** A lost connection (not a refusal): drawn calm, not as an error. Pure (CoreTest). */
+    fun isConnection(message: String): Boolean = message == OFFLINE || message == SLOW || message == NO_SERVER
 
     val byKey: Map<String, String> = mapOf(
         "invalid_credentials" to "اسم المستخدم أو كلمة المرور غير صحيحة.",

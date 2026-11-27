@@ -123,7 +123,7 @@ fun dayLabel(iso: String, today: LocalDate = LocalDate.now()): String {
     return when (d) {
         today -> C.today
         today.minusDays(1) -> C.yesterday
-        else -> d.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("ar")).withDecimalStyle(java.time.format.DecimalStyle.STANDARD))
+        else -> io.zakiai.workspace.ui.components.ArDate.dmy(d)
     }
 }
 

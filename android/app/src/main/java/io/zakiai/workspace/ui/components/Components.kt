@@ -88,8 +88,12 @@ fun Empty(text: String, modifier: Modifier = Modifier.fillMaxSize()) {
 /** A failure with what to do about it: the sentence, and «جرّب كمان مرة» when there is something to retry. */
 @Composable
 fun Failure(message: String, onRetry: (() -> Unit)?, modifier: Modifier = Modifier.fillMaxSize()) {
+    // a lost connection is not an error of the person's: a calm line, why the page is empty, and that it fills by itself once the line is back
+    val connection = io.zakiai.workspace.core.net.Sentences.isConnection(message)
     Column(modifier.padding(32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-        Text(message, color = Zk.colors.danger, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+        if (connection) Text("📡", style = MaterialTheme.typography.headlineMedium, modifier = Modifier.padding(bottom = 8.dp))
+        Text(message, color = if (connection) Zk.colors.fg else Zk.colors.danger, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+        if (connection) Text(io.zakiai.workspace.core.net.Sentences.NOTHING_KEPT, color = Zk.colors.fgMuted, style = MaterialTheme.typography.bodySmall, textAlign = TextAlign.Center, modifier = Modifier.padding(top = 6.dp))
         if (onRetry != null) {
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = onRetry) { Text(T.retry, color = Zk.colors.accent) }

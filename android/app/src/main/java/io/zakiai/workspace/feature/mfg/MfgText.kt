@@ -56,7 +56,7 @@ object Q8 {
         return scaled(v)
     }
 
-    private val MONTHS = listOf("كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول")
+    private val MONTHS = io.zakiai.workspace.ui.components.ArDate.MONTHS
 
     /** `fmtDMY`: «5 كانون الثاني 2026» from «YYYY-MM-DD» or an ISO instant */
     fun dmy(day: String?): String = runCatching { java.time.LocalDate.parse(day!!.take(10)) }.getOrNull()?.let { "${it.dayOfMonth} ${MONTHS[it.monthValue - 1]} ${it.year}" }.orEmpty()

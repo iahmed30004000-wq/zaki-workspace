@@ -44,6 +44,7 @@ object R {
         "tickets" -> if (mine) "تذاكر رفعتها" else "تذاكر أقسامي"
         "cards" -> if (mine) "بطاقات أرسلتها للمراجعة" else "بطاقات بانتظار المراجعة"
         "sheets" -> "صفحات منتجات بانتظار الاعتماد"
-        else -> key
+        // a section a newer site added: a plain word, never its key on screen
+        else -> if (mine) "طلباتي" else "طلبات"
     }
 }

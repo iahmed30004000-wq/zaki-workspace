@@ -138,7 +138,7 @@ object Q {
     const val routineDeleted = "حُذفت المهمة المتكررة"
     val WD_SHORT = listOf("أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت")
     private val WD_LONG = listOf("الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت")
-    private val MONTHS = listOf("كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول")
+    private val MONTHS = io.zakiai.workspace.ui.components.ArDate.MONTHS
 
     /** «YYYY-MM-DD» as the site's `fmtShort`: «26 تشرين الثاني» ("" when unreadable). */
     fun shortDay(day: String): String = runCatching { LocalDate.parse(day.take(10)) }.getOrNull()?.let { "${it.dayOfMonth} ${MONTHS[it.monthValue - 1]}" }.orEmpty()

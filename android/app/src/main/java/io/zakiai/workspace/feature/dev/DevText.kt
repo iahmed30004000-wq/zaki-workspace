@@ -34,7 +34,7 @@ object D {
     fun band(b: String?): String = b?.let { DevWords.all["teamdev.band.$it"] ?: it } ?: "—"
     fun level(n: Int?): String = n?.let { "${n(it)} — " + (DevWords.all["teamdev.level.$it"] ?: "") } ?: w("teamdev.skill.none")
 
-    private val MONTHS = listOf("كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول")
+    private val MONTHS = io.zakiai.workspace.ui.components.ArDate.MONTHS
 
     /** «5 كانون الثاني 2026» from «YYYY-MM-DD» or an ISO instant */
     fun day(iso: String?): String = runCatching { java.time.LocalDate.parse(iso!!.take(10)) }.getOrNull()?.let { "${it.dayOfMonth} ${MONTHS[it.monthValue - 1]} ${it.year}" }.orEmpty()

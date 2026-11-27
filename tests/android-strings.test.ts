@@ -4,6 +4,12 @@ import { describe, expect, it } from "vitest";
 import { ANDROID_STRINGS, collectWords, kotlinLiteral, renderAndroidStrings } from "@/lib/android-strings";
 import { CAPABILITIES, SECTIONS } from "@/server/policy/capabilities";
 import { isOffered, PERMISSION_AREAS, SECTION_ACTIONS } from "@/lib/members-ui";
+import { ReviewLight, ReviewStatus } from "@prisma/client";
+import { ORDER_STATUSES } from "@/lib/manufacturing/production-view";
+import { COUNT_STATUSES, CURRENCIES, MOVEMENT_KINDS } from "@/lib/manufacturing/shared";
+import { UNPLACED_KINDS } from "@/server/services/move-to-space";
+import { SPACE_LAYOUTS } from "@/lib/cards/shared";
+import { WORK_STAGES } from "@/lib/work/stage";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -43,6 +49,29 @@ describe("the Android app's generated words", () => {
       ...PERMISSION_AREAS.map((a) => `perm.area.${a.id}`),
       ...SECTION_ACTIONS.map((a) => `members.action.${a}`),
     ].filter((k) => !(k in words));
+    expect(missing).toEqual([]);
+  });
+
+  it("every value the app turns into a word through a built key has its word in the app's copy (a missing one would show the raw value)", () => {
+    const wordsOf = (name: string) => {
+      const file = ANDROID_STRINGS.find((f) => f.name === name)!;
+      return collectWords(file, (source) => JSON.parse(readFileSync(path.join(ROOT, "src/lib/i18n", source), "utf8")) as Record<string, string>);
+    };
+    const families: [string, string, readonly string[]][] = [
+      ["DevWords", "teamdev.review.status.", Object.values(ReviewStatus)],
+      ["DevWords", "teamdev.light.", Object.values(ReviewLight)],
+      ["MfgWords", "mfg.order_status.", ORDER_STATUSES],
+      ["MfgWords", "mfg.count_status.", COUNT_STATUSES],
+      ["MfgWords", "mfg.kind.", MOVEMENT_KINDS],
+      ["MfgWords", "mfg.cur.", Object.keys(CURRENCIES)],
+      ["SpaceWords", "spaces.unplaced.kind.", UNPLACED_KINDS],
+      ["SpaceWords", "cards.space_type.", SPACE_LAYOUTS],
+      ["SpaceWords", "enum.WorkStage.", WORK_STAGES],
+    ];
+    const missing = families.flatMap(([name, prefix, values]) => {
+      const words = wordsOf(name);
+      return values.map((v) => prefix + v).filter((k) => !(k in words)).map((k) => `${k} (${name})`);
+    });
     expect(missing).toEqual([]);
   });
 

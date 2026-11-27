@@ -25,7 +25,7 @@ object O {
 
     /** The site's short week-day names (src/lib/format.ts WEEKDAYS_SHORT), Sunday first as the grid draws them. */
     val WEEKDAYS_SHORT = listOf("أحد", "اثنين", "ثلاثاء", "أربعاء", "خميس", "جمعة", "سبت")
-    private val MONTHS = listOf("كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول")
+    private val MONTHS = io.zakiai.workspace.ui.components.ArDate.MONTHS
 
     /** «تشرين الثاني 2026» for "2026-11" (the page's monthTitle). */
     fun monthTitle(ym: String): String {
