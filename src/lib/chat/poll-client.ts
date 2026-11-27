@@ -1,4 +1,5 @@
 import type { PollDto } from "@/server/chat/dto";
+import { arabicPlural } from "@/lib/format";
 
 /**
  * «استطلاع»: the small pure parts of the poll screens, so they can be tested without a browser.
@@ -40,6 +41,27 @@ export function buildPollPayload(draft: PollDraft, clientId: string) {
     },
   };
 }
+
+/** The options with the one at `from` moved to `to` (the drag handle, or the arrow keys on it); a place outside the list is its nearest end. */
+export function moveOption(options: readonly string[], from: number, to: number): string[] {
+  const next = [...options];
+  const target = Math.min(next.length - 1, Math.max(0, to));
+  if (from < 0 || from >= next.length || from === target) return next;
+  const [moved] = next.splice(from, 1);
+  next.splice(target, 0, moved!);
+  return next;
+}
+
+/** Where the row at `from` stands after the finger moved `dy` pixels over rows `rowPx` tall. */
+export function dragTargetIndex(from: number, dy: number, rowPx: number, count: number): number {
+  if (rowPx <= 0) return from;
+  return Math.min(count - 1, Math.max(0, from + Math.round(dy / rowPx)));
+}
+
+/** How many more option rows fit. */
+export const pollRoomLeft = (draft: Pick<PollDraft, "options">): number => Math.max(0, POLL_MAX_OPTIONS - draft.options.length);
+/** «يمكنك إضافة N خيارًا إضافيًا»: the key of the sentence in the Arabic form of the number. */
+export const pollRoomKey = (left: number): string => `tgsheets.poll.room.${left === 0 ? "zero" : arabicPlural(left)}`;
 
 /** The set of options I would hold after tapping `optionId`: a single-choice tap replaces (tapping mine withdraws), a multiple one toggles. */
 export function choiceAfterTap(poll: Pick<PollDto, "multiple" | "options">, optionId: string): string[] {

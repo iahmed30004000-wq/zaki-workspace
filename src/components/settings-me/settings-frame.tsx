@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { AudioLines, Bell, Building2, ChevronLeft, Database, Folder, Keyboard, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, ListOrdered, Lock, MessageCircle, Plug, Smartphone, Sparkles, ToggleRight, UserRound, type LucideIcon } from "lucide-react";
+import { AudioLines, Bell, Building2, ChevronLeft, Database, Folder, Keyboard, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, ListOrdered, Lock, MessageCircle, Music, Plug, Smartphone, Sparkles, ToggleRight, UserRound, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useI18n } from "@/lib/i18n";
 import { useTgPhoneOn } from "@/components/shell/tg-phone";
@@ -35,6 +35,7 @@ import { useSettingsOneDoor } from "@/components/shell/nav-options";
 const ICONS: Record<SectionKey, LucideIcon> = {
   account: UserRound,
   notifications: Bell,
+  sounds: Music,
   privacy: Lock,
   chat: MessageCircle,
   effects: Sparkles,

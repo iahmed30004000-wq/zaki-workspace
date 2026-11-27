@@ -29,6 +29,9 @@ import { isCompanySectionKey, isSectionKey, PANEL_SECTION_OF, type CompanySectio
 import { ShortcutsSection } from "@/components/settings-me/shortcuts-section";
 import { SpeechSection } from "@/components/settings-me/speech-section";
 import { transcriptAvailable } from "@/server/services/voice-transcript";
+import { SoundsSection } from "@/components/settings-me/sounds-section";
+import { soundLibraryOn } from "@/server/services/sounds";
+import { NOTIFICATIONS_HREF, SOUNDS_HREF, notifyKindOf, soundKindOf } from "@/lib/sound-library/hrefs";
 
 /**
  * C4.1 — one section of «إعداداتي» (`/settings/me/<section>`). Everything here is the person's OWN: the company's switches are not (they are A2's, in `/settings`).
@@ -43,6 +46,8 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
   if (!isSectionKey(section)) notFound();
 
   let body: React.ReactNode;
+  // a sub-page of «الإشعارات» (one kind) or of «الأصوات» (one event): on a phone its own head leads back to the section
+  let sub: { titleKey: string; back: string } | undefined;
   switch (section) {
     case "account": {
       const me = await db.user.findUnique({ where: { id: user.id }, select: { id: true, email: true, name: true, jobTitle: true, bio: true, locale: true, avatarUrl: true } });
@@ -64,9 +69,19 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
       );
       break;
     }
-    case "notifications":
-      body = <NotificationsSection />;
+    case "notifications": {
+      const type = notifyKindOf(searchParams?.["type"]);
+      if (type) sub = { titleKey: `settingsMe.n.type.${type}`, back: NOTIFICATIONS_HREF };
+      body = <NotificationsSection sub={type} />;
       break;
+    }
+    case "sounds": {
+      if (!(await soundLibraryOn(actor))) notFound();
+      const event = soundKindOf(searchParams?.["kind"]);
+      if (event) sub = { titleKey: `tgsheets.sounds.event.${event}`, back: SOUNDS_HREF };
+      body = <SoundsSection event={event} canUpload={!actor.isExternal} />;
+      break;
+    }
     case "privacy": {
       // «إخفاء آخر ظهوري»: offered while the company's switch is on, never to an external partner (the same rule as the old profile page)
       const lastSeen = !actor.isExternal && (await actorFeatureOn(actor, "lastSeen")) ? { hide: await myHideLastSeen(actor.orgId, actor.userId) } : null;
@@ -116,7 +131,7 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
 
   return (
     <div data-settings-section={section} className="pb-8">
-      <SectionHead section={section} />
+      <SectionHead section={section} sub={sub} />
       {body}
     </div>
   );

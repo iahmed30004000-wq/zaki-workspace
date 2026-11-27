@@ -5,7 +5,7 @@ import type { PanelSectionKey } from "@/lib/control-panel";
  * A section that does not apply is not listed and its address is «not found»: «المجلدات» needs the company's switch `chatFolders`, «تحويل الكلام لنص» the
  * switch `tgPhone` (it is the phone's: its row is not drawn on a computer, `PHONE_ONLY_SECTIONS`).
  */
-export const SECTION_KEYS = ["account", "notifications", "privacy", "chat", "effects", "speech", "folders", "data", "devices", "language", "menu", "shortcuts", "help"] as const;
+export const SECTION_KEYS = ["account", "notifications", "sounds", "privacy", "chat", "effects", "speech", "folders", "data", "devices", "language", "menu", "shortcuts", "help"] as const;
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
 export function isSectionKey(value: unknown): value is SectionKey {
@@ -18,10 +18,12 @@ export interface SectionFacts {
   foldersOn: boolean;
   /** the company's switch `tgPhone` (absent: off): «تحويل الكلام لنص» */
   speechOn?: boolean;
+  /** «الأصوات», the sounds library: a part of «تيليجرام على التلفون» (`chatLayoutV2` and `tgPhone`); absent: listed */
+  soundsOn?: boolean;
 }
 
 export function visibleSections(facts: SectionFacts): SectionKey[] {
-  return SECTION_KEYS.filter((key) => (key !== "folders" || facts.foldersOn) && (key !== "speech" || facts.speechOn === true));
+  return SECTION_KEYS.filter((key) => (key !== "folders" || facts.foldersOn) && (key !== "speech" || facts.speechOn === true) && (key !== "sounds" || facts.soundsOn !== false));
 }
 
 /** Rows of the list that belong to the phone: a computer's list is as it was. */

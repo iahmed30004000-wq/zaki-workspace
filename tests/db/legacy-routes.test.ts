@@ -744,7 +744,8 @@ describe("C4.1: /profile is still an address: it redirects to «حسابي», th
     for (const person of [w.owner, w.admin, w.lead, w.member, w.guest]) {
       await loginAs(person.id);
       for (const section of SETTINGS_ME_SECTIONS) {
-        if (section === "folders") continue;
+        // «الأصوات» is «تيليجرام على التلفون»'s: with the new chat screen off (this company's default) its address is «not found»
+        if (section === "folders" || section === "sounds") continue;
         expect((await land(`/settings/me/${section}`)).end.kind, `${person.name} ${section}`).toBe("rendered");
       }
       expect((await land(`/settings/me/${GONE}`)).end.kind, person.name).toBe("not-found");

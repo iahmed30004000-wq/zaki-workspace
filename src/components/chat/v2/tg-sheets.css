@@ -1,0 +1,88 @@
+/*
+ * «تيليجرام على التلفون»: the movement of the attach sheet, the info page's tabs and the forum's «موضوع جديد». No colour is written here (the theme's tokens
+ * only). Every movement is off when its effect is off or the device asks for less motion. The timings every other sheet uses (`ui/overlay-motion.css`) are
+ * not touched: this overrides them for the phone's attach sheet alone, by its own class.
+ */
+
+/* a row of pills that scrolls sideways shows no bar of its own */
+.tg-no-scrollbar {
+  scrollbar-width: none;
+}
+.tg-no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* a sheet dragged upward leaves no gap under it: its own surface goes on below */
+.zk-sheet.tg-attach-sheet {
+  box-shadow: 0 100vh 0 0 rgb(var(--surface-2));
+}
+
+@media (prefers-reduced-motion: no-preference) and (max-width: 767px) {
+  .zk-sheet.tg-attach-sheet[data-state="open"],
+  .zk-sheet.tg-attach-sheet[data-state="closed"],
+  .zk-fade.tg-attach-dim[data-state="open"],
+  .zk-fade.tg-attach-dim[data-state="closed"] {
+    animation-duration: var(--tg-sheet-ms, 180ms);
+  }
+  /* «الانتقالات السلسة» switched off: the sheet is there at once, and gone at once */
+  html[data-fx-off~="transitions"] .zk-sheet.tg-attach-sheet[data-state],
+  html[data-fx-off~="transitions"] .zk-fade.tg-attach-dim[data-state] {
+    animation: none;
+  }
+}
+
+/* the info page: a tab's content slides in from the side its pill lies on (right-to-left: the next tab is on the left) */
+@keyframes tg-tab-in-next {
+  from {
+    opacity: 0;
+    transform: translateX(-24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes tg-tab-in-prev {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-fx-off~="transitions"]) .tg-tab-in[data-from="next"] {
+    animation: tg-tab-in-next var(--tg-tab-switch-ms, 120ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-tab-in[data-from="prev"] {
+    animation: tg-tab-in-prev var(--tg-tab-switch-ms, 120ms) ease-out both;
+  }
+}
+
+/* the forum: «موضوع جديد» steps aside while the list scrolls down */
+.tg-forum-fab[data-hidden] {
+  opacity: 0;
+  transform: translateY(96px);
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-fx-off~="transitions"]) .tg-forum-fab {
+    transition:
+      transform var(--tg-bar-slide-ms, 150ms) ease-out,
+      opacity var(--tg-bar-slide-ms, 150ms) ease-out;
+  }
+}
+
+/* the forum's second line on a phone: the sender's name in the accent (a draft keeps its own red word) */
+@media (max-width: 767px) {
+  [data-tg-forum] [data-row-preview] > span:not(.text-danger) {
+    color: rgb(var(--accent));
+  }
+}
+
+/* the option being dragged by its handle stands out */
+.tg-poll-row[data-dragging] {
+  background-color: rgb(var(--surface-2));
+}

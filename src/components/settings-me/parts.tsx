@@ -1,18 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronRight } from "lucide-react";
+import { ArrowRight, ChevronRight } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
 import { sectionHintKey, sectionLabelKey, SETTINGS_ME_HREF, type SectionKey } from "@/components/settings-me/sections";
 import { useSettingsOneDoor } from "@/components/shell/nav-options";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
+
+/**
+ * The head of a section on a phone with Telegram's look: a bar that stays on top (translucent and blurred while the «التغبيش» effect is on), a round back
+ * button at the start and the page's name in the middle. `back`: the list of sections, or the section a sub-page belongs to.
+ */
+export function PhoneSettingsHead({ title, back }: { title: string; back: string }) {
+  const { t } = useI18n();
+  return (
+    <header data-settings-phone-head="" className="tg-set-head sticky top-0 z-20 flex min-h-14 items-center gap-2 px-2 py-1.5 md:hidden">
+      <Link href={back} aria-label={t("tgsheets.settings.back")} className="grid size-11 shrink-0 place-items-center rounded-full bg-surface-1 text-fg shadow-card">
+        <ArrowRight aria-hidden="true" className="size-5" />
+      </Link>
+      <h1 className="min-w-0 flex-1 truncate text-center text-[17px] font-semibold text-fg">{title}</h1>
+      {/* the same width as the button, so the name sits in the middle */}
+      <span aria-hidden="true" className="size-11 shrink-0" />
+    </header>
+  );
+}
 
 /** The head of a section: «رجوع» on the phone (the section is a pushed screen there), then its name and its one line. */
-export function SectionHead({ section }: { section: SectionKey }) {
+export function SectionHead({ section, sub }: { section: SectionKey; /** a sub-page of the section (a phone with Telegram's look): its own name, and back to the section */ sub?: { titleKey: string; back: string } }) {
   const { t } = useI18n();
   const oneDoor = useSettingsOneDoor();
+  const tg = useTgPhoneOn();
   return (
-    <header className="px-3 pb-3 pt-3 md:px-0 md:pt-0">
+    <>
+    {tg ? <PhoneSettingsHead title={t(sub?.titleKey ?? sectionLabelKey(section, oneDoor))} back={sub?.back ?? SETTINGS_ME_HREF} /> : null}
+    <header className={cn("px-3 pb-3 pt-3 md:px-0 md:pt-0", tg && "max-md:hidden")}>
       <Link href={SETTINGS_ME_HREF} className="mb-2 inline-flex min-h-11 items-center gap-1 text-sm text-accent md:hidden">
         <ChevronRight aria-hidden="true" className="size-4" />
         {t("settingsMe.back")}
@@ -20,6 +42,7 @@ export function SectionHead({ section }: { section: SectionKey }) {
       <h1 className="text-xl font-semibold text-fg">{t(sectionLabelKey(section, oneDoor))}</h1>
       <p className="mt-0.5 text-[13px] text-fg-muted">{t(sectionHintKey(section, oneDoor))}</p>
     </header>
+    </>
   );
 }
 

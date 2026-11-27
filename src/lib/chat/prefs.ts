@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { SPEECH_CHOICES } from "@/lib/chat/speech-langs";
+import { SOUND_CHOICE, SOUND_EVENTS, type SoundChoices } from "@/lib/sound-library/choice";
 
 /**
  * C3a.2 — the person's chat preferences: `User.chatPrefs`, ONE nullable JSON column and ONE zod schema (this file). Pure: no React, no server import,
@@ -7,7 +8,7 @@ import { SPEECH_CHOICES } from "@/lib/chat/speech-langs";
  *
  *  - An empty object is a valid «all defaults»: every field is optional and its default lives in code (`resolveChatPrefs`).
  *  - The folders (C3a.2) are keyed by company id, at most 10 per company. The sections `notifications` and `chat` are room for C4.1 (a plain bounded map
- *    until C4.1 gives them their fields), `voiceSpeed` is C3b.4's, `tabs` holds the built-in tabs the person hid (C4.1 may add the order of the tabs beside it).
+ *    until C4.1 gives them their fields), `voiceSpeed` is C3b.4's, `sounds` is the sounds library's, `tabs` holds the built-in tabs the person hid (C4.1 may add the order of the tabs beside it).
  *    What stays on the device (auto-download, cache size) is NOT here: it lives in `localStorage` `zk-device-prefs`.
  *  - Writing is strict (`chatPrefsSchema` / `chatPrefsPatchSchema`: known keys only, bounded sizes), reading is forgiving (`readChatPrefs`: whatever is
  *    wrong is dropped, the rest is kept), and a save is a PATCH (`mergeChatPrefs`): a section not named stays, `null` puts one back to its default.
@@ -185,6 +186,11 @@ const chatShape = {
   fontPx: z.number().int().min(TG_FONT_PX.min).max(TG_FONT_PX.max).optional(),
   bubbleRadius: z.number().int().min(TG_BUBBLE_RADIUS.min).max(TG_BUBBLE_RADIUS.max).optional(),
 };
+/** «مكتبة الأصوات»: the person's own sound for each of the five events (absent: «افتراضي»). What a value may be: `src/lib/sound-library/choice.ts`. */
+const soundChoice = z.string().regex(SOUND_CHOICE, "chatprefs.bad_sound").optional();
+const soundsShape = Object.fromEntries(SOUND_EVENTS.map((event) => [event, soundChoice])) as Record<(typeof SOUND_EVENTS)[number], typeof soundChoice>;
+const soundsSchema = z.object(soundsShape).catchall(z.unknown()).superRefine(sectionRules);
+
 const notificationsSchema = z.object(notificationsShape).catchall(z.unknown()).superRefine(sectionRules);
 const chatSectionSchema = z.object(chatShape).catchall(z.unknown()).superRefine(sectionRules);
 
@@ -227,6 +233,7 @@ export const chatPrefsSchema = z
     chat: chatSectionSchema.optional(),
     voiceSpeed: voiceSpeedSchema.optional(),
     speech: speechSchema.optional(),
+    sounds: soundsSchema.optional(),
   })
   .strict();
 
@@ -248,6 +255,7 @@ export const chatPrefsPatchSchema = z
     chat: chatSectionSchema.nullable().optional(),
     voiceSpeed: voiceSpeedSchema.nullable().optional(),
     speech: speechSchema.nullable().optional(),
+    sounds: soundsSchema.nullable().optional(),
   })
   .strict();
 
@@ -293,6 +301,8 @@ export function readChatPrefs(raw: unknown): ChatPrefs {
   if (speed.success) out.voiceSpeed = speed.data;
   const speech = readSection(raw["speech"], speechShape);
   if (speech) out.speech = speech as NonNullable<ChatPrefs["speech"]>;
+  const sounds = readSection(raw["sounds"], soundsShape);
+  if (sounds) out.sounds = sounds as NonNullable<ChatPrefs["sounds"]>;
   return out;
 }
 
@@ -312,7 +322,7 @@ export function mergeChatPrefs(current: ChatPrefs, patch: ChatPrefsPatch): ChatP
     else delete next.folders;
   }
 
-  for (const key of ["tabs", "notifications", "chat", "voiceSpeed", "speech"] as const) {
+  for (const key of ["tabs", "notifications", "chat", "voiceSpeed", "speech", "sounds"] as const) {
     const value = patch[key];
     if (value === null) delete next[key];
     else if (value !== undefined) (next as Record<string, unknown>)[key] = value;
@@ -332,6 +342,7 @@ export interface ResolvedChatPrefs {
   chat: NonNullable<ChatPrefs["chat"]>;
   voiceSpeed: VoiceSpeed;
   speech: NonNullable<ChatPrefs["speech"]>;
+  sounds: SoundChoices;
 }
 
 /** Every field with its default filled in. An empty object resolves to «all defaults». */
@@ -343,6 +354,7 @@ export function resolveChatPrefs(prefs: ChatPrefs): ResolvedChatPrefs {
     chat: prefs.chat ?? {},
     voiceSpeed: prefs.voiceSpeed ?? DEFAULT_VOICE_SPEED,
     speech: prefs.speech ?? {},
+    sounds: (prefs.sounds ?? {}) as SoundChoices,
   };
 }
 

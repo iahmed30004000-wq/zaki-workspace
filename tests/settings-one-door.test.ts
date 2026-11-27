@@ -195,10 +195,10 @@ describe("S3.1 · the place «الإدارة» leaves the map of an admin who ho
 // ───────────────────────────────────── the frame's sections ─────────────────────────────────────
 
 describe("S3.1 · the sections of «إعدادات الشركة»", () => {
-  it("the twelve sections of «إعداداتي» are untouched; the four company sections are the panel's own, one to one", () => {
-    // a thirteenth key, «تحويل الكلام لنص», is listed only while the switch `tgPhone` is on
-    expect([...SECTION_KEYS]).toHaveLength(13);
-    expect(visibleSections({ foldersOn: true, speechOn: true })).toHaveLength(13);
+  it("the sections of «إعداداتي» are untouched; the four company sections are the panel's own, one to one", () => {
+    // «تحويل الكلام لنص» is listed only while the switch `tgPhone` is on
+    expect([...SECTION_KEYS]).toHaveLength(14);
+    expect(visibleSections({ foldersOn: true, speechOn: true })).toHaveLength(14);
     expect([...COMPANY_SECTION_KEYS]).toEqual(["company", "features", "integrations", "spaces"]);
     for (const key of COMPANY_SECTION_KEYS) {
       expect(PANEL_V2_SECTIONS as readonly string[], key).toContain(PANEL_SECTION_OF[key]);
@@ -208,7 +208,7 @@ describe("S3.1 · the sections of «إعدادات الشركة»", () => {
       expect(AR[`settingsOneDoor.s.${key}`], key).toMatch(/[؀-ۿ]/);
       expect(AR[`settingsOneDoor.s.${key}.hint`], key).toMatch(/[؀-ۿ]/);
     }
-    expect(visibleSections({ foldersOn: true })).toHaveLength(12);
+    expect(visibleSections({ foldersOn: true })).toHaveLength(13);
     expect(isCompanySectionKey("account")).toBe(false);
   });
 
@@ -251,17 +251,17 @@ describe("S3.1 · the frame of «إعداداتي» draws two groups for whoever
     const html = frame(null);
     expect(html).not.toContain("data-settings-groups");
     expect(html).not.toContain(AR["settingsOneDoor.group.company"]);
-    expect(count(html, "data-section=")).toBe(12);
+    expect(count(html, "data-section=")).toBe(13);
     expect(html).toEqual(frame(undefined as never));
   });
 
-  it("with it: «إعداداتي» holds the same twelve sections, «إعدادات الشركة» its sections and ONE row «لوحة التحكم» to /owner", () => {
+  it("with it: «إعداداتي» holds the same thirteen sections, «إعدادات الشركة» its sections and ONE row «لوحة التحكم» to /owner", () => {
     const html = frame({ sections: ["company", "features", "integrations", "spaces"], panelLink: true });
     expect(html).toContain("data-settings-groups");
     expect(html).toContain(AR["settingsOneDoor.group.me"]);
     expect(html).toContain(AR["settingsOneDoor.group.company"]);
     const me = html.slice(html.indexOf('data-settings-group-list="me"'), html.indexOf('data-settings-group-list="company"'));
-    expect(count(me, "data-section=")).toBe(12);
+    expect(count(me, "data-section=")).toBe(13);
     const company = html.slice(html.indexOf('data-settings-group-list="company"'));
     expect(hrefs(company).filter((h) => h.startsWith("/settings/me/"))).toEqual(["/settings/me/company", "/settings/me/features", "/settings/me/integrations", "/settings/me/spaces"]);
     expect(count(html, "data-settings-panel-link")).toBe(1);

@@ -136,6 +136,15 @@ export const TG_MOTION = {
   dictationGlowMs: 1600,
   // sheets
   sheetMs: 180,
+  // phase 5: sheets, info pages, settings, sounds
+  /** a sheet dragged up this far becomes the full page */
+  sheetExpandPx: 56,
+  /** a sheet (or the full page) dragged down this far steps back: full to half, half to closed */
+  sheetClosePx: 96,
+  /** a sideways swipe this long moves to the next tab of the info page */
+  infoSwipePx: 56,
+  /** the rows of «خيارات أكثر» fading down into place, and a radio's dot */
+  moreRowsMs: 150,
 } as const;
 
 export type TgTiming = keyof typeof TG_MOTION;

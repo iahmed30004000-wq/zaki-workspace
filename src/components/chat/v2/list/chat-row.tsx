@@ -6,6 +6,7 @@ import { Archive, ArchiveRestore, Bell, BellOff, Bookmark, Check, CheckCheck, Lo
 import { Avatar } from "@/components/ui/avatar";
 import { VerifiedBadge } from "@/components/ui/verified-badge";
 import { RowActionsMenu, rowHasMenu, useRowMenuGestures, usePersonalCall, type RowMenuContext } from "@/components/chat/v2/row-menu";
+import { useRowLead } from "@/components/chat/v2/list/row-lead";
 import { useChatPersonalState, useChatRow } from "@/lib/chat/cache/selectors";
 import type { ChatRowDto } from "@/lib/chat/cache/types";
 import { ct } from "@/lib/chat/text";
@@ -40,6 +41,7 @@ const MARK_ICON: Record<RowMark["key"], LucideIcon> = {
 };
 
 function RowAvatar({ row, tall, saved = false }: { row: ChatRowDto; tall: boolean; saved?: boolean }) {
+  const lead = useRowLead();
   const size = tall ? "size-14" : "size-12";
   // C3a.3: «الرسائل المحفوظة» has no other person to show: a bookmark in the accent
   if (saved) {
@@ -50,11 +52,13 @@ function RowAvatar({ row, tall, saved = false }: { row: ChatRowDto; tall: boolea
     );
   }
   if (row.kind === "TOPIC") {
-    return (
+    const usual = (
       <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-full bg-surface-2 text-xl", size)}>
         {row.emoji ?? "💬"}
       </span>
     );
+    // a list may draw a topic its own way (the forum's coloured icons): row-lead.tsx
+    return lead ? lead(row, tall, usual) : usual;
   }
   return <Avatar name={row.title} src={row.kind === "DM" ? row.avatarUrl : null} className={cn(size, "text-sm")} />;
 }

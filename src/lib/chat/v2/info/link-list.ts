@@ -1,4 +1,5 @@
 import { findLinks, hostOf } from "@/lib/chat/format/links";
+import { monthName } from "@/lib/format";
 import type { LinkItemDto } from "@/server/chat/media";
 
 /**
@@ -39,6 +40,30 @@ export function linksOfBody(body: string): ListedLink[] {
     if (!key || seen.has(key)) continue;
     seen.add(key);
     out.push({ url: found.href, host: hostOf(found.href) ?? "", key });
+  }
+  return out;
+}
+
+export interface LinkMonth {
+  /** `2026-10` */
+  key: string;
+  /** the month's name; the year too when it is not this one */
+  label: string;
+  links: LinkItemDto[];
+}
+
+/** «روابط» grouped by month, in the order they come (newest first), by the device's own calendar. */
+export function groupLinksByMonth(links: readonly LinkItemDto[], now: Date = new Date()): LinkMonth[] {
+  const out: LinkMonth[] = [];
+  for (const link of links) {
+    const at = new Date(link.at);
+    const key = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}`;
+    let group = out.at(-1);
+    if (!group || group.key !== key) {
+      group = { key, label: at.getFullYear() === now.getFullYear() ? monthName(at.getMonth()) : `${monthName(at.getMonth())} ${at.getFullYear()}`, links: [] };
+      out.push(group);
+    }
+    group.links.push(link);
   }
   return out;
 }
