@@ -12,15 +12,19 @@ import { redactText } from "@/server/ai/redact";
 import { judgeGatewayAddress } from "@/server/services/gateway-address";
 import { getSettings, readGatewayKey } from "@/server/services/owner-assistant-settings";
 import { assertFeatureOn, isFeatureOn } from "@/server/services/features";
+import { noteHeaders } from "@/server/calls/agent-link";
+import { readVoiceAgent, voiceAgentTarget } from "@/server/services/voice-server";
+import type { VoiceServerStatus } from "@/lib/voice-server";
 import { openStored } from "@/server/services/files";
 import type { ApiErrorCode } from "@/server/api";
 
 /**
  * «كتابة نص الرسالة الصوتية» — the text of a voice note, written by a speech-to-text service the owner runs on his OWN machine.
  *
- *   WHERE   chosen on the owner's AI settings screen («تفريغ الصوت»): a service inside the server (`transcribeBaseUrl`) or the OpenAI-compatible gateway of the
- *           assistant (its address and key); when nothing is chosen there, `TRANSCRIBE_URL` (an origin such as `http://whisper:8000`) in the server's environment as
- *           before, judged by the same allow-list as the
+ *   WHERE   chosen on the owner's AI settings screen («تفريغ الصوت»): the voice program on his server (`agent`: the address and secret the site already has
+ *           for the meeting assistant, the signed door POST `/transcribe-note` of voice-agent/notes.py; the owner types nothing), a service inside the
+ *           server (`transcribeBaseUrl`) or the OpenAI-compatible gateway of the assistant (its address and key); when nothing is chosen there,
+ *           `TRANSCRIBE_URL` (an origin such as `http://whisper:8000`) in the server's environment as before, judged by the same allow-list as the
  *           local model (src/server/ai/local-host.ts: his machine or private network only, a public address is refused) and again on
  *           every call; `TRANSCRIBE_MODEL` (default `whisper-1`) and `TRANSCRIBE_LANGUAGE` (default `ar`, empty: let the service guess).
  *           The service speaks the OpenAI shape: POST `/v1/audio/transcriptions`, a multipart form, the answer `{ "text": "…" }`
@@ -38,6 +42,8 @@ import type { ApiErrorCode } from "@/server/api";
  */
 
 export const TRANSCRIPT_PATH = "/v1/audio/transcriptions";
+/** The voice program's own door (not the OpenAI shape: the body is the recording itself, signed). */
+export const AGENT_NOTE_PATH = "/transcribe-note";
 /** A voice note is at most 5 minutes (MAX_VOICE_MS); anything far larger than that is not a note. */
 export const MAX_TRANSCRIBE_BYTES = 25 * 1024 * 1024;
 export const MAX_TRANSCRIPT_CHARS = 20_000;
@@ -55,6 +61,8 @@ export interface TranscribeServer {
   external?: boolean;
   /** The text goes through the assistant's privacy filter before it is kept (a gateway that is not confirmed local). */
   filter?: boolean;
+  /** The service is the voice program on this server: its signed door, with the shared secret (it chooses its own model). */
+  agent?: { secret: string };
 }
 
 /** The speech-to-text service of this installation, or null while it has none (the feature then hides its button). */
@@ -83,6 +91,10 @@ export async function resolveTranscribeServer(orgId: string, source: Readonly<Re
     return value === "" ? null : /^[a-z]{2,3}$/.test(value) ? value : "ar";
   })();
   const model = (settings.transcribeModel ?? "").trim() || "whisper-1";
+  if (settings.transcribeSource === "agent") {
+    const target = voiceAgentTarget(source);
+    return target.ok ? { origin: target.origin, model: "", language, agent: { secret: target.secret } } : null;
+  }
   if (settings.transcribeSource === "local") {
     const parsed = parseLocalBaseUrl(settings.transcribeBaseUrl);
     return parsed.ok ? { origin: parsed.target.origin, model, language } : null;
@@ -100,6 +112,12 @@ export async function resolveTranscribeServer(orgId: string, source: Readonly<Re
 /** Is the button to be drawn for this company: the switch is on AND a service is set up. */
 export async function transcriptAvailable(orgId: string, source: Readonly<Record<string, string | undefined>> = process.env): Promise<boolean> {
   return (await isFeatureOn(orgId, "voiceTranscript")) && (await resolveTranscribeServer(orgId, source)) !== null;
+}
+
+/** What the owner's card shows: the program's state right now, the choice, and what the chat does with them. */
+export async function voiceServerStatus(orgId: string, source: Readonly<Record<string, string | undefined>> = process.env): Promise<VoiceServerStatus> {
+  const [agent, settings, transcriptOn, server] = await Promise.all([readVoiceAgent(source), getSettings(orgId), isFeatureOn(orgId, "voiceTranscript"), resolveTranscribeServer(orgId, source)]);
+  return { agent, source: settings.transcribeSource, transcriptOn, serviceReady: server !== null };
 }
 
 export class VoiceTranscriptError extends Error {
@@ -176,24 +194,22 @@ export async function transcribeBytes(
   audio: { bytes: Uint8Array; mime: string },
   options: { transport?: LocalTransport; queue?: LocalQueue; boundary?: string } = {},
 ): Promise<string> {
-  const form = multipartBody(
-    { model: server.model, response_format: "json", ...(server.language ? { language: server.language } : {}) },
-    audio,
-    options.boundary ?? `zk${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`,
-  );
+  // what is sent is built when its turn comes: the program's signature lives one minute, and the wait in line may be longer
+  const request = (): { path: string; raw: { bytes: Uint8Array; contentType: string }; headers?: Record<string, string> } => {
+    if (server.agent) return { path: AGENT_NOTE_PATH, raw: { bytes: audio.bytes, contentType: "application/octet-stream" }, headers: noteHeaders(server.agent.secret, audio.bytes, server.language) };
+    const raw = multipartBody(
+      { model: server.model, response_format: "json", ...(server.language ? { language: server.language } : {}) },
+      audio,
+      options.boundary ?? `zk${Date.now().toString(36)}${Math.random().toString(36).slice(2, 10)}`,
+    );
+    return { path: TRANSCRIPT_PATH, raw, ...(server.bearer ? { headers: { authorization: `Bearer ${server.bearer}` } } : {}) };
+  };
   try {
     const target = targetOf(server.origin, server.external === true);
-    const run = () =>
-      callLocal({
-        target,
-        method: "POST",
-        path: TRANSCRIPT_PATH,
-        raw: form,
-        timeoutMs: TRANSCRIBE_TIMEOUT_MS,
-        ...(server.bearer ? { headers: { authorization: `Bearer ${server.bearer}` } } : {}),
-        ...(options.transport ? { transport: options.transport } : {}),
-      });
+    const run = () => callLocal({ target, method: "POST", ...request(), timeoutMs: TRANSCRIBE_TIMEOUT_MS, ...(options.transport ? { transport: options.transport } : {}) });
     const res = await (options.queue ?? transcribeQueue).run(run);
+    // the program's «too large» and «too long»
+    if (server.agent && (res.status === 413 || res.status === 422)) throw new VoiceTranscriptError("voiceTranscript.err_big");
     const json = jsonOf(res) as { text?: unknown } | null;
     return json && typeof json.text === "string" ? json.text.trim().slice(0, MAX_TRANSCRIPT_CHARS) : "";
   } catch (err) {

@@ -9,7 +9,6 @@ import { AiProviderError, type AiChatMessage, type AiCompletion } from "@/server
 import { meetingModelEnv } from "@/server/services/meeting-model-env";
 import { LOCAL_MAX_OUTPUT_TOKENS } from "@/server/ai/local-transport";
 import { dayKeyOf } from "@/lib/owner-board";
-import { hmacHex, safeEqual } from "@/server/crypto";
 import { log } from "@/server/log";
 import { FixedWindowLimiter } from "@/server/rate-limit";
 import { emitRealtime } from "@/server/realtime/emit";
@@ -20,6 +19,10 @@ import { orgTimeZone } from "@/server/services/org-day";
 import { assertWithinQuota, getSettings, recordUsage, usageSummary } from "@/server/services/owner-assistant-settings";
 import { resolveProvider, runsOnOwnServer } from "@/server/services/assistant-provider";
 import { ASSISTANT_IDENTITY, assistantPass, callsServer, peopleInRoom, requireCallsServer, roomOf } from "./livekit";
+import { agentSettings, signBody, type AgentSettings } from "./agent-link";
+
+// the shared secret and the signature live in ./agent-link (voice notes use them too); the old names are still given from here
+export { agentSettings, signBody, verifySignature, SIGNATURE_MAX_AGE_SECONDS, type AgentSettings } from "./agent-link";
 
 /**
  * «المساعد بالاجتماعات» — the owner's assistant speaks in a call.
@@ -36,34 +39,6 @@ import { ASSISTANT_IDENTITY, assistantPass, callsServer, peopleInRoom, requireCa
  *           by link, a closed conversation or one with a guest in it). Silence («[صمت]») is neither spoken nor written.
  *   TRACE   one audit row per answer: counts only, never the words.
  */
-
-export interface AgentSettings {
-  url: string;
-  secret: string;
-}
-
-/** Where the voice agent listens and its shared secret, or null while Coolify has none (the button says so). */
-export function agentSettings(source: Record<string, string | undefined> = process.env): AgentSettings | null {
-  const url = (source["VOICE_AGENT_URL"] ?? "").trim().replace(/\/+$/, "");
-  const secret = (source["VOICE_AGENT_SECRET"] ?? "").trim();
-  if (!url || secret.length < 16 || !/^https?:\/\//.test(url)) return null;
-  return { url, secret };
-}
-
-/** A request's signature: HMAC-SHA256 over `<unix seconds>.<body>`. */
-export function signBody(secret: string, timestamp: number, body: string): string {
-  return hmacHex(secret, `${timestamp}.${body}`);
-}
-
-export const SIGNATURE_MAX_AGE_SECONDS = 60;
-
-/** Does this request come from the voice agent? Constant-time, and refuses an old or future timestamp. */
-export function verifySignature(secret: string, timestampHeader: string | null, signatureHeader: string | null, body: string, nowMs: number = Date.now()): boolean {
-  if (!timestampHeader || !signatureHeader || !/^\d{9,12}$/.test(timestampHeader)) return false;
-  const ts = Number(timestampHeader);
-  if (Math.abs(nowMs / 1000 - ts) > SIGNATURE_MAX_AGE_SECONDS) return false;
-  return safeEqual(signBody(secret, ts, body), signatureHeader);
-}
 
 type Fetch = typeof fetch;
 let fetchImpl: Fetch | null = null;

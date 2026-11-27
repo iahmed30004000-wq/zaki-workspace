@@ -74,6 +74,7 @@ import manufacturing from "./ar.manufacturing.json";
 import localModel from "./ar.local-model.json";
 import economy from "./ar.economy.json";
 import voiceTranscript from "./ar.voice-transcript.json";
+import gpuVoice from "./ar.gpu-voice.json";
 import botfather from "./ar.botfather.json";
 import automation from "./ar.automation.json";
 import semanticSearch from "./ar.semantic-search.json";
@@ -147,6 +148,7 @@ export const AR: Record<string, string> = {
   ...features,
   ...economy,
   ...voiceTranscript,
+  ...gpuVoice,
   ...botfather,
   ...automation,
   ...semanticSearch,
