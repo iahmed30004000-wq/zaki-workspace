@@ -17,7 +17,8 @@ import { THEME_COOKIE, isDarkTheme, systemTheme, type ThemeKey } from "@/lib/the
  * one («ليل» / «نهار») unless the switch is ON, when it is the flat pair («ليل أزرق» / «سماء»). A concrete cookie (a theme the person picked) always wins. The
  * script follows the device live (`change` of the media query) and is also exposed as `window.__zkThemeBoot()` so the settings screen can re-run it at once.
  *
- * It also sets `--chat-font-scale` from the text size (the device's own override, else the person's) so a chosen size is right on the first paint.
+ * It also sets `--chat-font-scale` from the text size (the device's own override, else the person's) so a chosen size is right on the first paint, and
+ * `data-fx-off` from «التأثيرات الحركية», so an effect switched off never plays once before the page is awake.
  * Everything is in try/catch: a browser that refuses any of it simply keeps what the server painted.
  */
 export const BOOT_GLOBAL = "__zkThemeBoot";
@@ -52,6 +53,10 @@ function boot(){try{
 var p=prefs(),m=p.mirror||{},c=cookie(),v2=m.themeV2===true;
 var step=typeof p.textSize==="number"?p.textSize:m.fontStep;
 if(typeof step==="number"&&D.scales[step]){h.style.setProperty("--chat-font-scale",String(D.scales[step]))}else{h.style.removeProperty("--chat-font-scale")}
+if(typeof m.fontPx==="number"&&m.fontPx>=12&&m.fontPx<=30){h.style.setProperty("--tg-font-px",m.fontPx+"px")}
+if(typeof m.bubbleRadius==="number"&&m.bubbleRadius>=0&&m.bubbleRadius<=17){h.style.setProperty("--tg-bubble-radius",m.bubbleRadius+"px")}
+if(m.wallpaper){h.setAttribute("data-chat-wallpaper-chosen","")}
+var off=p.effectsOff;if(off&&off.length&&off.join){h.setAttribute("data-fx-off",off.join(" "))}
 if(c==="system"||(c===null&&(m.themeAuto===true||v2))){
 var dark=!!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);
 var t=(v2?D.v2:D.v1)[dark?"dark":"light"];

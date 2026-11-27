@@ -62,8 +62,8 @@ export function browserRecognition(win: unknown = typeof window === "undefined" 
 }
 
 /** A language code from the list, or the default (a stored value that is not one of them is never handed to the browser). */
-export function dictationLangOf(code: unknown): string {
-  return DICTATION_LANGS.some((l) => l.code === code) ? (code as string) : DEFAULT_DICTATION_LANG;
+export function dictationLangOf(code: unknown, allowed: readonly { code: string }[] = DICTATION_LANGS): string {
+  return allowed.some((l) => l.code === code) ? (code as string) : DEFAULT_DICTATION_LANG;
 }
 
 /** The words to show or send: what is final, then what is still interim, one space between, trimmed and capped. */
@@ -90,6 +90,12 @@ export interface Dictation {
   /** stops and forgets everything */
   cancel(): void;
   setLang(code: string): void;
+  /** the languages `setLang` takes from now on (the phone's list is longer); a language that is no longer in it goes back to the default */
+  allow(langs: readonly { code: string }[]): void;
+  /** the recording is paused: stops listening and keeps the words */
+  hold(): void;
+  /** the recording goes on: listens again after the words `hold` kept (without a `hold` before it, nothing) */
+  resume(): void;
 }
 
 export function createDictation(factory: RecognitionFactory, initialLang: string = DEFAULT_DICTATION_LANG): Dictation {
@@ -100,6 +106,8 @@ export function createDictation(factory: RecognitionFactory, initialLang: string
   const listeners = new Set<() => void>();
   let rec: RecognitionLike | null = null;
   let wanted = false;
+  let held = false;
+  let allowed: readonly { code: string }[] = DICTATION_LANGS;
 
   const set = (patch: Partial<DictationSnapshot>) => {
     snap = { ...snap, ...patch };
@@ -182,22 +190,43 @@ export function createDictation(factory: RecognitionFactory, initialLang: string
     },
     start() {
       if (snap.listening || wanted) return;
+      held = false;
       wanted = true;
       set({ final: "", interim: "", error: null });
       open();
     },
     finish() {
       const text = dictationText(snap.final, snap.interim);
+      held = false;
       close();
       set({ listening: false, final: "", interim: "" });
       return text;
     },
     cancel() {
+      held = false;
       close();
       set({ listening: false, final: "", interim: "", error: null });
     },
+    hold() {
+      if (!snap.listening && !wanted) return;
+      const heard = dictationText(snap.final, snap.interim);
+      close();
+      held = true;
+      set({ listening: false, final: heard, interim: "" });
+    },
+    resume() {
+      if (!held) return;
+      held = false;
+      wanted = true;
+      set({ error: null });
+      open();
+    },
+    allow(langs) {
+      allowed = langs;
+      if (!allowed.some((l) => l.code === snap.lang)) this.setLang(DEFAULT_DICTATION_LANG);
+    },
     setLang(code) {
-      const lang = dictationLangOf(code);
+      const lang = dictationLangOf(code, allowed);
       if (lang === snap.lang) return;
       const keep = snap.listening || wanted;
       const heard = dictationText(snap.final, snap.interim);

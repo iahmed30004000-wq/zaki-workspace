@@ -16,6 +16,8 @@ export interface ToneOvertone {
 export interface ToneNote {
   /** the pitch */
   hz: number;
+  /** the pitch it glides to by its end (a drop, a swoosh); absent: it stays */
+  to?: number;
   /** when it starts, in seconds from the start of the tone */
   at: number;
   /** how long it rings, in seconds */

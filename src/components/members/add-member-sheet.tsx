@@ -101,7 +101,7 @@ export function AddMemberSheet({
   function addAnother() {
     setCreated(null);
     setError(null);
-    setValues({ ...EMPTY_ADD_FORM, role: values.role, workspaceIds: values.workspaceIds, templateId: values.templateId, spaceOnly: values.spaceOnly });
+    setValues({ ...EMPTY_ADD_FORM, role: values.role, workspaceIds: values.workspaceIds, templateId: values.templateId, spaceOnly: values.spaceOnly, agent: values.agent });
   }
 
   function toggleSpace(id: string, on: boolean) {
@@ -233,6 +233,12 @@ export function AddMemberSheet({
               ) : null}
             </div>
           </details>
+
+          {values.role !== "GUEST" ? (
+            <div className="rounded-xl border border-border bg-surface">
+              <SwitchRow checked={values.agent} onChange={(next) => set("agent", next)} title={t("members.agent_title")} hint={t("members.agent_hint")} />
+            </div>
+          ) : null}
 
           {values.role === "MEMBER" ? (
             <div className="rounded-xl border border-border bg-surface">

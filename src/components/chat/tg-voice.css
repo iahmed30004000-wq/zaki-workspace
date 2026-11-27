@@ -1,0 +1,197 @@
+/*
+ * «تيليجرام على التلفون», voice (`tgPhone`): the recording bar, the preview, the transcribe ring and the speed menu. Only transform and opacity move,
+ * every length is a variable the component writes from TG_MOTION, every colour a theme token. All of it is off when «الانتقالات السلسة» is switched off
+ * on this device, and when the device asks for less motion; without a keyframe everything is simply there. What follows the finger is not an animation.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html:not([data-fx-off~="transitions"]) .tg-rec-in {
+    animation: tg-rec-in var(--tg-record-morph-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-rec-circle-in {
+    animation: tg-rec-circle-in var(--tg-record-morph-ms) cubic-bezier(0.2, 1.3, 0.4, 1) both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-rec-lock-in {
+    animation: tg-rec-lock-in var(--tg-record-morph-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-rec-blink {
+    animation: tg-rec-blink var(--tg-record-blink-ms) ease-in-out infinite;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-rec-level {
+    transition: transform var(--tg-mic-level-ms) linear;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-rec-swap {
+    animation: tg-rec-swap var(--tg-mic-to-send-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-rec-strip {
+    animation: tg-voice-fade var(--tg-dictation-fade-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-rec-glow {
+    animation: tg-rec-glow var(--tg-dictation-glow-ms) ease-in-out infinite;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-lang-menu {
+    animation: tg-lang-menu var(--tg-language-menu-ms) cubic-bezier(0.2, 0.9, 0.3, 1) both;
+    transform-origin: bottom center;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-bin-lid {
+    animation: tg-bin-lid var(--tg-voice-dust-ms) ease-in-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-face-morph {
+    animation: tg-face-morph var(--tg-composer-morph-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-composer-return {
+    animation: tg-voice-fade var(--tg-composer-return-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-transcribe-ring {
+    animation: tg-voice-spin var(--tg-transcript-spin-ms) linear infinite;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-words-in {
+    animation: tg-words-in var(--tg-bubble-grow-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-speed-dim {
+    animation: tg-voice-fade var(--tg-menu-dim-ms) ease-out both;
+  }
+  html:not([data-fx-off~="transitions"]) .tg-speed-menu {
+    animation: tg-speed-menu var(--tg-menu-scale-ms) ease-out both;
+  }
+}
+
+@keyframes tg-voice-fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes tg-voice-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes tg-rec-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scaleX(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tg-rec-circle-in {
+  from {
+    transform: scale(0.55);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+
+@keyframes tg-rec-lock-in {
+  from {
+    opacity: 0;
+    transform: translateY(28px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tg-rec-blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.1;
+  }
+}
+
+@keyframes tg-rec-swap {
+  from {
+    opacity: 0;
+    transform: scale(0.4) rotate(-60deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tg-rec-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes tg-lang-menu {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* the lid opens, stays open while the dust goes in, and closes */
+@keyframes tg-bin-lid {
+  0% {
+    transform: rotate(0deg);
+  }
+  25%,
+  75% {
+    transform: rotate(-38deg);
+  }
+  100% {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes tg-face-morph {
+  from {
+    opacity: 0;
+    transform: scale(0.3) rotate(-70deg);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tg-words-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes tg-speed-menu {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* the bin's lid turns about its hinge */
+.tg-bin-lid {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;
+}

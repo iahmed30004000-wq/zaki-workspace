@@ -14,6 +14,7 @@ import { orgTimeZone } from "@/server/services/org-day";
 import { dispatchEvent } from "@/server/services/n8n";
 import { bearerOf, parseToken, permits, tokenMatches, type DoorPermission } from "@/server/door/tokens";
 import { DoorError, safeErrorFacts } from "@/server/door/http";
+import { usableAgent } from "@/server/door/acting-agent";
 import { failureLimiter, tokenLimiter } from "@/server/door/limits";
 import {
   IDEMPOTENCY_KEY,
@@ -32,13 +33,15 @@ import {
  * (`createdBy`): every rule of the app that applies to that person applies to the token (`createTask`'s chain, the section grid's
  * «يضيف ويعدّل»), and the moment that person is not an ACTIVE member holding «integrations.manage», or no longer reaches the
  * space, the token answers 401 like any unknown token. All of it is read from the database on EVERY request.
+ * A token with «باسم مين» (`actsAsId`) keeps all of that about its maker, and everything it DOES is done and judged as that 🤖
+ * account (src/server/door/acting-agent.ts), which must still be usable in the space.
  */
 
 export interface DoorPrincipal {
   tokenId: string;
   tokenName: string;
   orgId: string;
-  /** The person the token acts for. */
+  /** Who the token acts as: the 🤖 account it names, else the person who made it. */
   issuerId: string;
   /** The one space it writes to. */
   workspaceId: string;
@@ -90,6 +93,7 @@ export async function authenticateDoor(req: Request, requestId: string, needed: 
       organizationId: true,
       workspaceId: true,
       createdById: true,
+      actsAsId: true,
       permissions: true,
       tokenHash: true,
       expiresAt: true,
@@ -112,6 +116,7 @@ export async function authenticateDoor(req: Request, requestId: string, needed: 
     return refuse("issuer_inactive", row.id);
   }
   if (!(await accessibleWorkspaceIds(row.createdById)).includes(row.workspaceId)) return refuse("space_unreachable", row.id);
+  if (row.actsAsId && !(await usableAgent(row.organizationId, row.actsAsId, row.workspaceId))) return refuse("agent_unusable", row.id);
 
   if (!(await isFeatureOn(row.organizationId, "apiDoor"))) throw new DoorError(404, "door.not_found", "Not found.");
 
@@ -137,7 +142,7 @@ export async function authenticateDoor(req: Request, requestId: string, needed: 
     tokenId: row.id,
     tokenName: row.name,
     orgId: row.organizationId,
-    issuerId: row.createdById,
+    issuerId: row.actsAsId ?? row.createdById,
     workspaceId: row.workspaceId,
     permissions: row.permissions,
     requestId,

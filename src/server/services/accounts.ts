@@ -9,6 +9,8 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 import { db } from "@/server/db";
+import { agentName, bareAgentName } from "@/lib/agent-name";
+import { isAgentAccount } from "@/server/services/users";
 import { isSpaceOnly } from "@/server/policy/space-only";
 import { ForbiddenError, NotFoundError, ValidationError, audit, hashPassword } from "@/server/auth";
 import { assertCan, requireActor, type Actor } from "@/server/policy/actor";
@@ -126,6 +128,8 @@ export const createAccountSchema = z.object({
   workspaceIds: z.array(idSchema).max(500).optional(),
   /** «محصور بمساحة»: a MEMBER put in exactly one space, never in «الشركة» (src/server/policy/space-only.ts). */
   spaceOnly: z.boolean().optional(),
+  /** «حساب وكيل» 🤖: a program (Claude, ميوز), not a person. Set here only (src/lib/agent-name.ts). */
+  agent: z.boolean().optional(),
   capabilities: capabilityListSchema.optional(),
   jobTitle: z.preprocess(blankToUndefined, jobTitleSchema.optional()),
   /**
@@ -409,6 +413,9 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
   const workspaceIds = await checkedWorkspaces(actor, input.workspaceIds ?? []);
   const spaceOnly = input.spaceOnly === true;
   if (spaceOnly) await assertOneSpaceAccount(role, workspaceIds);
+  const agent = input.agent === true;
+  if (agent) assertAgentRank(role);
+  const name = agent ? checkedAgentName(input.name) : input.name;
   await assertNamesFree({ username: input.username, email: input.email });
 
   const temporaryPassword = input.password === undefined ? generateTemporaryPassword() : undefined;
@@ -422,12 +429,12 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
         data: {
           username: input.username,
           email: input.email ?? null,
-          name: input.name,
+          name,
           jobTitle: input.jobTitle ?? null,
           passwordHash,
           mustChangePassword: true,
           memberships: {
-            create: { organizationId: actor.orgId, role, capabilities: caps.next, revokedCapabilities, managerId, spaceOnly },
+            create: { organizationId: actor.orgId, role, capabilities: caps.next, revokedCapabilities, managerId, spaceOnly, agent },
           },
         },
         select: { id: true },
@@ -448,7 +455,7 @@ export async function createAccount(actor: Actor, input: CreateAccountInput): Pr
     actorId: actor.userId,
     orgId: actor.orgId,
     target: userId,
-    meta: { role, username: input.username, ...(spaceOnly ? { spaceOnly: true, workspaceIds } : {}) },
+    meta: { role, username: input.username, ...(spaceOnly ? { spaceOnly: true, workspaceIds } : {}), ...(agent ? { agent: true } : {}) },
   });
   if (template) {
     await audit("org.template_applied", { actorId: actor.userId, orgId: actor.orgId, target: userId, meta: appliedMeta(template, role, caps.next, revokedCapabilities) });
@@ -472,6 +479,16 @@ async function assertOneSpaceAccount(role: OrgRole, workspaceIds: readonly strin
   if (role !== "MEMBER") throw invalid("spaceOnly", "accounts.space_only_rank");
   const hq = await db.workspace.count({ where: { id: { in: [...workspaceIds] }, kind: "HQ" } });
   if (workspaceIds.length !== 1 || hq > 0) throw invalid("workspaceIds", "accounts.space_only_one");
+}
+
+/** «حساب وكيل» works inside the company: never an outside partner, never an owner. */
+function assertAgentRank(role: OrgRole): void {
+  if (role === "GUEST" || role === "OWNER" /* oversight-ok: which ranks an agent account may have; nothing is read */) throw invalid("role", "accounts.agent_rank");
+}
+
+function checkedAgentName(name: string): string {
+  if (bareAgentName(name).length < 2) throw invalid("name", "accounts.agent_name");
+  return agentName(name);
 }
 
 // ---------- update ----------
@@ -513,6 +530,8 @@ export async function updateAccount(
   if (roleChanged && !canChangeRoleOf(rankedActor(actor), target, role)) throw new ForbiddenError("orgm.role_denied");
   // «محصور بمساحة» is a MEMBER's mark: another rank would carry it into places it does not mean anything
   if (roleChanged && (await isSpaceOnly(userId, actor.orgId))) throw invalid("role", "accounts.space_only_rank");
+  const isAgent = await isAgentAccount(userId);
+  if (roleChanged && isAgent) assertAgentRank(role);
 
   // a partner (an OWNER who is not the primary owner) holds everything but what is taken away: no extras, and any
   // capability may be taken away — only by the primary owner, the only one who administers him
@@ -541,7 +560,7 @@ export async function updateAccount(
   if (managerId !== target.managerId) membership.manager = managerId ? { connect: { id: managerId } } : { disconnect: true };
 
   const user: Prisma.UserUpdateInput = {};
-  if (input.name !== undefined) user.name = input.name;
+  if (input.name !== undefined) user.name = isAgent ? checkedAgentName(input.name) : input.name;
   if (input.jobTitle !== undefined) user.jobTitle = input.jobTitle;
   if (input.username !== undefined || input.email !== undefined) {
     const current = await db.user.findUniqueOrThrow({ where: { id: userId }, select: { username: true, email: true } });

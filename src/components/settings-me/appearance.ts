@@ -50,6 +50,16 @@ export function applyFontScale(doc: Pick<DocLike, "documentElement">, scale: num
   else doc.documentElement.style.setProperty(FONT_SCALE_VAR, String(scale));
 }
 
+/** «تيليجرام على التلفون»: the message text, the bubble's corners, and whether the wallpaper is the person's own choice (then the default one stays away). */
+export function applyChatShape(doc: Pick<DocLike, "documentElement">, device: DevicePrefs): void {
+  const html = doc.documentElement;
+  const set = (name: string, px: number | undefined) => (px === undefined ? html.style.removeProperty(name) : html.style.setProperty(name, `${px}px`));
+  set("--tg-font-px", device.mirror?.fontPx);
+  set("--tg-bubble-radius", device.mirror?.bubbleRadius);
+  if (device.mirror?.wallpaper) html.setAttribute("data-chat-wallpaper-chosen", "");
+  else html.removeAttribute("data-chat-wallpaper-chosen");
+}
+
 /**
  * Draws (or removes) the wallpaper now. `channels` is the theme's pattern colour; `fetchSvg` gets the pattern's text (same site, cached by the browser).
  * Resolves when the pattern is in place. A failed read leaves the wallpaper off (the rule is removed): never a half-drawn page.
@@ -119,6 +129,7 @@ function paint(): void {
 export function applyAppearance(device: DevicePrefs): void {
   if (typeof document === "undefined") return;
   applyFontScale(document, fontScaleOf(effectiveFontStep(device)));
+  applyChatShape(document, device);
   active = device.mirror?.wallpaper ?? DEFAULT_WALLPAPER;
   paint();
   if (!watching && typeof MutationObserver !== "undefined") {

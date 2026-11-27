@@ -5,6 +5,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { CHAT_PREFS_KEY, chatPrefsQueryOptions, saveChatPrefs, type ChatPrefsDto } from "@/lib/chat/cache/queries";
 import type { ChatPrefs, ChatPrefsPatch } from "@/lib/chat/prefs";
 import { mirrorOf, patchDevicePrefs, readDevicePrefs } from "@/lib/device-prefs";
+import { saveSoundMirror } from "@/lib/sound-library/device";
 import { applyAppearance } from "@/components/settings-me/appearance";
 
 /**
@@ -55,6 +56,8 @@ export function useApplyPersonPrefs(prefs: ChatPrefs | undefined, themeV2: boole
     if (!prefs) return;
     const mirror = { ...mirrorOf(prefs, Date.now()), ...(typeof themeV2 === "boolean" ? { themeV2 } : {}) };
     patchDevicePrefs({ mirror });
+    // «مكتبة الأصوات»: a call rings at once, so this device keeps its own copy of the chosen sounds
+    saveSoundMirror(prefs.sounds);
     applyAppearance(readDevicePrefs());
     // the theme may be «تلقائي»: the boot script of the layout re-reads the copy
     (window as unknown as { __zkThemeBoot?: () => void }).__zkThemeBoot?.();

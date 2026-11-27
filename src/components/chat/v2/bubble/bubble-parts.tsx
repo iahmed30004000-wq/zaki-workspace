@@ -61,9 +61,9 @@ export function ReplyBlock({ replyTo, onJump }: { replyTo: NonNullable<MessageDt
 }
 
 /** The footer inside the bubble, at the end: «معدّلة», «مثبّتة», the time (`HH:MM`, left-to-right, tabular) and, on my own message, the ticks. */
-export function BubbleFooter({ message, singleTick = false }: { message: MessageDto; /** C3a.3: the saved chat has nobody to deliver to or to read: my message there has the single ✓ whatever status it carries */ singleTick?: boolean }) {
+export function BubbleFooter({ message, singleTick = false, pill = false }: { message: MessageDto; /** C3a.3: the saved chat has nobody to deliver to or to read: my message there has the single ✓ whatever status it carries */ singleTick?: boolean; /** «تيليجرام على التلفون»: under a big emoji that has no bubble, the time sits on its own small pill (phone only) */ pill?: boolean }) {
   return (
-    <span data-bubble-footer className="mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted">
+    <span data-bubble-footer className={`mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted ${pill ? "max-md:ms-auto max-md:w-fit max-md:rounded-full max-md:bg-surface-1 max-md:px-2 max-md:py-0.5" : ""}`}>
       {message.edited && <span>{ct("chatc.edited")}</span>}
       {message.pinned && <span>{ct("chatc.pinned")}</span>}
       <time dateTime={message.createdAt} dir="ltr" className="tabular-nums">

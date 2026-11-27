@@ -1,5 +1,6 @@
 import type { MessageDto } from "@/server/chat/dto";
 import { isMentioned } from "@/lib/chat/conversation/mentions";
+import { emojiTokens } from "@/lib/chat/zaki-emoji";
 import { avatarHue } from "@/lib/format";
 
 /**
@@ -25,6 +26,12 @@ export function bubbleRun(start: boolean, end: boolean): BubbleRun {
 /** The sender's name and picture are drawn for the others in a topic or a group; a private chat shows neither, and mine shows neither. */
 export function showsSender(mine: boolean, kind: "DM" | "GROUP" | "TOPIC"): boolean {
   return !mine && kind !== "DM";
+}
+
+/** «تيليجرام على التلفون»: a message that is ONE emoji and nothing else (no file, card, poll, quote or forwarded header) stands without a bubble. */
+export function bigEmojiAlone(message: Pick<MessageDto, "kind" | "body" | "deleted" | "attachments" | "card" | "poll" | "replyTo" | "forwardedFrom">): boolean {
+  if (message.deleted || message.kind !== "TEXT" || !message.body || message.attachments.length > 0 || message.card || message.poll || message.replyTo || message.forwardedFrom) return false;
+  return emojiTokens(message.body)?.length === 1;
 }
 
 /** A message that mentions me (by my id or «@الكل»): marked for me, never my own message and never a deleted one. */

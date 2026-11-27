@@ -120,6 +120,7 @@ model User {
   appDevices      AppDevice[]
   sessions        UserSession[]
   issuedApiTokens ApiToken[]           @relation("ApiTokenIssuer")
+  actingTokens    ApiToken[]           @relation("ApiTokenActsAs")
 }
 
 // One signed-in browser or phone of a person (C4.2, src/server/services/sessions.ts). The session cookie carries this row's id (`sid`); currentUser()
@@ -1157,6 +1158,9 @@ model OrganizationMember {
   // «محصور بمساحة»: a MEMBER account that works ONLY in the spaces it was put in: never in «الشركة», and it meets nobody and nothing
   // outside those spaces (src/server/policy/space-only.ts). False for every account made before, which stays as it was.
   spaceOnly           Boolean  @default(false)
+  // «حساب وكيل» 🤖: an account that is a program (Claude, ميوز), not a person. Set only when the account is made. Its name carries
+  // the 🤖 everywhere (src/lib/agent-name.ts), and it is the only kind of account a door token may act as (`ApiToken.actsAsId`).
+  agent               Boolean  @default(false)
   // Who escalations go to (the person's manager); null = the owner.
   managerId      String?
   // The same person's reference in the OMS (staff, penalties, cash custody), for later integration.
@@ -1233,6 +1237,7 @@ model Workspace {
   files         StoredFile[]
   projects      Project[]
   taskRecurrences TaskRecurrence[]
+  dailyRoutines DailyRoutine[]
   conversations Conversation[]
   // «مجموعات المواضيع»: the groups the space's topics are arranged in (Telegram's folder → group → topic)
   topicGroups   TopicGroup[]
@@ -1367,6 +1372,7 @@ model Project {
   // «الأهداف والنتائج»: the key results whose value follows this project's finished tasks
   keyResults KeyResult[]
   taskRecurrences TaskRecurrence[]
+  dailyRoutines DailyRoutine[]
   // «حقول مخصصة»: the project's own schema of task fields (they die with the project)
   customFields ProjectField[]
   // «القواعد التلقائية»: the if-then rules of the project and (through them) their log (both die with the project)
@@ -1417,6 +1423,7 @@ model Board {
   columns BoardColumn[]
   tasks   Task[]
   taskRecurrences TaskRecurrence[]
+  dailyRoutines DailyRoutine[]
 
   @@index([projectId])
 }
@@ -1609,6 +1616,54 @@ model TaskRecurrence {
 
   @@index([active, mode, nextDueAt])
   @@index([orgId])
+}
+
+/// «روتين يومي»: a template that makes one fresh card per company day at `time` for `assigneeId`, on the chosen weekdays
+/// (`days`: 0..6 as the JavaScript Date counts them), due the same day at `dueTime` (both are the company's wall clock).
+/// The runner claims a due row by `nextRunAt` (null while paused or stopped). `stoppedReason` says why an automatic stop
+/// happened (null: a person paused it). Pausing, editing or stopping never touches a card already made.
+model DailyRoutine {
+  id            String    @id @default(cuid())
+  orgId         String
+  workspaceId   String
+  projectId     String
+  boardId       String
+  title         String
+  description   String?
+  assigneeId    String
+  createdById   String
+  days          Int[]
+  time          String
+  dueTime       String
+  active        Boolean   @default(true)
+  stoppedReason String?
+  nextRunAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  project   Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  board     Board             @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  runs      DailyRoutineRun[]
+
+  @@index([active, nextRunAt])
+  @@index([orgId])
+  @@index([workspaceId])
+}
+
+/// The day a routine already made its card (`day`: `YYYY-MM-DD`, company zone). Its unique key is what keeps «one card a
+/// day» true through retries, overlapping runs, edits and pauses. No foreign key to the task on purpose: a card a person
+/// deleted is not made again.
+model DailyRoutineRun {
+  id        String   @id @default(cuid())
+  routineId String
+  day       String
+  taskId    String?
+  createdAt DateTime @default(now())
+
+  routine DailyRoutine @relation(fields: [routineId], references: [id], onDelete: Cascade)
+
+  @@unique([routineId, day])
 }
 
 /// «خطوات»: the short checklist inside a task (the owner, 2026-10-30). One row per step; `position` is fractional like the
@@ -2916,6 +2971,8 @@ model ApiToken {
   /// The one space the token writes to.
   workspaceId    String
   createdById    String
+  /// «باسم مين»: the 🤖 account everything done with this token is done as (and judged as). Null: the maker, as always.
+  actsAsId       String?
   expiresAt      DateTime?
   lastUsedAt     DateTime?
   revokedAt      DateTime?
@@ -2929,12 +2986,14 @@ model ApiToken {
   organization Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy    User                @relation("ApiTokenIssuer", fields: [createdById], references: [id], onDelete: Cascade)
+  actsAs       User?               @relation("ApiTokenActsAs", fields: [actsAsId], references: [id], onDelete: Cascade)
   records      IdempotencyRecord[]
   ideas        Idea[]
   tasks        Task[]
 
   @@index([organizationId, createdAt])
   @@index([createdById])
+  @@index([actsAsId])
 }
 
 /// What the door answered for an `Idempotency-Key`, so the same request sent again returns the same answer and creates nothing twice.

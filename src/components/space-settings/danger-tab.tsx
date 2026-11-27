@@ -76,16 +76,8 @@ export function DangerTab({ spaceId, name, canArchive, canDelete, department }: 
             <p>{t("spset.danger.warn")}</p>
             <p>{t("spset.danger.fix")}</p>
           </div>
-          {department ? (
-            <div className="space-y-2">
-              <p className="text-xs leading-5 text-fg">{t("spset.danger.dept")}</p>
-              <Link href="/departments" className="inline-flex min-h-11 items-center rounded-lg bg-accent px-3 text-sm font-semibold text-accent-fg">
-                {t("spaces.dept.go")}
-              </Link>
-            </div>
-          ) : (
-            <SpaceDeleteButton id={spaceId} name={name} labelled onDeleted={leave} />
-          )}
+          {department ? <p className="text-xs leading-5 text-fg">{t("spset.danger.dept")}</p> : null}
+          <SpaceDeleteButton id={spaceId} name={name} labelled onDeleted={leave} />
         </section>
       ) : null}
     </div>

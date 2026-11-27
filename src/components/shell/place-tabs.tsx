@@ -20,7 +20,7 @@ import { primeTick, tick } from "@/lib/nav/wheel-tick";
  * view; a place with a single tab (or none) has no strip at all — one tab is not a choice.
  *
  * On a PHONE the strip is a WHEEL (the owner, 2026-11-21: like the alarm's picker, turned on its side): it snaps, the tab in the middle is the chosen one (the
- * page follows when it settles there), the ones beside it shrink and fade, and a tick can sound for each tab that reaches the middle. The person's three
+ * page follows when the PERSON moves it and it settles there), the ones beside it shrink and fade, and a tick can sound for each tab that reaches the middle. The person's three
  * switches (the wheel, the motion, the tick) are in «المظهر واللغة»; with the wheel off it is the plain strip below. A computer keeps the plain strip.
  *
  * In the reorder mode («ترتيب», `editing`) each tab wears a grip and is dragged instead of followed; the new order of the
@@ -162,9 +162,10 @@ function useWheelPrefs(editing: boolean): { wheelOn: boolean; prefs: WheelPrefs 
 
 /**
  * The wheel's behaviour: on every scroll the tabs are drawn by their distance from the middle (`wheelLook`), the nearest one is marked `data-centered`
- * and, with the tick on, a new one reaching the middle ticks; a moment after the strip stops, the page goes to the tab that is in the middle.
+ * and, with the tick on, a new one reaching the middle ticks; a moment after the strip stops, the page goes to the tab that is in the middle, and only if
+ * the person moved it there (`watchHand`).
  */
-function useWheel(ref: React.RefObject<HTMLUListElement>, on: boolean, prefs: WheelPrefs, items: { key: string; href: string }[], current: string | null, go: (href: string) => void) {
+export function useWheel(ref: React.RefObject<HTMLUListElement>, on: boolean, prefs: WheelPrefs, items: { key: string; href: string }[], current: string | null, go: (href: string) => void) {
   const latest = useRef({ items, current, go, prefs });
   latest.current = { items, current, go, prefs };
   useEffect(() => {
@@ -173,6 +174,7 @@ function useWheel(ref: React.RefObject<HTMLUListElement>, on: boolean, prefs: Wh
     let frame = 0;
     let settle = 0;
     let last = -1;
+    const hand = watchHand(el);
     const paint = (): number => {
       const nodes = Array.from(el.querySelectorAll<HTMLElement>("[data-wheel-item]"));
       const box = el.getBoundingClientRect();
@@ -196,11 +198,13 @@ function useWheel(ref: React.RefObject<HTMLUListElement>, on: boolean, prefs: Wh
       return index;
     };
     const onScroll = () => {
+      hand.scrolled();
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(paint);
       window.clearTimeout(settle);
       settle = window.setTimeout(() => {
         const index = paint();
+        if (!hand.answer()) return;
         const { items: list, current: now, go: open } = latest.current;
         const target = list[index];
         if (target && target.key !== now) open(target.href);
@@ -215,6 +219,7 @@ function useWheel(ref: React.RefObject<HTMLUListElement>, on: boolean, prefs: Wh
       window.clearTimeout(settle);
       el.removeEventListener("scroll", onScroll);
       el.removeEventListener("pointerdown", onTouch);
+      hand.stop();
       el.querySelectorAll<HTMLElement>("[data-wheel-item]").forEach((n) => {
         n.style.opacity = "";
         n.style.transform = "";
@@ -222,6 +227,102 @@ function useWheel(ref: React.RefObject<HTMLUListElement>, on: boolean, prefs: Wh
       });
     };
   }, [ref, on, prefs.motion, prefs.sound, items.length]);
+}
+
+/** The keys that move a strip that runs sideways. */
+const STRIP_KEYS = new Set(["ArrowLeft", "ArrowRight", "Home", "End"]);
+
+/**
+ * Did the PERSON move the strip? A `scroll` does not say who made it: the browser snaps the strip when it first appears and again when the screen or the
+ * fonts change, and the app brings the current tab to the middle. Answering those opened another page by itself: a page with no tab of its own (a task,
+ * the time report) jumped to the first tab on a phone. What counts: a finger that travels sideways, a dragged mouse, the mouse wheel, the keys that move a
+ * strip. A tap does not (the tab's own link opens it). One move gets one answer, given when the strip rests; while the finger or the mouse is still on the
+ * strip the move goes on, so the snap after letting go counts too.
+ */
+function watchHand(el: HTMLElement) {
+  let moved = false;
+  let held: "finger" | "mouse" | null = null;
+  let start = { x: 0, y: 0 };
+  let forget = 0;
+  /** A move that no scroll follows (a pull at the strip's end) must not be kept for the browser's next scroll. */
+  const forgetSoon = () => {
+    window.clearTimeout(forget);
+    forget = window.setTimeout(() => (moved = false), 400);
+  };
+  const press = (by: "finger" | "mouse", x: number, y: number) => {
+    window.clearTimeout(forget);
+    held = by;
+    start = { x, y };
+  };
+  const letGo = () => {
+    held = null;
+    forgetSoon();
+  };
+  const onTouchStart = (e: TouchEvent) => {
+    const finger = e.touches[0];
+    if (finger) press("finger", finger.clientX, finger.clientY);
+  };
+  const onTouchMove = (e: TouchEvent) => {
+    const finger = e.touches[0];
+    if (!finger) return;
+    const across = Math.abs(finger.clientX - start.x);
+    // more up-and-down than across is the PAGE being scrolled; a few pixels is a tap
+    if (across > 5 && across > Math.abs(finger.clientY - start.y)) moved = true;
+  };
+  const onTouchEnd = (e: TouchEvent) => {
+    if (e.touches.length === 0) letGo();
+  };
+  const onPointerDown = (e: PointerEvent) => {
+    if (e.pointerType === "mouse" && e.button === 0) press("mouse", e.clientX, e.clientY);
+  };
+  const onPointerMove = (e: PointerEvent) => {
+    // the same 5 px at which `useRosary` starts dragging the strip
+    if (held === "mouse" && Math.abs(e.clientX - start.x) > 5) moved = true;
+  };
+  const onPointerUp = () => {
+    if (held === "mouse") letGo();
+  };
+  const turned = () => {
+    moved = true;
+    forgetSoon();
+  };
+  const onWheel = (e: WheelEvent) => {
+    if (!e.ctrlKey) turned();
+  };
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (STRIP_KEYS.has(e.key)) turned();
+  };
+  el.addEventListener("touchstart", onTouchStart, { passive: true });
+  el.addEventListener("touchmove", onTouchMove, { passive: true });
+  el.addEventListener("touchend", onTouchEnd, { passive: true });
+  el.addEventListener("touchcancel", onTouchEnd, { passive: true });
+  el.addEventListener("pointerdown", onPointerDown, { passive: true });
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp);
+  el.addEventListener("wheel", onWheel, { passive: true });
+  el.addEventListener("keydown", onKeyDown);
+  return {
+    /** The strip is moving: the answer comes when it rests. */
+    scrolled: () => window.clearTimeout(forget),
+    /** The strip rests: did the person bring it here? */
+    answer: (): boolean => {
+      const byPerson = moved;
+      if (!held) moved = false;
+      return byPerson;
+    },
+    stop: () => {
+      window.clearTimeout(forget);
+      el.removeEventListener("touchstart", onTouchStart);
+      el.removeEventListener("touchmove", onTouchMove);
+      el.removeEventListener("touchend", onTouchEnd);
+      el.removeEventListener("touchcancel", onTouchEnd);
+      el.removeEventListener("pointerdown", onPointerDown);
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("keydown", onKeyDown);
+    },
+  };
 }
 
 /**

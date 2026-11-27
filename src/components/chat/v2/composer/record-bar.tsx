@@ -27,7 +27,7 @@ export interface LiveView {
 }
 
 /** The sentence under the language picker: what the live text is doing, or why it is not (a key of the dictionary each, never built from the error's name). */
-function liveStatus(live: LiveView): string {
+export function liveStatus(live: LiveView): string {
   if (live.error === "denied") return ct("chatlive.err_denied");
   if (live.error === "busy") return ct("chatlive.err_busy");
   if (live.error === "failed") return ct("chatlive.err_failed");
@@ -36,8 +36,9 @@ function liveStatus(live: LiveView): string {
 
 export function RecordBar({ voice, error, live, onCancel, onSend }: { voice: Exclude<VoiceState, { mode: "idle" }>; error: string; live?: LiveView | undefined; onCancel: () => void; onSend: () => void }) {
   const recording = voice.mode === "recording" ? voice : null;
-  const elapsed = recording ? recording.elapsedMs : voice.mode === "review" ? voice.take.durationMs : 0;
-  const peaks = recording ? recording.peaks : voice.mode === "review" ? voice.take.peaks : [];
+  // «paused» and «cancelling» are the phone's (`tg-record-bar.tsx`); this bar still draws them if the screen widens in the middle of one
+  const elapsed = voice.mode === "review" ? voice.take.durationMs : voice.elapsedMs;
+  const peaks = voice.mode === "review" ? voice.take.peaks : voice.peaks;
   const holding = recording?.hold === true;
   return (
     <div className="mx-auto flex w-full max-w-[904px] flex-col gap-1" data-recording={voice.mode} data-locked={recording?.locked ? "" : undefined}>

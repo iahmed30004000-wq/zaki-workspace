@@ -40,7 +40,7 @@ export function primeChime(): void {
 }
 
 /** Draw one tone at `startAt` (the context's clock) with the person's volume as the master gain. */
-export function playTone(ctx: AudioContext, tone: ChatTone, volume: number, startAt: number): void {
+export function playTone(ctx: AudioContext, tone: Pick<ChatTone, "cutoff" | "notes">, volume: number, startAt: number): void {
   const level = Math.min(1, Math.max(0, volume));
   if (level <= 0) return;
   const master = ctx.createGain();
@@ -53,7 +53,7 @@ export function playTone(ctx: AudioContext, tone: ChatTone, volume: number, star
   filter.connect(master);
   for (const note of tone.notes) {
     const t0 = startAt + note.at;
-    voice(ctx, filter, note.hz, note.wave, note.gain, t0, note.dur);
+    voice(ctx, filter, note.hz, note.wave, note.gain, t0, note.dur, note.to);
     for (const over of note.overtones ?? []) {
       voice(ctx, filter, note.hz * over.ratio, "sine", note.gain * over.gain, t0, note.dur * over.decay);
     }
@@ -61,7 +61,7 @@ export function playTone(ctx: AudioContext, tone: ChatTone, volume: number, star
 }
 
 /** One oscillator with a soft attack and an exponential fall to silence. */
-function voice(ctx: AudioContext, to: AudioNode, hz: number, wave: OscillatorType, peak: number, t0: number, dur: number): void {
+function voice(ctx: AudioContext, to: AudioNode, hz: number, wave: OscillatorType, peak: number, t0: number, dur: number, glideTo?: number): void {
   const env = ctx.createGain();
   env.gain.setValueAtTime(0.0001, t0);
   env.gain.linearRampToValueAtTime(Math.max(peak, 0.0002), t0 + 0.008);
@@ -70,6 +70,10 @@ function voice(ctx: AudioContext, to: AudioNode, hz: number, wave: OscillatorTyp
   const osc = ctx.createOscillator();
   osc.type = wave;
   osc.frequency.value = hz;
+  if (glideTo !== undefined) {
+    osc.frequency.setValueAtTime(hz, t0);
+    osc.frequency.exponentialRampToValueAtTime(glideTo, t0 + Math.max(dur, 0.02));
+  }
   osc.connect(env);
   osc.start(t0);
   osc.stop(t0 + Math.max(dur, 0.02) + 0.03);
@@ -97,6 +101,37 @@ export function playChime(o: { tone: ChatToneId; volume: number; mention: boolea
   }
   lastPlayedAt = now;
   return true;
+}
+
+/** Draws any tone now (the sounds library's own messages): the same audio, the same sleep until a touch; no 600 ms gap of its own. Never throws. */
+export function playToneNow(tone: Pick<ChatTone, "cutoff" | "notes">, volume: number): boolean {
+  const ctx = audio();
+  if (!ctx) return false;
+  if (ctx.state !== "running") {
+    void ctx.resume().catch(() => undefined);
+    return false;
+  }
+  try {
+    playTone(ctx, tone, volume, ctx.currentTime);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+/** `playToneNow` from the person's tap (a settings preview): the audio is woken first, as an iPhone's Safari wants. */
+export async function previewTone(tone: Pick<ChatTone, "cutoff" | "notes">, volume: number): Promise<boolean> {
+  const ctx = audio();
+  if (!ctx) return false;
+  primeChime();
+  if (ctx.state !== "running") {
+    try {
+      await ctx.resume();
+    } catch {
+      return false;
+    }
+  }
+  return playToneNow(tone, volume);
 }
 
 /** Test hook: forget the last sound. */

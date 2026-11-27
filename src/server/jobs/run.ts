@@ -1,6 +1,7 @@
 import { log } from "@/server/log";
 import { fireDueReminders, type RemindersRun } from "./reminders";
 import { fireDueRecurrences, type RecurrencesRun } from "./recurrence";
+import { fireDueRoutines, type DailyRoutinesRun } from "./daily-routines";
 import { autoStopTimers, type TimeEntriesRun } from "./time-entries";
 import { expireAiProposals, type AiProposalsRun } from "./ai-proposals";
 import { runCheckins, type CheckinsRun } from "./checkins";
@@ -25,6 +26,8 @@ export interface JobsRun {
   reminders: RemindersRun | null;
   /** «مهمة متكررة» (حسب الجدول): the tasks made for the series whose day has come. */
   recurrences: RecurrencesRun | null;
+  /** «روتين يومي»: today's card of every routine whose time has come. */
+  dailyRoutines: DailyRoutinesRun | null;
   /** «حساب وقت الشغل»: the timers left running more than 12 hours, closed at the 12th hour. */
   timeEntries: TimeEntriesRun | null;
   /** «مساعد المالك»: the proposals nobody decided in 48 hours, marked EXPIRED. */
@@ -54,7 +57,7 @@ export interface JobsRun {
 }
 
 export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
-  const result: JobsRun = { reminders: null, recurrences: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, mailTasks: null, searchEmbed: null, omsSync: null, customerWipe: null, ticketEscalation: null, mustRead: null, callTranscripts: null, failed: [] };
+  const result: JobsRun = { reminders: null, recurrences: null, dailyRoutines: null, timeEntries: null, aiProposals: null, checkins: null, taskRules: null, backups: null, mailTasks: null, searchEmbed: null, omsSync: null, customerWipe: null, ticketEscalation: null, mustRead: null, callTranscripts: null, failed: [] };
   try {
     result.reminders = await fireDueReminders(now);
   } catch (err) {
@@ -66,6 +69,12 @@ export async function runDueJobs(now: Date = new Date()): Promise<JobsRun> {
   } catch (err) {
     result.failed.push("recurrences");
     log.error("jobs.failed", { job: "recurrences", message: err instanceof Error ? err.message : String(err) });
+  }
+  try {
+    result.dailyRoutines = await fireDueRoutines(now);
+  } catch (err) {
+    result.failed.push("dailyRoutines");
+    log.error("jobs.failed", { job: "dailyRoutines", message: err instanceof Error ? err.message : String(err) });
   }
   try {
     result.timeEntries = await autoStopTimers(now);

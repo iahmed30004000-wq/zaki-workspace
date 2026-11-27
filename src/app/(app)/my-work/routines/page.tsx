@@ -1,0 +1,26 @@
+import { notFound } from "next/navigation";
+import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
+import { GuestNotice } from "@/app/(app)/_guest";
+import { RoutinesView } from "@/components/work/routines/routines-view";
+import { actorCanWork } from "@/server/policy/actor";
+import { db } from "@/server/db";
+import { routinesScreen } from "@/server/services/daily-routines";
+import { isFeatureOn } from "@/server/services/features";
+import { DEFAULT_DUE_HOUR, defaultDueHourOf } from "@/lib/due-day";
+
+/**
+ * «الروتين اليومي» — /my-work/routines: the routines that make a fresh card on their days, each with pause, resume and
+ * edit for whoever manages it. A guest gets the notice every internal page gives. While the company's «مهمة متكررة»
+ * switch is off there is no such page. The service decides again what the person sees.
+ */
+export default async function RoutinesPage() {
+  const { actor } = await pageActor();
+  if (!(await isFeatureOn(actor.orgId, "recurringTasks"))) notFound();
+  if (actor.isExternal) return <GuestNotice />;
+  if (!actorCanWork(actor, "tasks.view")) return <SectionOffNotice />;
+  const [initial, org] = await Promise.all([routinesScreen(), db.organization.findUnique({ where: { id: actor.orgId }, select: { settings: true } })]);
+  const hour = defaultDueHourOf(org?.settings) ?? DEFAULT_DUE_HOUR;
+  return <RoutinesView initial={initial} defaultDueTime={`${String(hour).padStart(2, "0")}:00`} />;
+}
+
+export const dynamic = "force-dynamic";

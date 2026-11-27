@@ -1,22 +1,26 @@
 "use client";
 
 import React from "react";
-import { CalendarClock, Check, LoaderCircle, Mic, Send, Smile, Star, X, Zap } from "lucide-react";
+import { CalendarClock, Check, Keyboard, LoaderCircle, Mic, Send, Smile, Star, X, Zap } from "lucide-react";
 import type { MessageDto } from "@/server/chat/dto";
 import { CustomerHint } from "@/components/chat/v2/bubble/bubble-extras";
 import { AttachMenu } from "@/components/chat/v2/composer/attach-menu";
 import { AttachSheet } from "@/components/chat/v2/composer/attach-sheet";
-import { EmojiPopover } from "@/components/chat/v2/composer/emoji-panel";
+import { EmojiKeyboard, EmojiPopover } from "@/components/chat/v2/composer/emoji-panel";
+import { useTgPhone } from "@/components/shell/tg-phone";
+import { deleteBack, insertPiece, type TextEdit } from "@/lib/chat/v2/composer/panel-text";
 import { FileTray } from "@/components/chat/v2/composer/file-tray";
 import { FormatToolbar } from "@/components/chat/v2/composer/format-toolbar";
 import { MentionList } from "@/components/chat/v2/composer/mention-list";
 import { RecordBar } from "@/components/chat/v2/composer/record-bar";
+import { TgRecordBar } from "@/components/chat/v2/composer/tg-record-bar";
 import { ScheduledList } from "@/components/chat/v2/composer/scheduled-list";
 import { ScheduleDialog } from "@/components/chat/v2/composer/schedule-dialog";
 import { SendMenu, sendMenuItemsOf } from "@/components/chat/v2/composer/send-menu";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
 import { COMPOSER_ICON_BUTTON, ROUND_BUTTON } from "@/components/chat/v2/composer/composer-styles";
 import { ct } from "@/lib/chat/text";
+import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
 import { firstLink, hostOf } from "@/lib/chat/format/links";
 import { attachItemsOf } from "@/lib/chat/v2/composer/attach-items";
 import { applyFormat, formatActionOf, type FormatAction } from "@/lib/chat/v2/composer/format-keys";
@@ -34,6 +38,8 @@ export type SurfaceEngine = Pick<
   Partial<Pick<ComposerEngine, "submitSilent" | "silentSendOn" | "setFeedback">> &
   /** «نص مباشر أثناء التسجيل»: the live words of the recorder bar; an engine without it (a test's, or the switch off) draws none */
   Partial<Pick<ComposerEngine, "live">> &
+  /** «تيليجرام على التلفون» (`tgPhone`, a phone-wide screen): the phone's recording bar, the tooltip under a short tap and the mic's morph; absent: as before */
+  Partial<Pick<ComposerEngine, "tg">> &
   /** S6.2: the attach sheet's edit and «جودة عالية» buttons; an engine without them (a test's) draws neither */
   Partial<Pick<ComposerEngine, "replaceFile" | "setHd" | "addDropped">> &
   /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
@@ -63,6 +69,12 @@ export interface SurfaceProps {
    * `true`, and the server then never visits the link. The surface only reports it; the composer that sends (`useComposer`) reads it.
    */
   onNoPreviewChange?: (noPreview: boolean) => void;
+  /** «تيليجرام على التلفون»: an emoji picked in the inline panel (it is remembered as a recent one) */
+  onEmojiUsed?: (emoji: string) => void;
+  /** «تيليجرام على التلفون»: a sticker of the panel's «الملصقات» tab, sent by itself (only while the box is empty) */
+  onStickerSend?: (code: string) => void;
+  /** «تيليجرام على التلفون»: the reply bar was tapped: «خيارات الرد» */
+  onReplyOptions?: () => void;
 }
 
 /**
@@ -70,8 +82,34 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange, onEmojiUsed, onStickerSend, onReplyOptions }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
+  // «تيليجرام على التلفون»: the emojis stand where the keyboard stood (the box is NOT focused while they do), and the caret is kept by hand
+  const tg = useTgPhone();
+  const panelCaret = React.useRef<{ start: number; end: number } | null>(null);
+  const toggleEmoji = () => {
+    if (!tg) return setEmojiOpen((open) => !open);
+    const el = c.textRef.current;
+    if (emojiOpen) {
+      setEmojiOpen(false);
+      el?.focus();
+      return;
+    }
+    panelCaret.current = el ? { start: el.selectionStart, end: el.selectionEnd } : null;
+    el?.blur();
+    setEmojiOpen(true);
+  };
+  const panelEdit = (edit: (text: string, start: number, end: number) => TextEdit) => {
+    const at = panelCaret.current ?? { start: c.body.length, end: c.body.length };
+    // an empty box (the message was just sent) puts the caret back at its start
+    const next = edit(c.body, Math.min(at.start, c.body.length), Math.min(at.end, c.body.length));
+    panelCaret.current = { start: next.caret, end: next.caret };
+    c.onTextChange(next.text);
+  };
+  const panelInsert = (piece: string) => {
+    onEmojiUsed?.(piece);
+    panelEdit((text, start, end) => insertPiece(text, start, end, piece));
+  };
   // C3b.2: the first https link of the draft is what the server will visit after the send; ✕ says «no preview» for THAT link (another first link brings the line back)
   const draftLink = linkPreviews && !editing ? firstLink(c.body) : null;
   const previewHref = draftLink && draftLink.href.startsWith("https://") ? draftLink.href : null;
@@ -85,6 +123,12 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
     if (previewHref === null) setPreviewOff(null);
   }, [previewHref]);
   const closeEmoji = React.useCallback(() => setEmojiOpen(false), []);
+  // the phone's two small motions: the box fading back after the recording bar, and the round button's icon morphing when it changes
+  const cameBack = React.useRef(false);
+  const firstFace = React.useRef(c.face);
+  const faceMoved = React.useRef(false);
+  if (c.face !== firstFace.current) faceMoved.current = true;
+  const faceChanged = faceMoved.current;
   // C3b.1: words selected in the box show the formatting bar; an action (a press on it, or Ctrl+B ...) rewrites the text and puts the selection back on the same words
   const [selected, setSelected] = React.useState(false);
   const pendingSelection = React.useRef<{ start: number; end: number } | null>(null);
@@ -127,9 +171,14 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
   };
   if (c.voice.mode !== "idle") {
     const voice = c.voice;
-    return <RecordBar voice={voice} error={c.error} live={c.live} onCancel={c.cancelRecording} onSend={() => void c.sendVoice(voice.mode === "review" ? voice.take : null)} />;
+    const send = () => void c.sendVoice(voice.mode === "review" ? voice.take : null);
+    cameBack.current = true;
+    if (c.tg) return <TgRecordBar voice={voice} error={c.error} live={c.live} tg={c.tg} onSend={send} />;
+    return <RecordBar voice={voice} error={c.error} live={c.live} onCancel={c.cancelRecording} onSend={send} />;
   }
   const mic = c.face === "mic";
+  // the microphone and send morph into each other (150 ms); nothing morphs on the first drawing of the box
+  const morph = c.tg && faceChanged ? "tg-face-morph" : "";
   // C3c.2: the send button's menu (right-click, long press): only an engine that can send silently, only while the company's switch is on (absent: on)
   // C3c.3: and «جدول الإرسال», only where the scheduled list said the person may write here (the company's switch on)
   const sendItems = c.submitSilent || c.scheduling ? sendMenuItemsOf({ silentSend: c.submitSilent !== undefined && c.silentSendOn !== false, editing: editing !== null, canSubmit: c.canSubmit, scheduling: c.scheduling === true }) : [];
@@ -137,8 +186,8 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
   const dialogEdit = c.scheduleDialog?.edit ?? null;
   return (
     <>
-    <form onSubmit={c.submit} className="mx-auto flex w-full max-w-[904px] flex-col gap-2" data-composer-surface>
-      <ReplyEditBar reply={reply} editing={editing} quote={replyQuote} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} />
+    <form onSubmit={c.submit} className={`mx-auto flex w-full max-w-[904px] flex-col gap-2${c.tg && cameBack.current ? " tg-composer-return" : ""}`} style={c.tg ? (tgMotionVars(["composerMorphMs", "composerReturnMs"]) as React.CSSProperties) : undefined} data-composer-surface>
+      <ReplyEditBar reply={reply} editing={editing} quote={replyQuote} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} {...(onReplyOptions ? { onOptions: onReplyOptions } : {})} />
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
       <MentionList choices={c.choices} pickAt={c.pickAt} onHover={c.setPick} onChoose={c.selectMention} />
       {previewHref && !noPreview ? (
@@ -157,6 +206,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
       ) : null}
       <div className="relative flex min-w-0 items-end gap-2">
         {formatting && selected ? <FormatToolbar onAction={applyAction} /> : null}
+        {tg ? null : (
         <EmojiPopover
           open={emojiOpen}
           onClose={closeEmoji}
@@ -166,9 +216,10 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
             onEmoji(emoji);
           }}
         />
+        )}
         <div data-composer-pill className="flex min-w-0 flex-1 items-end rounded-[23px] bg-surface-1 px-1 py-[3px] shadow-card">
-        <button type="button" data-emoji-toggle className={COMPOSER_ICON_BUTTON} aria-label={ct("chatui.composer.emoji")} aria-expanded={emojiOpen} onClick={() => setEmojiOpen((open) => !open)}>
-          <Smile aria-hidden="true" className="size-6" />
+        <button type="button" data-emoji-toggle className={COMPOSER_ICON_BUTTON} aria-label={ct(tg && emojiOpen ? "tgmsg.panel.keyboard" : "chatui.composer.emoji")} aria-expanded={emojiOpen} onClick={toggleEmoji}>
+          {tg && emojiOpen ? <Keyboard aria-hidden="true" className="size-6" /> : <Smile aria-hidden="true" className="size-6" />}
         </button>
         <label className="sr-only" htmlFor="chat-message">
           {ct("chatc.message")}
@@ -182,6 +233,8 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           onKeyDown={onBoxKeyDown}
           onSelect={(event) => setSelected(event.currentTarget.selectionStart !== event.currentTarget.selectionEnd)}
           onBlur={() => setSelected(false)}
+          // a tap in the box brings the phone's keyboard back in the panel's place
+          {...(tg && emojiOpen ? { onFocus: closeEmoji } : {})}
           onPaste={c.onPaste}
           role="combobox"
           aria-expanded={c.choices.length > 0}
@@ -228,27 +281,43 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
         </div>
         <input ref={c.mediaInput} type="file" accept="image/*,video/*" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(event) => { c.addFiles(event.currentTarget.files); event.currentTarget.value = ""; }} />
         <input ref={c.fileInput} type="file" multiple className="sr-only" tabIndex={-1} aria-hidden="true" onChange={(event) => { c.addFiles(event.currentTarget.files, true); event.currentTarget.value = ""; }} />
+        {c.tg?.tip ? (
+          <p role="tooltip" data-mic-tip className="pointer-events-none absolute bottom-full end-0 z-20 mb-2 max-w-[85%] rounded-xl bg-fg px-3 py-2 text-xs font-medium text-surface shadow-lg">
+            {ct("tgvoice.tap_tip")}
+          </p>
+        ) : null}
         {mic ? (
           <button
             type="button"
             data-composer-face="mic"
-            className={`${ROUND_BUTTON} touch-none select-none`}
+            className={`${ROUND_BUTTON} touch-none select-none${c.tg ? " [-webkit-touch-callout:none]" : ""}`}
             aria-label={ct("chat.f.record")}
             title={ct("chat.f.hold_to_record")}
             disabled={c.busy}
             onClick={c.onMicClick}
             onPointerDown={c.onMicPointerDown}
+            // a long press on a phone must not open the browser's own menu in the middle of a hold
+            onContextMenu={c.tg ? (event) => event.preventDefault() : undefined}
           >
-            <Mic aria-hidden="true" className="size-6" />
+            <Mic key="mic" aria-hidden="true" className={morph ? `size-6 ${morph}` : "size-6"} />
           </button>
         ) : (
           <SendMenu items={sendItems} onPick={(id) => (id === "silent" ? c.submitSilent?.() : id === "schedule" ? c.openScheduleDialog?.() : undefined)}>
             <button type="submit" data-composer-face={c.face} className={ROUND_BUTTON} disabled={!c.canSubmit} aria-label={c.face === "save" ? ct("chatc.save") : c.busy ? ct("chatc.sending") : ct("chatc.send")}>
-              {c.busy ? <LoaderCircle aria-hidden="true" className="size-6 motion-safe:animate-spin" /> : c.face === "save" ? <Check aria-hidden="true" className="size-6" /> : <Send aria-hidden="true" className="size-6" />}
+              {c.busy ? <LoaderCircle aria-hidden="true" className="size-6 motion-safe:animate-spin" /> : c.face === "save" ? <Check key="save" aria-hidden="true" className={morph ? `size-6 ${morph}` : "size-6"} /> : <Send key="send" aria-hidden="true" className={morph ? `size-6 ${morph}` : "size-6"} />}
             </button>
           </SendMenu>
         )}
       </div>
+      {tg && emojiOpen ? (
+        <EmojiKeyboard
+          recents={recents}
+          zaki={zakiEmojis}
+          onEmoji={panelInsert}
+          onSticker={(code) => (onStickerSend && !editing && !c.body.trim() ? onStickerSend(code) : panelEdit((text, start, end) => insertPiece(text, start, end, code)))}
+          onBackspace={() => panelEdit(deleteBack)}
+        />
+      ) : null}
       {c.hint ? <CustomerHint hint={c.hint} canProblem={false} /> : null}
       {c.busy && c.files.length === 0 && c.progress.length > 0 ? (
         <p className="text-xs text-fg-muted" role="status">

@@ -55,12 +55,15 @@ export function BubbleMedia({ attachments, kind, canTranscribe, canReadImages, a
       );
     }
     if (kind === "VOICE" && file.mime.startsWith("audio/")) {
+      // `aside`: the phone's transcribe button (`tgPhone`), drawn inside the note's row by VoiceTranscript
+      const row = (aside?: React.ReactNode) => (
+        <div className="flex items-center" style={{ height: VOICE_BOX_PX }}>
+          <VoicePlayer src={url} peaks={file.peaks} durationMs={file.durationMs} mine={mine} speedAlways={voiceTg} aside={aside} />
+        </div>
+      );
       return (
         <div key={file.id} data-voice-box>
-          <div className="flex items-center" style={{ height: VOICE_BOX_PX }}>
-            <VoicePlayer src={url} peaks={file.peaks} durationMs={file.durationMs} mine={mine} speedAlways={voiceTg} />
-          </div>
-          {canTranscribe && <VoiceTranscript attachmentId={file.id} />}
+          {canTranscribe ? <VoiceTranscript attachmentId={file.id} mine={mine} row={row} /> : row()}
         </div>
       );
     }

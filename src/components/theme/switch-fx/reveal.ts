@@ -32,7 +32,7 @@ export interface RevealOptions {
   particles?: number;
 }
 
-const DURATION = { shards: 2000, ink: 1500 } as const;
+const DURATION = { shards: 2000, ink: 1500, circle: 200 } as const;
 
 let cancel: (() => void) | null = null;
 
@@ -61,7 +61,8 @@ export async function changeThemeWithReveal(apply: () => void, options: RevealOp
   const w = window.innerWidth;
   const h = window.innerHeight;
   // the percentage is the share of the way to the farthest corner: 100% is the moment the torn edge has covered it
-  const radius = revealRadius(origin.x, origin.y, w, h) * 0.9;
+  // a clean circle has no torn edge to run past the corner: it must reach it
+  const radius = revealRadius(origin.x, origin.y, w, h) * (look === "circle" ? 1.02 : 0.9);
   const accent = token(toDark ? "lm-spark-d" : "lm-spark-l", [255, 176, 32]);
   const ink = token(toDark ? "lm-bg-d" : "lm-bg-l", [15, 16, 23]);
   const rim = mixRgb(accent, [255, 255, 255], 0.35);
@@ -151,7 +152,7 @@ export async function changeThemeWithReveal(apply: () => void, options: RevealOp
           // the number stays a left-to-right run inside the Arabic words ("36%" must not read "%36")
           if (pillText) pillText.textContent = (options.label?.(repaintPercent(t)) ?? "").replace(/(\d+%)/, "\u2066$1\u2069");
           if (pillBar) pillBar.style.width = `${repaintPercent(t)}%`;
-          if (ctx) {
+          if (ctx && look !== "circle") {
             ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
             ctx.clearRect(0, 0, w, h);
             // rings

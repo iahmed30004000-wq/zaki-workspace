@@ -33,10 +33,11 @@ export default async function MyWorkPage({ searchParams }: { searchParams: Recor
 
   const requested = parseMyTasksParams(searchParams ?? {});
   const now = new Date();
-  const [initial, staleHref] = await Promise.all([workScreenFor(actor, requested, now), staleLinkFor(actor)]);
+  const [initial, staleHref, routinesOn] = await Promise.all([workScreenFor(actor, requested, now), staleLinkFor(actor), isFeatureOn(actor.orgId, "recurringTasks")]);
+  const routinesHref = routinesOn && !actor.isExternal ? "/my-work/routines" : null;
   const query = myTasksApiQuery(requested);
   // `key`: an address the screen did not make itself (the menu's link, a pasted one) is a NEW screen, not a stale one
-  return <MyTasksView key={query} requested={requested} initial={initial} initialQuery={query} initialAt={now.getTime()} staleHref={staleHref} />;
+  return <MyTasksView key={query} requested={requested} initial={initial} initialQuery={query} initialAt={now.getTime()} staleHref={staleHref} routinesHref={routinesHref} />;
 }
 
 /** The review list's address for a person who may open it (a guest never; nobody while its switch is off; somebody who manages no space is told on the page itself, so no link). */

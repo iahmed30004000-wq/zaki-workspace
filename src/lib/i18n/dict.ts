@@ -43,6 +43,8 @@ import ownerBoard from "./ar.owner-board.json";
 import taskPrivacy from "./ar.task-privacy.json";
 import assignedOnly from "./ar.assigned-only.json";
 import spaceOnly from "./ar.space-only.json";
+import agents from "./ar.agents.json";
+import routine from "./ar.routine.json";
 import chatPrivacy from "./ar.chat-privacy.json";
 import oms from "./ar.oms.json";
 import knowledge from "./ar.knowledge.json";
@@ -107,6 +109,9 @@ import verifiedBadge from "./ar.verified-badge.json";
 import chatParity from "./ar.chat-parity.json";
 import meetingMinutes from "./ar.meeting-minutes.json";
 import chatSounds from "./ar.chat-sounds.json";
+import tgVoice from "./ar.tg-voice.json";
+import tgSheets from "./ar.tg-sheets.json";
+import tgMessages from "./ar.tg-messages.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -175,6 +180,8 @@ export const AR: Record<string, string> = {
   ...taskPrivacy,
   ...assignedOnly,
   ...spaceOnly,
+  ...agents,
+  ...routine,
   ...chatPrivacy,
   ...oms,
   ...knowledge,
@@ -225,4 +232,7 @@ export const AR: Record<string, string> = {
   ...chatParity,
   ...meetingMinutes,
   ...chatSounds,
+  ...tgVoice,
+  ...tgSheets,
+  ...tgMessages,
 };

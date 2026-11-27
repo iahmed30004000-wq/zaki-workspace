@@ -3,6 +3,7 @@ import { clientIp } from "@/server/rate-limit";
 import { log } from "@/server/log";
 import { can } from "@/server/policy/capabilities";
 import { accessibleWorkspaceIds } from "@/server/services/access";
+import { usableAgent } from "@/server/door/acting-agent";
 import { isFeatureOn } from "@/server/services/features";
 import { canMark } from "@/server/chat/must-read-policy";
 import { resolveDoorTopic, storeAppCard } from "@/server/chat/door-message";
@@ -52,7 +53,7 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
 
   const row = await db.apiToken.findUnique({
     where: { prefix: parsed.prefix },
-    select: { id: true, name: true, system: true, organizationId: true, workspaceId: true, createdById: true, permissions: true, tokenHash: true, expiresAt: true, lastUsedAt: true, revokedAt: true, buttonHosts: true },
+    select: { id: true, name: true, system: true, organizationId: true, workspaceId: true, createdById: true, actsAsId: true, permissions: true, tokenHash: true, expiresAt: true, lastUsedAt: true, revokedAt: true, buttonHosts: true },
   });
   if (!tokenMatches(token, row?.tokenHash ?? null) || !row) return refuse("unknown_or_wrong");
   const now = new Date();
@@ -68,6 +69,7 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
   const botIssuer = row.system === "bot" ? await db.bot.findFirst({ where: { userId: row.createdById, orgId: row.organizationId, tokenId: row.id, deletedAt: null }, select: { id: true } }) : null;
   if (!issuer || issuer.status !== "ACTIVE" || issuer.role === "GUEST" || (!botIssuer && !can(issuer, "integrations.manage"))) return refuse("issuer_inactive", row.id);
   if (!(await accessibleWorkspaceIds(row.createdById)).includes(row.workspaceId)) return refuse("space_unreachable", row.id);
+  if (row.actsAsId && !(await usableAgent(row.organizationId, row.actsAsId, row.workspaceId))) return refuse("agent_unusable", row.id);
 
   // one kill switch for every door, and this door's own
   if (!(await isFeatureOn(row.organizationId, "apiDoor")) || !(await isFeatureOn(row.organizationId, "doorMessages"))) throw new DoorError(404, "door.not_found", "Not found.");
@@ -92,7 +94,7 @@ export async function authenticateMessages(req: Request, requestId: string): Pro
     tokenId: row.id,
     tokenName: row.name,
     orgId: row.organizationId,
-    issuerId: row.createdById,
+    issuerId: row.actsAsId ?? row.createdById,
     workspaceId: row.workspaceId,
     permissions: row.permissions,
     requestId,

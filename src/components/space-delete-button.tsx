@@ -9,11 +9,26 @@ import { Modal } from "@/components/ui/modal";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-type Contents = { name: string; projects: number; tasks: number; conversations: number; messages: number; files: number; ideas: number; goals: number; routines: number; customers: number };
-const COUNTS = ["projects", "tasks", "conversations", "messages", "files", "ideas", "goals", "routines", "customers"] as const;
+type Contents = {
+  name: string;
+  projects: number;
+  tasks: number;
+  conversations: number;
+  messages: number;
+  files: number;
+  ideas: number;
+  goals: number;
+  routines: number;
+  customers: number;
+  members?: number;
+  /** a department's space: its department goes too, with these */
+  department?: { tickets: number; campaigns: number; people: number } | null;
+};
+const COUNTS = ["projects", "tasks", "conversations", "messages", "files", "ideas", "goals", "routines", "customers", "members"] as const;
+const DEPARTMENT_COUNTS = ["tickets", "campaigns", "people"] as const;
 
 /**
- * «احذف المساحة» on a card of «كل المساحات» (the OWNER only; never «الشركة» or a department's space): shows what goes
+ * «احذف المساحة» on a card of «كل المساحات» (the OWNER only; never «الشركة»; a department's space goes with its department, and the list says so): shows what goes
  * with it, asks for its name typed, then deletes it with all its work (src/server/services/space-delete.ts decides
  * again). A2.2: on the space's own settings page («خطر») the page would be gone, so `onDeleted` replaces the refresh (the page leaves), and `labelled`
  * draws the button with its words instead of the card's trash icon.
@@ -73,7 +88,8 @@ export function SpaceDeleteButton({ id, name, onDeleted, labelled = false }: { i
     }
   }
 
-  const items = contents ? COUNTS.filter((k) => contents[k] > 0) : [];
+  const items = contents ? COUNTS.filter((k) => (contents[k] ?? 0) > 0) : [];
+  const department = contents?.department ?? null;
 
   return (
     <>
@@ -100,13 +116,23 @@ export function SpaceDeleteButton({ id, name, onDeleted, labelled = false }: { i
                   <p className="font-medium">{t("spaces.delete.what")}</p>
                   <ul className="grid grid-cols-2 gap-1">
                     {items.map((k) => (
-                      <li key={k} className="rounded-lg bg-surface-2 px-2 py-1">{t(`spaces.delete.count.${k}`, { n: contents[k] })}</li>
+                      <li key={k} className="rounded-lg bg-surface-2 px-2 py-1">{t(`spaces.delete.count.${k}`, { n: contents[k] ?? 0 })}</li>
                     ))}
                   </ul>
                 </>
               ) : (
                 <p>{t("spaces.delete.empty")}</p>
               )}
+              {department ? (
+                <div data-delete-department="" className="space-y-1 rounded-lg border border-danger/40 p-2">
+                  <p className="font-medium text-danger">{t("spaces.delete.dept")}</p>
+                  <ul className="grid grid-cols-2 gap-1">
+                    {DEPARTMENT_COUNTS.map((k) => (
+                      <li key={k} className="rounded-lg bg-surface-2 px-2 py-1">{t(`spaces.delete.dept.${k}`, { n: department[k] })}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               <p className="text-danger">{t("spaces.delete.warn")}</p>
               <label className="block">
                 <span className="mb-1 block font-medium">{t("spaces.delete.type", { name })}</span>

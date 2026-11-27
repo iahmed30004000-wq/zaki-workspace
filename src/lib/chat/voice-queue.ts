@@ -1,4 +1,5 @@
-import { DEFAULT_VOICE_SPEED, VOICE_SPEEDS, type VoiceSpeed } from "@/lib/chat/prefs";
+import { DEFAULT_VOICE_SPEED, isVoiceSpeed, type VoiceSpeed } from "@/lib/chat/prefs";
+import { voiceHeard } from "@/lib/chat/voice-heard";
 import { safeMediaUrl } from "@/lib/chat/album-layout";
 import type { MessageDto } from "@/server/chat/dto";
 
@@ -10,7 +11,8 @@ import type { MessageDto } from "@/server/chat/dto";
  *    ends hands over to `nextUnheard`. It takes its audio object from a factory, so it runs in a test with a stand-in. The screens read it as an external
  *    store (`subscribe` / `getSnapshot`).
  *  - A note is known by its address (`src`): the bubble shows that address, and so does the queue.
- *  - «Heard» is what this device played in this session (a note counts as heard when it starts). Nothing is stored: the server keeps no «heard» mark.
+ *  - «Heard» (the walk's) is what this device played in this session (a note counts as heard when it starts): the server keeps no «heard» mark. The phone's
+ *    unplayed dot (`tgPhone`) has its own memory on the device (`voice-heard.ts`), told when a note really plays (`onPlayed`); the walk does not read it.
  */
 
 /** A voice note of the open conversation, as the queue knows it. */
@@ -22,17 +24,22 @@ export interface VoiceNote {
   /** my own note: it is never «unheard», so the walk skips it */
   mine?: boolean;
   durationMs?: number;
+  /** when the message was sent (ISO), carried only when asked for (`withTime`: the phone's bar under the header, and the unplayed dot) */
+  sentAt?: string;
 }
 
 /** The voice notes of the loaded messages, oldest to newest (the order of the list). Never a deleted one, a pending one or an address that is not ours. */
-export function voiceNotesOf(messages: readonly Pick<MessageDto, "id" | "kind" | "deleted" | "mine" | "authorName" | "attachments">[]): VoiceNote[] {
+export function voiceNotesOf(
+  messages: readonly (Pick<MessageDto, "id" | "kind" | "deleted" | "mine" | "authorName" | "attachments"> & { createdAt?: string })[],
+  options: { withTime?: boolean } = {},
+): VoiceNote[] {
   const out: VoiceNote[] = [];
   for (const m of messages) {
     if (m.kind !== "VOICE" || m.deleted || m.id.startsWith("pending:")) continue;
     for (const file of m.attachments) {
       const src = file.mime.startsWith("audio/") ? safeMediaUrl(file.url) : undefined;
       if (!src) continue;
-      out.push({ src, messageId: m.id, authorName: m.authorName, mine: m.mine, durationMs: file.durationMs });
+      out.push({ src, messageId: m.id, authorName: m.authorName, mine: m.mine, durationMs: file.durationMs, ...(options.withTime && m.createdAt ? { sentAt: m.createdAt } : {}) });
       break; // a voice message is one note
     }
   }
@@ -85,6 +92,8 @@ const IDLE: VoiceSnapshot = { activeSrc: null, note: null, playing: false, at: 0
 export interface VoiceEngineOptions {
   /** the ONE audio object the engine plays through (the default is the browser's `Audio`) */
   makeAudio?: () => AudioLike | null;
+  /** a note really started to sound (the phone's unplayed dot is taken off) */
+  onPlayed?: (src: string) => void;
 }
 
 const browserAudio = (): AudioLike | null => {
@@ -149,7 +158,10 @@ export function createVoiceEngine(options: VoiceEngineOptions = {}) {
     if (audio) return audio;
     const el = makeAudio();
     if (!el) return null;
-    el.addEventListener("play", () => commit({ playing: true }));
+    el.addEventListener("play", () => {
+      if (state.activeSrc !== null) options.onPlayed?.(state.activeSrc);
+      commit({ playing: true });
+    });
     el.addEventListener("pause", () => {
       if (state.activeSrc !== null) commit({ playing: false });
     });
@@ -253,9 +265,13 @@ export function createVoiceEngine(options: VoiceEngineOptions = {}) {
       start(src);
     },
     stop,
+    /** pauses what is playing, if anything (a recording that starts must not record the note that plays) */
+    pause(): void {
+      if (state.playing) audio?.pause();
+    },
 
     setSpeed(speed: VoiceSpeed): void {
-      if (!VOICE_SPEEDS.includes(speed)) return;
+      if (!isVoiceSpeed(speed)) return;
       touched = true;
       if (audio) audio.playbackRate = speed;
       commit({ speed });
@@ -263,7 +279,7 @@ export function createVoiceEngine(options: VoiceEngineOptions = {}) {
     },
     /** what the person's prefs hold: taken only while the person has not picked a speed on this device in this session; it is never saved back */
     hydrateSpeed(speed: VoiceSpeed): void {
-      if (touched || !VOICE_SPEEDS.includes(speed)) return;
+      if (touched || !isVoiceSpeed(speed)) return;
       if (audio) audio.playbackRate = speed;
       commit({ speed });
     },
@@ -280,4 +296,4 @@ export function createVoiceEngine(options: VoiceEngineOptions = {}) {
 export type VoiceEngine = ReturnType<typeof createVoiceEngine>;
 
 /** The one engine of the page: every voice bubble and the mini bar share it. */
-export const voiceEngine: VoiceEngine = createVoiceEngine();
+export const voiceEngine: VoiceEngine = createVoiceEngine({ onPlayed: (src) => voiceHeard.markPlayed(src) });

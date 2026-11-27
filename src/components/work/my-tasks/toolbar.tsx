@@ -54,11 +54,14 @@ export function Toolbar({
   data,
   onChange,
   staleHref = null,
+  routinesHref = null,
 }: {
   params: MyTasksParams;
   data: WorkTasksResult;
   onChange: (next: Partial<MyTasksParams>, mode?: "push" | "replace") => void;
   staleHref?: string | null;
+  /** «الروتين اليومي»: the link to the routines page (the page decides; null draws nothing). */
+  routinesHref?: string | null;
 }) {
   const { t } = useI18n();
   const scope: MyTaskScope = data.scopeFellBack ? "me" : params.scope;
@@ -86,16 +89,25 @@ export function Toolbar({
           />
         </div>
         <div className="flex items-center gap-2 md:contents">
+          {routinesHref ? (
+            <Link
+              href={routinesHref}
+              className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:ms-auto"
+            >
+              <span aria-hidden="true" className="me-1">🔁</span>
+              {t("routine.title")}
+            </Link>
+          ) : null}
           {staleHref ? (
             <Link
               href={staleHref}
-              className="inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent md:ms-auto"
+              className={cn("inline-flex min-h-9 shrink-0 items-center whitespace-nowrap rounded-lg px-2 text-[13.5px] font-semibold text-accent hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent", routinesHref ? "" : "md:ms-auto")}
             >
               {t("nav.tab.stale")}
             </Link>
           ) : null}
           <form
-            className={cn("flex min-w-0 flex-1 items-center md:flex-none", staleHref ? "" : "md:ms-auto")}
+            className={cn("flex min-w-0 flex-1 items-center md:flex-none", staleHref || routinesHref ? "" : "md:ms-auto")}
             onSubmit={(e) => {
               e.preventDefault();
               const input = e.currentTarget.elements.namedItem("q") as HTMLInputElement | null;

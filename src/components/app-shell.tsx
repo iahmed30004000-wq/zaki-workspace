@@ -36,6 +36,7 @@ import { useChatUnread } from "@/lib/chat/use-chat-unread";
 import { useIsDesktop } from "@/lib/chat/v2/use-media";
 import { FrameBridgeContext, type FrameBridge } from "@/lib/chat/v2/phone/frame-bridge";
 import { parseSidebarCookie, writeSidebarCookie } from "@/components/shell/sidebar-cookie";
+import { TgPhoneProvider, TgPhoneScope } from "@/components/shell/tg-phone";
 
 /**
  * F1.3 — the two floating helpers are their own chunks, fetched after the page is up and only by somebody who may have them
@@ -72,6 +73,8 @@ export interface AppShellProps {
   peopleDock?: boolean;
   /** The company's «الدردشة السريعة» switch: off, the floating button is not drawn. */
   quickChat?: boolean;
+  /** «تيليجرام على التلفون» (`tgPhone`): Telegram's look and motion on a phone. Left out: off. */
+  tgPhone?: boolean;
   /** «شريط تيليجرام السفلي» (`tgTabBar`): a phone's bottom bar is Telegram's four tabs instead of the places bar. Off (the default): nothing of it is drawn. */
   tgTabBar?: boolean;
   /** «المرشد»: the owner guide (its switch is on and the person is the owner). */
@@ -126,7 +129,11 @@ export function AppShell(props: AppShellProps) {
       <SettingsOneDoorContext.Provider value={props.settingsOneDoor === true}>
         {/* P2.1: the new map has the phone's drawer, so the two floating helpers (lazy chunks, props pinned by tests/lazy-shell.test.ts) read this instead of a new prop */}
         <DrawerChromeContext.Provider value={props.navV2 === true}>
-          <AppShellFrame {...props} />
+          <TgPhoneProvider on={props.tgPhone === true}>
+            <TgPhoneScope on={props.tgPhone === true} bar={props.tgTabBar === true && !props.isGuest}>
+              <AppShellFrame {...props} />
+            </TgPhoneScope>
+          </TgPhoneProvider>
         </DrawerChromeContext.Provider>
       </SettingsOneDoorContext.Provider>
     </SwitchFxProvider>

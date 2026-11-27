@@ -12,7 +12,7 @@ import { prefersReducedMotion } from "@/lib/chat/v2/phone/motion";
  *
  * Nothing happens unless the finger began inside the strip along the START edge: a swipe in the middle of the page is a table or a picture scrolling.
  */
-export function useEdgeSwipeBack<T extends HTMLElement>(enabled: boolean, onBack: () => void): RefObject<T> {
+export function useEdgeSwipeBack<T extends HTMLElement>(enabled: boolean, onBack: () => void, commitShare?: number): RefObject<T> {
   const ref = useRef<T>(null);
   const live = useRef(onBack);
   live.current = onBack;
@@ -25,8 +25,9 @@ export function useEdgeSwipeBack<T extends HTMLElement>(enabled: boolean, onBack
       width: () => window.innerWidth,
       reducedMotion: prefersReducedMotion,
       onBack: () => live.current(),
+      ...(commitShare === undefined ? {} : { commitShare }),
     });
-  }, [enabled]);
+  }, [enabled, commitShare]);
 
   return ref;
 }

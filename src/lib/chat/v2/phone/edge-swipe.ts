@@ -43,8 +43,8 @@ export function swipeIntent(inward: number, dy: number): SwipeIntent {
 }
 
 /** On release: does it go back? A long pull, or a short quick one; never a diagonal one, never one that went the wrong way. */
-export function commitsBack({ inward, dy, ms }: { inward: number; dy: number; ms: number }): boolean {
+export function commitsBack({ inward, dy, ms, commitPx = COMMIT_PX }: { inward: number; dy: number; ms: number; commitPx?: number }): boolean {
   if (!(inward > 0) || !(inward > Math.abs(dy) * SLOPE)) return false;
-  if (inward >= COMMIT_PX) return true;
+  if (inward >= commitPx) return true;
   return inward >= FLICK_PX && inward / Math.max(ms, 1) >= FLICK_PX_PER_MS;
 }

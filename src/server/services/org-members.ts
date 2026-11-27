@@ -79,6 +79,8 @@ export interface RosterMember {
   revokedCapabilities: string[];
   /** «محصور بمساحة»: `true` only for such an account (absent otherwise). */
   spaceOnly?: boolean;
+  /** «حساب وكيل» 🤖: `true` only for such an account (absent otherwise). */
+  agent?: boolean;
   /** An OWNER who is the company's primary owner (false for a partner and for everybody else). */
   primaryOwner: boolean;
   effectiveCapabilities: string[];
@@ -160,6 +162,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
       revokedCapabilities: true,
       primaryOwner: true,
       spaceOnly: true,
+      agent: true,
       verifiedAt: true,
       managerId: true,
       manager: { select: { name: true } },
@@ -242,6 +245,7 @@ export async function listOrgMembers(actor: Pick<Actor, "userId" | "orgId" | "ro
     workspaces: spacesOf.get(r.user.id) ?? [],
     ...templateOf(r.user.id, r, applied, templateNames),
     ...(r.spaceOnly ? { spaceOnly: true } : {}),
+    ...(r.agent ? { agent: true } : {}),
     ...(verifiedOn && r.verifiedAt !== null && r.status === "ACTIVE" && r.role !== "GUEST" ? { verified: true } : {}),
   }));
   members.sort(

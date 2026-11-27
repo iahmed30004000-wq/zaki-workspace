@@ -16,6 +16,8 @@ import { effectiveFontStep, patchDevicePrefs, readDevicePrefs } from "@/lib/devi
 import { QUICK_COUNT, QUICK_PALETTE, doubleTapEmojiOf, quickReactionsOf } from "@/lib/chat/v2/menu/quick-reactions";
 import { THEME_COOKIE, prefCookieString } from "@/lib/themes/registry";
 import { applyAppearance } from "@/components/settings-me/appearance";
+import { useTgPhone } from "@/components/shell/tg-phone";
+import { TgChatShape } from "@/components/settings-me/tg-chat-shape";
 import { Group, Scope, WarnFix } from "@/components/settings-me/parts";
 import { sectionHref } from "@/components/settings-me/sections";
 import { useSettingsOneDoor } from "@/components/shell/nav-options";
@@ -58,6 +60,7 @@ export function FontSizeBlock() {
   useEffect(() => setDevice(readDevicePrefs()), [person.prefs]);
   const perDevice = device.textSize !== undefined;
   const step = perDevice ? effectiveFontStep(device) : fontStepOf(person.prefs);
+  const tgPhone = useTgPhone();
 
   async function pick(next: number) {
     if (perDevice) {
@@ -74,6 +77,7 @@ export function FontSizeBlock() {
     applyAppearance(readDevicePrefs());
   }
 
+  if (tgPhone) return <TgChatShape />;
   return (
     <Group title={t("settingsMe.c.font")} hint={t("settingsMe.c.font.hint")} id="c-font">
       <div role="radiogroup" aria-label={t("settingsMe.c.font")} className="grid grid-cols-5 gap-0.5 rounded-[10px] bg-surface-2 p-[3px]">
@@ -101,6 +105,8 @@ export function FontSizeBlock() {
     </Group>
   );
 }
+
+export { TgChatShape };
 
 export function WallpaperBlock() {
   const { t } = useI18n();
