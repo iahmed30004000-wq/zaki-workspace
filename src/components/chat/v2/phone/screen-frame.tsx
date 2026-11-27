@@ -3,7 +3,9 @@
 import React from "react";
 import { useEdgeSwipeBack } from "@/lib/chat/v2/phone/use-edge-swipe";
 import { useKeyboardInset } from "@/lib/chat/v2/phone/use-keyboard-inset";
-import { usePhoneBack } from "@/lib/chat/v2/phone/use-phone-back";
+import { markDragged, usePhoneBack } from "@/lib/chat/v2/phone/use-phone-back";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
+import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 import { cn } from "@/lib/utils";
 
 /**
@@ -24,13 +26,25 @@ export function PhoneScreenFrame({ active, back, children }: { active: boolean; 
   const { go } = usePhoneBack();
   const inset = useKeyboardInset(active);
   // back POPS the history when the screen before is the target, and replaces this entry otherwise (nav-trail.ts): the hardware back button never bounces between two screens
+  const tg = useTgPhoneOn();
+  // «تيليجرام»: a swipe goes back only past half the screen (or a quick flick), and the list shows under the screen while the finger drags it
   const ref = useEdgeSwipeBack<HTMLDivElement>(active && back !== null, () => {
-    if (back) go(back);
-  });
+    if (!back) return;
+    // the finger already took the screen away: it does not fade a second time
+    if (tg) markDragged();
+    go(back);
+  }, tg ? TG_MOTION.backCommitShare : undefined);
   return (
     <div
       ref={ref}
-      className={cn(active ? "group/phone h-full min-h-0 touch-pan-y overflow-x-clip animate-slide-in-start motion-reduce:animate-none" : "hidden")}
+      className={cn(
+        active
+          ? tg
+            ? // «تيليجرام»: the screen lies OVER the list (which stays drawn), and arrives with a fade and 24px of travel (the stylesheet)
+              "group/phone absolute inset-0 z-10 min-h-0 touch-pan-y overflow-x-clip bg-surface zk-tg-open"
+            : "group/phone h-full min-h-0 touch-pan-y overflow-x-clip animate-slide-in-start motion-reduce:animate-none"
+          : "hidden",
+      )}
       {...(active ? { "data-chat-phone-screen": "", "data-keyboard": inset > 0 ? "open" : "closed" } : {})}
       style={active && inset > 0 ? { paddingBottom: inset } : undefined}
     >

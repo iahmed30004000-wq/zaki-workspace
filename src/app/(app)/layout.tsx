@@ -1,4 +1,5 @@
 import { pageActor } from "@/app/(app)/_access";
+import "@/app/tg-phone.css";
 import { AppShell } from "@/components/app-shell";
 import { audienceOf } from "@/lib/guide/audience";
 import { buildNav } from "@/lib/nav/places";

@@ -131,6 +131,10 @@ export function isPhotoWallpaper(value: unknown): value is (typeof PHOTO_WALLPAP
 }
 /** What a person who never chose gets: the first pattern, so the chat looks like a messenger out of the box (they can pick «plain»). */
 export const DEFAULT_WALLPAPER: Wallpaper = "boxes";
+
+/** Telegram's own ranges: the message text, and the corners of a bubble. */
+export const TG_FONT_PX = { min: 12, max: 30, default: 16 } as const;
+export const TG_BUBBLE_RADIUS = { min: 0, max: 17, default: 17 } as const;
 /** What sends a message from the keyboard: «enter» (Shift+Enter is a new line) or «ctrl» (Ctrl+Enter sends, Enter is a new line). */
 export const SEND_KEYS = ["enter", "ctrl"] as const;
 export type SendKey = (typeof SEND_KEYS)[number];
@@ -170,6 +174,9 @@ const chatShape = {
   quickReactions: quickSix.optional(),
   doubleTap: emojiOne.optional(),
   themeAuto: z.boolean().optional(),
+  /** «تيليجرام على التلفون»: the message text in px and the bubble's corners in px (the phone only) */
+  fontPx: z.number().int().min(TG_FONT_PX.min).max(TG_FONT_PX.max).optional(),
+  bubbleRadius: z.number().int().min(TG_BUBBLE_RADIUS.min).max(TG_BUBBLE_RADIUS.max).optional(),
 };
 const notificationsSchema = z.object(notificationsShape).catchall(z.unknown()).superRefine(sectionRules);
 const chatSectionSchema = z.object(chatShape).catchall(z.unknown()).superRefine(sectionRules);

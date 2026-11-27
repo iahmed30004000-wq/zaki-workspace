@@ -1,4 +1,4 @@
-import { DEFAULT_FONT_STEP, FONT_SCALES, QUICK_REACTION_COUNT, SEND_KEYS, WALLPAPERS, isOneEmoji, type ChatPrefs, type SendKey, type Wallpaper } from "@/lib/chat/prefs";
+import { DEFAULT_FONT_STEP, FONT_SCALES, TG_BUBBLE_RADIUS, TG_FONT_PX, QUICK_REACTION_COUNT, SEND_KEYS, WALLPAPERS, isOneEmoji, type ChatPrefs, type SendKey, type Wallpaper } from "@/lib/chat/prefs";
 import { isEffectKey, type EffectKey } from "@/lib/motion/effects";
 
 /**
@@ -41,6 +41,8 @@ export interface DeviceMirror {
   quickReactions?: string[];
   doubleTap?: string;
   themeAuto?: boolean;
+  fontPx?: number;
+  bubbleRadius?: number;
   /** the company's switch `themeV2Default` as this person's account last saw it (the boot script of the layout reads it) */
   themeV2?: boolean;
   /** when the mirror was last written (ms since 1970) */
@@ -71,6 +73,8 @@ function defaultStorage(): PrefsStorage | null {
 
 const isPlain = (value: unknown): value is Record<string, unknown> => typeof value === "object" && value !== null && !Array.isArray(value);
 const isStep = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value) && value >= 0 && value < FONT_SCALES.length;
+
+const isWithin = (value: unknown, range: { min: number; max: number }): value is number => typeof value === "number" && Number.isInteger(value) && value >= range.min && value <= range.max;
 
 /** Cleans anything read from storage (or about to be written) into a valid `DevicePrefs`. */
 export function cleanDevicePrefs(raw: unknown): DevicePrefs {
@@ -106,6 +110,8 @@ export function cleanDevicePrefs(raw: unknown): DevicePrefs {
     if (Array.isArray(quick) && quick.length === QUICK_REACTION_COUNT && quick.every(isOneEmoji) && new Set(quick).size === QUICK_REACTION_COUNT) mirror.quickReactions = [...(quick as string[])];
     if (isOneEmoji(m["doubleTap"])) mirror.doubleTap = m["doubleTap"];
     if (typeof m["themeAuto"] === "boolean") mirror.themeAuto = m["themeAuto"];
+    if (isWithin(m["fontPx"], TG_FONT_PX)) mirror.fontPx = m["fontPx"];
+    if (isWithin(m["bubbleRadius"], TG_BUBBLE_RADIUS)) mirror.bubbleRadius = m["bubbleRadius"];
     if (typeof m["themeV2"] === "boolean") mirror.themeV2 = m["themeV2"];
     if (typeof m["at"] === "number" && Number.isFinite(m["at"])) mirror.at = m["at"];
     if (Object.keys(mirror).length > 0) out.mirror = mirror;
@@ -164,6 +170,8 @@ export function mirrorOf(prefs: ChatPrefs, now: number): DeviceMirror {
   if (Array.isArray(chat.quickReactions)) mirror.quickReactions = [...chat.quickReactions];
   if (typeof chat.doubleTap === "string") mirror.doubleTap = chat.doubleTap;
   if (typeof chat.themeAuto === "boolean") mirror.themeAuto = chat.themeAuto;
+  if (isWithin(chat.fontPx, TG_FONT_PX)) mirror.fontPx = chat.fontPx;
+  if (isWithin(chat.bubbleRadius, TG_BUBBLE_RADIUS)) mirror.bubbleRadius = chat.bubbleRadius;
   return mirror;
 }
 

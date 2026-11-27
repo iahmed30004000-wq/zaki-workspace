@@ -5,6 +5,8 @@ import { createContext, useCallback, useContext, useMemo, useState, type ReactNo
 import { cn } from "@/lib/utils";
 import { CheckCircle2, AlertCircle, Info, X } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
+import { tgPhoneNow } from "@/components/shell/tg-phone";
+import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 
 type ToastKind = "success" | "error" | "info";
 
@@ -33,6 +35,8 @@ let seq = 0;
 export const TOAST_DISMISS_MS = 4000;
 /** A toast that carries a button («افتح») stays longer: there must be time to reach it. */
 export const TOAST_ACTION_DISMISS_MS = 8000;
+/** On a phone with Telegram's look: a toast with a button. */
+export const TG_UNDO_TOAST_MS = 5000;
 
 /**
  * App-wide toasts. All mutations should surface results through this.
@@ -82,7 +86,9 @@ export function ToastRow({ item, onDismiss }: { item: ToastItem; onDismiss: () =
 
   React.useEffect(() => {
     if (paused) return; // hover/focus holds the clock still (WCAG 2.2.1)
-    const timer = window.setTimeout(onDismiss, item.action ? TOAST_ACTION_DISMISS_MS : TOAST_DISMISS_MS);
+    // «تيليجرام» on a phone: 3 seconds; one with a button («تراجع») gets time to be reached
+    const usual = item.action ? TOAST_ACTION_DISMISS_MS : TOAST_DISMISS_MS;
+    const timer = window.setTimeout(onDismiss, tgPhoneNow() ? (item.action ? TG_UNDO_TOAST_MS : TG_MOTION.toastMs) : usual);
     return () => window.clearTimeout(timer);
   }, [paused, onDismiss, item.action]);
 

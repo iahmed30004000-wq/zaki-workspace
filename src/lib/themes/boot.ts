@@ -53,6 +53,9 @@ function boot(){try{
 var p=prefs(),m=p.mirror||{},c=cookie(),v2=m.themeV2===true;
 var step=typeof p.textSize==="number"?p.textSize:m.fontStep;
 if(typeof step==="number"&&D.scales[step]){h.style.setProperty("--chat-font-scale",String(D.scales[step]))}else{h.style.removeProperty("--chat-font-scale")}
+if(typeof m.fontPx==="number"&&m.fontPx>=12&&m.fontPx<=30){h.style.setProperty("--tg-font-px",m.fontPx+"px")}
+if(typeof m.bubbleRadius==="number"&&m.bubbleRadius>=0&&m.bubbleRadius<=17){h.style.setProperty("--tg-bubble-radius",m.bubbleRadius+"px")}
+if(m.wallpaper){h.setAttribute("data-chat-wallpaper-chosen","")}
 var off=p.effectsOff;if(off&&off.length&&off.join){h.setAttribute("data-fx-off",off.join(" "))}
 if(c==="system"||(c===null&&(m.themeAuto===true||v2))){
 var dark=!!(window.matchMedia&&matchMedia("(prefers-color-scheme: dark)").matches);

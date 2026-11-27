@@ -23,6 +23,8 @@ export interface SwipeEnv {
   width: () => number;
   reducedMotion: () => boolean;
   onBack: () => void;
+  /** «تيليجرام»: a slow pull goes back only past this share of the width (a quick flick still does). Left out: the fixed distance. */
+  commitShare?: number;
 }
 
 /** The pointer fields the controller reads (a real PointerEvent has them all). */
@@ -64,7 +66,8 @@ export function attachEdgeSwipe(box: SwipeBox, env: SwipeEnv): () => void {
       /* the capture is already gone */
     }
     const inward = inwardOf(from.x, event.clientX, env.rtl());
-    if (!cancelled && commitsBack({ inward, dy: event.clientY - from.y, ms: event.timeStamp - from.at })) {
+    const pull = { inward, dy: event.clientY - from.y, ms: event.timeStamp - from.at };
+    if (!cancelled && commitsBack(env.commitShare === undefined ? pull : { ...pull, commitPx: env.commitShare * env.width() })) {
       clear();
       env.onBack();
     } else snapBack();

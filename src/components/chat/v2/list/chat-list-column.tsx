@@ -48,6 +48,8 @@ import { GroupTopicsPane, type GroupPick } from "./group-topics-pane";
 import { expandSpaces, groupItems, groupOfRow, type GroupMeta } from "@/lib/chat/v2/groups";
 import { useFolderGroupSpaces } from "@/lib/chat/v2/use-folder-groups";
 import { useGroupActions, useSpaceGroups } from "@/lib/chat/v2/use-space-groups";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
+import { FolderTurn, useFolderTurn, useListScroll } from "@/components/chat/v2/list/tg-list-motion";
 
 /**
  * C2.2 — THE CHAT LIST COLUMN. One component for both shapes of the screen: `column` (the computer: 360 px beside the rail, dragged between 300 and 480,
@@ -164,7 +166,7 @@ function SavedEntry({ tall }: { tall: boolean }) {
 }
 
 /** «المحادثات المؤرشفة»: one row on top of the list (Telegram's), the person's OWN archive (C3a.1); it opens the archive folder. */
-function ArchivedEntry({ tall, count, onOpen }: { tall: boolean; count: number; onOpen: () => void }) {
+function ArchivedEntry({ tall, count, onOpen, names }: { tall: boolean; count: number; onOpen: () => void; /** «تيليجرام»: the newest archived chats, on a second line */ names?: string }) {
   return (
     <button
       type="button"
@@ -176,7 +178,14 @@ function ArchivedEntry({ tall, count, onOpen }: { tall: boolean; count: number; 
       <span aria-hidden="true" className={cn("grid shrink-0 place-items-center rounded-full bg-surface-2 text-fg-muted", tall ? "size-14" : "size-12")}>
         <Archive className="size-6" />
       </span>
-      <span className="min-w-0 flex-1 truncate text-base font-medium">{ct("chatui.list.archived_entry")}</span>
+      {names ? (
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-base font-medium">{ct("chatui.list.archived_entry")}</span>
+          <bdi data-archived-names="" className="truncate text-sm text-fg-muted">{names}</bdi>
+        </span>
+      ) : (
+        <span className="min-w-0 flex-1 truncate text-base font-medium">{ct("chatui.list.archived_entry")}</span>
+      )}
       <span className="grid min-w-6 shrink-0 place-items-center rounded-full bg-fg-muted/20 px-1.5 text-xs font-semibold text-fg-muted">{count}</span>
     </button>
   );
@@ -224,6 +233,10 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
   const items = useMemo(() => rowItems(rows), [rows]);
 
   // a finger across the list goes to the next or the previous folder (`src/lib/chat/v2/folder-swipe.ts`); the click on a tab does the same
+  // «تيليجرام»: another folder slides in from its side (the stylesheet), and scrolling down puts the search pill and the round button away
+  const tg = useTgPhoneOn() && tall;
+  const turn = useFolderTurn(folders.findIndex((f) => f.key === folder), tg);
+  const scroll = useListScroll(tg, folder);
   const swipe = useFolderSwipe((way) => {
     const target = nextTab(folders, folder, way);
     if (target) setFolderKey(target.key);
@@ -334,10 +347,10 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
 
   return (
     <div className="flex min-h-0 flex-1">
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col" {...swipe}>
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col" {...swipe} {...(tg ? { onScrollCapture: scroll.onScroll, ...(scroll.down ? { "data-tg-scrolled": "" } : {}) } : {})}>
       {tall ? (
         // C2.8: the phone's screen has its own 56 px bar: «☰» (only with the new menu), the folder's name or «زاكي», and a search that expands
-        <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} />
+        <PhoneListBar title={custom ? custom.name : ct(folder === "all" ? "chatui.phone.title" : (folders.find((f) => f.key === folder)?.labelKey ?? "chatui.phone.title"))} query={query} onQuery={setQuery} searchId={searchId} scrolled={scroll.down} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} />
       ) : rail ? null : (
         <ListHeader query={query} onQuery={setQuery} searchId={searchId} {...(tgLook === true ? { menu: <ListMenu guest={guest} {...(openGroup ? { onNewGroup: openGroup } : {})} /> } : {})} {...(guest ? {} : { onNewMessage: () => setNewDm(true), onNewGroup: openGroup, onNewTopic: openTopic })} />
       )}
@@ -346,7 +359,7 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       {/* M1a: the installed app's pieces: «فعّل الإشعارات لتوصلك الرسائل والجهاز مسكّر» (only while a question can still be answered), the service worker, `?new=message` */}
       {rail ? null : <ChatPwaHost guest={guest} />}
       {/* the owner (2026-11-22), like Telegram: «المحادثات المؤرشفة» at the top of the list, with how many; a press opens the archive */}
-      {archived && !rail && !words && folder === "all" && !list.isPending ? <ArchivedEntry tall={tall} count={list.archivedRows.length} onOpen={() => setFolderKey("archived")} /> : null}
+      {archived && !rail && !words && folder === "all" && !list.isPending ? <ArchivedEntry tall={tall} count={list.archivedRows.length} onOpen={() => setFolderKey("archived")} {...(tg ? { names: list.archivedRows.slice(0, 3).map((r) => r.title).join("\u060C ") } : {})} /> : null}
       {/* C3a.3: «المحفوظة» before it exists: one pinned entry on top of the list (the folder «الكل», no search) */}
       {savedOn && !hasSaved && !company && !words && folder === "all" && !list.isPending ? <SavedEntry tall={tall} /> : null}
       {/* a refresh that failed while the list shows what it already holds (the start copy, or the last good answer): said, with the way to try again */}
@@ -388,7 +401,9 @@ const ListScreen = memo(function ListScreen({ variant, userId, guest, canMeet, r
       ) : arrangingGroups && groupMode ? (
         <ArrangeRows listId={`groups-${groupSpaceId}`} entries={groups.map((g) => ({ id: g.id, label: g.name, emoji: g.emoji, imageUrl: g.imageUrl ?? null }))} onReorder={(ids) => groupActions.reorder.mutate(ids)} />
       ) : (
-        <VirtualRows items={shownItems} tall={tall} rail={rail} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} onOpenGroup={onOpenGroup} />
+        <FolderTurn on={tg} folder={folder} way={turn}>
+          <VirtualRows items={shownItems} tall={tall} rail={rail} selectedId={selectedId} userId={userId} menu={menu} label={ct("chatui.list.rows")} day={day} onOpenGroup={onOpenGroup} />
+        </FolderTurn>
       )}
 
       {!guest && tall ? <NewMessageFab onClick={() => setNewDm(true)} onGroup={openGroup} onTopic={openTopic} canMeet={canMeet} /> : null}

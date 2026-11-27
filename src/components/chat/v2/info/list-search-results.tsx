@@ -13,7 +13,32 @@ import { ct } from "@/lib/chat/text";
 import { chatHitHref, hasListResults, messageHitHref, personHitHref, personOpensChat } from "@/lib/chat/v2/info/list-search";
 import { useListSearch } from "@/lib/chat/v2/info/use-list-search";
 import { chatHref } from "@/lib/chat/v2/routes";
+import { matchPieces } from "@/lib/chat/match-pieces";
+import { ListSkeleton } from "@/components/chat/v2/list/list-states";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
 import { dayDiff, fmtShort, fmtTime } from "@/lib/format";
+
+/** «تيليجرام»: the words being looked for, so the part that matched is drawn in the accent. Empty: nothing is coloured. */
+const SearchWords = React.createContext("");
+
+function Matched({ text }: { text: string }) {
+  const words = React.useContext(SearchWords);
+  const pieces = matchPieces(text, words);
+  if (pieces.length === 1 && !pieces[0]!.match) return <>{text}</>;
+  return (
+    <>
+      {pieces.map((piece, at) =>
+        piece.match ? (
+          <span key={at} data-search-match="" className="text-accent">
+            {piece.text}
+          </span>
+        ) : (
+          <React.Fragment key={at}>{piece.text}</React.Fragment>
+        ),
+      )}
+    </>
+  );
+}
 
 const row = "flex min-h-11 w-full items-center gap-3 px-3 py-2 text-start text-sm hover:bg-surface-2 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent";
 const whenOf = (at: string): string => (dayDiff(at) === 0 ? fmtTime(at) : fmtShort(at));
@@ -35,7 +60,9 @@ function ChatRow({ chat, onPick }: { chat: ChatHitDto; onPick: () => void }) {
           {chat.emoji ?? (chat.kind === "DM" ? <UserRound className="size-5" /> : chat.kind === "SPACE" ? <Megaphone className="size-5" /> : <Hash className="size-5" />)}
         </span>
         <span className="min-w-0 flex-1">
-          <bdi className="block truncate font-semibold">{chat.title}</bdi>
+          <bdi className="block truncate font-semibold">
+            <Matched text={chat.title} />
+          </bdi>
           {chat.kind === "SPACE" ? <span className="block truncate text-xs text-fg-muted">{ct("chatls.space")}</span> : chat.context ? <bdi className="block truncate text-xs text-fg-muted">{chat.context}</bdi> : null}
         </span>
       </Link>
@@ -112,7 +139,9 @@ function MessageRow({ hit, onPick }: { hit: MessageHitDto; onPick: () => void })
           <span className="block truncate text-xs text-fg-muted">
             <bdi>{hit.authorName}</bdi>
           </span>
-          <span className="line-clamp-2 break-words">{hit.snippet}</span>
+          <span className="line-clamp-2 break-words">
+            <Matched text={hit.snippet} />
+          </span>
         </span>
       </Link>
     </li>
@@ -157,7 +186,8 @@ export function ListSearchResults({ data, onPick }: { data: ChatListSearchDto; o
  * words are being asked for, or when nothing was found, the list's own narrowed rows stay in view. A failure says so.
  */
 export function ListSearchPanel({ query, onPick }: { query: string; onPick: () => void }) {
-  const { data, failed } = useListSearch(query);
+  const { data, failed, pending } = useListSearch(query);
+  const tg = useTgPhoneOn();
   if (failed) {
     return (
       <div data-list-search-panel role="alert" className="absolute inset-x-0 top-full z-20 border-b border-border bg-surface p-3 text-sm text-fg-muted shadow-lg">
@@ -167,12 +197,24 @@ export function ListSearchPanel({ query, onPick }: { query: string; onPick: () =
   }
   const results = data && hasListResults(data) ? data : null;
   const botFather = asksForBotFather(query);
+  if (tg && pending) {
+    // «تيليجرام»: the list fades to white and grey rows stand in until the answer is here
+    return (
+      <div data-list-search-panel data-tg-search-panel="" className="absolute inset-x-0 top-full z-20 h-[70vh] overflow-hidden bg-surface">
+        <ListSkeleton tall />
+      </div>
+    );
+  }
   if (!results && !botFather) return null;
   return (
     // `empty:hidden`: while «بوت فاذر» is being asked about (or is not offered to me) and nothing else was found, there is no panel
-    <div data-list-search-panel role="region" aria-label={ct("chatls.panel")} className="absolute inset-x-0 top-full z-20 max-h-[70vh] overflow-y-auto overscroll-contain border-b border-border bg-surface shadow-lg empty:hidden">
+    <div data-list-search-panel {...(tg ? { "data-tg-search-panel": "" } : {})} role="region" aria-label={ct("chatls.panel")} className="absolute inset-x-0 top-full z-20 max-h-[70vh] overflow-y-auto overscroll-contain border-b border-border bg-surface shadow-lg empty:hidden">
       {botFather ? <BotFatherFound onPick={onPick} /> : null}
-      {results ? <ListSearchResults data={results} onPick={onPick} /> : null}
+      {results ? (
+        <SearchWords.Provider value={tg ? query : ""}>
+          <ListSearchResults data={results} onPick={onPick} />
+        </SearchWords.Provider>
+      ) : null}
     </div>
   );
 }

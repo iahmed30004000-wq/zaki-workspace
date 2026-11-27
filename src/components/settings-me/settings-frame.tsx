@@ -5,6 +5,8 @@ import { usePathname } from "next/navigation";
 import { Bell, Building2, ChevronLeft, Database, Folder, Keyboard, Languages, LayoutDashboard, LayoutGrid, LifeBuoy, ListOrdered, Lock, MessageCircle, Plug, Smartphone, Sparkles, ToggleRight, UserRound, type LucideIcon } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useI18n } from "@/lib/i18n";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
+import { TgSettingsBar } from "@/components/settings-me/tg-settings-bar";
 import { cn } from "@/lib/utils";
 import {
   companySectionHintKey,
@@ -157,17 +159,19 @@ export function SettingsFrame({ header, sections, company = null, children }: { 
   const current = sectionOfPath(pathname);
   const currentCompany = company ? companySectionOfPath(pathname) : null;
   const atIndex = current === null && currentCompany === null;
+  const tg = useTgPhoneOn();
   return (
     <div data-settings-me className={cn("mx-auto flex w-full", currentCompany ? "max-w-6xl" : "max-w-5xl", "md:gap-4 md:p-6")}>
       {/* keeps this device's copy of the person's choices fresh and applies the text size and the wallpaper (the person may land here first) */}
       <MeEffects always />
       <aside className={cn("w-full md:block md:w-80 md:shrink-0", atIndex ? "block" : "hidden")}>
+        {tg && atIndex ? <TgSettingsBar /> : null}
         <div className="overflow-hidden bg-surface-1 md:rounded-[14px]">
           <HeaderCard header={header} />
           <SectionList sections={sections} current={current} company={company} currentCompany={currentCompany} />
         </div>
       </aside>
-      <section className={cn("min-w-0 flex-1", atIndex ? "hidden md:block" : "block")}>{children}</section>
+      <section key={tg && !atIndex ? pathname : undefined} {...(tg && !atIndex ? { "data-tg-sub": "" } : {})} className={cn("min-w-0 flex-1", atIndex ? "hidden md:block" : "block")}>{children}</section>
     </div>
   );
 }
