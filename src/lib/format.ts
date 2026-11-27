@@ -73,6 +73,13 @@ export function fmtTime(d: Date | string | number | null | undefined): string {
   return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`;
 }
 
+/** "6:49 م" - the twelve-hour clock of «تيليجرام على التلفون» (drawn right to left, so the letter stands at the left). */
+export function fmtTime12(d: Date | string | number | null | undefined): string {
+  const date = toDate(d);
+  if (!date) return "";
+  return `${date.getHours() % 12 || 12}:${pad2(date.getMinutes())} ${date.getHours() < 12 ? "ص" : "م"}`;
+}
+
 /** "5 تشرين الأول 2026، 14:05" - for event tables and logs. */
 export function fmtDateTime(d: Date | string | number | null | undefined, _locale?: string): string {
   const date = toDate(d);

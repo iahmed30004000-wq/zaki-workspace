@@ -638,3 +638,16 @@ export function themeColorOf(key: ThemeKey): string {
 
 /** The default theme's palette — what an unthemed page (`:root`) shows. */
 export const DEFAULT_PALETTE: Palette = PALETTES[DEFAULT_THEME];
+
+/**
+ * «تيليجرام على التلفون»: the colours of SHAPES in the owner's pictures that carry no words, so they have no contrast gate and no Tailwind utility
+ * (`--tg-*` variables, written only inside the phone's block of themes.css): the bright blue of the round buttons, the green of the ticks, and the
+ * wallpaper's four stops with the ink of its drawings, measured on his pictures.
+ */
+export const TG_PHONE_ART: Record<"day" | "night", Record<string, string>> = {
+  day: { "tg-shape": "#1E92E5", "tg-shape-fg": "#FFFFFF", "tg-wp-1": "#B3C78A", "tg-wp-2": "#8DB892", "tg-wp-3": "#6EA886", "tg-wp-4": "#C7D5AE", "tg-wp-ink": "#2F6B47", "tg-tick": "#2F8F35" },
+  night: { "tg-shape": "#3E8FD6", "tg-shape-fg": "#FFFFFF", "tg-wp-1": "#141D26", "tg-wp-2": "#141D26", "tg-wp-3": "#141D26", "tg-wp-4": "#141D26", "tg-wp-ink": "#8FA8BF", "tg-tick": "#7EC8F5" },
+};
+
+/** On a phone with the Telegram look these chosen themes mean the night; every other chosen theme is the day. */
+export const TG_PHONE_NIGHT_THEMES = ["night", "blue-night", "tg-night"] as const;

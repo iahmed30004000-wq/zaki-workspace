@@ -124,7 +124,7 @@ function OverlayBody(props: MessageOverlayProps & { onFading: () => void }) {
     // the menu's whole height, whatever the height it was given last time
     const menuSize = { width: menu.offsetWidth, height: menu.scrollHeight };
     // my bubble sits on the left side of this screen, everybody else's on the right: the panels hang from the same side
-    const placed = placeOverlay({ anchor: box, viewport: screenSize(), bar: barSize, menu: menuSize, align: latest.current.mine ? "left" : "right", tap: first });
+    const placed = placeOverlay({ anchor: box, viewport: screenSize(), bar: barSize, menu: menuSize, align: latest.current.mine ? "right" : "left", tap: first });
     setSpot({ ...placed, barSize });
   }, [first]);
   // a new size of the screen draws again (the card is sized from it while it is open, when the bar is not there to be measured)

@@ -66,7 +66,8 @@ export function TelegramTabBar({ pathname, chatUnread, user }: { pathname: strin
         ) : null}
         {TG_TABS.map((tab) => {
           const active = tab.key === current;
-          const label = t(tab.labelKey);
+          // «تيليجرام على التلفون» says them as his pictures do
+          const label = t(tg && tab.key === "chats" ? "tgbar.tg.chats" : tg && tab.key === "profile" ? "tgbar.tg.profile" : tab.labelKey);
           return (
             <li key={tab.key} className="min-w-0 flex-1">
               <Link

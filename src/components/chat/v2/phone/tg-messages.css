@@ -121,7 +121,7 @@
   /* the bubbles on the circles' side make room for them (the screen is right to left: the circles stand at the right) */
   @keyframes zk-tg-make-room {
     from {
-      transform: translateX(2.25rem);
+      transform: translateX(-2.25rem);
     }
     to {
       transform: translateX(0);

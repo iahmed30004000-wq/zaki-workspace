@@ -11,15 +11,7 @@
   [data-tg-phone] [data-chat-phone-screen] {
     isolation: isolate;
     background-color: rgb(var(--chat-wallpaper));
-    background-image: linear-gradient(
-      165deg,
-      color-mix(in srgb, rgb(var(--ok)) 26%, rgb(var(--surface-1))) 0%,
-      color-mix(in srgb, rgb(var(--accent-2)) 24%, rgb(var(--surface-1))) 48%,
-      color-mix(in srgb, rgb(var(--ok)) 20%, rgb(var(--surface-1))) 100%
-    );
-  }
-  html.dark [data-tg-phone] [data-chat-phone-screen] {
-    background-image: none;
+    background-image: linear-gradient(160deg, rgb(var(--tg-wp-1)) 0%, rgb(var(--tg-wp-2)) 40%, rgb(var(--tg-wp-3)) 72%, rgb(var(--tg-wp-4)) 100%);
   }
   [data-tg-phone] [data-chat-phone-screen]::before {
     content: "";
@@ -27,14 +19,11 @@
     inset: 0;
     z-index: -1;
     pointer-events: none;
-    background-color: rgb(var(--ok) / 0.22);
+    background-color: rgb(var(--tg-wp-ink) / 0.16);
     -webkit-mask: url("/brand/tg/doodles.svg") repeat;
     mask: url("/brand/tg/doodles.svg") repeat;
     -webkit-mask-size: 240px 240px;
     mask-size: 240px 240px;
-  }
-  html.dark [data-tg-phone] [data-chat-phone-screen]::before {
-    background-color: rgb(var(--fg) / 0.05);
   }
   /* a wallpaper the person chose themselves wins over the default one */
   html[data-chat-wallpaper-chosen] [data-tg-phone] [data-chat-phone-screen] {
@@ -84,16 +73,248 @@
   [data-tg-phone] [data-pending-message] [class*="rounded-[17px]"] {
     border-radius: var(--tg-bubble-radius, 17px);
   }
+  /* mine stand at the RIGHT and the others at the left, so the small corner is the bottom one on that side */
   [data-tg-phone] [data-message-row] [class*="rounded-[17px]"][class*="rounded-ee-sm"] {
-    border-end-end-radius: min(var(--tg-bubble-radius, 17px), 4px);
+    border-radius: var(--tg-bubble-radius, 17px);
+    border-bottom-right-radius: min(var(--tg-bubble-radius, 17px), 4px);
   }
   [data-tg-phone] [data-message-row] [class*="rounded-[17px]"][class*="rounded-es-sm"] {
-    border-end-start-radius: min(var(--tg-bubble-radius, 17px), 4px);
+    border-radius: var(--tg-bubble-radius, 17px);
+    border-bottom-left-radius: min(var(--tg-bubble-radius, 17px), 4px);
   }
   [data-tg-phone] [data-message-row] .text-sm.leading-relaxed,
   [data-tg-phone] [data-pending-message] .text-sm.leading-relaxed {
     font-size: var(--tg-font-px, 16px);
     line-height: 1.45;
+  }
+
+  /* ───────── THE ORDER OF THINGS, as his pictures have it: bars, strips of tabs and the conversation run LEFT TO RIGHT (back at the left, the mic and my
+     messages at the right, «المحادثات» the leftmost tab). The words inside stay right to left, and the rows of the lists and of the settings stay as they were. ───────── */
+  [data-tg-phone] header[data-pane-header],
+  [data-tg-phone] [data-selection-bar],
+  [data-tg-phone] [data-selection-bottom],
+  [data-tg-phone] [data-composer-row],
+  [data-tg-phone] [data-tg-reply-bar],
+  [data-tg-phone] [data-tg-record],
+  [data-tg-phone] [data-tg-record] ~ *,
+  [data-tg-phone] [data-message-row],
+  [data-tg-phone] [data-pinned-bar],
+  [data-tg-phone] [data-tg-voice],
+  [data-tg-phone] [data-reply-block],
+  [data-tg-phone] [data-chat-phone-search],
+  [data-tg-phone] [data-chat-folders],
+  [data-tg-phone] [data-tg-tab-bar] ul,
+  [data-tg-phone] [data-chat-info-bar] > div,
+  [data-tg-phone] [data-settings-phone-head],
+  [data-tg-phone] [data-chat-forum] > header,
+  html[data-tg-doc] [data-attach-kinds],
+  html[data-tg-doc] div:has(> [data-attach-tab]),
+  html[data-tg-doc] [data-tg-message-overlay] [data-tg-bar] {
+    direction: ltr;
+  }
+  /* words, back to right to left; where a bar runs left to right they hug its left, beside the picture */
+  [data-tg-phone] header[data-pane-header] [data-header-identity] > div,
+  [data-tg-phone] [data-selection-count],
+  [data-tg-phone] [data-tg-reply-bar] button,
+  [data-tg-phone] [data-tg-reply-bar] p,
+  [data-tg-phone] [data-pinned-bar] p,
+  [data-tg-phone] [data-chat-phone-search] h1,
+  [data-tg-phone] [data-chat-info-bar] > div h1,
+  [data-tg-phone] [data-chat-info-bar] > div p {
+    direction: rtl;
+    text-align: left;
+  }
+  [data-tg-phone] header[data-pane-header] [data-header-identity] h1.flex,
+  [data-tg-phone] header[data-pane-header] [data-header-identity] [data-header-subtitle] {
+    justify-content: flex-end;
+  }
+  [data-tg-phone] [data-composer-row] textarea,
+  [data-tg-phone] [data-composer-row] input,
+  [data-tg-phone] [data-tg-record] [data-slide-cancel],
+  [data-tg-phone] [data-take-words],
+  [data-tg-phone] [data-live-text] p,
+  [data-tg-phone] [data-reply-block] span,
+  [data-tg-phone] [data-chat-folders] [role="tab"],
+  [data-tg-phone] [data-chat-phone-search] input,
+  html[data-tg-doc] [data-attach-tab] span {
+    direction: rtl;
+  }
+  [data-tg-phone] [data-reply-block] {
+    align-items: stretch;
+  }
+  /* the back arrows point left, where they now stand */
+  [data-tg-phone] header[data-pane-header] > a > svg,
+  [data-tg-phone] [data-chat-info-bar] > div > button:first-child > svg,
+  [data-tg-phone] [data-chat-info-bar] > div > a:first-child > svg,
+  [data-tg-phone] [data-settings-phone-head] > :first-child > svg,
+  [data-tg-phone] [data-chat-forum] > header > :first-child > svg,
+  [data-tg-phone] [data-chat-phone-search="open"] > button:first-child > svg {
+    transform: scaleX(-1);
+  }
+  /* the round button that jumps to the newest message stands at the right */
+  [data-tg-phone] [data-jump-buttons] {
+    left: auto;
+    right: 0.75rem;
+  }
+
+  /* ───────── the bar's pill under the open tab: the tabs run left to right now ───────── */
+  [data-tg-phone] [data-tg-tab-bar] [data-tg-tab-pill] {
+    transform: translateX(calc(var(--at) * 100%));
+  }
+
+  /* ───────── the conversation header: the buttons at the right share ONE white pill ───────── */
+  [data-tg-phone] header[data-pane-header][data-tg-glass] > [data-header-identity] ~ * {
+    margin-left: -0.375rem;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  [data-tg-phone] header[data-pane-header][data-tg-glass] > [data-header-search] {
+    margin-left: 0;
+    border-radius: 9999px 0 0 9999px;
+  }
+  [data-tg-phone] header[data-pane-header][data-tg-glass] > [data-header-menu] {
+    border-radius: 0 9999px 9999px 0;
+  }
+
+  /* ───────── the time at the end of the words' last line, bottom left, as in his pictures ───────── */
+  [data-tg-phone] [data-message-row] [data-bubble-footer] {
+    direction: ltr;
+  }
+  [data-tg-phone] [data-message-row] article {
+    --tg-meta-w: 3.4rem;
+  }
+  [data-tg-phone] [data-message-row="mine"] article {
+    --tg-meta-w: 4.6rem;
+  }
+  [data-tg-phone] [data-message-row] article:has(> [data-bubble-footer] > [data-footer-note]) {
+    --tg-meta-w: 7.8rem;
+  }
+  [data-tg-phone] [data-message-row] [data-bubble-words]:has(+ [data-bubble-footer]) > p:last-child::after {
+    content: "";
+    display: inline-block;
+    width: var(--tg-meta-w);
+    height: 0.6rem;
+  }
+  [data-tg-phone] [data-message-row] [data-bubble-words]:has(+ [data-bubble-footer]) > :last-child:not(p) {
+    margin-bottom: 1.1rem;
+  }
+  [data-tg-phone] [data-message-row] [data-bubble-words] + [data-bubble-footer] {
+    position: absolute;
+    bottom: 0.25rem;
+    left: 0.6rem;
+    margin: 0;
+    gap: 0.25rem;
+    line-height: 1rem;
+    white-space: nowrap;
+  }
+  [data-tg-phone] [data-message-row="mine"] [data-bubble-footer],
+  [data-tg-phone] [data-message-row="mine"] [data-bubble-footer] [data-ticks] {
+    color: rgb(var(--tg-tick));
+  }
+  [data-tg-phone] [data-message-row="mine"] [data-bubble-footer] [data-ticks] {
+    font-weight: 700;
+    letter-spacing: -0.2em;
+    padding-right: 0.15rem;
+  }
+
+  /* ───────── the round blue shapes: to write, to send, to record ───────── */
+  [data-tg-phone] [data-composer-face],
+  [data-tg-phone] [data-rec-send],
+  [data-tg-phone] [data-take-send],
+  [data-tg-phone] [data-chat-fab] button,
+  [data-tg-phone] button[data-chat-fab],
+  [data-tg-phone] [data-forum-fab],
+  html[data-tg-doc] [data-attach-send] {
+    background-color: rgb(var(--tg-shape));
+    color: rgb(var(--tg-shape-fg));
+  }
+
+  /* ───────── the list: the name of the app big and blue at the left, and no lines between the chats ───────── */
+  [data-tg-phone] [data-chat-phone-search="closed"] h1 {
+    color: rgb(var(--accent));
+    font-size: 1.25rem;
+    font-weight: 700;
+  }
+  [data-tg-phone] [data-chat-phone-bar] {
+    border-bottom-width: 0;
+  }
+  [data-tg-phone] [data-chat-list] [data-chat-row],
+  [data-tg-phone] [data-chat-list] [data-saved-entry],
+  [data-tg-phone] [data-chat-list] [data-archived-entry] {
+    border-color: transparent;
+  }
+
+  /* the list is white, its search a soft pill, its tabs without a scrollbar, as in his pictures */
+  [data-tg-phone] [data-chat-list],
+  [data-tg-phone] [data-chat-phone-bar] {
+    background-color: rgb(var(--surface-1));
+  }
+  [data-tg-phone] [data-chat-list] [data-tg-search-pill] {
+    background-color: rgb(var(--surface-2));
+  }
+  [data-tg-phone] [data-chat-folders] {
+    scrollbar-width: none;
+  }
+  [data-tg-phone] [data-chat-folders]::-webkit-scrollbar {
+    display: none;
+  }
+  /* a finger going sideways over the list is the app's (another folder): without this the browser takes the touch for itself and the swipe never ends */
+  [data-tg-phone] [data-folder-swipe],
+  [data-tg-phone] [data-folder-swipe] [data-chat-rows],
+  [data-tg-phone] [data-folder-swipe] [data-chat-row] {
+    touch-action: pan-y;
+  }
+  /* the dots under the last letter («ذكي»، «الملف الشخصي») are not cut by the one-line boxes */
+  [data-tg-phone] [data-chat-phone-search="closed"] h1,
+  [data-tg-phone] [data-tg-tab-bar] a > span:last-child {
+    line-height: 1.6;
+  }
+
+  /* ───────── the settings: white rounded cards on the grey page, no arrows, as in his pictures ───────── */
+  [data-tg-phone] [data-settings-me] {
+    min-height: 100%;
+    background-color: rgb(var(--surface));
+  }
+  [data-tg-phone] [data-settings-me] aside,
+  [data-tg-phone] [data-settings-me] div:has(> [data-settings-sections]) {
+    background-color: transparent;
+    border-width: 0;
+  }
+  [data-tg-phone] [data-settings-sections] ul {
+    margin-inline: 0.75rem;
+    overflow: hidden;
+    border-radius: 1rem;
+    background-color: rgb(var(--surface-1));
+  }
+  [data-tg-phone] [data-settings-sections] section {
+    border-top-width: 0;
+  }
+  [data-tg-phone] [data-settings-sections] a[data-section] > svg:last-child {
+    display: none;
+  }
+
+  /* ───────── a private chat's header: the call and «⋮», as in his pictures (the search is the first line of «⋮») ───────── */
+  [data-tg-phone] header[data-pane-header][data-tg-glass]:has(> [data-call-button]) > [data-header-search] {
+    display: none;
+  }
+  [data-tg-phone] header[data-pane-header][data-tg-glass]:has(> [data-call-button]) > [data-call-button] {
+    margin-left: 0;
+    border-radius: 9999px 0 0 9999px;
+  }
+
+  /* no line across the wallpaper above the box to write in */
+  [data-tg-phone] [data-chat-phone-screen] footer[data-composer-host] {
+    border-top-width: 0;
+  }
+  /* my voice note's round button is the bubble's green */
+  [data-tg-phone] [data-message-row="mine"] [data-tg-voice] > button:first-child {
+    background-color: rgb(var(--tg-tick));
+    color: rgb(var(--tg-shape-fg));
+  }
+
+  /* ───────── the themes' drawings stay off the phone's Telegram look ───────── */
+  [data-tg-phone] .zk-decor {
+    display: none;
   }
 
   /* ───────── the round button to write: above the floating bar ───────── */
@@ -254,18 +475,8 @@
     opacity: 1;
   }
 }
-/* the next tab or folder is toward the inline end: in this right-to-left page it comes from the left */
+/* the strips run left to right: the next tab or folder comes from the right */
 @keyframes zk-tg-tab-next {
-  from {
-    transform: translateX(-3rem);
-    opacity: 0.4;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-@keyframes zk-tg-tab-prev {
   from {
     transform: translateX(3rem);
     opacity: 0.4;
@@ -275,9 +486,19 @@
     opacity: 1;
   }
 }
+@keyframes zk-tg-tab-prev {
+  from {
+    transform: translateX(-3rem);
+    opacity: 0.4;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
 @keyframes zk-tg-folder-next {
   from {
-    transform: translateX(-100%);
+    transform: translateX(100%);
   }
   to {
     transform: translateX(0);
@@ -285,7 +506,7 @@
 }
 @keyframes zk-tg-folder-prev {
   from {
-    transform: translateX(100%);
+    transform: translateX(-100%);
   }
   to {
     transform: translateX(0);

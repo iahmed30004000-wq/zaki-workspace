@@ -5,10 +5,11 @@ import "./emoji-alive.css";
 import type { MessageDto } from "@/server/chat/dto";
 import { MessageTicks } from "@/components/chat/message/message-item";
 import { ct } from "@/lib/chat/text";
+import { useTgPhoneOn } from "@/components/shell/tg-phone";
 import { useLongPress } from "@/components/chat/v2/bubble/use-long-press";
 import { burstedReactions, type ReactionChip } from "@/lib/chat-reactions";
 import { zakiIdOfCode, zakiNameOf, zakiSrc } from "@/lib/chat/zaki-emoji";
-import { fmtTime } from "@/lib/format";
+import { fmtTime, fmtTime12 } from "@/lib/format";
 
 /**
  * C2.4 — the small parts of a bubble that carry no decision: the forwarded header, the reply block, the footer and the reaction chips. Each is built
@@ -61,14 +62,31 @@ export function ReplyBlock({ replyTo, onJump }: { replyTo: NonNullable<MessageDt
 }
 
 /** The footer inside the bubble, at the end: «معدّلة», «مثبّتة», the time (`HH:MM`, left-to-right, tabular) and, on my own message, the ticks. */
+/** A message's time: the 24-hour clock, and under «تيليجرام على التلفون» the phone shows «6:49 م» in its place. */
+export function MessageClock({ at }: { at: string }) {
+  const tg = useTgPhoneOn();
+  return (
+    <time dateTime={at} dir="ltr" className="tabular-nums">
+      {tg ? (
+        <>
+          <span className="max-md:hidden">{fmtTime(at)}</span>
+          <span dir="rtl" data-time-12="" className="md:hidden">
+            {fmtTime12(at)}
+          </span>
+        </>
+      ) : (
+        fmtTime(at)
+      )}
+    </time>
+  );
+}
+
 export function BubbleFooter({ message, singleTick = false, pill = false }: { message: MessageDto; /** C3a.3: the saved chat has nobody to deliver to or to read: my message there has the single ✓ whatever status it carries */ singleTick?: boolean; /** «تيليجرام على التلفون»: under a big emoji that has no bubble, the time sits on its own small pill (phone only) */ pill?: boolean }) {
   return (
     <span data-bubble-footer className={`mt-1 flex items-center justify-end gap-1.5 text-xs text-fg-muted ${pill ? "max-md:ms-auto max-md:w-fit max-md:rounded-full max-md:bg-surface-1 max-md:px-2 max-md:py-0.5" : ""}`}>
-      {message.edited && <span>{ct("chatc.edited")}</span>}
-      {message.pinned && <span>{ct("chatc.pinned")}</span>}
-      <time dateTime={message.createdAt} dir="ltr" className="tabular-nums">
-        {fmtTime(message.createdAt)}
-      </time>
+      {message.edited && <span data-footer-note="">{ct("chatc.edited")}</span>}
+      {message.pinned && <span data-footer-note="">{ct("chatc.pinned")}</span>}
+      <MessageClock at={message.createdAt} />
       {message.mine && (singleTick || message.status) && !message.deleted && <MessageTicks status={singleTick ? "sent" : message.status!} />}
     </span>
   );

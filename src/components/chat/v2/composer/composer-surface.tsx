@@ -204,7 +204,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
           </button>
         </div>
       ) : null}
-      <div className="relative flex min-w-0 items-end gap-2">
+      <div data-composer-row="" className="relative flex min-w-0 items-end gap-2">
         {formatting && selected ? <FormatToolbar onAction={applyAction} /> : null}
         {tg ? null : (
         <EmojiPopover
