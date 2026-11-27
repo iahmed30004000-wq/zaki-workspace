@@ -90,6 +90,7 @@ export const BUILTIN_SOUNDS: readonly BuiltinSound[] = [
 
   loop("ring", "ring-soft", RING_PATTERNS.soft, RING_PATTERN_PERIOD_MS.soft, "calls.tone.soft"),
   loop("ring", "ring-bell", RING_PATTERNS.bell, RING_PATTERN_PERIOD_MS.bell, "calls.tone.bell"),
+  ...(["marimba", "breeze", "pearl", "hop", "sunset"] as const).map((tone) => loop("ring", `ring-${tone}`, RING_PATTERNS[tone], RING_PATTERN_PERIOD_MS[tone], `calls.tone.${tone}`)),
   loop(
     "ring",
     "ring-wave",
