@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { MessageCircle, Settings, Users } from "lucide-react";
+import { Briefcase, MessageCircle, Settings, Users } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { useI18n } from "@/lib/i18n";
 import { cn } from "@/lib/utils";
@@ -11,25 +11,32 @@ import { useTgPhoneOn } from "./tg-phone";
 import { TG_MOTION } from "@/lib/chat/v2/phone/motion";
 
 /**
- * «شريط تيليجرام السفلي» (the switch `tgTabBar`, off by default): on a phone the bar along the bottom is Telegram's four tabs — الدردشات (with the unread badge) · جهات الاتصال ·
- * الإعدادات · البروفايل (the person's own picture) — a floating glass pill with a press animation, drawn in place of the places bar (or beside the drawer). Every tab is a page
+ * «شريط تيليجرام السفلي» (the switch `tgTabBar`, off by default): on a phone the bar along the bottom is Telegram's tabs — الدردشات (with the unread badge) · جهات الاتصال ·
+ * الإعدادات · الشغل · البروفايل (the person's own picture) — a floating glass pill with a press animation, drawn in place of the places bar (or beside the drawer). Every tab is a page
  * that already exists; nothing is removed. While a conversation is open the bar is hidden, as the places bar is (`data-frame-bars="hide-all"`). Never for an external partner.
  */
 export const TG_TABS = [
   { key: "chats", href: "/chat", labelKey: "tgbar.chats" },
   { key: "contacts", href: "/contacts", labelKey: "tgbar.contacts" },
   { key: "settings", href: "/settings/me", labelKey: "tgbar.settings" },
+  // the owner, 2026-11-27: the bar took the places bar's room, so «الشغل» stands in it, beside the profile
+  { key: "work", href: "/my-work", labelKey: "nav.place.work" },
   { key: "profile", href: "/profile", labelKey: "tgbar.profile" },
 ] as const;
 export type TgTabKey = (typeof TG_TABS)[number]["key"];
+
+/** The pages of «الشغل» (the place `work` of the map, src/lib/nav/places.ts, and what it owns). */
+const WORK_PAGES = ["/my-work", "/tasks", "/projects", "/list", "/calendar", "/requests", "/approvals", "/time"] as const;
 
 /** Which tab the page belongs to (the profile and a person's page are «البروفايل» and «جهات الاتصال» respectively; anything else is none). Pure. */
 export function tgTabOf(pathname: string): TgTabKey | null {
   const p = pathname.split("?")[0] ?? "";
   if (p === "/chat" || p.startsWith("/chat/")) return "chats";
   if (p === "/contacts" || p === "/members" || p.startsWith("/members/") || p.startsWith("/u/")) return "contacts";
+  // the profile's own page, and the form that changes it
+  if (p === "/profile" || p.startsWith("/profile/") || p === "/settings/me/account") return "profile";
   if (p === "/settings" || p.startsWith("/settings/")) return "settings";
-  if (p === "/profile" || p.startsWith("/profile/")) return "profile";
+  if (WORK_PAGES.some((base) => p === base || p.startsWith(`${base}/`))) return "work";
   return null;
 }
 
@@ -57,12 +64,12 @@ export function TelegramTabBar({ pathname, chatUnread, user }: { pathname: strin
     <nav
       aria-label={t("tgbar.label")}
       data-tg-tab-bar
-      className="pointer-events-none fixed bottom-0 end-0 start-0 z-40 px-3 pb-[max(env(safe-area-inset-bottom),0.5rem)] md:hidden group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden"
+      className="pointer-events-none fixed bottom-0 end-0 start-0 z-40 px-1 pb-[max(env(safe-area-inset-bottom),0.5rem)] md:hidden group-has-[[data-frame-bars=hide-all]]/frame:max-md:hidden"
     >
-      <ul className="pointer-events-auto relative isolate mx-auto flex max-w-md items-center rounded-3xl border border-border/60 bg-surface-1/85 p-1 shadow-card backdrop-blur-md">
+      <ul className="pointer-events-auto relative isolate mx-auto flex max-w-md items-center rounded-3xl border border-border/60 bg-surface-1/85 p-0.5 shadow-card backdrop-blur-md">
         {tg && at >= 0 ? (
-          // a quarter of the row each; the pill moves toward the inline end (leftwards here)
-          <li role="presentation" aria-hidden="true" data-tg-tab-pill="" className="pointer-events-none absolute inset-y-1 start-1 -z-10 w-[calc((100%-0.5rem)/4)] rounded-2xl bg-selected-row ltr:[transform:translateX(calc(var(--at)*100%))] rtl:[transform:translateX(calc(var(--at)*-100%))]" style={{ "--at": at } as React.CSSProperties} />
+          // a fifth of the row each; the pill moves toward the inline end (leftwards here)
+          <li role="presentation" aria-hidden="true" data-tg-tab-pill="" className="pointer-events-none absolute inset-y-0.5 start-0.5 -z-10 w-[calc((100%-0.25rem)/5)] rounded-2xl bg-selected-row ltr:[transform:translateX(calc(var(--at)*100%))] rtl:[transform:translateX(calc(var(--at)*-100%))]" style={{ "--at": at } as React.CSSProperties} />
         ) : null}
         {TG_TABS.map((tab) => {
           const active = tab.key === current;
@@ -75,7 +82,7 @@ export function TelegramTabBar({ pathname, chatUnread, user }: { pathname: strin
                 aria-current={active ? "page" : undefined}
                 data-tg-tab={tab.key}
                 className={cn(
-                  "flex h-12 flex-col items-center justify-center gap-0.5 rounded-2xl px-1 text-xs transition-[transform,background-color,color] duration-150 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
+                  "flex h-12 flex-col items-center justify-center gap-0.5 rounded-2xl px-0 text-xs transition-[transform,background-color,color] duration-150 active:scale-95 motion-reduce:transition-none motion-reduce:active:scale-100",
                   active ? (tg ? "font-semibold text-accent" : "bg-accent/15 font-semibold text-accent") : "text-fg-muted hover:text-fg",
                 )}
               >
@@ -83,10 +90,19 @@ export function TelegramTabBar({ pathname, chatUnread, user }: { pathname: strin
                   {tab.key === "chats" ? <MessageCircle aria-hidden="true" className="size-5" /> : null}
                   {tab.key === "contacts" ? <Users aria-hidden="true" className="size-5" /> : null}
                   {tab.key === "settings" ? <Settings aria-hidden="true" className="size-5" /> : null}
+                  {tab.key === "work" ? <Briefcase aria-hidden="true" className="size-5" /> : null}
                   {tab.key === "profile" ? <Avatar name={user.name} src={user.avatarUrl ?? null} className={cn("size-6 text-xs", active && "ring-2 ring-accent")} /> : null}
                   {tab.key === "chats" ? <PlaceBadge count={chatUnread} place="chat" className="absolute -top-1 end-0" /> : null}
                 </span>
-                <span className="max-w-full truncate">{label}</span>
+                {tg && tab.key === "profile" ? (
+                  // five tabs leave 69px each on a 360px phone and «الملف الشخصي» needs 75 at the smallest readable size: the short word stands in there
+                  <span className="max-w-full truncate leading-5">
+                    <span className="max-[374px]:hidden">{label}</span>
+                    <span className="hidden max-[374px]:inline">{t("tgbar.tg.profile_short")}</span>
+                  </span>
+                ) : (
+                  <span className="max-w-full truncate leading-5">{label}</span>
+                )}
               </Link>
             </li>
           );

@@ -552,7 +552,7 @@ high count is a wide surface: changing its signature reaches all of them.
 
 | Service | Lines | Imported by | What it owns |
 |---|---|---|---|
-| `features` | 87 | 187 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
+| `features` | 87 | 188 | «الميزات» on the server: the company's switches (`Organization.settings.features`), read on every request. |
 | `integrations` | 180 | 138 | Connect/disconnect/config changes (org-level assets): the `integrations.manage` capability. |
 | `current-space` | 155 | 76 | THE SPACE YOU ARE IN — the owner's decision (2026-10-25, «العزل شامل… كأني بفتح سايت جديد»): entering a space is like opening a separate site. |
 | `team-scope` | 299 | 52 | TEAMS INSIDE A SPACE — the one place that says which projects and tasks a person may see. |
@@ -891,7 +891,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `chatRowMenu` | 3 — `app/(app)/chat/layout.tsx`, `server/chat/home.ts`, `server/chat/purge.ts` |
 | `callNoiseFilter` | 1 — `server/calls/calls.ts` |
 | `instantWork` | 3 — `app/api/instant/route.ts`, `app/api/instant/ticket/route.ts`, `server/services/instant-work.ts` |
-| `avatars` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/avatar/route.ts`, `app/api/me/settings/route.ts` |
+| `avatars` | 4 — `app/(app)/profile/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/avatar/route.ts`, `app/api/me/settings/route.ts` |
 | `peopleDock` | 1 — `app/api/presence/route.ts` |
 | `chatBubbles` | 1 — `server/chat/topics.ts` |
 | `taskLinks` | 4 — `app/(app)/tasks/[id]/page.tsx`, `app/api/tasks/[id]/links/[linkId]/route.ts`, `app/api/tasks/[id]/links/route.ts`, `lib/feature-groups.ts` |
@@ -983,7 +983,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `voiceTelegram` | 1 — `server/chat/topics.ts` |
 | `voiceLiveText` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/topics.ts` |
 | `tgLook` | 2 — `app/(app)/chat/layout.tsx`, `server/chat/topics.ts` |
-| `tgTabBar` | 0 —  |
+| `tgTabBar` | 3 — `app/(app)/profile/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx` |
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/settings/route.ts`, `server/chat/away.ts` |
@@ -1051,7 +1051,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `watchConvert` | 2 — `app/(app)/watch/[id]/page.tsx`, `server/watch/convert.ts` |
 | `sectionPermissions` | 3 — `components/members/capability-panel.tsx`, `server/policy/capabilities.ts`, `server/policy/section-grid.ts` |
 | `permissionTemplates` | 4 — `components/control-panel/sections/accounts-section.tsx`, `server/services/accounts.ts`, `server/services/org-members.ts`, `server/services/permission-templates.ts` |
-| `avatars` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/avatar/route.ts`, `app/api/me/settings/route.ts` |
+| `avatars` | 4 — `app/(app)/profile/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/avatar/route.ts`, `app/api/me/settings/route.ts` |
 | `peopleDock` | 1 — `app/api/presence/route.ts` |
 | `teamDevelopment` | 6 — `app/(app)/owner/page.tsx`, `lib/nav/places.ts`, `server/policy/capabilities.ts`, `server/policy/team-development.ts`, `server/services/desks.ts`, `server/services/team-score.ts` |
 | `ownerBoard` | 5 — `app/(app)/analytics/page.tsx`, `lib/nav/places.ts`, `server/policy/board.ts`, `server/policy/capabilities.ts`, `server/services/assistant-work.ts` |
@@ -1090,7 +1090,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 | `voiceTelegram` | 1 — `server/chat/topics.ts` |
 | `voiceLiveText` | 2 — `app/(app)/settings/me/[section]/page.tsx`, `server/chat/topics.ts` |
 | `tgLook` | 2 — `app/(app)/chat/layout.tsx`, `server/chat/topics.ts` |
-| `tgTabBar` | 0 —  |
+| `tgTabBar` | 3 — `app/(app)/profile/page.tsx`, `app/(app)/settings/me/[section]/page.tsx`, `app/(app)/settings/me/layout.tsx` |
 | `botFather` | 3 — `server/services/bot-webhooks.ts`, `server/services/botfather.ts`, `server/services/bots.ts` |
 | `groupPictures` | 1 — `server/chat/group-picture.ts` |
 | `chatAutomation` | 3 — `app/(app)/settings/me/[section]/page.tsx`, `app/api/me/settings/route.ts`, `server/chat/away.ts` |
