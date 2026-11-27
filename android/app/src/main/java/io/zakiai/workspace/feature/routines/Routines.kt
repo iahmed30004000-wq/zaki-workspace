@@ -83,9 +83,12 @@ class RoutinesViewModel @Inject constructor(retrofit: retrofit2.Retrofit, privat
     val answer: StateFlow<RoutinesAnswer?> = _answer.asStateFlow()
     private val _failure = MutableStateFlow<ApiFailure?>(null)
     val failure: StateFlow<ApiFailure?> = _failure.asStateFlow()
-    /** the routine being paused or resumed */
-    private val _busy = MutableStateFlow<String?>(null)
-    val busy: StateFlow<String?> = _busy.asStateFlow()
+    /** the routines being paused or resumed (each its own: a tap on another one is never dropped) */
+    private val _busy = MutableStateFlow<Set<String>>(emptySet())
+    val busy: StateFlow<Set<String>> = _busy.asStateFlow()
+    /** writes finished, and writes still on their way: a poll that read the list before a write lands is not drawn over it */
+    private var writes = 0
+    private var writing = 0
     /** a refusal of pause / resume, shown above the list */
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
@@ -96,8 +99,9 @@ class RoutinesViewModel @Inject constructor(retrofit: retrofit2.Retrofit, privat
     val formError: StateFlow<String?> = _formError.asStateFlow()
 
     fun refresh() = viewModelScope.launch {
+        val seen = writes
         when (val r = apiCall { api.screen() }) {
-            is ApiResult.Ok -> { _failure.value = null; _answer.value = r.value }
+            is ApiResult.Ok -> if (_answer.value == null || RT.pollStillFresh(seen, writes, writing)) { _failure.value = null; _answer.value = r.value }
             is ApiResult.Err -> { if (r.failure.signedOut) session.expired(r.failure); _failure.value = r.failure }
         }
     }
@@ -109,14 +113,17 @@ class RoutinesViewModel @Inject constructor(retrofit: retrofit2.Retrofit, privat
     }
 
     fun toggle(r: Routine) = viewModelScope.launch {
-        if (_busy.value != null) return@launch
-        _busy.value = r.id
+        if (r.id in _busy.value) return@launch
+        _busy.value = _busy.value + r.id
         _error.value = null
-        when (val res = apiCall { api.act(r.id, RoutineAction(if (r.active) "pause" else "resume")) }) {
+        writing++
+        val res = apiCall { api.act(r.id, RoutineAction(if (r.active) "pause" else "resume")) }
+        writing--; writes++
+        when (res) {
             is ApiResult.Ok -> put(res.value.routine)
             is ApiResult.Err -> _error.value = RT.refusal(res.failure)
         }
-        _busy.value = null
+        _busy.value = _busy.value - r.id
     }
 
     fun clearFormError() { _formError.value = null }
@@ -127,7 +134,9 @@ class RoutinesViewModel @Inject constructor(retrofit: retrofit2.Retrofit, privat
         if (_saving.value) return@launch
         _saving.value = true
         _formError.value = null
+        writing++
         val res = apiCall { if (id == null) api.create(input) else api.update(id, input) }
+        writing--; writes++
         _saving.value = false
         when (res) {
             is ApiResult.Ok -> { put(res.value.routine); onDone() }
@@ -223,7 +232,7 @@ fun RoutinesScreen(vm: RoutinesViewModel = hiltViewModel()) {
                 }
                 if (a.routines.isEmpty()) item { Empty(rw(if (canMake) "routine.empty" else "routine.cannot_make"), Modifier.fillMaxWidth().padding(top = 24.dp)) }
                 items(a.routines, key = { it.id }) { r ->
-                    RoutineRow(r, a.timeZone, busy == r.id, canEdit = canMake, onEdit = { vm.clearFormError(); editing = r }, onToggle = { vm.toggle(r) })
+                    RoutineRow(r, a.timeZone, r.id in busy, canEdit = canMake, onEdit = { vm.clearFormError(); editing = r }, onToggle = { vm.toggle(r) })
                     Divider()
                 }
             }

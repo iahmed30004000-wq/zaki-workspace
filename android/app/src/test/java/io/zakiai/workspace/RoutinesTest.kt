@@ -58,6 +58,14 @@ class RoutinesTest {
         assertEquals("أيام الدوام (الأحد–الخميس) · بتنعمل الساعة 08:00 ولازم تخلص قبل 17:00", RT.whenLine(r))
     }
 
+    @Test fun `a poll that set out before a pause or a save landed is not drawn over it`() {
+        assertTrue(RT.pollStillFresh(writesAtStart = 3, writesNow = 3, writing = 0))
+        // a pause finished while the poll was on its way: its list may be older than the pause
+        assertFalse(RT.pollStillFresh(writesAtStart = 3, writesNow = 4, writing = 0))
+        // a save is still on its way
+        assertFalse(RT.pollStillFresh(writesAtStart = 3, writesNow = 3, writing = 1))
+    }
+
     @Test fun `the answer starts a new form on the company's due hour, and an older server on the site's usual one`() {
         assertEquals("09:00", json.decodeFromString<RoutinesAnswer>("""{"routines":[],"spaces":[],"timeZone":"Asia/Damascus","defaultDueTime":"09:00"}""").defaultDueTime)
         assertEquals("18:00", json.decodeFromString<RoutinesAnswer>("""{"routines":[],"spaces":[],"timeZone":"Asia/Damascus"}""").defaultDueTime)

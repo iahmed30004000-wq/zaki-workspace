@@ -148,6 +148,12 @@ object RT {
     /** a refusal in the site's words: the precise validation key first, then the error's key, then what the server said */
     fun refusal(f: ApiFailure): String = (f.detail ?: f.key)?.let { RoutineWords.all[it] } ?: f.message
 
+    /**
+     * Whether a poll's answer may be drawn: no write finished since it set out and none is on its way. Otherwise it may have read the
+     * list before a pause or a save landed, and drawing it would undo that on screen (the next poll brings the truth).
+     */
+    fun pollStillFresh(writesAtStart: Int, writesNow: Int, writing: Int): Boolean = writing == 0 && writesAtStart == writesNow
+
     /** «08:30» from an hour and a minute */
     fun clock(h: Int, m: Int): String = String.format(Locale.ROOT, "%02d:%02d", h, m)
 }
