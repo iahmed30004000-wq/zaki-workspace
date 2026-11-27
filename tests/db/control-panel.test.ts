@@ -31,7 +31,7 @@ import { call, db, loginAs, makeProject, makeTask, makeTeam, makeUser, makeWorks
 import { html } from "./today-helpers";
 
 /**
- * «لوحة التحكم» — the owner's panel on the home screen, «التقارير» merged into it, and «زاكي أي أي» connected, against a real PostgreSQL.
+ * «لوحة التحكم» — the owner's panel on the home screen, «التقارير» merged into it, and «ذكي أي أي» connected, against a real PostgreSQL.
  *
  * What this pins:
  *  - who: the OWNER rank alone (the primary owner and a partner); an admin, a lead, a member and a guest get «not found» on the panel, on its
@@ -41,7 +41,7 @@ import { html } from "./today-helpers";
  *    unassigned, stale, ideas waiting, the week against the one before) and nothing invented for a quiet company;
  *  - the reports: the same totals as the old report, an 8-week series in the right buckets, one row per space, a space filter that cannot reach
  *    another company's space;
- *  - «زاكي أي أي»: not saved / not reachable / connected / model missing, the key write-only and never in an answer, an address that is not
+ *  - «ذكي أي أي»: not saved / not reachable / connected / model missing, the key write-only and never in an answer, an address that is not
  *    internal refused, and the owner's assistant switched over ONLY when the test passed.
  */
 
@@ -349,7 +349,7 @@ describe("the merged reports", () => {
   });
 });
 
-// ───────────────────────────────────────── «زاكي أي أي» ─────────────────────────────────────────
+// ───────────────────────────────────────── «ذكي أي أي» ─────────────────────────────────────────
 
 /** A service that speaks the OpenAI-compatible dialect: lists `models` and answers a ping; `needKey` refuses a call without the Bearer key. */
 function fakeAgent(opts: { models?: string[]; needKey?: string; log?: LocalHttpRequest[] } = {}): LocalTransport {
@@ -362,7 +362,7 @@ function fakeAgent(opts: { models?: string[]; needKey?: string; log?: LocalHttpR
 }
 const connect = (body: Record<string, unknown>) => call(aiRoute.POST, { body });
 
-describe("«زاكي أي أي» — is it connected", () => {
+describe("«ذكي أي أي» — is it connected", () => {
   it("nothing saved: «غير مربوط», with the address and the model name to suggest and nothing asked of the network", async () => {
     const w = await world();
     await loginAs(w.owner.id);

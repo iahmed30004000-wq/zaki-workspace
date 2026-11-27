@@ -17,10 +17,11 @@ const SRC = (p: string) => readFileSync(join(__dirname, "..", "src", ...p.split(
 const draw = (pathname: string, chatUnread = 0) =>
   renderToStaticMarkup(React.createElement(I18nProvider, { locale: "ar", children: React.createElement(TelegramTabBar, { pathname, chatUnread, user: { name: "سارة", avatarUrl: null } }) } as never));
 
-describe("the four tabs", () => {
-  it("are chats, contacts, settings and profile, each an existing page", () => {
-    expect(TG_TABS.map((t) => t.key)).toEqual(["chats", "contacts", "settings", "profile"]);
-    expect(TG_TABS.map((t) => t.href)).toEqual(["/chat", "/contacts", "/settings/me", "/profile"]);
+describe("the five tabs", () => {
+  it("are chats, contacts, settings, work and profile, each an existing page; «الشغل» stands beside «الملف الشخصي»", () => {
+    expect(TG_TABS.map((t) => t.key)).toEqual(["chats", "contacts", "settings", "work", "profile"]);
+    expect(TG_TABS.map((t) => t.href)).toEqual(["/chat", "/contacts", "/settings/me", "/my-work", "/profile"]);
+    expect(AR["nav.place.work"]).toBe("الشغل");
     for (const tab of TG_TABS) expect(AR[tab.labelKey], tab.key).toBeTruthy();
   });
 
@@ -31,16 +32,20 @@ describe("the four tabs", () => {
     expect(tgTabOf("/u/someone")).toBe("contacts");
     expect(tgTabOf("/settings/me/chat")).toBe("settings");
     expect(tgTabOf("/profile")).toBe("profile");
-    expect(tgTabOf("/tasks")).toBeNull();
+    // the form that changes the profile belongs to the profile's tab, not to the settings'
+    expect(tgTabOf("/settings/me/account")).toBe("profile");
+    for (const page of ["/my-work", "/my-work/routines", "/tasks/abc", "/projects", "/calendar", "/requests", "/time"]) expect(tgTabOf(page), page).toBe("work");
+    expect(tgTabOf("/files")).toBeNull();
+    expect(tgTabOf("/tasksboard")).toBeNull();
     expect(tgTabOf("/chatty")).toBeNull();
   });
 });
 
 describe("the bar", () => {
-  it("draws the four tabs in a glass pill, marks the current one, and wears the unread number on the chats", () => {
+  it("draws the five tabs in a glass pill, marks the current one, and wears the unread number on the chats", () => {
     const html = draw("/chat", 7);
     expect(html).toContain("data-tg-tab-bar");
-    for (const key of ["chats", "contacts", "settings", "profile"]) expect(html).toContain(`data-tg-tab="${key}"`);
+    for (const key of ["chats", "contacts", "settings", "work", "profile"]) expect(html).toContain(`data-tg-tab="${key}"`);
     expect(html.match(/aria-current="page"/g)?.length).toBe(1);
     expect(textOf(html)).toContain(AR["tgbar.chats"]);
     expect(textOf(html)).toContain("7");

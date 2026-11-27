@@ -219,7 +219,7 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // leaves the server, only on the owner's Drive, never without ENCRYPTION_KEY, and restoring is a manual act into a NEW database.
   dbBackup: false,
   // «لوحة التحكم» (src/server/services/control-panel.ts): «لوحة المالك» on the home screen «اليوم» for the OWNER rank alone, with smart sentences
-  // (each with its formula), «التقارير» merged into it and the state of «زاكي أي أي». It needs «لوحة المالك» on. Off: «اليوم» has no panel, the
+  // (each with its formula), «التقارير» merged into it and the state of «ذكي أي أي». It needs «لوحة المالك» on. Off: «اليوم» has no panel, the
   // tab is «لوحة المالك» again, «التقارير» is its own page again for the owner too, and /api/control-panel answers «not found»; it stores
   // nothing of its own, so nothing is lost.
   controlPanel: true,
@@ -361,7 +361,7 @@ export const FEATURE_DEFAULTS: Readonly<Record<FeatureKey, boolean>> = {
   // adds nobody beyond the creator and the people named at creation, and never makes a project in «الشركة». ⚠️ A template is a starting point, not a rule: its topics are ordinary topics. 🔧 OFF by default: off, the button is not shown
   // and a request with a template answers «not found»; a space made with no template is exactly what it was either way, and the spaces already made keep everything.
   spaceTemplates: false,
-  // «الإعدادات» باب واحد (src/lib/nav/places.ts `settingsOneDoor`, src/components/settings-me/, S3.1): the menu (drawer, rail, side menu, avatar menu) shows ONE row «الإعدادات» that opens «إعداداتي» (`/settings/me`) instead of «إعداداتي» + «دليل زاكي» + «ترتيب» + «الإدارة»;
+  // «الإعدادات» باب واحد (src/lib/nav/places.ts `settingsOneDoor`, src/components/settings-me/, S3.1): the menu (drawer, rail, side menu, avatar menu) shows ONE row «الإعدادات» that opens «إعداداتي» (`/settings/me`) instead of «إعداداتي» + «دليل ذكي» + «ترتيب» + «الإدارة»;
   // the frame gets two groups - «إعداداتي» (the person's own sections, the guide inside «المساعدة») and, for the owner and the admins, «إعدادات الشركة» (company data, the switches, the integrations, the spaces: the control panel's own section bodies, reused) with one
   // row «لوحة التحكم»; «ترتيب» becomes a small icon button in the drawer's header and at the top of the rail; the place «الإدارة» leaves the menu of an admin who holds the panel (staff keep «الناس»). It needs `controlPanelV2` on (the section bodies and the rows into the panel live there): while that is off this
   // switch changes nothing. OFF by default: off, the menu, /settings, /profile and every old address are exactly what they were; `/settings` and `/profile` and the old admin addresses answer either way.

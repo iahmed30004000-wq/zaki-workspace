@@ -77,7 +77,7 @@ export function CallButton({ conversationId, isDm, canStart, compact = false, ou
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <button type="button" disabled={busy} aria-label={ct("calls.menu_label")} title={ct("calls.menu_label")} className={compact ? `${look} text-fg-muted hover:bg-surface-2 hover:text-fg disabled:opacity-60` : `${look} ${outlined ? "border border-border px-4" : ""} text-fg hover:bg-surface-2 disabled:opacity-60`}>
+        <button type="button" data-call-button="" disabled={busy} aria-label={ct("calls.menu_label")} title={ct("calls.menu_label")} className={compact ? `${look} text-fg-muted hover:bg-surface-2 hover:text-fg disabled:opacity-60` : `${look} ${outlined ? "border border-border px-4" : ""} text-fg hover:bg-surface-2 disabled:opacity-60`}>
           <Phone aria-hidden="true" className={compact ? "size-4" : "size-5"} />
           {/* a phone keeps the head to one row: the icon alone there */}
           {compact ? null : <span className="hidden sm:inline">{busy ? ct("calls.starting") : ct("calls.button")}</span>}

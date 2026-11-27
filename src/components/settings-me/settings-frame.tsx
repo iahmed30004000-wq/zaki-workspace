@@ -93,9 +93,9 @@ const COMPANY_ICONS: Record<CompanySectionKey, LucideIcon> = {
 };
 
 /** One row of the list: a tile, a name, its one line and (on the phone) the chevron. `data-section` is the key the tests and the route use. */
-function Row({ href, name, hint, icon: Icon, tile, active, dataKey, extra, phoneOnly = false }: { href: string; name: string; hint: string; icon: LucideIcon; tile: string; active: boolean; dataKey: string; extra?: Record<string, string>; phoneOnly?: boolean }) {
+function Row({ href, name, hint, icon: Icon, tile, active, dataKey, extra, phoneOnly = false, computerOnly = false }: { href: string; name: string; hint: string; icon: LucideIcon; tile: string; active: boolean; dataKey: string; extra?: Record<string, string>; phoneOnly?: boolean; computerOnly?: boolean }) {
   return (
-    <li className={cn("relative [&+&]:before:absolute [&+&]:before:inset-x-3.5 [&+&]:before:top-0 [&+&]:before:border-t [&+&]:before:border-border [&+&]:before:content-['']", phoneOnly && "md:hidden")}>
+    <li className={cn("relative [&+&]:before:absolute [&+&]:before:inset-x-3.5 [&+&]:before:top-0 [&+&]:before:border-t [&+&]:before:border-border [&+&]:before:content-['']", phoneOnly && "md:hidden", computerOnly && "max-md:hidden")}>
       <Link
         href={href}
         aria-current={active ? "page" : undefined}
@@ -120,13 +120,13 @@ function Row({ href, name, hint, icon: Icon, tile, active, dataKey, extra, phone
  * The sections. Without `company` (the switch off) it is the one list of the person's own sections, exactly as it was. With `company` (S3.1, «الإعدادات» as ONE door) it is two groups under their own
  * headings: «إعداداتي» (the same sections) and «إعدادات الشركة» (the control panel's sections the person may open, and the row «لوحة التحكم» that opens the panel).
  */
-export function SectionList({ sections, current, company = null, currentCompany = null }: { sections: readonly SectionKey[]; current: SectionKey | null; company?: CompanyGroup | null; currentCompany?: CompanySectionKey | null }) {
+export function SectionList({ sections, current, company = null, currentCompany = null, profileApart = false }: { sections: readonly SectionKey[]; current: SectionKey | null; company?: CompanyGroup | null; currentCompany?: CompanySectionKey | null; profileApart?: boolean }) {
   const { t } = useI18n();
   // S3.3: the theme has ONE home (the section `language`), which wears its new name while «الإعدادات» is ONE door
   const oneDoor = useSettingsOneDoor();
   // a phone-only row takes no turn of the tiles' colours: the other rows keep theirs
   const coloured = sections.filter((key) => !PHONE_ONLY_SECTIONS.has(key));
-  const own = sections.map((key) => <Row key={key} href={sectionHref(key)} name={t(sectionLabelKey(key, oneDoor))} hint={t(sectionHintKey(key, oneDoor))} icon={ICONS[key]} tile={PHONE_ONLY_SECTIONS.has(key) ? "bg-cat-4" : (TILES[coloured.indexOf(key) % TILES.length] as string)} phoneOnly={PHONE_ONLY_SECTIONS.has(key)} active={key === current} dataKey={key} />);
+  const own = sections.map((key) => <Row key={key} href={sectionHref(key)} name={t(sectionLabelKey(key, oneDoor))} hint={t(sectionHintKey(key, oneDoor))} icon={ICONS[key]} tile={PHONE_ONLY_SECTIONS.has(key) ? "bg-cat-4" : (TILES[coloured.indexOf(key) % TILES.length] as string)} phoneOnly={PHONE_ONLY_SECTIONS.has(key)} computerOnly={profileApart && key === "account"} active={key === current} dataKey={key} />);
   if (!company) {
     return (
       <nav aria-label={t("settingsMe.sections")} data-settings-sections>
@@ -159,7 +159,8 @@ export function SectionList({ sections, current, company = null, currentCompany 
   );
 }
 
-export function SettingsFrame({ header, sections, company = null, children }: { header: SettingsHeader; sections: readonly SectionKey[]; /** S3.1: the second group («إعدادات الشركة»); left out, the frame is the person's own sections alone. */ company?: CompanyGroup | null; children?: React.ReactNode }) {
+export function SettingsFrame({ header, sections, company = null, profileApart = false, children }: { header: SettingsHeader; sections: readonly SectionKey[]; /** S3.1: the second group («إعدادات الشركة»); left out, the frame is the person's own sections alone. */ company?: CompanyGroup | null; /** «شريط تيليجرام السفلي»: the profile has its own tab, so a phone draws neither its card nor «حسابي» here */ profileApart?: boolean; children?: React.ReactNode }) {
+  const { t } = useI18n();
   const pathname = usePathname() ?? SETTINGS_ME_HREF;
   const current = sectionOfPath(pathname);
   const currentCompany = company ? companySectionOfPath(pathname) : null;
@@ -172,8 +173,9 @@ export function SettingsFrame({ header, sections, company = null, children }: { 
       <aside className={cn("w-full md:block md:w-80 md:shrink-0", tg && "max-md:relative", atIndex ? "block" : "hidden")}>
         {tg && atIndex ? <TgSettingsBar /> : null}
         <div className="overflow-hidden bg-surface-1 md:rounded-[14px]">
-          <HeaderCard header={header} />
-          <SectionList sections={sections} current={current} company={company} currentCompany={currentCompany} />
+          {profileApart ? <h1 data-settings-title="" className="px-3.5 pb-1 pt-4 text-center text-[17px] font-semibold text-fg md:hidden">{t("settingsMe.tg.title")}</h1> : null}
+          <HeaderCard header={header} className={profileApart ? "max-md:hidden" : undefined} />
+          <SectionList sections={sections} current={current} company={company} currentCompany={currentCompany} profileApart={profileApart} />
         </div>
       </aside>
       <section key={tg && !atIndex ? pathname : undefined} {...(tg && !atIndex ? { "data-tg-sub": "" } : {})} className={cn("min-w-0 flex-1", atIndex ? "hidden md:block" : "block")}>{children}</section>

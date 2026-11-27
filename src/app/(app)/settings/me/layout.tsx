@@ -18,17 +18,18 @@ export const metadata = { title: getServerT().t("settingsMe.title") };
  */
 export default async function SettingsMeLayout({ children }: { children: React.ReactNode }) {
   const { user, actor } = await pageActor();
-  const [me, foldersOn, speechOn, soundsOn, company] = await Promise.all([
+  const [me, foldersOn, speechOn, soundsOn, company, tabBarOn] = await Promise.all([
     db.user.findUnique({ where: { id: user.id }, select: { name: true, username: true, jobTitle: true, avatarUrl: true } }),
     isFeatureOn(actor.orgId, "chatFolders"),
     isFeatureOn(actor.orgId, "tgPhone"),
     soundLibraryOn(actor),
     // S3.1: «إعدادات الشركة», the second group, only while «الإعدادات» is ONE door and the person holds a section of the control panel (null: the frame is as it was)
     companyAccessFor(actor),
+    isFeatureOn(actor.orgId, "tgTabBar"),
   ]);
   const header = { name: me?.name ?? user.name, username: me?.username ?? user.username, jobTitle: me?.jobTitle ?? null, avatarUrl: me?.avatarUrl ?? null };
   return (
-    <SettingsFrame header={header} sections={visibleSections({ foldersOn, speechOn, soundsOn })} company={company?.group ?? null}>
+    <SettingsFrame header={header} sections={visibleSections({ foldersOn, speechOn, soundsOn })} company={company?.group ?? null} profileApart={tabBarOn && !actor.isExternal}>
       {children}
     </SettingsFrame>
   );

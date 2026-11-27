@@ -9,9 +9,9 @@ import { isFeatureOn } from "@/server/services/features";
 import { getSettings, readGatewayKey, saveGatewayKey, updateSettings } from "@/server/services/owner-assistant-settings";
 
 /**
- * «زاكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?».
+ * «ذكي أي أي» — THE OWNER'S OWN AI AGENT, connected to the system, and the one question the control panel asks about it: «is it connected?».
  *
- * «زاكي أي أي» is the Hermes Agent the owner runs on his own server (Coolify service «Zaki-agent»). Hermes speaks the OpenAI-compatible dialect
+ * «ذكي أي أي» is the Hermes Agent the owner runs on his own server (Coolify service «Zaki-agent»). Hermes speaks the OpenAI-compatible dialect
  * (`/v1/models`, `/v1/chat/completions`) once its API server is switched on there, so it is connected through the existing OpenAI-compatible
  * gateway of «نموذج محلي» (src/server/ai/openai-compat-provider.ts): no second adapter, no second copy of the address guard, no second place
  * a key is kept. This file adds only the plain words around it: the status, and the «اربط» action that saves the three things and tests.
@@ -70,7 +70,7 @@ function unsaved(base: Omit<ZakiAiStatus, "state" | "reason" | "models" | "listM
 }
 
 /**
- * Is «زاكي أي أي» connected? `fresh` skips the 30-second memory (the «اختبر» button); it is limited to 20 calls a minute per company.
+ * Is «ذكي أي أي» connected? `fresh` skips the 30-second memory (the «اختبر» button); it is limited to 20 calls a minute per company.
  * Asks only for the list of models, so it never costs the agent a question.
  */
 export async function zakiAiStatus(orgId: string, opts: { fresh?: boolean; now?: Date } = {}): Promise<ZakiAiStatus> {

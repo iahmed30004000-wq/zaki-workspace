@@ -423,7 +423,7 @@ export async function integrationPartsOf(actor: Actor): Promise<IntegrationPart[
   return parts;
 }
 
-/** The first control panel's access (the status of «زاكي أي أي» and the connect action), or null: the switch is off or the person is not the company-wide owner. */
+/** The first control panel's access (the status of «ذكي أي أي» and the connect action), or null: the switch is off or the person is not the company-wide owner. */
 export async function companyPanelAccess(actor: Actor): Promise<BoardAccess | null> {
   return orNull(() => controlPanelAccess(actor));
 }

@@ -218,7 +218,7 @@ private object Routes {
     const val CARDS = "cards"
     const val CARDS_OPENED = "cards-opened"
     const val CARD = "card/{id}"
-    /** «إعداداتي»: one section; «دليل زاكي» and one article */
+    /** «إعداداتي»: one section; «دليل ذكي» and one article */
     const val ME = "me/{section}"
     const val GUIDE = "guide"
     const val GUIDE_ARTICLE = "guide/{slug}"
@@ -703,7 +703,7 @@ fun Shell(
                     composable(Routes.OWNER_PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.panel.BoardPersonScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) })
                     }
-                    // M2 N6 batch 5: «إعداداتي» and «دليل زاكي»
+                    // M2 N6 batch 5: «إعداداتي» and «دليل ذكي»
                     composable(Routes.ME, arguments = listOf(navArgument("section") { type = NavType.StringType })) { e ->
                         io.zakiai.workspace.feature.me.MeSectionScreen(
                             section = e.arguments?.getString("section").orEmpty(),

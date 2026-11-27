@@ -776,9 +776,11 @@ describe("C4.1 · the entry points", () => {
     expect(html).toContain(AR["settingsMe.drawer"] as string);
   });
 
-  it("/profile redirects to «حسابي» and the company's /settings stays", () => {
+  it("without the bottom bar /profile still redirects to «حسابي», and the company's /settings stays", () => {
     const profile = read("src/app/(app)/profile/page.tsx");
-    expect(profile).toContain('redirect("/settings/me/account")');
+    // with the bar the profile is its own page (tests/profile-screen.test.ts); otherwise the old address goes where it went
+    expect(profile).toContain('"tgTabBar"))) redirect(PROFILE_EDIT_HREF);');
+    expect(read("src/components/profile/profile-screen.tsx")).toContain('PROFILE_EDIT_HREF = "/settings/me/account"');
     expect(profile).toContain("await pageActor()");
     expect(read("src/app/(app)/settings/page.tsx")).toBeTruthy();
   });

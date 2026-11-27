@@ -180,8 +180,8 @@ describe("the strings and the wiring", () => {
     expect(read("src/server/chat/space-topics.ts")).toContain("export async function applyTemplateTopics");
   });
 
-  it("the guide article «من تيليجرام لزاكي» exists and the dialog links to it", () => {
-    expect(read("src/lib/guide/articles.ts")).toContain("من تيليجرام لزاكي");
+  it("the guide article «من تيليجرام لذكي» exists and the dialog links to it", () => {
+    expect(read("src/lib/guide/articles.ts")).toContain("من تيليجرام لذكي");
     expect(read("src/components/space-templates/new-space-from-template.tsx")).toContain("/guide/telegram-to-zaki");
   });
 });

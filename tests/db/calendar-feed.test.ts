@@ -176,7 +176,7 @@ describe("«اشتراك التقويم»: what the feed holds", () => {
     expect(res.text.startsWith("BEGIN:VCALENDAR\r\n")).toBe(true);
     expect(res.text.endsWith("END:VCALENDAR\r\n")).toBe(true);
     expect(res.text.replace(/\r\n/g, "")).not.toMatch(/[\r\n]/);
-    expect(unfold(res.text)).toContain("X-WR-CALNAME:زاكي — شغلي\r\n");
+    expect(unfold(res.text)).toContain("X-WR-CALNAME:ذكي — شغلي\r\n");
     expect(res.text).toContain("X-WR-TIMEZONE:Asia/Damascus\r\n");
   });
 

@@ -130,7 +130,7 @@ data class GuideRef(val slug: String = "", val title: String = "")
 @Serializable
 data class GuideAnswer(val article: GuideArticle = GuideArticle(), val prev: GuideRef? = null, val next: GuideRef? = null)
 
-/** The site's routes of «إعداداتي» and «دليل زاكي», as they are: each decides again on the server. */
+/** The site's routes of «إعداداتي» and «دليل ذكي», as they are: each decides again on the server. */
 interface MeApi {
     @GET("api/me/settings")
     suspend fun facts(@Header("Cache-Control") cache: String = "no-store"): SettingsFacts

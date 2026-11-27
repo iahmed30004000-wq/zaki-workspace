@@ -84,7 +84,7 @@ describe("escaping a TEXT value", () => {
 });
 
 describe("the calendar text", () => {
-  const ics = buildIcs({ name: "زاكي — شغلي", timeZone: "Asia/Damascus", events: [event()] });
+  const ics = buildIcs({ name: "ذكي — شغلي", timeZone: "Asia/Damascus", events: [event()] });
 
   it("ends every line with CRLF, the last one too, and has no bare line feed", () => {
     expect(ics.endsWith("\r\n")).toBe(true);
@@ -94,13 +94,13 @@ describe("the calendar text", () => {
   });
 
   it("names the calendar and its zone", () => {
-    expect(unfold(ics)).toContain("X-WR-CALNAME:زاكي — شغلي\r\n");
+    expect(unfold(ics)).toContain("X-WR-CALNAME:ذكي — شغلي\r\n");
     expect(ics).toContain("X-WR-TIMEZONE:Asia/Damascus\r\n");
   });
 
   it("every physical line of a whole calendar is at most 75 octets", () => {
     const long = buildIcs({
-      name: "زاكي — شغلي",
+      name: "ذكي — شغلي",
       timeZone: "Asia/Damascus",
       events: [event({ summary: "مراجعة ".repeat(40), description: "المشروع: " + "حملة الربيع ".repeat(20) + "\nhttps://workspace.zakiai.io/tasks/abc", url: "https://workspace.zakiai.io/tasks/" + "a".repeat(80) })],
     });

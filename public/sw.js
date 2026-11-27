@@ -127,7 +127,7 @@ self.addEventListener("message", function (event) {
 /** The offline page in its smallest form, for a person who goes offline before the shell cache holds the real one (or whose session had ended when it was fetched). */
 function offlineFallback() {
   var html =
-    '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>زاكي</title></head>' +
+    '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="light dark"><title>ذكي</title></head>' +
     '<body style="font-family:system-ui,sans-serif;text-align:center;padding:2rem"><p style="font-size:1.125rem;line-height:1.8">' +
     OFFLINE_MESSAGE +
     "</p></body></html>";

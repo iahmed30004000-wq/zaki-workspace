@@ -20,7 +20,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-/** N6 batch 5: «إعداداتي» keeps the site's rules and words, «دليل زاكي» reads the site's answer, and their links open natively. */
+/** N6 batch 5: «إعداداتي» keeps the site's rules and words, «دليل ذكي» reads the site's answer, and their links open natively. */
 class MeTest {
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false; coerceInputValues = true }
 
@@ -75,8 +75,8 @@ class MeTest {
     }
 
     @Test fun `a browser and the app are named as the site names them`() {
-        assertEquals("تطبيق زاكي على أندرويد", M.uaLabel("okhttp/4.12.0"))
-        assertEquals("تطبيق زاكي على أندرويد", M.uaLabel("ZakiApp/5.2.0 (Android 15; Pixel 8)"))
+        assertEquals("تطبيق ذكي على أندرويد", M.uaLabel("okhttp/4.12.0"))
+        assertEquals("تطبيق ذكي على أندرويد", M.uaLabel("ZakiApp/5.2.0 (Android 15; Pixel 8)"))
         assertEquals("كروم على ويندوز", M.uaLabel("Mozilla/5.0 (Windows NT 10.0) AppleWebKit Chrome/120 Safari/537"))
         assertEquals("إيدج على ويندوز", M.uaLabel("Mozilla/5.0 (Windows NT 10.0) Chrome/120 Safari/537 Edg/120"))
         assertEquals("متصفح ما بنعرف اسمه", M.uaLabel(null))

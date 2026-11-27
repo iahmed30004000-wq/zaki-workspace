@@ -5,7 +5,7 @@ import { GET as articleGET } from "@/app/api/guide/[slug]/route";
 import { call, db, loginAs, makeTeam } from "./helpers";
 
 /**
- * The phone's «إعداداتي» and «دليل زاكي» doors (M2 N6 batch 5). `GET /api/me/settings` hands the facts the site's settings page reads on the
+ * The phone's «إعداداتي» and «دليل ذكي» doors (M2 N6 batch 5). `GET /api/me/settings` hands the facts the site's settings page reads on the
  * server (the same functions): the primary owner's id only to a person of the team who is not that owner, «آخر ظهور» never offered to a
  * partner, the digits as saved. `GET /api/guide` and `/api/guide/[slug]` read the guide the site's pages read, and an article above the
  * reader's level is «not found» exactly as the page is.

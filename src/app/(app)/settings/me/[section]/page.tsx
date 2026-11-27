@@ -56,6 +56,8 @@ export default async function SettingsMeSectionPage({ params, searchParams }: { 
       const withPicture = await actorFeatureOn(actor, "avatars");
       // «ساعات الدوام والرد التلقائي»: only while the company's switch is on
       const withAutomation = await actorFeatureOn(actor, "chatAutomation");
+      // with the bottom bar this form belongs to the profile's tab: its back button on a phone leads to the profile
+      if (!actor.isExternal && (await actorFeatureOn(actor, "tgTabBar"))) sub = { titleKey: "profileScreen.edit", back: "/profile" };
       body = (
         <>
         <ProfileForm

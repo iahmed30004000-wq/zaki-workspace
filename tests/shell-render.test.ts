@@ -173,9 +173,9 @@ describe("the frame for the owner, on a project page", () => {
     expect(sidebarPlaces(html)).not.toContain("zk-decor");
   });
 
-  it("«نجمة وطريق»: the wordmark in Lalezar (the space's name, «زاكي» before one is known), the company's name under it, a link home", () => {
+  it("«نجمة وطريق»: the wordmark in Lalezar (the space's name, «ذكي» before one is known), the company's name under it, a link home", () => {
     const aside = sidebar(html);
-    expect(aside).toMatch(/<span aria-hidden="true" class="zk-wordmark[^"]*"><bdi>زاكي<\/bdi><\/span>/);
+    expect(aside).toMatch(/<span aria-hidden="true" class="zk-wordmark[^"]*"><bdi>ذكي<\/bdi><\/span>/);
     expect(aside).toContain("<bdi>شركة زكي</bdi>");
     expect(linkTo(aside, "/")).toContain(`aria-label="${AR["app.brand"]}"`);
     expect(aside.split(">")[0]).toContain("zk-side-rule");
@@ -192,10 +192,10 @@ describe("the frame for the owner, on a project page", () => {
     expect(link.indexOf("data-brand-mark")).toBeLessThan(link.indexOf("zk-wordmark"));
   });
 
-  it("the space you are in is written where «زاكي» was, in the same lettering (the owner's ask, 2026-10-25)", () => {
+  it("the space you are in is written where «ذكي» was, in the same lettering (the owner's ask, 2026-10-25)", () => {
     const aside = sidebar(shell("OWNER", "/my-work", { id: "w1", name: "العمل", emoji: "🛠️" }));
     expect(aside).toMatch(/<span aria-hidden="true" class="zk-wordmark[^"]*"><bdi>العمل<\/bdi><\/span>/);
-    expect(aside).not.toMatch(/class="zk-wordmark[^"]*"><bdi>زاكي/);
+    expect(aside).not.toMatch(/class="zk-wordmark[^"]*"><bdi>ذكي/);
     expect(linkTo(aside, "/")).toContain('aria-label="العمل"');
     // a long name steps down a size so it fits
     const long = sidebar(shell("OWNER", "/my-work", { id: "w2", name: "مصاريف المكتب الرئيسي", emoji: null }));
@@ -209,7 +209,7 @@ describe("the frame for the owner, on a project page", () => {
     expect(count(sidebarPlaces(html), "zk-star")).toBe(1);
   });
 
-  it("«دليل زاكي» waits at the bottom of the side menu", () => {
+  it("«دليل ذكي» waits at the bottom of the side menu", () => {
     expect(linkTo(sidebar(html), "/guide")).toMatch(/border-dashed border-accent-2/);
     expect(sidebar(html)).toContain(AR["shell.guide"]);
   });

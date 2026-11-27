@@ -1,5 +1,5 @@
 /**
- * M1a — what another app hands to «زاكي» through the phone's share sheet (the manifest's `share_target`, a GET to `/share` with `title`, `text` and
+ * M1a — what another app hands to «ذكي» through the phone's share sheet (the manifest's `share_target`, a GET to `/share` with `title`, `text` and
  * `url`), turned into the words that wait in a conversation's composer. Pure: the page, the picker and the tests read the same functions.
  *
  * ⚠️ Everything in the address is typed by somebody else (a page the person shared from, or a link someone crafted): it is text and nothing more. It is

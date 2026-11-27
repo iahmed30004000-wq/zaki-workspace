@@ -153,7 +153,7 @@ describe("metadata and the browser chrome colour", () => {
   it("the installed app on a Mac/iPhone: standalone, titled «زكي», with iOS auto-detection off", () => {
     const meta = layout.metadata as Metadata;
     // apple-web-app meta tags: the installed page fills the screen and carries the app's own title
-    expect(meta.appleWebApp).toMatchObject({ capable: true, title: "زاكي", statusBarStyle: "default" });
+    expect(meta.appleWebApp).toMatchObject({ capable: true, title: "ذكي", statusBarStyle: "default" });
     // Safari must not turn numbers into phone links, addresses into maps, dates into calendar events
     expect(meta.formatDetection).toMatchObject({ telephone: false, address: false, email: false, date: false });
   });

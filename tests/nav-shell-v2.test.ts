@@ -255,7 +255,7 @@ describe("the drawer (phone)", () => {
     expect(read("src/components/shell/space-switcher.tsx")).toMatch(/setOpen\(\(v\) => !v\)/);
   });
 
-  it("lists every place, then «دليل زاكي», and has a slot for the chat list", () => {
+  it("lists every place, then «دليل ذكي», and has a slot for the chat list", () => {
     const html = drawer({ listSlot: createElement("div", null, "قائمة المحادثات") });
     const places = /<nav[^>]*data-tour="places"[^>]*>[\s\S]*?<\/nav>/.exec(html)?.[0] ?? "";
     expect(hrefs(places)).toEqual(nav.places.map((p) => (p.key === "today" ? "/?view=today" : p.href)));

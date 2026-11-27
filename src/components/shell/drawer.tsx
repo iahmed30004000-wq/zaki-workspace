@@ -23,7 +23,7 @@ import { SpaceDropdown, type ShellSpace } from "./space-switcher";
 /**
  * THE DRAWER — the phone's menu on the new map (switch `navV2`, below `md`), opened by «☰» in the app bar and sliding in from the START edge. Its header
  * is the person (picture, name, rank) and the spaces: every space a row with its unread number and its overdue number, the one the person is in marked
- * (like the accounts of a messaging app). Under it the places in the map's order, then «الإعدادات» and «دليل زاكي», «ترتيب» and the avatar menu.
+ * (like the accounts of a messaging app). Under it the places in the map's order, then «الإعدادات» and «دليل ذكي», «ترتيب» and the avatar menu.
  * P2.1: the header also holds what the phone's page no longer draws: who is online (`presence`, a green dot and a count) and the light/dark icon; the foot holds «المرشد» (`guide`, the owner's
  * compass: it does not float over a phone's page, it opens from here).
  * The old bottom bar stays for `navV2` OFF (src/components/shell/bottom-nav.tsx).
@@ -86,7 +86,7 @@ export function Drawer({
   portal?: boolean;
 }) {
   const { t } = useI18n();
-  // S3.1: «الإعدادات» is ONE door: one row in the foot, and «ترتيب» is a small icon button in the header (no «إعداداتي», «دليل زاكي» or «ترتيب» rows)
+  // S3.1: «الإعدادات» is ONE door: one row in the foot, and «ترتيب» is a small icon button in the header (no «إعداداتي», «دليل ذكي» or «ترتيب» rows)
   const oneDoor = useSettingsOneDoor();
   const close = () => onOpenChange(false);
   // the drawer is hidden from `md` up by CSS; a Radix dialog that stays open would still make the page behind it inert, so it closes when the screen grows

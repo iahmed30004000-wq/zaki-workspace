@@ -198,6 +198,8 @@ export function themeTokens(): { source: "themes.css" | "fallback"; byTheme: Rec
     const selector = m[1]!;
     const values = triplets(m[2]!);
     if (Object.keys(values).length === 0) continue;
+    // the phone's Telegram look names some themes only to say which of its two palettes stands in for them; it draws no ornament (tg-phone.css hides the layer)
+    if (selector.includes("data-tg-phone")) continue;
     for (const key of THEME_KEYS) {
       const named = new RegExp(`data-theme\\s*=\\s*["']?${key}["']?`).test(selector);
       // the default theme may be declared under `:root` / `html`
