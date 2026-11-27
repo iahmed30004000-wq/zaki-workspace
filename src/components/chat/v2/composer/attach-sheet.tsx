@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { ChartColumn, FileText, Image as ImageIcon, ListChecks, MapPin, Paperclip, Pencil, Plus, Send, Sparkles, type LucideIcon } from "lucide-react";
+import { ChartColumn, FileText, Image as ImageIcon, ListChecks, MapPin, Newspaper, Paperclip, Pencil, Plus, Send, Sparkles, type LucideIcon } from "lucide-react";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "@/components/ui/sheet";
-import { ChecklistFromMenu, LocationFromMenu } from "@/components/chat/v2/composer/attach-menu";
+import { ArticleFromMenu, ChecklistFromMenu, LocationFromMenu } from "@/components/chat/v2/composer/attach-menu";
 import { PhotoEditor } from "@/components/chat/v2/composer/photo-editor";
 import { TgAttachSheet, type AttachCaptionProps, type AttachTileProps } from "@/components/chat/v2/composer/attach-sheet-tg";
 import { useTgPhone } from "@/components/shell/tg-phone";
@@ -13,8 +13,8 @@ import { dragHasFiles } from "@/lib/chat/v2/composer/clipboard-files";
 import { attachTabsOf, type AttachItemId } from "@/lib/chat/v2/composer/attach-items";
 import type { PendingFile } from "@/lib/chat/v2/composer/types";
 
-const ICONS: Record<AttachItemId, LucideIcon> = { media: ImageIcon, file: FileText, poll: ChartColumn, checklist: ListChecks, location: MapPin };
-const LABELS: Record<AttachItemId, string> = { media: "chatui.attachsheet.gallery", file: "chat.f.attach_file", poll: "chatc.poll.menu", checklist: "chatcl.menu", location: "chatloc.menu" };
+const ICONS: Record<AttachItemId, LucideIcon> = { media: ImageIcon, file: FileText, poll: ChartColumn, checklist: ListChecks, location: MapPin, article: Newspaper };
+const LABELS: Record<AttachItemId, string> = { media: "chatui.attachsheet.gallery", file: "chat.f.attach_file", poll: "chatc.poll.menu", checklist: "chatcl.menu", location: "chatloc.menu", article: "tgx.article.menu" };
 
 export interface AttachSheetPanelProps {
   items: AttachItemId[];
@@ -199,6 +199,8 @@ export interface AttachSheetProps {
   onSend: () => void;
   /** files dragged from the computer and let go on the open sheet (it covers the pane, so the pane's two zones never hear of them) */
   onDropFiles?: (files: File[]) => void;
+  /** the company's switch `chatPollExtras` (the phone's poll form) */
+  pollExtras?: boolean;
 }
 
 /**
@@ -206,7 +208,7 @@ export interface AttachSheetProps {
  * system is opened by the surface's own hidden inputs (`onPick`), so the sheet stays open while the picks arrive. «استطلاع» and «قائمة مهام» close it and go on in their own dialogs.
  * On a phone with «تيليجرام على التلفون» (`tgPhone`) it opens the sheet of that look instead (`attach-sheet-tg.tsx`): the poll and the contacts are tabs inside it.
  */
-export function AttachSheet({ items, disabled, files, busy, caption, canSend, onCaption, onPick, onRemove, onEdit, onHd, onSend, onDropFiles }: AttachSheetProps) {
+export function AttachSheet({ items, disabled, files, busy, caption, canSend, onCaption, onPick, onRemove, onEdit, onHd, onSend, onDropFiles, pollExtras = false }: AttachSheetProps) {
   const [open, setOpen] = React.useState(false);
   const [dragOver, setDragOver] = React.useState(false);
   const takeDrag = (event: React.DragEvent) => {
@@ -224,6 +226,7 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
   };
   const [checklistOpen, setChecklistOpen] = React.useState(false);
   const [locationOpen, setLocationOpen] = React.useState(false);
+  const [articleOpen, setArticleOpen] = React.useState(false);
   const tg = useTgPhone();
   if (tg) {
     return (
@@ -235,7 +238,12 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
           open={open}
           onOpenChange={setOpen}
           parts={PARTS}
-          tabs={attachTabsOf({ canPoll: items.includes("poll"), canChecklist: items.includes("checklist"), canLocation: items.includes("location") })}
+          tabs={attachTabsOf({ canPoll: items.includes("poll"), canChecklist: items.includes("checklist"), canLocation: items.includes("location"), canArticle: items.includes("article") })}
+          pollExtras={pollExtras}
+          onArticle={() => {
+            setOpen(false);
+            setArticleOpen(true);
+          }}
           files={files}
           busy={busy}
           caption={caption}
@@ -263,6 +271,7 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
         />
         {checklistOpen ? <ChecklistFromMenu onClose={() => setChecklistOpen(false)} /> : null}
         {locationOpen ? <LocationFromMenu onClose={() => setLocationOpen(false)} /> : null}
+        {articleOpen ? <ArticleFromMenu onClose={() => setArticleOpen(false)} /> : null}
       </>
     );
   }
@@ -306,6 +315,9 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
               } else if (id === "location") {
                 setOpen(false);
                 setLocationOpen(true);
+              } else if (id === "article") {
+                setOpen(false);
+                setArticleOpen(true);
               } else if (id === "poll") {
                 setOpen(false);
                 onPick(id);
@@ -318,6 +330,7 @@ export function AttachSheet({ items, disabled, files, busy, caption, canSend, on
       </Sheet>
       {checklistOpen ? <ChecklistFromMenu onClose={() => setChecklistOpen(false)} /> : null}
       {locationOpen ? <LocationFromMenu onClose={() => setLocationOpen(false)} /> : null}
+      {articleOpen ? <ArticleFromMenu onClose={() => setArticleOpen(false)} /> : null}
     </>
   );
 }

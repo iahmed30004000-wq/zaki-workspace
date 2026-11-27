@@ -667,8 +667,16 @@ model ChatMessage {
   silent          Boolean   @default(false)
   // «رد بالاقتباس» (S5.7): the part of the replied-to message the sender picked (at most 280 characters, only ever stored with replyToId, and only a piece the parent really holds). NULL: an ordinary reply.
   replyQuote      String?
+  // «الرد في محادثة أخرى» (src/server/chat/cross-reply.ts): the source message, in ANOTHER conversation. Server only: its id and its conversation never travel in a message. NULL once the source row is gone.
+  crossReplyToId  String?
+  // …and what the sender deliberately carried over, taken at send time: `{ author, text, kind, quoted? }` (never the conversation's name, never a file name). Drawn only while the source is live.
+  crossReply      Json?
   createdAt       DateTime  @default(now())
 
+  crossReplyTo  ChatMessage?        @relation("ChatCrossReplies", fields: [crossReplyToId], references: [id], onDelete: SetNull)
+  crossReplies  ChatMessage[]       @relation("ChatCrossReplies")
+  // the files an edit took off this message (src/server/chat/edit-media.ts): kept, never listed with the live ones
+  replacedFiles MessageAttachment[] @relation("ReplacedAttachments")
   organization  Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
   preview       LinkPreview?        @relation(fields: [previewId], references: [id], onDelete: SetNull)
   conversation  Conversation        @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -702,6 +710,7 @@ model ChatMessage {
   @@index([conversationId, createdAt, id])
   @@index([orgId, createdAt])
   @@index([previewId])
+  @@index([crossReplyToId])
 }
 
 // «معاينة الرابط» (C3b.2, src/server/chat/link-preview.ts): what the SERVER read from a public page the first time a company's message pointed at it - the title, the description, the site name and one picture (a
@@ -811,6 +820,14 @@ model Poll {
   closedAt   DateTime? // closed early by hand
   closedById String?
   createdAt  DateTime  @default(now())
+  // the extras of «خيارات إضافية للاستطلاع»: a quiz (one right option, `PollOption.correct`) and the line shown once answered; «أي حدا بيقدر يضيف خيار»; the counts hidden until the poll closes;
+  // a vote that cannot be changed; each person sees the options in an order of their own. All false: the poll of before.
+  quiz        Boolean @default(false)
+  explanation String?
+  openOptions Boolean @default(false)
+  hideResults Boolean @default(false)
+  noRevote    Boolean @default(false)
+  shuffle     Boolean @default(false)
 
   message ChatMessage  @relation(fields: [messageId], references: [id], onDelete: Cascade)
   options PollOption[]
@@ -822,6 +839,10 @@ model PollOption {
   pollId   String
   text     String
   position Int
+  // the right answer of a quiz (never sent to a person before they answered or the poll closed)
+  correct  Boolean @default(false)
+  // who added it after the poll was sent (NULL: it was there from the start)
+  addedById String?
 
   poll  Poll       @relation(fields: [pollId], references: [id], onDelete: Cascade)
   votes PollVote[]
@@ -941,12 +962,18 @@ model MessageAttachment {
   round      Boolean  @default(false) // a round video message («رسالة فيديو دائرية»): the bubble draws it as a circle
   position   Int      @default(0)
   createdAt  DateTime @default(now())
+  // an edit replaced this file: `messageId` becomes NULL (so no reader of a message's files ever sees it), `formerMessageId` remembers the message and `replacedAt` is the time of that
+  // edit (the time of its MessageRevision). The row stays so the file is never an orphan; only the holder of silent oversight may open it.
+  replacedAt      DateTime?
+  formerMessageId String?
 
-  message ChatMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
-  file    StoredFile   @relation(fields: [fileId], references: [id], onDelete: Restrict)
+  message       ChatMessage? @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  formerMessage ChatMessage? @relation("ReplacedAttachments", fields: [formerMessageId], references: [id], onDelete: Cascade)
+  file          StoredFile   @relation(fields: [fileId], references: [id], onDelete: Restrict)
 
   @@index([messageId, position])
   @@index([fileId])
+  @@index([formerMessageId])
 }
 
 // «صور متحركة» (src/server/chat/gifs.ts): one person's own library of GIFs, in one company. A row is a POINTER to a StoredFile, never a copy and never a right: whether the person may

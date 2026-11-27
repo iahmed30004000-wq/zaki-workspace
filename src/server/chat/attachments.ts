@@ -342,7 +342,8 @@ export async function readAttachment(orgId: string, attachmentId: string) {
 /** An unclaimed upload row (the uploader may still see his own file before the message exists). */
 export async function findUnclaimedUpload(orgId: string, fileId: string, uploaderId: string) {
   return db.storedFile.findFirst({
-    where: { id: fileId, orgId, uploaderId, deletedAt: null, path: { not: PENDING_PATH }, purpose: { in: ["CHAT", "VOICE"] } },
+    // never a file an edit took off a message: that one is the edit history's (see the attachment route)
+    where: { id: fileId, orgId, uploaderId, deletedAt: null, path: { not: PENDING_PATH }, purpose: { in: ["CHAT", "VOICE"] }, chatLinks: { none: { replacedAt: { not: null } } } },
     select: { id: true, name: true, mimeType: true, size: true, uploaderId: true, purpose: true, createdAt: true },
   });
 }

@@ -52,6 +52,8 @@ export interface OutboxItem {
   replyToId?: string;
   /** S5.7 «رد بالاقتباس»: the piece of the original the person picked (at most 280 characters; only with `replyToId`) — a retry, even after a reload, still quotes */
   replyQuote?: string;
+  /** «الرد في محادثة أخرى»: the source message's id alone (the other conversation's words are never kept on the device) */
+  crossReplyId?: string;
   /** files already uploaded (their ids only; the bytes are on the server) */
   attachmentIds?: string[];
   mentionAll?: boolean;
@@ -69,7 +71,7 @@ export interface OutboxItem {
   rateLimited?: boolean;
 }
 
-export type OutboxInput = Pick<OutboxItem, "clientId" | "conversationId" | "body" | "mentions"> & Partial<Pick<OutboxItem, "replyToId" | "replyQuote" | "attachmentIds" | "mentionAll" | "noPreview" | "silent">>;
+export type OutboxInput = Pick<OutboxItem, "clientId" | "conversationId" | "body" | "mentions"> & Partial<Pick<OutboxItem, "replyToId" | "replyQuote" | "crossReplyId" | "attachmentIds" | "mentionAll" | "noPreview" | "silent">>;
 
 /** What one attempt to send an item came to. */
 export type SendOutcome =
@@ -130,6 +132,8 @@ export function sanitizeItem(raw: unknown): OutboxItem | null {
     const replyQuote = str(r["replyQuote"], QUOTE_MAX);
     if (replyQuote) item.replyQuote = replyQuote;
   }
+  const crossReplyId = str(r["crossReplyId"], 64);
+  if (crossReplyId && !replyToId) item.crossReplyId = crossReplyId;
   if (attachmentIds && attachmentIds.length) item.attachmentIds = attachmentIds;
   if (r["mentionAll"] === true) item.mentionAll = true;
   if (r["noPreview"] === true) item.noPreview = true;
@@ -257,6 +261,7 @@ export class Outbox {
       createdAt: now,
       attempts: 1,
       ...(input.replyToId ? { replyToId: input.replyToId, ...(input.replyQuote ? { replyQuote: input.replyQuote } : {}) } : {}),
+      ...(input.crossReplyId && !input.replyToId ? { crossReplyId: input.crossReplyId } : {}),
       ...(input.attachmentIds?.length ? { attachmentIds: [...input.attachmentIds] } : {}),
       ...(input.mentionAll ? { mentionAll: true } : {}),
       ...(input.noPreview ? { noPreview: true } : {}),

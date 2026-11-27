@@ -13,6 +13,8 @@ import { ReplyOptions } from "@/components/chat/v2/composer/reply-options";
 import { StickerStrip } from "@/components/chat/v2/composer/sticker-strip";
 import { VideoNoteOverlay } from "@/components/chat/v2/composer/video-note-overlay";
 import { useVideoNote } from "@/lib/chat/v2/video-note/use-video-note";
+import { ArticleEditor } from "@/components/chat/v2/article/article-editor";
+import { ARTICLE_KIND } from "@/lib/chat/article";
 import { useTgPhone } from "@/components/shell/tg-phone";
 import { suggestedStickers } from "@/lib/chat/v2/composer/sticker-suggest";
 import { replyQuoteStore } from "@/lib/chat/v2/phone/reply-quote";
@@ -27,8 +29,11 @@ import { useReplyQuote } from "@/lib/chat/v2/phone/reply-quote";
  * paste dialog) and the drop zones. The dialogs sit OUTSIDE the box's form: a dialog's own submit never reaches the composer's.
  */
 export function ChatComposerV2(props: ComposerParams) {
-  const c = useComposer(props);
-  const { detail, conversationId, onMessage, editing, reply, onCancelReply, onCancelEdit } = props;
+  // «المقالات»: «عدّل» on my article opens the article's own editor over the pane; the box is not in an edit, and what was typed in it stays
+  const articleEdit = props.editing?.kind === ARTICLE_KIND ? props.editing : null;
+  const boxProps = articleEdit ? { ...props, editing: null } : props;
+  const c = useComposer(boxProps);
+  const { detail, conversationId, onMessage, editing, reply, onCancelReply, onCancelEdit } = boxProps;
   const [recents, setRecents] = React.useState<string[]>([]);
   React.useEffect(() => setRecents(loadRecentEmoji()), []);
   // S5.7 «رد بالاقتباس»: the piece picked for the reply being written (the send takes it from the same store)
@@ -58,6 +63,7 @@ export function ChatComposerV2(props: ComposerParams) {
         linkPreviews={detail.linkPreviews !== false}
         zakiEmojis={detail.zakiEmojis !== false}
         attachSheet={detail.tgLook !== false}
+        pollExtras={detail.pollExtras === true}
         onNoPreviewChange={c.setNoPreview}
         onEmojiUsed={(emoji) => setRecents(rememberEmoji(emoji))}
         onStickerSend={c.sendText}
@@ -114,6 +120,7 @@ export function ChatComposerV2(props: ComposerParams) {
       ) : null}
       {detail.me.canPoll ? (
         <PollDialog
+          extras={detail.pollExtras === true}
           open={c.pollOpen}
           conversationId={conversationId}
           onClose={() => c.setPollOpen(false)}
@@ -133,6 +140,7 @@ export function ChatComposerV2(props: ComposerParams) {
           onCancelReply={onCancelReply}
         />
       ) : null}
+      {articleEdit ? <ArticleEditor open conversationId={conversationId} editing={articleEdit} onClose={onCancelEdit} onSaved={props.onEdited} /> : null}
       <PasteSendDialog files={c.pasted} initialCaption={c.body} onSend={c.sendPasted} onCancel={() => c.setPasted(null)} />
       <VideoNoteOverlay v={videoNote} />
       <DropOverlay enabled={!editing && !recording && !c.busy && videoNote.state.mode === "idle"} onDropFiles={(zone, files) => c.addDropped(files, zone === "files")} />

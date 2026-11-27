@@ -6,6 +6,7 @@ import { menuFor, type MessageMenuId } from "@/components/chat/message/message-m
 import { ReaderList } from "@/components/chat/message/message-item";
 import { ForwardDialog, NoteDialog } from "@/components/chat/message/message-dialogs";
 import { ForwardSheet } from "@/components/chat/v2/forward/forward-sheet";
+import { ReplyElsewhereSheet } from "@/components/chat/v2/forward/reply-elsewhere-sheet";
 import { useMultiSelectSwitch } from "@/lib/chat/selection";
 import { Dialog, DialogBody, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { BubbleGesturesContext, type BubbleGestures } from "@/components/chat/v2/menu/gesture-context";
@@ -63,6 +64,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
   const [ticketOpen, setTicketOpen] = React.useState<string | null>(null);
   const [noting, setNoting] = React.useState<MessageDto | null>(null);
   const [reminding, setReminding] = React.useState<MessageDto | null>(null);
+  const [elsewhere, setElsewhere] = React.useState<MessageDto | null>(null);
 
   const askKind = askKindOf(header.me.problemKinds);
   const conversationId = header.id;
@@ -72,6 +74,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
       askKind,
       act: (message, id) => {
         if (id === "reply") commands.startReply(message);
+        else if (id === "replyElsewhere") setElsewhere(message);
         else if (id === "pin") void commands.pin(message);
         else if (id === "forward") commands.startForward(message);
         else if (id === "edit") commands.startEdit(message);
@@ -149,6 +152,7 @@ export function MenuHost({ header, members, children }: { header: ConversationHe
       />
       {ticketOpen && header.me.id ? <TicketDetailModal ticketId={ticketOpen} currentUserId={header.me.id} onClose={() => setTicketOpen(null)} /> : null}
       <ForwardHost header={header} />
+      {elsewhere ? <ReplyElsewhereSheet message={elsewhere} from={conversationId} onClose={() => setElsewhere(null)} /> : null}
       <NoteDialog
         message={noting}
         onClose={() => setNoting(null)}

@@ -48,6 +48,8 @@ export interface PendingInput {
   mentions?: string[];
   /** the message being answered: its id, a preview and who wrote it (what the bubble's quote shows) */
   replyTo?: { id: string; preview: string | null; authorName: string };
+  /** «الرد في محادثة أخرى»: the quote the person saw over the box (the server's own copy replaces it) */
+  crossReply?: MessageDto["crossReply"];
   now?: Date;
 }
 
@@ -67,6 +69,7 @@ export function buildPendingMessage(input: PendingInput): MessageDto {
     createdAt: (input.now ?? new Date()).toISOString(),
     clientId: input.clientId,
     ...(input.replyTo ? { replyTo: { id: input.replyTo.id, preview: input.replyTo.preview, authorName: input.replyTo.authorName, deleted: false } } : {}),
+    ...(input.crossReply ? { crossReply: input.crossReply } : {}),
     mentions: input.mentions ?? [],
     attachments: [],
     reactions: [],

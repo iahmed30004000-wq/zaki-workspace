@@ -18,6 +18,8 @@ import { ScheduledList } from "@/components/chat/v2/composer/scheduled-list";
 import { ScheduleDialog } from "@/components/chat/v2/composer/schedule-dialog";
 import { SendMenu, sendMenuItemsOf } from "@/components/chat/v2/composer/send-menu";
 import { ReplyEditBar } from "@/components/chat/v2/composer/reply-edit-bar";
+import { EditMediaStrip } from "@/components/chat/v2/composer/edit-media-strip";
+import { CrossQuote } from "@/components/chat/v2/bubble/cross-quote";
 import { COMPOSER_ICON_BUTTON, ROUND_BUTTON } from "@/components/chat/v2/composer/composer-styles";
 import { ct } from "@/lib/chat/text";
 import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
@@ -43,12 +45,16 @@ export type SurfaceEngine = Pick<
   Partial<Pick<ComposerEngine, "tg">> &
   /** S6.2: the attach sheet's edit and «جودة عالية» buttons; an engine without them (a test's) draws neither */
   Partial<Pick<ComposerEngine, "replaceFile" | "setHd" | "addDropped">> &
+  /** «الرد في محادثة أخرى» (the quote over the box) and «تعديل صورة أو ملف» (the files of the edited message); an engine without them (a test's) draws neither */
+  Partial<Pick<ComposerEngine, "crossReply" | "removeCrossReply" | "editAttachments" | "replacement" | "setReplacement">> &
   /** C3c.3: «جدول الإرسال» (the menu's entry, the calendar icon, the two dialogs); an engine without them (a test's) draws none of it */
   Partial<Pick<ComposerEngine, "scheduling" | "scheduledCount" | "scheduledItems" | "scheduledZone" | "scheduleDialog" | "closeScheduleDialog" | "openScheduleDialog" | "scheduleNow" | "saveScheduledEdit" | "scheduledOpen" | "setScheduledOpen" | "scheduledBusy" | "scheduledError" | "scheduleNotice" | "beginEditScheduled" | "sendScheduledNow" | "deleteScheduled">>;
 
 export interface SurfaceProps {
   c: SurfaceEngine;
-  me: { canPoll?: boolean; canLocation?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
+  me: { canPoll?: boolean; canChecklist?: boolean; canArticle?: boolean; canLocation?: boolean; canRecall?: boolean; recallKinds?: readonly string[] };
+  /** the company's switch `chatPollExtras` (absent: off): the phone's poll form offers the extra settings */
+  pollExtras?: boolean;
   reply: MessageDto | null;
   /** S5.7 «رد بالاقتباس»: the piece of `reply` the person picked (the bar shows it in place of the whole message) */
   replyQuote?: string | null;
@@ -87,7 +93,7 @@ export interface SurfaceProps {
  * The round button is the microphone while the box is empty, send when there is text or a file, save while an edit is typed (`composerFaceOf`). While a voice
  * note is recorded the whole row is the record bar. Everything it shows comes from the engine; it holds only whether the emoji picker is open.
  */
-export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange, onEmojiUsed, onStickerSend, onReplyOptions, videoNote, gifPanel }: SurfaceProps) {
+export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCancelReply, onCancelEdit, recents, onEmoji, formatting = true, linkPreviews = true, zakiEmojis = false, attachSheet = false, onNoPreviewChange, onEmojiUsed, onStickerSend, onReplyOptions, videoNote, gifPanel, pollExtras = false }: SurfaceProps) {
   const [emojiOpen, setEmojiOpen] = React.useState(false);
   // «تيليجرام على التلفون»: the emojis stand where the keyboard stood (the box is NOT focused while they do), and the caret is kept by hand
   const tg = useTgPhone();
@@ -197,6 +203,13 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
     <>
     <form onSubmit={c.submit} className={`mx-auto flex w-full max-w-[904px] flex-col gap-2${c.tg && cameBack.current ? " tg-composer-return" : ""}`} style={c.tg ? (tgMotionVars(["composerMorphMs", "composerReturnMs"]) as React.CSSProperties) : undefined} data-composer-surface>
       <ReplyEditBar reply={reply} editing={editing} quote={replyQuote} onCancelReply={onCancelReply} onCancelEdit={onCancelEdit} {...(onReplyOptions ? { onOptions: onReplyOptions } : {})} />
+      {!editing && c.crossReply ? (
+        <div data-cross-bar="" className="rounded-xl bg-surface-1 px-2 pt-1.5 shadow-card">
+          <CrossQuote authorName={c.crossReply.snapshot.author} text={c.crossReply.snapshot.text} kind={c.crossReply.snapshot.kind} {...(c.removeCrossReply ? { onRemove: c.removeCrossReply } : {})} />
+          <p className="pb-1.5 text-xs text-warn">{ct("tgx.cross.warn")}</p>
+        </div>
+      ) : null}
+      {editing && c.editAttachments && c.setReplacement ? <EditMediaStrip attachments={c.editAttachments} replacement={c.replacement ?? null} busy={c.busy} onReplace={c.setReplacement} /> : null}
       <FileTray files={c.files} busy={c.busy} progress={c.progress} onRemove={c.removeFile} />
       <MentionList choices={c.choices} pickAt={c.pickAt} onHover={c.setPick} onChoose={c.selectMention} />
       {previewHref && !noPreview ? (
@@ -258,6 +271,7 @@ export function ComposerSurface({ c, me, reply, replyQuote = null, editing, onCa
         {!editing && attachSheet ? (
           <AttachSheet
             items={attachItemsOf(me)}
+            pollExtras={pollExtras}
             disabled={c.busy}
             files={c.files}
             busy={c.busy}

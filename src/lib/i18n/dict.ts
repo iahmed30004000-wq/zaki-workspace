@@ -114,6 +114,7 @@ import tgSheets from "./ar.tg-sheets.json";
 import tgMessages from "./ar.tg-messages.json";
 import tgExtraStories from "./ar.tg-extra-stories.json";
 import tgExtraAttach from "./ar.tg-extra-attach.json";
+import tgExtraMessages from "./ar.tg-extra-messages.json";
 
 /**
  * The Arabic dictionary: `ar.json` plus one fragment per feature (accounts, policy, onboarding,
@@ -239,4 +240,5 @@ export const AR: Record<string, string> = {
   ...tgMessages,
   ...tgExtraStories,
   ...tgExtraAttach,
+  ...tgExtraMessages,
 };

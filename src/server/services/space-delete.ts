@@ -1,3 +1,4 @@
+import { touchCrossReplies } from "@/server/chat/cross-reply";
 import { z } from "zod";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
@@ -94,6 +95,8 @@ export async function deleteSpaceWithWork(actor: Actor, spaceId: string, confirm
       await tx.task.deleteMany({ where: { OR: [here, { projectId: { in: projectIds } }] } });
       await tx.project.deleteMany({ where: here });
       // the talk: its conversations take their messages, members, boards and calls with them
+      // (a reply in another space that quoted one of these messages stops showing the quote, on the open screens too)
+      await touchCrossReplies(tx, actor.orgId, { conversation: { spaceId: space.id } });
       await tx.conversation.deleteMany({ where: { spaceId: space.id } });
       // what would otherwise fall back to «الشركة» (no space): it was this space's, it goes with it
       await tx.opportunity.deleteMany({ where: here });

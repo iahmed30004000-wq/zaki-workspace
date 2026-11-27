@@ -28,13 +28,13 @@ export const PAGE_SIZE = 50;
  * stale copy, and the device copy (C1.5) never holds its text.
  */
 export function toTombstone<M extends MessageDto>(m: M): M {
-  const { notes: _notes, original: _original, history: _history, poll: _poll, card: _card, work: _work, mustRead: _mustRead, replyTo: _replyTo, forwardedFrom: _forwardedFrom, videoAtSec: _videoAtSec, ...rest } = m;
-  void [_notes, _original, _history, _poll, _card, _work, _mustRead, _replyTo, _forwardedFrom, _videoAtSec];
+  const { notes: _notes, original: _original, history: _history, poll: _poll, card: _card, work: _work, mustRead: _mustRead, replyTo: _replyTo, forwardedFrom: _forwardedFrom, crossReply: _crossReply, videoAtSec: _videoAtSec, ...rest } = m;
+  void [_notes, _original, _history, _poll, _card, _work, _mustRead, _replyTo, _forwardedFrom, _crossReply, _videoAtSec];
   return { ...rest, deleted: true, edited: false, body: null, attachments: [], reactions: [], mentions: [] } as unknown as M;
 }
 
 /** Everything `toTombstone` takes away besides the text, the files and the reactions. */
-const TOMBSTONE_DROPS = ["notes", "original", "history", "poll", "card", "work", "mustRead", "replyTo", "forwardedFrom", "videoAtSec"] as const;
+const TOMBSTONE_DROPS = ["notes", "original", "history", "poll", "card", "work", "mustRead", "replyTo", "forwardedFrom", "crossReply", "videoAtSec"] as const;
 
 /** The same message, or its tombstone when it is deleted (the very same object when there is nothing to strip). */
 export function normalizeMessage<M extends MessageDto>(m: M): M {

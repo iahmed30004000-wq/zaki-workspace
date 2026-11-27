@@ -5,6 +5,7 @@ import { requireActor } from "@/server/policy/actor";
 import { canReadConversation } from "@/server/policy/conversation";
 import { findUnclaimedUpload, readAttachment } from "@/server/chat/attachments";
 import { bytesResponse } from "@/server/files/bytes-response";
+import { holdsArchiveView } from "@/server/chat/archive-access";
 
 /**
  * GET /api/chat/attachments/[id] — the bytes of one attachment. A viewer may read it only
@@ -31,10 +32,13 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       return bytesResponse(req, await openStored(actor.orgId, unclaimed.id));
     }
 
+    // a file an edit took off its message is part of the edit history: the holder of silent oversight alone, not even the person who uploaded it
     const claimed = Boolean(att.attachment.messageId);
-    const mayRead = claimed
-      ? await canReadConversation(actor.userId, att.attachment.message!.conversationId)
-      : att.file.uploaderId === actor.userId;
+    const mayRead = att.attachment.replacedAt
+      ? await holdsArchiveView({ orgId: actor.orgId, userId: actor.userId })
+      : claimed
+        ? await canReadConversation(actor.userId, att.attachment.message!.conversationId)
+        : att.file.uploaderId === actor.userId;
     if (!mayRead) return notFound();
     // the file of a deleted message is gone for everybody but the OWNER (redact.ts drops it from the DTO too)
     if (att.attachment.message?.deletedAt && !actor.isOwner) return notFound();

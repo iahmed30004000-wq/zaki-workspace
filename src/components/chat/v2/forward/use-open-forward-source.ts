@@ -10,14 +10,14 @@ import { ct } from "@/lib/chat/text";
  * the copy and the original), then jump to it — inside this conversation when it is the same one, by the address (`?m=`) when it is another. A «not found» (the original is gone,
  * or not theirs to read) is one calm toast and nothing else: the screen never says which of the two it was.
  */
-export function useOpenForwardSource(here: string, jumpHere: (messageId: string) => void): (copyId: string) => void {
+export function useOpenForwardSource(here: string, jumpHere: (messageId: string) => void, door: "forward" | "cross-reply" = "forward"): (copyId: string) => void {
   const openChat = useOpenChat();
   const toast = useOptionalToast();
   return React.useCallback(
     (copyId: string) => {
       void (async () => {
         try {
-          const res = await fetch(`/api/chat/messages/${encodeURIComponent(copyId)}/forward`, { cache: "no-store" });
+          const res = await fetch(`/api/chat/messages/${encodeURIComponent(copyId)}/${door}`, { cache: "no-store" });
           if (!res.ok) throw new Error("source");
           const source = (await res.json()) as { conversationId?: unknown; messageId?: unknown };
           if (typeof source.conversationId !== "string" || typeof source.messageId !== "string") throw new Error("source");
@@ -28,6 +28,6 @@ export function useOpenForwardSource(here: string, jumpHere: (messageId: string)
         }
       })();
     },
-    [here, jumpHere, openChat, toast],
+    [here, jumpHere, openChat, toast, door],
   );
 }
