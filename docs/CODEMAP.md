@@ -9,7 +9,7 @@
 ## What this answers
 
 1. **Where does a job live?** — the folder map (§2).
-2. **Who may call this door, and what does it call?** — all 431 routes, one row each (§4).
+2. **Who may call this door, and what does it call?** — all 432 routes, one row each (§4).
 3. **If I change a service, what breaks?** — every service and its callers (§6).
 4. **If I change a table, who writes it?** — every model and the code that writes it (§7).
 5. **If I flip a switch, what disappears?** — the 210 feature switches and every place that reads them (§8).
@@ -45,13 +45,13 @@ Two rules the code keeps, and a reviewer can check by reading the map:
 | Where | Job |
 |---|---|
 | `src/app/(app)/` | the signed-in screens: one folder per place (today, boards, chat, crm, …) |
-| `src/app/api/` | 431 route handlers — the only mutating surface (§4) |
+| `src/app/api/` | 432 route handlers — the only mutating surface (§4) |
 | `src/app/login`, `register`, `onboarding`, `go` | the doors that work without a session |
 | `src/components/` | the interface, grouped by feature; `shell/` is the frame, `ui/` the primitives |
 | `src/lib/` | pure helpers that run on both sides: `i18n/`, `format.ts`, `features.ts`, `nav/`, `themes/` |
 | `src/server/` | everything that may only run on the server |
 | `src/server/policy/` | who may do what: ranks, capabilities, the section grid, conversation and call rules |
-| `src/server/services/` | 174 services — the business rules (§6) |
+| `src/server/services/` | 175 services — the business rules (§6) |
 | `src/server/chat/`, `calls/`, `files/`, `watch/`, `realtime/` | the larger features, split out of `services/` |
 | `prisma/` | the schema and the additive-only migrations |
 | `worker/` | a heartbeat placeholder: no scheduled job runs today |
@@ -87,7 +87,7 @@ writes to the database itself, instead of through a service, is marked with ‡ 
 **Service imports** are the functions the handler imports from `server/services/*` — the door itself
 is often one of them.
 
-Doors in use: `requireActor` 197 · `activeOrgCtx` 122 · `(none)` 43 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 5 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
+Doors in use: `requireActor` 197 · `activeOrgCtx` 122 · `(none)` 43 · `requireUser` 15 · `requireTeamWork` 14 · `requireTaskAccess` 11 · `requireWorkspace` 9 · `requireAccountsActor` 6 · `crmContext` 4 · `directoryContext` 4 · `ideaAccessCtx` 4 · `currentUser` 1 · `ideasCtx` 1 · `requireOrgMember` 1.
 
 | Method | Path | Door | Service imports |
 |---|---|---|---|
@@ -371,6 +371,7 @@ Doors in use: `requireActor` 197 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 | PATCH, DELETE | `/api/organizations/[id]/members/[userId]` | requireAccountsActor | `accounts`: offboardBodySchema, requireAccountsActor, setAccountStatus, updateAccount, … |
 | POST | `/api/organizations/[id]/members/[userId]/logout` | requireAccountsActor | `accounts`: logoutEverywhere, requireAccountsActor |
 | POST | `/api/organizations/[id]/members/[userId]/password` | requireAccountsActor | `accounts`: requireAccountsActor, resetAccountPassword |
+| GET | `/api/organizations/[id]/members/[userId]/sheet` | requireAccountsActor | `accounts`: requireAccountsActor<br>`member-sheet`: memberSheetFor |
 | POST | `/api/organizations/[id]/members/[userId]/status` | requireAccountsActor | `accounts`: accountStatusSchema, requireAccountsActor, setAccountStatus |
 | GET, POST | `/api/organizations/[id]/members/[userId]/verify` | requireActor | `org-members`: memberVerifiedState, setMemberVerified |
 | GET, PUT | `/api/organizations/[id]/role-templates` | **none** (public by design) | `permission-templates`: listRoleTemplates, requireTemplatesActor, saveRoleTemplates, saveTemplatesSchema |
@@ -525,7 +526,7 @@ Doors in use: `requireActor` 197 · `activeOrgCtx` 122 · `(none)` 43 · `requir
 
 ## 5. Routes with no guard — and why that is correct
 
-Six of 431. Each one is a door that cannot have a session, or one that is closed.
+Six of 432. Each one is a door that cannot have a session, or one that is closed.
 
 | Route | Why it has no guard |
 |---|---|
@@ -576,12 +577,12 @@ high count is a wide surface: changing its signature reaches all of them.
 | `manufacturing` | 450 | 10 | «مخزون التصنيع» — materials, their unit conversions, suppliers, and what the screens read. |
 | `production` | 525 | 10 | Daily production. |
 | `space-place` | 30 | 10 | WHERE A SPACE'S OWN THINGS ARE READ (the owner's decision, 2026-10-25: each space is like a separate site) — for the goals, the daily routines, the customers and the opportuniti… |
+| `accounts` | 970 | 9 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
 | `active-people` | 71 | 9 | "Nobody who was suspended or removed still counts." A suspended or offboarded member keeps their OrganizationMember row (history, authorship), so a query that reads that table w… |
 | `chat-assistant` | 499 | 9 | «@المساعد» في الدردشة والتوبكس — the owner's assistant as a mentionable participant. |
 | `owner-assistant-proposals` | 400 | 9 | «مساعد المالك» — PROPOSALS: what the model SUGGESTED, and what happens ONLY when the owner presses «وافق». |
 | `task-recurrence` | 210 | 9 | «مهمة متكررة» — a task marked as repeating, and the one series it belongs to. |
 | `team-score` | 269 | 9 | «السكور» — a transparent composite per person per period, read from data that already exists. |
-| `accounts` | 970 | 8 | The account lifecycle: the owner (and, below him, whoever holds `users.manage`) creates, edits, suspends, reactivates and offboards people, resets passwords and ends sessions. |
 | `api-door` | 453 | 8 | «الباب» (docs/contracts/workspace-door.v1.md): what System 7 (or any Zaki system holding a token) may do through /api/v1. |
 | `assistant-provider` | 78 | 8 | «نموذج محلي» — WHICH MODEL ANSWERS, in one place. |
 | `card-audit` | 36 | 8 | Every card entry of the audit log starts with this, then the `LogAction` (`card.edited`). |
@@ -640,7 +641,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `views` | 596 | 4 | Zones already warned about, per organization, so a bad stored zone is logged once and not on every request. |
 | `work-requests` | 493 | 4 | «الطلبات» (W1.4) — ONE inbox for everything that waits for a decision. |
 | `calendar` | 125 | 3 | The calendar's data logic, taken out of the page so it can be tested with an injected `now`. |
-| `desks` | 85 | 3 | The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns, departments, production): who the person is to these … |
+| `desks` | 91 | 3 | The facts the pages «الحملات», «الأقسام» and «الروتين اليومي» read on the server before they draw (src/app/(app)/campaigns, departments, production): who the person is to these … |
 | `image-ocr` | 303 | 3 | «قراءة نص الصور» — the words inside a picture (a chat image, a library image), read by a vision model the owner runs himself, kept, and found by search. |
 | `mail-to-task` | 486 | 3 | «بريد يصير مهمة» — the company's mailbox is read by the app and each new mail becomes ONE task. |
 | `manufacturing-reports` | 166 | 3 | «مخزون التصنيع», slice 2 — the reports. |
@@ -702,6 +703,7 @@ high count is a wide surface: changing its signature reaches all of them.
 | `local-model` | 65 | 1 | «اختبر الاتصال» — the button of the local model's settings. |
 | `manufacturing-proof` | 36 | 1 | The gate of the file routes for a proof photo of a receipt: it opens ONLY for the people who may read the receipt, that is to say the ledger's own rule and nothing looser than i… |
 | `meeting-model-env` | 51 | 1 | «نموذج الاجتماعات» — a FAST model for the meeting assistant only, fixed by VARIABLES of the server (like `gateway-env.ts`). |
+| `member-sheet` | 104 | 1 | One person's sheet of «الحسابات والصلاحيات» as the site draws it, decided on the server by the site's OWN functions (`offeredActions`, `permissionAreas`, `capabilityGroups`, `to… |
 | `owner-assistant-key-check` | 25 | 1 | «افحص المفتاح»: asks the provider, with the key already saved, whether it still accepts it — ONE request of a few tokens, never counted against the owner's limits. |
 | `presence-roster` | 104 | 1 | THE PEOPLE DOCK — who works here and who is at their screen right now (the owner's ask, 2026-10-29: «المستخدمين ظاهرين على زاوية الموقع تحت وكل واحد جنبه علامة خضراء أونلاين»). |
 | `recurrence-spawn` | 227 | 1 | «مهمة متكررة» — how ONE occurrence of a series is born, shared by the job runner (mode «حسب الجدول») and by the completion path (mode «عند الإنجاز»), so there is exactly one way… |
@@ -1086,7 +1088,7 @@ before it. A switch is only honest if something reads it, so this is the list of
 
 Written down, not fixed: Phase E decides what becomes a PR. Every item was read in the code, not guessed.
 
-- **Every guarded route asks a guard — none compares a role name.** 425 of 431 routes open with a function from §3; the other 6 are the doors listed in §5.
+- **Every guarded route asks a guard — none compares a role name.** 426 of 432 routes open with a function from §3; the other 6 are the doors listed in §5.
 - **Two doors carry most of the traffic.** `activeOrgCtx()` and `requireActor()` are the first call of 319 routes; both re-read the membership and its status from the database on every request, so a suspension takes effect on the next call, not on the next sign-in.
 - **20 route handlers write to the database themselves instead of calling a service.** 11 of them write their own `audit()` row (`/api/auth/login`, `/api/boards`, `/api/boards/[id]`, `/api/boards/[id]/columns`, `/api/boards/[id]/columns/[columnId]`, `/api/labels`, `/api/me/logout-everywhere`, `/api/organizations/[id]`, `/api/projects`, `/api/projects/[id]`, `/api/workspaces/[id]`); 2 write a task-feed row instead (`/api/tasks/[id]/comments`, `/api/tasks/[id]/comments/[commentId]`); 7 write neither (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`, `/mcp`); 6 of those are one person's own preference (`/api/me/digits`, `/api/me/switch`, `/api/me/task-filters`, `/api/me/theme`, `/api/notifications/[id]`, `/api/notifications/read`), which is right; the 1 left (`/mcp`) are the ones Phase E looks at. Nothing is silently lost today, but *who may, what is logged and what is notified* lives in the handler, not in one place. No screen file writes directly: every write comes through `/api`.
 - **26 models are written from more than three files** — see §7 for the list. Those are where a new invariant has to be added more than once, and where a half-written row is possible if one caller forgets a field.

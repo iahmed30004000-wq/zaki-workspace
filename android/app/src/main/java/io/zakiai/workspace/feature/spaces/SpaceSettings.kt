@@ -183,8 +183,6 @@ interface SpaceSettingsApi {
 object SS {
     const val deleteWarn = "⚠️ أرشفة المساحة من «كل المساحات»، وحذفها لسا من صفحة الموقع."
     const val deleteFix = "🔧 الحذف بيمسح المساحة مع شغلها، فبيضل على الموقع مع تأكيد بكتابة اسمها."
-    const val removedWarn = "⚠️ إذا كان للشخص اللي شلته مهام مفتوحة هون، تسليمها لغيره لسا من صفحة الموقع."
-    const val removedFix = "🔧 افتح «إعدادات المساحة» على الموقع، تبويب «الناس»، وسلّم مهامه."
     const val goSite = "افتح على الموقع"
 
     /** the phone's tabs: the site's, without «خطر» */
@@ -227,9 +225,10 @@ class SpaceSettingsViewModel @Inject constructor(retrofit: retrofit2.Retrofit, p
     val notice: StateFlow<String?> = _notice.asStateFlow()
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
-    private val _removed = MutableStateFlow(false)
-    /** somebody was taken out of the space in this visit: the handover of their open work is still the site's */
-    val removed: StateFlow<Boolean> = _removed.asStateFlow()
+    private val _removed = MutableStateFlow<SpaceMember?>(null)
+    /** somebody was just taken out of the space: «مهامه المفتوحة» opens for their cards here */
+    val removed: StateFlow<SpaceMember?> = _removed.asStateFlow()
+    fun clearRemoved() { _removed.value = null }
 
     fun consumeNotice() { _notice.value = null }
 
@@ -271,7 +270,7 @@ class SpaceSettingsViewModel @Inject constructor(retrofit: retrofit2.Retrofit, p
         act({ api.patch(id, JsonObject(mapOf("name" to JsonPrimitive(name.trim()), "description" to (description.trim().ifBlank { null }?.let(::JsonPrimitive) ?: JsonNull)))) }, w("ws.renamed"), done)
     fun emoji(value: String?) = act({ api.patch(id, SS.emojiBody(value?.trim())) }, w("spset.general.emoji_saved"))
     fun add(userId: String) = act({ api.setMembers(id, MembersBody(addUserIds = listOf(userId))) }, null)
-    fun remove(userId: String) = act({ api.setMembers(id, MembersBody(removeUserIds = listOf(userId))) }, null) { _removed.value = true }
+    fun remove(p: SpaceMember) = act({ api.setMembers(id, MembersBody(removeUserIds = listOf(p.id))) }, null) { _removed.value = p }
     fun promote(userId: String) = act({ api.setMembers(id, MembersBody(promoteUserIds = listOf(userId))) }, null)
     fun demote(userId: String) = act({ api.setMembers(id, MembersBody(demoteUserIds = listOf(userId))) }, null)
     fun newTeam(name: String, done: () -> Unit) = act({ api.newTeam(id, TeamName(name.trim())) }, null, done)
@@ -345,7 +344,7 @@ fun SpaceSettingsScreen(onBack: () -> Unit, onOpenSite: (String) -> Unit, onEnte
                         }
                         when (here) {
                             "general" -> general(d, busy, onOpenDepartments, { editing = true }) { vm.emoji(it) }
-                            "people" -> people(members, directory, busy, removed, onOpenSite, vm)
+                            "people" -> people(members, directory, busy, vm)
                             "teams" -> teams(teams, members, busy, vm, { naming = true }) { dropping = it }
                             "chat" -> chat(d)
                             "work" -> work(d, onOpenSite, onEnter)
@@ -357,6 +356,8 @@ fun SpaceSettingsScreen(onBack: () -> Unit, onOpenSite: (String) -> Unit, onEnte
             SnackbarHost(snack, Modifier.align(Alignment.BottomCenter))
         }
     }
+    // somebody was just taken out of the space: their open cards here, handed on or unassigned (silent when there are none), as on the site
+    removed?.let { p -> io.zakiai.workspace.feature.accounts.OpenCardsDialog(p.id, p.name, vm.id, silentWhenEmpty = true) { vm.clearRemoved() } }
     val s = d ?: return
     if (editing) {
         var name by remember { mutableStateOf(s.name) }
@@ -420,7 +421,7 @@ private fun LazyListScope.general(d: SpaceSettingsAnswer, busy: Boolean, onOpenD
     }
 }
 
-private fun LazyListScope.people(m: MembersAnswer?, directory: List<DirPerson>, busy: Boolean, removed: Boolean, onOpenSite: (String) -> Unit, vm: SpaceSettingsViewModel) {
+private fun LazyListScope.people(m: MembersAnswer?, directory: List<DirPerson>, busy: Boolean, vm: SpaceSettingsViewModel) {
     item(key = "people") {
         Small(w("spset.people.hint"))
         if (m == null) { Loading(); return@item }
@@ -431,13 +432,9 @@ private fun LazyListScope.people(m: MembersAnswer?, directory: List<DirPerson>, 
                 SS.roleWord(p.role)?.let { Text(it, fontSize = 12.sp, color = Zk.colors.fgMuted, modifier = Modifier.padding(horizontal = 6.dp)) }
                 if (m.canManage && p.role == "MEMBER") Act(w("ws.promote"), !busy) { vm.promote(p.id) }
                 if (m.canManage && p.role == "ADMIN") Act(w("ws.demote"), !busy, Zk.colors.fgMuted) { vm.demote(p.id) }
-                if (m.canManage) Act(w("ws.removeMember"), !busy, Zk.colors.danger) { vm.remove(p.id) }
+                if (m.canManage) Act(w("ws.removeMember"), !busy, Zk.colors.danger) { vm.remove(p) }
             }
             Divider()
-        }
-        if (removed) {
-            Column(Modifier.fillMaxWidth().padding(12.dp)) { WarnFix(SS.removedWarn, SS.removedFix) }
-            Act(SS.goSite, true) { onOpenSite("/spaces/" + vm.id + "/settings?tab=people") }
         }
         if (m.canManage) {
             Section(w("ws.addMembers"))

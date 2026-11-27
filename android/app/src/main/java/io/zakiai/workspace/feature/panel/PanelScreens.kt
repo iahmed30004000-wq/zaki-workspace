@@ -688,7 +688,7 @@ fun AdminRows(onOpen: (String) -> Unit, vm: ReportsViewModel = hiltViewModel()) 
             Icon(Icons.AutoMirrored.Filled.ArrowForward, null, tint = Zk.colors.fgMuted, modifier = Modifier.size(18.dp))
         }
     }
-    val any = f.board != null || f.panel || f.reports || (!f.external && f.crm.view) || f.development || f.spaces
+    val any = f.board != null || f.panel || f.reports || (!f.external && f.crm.view) || f.development || f.spaces || f.accounts
     if (any) io.zakiai.workspace.ui.components.SectionLabel(B.adminTitle)
     if (f.board != null || f.panel) Row1(B.boardTitle(f.board, f.panel), "board")
     if (f.panel || f.reports) Row1(B.reports, "reports")
@@ -696,4 +696,5 @@ fun AdminRows(onOpen: (String) -> Unit, vm: ReportsViewModel = hiltViewModel()) 
     if (f.development) Row1(io.zakiai.workspace.feature.dev.w("teamdev.title"), "development")
     if (f.development) Row1(io.zakiai.workspace.feature.dev.w("teamdev.structure.title"), "structure")
     if (f.spaces) Row1(io.zakiai.workspace.feature.spaces.w("spaces.overview.title"), "spaces")
+    if (f.accounts) Row1(io.zakiai.workspace.feature.accounts.w("orgm.title"), "accounts")
 }

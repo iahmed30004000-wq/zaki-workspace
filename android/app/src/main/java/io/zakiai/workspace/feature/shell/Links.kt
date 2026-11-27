@@ -66,6 +66,9 @@ sealed interface Destination {
     data object Spaces : Destination
     /** one space's settings (M2 N6 batch 11) */
     data class SpaceSettings(val id: String) : Destination
+    /** the accounts and their permissions, and one person's sheet (M2 N6 batch 12) */
+    data object Accounts : Destination
+    data class Account(val id: String) : Destination
     /** ⚠️ not native yet: the page of the site inside the app (WebBridge) */
     data class Site(val path: String) : Destination
 }
@@ -184,8 +187,11 @@ object Links {
             "/owner" -> {
                 val q = path.substringAfter('?', "").split("&").filter { it.isNotEmpty() }
                 val section = q.firstOrNull { it.startsWith("s=") || it.startsWith("v=") }?.substringAfter('=')
+                val part = q.firstOrNull { it.startsWith("part=") }?.substringAfter('=')
                 when (section) {
-                    null, "overview", "people" -> Destination.OwnerBoard
+                    "accounts" -> Destination.Accounts
+                    "people" -> if (part == "accounts") Destination.Accounts else Destination.OwnerBoard
+                    null, "overview" -> Destination.OwnerBoard
                     "reports" -> Destination.Reports
                     else -> Destination.Site(path)
                 }

@@ -43,6 +43,10 @@ export interface DeskFacts {
   development: boolean;
   /** the look over every space: OWNER or ADMIN by rank */
   spaces: boolean;
+  /** «الحسابات والصلاحيات»: whoever holds `users.manage` (a partner holds no capability) */
+  accounts: boolean;
+  /** the company the person is signed in to: the accounts' doors carry it in their path */
+  orgId: string;
 }
 
 /** «not found» from the board's or the panel's gate means «not theirs»; anything else (the database down) is not swallowed. */
@@ -80,5 +84,7 @@ export async function deskFactsFor(actor: Actor, now: Date = new Date()): Promis
     panel: await controlPanelAccess(actor).then(() => true, notTheirs(false)),
     development: !actor.isExternal && (await actorFeatureOn(actor, "teamDevelopment")),
     spaces: mayOverview(actor),
+    accounts: actorCan(actor, "users.manage"),
+    orgId: actor.orgId,
   };
 }

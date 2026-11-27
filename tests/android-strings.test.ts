@@ -2,6 +2,8 @@ import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { ANDROID_STRINGS, collectWords, kotlinLiteral, renderAndroidStrings } from "@/lib/android-strings";
+import { CAPABILITIES, SECTIONS } from "@/server/policy/capabilities";
+import { isOffered, PERMISSION_AREAS, SECTION_ACTIONS } from "@/lib/members-ui";
 
 const ROOT = path.resolve(__dirname, "..");
 
@@ -31,6 +33,18 @@ describe("the Android app's generated words", () => {
       expect(missing).toEqual([]);
     });
   }
+
+  it("the accounts screen names every permission, section and area in the site's words (never a raw key)", () => {
+    const file = ANDROID_STRINGS.find((f) => f.name === "AccountWords")!;
+    const words = collectWords(file, (source) => JSON.parse(readFileSync(path.join(ROOT, "src/lib/i18n", source), "utf8")) as Record<string, string>);
+    const missing = [
+      ...CAPABILITIES.filter(isOffered).map((c) => `members.cap.${c}.title`),
+      ...SECTIONS.map((s) => `members.section.${s.id}`),
+      ...PERMISSION_AREAS.map((a) => `perm.area.${a.id}`),
+      ...SECTION_ACTIONS.map((a) => `members.action.${a}`),
+    ].filter((k) => !(k in words));
+    expect(missing).toEqual([]);
+  });
 
   it("a named extra key is carried from its own fragment, and a missing one is refused", () => {
     const file = { source: "a.json", target: "x.kt", pkg: "p", name: "W", keep: (k: string) => k.startsWith("a."), extra: [{ source: "b.json", keys: ["b.one"] }] };

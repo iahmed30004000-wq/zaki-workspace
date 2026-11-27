@@ -240,6 +240,8 @@ private object Routes {
     const val DEV_SETTINGS = "dev-settings"
     const val SPACES = "spaces-overview"
     const val SPACE_SETTINGS = "space-settings/{id}"
+    const val ACCOUNTS = "accounts"
+    const val ACCOUNT = "account/{id}"
     val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
     /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
@@ -247,7 +249,7 @@ private object Routes {
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE, DEV_SKILLS, DEV_SETTINGS, SPACES, SPACE_SETTINGS)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE, DEV_SKILLS, DEV_SETTINGS, SPACES, SPACE_SETTINGS, ACCOUNTS, ACCOUNT)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -317,6 +319,8 @@ fun NavHostController.open(dest: Destination) {
         Destination.DevSettings -> navigate(Routes.DEV_SETTINGS) { launchSingleTop = true }
         Destination.Spaces -> navigate(Routes.SPACES) { launchSingleTop = true }
         is Destination.SpaceSettings -> navigate("space-settings/" + dest.id)
+        Destination.Accounts -> navigate(Routes.ACCOUNTS) { launchSingleTop = true }
+        is Destination.Account -> navigate("account/" + dest.id)
         is Destination.MfgPart -> navigate("mfg-part/" + dest.tab) { popUpTo(Routes.MFG_PART) { inclusive = true }; launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
@@ -604,7 +608,7 @@ fun Shell(
                             askNotifications = askNotifications,
                             onOpenMe = { nav.open(Destination.Me(it)) },
                             onOpenSite = { nav.open(Destination.Site(it)) },
-                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; "development" -> Destination.Development; "structure" -> Destination.Structure; "spaces" -> Destination.Spaces; else -> Destination.Crm }) },
+                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; "development" -> Destination.Development; "structure" -> Destination.Structure; "spaces" -> Destination.Spaces; "accounts" -> Destination.Accounts; else -> Destination.Crm }) },
                         )
                     }
                     // M2 N6 batch 7: «العملاء», «التقارير», the owner's board / panel and one person of it
@@ -664,6 +668,22 @@ fun Shell(
                             onOpenSite = { nav.open(Destination.Site(it)) },
                             onEnter = { id, path -> vm.enter(id); openPath(path) },
                             onOpenDepartments = { nav.open(Destination.Departments) },
+                        )
+                    }
+                    // M2 N6 batch 12: «الحسابات والصلاحيات» and one person's sheet
+                    composable(Routes.ACCOUNTS) {
+                        io.zakiai.workspace.feature.accounts.AccountsScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpen = { nav.open(Destination.Account(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            meId = me?.id,
+                        )
+                    }
+                    composable(Routes.ACCOUNT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.accounts.AccountScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            onOpenProfile = { nav.open(Destination.Me("account")) },
                         )
                     }
                     composable(Routes.STRUCTURE) {

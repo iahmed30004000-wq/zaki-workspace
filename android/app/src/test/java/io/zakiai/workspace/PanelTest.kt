@@ -66,7 +66,7 @@ class PanelTest {
         assertEquals(Destination.OwnerBoard, Links.destinationOf("/owner?v=people", base))
         assertEquals(Destination.Reports, Links.destinationOf("/owner?s=reports", base))
         assertEquals(Destination.Site("/owner?v=ai"), Links.destinationOf("/owner?v=ai", base))
-        assertEquals(Destination.Site("/owner?s=accounts"), Links.destinationOf("/owner?s=accounts", base))
+        assertEquals(Destination.Site("/owner?s=features"), Links.destinationOf("/owner?s=features", base))
         assertEquals(Destination.OwnerBoardPerson("u1"), Links.destinationOf("/owner/people/u1", base))
         assertTrue(Links.destinationOf("/owner/assistant", base) is Destination.Site)
     }

@@ -43,6 +43,10 @@ data class DeskFacts(
     val development: Boolean = false,
     /** «كل المساحات»: the owner and the admins */
     val spaces: Boolean = false,
+    /** «الحسابات والصلاحيات»: whoever holds `users.manage` */
+    val accounts: Boolean = false,
+    /** the company the person is in: the accounts' doors carry it */
+    val orgId: String = "",
 )
 
 // ── departments ──
