@@ -1,0 +1,18 @@
+/*
+ * THE COMPUTER'S LOOK («تيليجرام ويب», 768 px and wider). The phone is frozen (qa/README.md): EVERY rule of this file stays inside the one media query below
+ * (tests/desktop-freeze.test.ts), and a component the phone also draws gets a computer-only variable (--dk-…) from here — its phone value is never edited.
+ * Phase 0 declares the approved colours only; nothing reads them yet, so nothing looks different on any width.
+ */
+@media (min-width: 768px) {
+  :root {
+    --dk-accent: #3390ec;
+    --dk-own-bubble: #e1ffc7;
+    --dk-incoming: #ffffff;
+    --dk-muted: #707579;
+    --dk-search: #f4f4f5;
+    --dk-settings-bg: #f4f4f5;
+    --dk-danger: #ff3b30;
+    --dk-online: #0ac630;
+    --dk-date-pill: rgb(106 161 90 / 0.85);
+  }
+}
