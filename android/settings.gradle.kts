@@ -18,3 +18,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "zaki-workspace-android"
 include(":app")
+// generates the app's baseline profile on a device (./gradlew :app:generateBaselineProfile); not part of the phone's app
+include(":baselineprofile")

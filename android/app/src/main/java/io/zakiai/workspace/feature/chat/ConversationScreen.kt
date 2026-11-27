@@ -114,8 +114,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-/** The six reactions a long press offers first (the site's own quick row). */
-val QUICK_REACTIONS = listOf("👍", "❤️", "😂", "😮", "😢", "🙏")
+/** The six reactions a long press offers when the person chose none: the site's own six (src/lib/chat-reactions.ts CHAT_REACTIONS). */
+val QUICK_REACTIONS = io.zakiai.workspace.feature.me.M.QUICK_DEFAULT
 
 /** The day a message belongs to, in the phone's time: «اليوم», «مبارح», or the date (Arabic month names, Western digits). */
 fun dayLabel(iso: String, today: LocalDate = LocalDate.now()): String {
@@ -123,7 +123,7 @@ fun dayLabel(iso: String, today: LocalDate = LocalDate.now()): String {
     return when (d) {
         today -> C.today
         today.minusDays(1) -> C.yesterday
-        else -> d.format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.forLanguageTag("ar")).withDecimalStyle(java.time.format.DecimalStyle.STANDARD))
+        else -> io.zakiai.workspace.ui.components.ArDate.dmy(d)
     }
 }
 
@@ -141,6 +141,7 @@ fun ConversationScreen(
     val playing by files.playing.collectAsStateWithLifecycle()
     val window by vm.window.collectAsStateWithLifecycle()
     val header by vm.header.collectAsStateWithLifecycle()
+    val quick by vm.quick.collectAsStateWithLifecycle()
     val failure by vm.failure.collectAsStateWithLifecycle()
     val pending by vm.pending.collectAsStateWithLifecycle()
     val calling by vm.calling.collectAsStateWithLifecycle()
@@ -293,7 +294,7 @@ fun ConversationScreen(
         ModalBottomSheet(onDismissRequest = { actionsOf = null }, sheetState = androidx.compose.material3.rememberModalBottomSheetState(skipPartiallyExpanded = true), containerColor = Zk.colors.surface1) {
             Column(Modifier.navigationBarsPadding().padding(bottom = 12.dp)) {
                 Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    for (e in QUICK_REACTIONS) {
+                    for (e in quick) {
                         Text(e, style = MaterialTheme.typography.headlineSmall, modifier = Modifier.clip(CircleShape).clickable { vm.react(m, e); actionsOf = null }.padding(8.dp))
                     }
                 }

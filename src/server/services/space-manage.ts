@@ -2,8 +2,8 @@ import { z } from "zod";
 import { db } from "@/server/db";
 import { ForbiddenError, NotFoundError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
-import { spacesOf } from "@/server/services/current-space";
-import { mayOverview } from "@/server/services/spaces-overview";
+import { currentSpace, spacesOf } from "@/server/services/current-space";
+import { mayOverview, spacesOverview } from "@/server/services/spaces-overview";
 import { SpaceConflictError } from "@/server/services/workspaces";
 
 /**
@@ -57,4 +57,14 @@ export async function setSpaceArchived(actor: Actor, spaceId: string, archived: 
   if (!space) throw new NotFoundError("workspace.not_found");
   if (space.kind === "HQ") throw new SpaceConflictError("spaces.archive_hq");
   await db.workspace.update({ where: { id: space.id }, data: { archivedAt: archived ? new Date() : null } });
+}
+
+/**
+ * «كل المساحات» as one answer: the cards (numbers only, never the work), the space the person is in, the archived ones they may bring back.
+ * ONE function for the page body (`SpacesBody`) and the phone's door (GET /api/spaces/overview). Not the person's: «not found».
+ */
+export async function spacesScreenFor(actor: Actor): Promise<{ cards: Awaited<ReturnType<typeof spacesOverview>>; hereId: string | null; archived: Awaited<ReturnType<typeof archivedSpaces>> }> {
+  if (!mayOverview(actor)) throw new NotFoundError("spaces.manage_denied");
+  const [cards, here, archived] = await Promise.all([spacesOverview(actor), currentSpace(actor), archivedSpaces(actor)]);
+  return { cards, hereId: here?.id ?? null, archived };
 }

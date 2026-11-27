@@ -53,6 +53,8 @@ describe("«الجلسات المفتوحة»", () => {
   it("a device is named from its user agent: the Android app by its HTTP client, a browser in Arabic, an unknown one honestly", () => {
     const words = { app: "تطبيق زاكي على أندرويد", unknown: "متصفح ما بنعرف اسمه", on: "على" };
     expect(sessionLabelOf("okhttp/4.12.0", words)).toBe(words.app);
+    // the app names itself (android/.../NetworkModule.kt `userAgent`): «ZakiApp/<version> (Android <release>; <model>)»
+    expect(sessionLabelOf("ZakiApp/5.2.0 (Android 15; Pixel 8)", words)).toBe(words.app);
     expect(sessionLabelOf("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0 Safari/537.36", words)).toBe("كروم على ويندوز");
     expect(sessionLabelOf(null, words)).toBe(words.unknown);
     expect(sessionLabelOf("", words)).toBe(words.unknown);

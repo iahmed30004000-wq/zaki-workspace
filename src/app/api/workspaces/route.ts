@@ -19,7 +19,7 @@ import { orgSummaryOf } from "@/server/services/features";
 import { requestsScopeHere, waitingBySpace, waitingRequestCount } from "@/server/services/work-requests";
 import { log } from "@/server/log";
 import { featureOn } from "@/lib/features";
-import { SPACE_LAYOUTS } from "@/lib/cards/shared";
+import { SPACE_LAYOUTS, layoutOf, opensOnCards } from "@/lib/cards/shared";
 
 /**
  * Workspace switcher — only the spaces the caller may open: the OWNER sees every space of the
@@ -69,7 +69,7 @@ export async function GET(req: Request) {
       ? await db.workspace.findMany({
           // archived spaces are off the switcher; the order is the one set on «كل المساحات»
           where: { id: { in: wsIds }, archivedAt: null },
-          select: { id: true, name: true, slug: true, organizationId: true, kind: true, emoji: true },
+          select: { id: true, name: true, slug: true, organizationId: true, kind: true, emoji: true, layout: true },
           orderBy: [{ position: "asc" }, { name: "asc" }],
         })
       : [];
@@ -103,7 +103,7 @@ export async function GET(req: Request) {
           return null;
         })
       : null;
-    type Entry = { id: string; name: string; slug: string; emoji: string | null; holdsProjects: boolean; unread: number; overdue: number; waiting?: number };
+    type Entry = { id: string; name: string; slug: string; emoji: string | null; holdsProjects: boolean; unread: number; overdue: number; waiting?: number; cards?: true; mfg?: true };
     const byOrg = new Map<string, Entry[]>();
     const hqFirst = [...workspaces.filter((w) => w.kind === "HQ"), ...workspaces.filter((w) => w.kind !== "HQ")];
     for (const w of hqFirst) {
@@ -118,6 +118,11 @@ export async function GET(req: Request) {
         unread: unread[w.id] ?? 0,
         overdue: overdue[w.id] ?? 0,
         ...(badges && first && w.organizationId === first.organization.id ? { waiting: badges.get(w.id) ?? 0 } : {}),
+        // a space that opens on its cards («لوحات», «تصنيع»): the phone puts «اللوحات» first there, as the site's menu does.
+        // Only on such a space (no key elsewhere), so the shape every other space has stays exactly as it was.
+        ...(opensOnCards(layoutOf(w.layout)) ? { cards: true as const } : {}),
+        // a space of «تصنيع»: the phone offers «مخزون التصنيع» there (the ledger decides again who may open it)
+        ...(layoutOf(w.layout) === "MANUFACTURING" ? { mfg: true as const } : {}),
       });
       byOrg.set(w.organizationId, list);
     }

@@ -31,7 +31,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-/** آ«ط§ظ„ظ…ط´ط§ط±ظٹط¹آ»: the projects of the space the person is in (`GET /api/work/projects`), opened with the phone's last copy. */
+/** «المشاريع»: the projects of the space the person is in (`GET /api/work/projects`), opened with the phone's last copy. */
 @HiltViewModel
 class ProjectsViewModel @Inject constructor(private val api: WorkspaceApi, private val cache: Cache, private val session: Session) : ViewModel() {
     private val _state = MutableStateFlow(Screen<ProjectsAnswer>())
@@ -53,7 +53,7 @@ class ProjectsViewModel @Inject constructor(private val api: WorkspaceApi, priva
         }
     }
 
-    /** آ«ظ…ط´ط±ظˆط¹ ط¬ط¯ظٹط¯آ» in the space the person is in; the server decides whether they may. */
+    /** «مشروع جديد» in the space the person is in; the server decides whether they may. */
     fun create(name: String, then: (String) -> Unit) = viewModelScope.launch {
         val space = _state.value.data?.space ?: return@launch
         when (val r = apiCall { api.newProject(NewProjectBody(workspaceId = space.id, name = name.trim())) }) {
@@ -217,7 +217,7 @@ class BoardViewModel @Inject constructor(private val api: WorkspaceApi, private 
     fun consumeNotice() { _notice.value = null }
 }
 
-/** آ«ط§ظ„ط£ظ‡ط¯ط§ظپآ»: the goals of the space (`GET /api/goals`); the progress slider writes through the site's `PATCH /api/goals/[id]`. */
+/** «الأهداف»: the goals of the space (`GET /api/goals`); the progress slider writes through the site's `PATCH /api/goals/[id]`. */
 @HiltViewModel
 class GoalsViewModel @Inject constructor(private val api: WorkspaceApi, private val cache: Cache, private val session: Session) : ViewModel() {
     private val _state = MutableStateFlow(Screen<GoalsAnswer>())

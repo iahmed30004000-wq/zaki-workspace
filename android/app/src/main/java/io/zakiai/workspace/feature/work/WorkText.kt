@@ -114,8 +114,8 @@ object W {
             day == today -> "اليوم"
             day == today.plusDays(1) -> "بكرا"
             day == today.minusDays(1) -> "مبارح"
-            day.isBefore(today) -> "متأخرة · " + day.format(SHORT)
-            else -> day.format(SHORT)
+            day.isBefore(today) -> "متأخرة · " + io.zakiai.workspace.ui.components.ArDate.dm(day)
+            else -> io.zakiai.workspace.ui.components.ArDate.dm(day)
         }
     }
 
@@ -123,5 +123,4 @@ object W {
     fun isLate(iso: String?, today: LocalDate = LocalDate.now(), zone: ZoneId = ZoneId.systemDefault()): Boolean =
         runCatching { Instant.parse(iso).atZone(zone).toLocalDate().isBefore(today) }.getOrDefault(false)
 
-    private val SHORT = DateTimeFormatter.ofPattern("d MMM", Locale.forLanguageTag("ar")).withDecimalStyle(DecimalStyle.STANDARD)
 }

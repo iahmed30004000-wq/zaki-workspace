@@ -218,7 +218,16 @@ class ConversationViewModel @Inject constructor(
     private var loadingOlder = false
     private var lastTyping = 0L
 
+    /** The six of a long press: the person's own («إعداداتي» → «الدردشة»), the site's six otherwise (`quickReactionsOf`). */
+    private val _quick = MutableStateFlow(QUICK_REACTIONS)
+    val quick: StateFlow<List<String>> = _quick.asStateFlow()
+
     init {
+        viewModelScope.launch {
+            fun adopt(a: ChatPrefsAnswer?) { a?.prefs?.chat?.quickReactions?.takeIf { it.size == 6 && it.toSet().size == 6 }?.let { _quick.value = it } }
+            adopt(cache.read(ChatListViewModel.PREFS_KEY, ChatPrefsAnswer.serializer()))
+            (cache.refresh(ChatListViewModel.PREFS_KEY, ChatPrefsAnswer.serializer()) { apiCall { api.chatPrefs() } } as? ApiResult.Ok)?.let { adopt(it.value) }
+        }
         store.opened(id)
         viewModelScope.launch {
             cache.read(headerKey, ConversationHeader.serializer())?.let { _header.compareAndSet(null, it) }

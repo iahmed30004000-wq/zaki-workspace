@@ -1,16 +1,10 @@
 import { redirect } from "next/navigation";
 import { actorCanWork } from "@/server/policy/actor";
-import {
-  queryTasksForView,
-  resolveWorkspaceView,
-} from "@/server/services/views";
-import { calendarView, shiftMonth } from "@/server/services/calendar";
-import { pageUser } from "@/server/auth";
+import { calendarScreenFor, shiftMonth } from "@/server/services/calendar";
 import { monthName } from "@/lib/format";
 import { CalendarGrid, type CalTask } from "@/components/calendar-grid";
 import { getServerT } from "@/lib/i18n/server";
 import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
-import { currentSpace } from "@/server/services/current-space";
 import { actorFeatureOn } from "@/server/services/features";
 import { legacyViewHref } from "@/lib/work/my-tasks";
 import { CalendarFeedCard } from "@/components/calendar-feed/calendar-feed-card";
@@ -28,11 +22,12 @@ export default async function CalendarPage({
   if (!actorCanWork(actor, "tasks.view")) return <SectionOffNotice />;
   // W1.1 (switch `workMyTasks`): «التقويم» is a view of «مهامي» in the scope «المساحة»; the old address keeps working and lands there
   if (await actorFeatureOn(actor, "workMyTasks")) redirect(legacyViewHref("calendar", searchParams));
-  const space = await currentSpace(actor);
-  const view = await resolveWorkspaceView(space?.id ?? "");
-  if ("pageRedirect" in view) redirect("/login");
+  // ONE function with the phone's door (`GET /api/calendar`): the space, the month, the tasks the person may see
+  const screen = await calendarScreenFor(actor, { month: searchParams.month, mine: searchParams.mine === "1", projectId: searchParams.project || undefined });
+  if (screen.kind === "off") return <SectionOffNotice />;
+  const data = screen.data;
 
-  if ("none" in view) {
+  if (!data.space) {
     return (
       <div className="grid h-full place-items-center p-8 text-center">
         <div>
@@ -43,41 +38,15 @@ export default async function CalendarPage({
     );
   }
 
-  const ctx = view.ctx;
-  const user = await pageUser();
-  if (!user) redirect("/login");
-
   // The company's month, today and window (Organization.timezone), cut in the service (tested with an
   // injected `now` in tests/calendar-clock.test.ts).
-  const cal = calendarView({ now: new Date(), timeZone: ctx.timeZone, month: searchParams.month });
-  const month = cal.month;
-  const win = cal.win;
-  const mine = searchParams.mine === "1";
+  const month = data.month;
+  const mine = data.mine;
   // «اشتراك التقويم»: the card is drawn for the company's staff while its switch is on (an external partner has no feed)
   const feedCard = !actor.isExternal && (await actorFeatureOn(actor, "calendarFeed"));
-
-  const tasks = ctx.denied
-    ? []
-    : await queryTasksForView({
-        orgId: ctx.orgId,
-        workspaceId: ctx.workspaceId,
-        visible: ctx.visible,
-        projectId: searchParams.project || undefined,
-        assigneeId: mine ? user.id : undefined,
-        dueFrom: win.from,
-        dueTo: win.to,
-        openOnly: true,
-        limit: 300,
-      });
-
-  const calTasks: CalTask[] = tasks
-    .filter((task) => task.dueDate != null)
-    .map((task) => ({
-      id: task.id,
-      key: task.key,
-      title: task.title,
-      dueDate: task.dueDate!.toISOString(),
-    }));
+  const ctx = { workspaceId: data.space.id, workspaceName: data.space.name, editable: data.editable, timeZone: data.timeZone, denied: false };
+  const cal = { todayIso: data.todayIso };
+  const calTasks: CalTask[] = data.tasks;
 
   const shift = (delta: number): string => shiftMonth(month, delta);
   const monthTitle = `${monthName(Number(month.slice(5, 7)) - 1)} ${month.slice(0, 4)}`;

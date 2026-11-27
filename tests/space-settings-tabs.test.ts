@@ -94,7 +94,11 @@ describe("the old dialogs keep working (the switch OFF) and the page sits behind
 
   it("the page answers «not found» without the switch, and for a space the person cannot open", () => {
     const page = read("src/app/(app)/spaces/[id]/settings/page.tsx");
-    expect(page).toContain('"controlPanelV2"');
+    // the page reads `spaceSettingsFor` (shared with the phone's door), which holds the switch and the «not found»
+    const service = read("src/server/services/space-settings.ts");
+    expect(page).toContain("spaceSettingsFor(actor");
+    expect(service).toContain('"controlPanelV2"');
+    expect(service).toContain("NotFoundError");
     expect(page).toContain("notFound()");
     expect(page).toContain("pageActor");
   });

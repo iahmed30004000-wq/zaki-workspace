@@ -66,14 +66,19 @@ class LinksTest {
         assertEquals(Destination.Notifications, Links.destinationOf("/notifications?x=1", BASE))
     }
 
-    @Test fun `the site's settings stay reachable - a settings link opens the site's page, not the smaller native tab`() {
-        assertEquals(Destination.Site("/settings/me"), Links.destinationOf("/settings/me", BASE))
+    @Test fun `the company's settings stay the site's page, the person's own open the native tab that now holds them (N6 batch 5)`() {
+        assertEquals(Destination.Settings, Links.destinationOf("/settings/me", BASE))
         assertEquals(Destination.Site("/settings"), Links.destinationOf("$BASE/settings", BASE))
     }
 
     @Test fun `a section not native yet opens the site's page, with its query`() {
-        assertEquals(Destination.Site("/ideas?view=board"), Links.destinationOf("$BASE/ideas?view=board", BASE))
-        assertEquals(Destination.Site("/watch/k2"), Links.destinationOf("/watch/k2", BASE))
+        assertEquals(Destination.Site("/approvals/forms?view=board"), Links.destinationOf("$BASE/approvals/forms?view=board", BASE))
+        // «العملاء» is native since N6 batch 7
+        assertEquals(Destination.Crm, Links.destinationOf("$BASE/crm?view=board", BASE))
+        assertEquals(Destination.Site("/crm/k2"), Links.destinationOf("/crm/k2", BASE))
+        // «نتفرّج سوا» and a session of it are native since N6 batch 6
+        assertEquals(Destination.WatchSession("k2"), Links.destinationOf("/watch/k2", BASE))
+        assertEquals(Destination.Watch, Links.destinationOf("/watch", BASE))
     }
 
     @Test fun `projects, a project, its timeline, a board and the goals open natively (N3)`() {

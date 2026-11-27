@@ -260,7 +260,7 @@ data class NewTaskBody(
     val projectId: String,
     val boardId: String,
     val title: String,
-    /** a card added inside one column of the board (the board's own آ«+آ»); left out: the board's first column */
+    /** a card added inside one column of the board (the board's own «+»); left out: the board's first column */
     val columnId: String? = null,
     val assigneeId: String? = null,
     val dueDate: String? = null,

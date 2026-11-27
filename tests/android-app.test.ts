@@ -109,6 +109,8 @@ describe("the Android app (fully native: Kotlin + Compose, Hilt, Room, WorkManag
     expect(bridge).toContain("uri.host == Uri.parse(Config.BASE).host");
     // the page says so on screen, the warning and its fix together
     expect(bridge).toContain("WarnFix(T.webWarn, T.webFix)");
+    // the pages kept on the site on purpose (the owner's decision, 2026-11-26) carry their own mark instead
+    expect(bridge).toContain("WarnFix(T.siteKeptWarn, T.siteKeptFix)");
   });
 
   it("a page inside the app lets the person pick SEVERAL files, of every kind the page accepts, and hands all of them back", () => {

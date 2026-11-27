@@ -2,8 +2,7 @@ import { SectionOffNotice, pageActor } from "@/app/(app)/_access";
 import { actorCan } from "@/server/policy/actor";
 import { GuestNotice, refusedToGuest } from "@/app/(app)/_guest";
 import { ProductionView } from "@/components/production-view";
-import { resolveTimeZone } from "@/lib/zoned-time";
-import { db } from "@/server/db";
+import { deskFactsFor } from "@/server/services/desks";
 
 /** الروتين اليومي — recurring daily checklist. */
 export default async function ProductionPage() {
@@ -13,9 +12,8 @@ export default async function ProductionPage() {
 	// the production row of the person's grid: «يشوف», «يضيف ويعدّل» (by default the admins'), «يحذف»
 	if (!actorCan(actor, "production.view")) return <SectionOffNotice />;
 	// the company's zone: the checklist's default day and its weekdays are cut there
-	const zone = resolveTimeZone(
-		(await db.organization.findUnique({ where: { id: actor.orgId }, select: { timezone: true } }))?.timezone,
-	);
+	// (the same fact the phone's door reads: GET /api/desks/facts)
+	const zone = (await deskFactsFor(actor)).timeZone;
 	return <ProductionView canManage={actorCan(actor, "production.edit")} canDelete={actorCan(actor, "production.delete")} readOnly={actor.isExternal} timeZone={zone} />;
 }
 

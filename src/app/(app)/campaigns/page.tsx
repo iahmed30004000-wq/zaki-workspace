@@ -1,9 +1,7 @@
 import { pageActor, SectionOffNotice } from "@/app/(app)/_access";
 import { actorCan } from "@/server/policy/actor";
-import { sectionMay } from "@/lib/section-may";
 import { getServerT } from "@/lib/i18n/server";
-import { db } from "@/server/db";
-import { currentSpace } from "@/server/services/current-space";
+import { deskFactsFor } from "@/server/services/desks";
 import { CampaignsDesk } from "@/components/work-desks";
 
 /**
@@ -18,11 +16,9 @@ export default async function CampaignsPage() {
     return <div className="mx-auto max-w-2xl p-10 text-center text-sm text-muted">{t("guest.no_access")}</div>;
   }
   if (!actorCan(actor, "directory.view") || !actorCan(actor, "campaigns.view")) return <SectionOffNotice />;
-  const space = await currentSpace(actor);
-  const here = space?.kind === "DEPARTMENT"
-    ? await db.workspace.findUnique({ where: { id: space.id }, select: { departmentId: true } })
-    : null;
-  return <CampaignsDesk me={{ id: user.id, role: actor.role, may: sectionMay(actor.caps, "campaigns") }} defaultDepartmentId={here?.departmentId ?? null} />;
+  // the department of the space the person is in: the same fact the phone's door reads (GET /api/desks/facts)
+  const facts = await deskFactsFor(actor);
+  return <CampaignsDesk me={{ id: user.id, role: actor.role, may: facts.campaigns }} defaultDepartmentId={facts.departmentId} />;
 }
 
 export const dynamic = "force-dynamic";

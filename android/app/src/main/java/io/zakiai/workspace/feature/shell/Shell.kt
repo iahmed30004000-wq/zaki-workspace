@@ -22,6 +22,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChatBubble
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Groups
@@ -198,7 +200,7 @@ private object Routes {
     const val SITE = "site?path={path}"
     const val TODAY = "today"
     /** «الشغل»: the site's work place, its tabs «مهامي» and «المشاريع» */
-    const val WORK = "work?tab={tab}"
+    const val WORK = "work?tab={tab}&v={v}"
     const val TASK = "task/{id}"
     const val PROJECT = "project/{id}"
     const val BOARD = "board/{id}"
@@ -207,13 +209,47 @@ private object Routes {
     const val DOCUMENT = "document/{id}"
     const val SHEET = "sheet/{id}"
     const val CALL = "call/{id}"
-    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS)
+    const val APPROVAL = "approval/{id}"
+    const val PEOPLE = "people"
+    const val PERSON = "person/{id}"
+    const val TICKET = "ticket/{id}"
+    const val STALE = "stale"
+    /** the cards of the space: a tab of the bar in a space of cards, a screen of its own elsewhere */
+    const val CARDS = "cards"
+    const val CARDS_OPENED = "cards-opened"
+    const val CARD = "card/{id}"
+    /** «إعداداتي»: one section; «دليل زاكي» and one article */
+    const val ME = "me/{section}"
+    const val GUIDE = "guide"
+    const val GUIDE_ARTICLE = "guide/{slug}"
+    /** «نتفرّج سوا»: a tab of the bar, and one session */
+    const val WATCH = "watch"
+    const val WATCH_SESSION = "watch/{id}"
+    const val DEPARTMENTS = "departments"
+    const val CRM = "crm"
+    const val REPORTS = "reports"
+    const val OWNER_BOARD = "owner-board"
+    const val OWNER_PERSON = "board-person/{id}"
+    const val MFG = "mfg"
+    const val MFG_MATERIAL = "mfg-material/{id}"
+    const val MFG_PART = "mfg-part/{tab}"
+    const val DEV = "development"
+    const val DEV_PERSON = "dev-person/{id}?tab={tab}"
+    const val STRUCTURE = "structure"
+    const val DEV_SKILLS = "dev-skills"
+    const val DEV_SETTINGS = "dev-settings"
+    const val SPACES = "spaces-overview"
+    const val SPACE_SETTINGS = "space-settings/{id}"
+    const val ACCOUNTS = "accounts"
+    const val ACCOUNT = "account/{id}"
+    val TABS = setOf(TODAY, CHATS, WORK, LIBRARY, NOTIFICATIONS, SETTINGS, CARDS, WATCH)
     fun task(id: String) = "task/$id"
-    fun work(tab: String) = "work?tab=$tab"
+    /** [view] is the tab inside «الموافقات» (`?v=` of the site's link) */
+    fun work(tab: String, view: String? = null) = "work?tab=$tab" + (view?.let { "&v=${Uri.encode(it)}" } ?: "")
     fun project(id: String) = "project/$id"
     fun board(id: String) = "board/$id"
     /** the screens that draw their own top bar (and the «بدون اتصال» line under it) */
-    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL)
+    val OWN_BAR = setOf(CONVERSATION, SPACE, CHAT_INFO, NEW_CHAT, TASK, PROJECT, BOARD, GOALS, DOCUMENT, SHEET, CALL, APPROVAL, PEOPLE, PERSON, TICKET, STALE, CARDS_OPENED, CARD, ME, GUIDE, GUIDE_ARTICLE, WATCH_SESSION, DEPARTMENTS, CRM, REPORTS, OWNER_BOARD, OWNER_PERSON, MFG, MFG_MATERIAL, MFG_PART, DEV, DEV_PERSON, STRUCTURE, DEV_SKILLS, DEV_SETTINGS, SPACES, SPACE_SETTINGS, ACCOUNTS, ACCOUNT)
     fun conversation(id: String, at: String? = null) = "conversation/$id" + (at?.let { "?at=${Uri.encode(it)}" } ?: "")
     fun space(id: String) = "space/$id"
     fun chatInfo(id: String) = "chat-info/$id"
@@ -225,7 +261,10 @@ private object Routes {
 private data class SiteItem(val label: String, val path: String, val icon: ImageVector)
 
 private val SITE_ITEMS = listOf(
+    // «اللوحات» opens in every space (the site's /cards); in a space of cards it is also the first tab
+    SiteItem(io.zakiai.workspace.feature.cards.K.title, "/cards", Icons.Filled.Dashboard),
     SiteItem(T.calendar, "/calendar", Icons.Filled.CalendarMonth),
+    SiteItem(io.zakiai.workspace.feature.desks.Q.departments, "/departments", Icons.Filled.Groups),
     SiteItem(T.ideas, "/ideas", Icons.Filled.Lightbulb),
     SiteItem(T.teams, "/teams", Icons.Filled.Groups),
     // the profile, the password, the company's settings: the native «الإعدادات» tab has only what lives on the phone
@@ -250,6 +289,39 @@ fun NavHostController.open(dest: Destination) {
         is Destination.Document -> navigate("document/" + dest.id)
         is Destination.Sheet -> navigate("sheet/" + dest.id)
         is Destination.Call -> navigate("call/" + dest.id) { launchSingleTop = true }
+        is Destination.Work -> navigate(Routes.work(dest.tab, dest.view)) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.Approval -> navigate("approval/" + dest.id)
+        Destination.People -> navigate(Routes.PEOPLE) { launchSingleTop = true }
+        is Destination.Person -> navigate("person/" + dest.id)
+        is Destination.Ticket -> navigate("ticket/" + dest.id)
+        Destination.Stale -> navigate(Routes.STALE) { launchSingleTop = true }
+        // the site's «جهات الاتصال» is the list of colleagues to message: the app's own new-chat list
+        Destination.Contacts -> navigate(Routes.newChat(false)) { launchSingleTop = true }
+        Destination.Cards -> navigate(Routes.CARDS_OPENED) { launchSingleTop = true }
+        is Destination.Card -> navigate("card/" + dest.id)
+        is Destination.Me -> navigate("me/" + dest.section)
+        Destination.Guide -> navigate(Routes.GUIDE) { launchSingleTop = true }
+        is Destination.GuideArticle -> navigate("guide/" + dest.slug)
+        Destination.Watch -> navigate(Routes.WATCH) { popUpTo(Routes.CHATS); launchSingleTop = true }
+        is Destination.WatchSession -> navigate("watch/" + dest.id)
+        Destination.Departments -> navigate(Routes.DEPARTMENTS) { launchSingleTop = true }
+        Destination.Crm -> navigate(Routes.CRM) { launchSingleTop = true }
+        Destination.Reports -> navigate(Routes.REPORTS) { launchSingleTop = true }
+        Destination.OwnerBoard -> navigate(Routes.OWNER_BOARD) { launchSingleTop = true }
+        is Destination.OwnerBoardPerson -> navigate("board-person/" + dest.id)
+        // the ledger's four parts replace one another (back leaves the ledger, not the last tab)
+        Destination.Mfg -> if (!popBackStack(Routes.MFG, inclusive = false)) navigate(Routes.MFG) { launchSingleTop = true }
+        is Destination.MfgMaterial -> navigate("mfg-material/" + dest.id)
+        Destination.Development -> navigate(Routes.DEV) { launchSingleTop = true }
+        is Destination.DevPerson -> navigate("dev-person/" + dest.id + (dest.tab?.let { "?tab=$it" } ?: ""))
+        Destination.Structure -> navigate(Routes.STRUCTURE) { launchSingleTop = true }
+        Destination.DevSkills -> navigate(Routes.DEV_SKILLS) { launchSingleTop = true }
+        Destination.DevSettings -> navigate(Routes.DEV_SETTINGS) { launchSingleTop = true }
+        Destination.Spaces -> navigate(Routes.SPACES) { launchSingleTop = true }
+        is Destination.SpaceSettings -> navigate("space-settings/" + dest.id)
+        Destination.Accounts -> navigate(Routes.ACCOUNTS) { launchSingleTop = true }
+        is Destination.Account -> navigate("account/" + dest.id)
+        is Destination.MfgPart -> navigate("mfg-part/" + dest.tab) { popUpTo(Routes.MFG_PART) { inclusive = true }; launchSingleTop = true }
         is Destination.Task -> navigate(Routes.task(dest.id))
         is Destination.Site -> navigate(Routes.site(dest.path)) { launchSingleTop = true }
     }
@@ -292,6 +364,11 @@ fun Shell(
     val openPath: (String) -> Unit = { path -> Links.destinationOf(path, Config.BASE)?.let { nav.open(it) } }
 
     val currentSpace = spaces?.organizations?.flatMap { it.workspaces }?.firstOrNull { it.id == spaces?.currentSpaceId }
+    // the manufacturing space the ledger opens on: the one the person is in, else the company's first one
+    val mfgSpace: () -> String? = {
+        val all = spaces?.organizations?.flatMap { it.workspaces }.orEmpty()
+        (all.firstOrNull { it.id == spaces?.currentSpaceId && it.mfg } ?: all.firstOrNull { it.mfg })?.id
+    }
 
     // «رجوع» with the drawer open closes the drawer, never the app
     BackHandler(enabled = drawer.isOpen) { scope.launch { drawer.close() } }
@@ -331,12 +408,33 @@ fun Shell(
                         }
                     }
                     HorizontalDivider(color = Zk.colors.border, modifier = Modifier.padding(vertical = 8.dp))
+                    // «مخزون التصنيع»: only where the company has a space of «تصنيع» (the ledger decides again who may open it)
+                    if (spaces?.organizations?.any { o -> o.workspaces.any { it.mfg } } == true) NavigationDrawerItem(
+                        label = { Text(io.zakiai.workspace.feature.mfg.w("mfg.title")) },
+                        icon = { Icon(Icons.Filled.Inventory2, contentDescription = null) },
+                        selected = false,
+                        onClick = { nav.open(Destination.Mfg); scope.launch { drawer.close() } },
+                        colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Zk.colors.surface1),
+                        modifier = Modifier.padding(horizontal = 8.dp),
+                    )
                     for (item in SITE_ITEMS) {
                         NavigationDrawerItem(
                             label = { Text(item.label) },
                             icon = { Icon(item.icon, contentDescription = null) },
                             selected = false,
-                            onClick = { nav.open(Destination.Site(item.path)); scope.launch { drawer.close() } },
+                            // a section that became native opens natively (the same rule as a link): «الأفكار» since N6
+                            onClick = {
+                                val native = when (item.path) {
+                                    "/ideas" -> Destination.Work("ideas")
+                                    "/calendar" -> Destination.Work("calendar")
+                                    "/teams" -> Destination.People
+                                    "/cards" -> Destination.Cards
+                                    "/guide" -> Destination.Guide
+                                    "/departments" -> Destination.Departments
+                                    else -> null
+                                }
+                                nav.open(native ?: Destination.Site(item.path)); scope.launch { drawer.close() }
+                            },
                             colors = NavigationDrawerItemDefaults.colors(unselectedContainerColor = Zk.colors.surface1),
                             modifier = Modifier.padding(horizontal = 8.dp),
                         )
@@ -363,6 +461,8 @@ fun Shell(
                                 Routes.WORK -> io.zakiai.workspace.feature.projects.P.work
                                 Routes.LIBRARY -> T.library
                                 Routes.SETTINGS -> T.settings
+                                Routes.CARDS -> io.zakiai.workspace.feature.cards.K.title
+                                Routes.WATCH -> io.zakiai.workspace.feature.watch.V.title
                                 else -> currentSpace?.let { "${it.emoji ?: ""} ${it.name}".trim() } ?: T.appName
                             },
                             start = { RoundIcon(Icons.Filled.Menu, T.menu, size = 24.dp) { scope.launch { drawer.open() } } },
@@ -384,11 +484,14 @@ fun Shell(
                         listOf(
                             // the site's phone places, in the site's order (src/lib/nav/places.ts): «المكتبة» and «نتفرّج سوا» are still the
                             // site's pages (⚠️ until their phase), «الإدارة» opens the phone's own settings and the site's panels from there
-                            BarTab(T.today, Icons.Filled.Home, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
+                            // a space of cards opens on «اللوحات» (the site's menu puts it first there, `CARDS_PLACE`), in «اليوم»'s place
+                            if (currentSpace?.cards == true) BarTab(io.zakiai.workspace.feature.cards.K.title, Icons.Filled.Dashboard, route == Routes.CARDS, 0) {
+                                nav.navigate(Routes.CARDS) { popUpTo(Routes.CHATS); launchSingleTop = true }
+                            } else BarTab(T.today, Icons.Filled.Home, route == Routes.TODAY, 0) { nav.open(Destination.Today) },
                             BarTab(T.chat, Icons.Filled.ChatBubbleOutline, route == Routes.CHATS, chatUnread) { nav.open(Destination.Chats) },
                             BarTab(io.zakiai.workspace.feature.projects.P.work, Icons.Filled.TaskAlt, route == Routes.WORK, 0) { nav.open(Destination.MyWork) },
                             BarTab(T.library, Icons.Filled.LocalLibrary, route == Routes.LIBRARY, 0) { nav.open(Destination.Library) },
-                            BarTab(T.watch, Icons.Filled.Movie, false, 0) { nav.open(Destination.Site("/watch")) },
+                            BarTab(T.watch, Icons.Filled.Movie, route == Routes.WATCH, 0) { nav.open(Destination.Watch) },
                             BarTab(T.admin, Icons.Filled.AdminPanelSettings, route == Routes.SETTINGS, 0) { nav.open(Destination.Settings) },
                         ),
                     )
@@ -410,14 +513,29 @@ fun Shell(
                     composable(Routes.NOTIFICATIONS) { NotificationsScreen(onOpenPath = openPath) }
                     // both read the space the person is in: entering another one reloads them
                     composable(Routes.TODAY) { TodayScreen(onOpenTask = { nav.open(Destination.Task(it)) }, onOpenPath = openPath, onOpenSite = { nav.open(Destination.Site(it)) }, spaceKey = spaces?.currentSpaceId) }
-                    composable(Routes.WORK, arguments = listOf(navArgument("tab") { type = NavType.StringType; defaultValue = "mine" })) { e ->
+                    composable(
+                        Routes.WORK,
+                        arguments = listOf(
+                            navArgument("tab") { type = NavType.StringType; defaultValue = "mine" },
+                            navArgument("v") { type = NavType.StringType; nullable = true; defaultValue = null },
+                        ),
+                    ) { e ->
+                        // «الشركة» (the space that holds no projects) is the view over every space: approvals there are not narrowed
+                        val here = spaces?.organizations?.flatMap { it.workspaces }?.firstOrNull { it.id == spaces?.currentSpaceId }
                         WorkHub(
                             initial = e.arguments?.getString("tab") ?: "mine",
+                            initialView = e.arguments?.getString("v"),
+                            isHq = here?.holdsProjects == false,
                             onOpenTask = { nav.open(Destination.Task(it)) },
                             onOpenProject = { nav.open(Destination.Project(it)) },
                             onOpenGoals = { nav.open(Destination.Goals) },
                             onOpenSite = { nav.open(Destination.Site(it)) },
                             spaceKey = spaces?.currentSpaceId,
+                            meId = me?.id,
+                            onOpenApproval = { nav.open(Destination.Approval(it)) },
+                            onOpenTicket = { nav.open(Destination.Ticket(it)) },
+                            orgRole = (spaces?.organizations?.firstOrNull { o -> o.workspaces.any { it.id == spaces?.currentSpaceId } } ?: spaces?.organizations?.firstOrNull())?.role,
+                            onOpenPath = openPath,
                         )
                     }
                     composable(Routes.PROJECT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
@@ -437,6 +555,45 @@ fun Shell(
                     composable(Routes.DOCUMENT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         io.zakiai.workspace.feature.library.DocumentScreen(onBack = { nav.popBackStack() })
                     }
+                    composable(Routes.APPROVAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.desk.ApprovalScreen(onBack = { nav.popBackStack() }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    // M2 N6 batch 2: «الناس», a person, one ticket
+                    composable(Routes.PEOPLE) {
+                        val org = spaces?.organizations?.firstOrNull { o -> o.workspaces.any { it.id == spaces?.currentSpaceId } } ?: spaces?.organizations?.firstOrNull()
+                        io.zakiai.workspace.feature.office.PeopleScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenPerson = { nav.open(Destination.Person(it)) },
+                            manager = org?.role == "OWNER" || org?.role == "ADMIN",
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.office.ProfileScreen(onBack = { nav.popBackStack() }, onOpenChat = { nav.open(Destination.Conversation(it, null)) }, meId = me?.id, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    // M2 N6 batch 4: «اللوحات» (a tab in a space of cards, a screen of its own from the drawer or a link) and one card
+                    composable(Routes.CARDS) {
+                        io.zakiai.workspace.feature.cards.CardsScreen(spaceId = spaces?.currentSpaceId, onBack = null, onOpenCard = { nav.open(Destination.Card(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    composable(Routes.CARDS_OPENED) {
+                        io.zakiai.workspace.feature.cards.CardsScreen(spaceId = spaces?.currentSpaceId, onBack = { nav.popBackStack() }, onOpenCard = { nav.open(Destination.Card(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
+                    composable(Routes.CARD, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.cards.CardScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenCard = { nav.open(Destination.Card(it)) },
+                            onOpenTask = { nav.open(Destination.Task(it)) },
+                            onOpenChat = { id, at -> nav.open(Destination.Conversation(id, at)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            meId = me?.id,
+                        )
+                    }
+                    composable(Routes.STALE) {
+                        io.zakiai.workspace.feature.stale.StaleScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) })
+                    }
+                    composable(Routes.TICKET, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.office.TicketScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) }, onOpenSite = { nav.open(Destination.Site(it)) })
+                    }
                     composable(Routes.CALL, arguments = listOf(navArgument("id") { type = NavType.StringType })) { e ->
                         io.zakiai.workspace.feature.calls.CallScreen(callId = e.arguments?.getString("id").orEmpty(), onBack = { nav.popBackStack() })
                     }
@@ -447,7 +604,145 @@ fun Shell(
                     composable(Routes.TASK, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
                         TaskScreen(onBack = { nav.popBackStack() })
                     }
-                    composable(Routes.SETTINGS) { SettingsScreen(askNotifications = askNotifications) }
+                    composable(Routes.SETTINGS) { SettingsScreen(
+                            askNotifications = askNotifications,
+                            onOpenMe = { nav.open(Destination.Me(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            onOpenAdmin = { key -> nav.open(when (key) { "board" -> Destination.OwnerBoard; "reports" -> Destination.Reports; "development" -> Destination.Development; "structure" -> Destination.Structure; "spaces" -> Destination.Spaces; "accounts" -> Destination.Accounts; else -> Destination.Crm }) },
+                        )
+                    }
+                    // M2 N6 batch 7: «العملاء», «التقارير», the owner's board / panel and one person of it
+                    // M2 N6 batch 8: «مخزون التصنيع» of the manufacturing space (the space the person is in, else the company's first one)
+                    composable(Routes.MFG) {
+                        io.zakiai.workspace.feature.mfg.MfgHomeScreen(
+                            spaceId = mfgSpace(),
+                            onBack = { nav.popBackStack() },
+                            onOpenMaterial = { nav.open(Destination.MfgMaterial(it)) },
+                            onTab = { tab -> nav.open(Destination.MfgPart(tab)) },
+                        )
+                    }
+                    composable(Routes.MFG_PART, arguments = listOf(navArgument("tab") { type = NavType.StringType })) { entry ->
+                        val space = mfgSpace()
+                        val back: () -> Unit = { if (!nav.popBackStack(Routes.MFG, inclusive = false)) nav.popBackStack() }
+                        val tab: (String) -> Unit = { t -> nav.open(if (t == "materials") Destination.Mfg else Destination.MfgPart(t)) }
+                        val material: (String) -> Unit = { nav.open(Destination.MfgMaterial(it)) }
+                        when (entry.arguments?.getString("tab")) {
+                            "orders" -> io.zakiai.workspace.feature.mfg.MfgOrdersScreen(space, back, tab, material)
+                            "recipes" -> io.zakiai.workspace.feature.mfg.MfgRecipesScreen(space, back, tab, material)
+                            else -> io.zakiai.workspace.feature.mfg.MfgReportsScreen(space, back, tab, material)
+                        }
+                    }
+                    composable(Routes.MFG_MATERIAL, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.mfg.MaterialScreen(onBack = { nav.popBackStack() })
+                    }
+                    // M2 N6 batch 9: «الأداء والتطوير», one person's file, «الهيكل»
+                    composable(Routes.DEV) {
+                        io.zakiai.workspace.feature.dev.DevHomeScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenPerson = { id, tab -> nav.open(Destination.DevPerson(id, tab)) },
+                            onSelf = { id -> nav.navigate("dev-person/" + id) { popUpTo(Routes.DEV) { inclusive = true } } },
+                            onOpenStructure = { nav.open(Destination.Structure) },
+                            onOpenSite = { path -> nav.open(Links.destinationOf(path, Config.BASE) ?: Destination.Site(path)) },
+                        )
+                    }
+                    composable(
+                        Routes.DEV_PERSON,
+                        arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("tab") { type = NavType.StringType; nullable = true; defaultValue = null }),
+                    ) {
+                        io.zakiai.workspace.feature.dev.DevPersonScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it)) })
+                    }
+                    composable(Routes.DEV_SKILLS) { io.zakiai.workspace.feature.dev.SkillsScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it, "skills")) }) }
+                    composable(Routes.DEV_SETTINGS) { io.zakiai.workspace.feature.dev.DevSettingsScreen(onBack = { nav.popBackStack() }) }
+                    // M2 N6 batch 10: «كل المساحات»
+                    composable(Routes.SPACES) {
+                        io.zakiai.workspace.feature.spaces.SpacesOverviewScreen(
+                            onBack = { nav.popBackStack() },
+                            onEnter = { id -> vm.enter(id); nav.open(Destination.Today) },
+                            onOpenSettings = { nav.open(Destination.SpaceSettings(it)) },
+                        )
+                    }
+                    // M2 N6 batch 11: one space's settings (no «خطر» on the phone)
+                    composable(Routes.SPACE_SETTINGS, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.spaces.SpaceSettingsScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            onEnter = { id, path -> vm.enter(id); openPath(path) },
+                            onOpenDepartments = { nav.open(Destination.Departments) },
+                        )
+                    }
+                    // M2 N6 batch 12: «الحسابات والصلاحيات» and one person's sheet
+                    composable(Routes.ACCOUNTS) {
+                        io.zakiai.workspace.feature.accounts.AccountsScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpen = { nav.open(Destination.Account(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            meId = me?.id,
+                        )
+                    }
+                    composable(Routes.ACCOUNT, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.accounts.AccountScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                            onOpenProfile = { nav.open(Destination.Me("account")) },
+                        )
+                    }
+                    composable(Routes.STRUCTURE) {
+                        io.zakiai.workspace.feature.dev.StructureScreen(onBack = { nav.popBackStack() }, onOpenPerson = { nav.open(Destination.DevPerson(it)) }, onOpenSkills = { nav.open(Destination.DevSkills) })
+                    }
+                    composable(Routes.CRM) { io.zakiai.workspace.feature.panel.CrmScreen(onBack = { nav.popBackStack() }) }
+                    composable(Routes.REPORTS) { io.zakiai.workspace.feature.panel.ReportsScreen(onBack = { nav.popBackStack() }) }
+                    composable(Routes.OWNER_BOARD) {
+                        io.zakiai.workspace.feature.panel.BoardScreen(
+                            meId = me?.id,
+                            onBack = { nav.popBackStack() },
+                            onOpenPerson = { nav.navigate("board-person/" + it) { if (it == me?.id) popUpTo(Routes.OWNER_BOARD) { inclusive = true } } },
+                            onOpenPath = openPath,
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.OWNER_PERSON, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.panel.BoardPersonScreen(onBack = { nav.popBackStack() }, onOpenTask = { nav.open(Destination.Task(it)) })
+                    }
+                    // M2 N6 batch 5: «إعداداتي» and «دليل زاكي»
+                    composable(Routes.ME, arguments = listOf(navArgument("section") { type = NavType.StringType })) { e ->
+                        io.zakiai.workspace.feature.me.MeSectionScreen(
+                            section = e.arguments?.getString("section").orEmpty(),
+                            onBack = { nav.popBackStack() },
+                            onOpenSection = { nav.open(Destination.Me(it)) },
+                            onOpenGuide = { nav.open(Destination.Guide) },
+                            onOpenChat = { nav.open(Destination.Conversation(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    // M2 N6 batch 6: «نتفرّج سوا» (the room itself is the site's page inside the app, marked: YouTube's own player)
+                    composable(Routes.WATCH) {
+                        io.zakiai.workspace.feature.watch.WatchHomeScreen(onOpen = { nav.open(Destination.WatchSession(it)) }, spaceKey = spaces?.currentSpaceId)
+                    }
+                    composable(Routes.WATCH_SESSION, arguments = listOf(navArgument("id") { type = NavType.StringType })) {
+                        io.zakiai.workspace.feature.watch.WatchSessionScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenChat = { nav.open(Destination.Conversation(it)) },
+                            onOpenSite = { nav.open(Destination.Site(it)) },
+                        )
+                    }
+                    composable(Routes.DEPARTMENTS) {
+                        io.zakiai.workspace.feature.desks.DepartmentsScreen(
+                            onBack = { nav.popBackStack() },
+                            onOpenCampaigns = { nav.open(Destination.Work("campaigns", it)) },
+                            onOpenTickets = { nav.open(Destination.Work("tickets")) },
+                        )
+                    }
+                    composable(Routes.GUIDE) {
+                        io.zakiai.workspace.feature.me.GuideScreen(onBack = { nav.popBackStack() }, onOpen = { nav.open(Destination.GuideArticle(it)) })
+                    }
+                    composable(Routes.GUIDE_ARTICLE, arguments = listOf(navArgument("slug") { type = NavType.StringType })) { e ->
+                        io.zakiai.workspace.feature.me.GuideArticleScreen(
+                            slug = e.arguments?.getString("slug").orEmpty(),
+                            onBack = { nav.popBackStack() },
+                            onOpen = { nav.navigate("guide/" + it) { popUpTo(Routes.GUIDE) } },
+                            onOpenPath = openPath,
+                        )
+                    }
                     composable(
                         Routes.CONVERSATION,
                         arguments = listOf(navArgument("id") { type = NavType.StringType }, navArgument("at") { type = NavType.StringType; nullable = true; defaultValue = null }),
@@ -540,17 +835,63 @@ private fun WorkHub(
     onOpenGoals: () -> Unit,
     onOpenSite: (String) -> Unit,
     spaceKey: String?,
+    meId: String? = null,
+    initialView: String? = null,
+    isHq: Boolean = false,
+    onOpenApproval: (String) -> Unit = {},
+    onOpenTicket: (String) -> Unit = {},
+    /** the person's rank in the company of the space they are in (what the site's tabs and marks depend on) */
+    orgRole: String? = null,
+    /** a site address, opened natively where the app has the page */
+    onOpenPath: (String) -> Unit = onOpenSite,
 ) {
     var tab by androidx.compose.runtime.saveable.rememberSaveable(initial) { androidx.compose.runtime.mutableStateOf(initial) }
     Column(Modifier.fillMaxSize()) {
         io.zakiai.workspace.ui.components.PillStrip {
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.myWork, 0, tab == "mine") { tab = "mine" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.projects, 0, tab == "projects") { tab = "projects" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.calendar, 0, tab == "calendar") { tab = "calendar" }
             io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.projects.P.goals, 0, false) { onOpenGoals() }
+            // M2 N6: the site's other work tabs, native
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.requests.R.title, 0, tab == "requests") { tab = "requests" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.approvals, 0, tab == "approvals") { tab = "approvals" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.ideas, 0, tab == "ideas") { tab = "ideas" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desk.D.checkins, 0, tab == "checkins") { tab = "checkins" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.tickets, 0, tab == "tickets") { tab = "tickets" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.office.O.time, 0, tab == "time") { tab = "time" }
+            // M2 N6 batch 6: «الحملات» and «الروتين اليومي» (each refuses for itself who may not read it, as the site's pages do)
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desks.Q.campaigns, 0, tab == "campaigns") { tab = "campaigns" }
+            io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.desks.Q.routine, 0, tab == "production") { tab = "production" }
+            // the owner and the admins run spaces: «مهام قديمة» (the server decides who may; a space manager reaches it by its link too)
+            if (orgRole == "OWNER" || orgRole == "ADMIN") io.zakiai.workspace.ui.components.PillTab(io.zakiai.workspace.feature.stale.S.title, 0, false) { onOpenPath("/my-work/stale") }
         }
         Box(Modifier.weight(1f)) {
             if (tab == "projects") {
                 ProjectsScreen(onOpenProject = onOpenProject, onOpenSite = onOpenSite, spaceKey = spaceKey)
+            } else if (tab == "approvals") {
+                io.zakiai.workspace.feature.desk.ApprovalsScreen(spaceId = spaceKey, onOpen = onOpenApproval, narrowTo = if (isHq) null else spaceKey, initialView = initialView, onOpenSite = onOpenSite)
+            } else if (tab == "ideas") {
+                io.zakiai.workspace.feature.desk.IdeasScreen(spaceKey = spaceKey, meId = meId, isHq = isHq)
+            } else if (tab == "checkins") {
+                io.zakiai.workspace.feature.desk.CheckinsScreen(spaceId = spaceKey, onOpenSite = onOpenSite)
+            } else if (tab == "requests") {
+                io.zakiai.workspace.feature.requests.RequestsScreen(
+                    spaceKey = spaceKey,
+                    onOpenPath = onOpenPath,
+                    approvalsFallback = {
+                        io.zakiai.workspace.feature.desk.ApprovalsScreen(spaceId = spaceKey, onOpen = onOpenApproval, narrowTo = if (isHq) null else spaceKey, initialView = initialView, onOpenSite = onOpenSite)
+                    },
+                )
+            } else if (tab == "calendar") {
+                io.zakiai.workspace.feature.office.CalendarScreen(spaceKey = spaceKey, onOpenTask = onOpenTask, onOpenSite = onOpenSite, guest = orgRole == "GUEST")
+            } else if (tab == "tickets") {
+                io.zakiai.workspace.feature.office.TicketsScreen(onOpenTicket = onOpenTicket, onOpenSite = onOpenSite, manager = orgRole == "OWNER" || orgRole == "ADMIN")
+            } else if (tab == "campaigns") {
+                io.zakiai.workspace.feature.desks.CampaignsScreen(initialDept = initialView, meId = meId, onOpenTask = onOpenTask)
+            } else if (tab == "production") {
+                io.zakiai.workspace.feature.desks.ProductionScreen(onOpenTask = onOpenTask)
+            } else if (tab == "time") {
+                io.zakiai.workspace.feature.office.TimeScreen(spaceKey = spaceKey, onOpenTask = onOpenTask, onOpenSite = onOpenSite)
             } else {
                 MyWorkScreen(onOpenTask = onOpenTask, onOpenSite = onOpenSite, spaceKey = spaceKey)
             }

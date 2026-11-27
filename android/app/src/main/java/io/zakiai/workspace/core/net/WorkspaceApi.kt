@@ -343,4 +343,87 @@ interface WorkspaceApi {
 
     @POST("api/calls/{id}/mute")
     suspend fun callMute(@Path("id") id: String, @Body body: CallUserBody): Ok
+
+    // ── M2 N6 batch 1: «الأفكار», «التسجيل اليومي», «الموافقات» — the site's own routes ──
+    @GET("api/ideas")
+    suspend fun ideas(@Header("Cache-Control") cache: String = "no-cache"): IdeasAnswer
+
+    @POST("api/ideas")
+    suspend fun newIdea(@Body body: NewIdeaBody): kotlinx.serialization.json.JsonObject
+
+    @POST("api/ideas/{id}/vote")
+    suspend fun voteIdea(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): kotlinx.serialization.json.JsonObject
+
+    @GET("api/checkins/today")
+    suspend fun checkinToday(@Query("workspaceId") workspaceId: String?, @Header("Cache-Control") cache: String = "no-cache"): CheckinToday
+
+    @POST("api/checkins/answer")
+    suspend fun checkinAnswer(@Body body: CheckinAnswerBody): kotlinx.serialization.json.JsonObject
+
+    @POST("api/checkins/excuse")
+    suspend fun checkinExcuse(@Body body: CheckinExcuseBody): kotlinx.serialization.json.JsonObject
+
+    @GET("api/approvals")
+    suspend fun approvals(@Query("view") view: String, @Query("workspaceId") workspaceId: String?, @Header("Cache-Control") cache: String = "no-cache"): ApprovalsAnswer
+
+    @GET("api/approvals/{id}")
+    suspend fun approval(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): ApprovalDetailAnswer
+
+    @POST("api/approvals/{id}/decide")
+    suspend fun decideApproval(@Path("id") id: String, @Body body: DecideBody): kotlinx.serialization.json.JsonObject
+
+    @POST("api/approvals/{id}/cancel")
+    suspend fun cancelApproval(@Path("id") id: String, @Body body: kotlinx.serialization.json.JsonObject = kotlinx.serialization.json.JsonObject(emptyMap())): kotlinx.serialization.json.JsonObject
+
+    // ── M2 N6 batch 2: «التقويم», «الناس», a profile, «تقرير الوقت», «التذاكر» ──
+    @GET("api/calendar")
+    suspend fun calendar(@Query("month") month: String?, @Query("mine") mine: String?, @Header("Cache-Control") cache: String = "no-cache"): CalendarAnswer
+
+    @GET("api/people")
+    suspend fun staff(@Header("Cache-Control") cache: String = "no-cache"): PeopleAnswer
+
+    @GET("api/users/{id}")
+    suspend fun profile(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): ProfileAnswer
+
+    @GET("api/time/report")
+    suspend fun timeReport(
+        @Query("from") from: String?,
+        @Query("to") to: String?,
+        @Query("userId") userId: String?,
+        @Query("projectId") projectId: String?,
+        @Query("workspaceId") workspaceId: String?,
+        @Query("format") format: String = "json",
+        @Header("Cache-Control") cache: String = "no-cache",
+    ): TimeReport
+
+    @GET("api/tickets/mine")
+    suspend fun myTickets(@Header("Cache-Control") cache: String = "no-cache"): TicketsAnswer
+
+    @GET("api/departments")
+    suspend fun departments(@Header("Cache-Control") cache: String = "no-cache"): DepartmentsAnswer
+
+    @GET("api/departments/{id}/tickets")
+    suspend fun departmentTickets(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-cache"): TicketsAnswer
+
+    @POST("api/departments/{id}/tickets")
+    suspend fun newTicket(@Path("id") id: String, @Body body: NewTicketBody): kotlinx.serialization.json.JsonObject
+
+    @GET("api/tickets/{id}/detail")
+    suspend fun ticket(@Path("id") id: String, @Header("Cache-Control") cache: String = "no-store"): TicketDetailAnswer
+
+    @PATCH("api/tickets/{id}")
+    suspend fun patchTicket(@Path("id") id: String, @Body body: TicketPatch): kotlinx.serialization.json.JsonObject
+
+    // ── M2 N6 batch 3: «الطلبات» (the person's own inbox) and the two decisions it adds ──
+    @GET("api/work/requests")
+    suspend fun requests(@Query("tab") tab: String, @Header("Cache-Control") cache: String = "no-store"): RequestsAnswer
+
+    @PUT("api/cards/{id}/status")
+    suspend fun cardStatus(@Path("id") id: String, @Body body: StatusBody): kotlinx.serialization.json.JsonObject
+
+    @PUT("api/knowledge/{id}/status")
+    suspend fun sheetStatus(@Path("id") id: String, @Body body: StatusBody): kotlinx.serialization.json.JsonObject
+
+    @POST("api/tickets/{id}/detail")
+    suspend fun commentTicket(@Path("id") id: String, @Body body: CommentBody): kotlinx.serialization.json.JsonObject
 }

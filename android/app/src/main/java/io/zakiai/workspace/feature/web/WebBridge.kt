@@ -38,9 +38,29 @@ import io.zakiai.workspace.ui.components.WarnFix
 import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /**
- * ⚠️ TEMPORARY — the one place the app still shows the site: a section that is not native YET opens its page here, signed in with
- * the app's own session, so nothing the team uses today goes missing while the app becomes native phase by phase
- * (docs/restructure/M2-native-app.md). 🔧 Each phase removes its paths from here; when N6 lands this file is deleted.
+ * The pages that STAY the site's on purpose, shown here with their own mark (the owner's decision, 2026-11-26: inside the app, marked,
+ * not in the phone's browser): the company's settings, the integrations and API tokens, the Telegram bot, the owner assistant's key,
+ * the approval forms builder and the theme gallery — passwords, tokens and keys typed or shown once never live in a phone screen of its
+ * own. Pure (tested).
+ */
+object SiteKept {
+    private val PREFIXES = listOf("/automation", "/telegram", "/owner/assistant/settings", "/theme-gallery", "/approvals/forms")
+    private val COMPANY_SECTIONS = listOf("company", "features", "integrations", "spaces").map { "/settings/me/$it" }.toSet()
+
+    fun isKept(path: String): Boolean {
+        val bare = path.substringBefore('?').substringBefore('#').trimEnd('/')
+        // «/settings/me…» is the person's own settings (ported phase by phase); the rest of «/settings» is the company's
+        if (bare == "/settings" || (bare.startsWith("/settings/") && !bare.startsWith("/settings/me"))) return true
+        // the company's sections inside «إعداداتي» while «الإعدادات» is one door (sections.ts COMPANY_SECTION_KEYS): the company's, kept
+        if (bare in COMPANY_SECTIONS) return true
+        return PREFIXES.any { bare == it || bare.startsWith("$it/") }
+    }
+}
+
+/**
+ * ⚠️ TEMPORARY for what is not native yet — the one place the app shows the site: a section that is not native YET opens its page here, signed in with the app's own
+ * session, so nothing the team uses today goes missing while the app becomes native phase by phase (docs/restructure/M2-native-app.md),
+ * and so do the pages kept on the site on purpose ([SiteKept]). 🔧 Each phase removes its paths from here; what remains is [SiteKept].
  *
  * The page is made when it is opened and thrown away when it is left. Only addresses of the site open inside it; anything else
  * opens in the phone's own browser. The system's questions (microphone and camera for a call, a file to pick) go through the
@@ -168,7 +188,8 @@ fun WebPage(path: String, make: () -> WebBridge, onClose: () -> Unit) {
     BackHandler { if (bridge.webView.canGoBack()) bridge.webView.goBack() else onClose() }
     LaunchedEffect(path) { bridge.show(path) }
     Column(Modifier.fillMaxSize().navigationBarsPadding().imePadding()) {
-        WarnFix(T.webWarn, T.webFix)
+        // a page kept on the site on purpose says why; any other says it becomes native in its phase
+        if (SiteKept.isKept(path)) WarnFix(T.siteKeptWarn, T.siteKeptFix) else WarnFix(T.webWarn, T.webFix)
         AndroidView(
             modifier = Modifier.weight(1f).fillMaxWidth(),
             factory = {

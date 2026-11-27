@@ -3,6 +3,10 @@ import { db } from "@/server/db";
 import { NotFoundError } from "@/server/auth";
 import type { Actor } from "@/server/policy/actor";
 import { assertMayOpenPerson, devAccess, isSelf, mayEnterFor, type DevAccess } from "@/server/policy/team-development";
+import { getServerT } from "@/lib/i18n/server";
+import { dayKeyOf } from "@/lib/owner-board";
+import { periodChoices } from "@/lib/team-score";
+import { orgTimeZone } from "@/server/services/org-day";
 
 /**
  * «الأداء والتطوير» — the front door: the people the viewer reads, and the header of one person's file.
@@ -111,4 +115,10 @@ export async function loadPersonHeader(actor: Actor, userId: string): Promise<Pe
     canEnter: mayEnterFor(access, userId),
     asReviewer: !isSelf(access, userId),
   };
+}
+
+/** The periods the viewer may pick (the last 12 months and 5 quarters of the company's calendar), each with its name. */
+export async function periodChoicesFor(actor: Actor): Promise<ReturnType<typeof periodChoices>> {
+  const { t } = getServerT();
+  return periodChoices(dayKeyOf(new Date(), await orgTimeZone(actor.orgId)), t);
 }

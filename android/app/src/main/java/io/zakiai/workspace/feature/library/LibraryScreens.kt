@@ -102,7 +102,8 @@ fun LibraryHub(spaceId: String?, onOpenDoc: (String) -> Unit, onOpenSheet: (Stri
     val sheetsState by sheets.state.collectAsStateWithLifecycle()
     LaunchedEffect(spaceId) { docs.refresh(spaceId); sheets.refresh() }
     val docsOff = docsState.failure?.key == "features.off"
-    val sheetsOff = sheetsState.failure?.key == "features.off"
+    // «المنتجات» is kept on the phone once it was read: offline with nothing kept means it was never open to this person, so it is not offered
+    val sheetsOff = sheetsState.failure?.key == "features.off" || (sheetsState.failure?.offline == true && sheetsState.data == null)
     LaunchedEffect(docsOff, sheetsOff) { if ((tab == "docs" && docsOff) || (tab == "knowledge" && sheetsOff)) tab = "files" }
     Column(Modifier.fillMaxSize()) {
         PillStrip {

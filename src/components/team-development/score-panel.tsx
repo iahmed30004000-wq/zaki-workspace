@@ -1,6 +1,6 @@
 import type { ServerT } from "@/lib/i18n/server";
-import { fmtMinutes, fmtNumber, monthName } from "@/lib/format";
-import { BAND_EXCELLENT, BAND_GOOD, LIGHT_AMBER, LIGHT_GREEN, MIN_TEAM_FOR_MEDIAN, type IndicatorKey, type Period, type PeriodKind } from "@/lib/team-score";
+import { fmtMinutes, fmtNumber } from "@/lib/format";
+import { BAND_EXCELLENT, BAND_GOOD, LIGHT_AMBER, LIGHT_GREEN, MIN_TEAM_FOR_MEDIAN, periodLabel, type IndicatorKey, type Period, type PeriodKind } from "@/lib/team-score";
 import type { ScoreDetail, ScoreTable } from "@/server/services/team-score";
 import { BandBadge, LightBadge } from "./badges";
 
@@ -40,9 +40,7 @@ export function PeriodPicker({ t, action, options, selected, extra = {} }: { t: 
   );
 }
 
-export function periodLabel(p: Period, t: ServerT): string {
-  return p.kind === "month" ? `${monthName(p.index - 1)} ${p.year}` : `${t("teamdev.period.quarter_n", { n: p.index })} ${p.year}`;
-}
+export { periodLabel } from "@/lib/team-score";
 
 // ───────────────────────────────────────── one person's score ─────────────────────────────────────────
 

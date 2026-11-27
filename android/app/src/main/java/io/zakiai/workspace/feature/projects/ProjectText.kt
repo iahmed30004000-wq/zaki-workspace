@@ -91,7 +91,7 @@ object P {
     const val list = "القائمة"
 
     /** The site's month names (src/lib/format.ts `MONTHS`). */
-    val MONTHS = listOf("كانون الثاني", "شباط", "آذار", "نيسان", "أيار", "حزيران", "تموز", "آب", "أيلول", "تشرين الأول", "تشرين الثاني", "كانون الأول")
+    val MONTHS = io.zakiai.workspace.ui.components.ArDate.MONTHS
 
     /** «25 تشرين الثاني 2026», as the site's `fmtDMY` (in the phone's zone); null for nothing or an unreadable date. */
     fun dmy(iso: String?, zone: java.time.ZoneId = java.time.ZoneId.systemDefault()): String? {

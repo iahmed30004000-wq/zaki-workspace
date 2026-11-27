@@ -66,6 +66,9 @@ object T {
     const val accountSettings = "إعدادات الحساب والشركة"
     const val webWarn = "⚠️ هالقسم لسا مش أصلي بالتطبيق: بيفتح صفحة الموقع جوّا التطبيق مؤقتًا."
     const val webFix = "🔧 بيصير أصلي بمرحلته من خطة التطبيق، وبتنشال هالصفحة لحالها."
+    // the pages that STAY the site's on purpose (the owner's decision, 2026-11-26): they hold passwords, tokens or keys
+    const val siteKeptWarn = "⚠️ هالصفحة بتضل صفحة الموقع جوّا التطبيق عن قصد: فيها كلمات سر أو رموز ربط، وما بتنحفظ على الجوال."
+    const val siteKeptFix = "🔧 التطبيق ما بيخزّن شي منها. إذا ضاع جوالك، غيّر الرموز وكلمات السر من هالصفحة على الموقع."
 
     // chat
     const val noChats = "ما في محادثات لسا."
