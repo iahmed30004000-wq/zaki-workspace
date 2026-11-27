@@ -50,7 +50,10 @@ async function sent(body: string, names: string[], conversationId = w.topic.id, 
 const patch = (id: string, body: Record<string, unknown>) => call(messageRoute.PATCH, { method: "PATCH", params: { id }, body });
 const bytes = async (userId: string, attachmentId: string) => {
   await loginAs(userId);
-  return (await attachmentRoute.GET(new Request(`http://localhost/api/chat/attachments/${attachmentId}`), { params: { id: attachmentId } })).status;
+  const res = await attachmentRoute.GET(new Request(`http://localhost/api/chat/attachments/${attachmentId}`), { params: { id: attachmentId } });
+  // the answer streams a file: letting go of it closes the file (left to the garbage collector it fails the whole run)
+  await res.body?.cancel();
+  return res.status;
 };
 const setSwitch = (on: boolean | null) => db.organization.update({ where: { id: w.org.id }, data: { settings: on === null ? {} : { features: { chatEditMedia: on } } } });
 
