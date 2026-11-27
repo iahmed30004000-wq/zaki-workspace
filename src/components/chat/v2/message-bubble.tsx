@@ -304,7 +304,7 @@ function MessageBubbleView({ message, conversationId, facts, start, end, mention
                 if (canAct && gestures && replyOnDoubleClick({ pointerType: pointer.current, target: e.target })) gestures.reply(message, facts);
               }}
               {...(bare ? { "data-tg-bare": "" } : {})}
-              className={cn(bubbleClass({ mine, mentionsMe, tail: end, highlighted }), fresh && "animate-fade-up motion-reduce:animate-none", bare && "max-md:border-transparent max-md:bg-transparent max-md:px-0 max-md:text-fg max-md:shadow-none", tgLook && "max-md:max-w-[min(82vw,100%)]")}
+              className={cn(bubbleClass({ mine, mentionsMe, tail: end, highlighted }), fresh && "animate-fade-up motion-reduce:animate-none", bare && "max-md:border-transparent max-md:bg-transparent max-md:px-0 max-md:text-fg max-md:shadow-none", "max-md:max-w-[min(82vw,100%)]" /* with or without the phone look: a share of a box that shrinks to the words broke every short message in two */)}
             >
               {sender && start ? (
                 <p data-sender className={cn("mb-0.5 truncate text-xs font-semibold", nameTone(message.authorName))}>
