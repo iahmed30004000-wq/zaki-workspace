@@ -10,6 +10,11 @@ import { useBubbleGestures } from "@/components/chat/v2/menu/gesture-context";
 import { usePaneCommands } from "@/components/chat/v2/pane/pane-actions";
 import { useMessageMenu } from "@/components/chat/v2/pane/seams/menu-host";
 import { CallsDialog } from "@/components/chat/v2/pane/service-rows";
+import { useMessageMotion } from "@/components/chat/v2/phone/use-message-motion";
+import { useTgPhone } from "@/components/shell/tg-phone";
+import { tgMotionVars } from "@/lib/chat/v2/phone/motion";
+import { effectOn } from "@/lib/motion/effects";
+import { cn } from "@/lib/utils";
 import { ViewportRow, rowPadding, type RowEnv } from "@/components/chat/v2/pane/viewport-row";
 import { discardPending, retryPending } from "@/lib/chat/outbox/optimistic";
 import { removePending } from "@/lib/chat/cache/pending";
@@ -141,7 +146,12 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
     [onHistoryViewport],
   );
 
-  const v = useMessageViewport({ rows, hasNewer: history.hasNewer, scroll: history.scroll, resetKey: conversationId, onViewport });
+  // «تيليجرام على التلفون»: a jump to a row already drawn slides; a message that goes turns to dust and the others settle (after the viewport's own hook, so its
+  // scroll anchor has been put back before the rows are compared)
+  const tg = useTgPhone();
+  const logRef = React.useRef<HTMLDivElement>(null);
+  const v = useMessageViewport({ rows, hasNewer: history.hasNewer, scroll: history.scroll, resetKey: conversationId, onViewport, smoothNear: tg && effectOn("transitions") });
+  useMessageMotion({ enabled: tg, rootRef: logRef, messages: history.messages, conversationId });
 
   // ---- the read mark and the arrival sound
   useReadMarking({ conversationId, messages: history.messages, atNewest: history.atNewest, atBottom: nearBottom === true, silent: header.me.oversight });
@@ -221,7 +231,6 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
   const topAt = topId && byId.get(topId) ? new Date(byId.get(topId)!.createdAt) : null;
   // S5.7 (d): «رد بالاقتباس» starts the reply through the bubble's own gesture door, then keeps the piece for the bar and the send
   const gestures = useBubbleGestures();
-  const logRef = React.useRef<HTMLDivElement>(null);
   const quoteReply = React.useCallback(
     (messageId: string, quote: string) => {
       const message = byId.get(messageId);
@@ -235,16 +244,18 @@ export function MessageViewport({ header, history, facts, people }: { header: Co
   );
 
   return (
-    <div ref={logRef} data-message-viewport className="relative flex min-h-0 flex-1 flex-col bg-surface-1">
-      <div ref={v.scrollRef} role="log" aria-label={ct("chatc.log")} data-conversation-id={conversationId} onScroll={flashDate} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+    <div ref={logRef} data-message-viewport {...(tg ? { style: tgMotionVars(["quoteFlashMs", "bubbleGrowMs", "deleteSettleMs"]) as React.CSSProperties } : {})} className="relative flex min-h-0 flex-1 flex-col bg-surface-1">
+      <div ref={v.scrollRef} role="log" aria-label={ct("chatc.log")} data-conversation-id={conversationId} onScroll={flashDate} className={cn("min-h-0 flex-1 overflow-y-auto overscroll-contain", tg && "overflow-x-hidden")}>
         <div className="relative w-full" style={{ height: v.totalSize }}>
           {v.items.map((item) => {
             const r = rows[item.index];
             if (!r) return null;
             const flags = r.type === "message" ? runFlags(history.messages, r.index) : { start: true, end: true };
             return (
-              <div key={item.key} data-index={item.index} ref={v.measureElement} className={`absolute inset-x-0 top-0 px-3 ${rowPadding(r, flags)}`} style={{ transform: `translateY(${item.start}px)` }}>
+              <div key={item.key} data-index={item.index} data-row-key={String(item.key)} ref={v.measureElement} className={`absolute inset-x-0 top-0 px-3 ${rowPadding(r, flags)}`} style={{ transform: `translateY(${item.start}px)` }}>
                 <ViewportRow row={r} env={env} start={flags.start} end={flags.end} highlighted={r.type === "message" && history.highlightId === r.message.id} />
+                {/* the original of a quote that was just tapped lights up across its row */}
+                {tg && r.type === "message" && history.highlightId === r.message.id ? <span aria-hidden="true" data-tg-flash="" className="zk-tg-flash pointer-events-none absolute inset-0 bg-accent/15 opacity-0" /> : null}
               </div>
             );
           })}
