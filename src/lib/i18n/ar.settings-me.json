@@ -1,4 +1,12 @@
 {
+  "profileScreen.title": "الملف الشخصي",
+  "profileScreen.photo": "تغيير الصورة",
+  "profileScreen.edit": "تعديل البيانات",
+  "profileScreen.settings": "الإعدادات",
+  "profileScreen.username": "اسم المستخدم",
+  "profileScreen.job": "المسمى الوظيفي",
+  "profileScreen.bio": "نبذة",
+  "profileScreen.email": "البريد",
   "settingsMe.title": "إعداداتي",
   "push.not_found": "هالمتصفح مش موجود بقائمتك",
   "chatprefs.quick_six": "لازم تكون ستة تفاعلات مختلفة عن بعض",
