@@ -1,6 +1,6 @@
 import { db } from "@/server/db";
 import { NotFoundError } from "@/server/auth";
-import { actorCan, type Actor } from "@/server/policy/actor";
+import { actorCan, actorCanWork, type Actor } from "@/server/policy/actor";
 import { currentSpace } from "@/server/services/current-space";
 import { sectionMay, type SectionMay } from "@/lib/section-may";
 import { resolveTimeZone, zonedParts } from "@/lib/zoned-time";
@@ -47,6 +47,8 @@ export interface DeskFacts {
   accounts: boolean;
   /** the company the person is signed in to: the accounts' doors carry it in their path */
   orgId: string;
+  /** «روتين المهام» (/my-work/routines) exists for this person: the company's «مهمة متكررة» switch on, not a partner, the tasks section readable — the page's own three checks */
+  routines: boolean;
 }
 
 /** «not found» from the board's or the panel's gate means «not theirs»; anything else (the database down) is not swallowed. */
@@ -86,5 +88,6 @@ export async function deskFactsFor(actor: Actor, now: Date = new Date()): Promis
     spaces: mayOverview(actor),
     accounts: actorCan(actor, "users.manage"),
     orgId: actor.orgId,
+    routines: !actor.isExternal && actorCanWork(actor, "tasks.view") && (await actorFeatureOn(actor, "recurringTasks")),
   };
 }
